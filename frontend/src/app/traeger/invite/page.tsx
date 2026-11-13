@@ -1,8 +1,10 @@
 "use client";
 
 // Einladung ins Träger-Büro annehmen (#4650). Der Link aus der Mail führt
-// hierher. Wer noch kein moto-Konto hat, wählt ein Passwort; wer eines hat,
-// bestätigt mit dessen Passwort. Danach meldet die Seite die Person an.
+// hierher. Die Person gibt ihren Namen an (#4693): Er steht im
+// Exportprotokoll und im Verlauf jeder Rechnung. Wer noch kein moto-Konto
+// hat, wählt ein Passwort; wer eines hat, bestätigt mit dessen Passwort.
+// Danach meldet die Seite die Person an.
 
 import {
   Suspense,
@@ -32,6 +34,11 @@ import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import {
+  OWN_NAME_REQUIRED,
+  TRAEGER_NAME_HINT,
+  TRAEGER_NAME_MAX_LENGTH,
+} from "~/lib/traeger-person-name";
+import {
   acceptTraegerInvitation,
   fetchTraegerInvitation,
   traegerLogin,
@@ -39,7 +46,8 @@ import {
 } from "~/lib/traeger-api";
 import { TRAEGER_ROLE_LABELS } from "~/lib/traeger-roles";
 import { traegerPath } from "~/lib/traeger-url";
-import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
+import { Button, ButtonLink } from "~/components/ui/button";
 
 const logger = createLogger({ component: "TraegerInvitePage" });
 
@@ -72,6 +80,7 @@ function InviteForm({
   token,
   invitation,
 }: Readonly<{ token: string; invitation: TraegerInvitationPreview }>) {
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -89,22 +98,29 @@ function InviteForm({
 
   const submit = async () => {
     formErrors.clear();
+    const fields: Record<string, string> = {};
+    if (!name.trim()) fields.name = OWN_NAME_REQUIRED;
     if (!existing) {
-      const fields: Record<string, string> = {};
       if (!requirements.every((requirement) => requirement.met)) {
         fields.password = "Das Passwort erfüllt noch nicht alle Anforderungen.";
       } else if (password !== confirmPassword) {
         fields.confirm_password = "Die Passwörter stimmen nicht überein.";
       }
-      if (Object.keys(fields).length > 0) {
-        formErrors.invalid("Bitte prüfen Sie Ihr Passwort.", fields);
-        return;
-      }
+    }
+    if (Object.keys(fields).length > 0) {
+      formErrors.invalid(
+        fields.name
+          ? "Bitte prüfen Sie Ihre Angaben."
+          : "Bitte prüfen Sie Ihr Passwort.",
+        fields,
+      );
+      return;
     }
     setSubmitting(true);
     let email: string;
     try {
       email = await acceptTraegerInvitation(token, {
+        name: name.trim(),
         password,
         confirmPassword: existing ? undefined : confirmPassword,
       });
@@ -154,6 +170,21 @@ function InviteForm({
         </p>
       </div>
 
+      <Input
+        id="name"
+        name="name"
+        label="Ihr Name"
+        controlSize="compact"
+        autoComplete="name"
+        required
+        disabled={submitting}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        error={formErrors.fieldError("name")}
+        hint={TRAEGER_NAME_HINT}
+        maxLength={TRAEGER_NAME_MAX_LENGTH}
+      />
+
       {existing ? (
         <p className="text-sm text-gray-700">
           Sie haben schon ein moto-Konto. Geben Sie das Passwort dieses Kontos
@@ -173,7 +204,7 @@ function InviteForm({
           id="password"
           name="password"
           type="password"
-          controlSize="compact"
+          controlSize="touch"
           autoComplete={existing ? "current-password" : "new-password"}
           required
           disabled={submitting}
@@ -201,7 +232,7 @@ function InviteForm({
               name="confirm_password"
               type={showPassword ? "text" : "password"}
               label="Passwort wiederholen"
-              controlSize="compact"
+              controlSize="touch"
               autoComplete="new-password"
               required
               disabled={submitting}
@@ -248,6 +279,12 @@ function InviteContent() {
   const { show: showLoadError, clear: clearLoadError } = invitationLoad;
 
   const load = useCallback(async () => {
+    // A link without its token cannot be repaired by waiting; the page says
+    // so instead of asking the server.
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       setInvitation(await fetchTraegerInvitation(token));
@@ -267,6 +304,24 @@ function InviteContent() {
     void load();
   }, [load]);
 
+  if (!token) {
+    return (
+      <div className="space-y-4 text-left">
+        <Alert
+          type="warning"
+          message="Der Link ist unvollständig. Öffnen Sie den Link aus Ihrer Einladungs-Mail noch einmal. Klappt das nicht, bitten Sie das Träger-Büro um eine neue Einladung."
+        />
+        <ButtonLink
+          href={traegerPath("/traeger/login")}
+          variant="outline"
+          size="field"
+          className="w-full"
+        >
+          Zur Anmeldung
+        </ButtonLink>
+      </div>
+    );
+  }
   if (loading) {
     return <Loading message="Einladung wird geprüft …" />;
   }

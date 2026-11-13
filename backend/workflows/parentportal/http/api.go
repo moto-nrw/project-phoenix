@@ -22,9 +22,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	calendarService "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // Resource bundles the parent-portal HTTP handlers + their deps.

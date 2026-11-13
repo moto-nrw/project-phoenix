@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // MFAChallengeCodec signs and parses the short-lived challenge JWTs.
@@ -27,6 +27,14 @@ type MFAMail interface {
 // reset it reports.
 type CatererMFAResetNotice interface {
 	NotifyCatererMFAReset(ctx context.Context, message identityaccess.CatererMFAResetMail, resetKey string) error
+}
+
+// AccountSecurityNotice queues the mails that tell an account holder about
+// an administrator's change to their sign-in (#6862), in the transaction of
+// the change they report and keyed by it.
+type AccountSecurityNotice interface {
+	NotifyMFAResetByAdmin(ctx context.Context, message identityaccess.MFAResetByAdminMail, resetKey string) error
+	NotifyLoginAddressChanged(ctx context.Context, message identityaccess.LoginAddressChangedMail, changeKey string) error
 }
 
 // OperatorActionLog appends an operator entry in the caller's transaction.

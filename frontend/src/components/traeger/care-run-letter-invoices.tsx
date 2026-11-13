@@ -5,6 +5,7 @@
 // Datum) von „an die Familie“ (Stand der Mail). Schreiben, Senden und
 // Stornieren stehen im Menü der Zeile. Nur diese Seite lädt den Code dafür.
 
+import { Eye, Send, Undo2 } from "lucide-react";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import {
   type OverflowMenuItem,
@@ -75,11 +76,13 @@ function rowMenuItems(
   if (actions.created && letter.hasLetter) {
     items.push({
       label: "Schreiben ansehen",
+      icon: <Eye className="size-4" aria-hidden />,
       onClick: () => actions.onShowLetter(letter),
     });
     if (live && canSendMail(letter) && actions.sendingKey === null) {
       items.push({
         label: letter.sends === 0 ? "Senden" : "Erneut senden",
+        icon: <Send className="size-4" aria-hidden />,
         description:
           letter.sends === 0
             ? letter.inInbox
@@ -93,6 +96,7 @@ function rowMenuItems(
   if (!row.storno && !letter.cancelled) {
     items.push({
       label: "Stornieren",
+      icon: <Undo2 className="size-4" aria-hidden />,
       destructive: true,
       onClick: () => actions.onCancel(letter),
     });
@@ -121,7 +125,6 @@ function letterColumns(
       render: (row) => (
         <OverflowMenu
           ariaLabel={`Aktionen für ${row.storno ? "den Storno" : "die Rechnung"} von ${row.invoice.childFirstName} ${row.invoice.childLastName}`}
-          triggerSize="sm"
           items={rowMenuItems(row, actions)}
         />
       ),

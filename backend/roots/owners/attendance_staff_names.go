@@ -3,9 +3,9 @@ package owners
 import (
 	"context"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
 // attendanceNameStaff reads staff members of the school in context with

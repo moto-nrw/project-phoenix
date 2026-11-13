@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
 )
 
 // The account authentication refuses to compose without its repositories,

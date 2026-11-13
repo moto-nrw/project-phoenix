@@ -5,7 +5,7 @@ status: accepted
 # A booking change reports hand-maintained Regeltermine
 
 Decision of 2026-10-27 for
-[#5102](https://github.com/moto-nrw/project-phoenix/issues/5102). It approves
+[#5102](https://github.com/moto-ogs/project-phoenix/issues/5102). It approves
 five command-effect diagnostics and raises two composition LOC budgets by six
 lines. It adds no owner, no policy rule and no runtime exception.
 

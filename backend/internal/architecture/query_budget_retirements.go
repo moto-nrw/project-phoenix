@@ -14,7 +14,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/architecture/querybudget"
+	"github.com/moto-ogs/project-phoenix/architecture/querybudget"
 )
 
 // The retirement register and the route table golden of

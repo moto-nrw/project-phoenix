@@ -1,5 +1,6 @@
 {
   "activity_participant_limit_reached": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "room_capacity_exceeded": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-  "statistics_range_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані."
+  "statistics_range_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "visit_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан."
 }

@@ -6,7 +6,7 @@ import (
 	time "time"
 
 	sentry "github.com/getsentry/sentry-go"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // reportMirrorPanic sends the panic to Sentry on the hub of the request or

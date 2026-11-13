@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type RequestDiffs struct {
@@ -79,6 +79,11 @@ func (s *RequestDiffs) Snapshot(ctx context.Context, request *carerequests.Reque
 			"error", err.Error(),
 		)
 		return nil
+	}
+	if request.RequestKind != "pickup_change" && request.RequestKind != carerequests.KindPickupPermission {
+		// The baseline came from this same plan read, so a hint names a
+		// real change since the family submitted (#6990).
+		diff = carerequests.MarkSubmittedBaseline(diff, request.Payload)
 	}
 	return carerequests.FreezeDecision(diff)
 }

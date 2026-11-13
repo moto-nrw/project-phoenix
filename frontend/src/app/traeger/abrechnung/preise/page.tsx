@@ -9,7 +9,10 @@
 import { Tags } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import {
   careSchools,
   formatMonth,
@@ -29,7 +32,11 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
-import { berlinTodayISO } from "~/lib/date-helpers";
+import {
+  type CareRule,
+  fetchCareRules,
+} from "~/lib/traeger-care-reductions-api";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import {
   type CareTariffs,
@@ -49,7 +56,9 @@ interface SchoolRef {
 export default function TraegerPreislistePage() {
   // `useSearchParams` braucht eine Suspense-Grenze; bis dahin lädt die Seite.
   return (
-    <Suspense fallback={<TenantPage title="Abrechnung" loading />}>
+    <Suspense
+      fallback={<TenantPage title={billingAreaTitle("preise")} loading />}
+    >
       <PriceListPage />
     </Suspense>
   );
@@ -58,7 +67,7 @@ export default function TraegerPreislistePage() {
 function PriceListPage() {
   const searchParams = useSearchParams();
   const focusSchool = searchParams?.get(SCHOOL_PARAM) ?? "";
-  const currentMonth = monthOf(berlinTodayISO());
+  const currentMonth = monthOf(useBerlinToday());
   const [data, setData] = useState<CareTariffs | null>(null);
   const [shown, setShown] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<SchoolRef | null>(null);
@@ -70,6 +79,24 @@ function PriceListPage() {
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const deleteErrors = useApiFormError();
   const { success } = useToast();
+
+  // The sibling rules decide whether the list's sibling prices are charged;
+  // without them (not loaded, no right) the cells keep showing them.
+  const [siblingRules, setSiblingRules] = useState<readonly CareRule[] | null>(
+    null,
+  );
+  useEffect(() => {
+    fetchCareRules()
+      .then((set) =>
+        setSiblingRules(set.rules.filter((rule) => rule.kind === "sibling")),
+      )
+      .catch((err: unknown) => {
+        // Silent on purpose: the page shows the sibling prices as before.
+        logger.warn("traeger_care_rules_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -120,7 +147,7 @@ function PriceListPage() {
       logger.error("care_price_list_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void deleteErrors.show(err, { object: "die Preise" });
+      void deleteErrors.show(err, { object: "die Preisliste" });
     } finally {
       setBusy(false);
     }
@@ -141,7 +168,7 @@ function PriceListPage() {
 
   return (
     <TenantPage
-      title="Abrechnung"
+      title={billingAreaTitle("preise")}
       info="Hier legen Sie die Monatspreise fest. Jede Schule hat eigene Preise, je Modul und gebuchtem Wochentag. Neue Preise gelten ab dem 1. eines Monats. Ferienpreise legen Sie im Ferienzeitraum fest."
       stats={
         data && modules > 0 ? (
@@ -216,25 +243,54 @@ function PriceListPage() {
         />
       ) : null}
       {data
-        ? schools.map((school) => (
-            <div
-              key={school.id}
-              id={`care-prices-${school.id}`}
-              className="scroll-mt-24"
-            >
-              <CarePriceListCard
-                data={data}
-                school={school}
-                shownMonth={shownMonth(school.id)}
-                currentMonth={currentMonth}
-                onShownMonthChange={(month) =>
-                  setShown((current) => ({ ...current, [school.id]: month }))
-                }
-                onEdit={() => setEditing(school)}
-                onDelete={(validFrom) => setDeleting({ ...school, validFrom })}
-              />
-            </div>
-          ))
+        ? schools.map((school) => {
+            const selectedMonth = shownMonth(school.id);
+            const currentStand = standAt(
+              priceStands(data, school.id),
+              currentMonth,
+            );
+            // A list that holds now uses today’s month, not its start month.
+            // Earlier and planned lists keep their selected month.
+            const ruleMonth =
+              selectedMonth <= currentMonth && selectedMonth === currentStand
+                ? currentMonth
+                : selectedMonth || currentMonth;
+            return (
+              <div
+                key={school.id}
+                id={`care-prices-${school.id}`}
+                className="scroll-mt-24"
+              >
+                <CarePriceListCard
+                  data={data}
+                  school={school}
+                  shownMonth={selectedMonth}
+                  currentMonth={currentMonth}
+                  onShownMonthChange={(month) =>
+                    setShown((current) => ({ ...current, [school.id]: month }))
+                  }
+                  onEdit={() => setEditing(school)}
+                  onDelete={(validFrom) =>
+                    setDeleting({ ...school, validFrom })
+                  }
+                  siblingPricesApply={(careOfferingId) =>
+                    siblingRules === null ||
+                    siblingRules.some(
+                      (rule) =>
+                        rule.tariffSiblingPrice === true &&
+                        (rule.schoolIds.length === 0 ||
+                          rule.schoolIds.includes(school.id)) &&
+                        (rule.careOfferingIds.length === 0 ||
+                          rule.careOfferingIds.includes(careOfferingId)) &&
+                        rule.validFrom <= ruleMonth &&
+                        (rule.validUntil === null ||
+                          rule.validUntil >= ruleMonth),
+                    )
+                  }
+                />
+              </div>
+            );
+          })
         : null}
     </TenantPage>
   );

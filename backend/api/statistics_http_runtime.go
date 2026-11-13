@@ -4,12 +4,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	statisticsAPI "github.com/moto-ogs/project-phoenix/modules/statistics/http"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	presenceStudentsHTTP "github.com/moto-ogs/project-phoenix/modules/studentpresence/http"
 )
 
 func statisticsHTTPRuntime(renderer *lists.RendererService) statisticsAPI.Runtime {

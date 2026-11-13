@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/internal/ports"
 )
 
 // Administration holds the collaborators of the administrative period write

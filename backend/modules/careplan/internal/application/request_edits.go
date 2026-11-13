@@ -5,17 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type RequestEdits struct {
 	Records ports.RequestEditRecords
 	Pickup  ports.RequestSubmissionPickup
 	Events  ports.RequestEditEvents
-	Today   func() calendar.Date
+	// Baseline reads the plan the family sees (#6990).
+	Baseline ports.RequestWeeklyBaseline
+	Today    func() calendar.Date
 }
 
 // EditRequest runs in the caller's tenant transaction. Ownership precedes
@@ -58,6 +60,10 @@ func (s *RequestEdits) payload(ctx context.Context, request carerequests.Request
 	if request.RequestKind != "pickup_change" {
 		canonical, err := carerequests.CanonicalizeWeekly(input.Payload)
 		if err != nil {
+			return nil, err
+		}
+		// An edit is a new ask against the plan the family sees now (#6990).
+		if canonical, err = withWeeklyBaseline(ctx, s.Baseline, input.StudentID, canonical); err != nil {
 			return nil, err
 		}
 		return carerequests.WithSignature(canonical, input.Signature)

@@ -136,36 +136,22 @@ import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { RemovableChip } from "~/components/ui/removable-chip";
 import { FormFieldset } from "~/components/ui/form-fieldset";
+import {
+  PHASE_AUDIENCE_LABELS,
+  PHASE_CARE_SELECTION_LABELS,
+  PHASE_KIND_LABELS,
+  PHASE_OVERFLOW_LABELS,
+} from "~/lib/enrollment-phase-labels";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
-const KIND_LABELS: Record<PhaseKind, string> = {
-  school_year: "Schuljahr",
-  holiday: "Ferienbetreuung",
-  custom: "Sonstiges",
-};
-
-const OVERFLOW_LABELS: Record<PhaseCareOverflowMode, string> = {
-  waitlist: "Auf Warteliste setzen",
-  reject: "Anmeldung blockieren",
-  allow: "Ohne Hinweis akzeptieren",
-};
-
-const CARE_SELECTION_LABELS: Record<CareOfferingSelectionMode, string> = {
-  optional: "Optional",
-  at_least_one: "Mindestens ein Angebot",
-  exactly_one: "Genau ein Angebot",
-};
+const KIND_LABELS = PHASE_KIND_LABELS;
+const OVERFLOW_LABELS = PHASE_OVERFLOW_LABELS;
+const CARE_SELECTION_LABELS = PHASE_CARE_SELECTION_LABELS;
+const AUDIENCE_LABELS = PHASE_AUDIENCE_LABELS;
 
 // Entspricht careplan.MaxCareExitBatchSize: jede Gruppe wird einzeln bestätigt.
 const CARE_EXIT_BATCH_SIZE = 500;
-
-const AUDIENCE_LABELS: Record<PhaseAudience, string> = {
-  open: "Offen für alle",
-  new_students: "Nur neue Kinder",
-  existing_students: "Nur bereits angemeldete Kinder",
-  linked_parents: "Nur Eltern mit Konto an der Schule",
-};
 
 // Compact labels for the phases table badge (the full labels are too long
 // for a table cell). "open" needs no badge, so it is intentionally omitted.
@@ -651,7 +637,7 @@ export function PhasesEditor() {
     if (!deleteTarget) return;
     // Hard guard mirroring the modal's confirmDisabled gate: never delete
     // until the blast-radius preview has loaded successfully.
-    if (impactLoading || !deleteImpact || impactLoad.error) return;
+    if (!canDeletePhase(impactLoading, deleteImpact, impactLoad.error)) return;
     const phase = deleteTarget;
     setDeletingId(phase.id);
     clearDeleteErrors();
@@ -1157,33 +1143,19 @@ export function PhasesEditor() {
                 <p>
                   Möchten Sie die Anmeldephase{" "}
                   <span className="font-medium">„{deleteTarget.name}“</span>{" "}
-                  wirklich endgültig löschen? Sind noch Kinder gebucht, geht das
-                  erst, wenn ihre Buchungen beendet sind.
+                  wirklich endgültig löschen?
                 </p>
               }
               warningSlot={
-                <div className="space-y-2">
-                  <PhaseDeleteImpactAlert
-                    loading={impactLoading}
-                    failed={Boolean(impactLoad.error)}
-                    impact={deleteImpact}
-                  />
-                  {!impactLoading && deleteImpact && (
-                    <Alert
-                      type="success"
-                      announce="off"
-                      message={
-                        deleteImpact.students_kept === 1
-                          ? "1 bereits angelegtes Kind bleibt erhalten."
-                          : `${deleteImpact.students_kept} bereits angelegte Kinder bleiben erhalten.`
-                      }
-                    />
-                  )}
-                </div>
+                <PhaseDeleteImpactAlert
+                  loading={impactLoading}
+                  failed={Boolean(impactLoad.error)}
+                  impact={deleteImpact}
+                />
               }
               gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
               confirmDisabled={
-                impactLoading || !deleteImpact || Boolean(impactLoad.error)
+                !canDeletePhase(impactLoading, deleteImpact, impactLoad.error)
               }
               onConfirm={confirmDelete}
               onClose={closeDelete}
@@ -1260,9 +1232,20 @@ interface PhaseFormProps {
   readonly fieldError: (name: string) => string | undefined;
 }
 
+// Löschen geht erst mit geladener Vorschau und nur ohne Anmeldungen (#6836).
+function canDeletePhase(
+  loading: boolean,
+  impact: PhaseDeleteImpact | null,
+  loadError: unknown,
+): boolean {
+  return !loading && !loadError && impact !== null && impact.requests === 0;
+}
+
 // Warnung im Löschdialog: was beim Löschen der Phase endgültig wegfällt.
 // Orange über Alert wie jede Warnung (#5591). Lädt die Vorschau noch oder
-// fehlt sie, steht statt der Liste der passende Satz.
+// fehlt sie, steht statt der Liste der passende Satz. Hat die Phase
+// Anmeldungen, sperrt das Backend das Löschen (#6836): Sie bleiben als
+// Nachweis, der Dialog nennt stattdessen „Deaktivieren“.
 function PhaseDeleteImpactAlert({
   loading,
   failed,
@@ -1272,6 +1255,20 @@ function PhaseDeleteImpactAlert({
   failed: boolean;
   impact: PhaseDeleteImpact | null;
 }>) {
+  if (!loading && !failed && impact && impact.requests > 0) {
+    return (
+      <Alert
+        type="warning"
+        announce="off"
+        title="Diese Anmeldephase kann nicht gelöscht werden."
+        message={`${
+          impact.requests === 1
+            ? "Zu ihr gibt es 1 Anmeldung"
+            : `Zu ihr gibt es ${impact.requests} Anmeldungen`
+        }. Wählen Sie stattdessen „Deaktivieren“.`}
+      />
+    );
+  }
   const title = "Diese Aktion kann nicht rückgängig gemacht werden:";
   let details: ReactNode = null;
   if (loading) {
@@ -1286,11 +1283,6 @@ function PhaseDeleteImpactAlert({
   } else if (impact) {
     details = (
       <ul className="list-inside list-disc space-y-0.5">
-        <li>
-          {impact.requests === 1
-            ? "1 Anmeldung wird endgültig gelöscht"
-            : `${impact.requests} Anmeldungen werden endgültig gelöscht`}
-        </li>
         <li>
           {impact.care_offerings === 1
             ? "1 Betreuungsangebot wird endgültig gelöscht"
@@ -1694,7 +1686,7 @@ function PhaseForm(props: PhaseFormProps) {
           <div>
             <ISODatePicker
               id="service_start_date"
-              controlSize="md"
+              controlSize="compact"
               label="Beginn"
               ariaLabel="Beginn"
               value={draft.service_start_date}
@@ -1723,7 +1715,7 @@ function PhaseForm(props: PhaseFormProps) {
           <div>
             <ISODatePicker
               id="service_end_date"
-              controlSize="md"
+              controlSize="compact"
               label="Ende"
               ariaLabel="Ende"
               min={draft.service_start_date || undefined}

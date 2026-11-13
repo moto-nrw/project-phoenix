@@ -882,11 +882,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/peopledirectory/internal/application/Service.DeletePerson",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/peopledirectory/internal/application/Service.DeleteStudent",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

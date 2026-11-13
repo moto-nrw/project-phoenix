@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The Audit adapters read the tenant from their own handoff on the context.

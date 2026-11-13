@@ -92,11 +92,11 @@ Screenshots, Videos, Traces und automatische DOM-Fehlerabbilder sind aus.
 Für die Portale gibt es getrennte Dateien vor der Anmeldung und für den
 Sitzungsübergang samt geschützter Seite sowie eine gemeinsame Aufzeichnung.
 **PR-CI, nicht nur lokal:** Der separate Workflow **Frontend E2E**
-(`.github/workflows/e2e.yml`) führt im Job `e2e` (**Playwright E2E flows**)
+(`.github/workflows/e2e.yml`) führt im Job **Playwright network evidence**
 den Schritt **Run portal network evidence** mit `pnpm run test:network` aus.
 Dieser Schritt verwendet den oben beschriebenen gesperrten Node-Resolver.
-Danach folgt **Upload sanitized network evidence**, anschließend
-**Run E2E flows** für die bisherigen geseedeten Tests. Die Netzwerksuite
+Danach folgt **Upload sanitized network evidence**. Die geseedeten Tests
+laufen parallel dazu in den Jobs **Playwright E2E flows**. Die Netzwerksuite
 gehört nicht zum Job `Lint / Frontend build` des Hauptworkflows.
 
 Der E2E-Workflow ist kein Required Check. Er läuft auf PRs gegen
@@ -106,7 +106,7 @@ werktags geplant und per `workflow_dispatch`. PR #4862 trifft diese Pfadfilter.
 
 Bereits am Head `9876f3baa147b45dab76b16a4b66de9e2e81b2e7` wurde die
 CI-Ausführung bestätigt, nicht nur aus der YAML abgeleitet:
-[Joblog, Run 40019687870](https://github.com/moto-nrw/project-phoenix/actions/runs/40019687870/job/120640704783).
+[Joblog, Run 40019687870](https://github.com/moto-ogs/project-phoenix/actions/runs/40019687870/job/120640704783).
 Der Log zeigt am 23.10.2026 um 20:32:43 UTC `pnpm run test:network`,
 danach `Running 11 tests using 1 worker` und um 20:34:05 UTC
 `11 passed (1.4m)`. Auch Artefakt-Upload und nachfolgender E2E-Schritt waren
@@ -421,7 +421,7 @@ which measures with Umami, not PostHog. So does the intake form behind
 
 ## Privacy policy (website, `moto-ogs.de/datenschutz`)
 
-The website lives in `moto-nrw/website`, not in this repository. The demo
+The website lives in `moto-ogs/website`, not in this repository. The demo
 notice links to its privacy page. The paragraphs below are a draft for that
 page and need legal review before they go live; the Analyse-Freigabe also
 needs the school's or Träger's written consent (AVV addendum) before the moto

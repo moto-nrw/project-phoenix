@@ -1,6 +1,6 @@
 package compose
 
-import "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
+import "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application"
 
 // StudentFieldAuditLog is the Audit Platform seam behind the per-child change
 // history. The composition root binds it: Audit Platform owns the trail and

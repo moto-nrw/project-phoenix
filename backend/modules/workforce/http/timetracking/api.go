@@ -12,12 +12,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Error message constants
@@ -535,7 +535,7 @@ func (rs *Resource) cancelAbsence(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := tenant.FromContext(r.Context())
 	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
-		return rs.StaffAbsenceService.CancelAbsence(ctx, staffID, userClaims.AccountID, absenceID)
+		return rs.AbsenceWrites.CancelAbsence(ctx, staffID, userClaims.AccountID, absenceID)
 	}); err != nil {
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return

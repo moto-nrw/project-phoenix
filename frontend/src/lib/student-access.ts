@@ -38,6 +38,17 @@ export function canCheckInChildren(session: Session | null): boolean {
 }
 
 /**
+ * Whether the session may check children in straight into a room or an
+ * activity (#6953): the check-in right plus the move right `visits:update`,
+ * the two gates of POST /api/active/visits/check-in-to-group and -room.
+ */
+export function canCheckInToRooms(session: Session | null): boolean {
+  return (
+    canCheckInChildren(session) && grantedOrUnclaimed(session, "visits:update")
+  );
+}
+
+/**
  * Whether the session may export the child list (POST /api/students/export,
  * `users:read`). The role „Gast“ reads children without exports (ADR 0091).
  */

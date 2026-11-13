@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 const fakeCareRequestID int64 = 41
@@ -379,4 +379,87 @@ func TestPreviousDepartureModesPreferTheDayValue(t *testing.T) {
 	modes, err = previousDepartureModes(ctx, &departurePlan{weekly: weekly}, fakeStudentID, wednesday)
 	require.NoError(t, err)
 	assert.Equal(t, []string{careplan.DepartureModeAlone}, modes, "a weekday without a set reads as alone")
+}
+
+type recordedPickupChanges struct {
+	notices []ports.PickupChangeNotice
+}
+
+func (r *recordedPickupChanges) NotifyPickupChangeApproved(_ context.Context, notice ports.PickupChangeNotice) error {
+	r.notices = append(r.notices, notice)
+	return nil
+}
+
+// TestApprovedPickupTimeTellsTheTeam pins #6855: the one-day pickup time a
+// family asked for becomes current on approval, and only then is the team
+// told; a rejection, an Abholart alone and a weekly plan stay silent.
+func TestApprovedPickupTimeTellsTheTeam(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		request *carerequests.Request
+		approve bool
+		want    []ports.PickupChangeNotice
+	}{
+		{"pickup approved", pickupCareRequest(pickupTimeAndModePayload), true, []ports.PickupChangeNotice{{
+			TenantID: fakeTenantID, StudentID: fakeStudentID, Date: calendar.NewDate(2026, 9, 21), PickupTime: "14:30",
+			ReviewerAccountID: fakeReviewer, RequestID: fakeCareRequestID,
+		}}},
+		{"pickup rejected", pickupCareRequest(pickupTimeAndModePayload), false, nil},
+		{"mode only approved", pickupCareRequest(`{"date":"2026-09-21","departure_mode":"pickup"}`), true, nil},
+		{"weekly approved", weeklyCareRequest(), true, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			notices := &recordedPickupChanges{}
+			effects, err := NewCareRequestEffects(CareRequestEffectPorts{
+				Records: careRequestRows{}, Students: careRequestNames{}, Messenger: &careRequestMessenger{}, PickupChanges: notices,
+			}, newFakeHooks())
+			require.NoError(t, err)
+
+			require.NoError(t, effects.RegisterDecision(context.Background(), tc.request,
+				carerequests.DecideInput{Approve: tc.approve, ReviewedBy: fakeReviewer}, "Kein Platz", false))
+			assert.Equal(t, tc.want, notices.notices)
+		})
+	}
+}
+
+// TestCorrectedPickupDecisionTellsTheTeam: a correction that takes an
+// approved one-day pickup time back tells the team it no longer applies; one
+// that approves it after all announces the new time.
+func TestCorrectedPickupDecisionTellsTheTeam(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		previous   string
+		approve    bool
+		wantNotice bool
+	}{
+		{"withdraw approval", carerequests.StatusApproved, false, true},
+		{"approve rejection", carerequests.StatusRejected, true, true},
+		{"reapply approval", carerequests.StatusApproved, true, true},
+		{"correct rejection reason", carerequests.StatusRejected, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			notices := &recordedPickupChanges{}
+			effects, err := NewCareRequestEffects(CareRequestEffectPorts{
+				Records: careRequestRows{}, Students: careRequestNames{}, Messenger: &careRequestMessenger{}, PickupChanges: notices,
+			}, newFakeHooks())
+			require.NoError(t, err)
+			request := pickupCareRequest(pickupTimeAndModePayload)
+			request.Status = tc.previous
+
+			require.NoError(t, effects.NotifyCorrection(context.Background(), request, fakeReviewer, tc.approve, "Versehen"))
+			if !tc.wantNotice {
+				assert.Empty(t, notices.notices, "no approved time was withdrawn")
+				return
+			}
+			assert.Equal(t, []ports.PickupChangeNotice{{
+				TenantID: fakeTenantID, StudentID: fakeStudentID, Date: calendar.NewDate(2026, 9, 21), PickupTime: "14:30",
+				Withdrawn: !tc.approve, ReviewerAccountID: fakeReviewer, RequestID: fakeCareRequestID,
+			}}, notices.notices)
+		})
+	}
 }

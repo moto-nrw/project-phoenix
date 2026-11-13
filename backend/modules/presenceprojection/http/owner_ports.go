@@ -3,8 +3,8 @@ package presenceprojectionhttp
 import (
 	context "context"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SchoolGroup is an OGS group (Gruppe) as these routes show it. RoomName is

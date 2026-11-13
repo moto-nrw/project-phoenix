@@ -5,10 +5,10 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/application"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -35,8 +35,8 @@ type ScheduleReviewDependencies struct {
 }
 
 func NewScheduleReviews(db *bun.DB, observe func(Observation), deps ScheduleReviewDependencies) (careplan.CareScheduleReviewQuery, error) {
-	if db == nil || observe == nil || deps.People == nil || deps.Bookings == nil || deps.Classes == nil || deps.Scope == nil || deps.BookingsAuthoritative == nil || deps.Today == nil || deps.Blocks != nil && deps.Fingerprint == nil {
-		return nil, errors.New("care schedule reviews: database, observer, people, bookings, classes, scope, booking policy, clock, and impact fingerprint for block previews are required")
+	if db == nil || observe == nil || deps.People == nil || deps.Bookings == nil || deps.Classes == nil || deps.Scope == nil || deps.BookingsAuthoritative == nil || deps.Today == nil || deps.Fingerprint == nil {
+		return nil, errors.New("care schedule reviews: database, observer, people, bookings, classes, scope, booking policy, clock, and impact fingerprint are required")
 	}
 	requests, err := NewCareScheduleRequestQueries(db, deps.StudentDirectory, observe)
 	if err != nil {

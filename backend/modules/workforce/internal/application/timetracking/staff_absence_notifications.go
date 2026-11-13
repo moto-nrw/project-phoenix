@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 const absenceEmailDateLayout = "02.01.2006"

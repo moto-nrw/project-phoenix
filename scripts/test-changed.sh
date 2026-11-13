@@ -54,6 +54,22 @@ if [ "$FAST" = true ]; then
   fi
 fi
 
+# A new migration that sorts below the newest one of the base reaches deployed
+# databases after it. TestLateMigrationsYieldTheFreshSchema replays that order
+# for the migrations named here (ADR 0223); without one it has nothing to do.
+if [ "${#affected[@]}" -gt 0 ] && [ -z "${PHX_LATE_MIGRATIONS+set}" ] &&
+  [ -n "$(git diff --no-renames --diff-filter=A --name-only "$BASE" -- backend/database/migrations
+    git ls-files --others --exclude-standard -- backend/database/migrations)" ]; then
+  PHX_LATE_MIGRATIONS=$(node "$repo_root/scripts/check-migration-versions.mjs" --late "$BASE")
+  export PHX_LATE_MIGRATIONS
+  if [ -n "$PHX_LATE_MIGRATIONS" ]; then
+    echo "==> late migrations, replayed in deployment order: $PHX_LATE_MIGRATIONS"
+    # The replay runs the role migrations, which refuse an empty password.
+    # The roles exist on the test server, so this fixture value is not applied.
+    export PHOENIX_AUTH_PASSWORD="${PHOENIX_AUTH_PASSWORD:-phoenix_auth_test}"
+  fi
+fi
+
 if [ "${#affected[@]}" -gt 0 ]; then
   # Match the full suite's CPU/RAM/I/O budget. -parallel remains a stable
   # test-cache and DB-pool input rather than following the machine's CPUs.

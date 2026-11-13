@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // The school login, the school session mint, the school switch and the

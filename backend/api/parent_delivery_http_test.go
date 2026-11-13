@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"testing"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	parentAPI "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

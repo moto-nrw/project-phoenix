@@ -36,14 +36,19 @@ const COLUMNS: DataTableColumn<HolidayPeriod>[] = [
     render: (period) =>
       formatDateRange(period.registrationOpensOn, period.registrationClosesOn),
     sortValue: (period) => period.registrationOpensOn,
-    stacked: "meta",
+    stacked: "hidden",
   },
   {
+    // On a phone the line under the name: the care weeks, then the
+    // registration window with its own label (only the status is meta).
     key: "weeks",
     header: "Wochen",
     render: (period) => formatWeeks(period),
+    stackedRender: (period) =>
+      `${formatWeeks(period)} · Anmeldung ${formatDateRange(period.registrationOpensOn, period.registrationClosesOn)}`,
+    // The weeks name themselves; the label would only stand in front.
+    stackedLabel: false,
     sortValue: (period) => period.weeks[0]?.startsOn ?? null,
-    stacked: "meta",
   },
   {
     key: "status",
@@ -94,11 +99,17 @@ export default function TraegerHolidayPeriodsPage() {
             href={traegerPath("/traeger/ferien/kriterien")}
             variant="outline"
             size="md"
+            className="gap-2"
           >
             <ListChecks className="h-4 w-4" aria-hidden="true" />
             Kriterien der Platzvergabe
           </ButtonLink>
-          <ButtonLink href={newHref} variant="primary" size="md">
+          <ButtonLink
+            href={newHref}
+            variant="primary"
+            size="md"
+            className="gap-2"
+          >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Ferienzeitraum anlegen
           </ButtonLink>
@@ -113,6 +124,7 @@ export default function TraegerHolidayPeriodsPage() {
         loadingRowCount={3}
         stackedOnMobile
         stackedLayout="row"
+        stackedDetailKey="weeks"
         onRowClick={(period) =>
           router.push(traegerPath(`/traeger/ferien/${period.id}`))
         }

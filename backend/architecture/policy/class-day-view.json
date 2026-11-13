@@ -8,6 +8,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/classday/http/behaviortest",
+      "owner": "class-day-view",
+      "role": "test-support",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/classday",
       "owner": "class-day-view",
       "role": "public",

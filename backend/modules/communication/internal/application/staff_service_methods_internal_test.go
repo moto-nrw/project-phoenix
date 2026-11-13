@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/roots/communicationtest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/roots/communicationtest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -109,6 +109,9 @@ func (m *mockRepo) FindByIDForUpdate(ctx context.Context, id int64) (*StaffParen
 func (m *mockRepo) Delete(ctx context.Context, id int64) error { return m.deleteFn(ctx, id) }
 func (m *mockRepo) ListForTenant(ctx context.Context, includeInactive bool) ([]*StaffParentAnnouncement, error) {
 	return m.listForTenantFn(ctx, includeInactive)
+}
+func (m *mockRepo) RecordRecipients(context.Context, int64, int64) error {
+	return nil
 }
 func (m *mockRepo) SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {
 	return m.setPublishedFn(ctx, id, publishedAt)

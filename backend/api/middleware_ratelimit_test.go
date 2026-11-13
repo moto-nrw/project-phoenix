@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
-	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	customMiddleware "github.com/moto-ogs/project-phoenix/middleware"
 	"github.com/stretchr/testify/assert"
 )
 

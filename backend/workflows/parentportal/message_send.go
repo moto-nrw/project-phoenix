@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
 var ErrMessageSendConflict = errors.New("message send key already belongs to another message")

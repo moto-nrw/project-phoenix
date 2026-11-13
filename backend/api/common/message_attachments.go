@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/api/common/imagemeta"
+	"github.com/moto-ogs/project-phoenix/api/common/imagemeta"
 )
 
 // Shared inbound helpers of the photos and files of chat messages (#6685).

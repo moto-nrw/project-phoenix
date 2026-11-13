@@ -200,6 +200,9 @@ type Enqueued struct {
 var (
 	ErrCancelled = errors.New("delivery: provider cancelled the intent")
 	ErrDeferred  = errors.New("delivery: provider deferred the intent")
+	// ErrThrottled refines ErrDeferred: the mail server asked to send later
+	// (#6737). The worker waits longer the older the mail is.
+	ErrThrottled = errors.New("delivery: provider throttled the intent")
 	// ErrPermanent marks a rejection that no retry can change. The intent
 	// dead-letters on this attempt, so the failure is still reported.
 	ErrPermanent = errors.New("delivery: provider rejected the intent permanently")

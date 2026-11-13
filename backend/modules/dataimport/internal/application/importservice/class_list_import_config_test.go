@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/classlist"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/classlist"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 func classListRow(firstName, lastName, schoolClass string) importModels.ClassListEntryImportRow {

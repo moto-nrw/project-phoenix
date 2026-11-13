@@ -393,7 +393,7 @@ export function StudentDokumenteTab({
                   label: category.label,
                 }))}
                 onChange={(value) => setUploadCategory(value)}
-                controlSize="compact"
+                controlSize="dense"
                 className="w-56"
               />
             </div>
@@ -428,7 +428,7 @@ export function StudentDokumenteTab({
               value={filter}
               options={filterItems}
               onChange={setFilter}
-              controlSize="compact"
+              controlSize="dense"
               className="w-56"
             />
           </div>

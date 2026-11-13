@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	postgresNative "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	postgresNative "github.com/moto-ogs/project-phoenix/modules/careplan/internal/adapters/postgres"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/uptrace/bun"
 )
 

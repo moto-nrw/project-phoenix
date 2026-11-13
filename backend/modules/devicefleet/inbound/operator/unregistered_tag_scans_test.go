@@ -14,8 +14,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/inbound/operator"
 )
 
 // The review routes answer in the operator surface's format; these cases pin

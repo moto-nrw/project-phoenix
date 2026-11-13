@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
+	"github.com/moto-ogs/project-phoenix/internal/schoolclass"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 // requireStaff resolves the staff existence check shared by both class

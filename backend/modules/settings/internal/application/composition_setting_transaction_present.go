@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func AttachSettingUnit[U any](ctx context.Context, unit *U, attach func(context.Context, U) context.Context) context.Context {

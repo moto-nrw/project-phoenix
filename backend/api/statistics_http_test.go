@@ -23,14 +23,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	statisticsAPI "github.com/moto-ogs/project-phoenix/modules/statistics/http"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 type statisticsHTTPTestContext struct {
@@ -314,10 +314,9 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	insertAttendance(t, tc.db, tenantID, anna.ID, device.ID, calendar.NewDate(2026, 6, 8))
 	insertAttendance(t, tc.db, tenantID, anna.ID, device.ID, calendar.NewDate(2026, 6, 9))
 	insertAttendance(t, tc.db, tenantID, anna.ID, device.ID, calendar.NewDate(2026, 6, 10))
-	// Bert: sick Mon (sick beats an excused row on the same day), class trip
+	// Bert: sick Mon (one standing status per day, #6958), class trip
 	// Wed (counts as excused even though archived by end-of-day), present Thu.
 	insertStatusDay(t, tc.db, tenantID, bert.ID, calendar.NewDate(2026, 6, 8), careplan.StudentStatusDaySick)
-	insertStatusDay(t, tc.db, tenantID, bert.ID, calendar.NewDate(2026, 6, 8), careplan.StudentStatusDayExcused)
 	insertEndOfDayStatusDay(t, tc.db, tenantID, bert.ID, calendar.NewDate(2026, 6, 10), careplan.StudentStatusDayClassTrip)
 	insertAttendance(t, tc.db, tenantID, bert.ID, device.ID, calendar.NewDate(2026, 6, 11))
 

@@ -13,7 +13,7 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // errReviewerRequired refuses a call without the Büro's Träger and account.

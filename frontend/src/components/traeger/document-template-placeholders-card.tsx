@@ -49,7 +49,7 @@ export function DocumentTemplatePlaceholdersCard({
       title="Platzhalter"
       description={
         onInsert
-          ? "Tippen Sie auf einen Platzhalter. moto setzt ihn im Brieftext dort ein, wo Sie gerade schreiben. Für jede Familie füllt moto ihn aus."
+          ? "Wählen Sie einen Platzhalter. moto setzt ihn im Brieftext dort ein, wo Sie gerade schreiben. Für jede Familie füllt moto ihn aus."
           : "Schreiben Sie einen Platzhalter mit zwei geschweiften Klammern in den Text. moto füllt ihn für jede Familie aus. Andere Platzhalter nimmt moto nicht an."
       }
     >
@@ -57,18 +57,23 @@ export function DocumentTemplatePlaceholdersCard({
         <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
           {placeholders.map((placeholder) => (
             <li key={placeholder.name} className="min-w-0">
+              {/* Der Name kommt aus dem sichtbaren Text, damit er ihn enthält
+                  (Sprachsteuerung); die geschweiften Klammern liest die
+                  Vorlesehilfe nicht vor. */}
               <Button
                 type="button"
                 variant="outline"
                 size="compact"
                 disabled={disabled}
-                aria-label={`Platzhalter „${labelOf(placeholder)}“ einfügen`}
                 onClick={() => onInsert(placeholder)}
                 className="w-full min-w-0 justify-between gap-3"
               >
-                <code className="shrink-0">{`{{${placeholder.name}}}`}</code>
+                <code aria-hidden="true" className="shrink-0">
+                  {`{{${placeholder.name}}}`}
+                </code>
                 <span className="min-w-0 truncate text-gray-600">
-                  {labelOf(placeholder)}
+                  <span className="sr-only">{`Platzhalter „${labelOf(placeholder)}“ einfügen`}</span>
+                  <span aria-hidden="true">{labelOf(placeholder)}</span>
                 </span>
               </Button>
             </li>

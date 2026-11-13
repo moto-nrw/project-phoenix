@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"slices"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // The children of the family on the status page of a registration (#6335);

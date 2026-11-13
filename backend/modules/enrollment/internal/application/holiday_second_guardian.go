@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	validation "github.com/go-ozzo/ozzo-validation"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/contact"
 )
 
 // A blank optional card is absent. Copy before normalizing so the caller's

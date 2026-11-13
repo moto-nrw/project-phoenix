@@ -57,14 +57,16 @@ export function PageBody({
   empty?: PageBodyEmpty;
   children?: ReactNode;
 }>) {
-  const NotBookedState = useNotBookedSlots()?.State;
-  // Eine Anfrage, die das Backend mit `module.not_booked` ablehnt, ist kein
-  // Fehler der Seite: die Schule hat das Modul nicht gebucht (#4894). Statt
-  // der roten Meldung steht der erklärende Zustand.
+  const notBookedSlots = useNotBookedSlots();
+  const NotBookedState = notBookedSlots?.State;
+  // Die Seite gehört zu einem Modul, das die Schule nicht gebucht hat, oder
+  // eine Anfrage wird mit `module.not_booked` abgelehnt (#4894). Beides ist
+  // kein Fehler der Seite: statt Inhalt oder roter Meldung steht der
+  // erklärende Zustand. Nur hier, für jede Herkunft (#6577).
   const notBookedModule =
-    typeof error === "object" && error !== null && "notBookedModule" in error
+    (typeof error === "object" && error !== null && "notBookedModule" in error
       ? error.notBookedModule
-      : undefined;
+      : undefined) ?? notBookedSlots?.pageModule;
   if (notBookedModule && NotBookedState) {
     return (
       <SectionCard>
@@ -78,12 +80,22 @@ export function PageBody({
       : error && !("action" in error || "keepContent" in error)
         ? { message: error.message, action: errorAlertActions(error) }
         : (error ?? undefined);
+  // An error with a request id stays stacked, as in LoadErrorAlert: the
+  // long id beside the message would squeeze it into a narrow column.
+  const errorLayout =
+    typeof error === "object" &&
+    error !== null &&
+    "requestId" in error &&
+    error.requestId
+      ? "stacked"
+      : undefined;
   if (errorParts && !errorParts.keepContent) {
     return (
       <Alert
         type="error"
         message={errorParts.message}
         action={errorParts.action}
+        actionLayout={errorLayout}
       />
     );
   }
@@ -92,6 +104,7 @@ export function PageBody({
       type="error"
       message={errorParts.message}
       action={errorParts.action}
+      actionLayout={errorLayout}
     />
   ) : null;
   if (loading) {

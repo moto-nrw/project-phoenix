@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

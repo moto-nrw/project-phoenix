@@ -3,7 +3,7 @@ package messaging
 import (
 	"context"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
 )
 
 // Photos and files in the conversations with guardians (#6685). An upload

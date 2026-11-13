@@ -6,16 +6,16 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
-	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/http/operatorannouncements"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	provisioningOperatorAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
-	parentBillingHTTP "github.com/moto-nrw/project-phoenix/modules/parentbilling/http"
-	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
+	customMiddleware "github.com/moto-ogs/project-phoenix/middleware"
+	communicationModule "github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication/http/operatorannouncements"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityOperatorAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	provisioningOperatorAPI "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/operator"
+	parentBillingHTTP "github.com/moto-ogs/project-phoenix/modules/parentbilling/http"
+	settingsOperatorAPI "github.com/moto-ogs/project-phoenix/modules/settings/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // The operator router mounts the operator routes of Identity & Access,

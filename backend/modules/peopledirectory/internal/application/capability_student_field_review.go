@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 func (s *Service) ReviewStudentFields(ctx context.Context, changes []peopledirectory.StudentFieldChange) (map[int64]peopledirectory.StudentFieldReview, error) {

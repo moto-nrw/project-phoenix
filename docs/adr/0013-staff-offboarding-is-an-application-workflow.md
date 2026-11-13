@@ -4,12 +4,12 @@ status: accepted
 
 # Staff Offboarding is an application workflow
 
-The staff lifecycle cutover in [#2709](https://github.com/moto-nrw/project-phoenix/issues/2709)
+The staff lifecycle cutover in [#2709](https://github.com/moto-ogs/project-phoenix/issues/2709)
 implements the cross-module workflow required by
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580).
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580).
 Add `staff-offboarding` as a workflow owner, with no runtime data ownership.
 This registration implements the existing lifecycle-workflow decision in
-[#2580, Implementation Decisions §8](https://github.com/moto-nrw/project-phoenix/issues/2580)
+[#2580, Implementation Decisions §8](https://github.com/moto-ogs/project-phoenix/issues/2580)
 and the atomic cutover specified in #2709; it does not introduce a new domain.
 It coordinates authorization, preview consistency, lock order and one UnitOfWork;
 Membership, Workforce, Timetable, People Directory and Identity & Access retain
@@ -23,8 +23,8 @@ runtime provider or direct workflow SQL.
 
 ## Policy registration
 
-[#3130](https://github.com/moto-nrw/project-phoenix/issues/3130), linked under
-[#2580's decision](https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5593113472),
+[#3130](https://github.com/moto-ogs/project-phoenix/issues/3130), linked under
+[#2580's decision](https://github.com/moto-ogs/project-phoenix/issues/2580#issuecomment-5593113472),
 records the evaluator prerequisite. Policy epoch 3 permits a reviewed
 workflow addition only when every package of that owner is new in the
 candidate. Policy validation still rejects workflow-owned writable data;

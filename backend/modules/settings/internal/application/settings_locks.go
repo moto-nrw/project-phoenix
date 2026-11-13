@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // flushRequestCacheForLock drops every request-cache entry for the ambient

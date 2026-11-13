@@ -17,7 +17,46 @@ export function isTraegerSettingsPath(pathname: string): boolean {
   );
 }
 
+/**
+ * Die drei Bereiche der Abrechnung teilen sich die Adressen unter
+ * /abrechnung. Familien und Preise nennen ihre Register; alles andere unter
+ * /abrechnung (die Ferienläufe, die Monatsbeiträge, ein Lauf) gehört zu den
+ * Abrechnungsläufen.
+ */
+const BILLING_AREA_REGISTERS: Readonly<Record<string, readonly string[]>> = {
+  "/traeger/abrechnung/familien": [
+    "familien",
+    "lastschrift",
+    "kinderzahl",
+    "nachweise",
+    "kostentraeger",
+    "exporte",
+  ],
+  "/traeger/abrechnung/preise": ["preise", "mensa", "ermaessigungen"],
+};
+const BILLING_HOME = "/traeger/abrechnung";
+
+/** Das erste Segment nach /abrechnung, mit oder ohne /traeger davor. */
+function billingRegister(pathname: string): string | null {
+  const page = pathname.replace(/^\/traeger(?=\/|$)/, "");
+  if (page !== "/abrechnung" && !page.startsWith("/abrechnung/")) return null;
+  return page.slice("/abrechnung".length).split("/")[1] ?? "";
+}
+
+function isBillingAreaActive(href: string, pathname: string): boolean | null {
+  const registers = BILLING_AREA_REGISTERS[href];
+  if (href !== BILLING_HOME && !registers) return null;
+  const register = billingRegister(pathname);
+  if (register === null) return false;
+  if (registers) return registers.includes(register);
+  return !Object.values(BILLING_AREA_REGISTERS).some((list) =>
+    list.includes(register),
+  );
+}
+
 export function isTraegerNavActive(href: string, pathname: string): boolean {
+  const billing = isBillingAreaActive(href, pathname);
+  if (billing !== null) return billing;
   if (href === "/traeger") {
     // „Schulen" ist die Startseite; ihre Unterseiten liegen unter /schulen.
     return (

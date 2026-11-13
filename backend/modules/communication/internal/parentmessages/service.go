@@ -19,9 +19,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/application/parentmessaging"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 const maxMessageLen = 2000

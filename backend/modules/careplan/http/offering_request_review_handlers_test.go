@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"context"
@@ -7,12 +7,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 // fakeOfferingChangeRequestService records the preview and decide calls; the
@@ -49,17 +51,14 @@ func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeOfferingChangeRequestService{}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		OfferingChangeService: svc})
-	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide", strings.NewReader(`{"approve":true,"effective_from":"2026-09-01"}`))
+	req := httptest.NewRequest(http.MethodPost, "/students/offering-change-requests/100/decide", strings.NewReader(`{"approve":true,"effective_from":"2026-09-01"}`))
 	claims := sessiontoken.AppClaims{ID: 55, Roles: []string{"group_supervisor", "staff"}}
 	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("requestId", "100")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
-	rs.decideOfferingChangeRequest(w, req)
+	serveRoute(t, rs, w, req, permissions.UsersUpdate)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(55), svc.input.ReviewedBy)
@@ -84,16 +83,13 @@ func TestPreviewOfferingChangeRequest_ReturnsMaterializedDays(t *testing.T) {
 		}},
 		ArrivalExpectationsFollowBookings: true,
 	}}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		OfferingChangeService: svc})
-	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/preview",
+	req := httptest.NewRequest(http.MethodPost, "/students/offering-change-requests/100/preview",
 		strings.NewReader(`{"excluded_offering_ids":["9"]}`))
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("requestId", "100")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
-	rs.previewOfferingChangeRequest(w, req)
+	serveRoute(t, rs, w, req, permissions.UsersUpdate)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, []int64{9}, svc.previewExcluded)
@@ -112,18 +108,15 @@ func TestDecideOfferingChangeRequest_PassesTheConfirmedDate(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeOfferingChangeRequestService{}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		OfferingChangeService: svc})
-	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
+	req := httptest.NewRequest(http.MethodPost, "/students/offering-change-requests/100/decide",
 		strings.NewReader(`{"approve":true,"effective_from":"2026-09-01"}`))
 	claims := sessiontoken.AppClaims{ID: 55, Roles: []string{"staff"}}
 	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("requestId", "100")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
-	rs.decideOfferingChangeRequest(w, req)
+	serveRoute(t, rs, w, req, permissions.UsersUpdate)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.NotNil(t, svc.input.EffectiveFrom)
@@ -134,17 +127,14 @@ func TestDecideOfferingChangeRequest_PassesCompleteWithdrawalConfirmation(t *tes
 	t.Parallel()
 
 	svc := &fakeOfferingChangeRequestService{}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		OfferingChangeService: svc})
-	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
+	req := httptest.NewRequest(http.MethodPost, "/students/offering-change-requests/100/decide",
 		strings.NewReader(`{"approve":true,"effective_from":"2026-09-01","complete_withdrawal_confirmed":true}`))
 	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55, Roles: []string{"staff"}}))
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("requestId", "100")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
-	rs.decideOfferingChangeRequest(w, req)
+	serveRoute(t, rs, w, req, permissions.UsersUpdate)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.True(t, svc.input.CompleteWithdrawalConfirmed)
@@ -155,7 +145,7 @@ func TestRenderOfferingDecisionError_UsesStableCompleteWithdrawalCode(t *testing
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/", nil)
 
-	renderOfferingDecisionError(recorder, request, careplan.ErrCompleteWithdrawalConfirmationRequired)
+	careplanhttp.RenderOfferingDecisionErrorForTest(recorder, request, careplan.ErrCompleteWithdrawalConfirmationRequired)
 
 	assert.Equal(t, http.StatusConflict, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), `"code":"enrollment.complete_withdrawal_confirmation_required"`)
@@ -166,18 +156,15 @@ func TestDecideOfferingChangeRequest_RefusesApprovalWithoutADate(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeOfferingChangeRequestService{}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		OfferingChangeService: svc})
-	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
+	req := httptest.NewRequest(http.MethodPost, "/students/offering-change-requests/100/decide",
 		strings.NewReader(`{"approve":true}`))
 	claims := sessiontoken.AppClaims{ID: 55, Roles: []string{"staff"}}
 	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("requestId", "100")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
-	rs.decideOfferingChangeRequest(w, req)
+	serveRoute(t, rs, w, req, permissions.UsersUpdate)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Zero(t, svc.input.RequestID, "no decision may reach the service")
@@ -188,18 +175,15 @@ func TestDecideOfferingChangeRequest_RejectionNeedsNoDate(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeOfferingChangeRequestService{}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		OfferingChangeService: svc})
-	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
+	req := httptest.NewRequest(http.MethodPost, "/students/offering-change-requests/100/decide",
 		strings.NewReader(`{"approve":false,"reason":"Kein Platz"}`))
 	claims := sessiontoken.AppClaims{ID: 55, Roles: []string{"staff"}}
 	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("requestId", "100")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
-	rs.decideOfferingChangeRequest(w, req)
+	serveRoute(t, rs, w, req, permissions.UsersUpdate)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Nil(t, svc.input.EffectiveFrom)
@@ -210,16 +194,13 @@ func TestPreviewOfferingChangeRequest_PassesTheChosenDate(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeOfferingChangeRequestService{preview: &careplan.OfferingChangePreview{}}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		OfferingChangeService: svc})
-	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/preview",
+	req := httptest.NewRequest(http.MethodPost, "/students/offering-change-requests/100/preview",
 		strings.NewReader(`{"excluded_offering_ids":[],"effective_from":"2026-09-01"}`))
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("requestId", "100")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
-	rs.previewOfferingChangeRequest(w, req)
+	serveRoute(t, rs, w, req, permissions.UsersUpdate)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.NotNil(t, svc.previewEffectiveFrom)

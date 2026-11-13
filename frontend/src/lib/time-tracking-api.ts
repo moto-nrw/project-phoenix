@@ -11,7 +11,6 @@ import {
 import type {
   BackendClosingDayRange,
   BackendDailyProjection,
-  BackendDailyTarget,
   BackendHoliday,
   BackendMonthSummary,
   DayProjection,
@@ -25,7 +24,6 @@ import type {
 import {
   mapClosingDaysResponse,
   mapDailyProjectionResponse,
-  mapDailyTargetsResponse,
   mapHistoryResponse,
   mapHolidaysResponse,
   mapMonthSummaryResponse,
@@ -225,23 +223,6 @@ class TimeTrackingService {
       "Failed to get month summary",
     );
     return mapMonthSummaryResponse(result.data);
-  }
-
-  // Date-valid Soll per day (#1842). The daily table must not derive Soll from
-  // the CURRENT schedule: after a contract change that would show historical
-  // rows with today's hours while the Monatskarte above them reports the
-  // hours that actually applied.
-  async getScheduleTargets(
-    from: string,
-    to: string,
-  ): Promise<ReadonlyMap<string, number>> {
-    const params = new URLSearchParams({ from, to });
-    const result = await this.request<BackendDailyTarget[] | null>(
-      `/schedule-targets?${params}`,
-      "GET",
-      "Failed to get schedule targets",
-    );
-    return mapDailyTargetsResponse(result.data);
   }
 
   // Vollständige Tagesprojektion desselben Endpunkts (#2443): Soll, Gutschrift,

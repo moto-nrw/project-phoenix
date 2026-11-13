@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The enrollment confirm of every account portal hands the redeemed code's
@@ -90,20 +90,22 @@ func (m writeAfterEnrollmentCode) VerifyMFAChallengeForOwner(ctx context.Context
 // enrolls, so the root's binding hands the code's generation on.
 func TestTraegerEnrollmentConfirmAfterACredentialWriteRecordsNothing(t *testing.T) {
 	t.Parallel()
-	type credentialWrite func(module AuthTestModule, accountID int64, password string) error
+	// The write runs as a request of the test's school, whose ledger files
+	// an MFA reset (#6989).
+	type credentialWrite func(ctx context.Context, module AuthTestModule, accountID int64, password string) error
 	for _, tc := range []struct {
 		name     string
 		write    credentialWrite
 		enrolled bool
 	}{
-		{name: "none", write: func(AuthTestModule, int64, string) error { return nil }, enrolled: true},
-		{name: "password_change", write: func(module AuthTestModule, accountID int64, password string) error {
+		{name: "none", write: func(context.Context, AuthTestModule, int64, string) error { return nil }, enrolled: true},
+		{name: "password_change", write: func(_ context.Context, module AuthTestModule, accountID int64, password string) error {
 			return module.Auth.ChangeAccountPassword(context.Background(), identityaccess.OwnPasswordChange{
 				AccountID: accountID, CurrentPassword: password, NewPassword: testpkg.NewTestPassword(),
 			})
 		}},
-		{name: "mfa_reset", write: func(module AuthTestModule, accountID int64, _ string) error {
-			return module.Auth.DisableMFA(context.Background(), accountID)
+		{name: "mfa_reset", write: func(ctx context.Context, module AuthTestModule, accountID int64, _ string) error {
+			return module.Auth.DisableMFA(ctx, accountID)
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -119,7 +121,7 @@ func TestTraegerEnrollmentConfirmAfterACredentialWriteRecordsNothing(t *testing.
 			testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleAdministration)
 			_, err = db.NewRaw(`UPDATE auth.accounts SET mfa_reset_generation = 3 WHERE id = ?`, account.ID).Exec(context.Background())
 			require.NoError(t, err)
-			identity := writeAfterEnrollmentCode{Owner: module.Auth, write: func() error { return tc.write(module, account.ID, password) }}
+			identity := writeAfterEnrollmentCode{Owner: module.Auth, write: func() error { return tc.write(testpkg.Ctx(t), module, account.ID, password) }}
 			portal := &traegerPortalHandler{Handler: traegerPortalRouter(t, db, identity, unit), mail: mail}
 
 			code, login := traegerLogin(t, portal, account.Email, password, 0)

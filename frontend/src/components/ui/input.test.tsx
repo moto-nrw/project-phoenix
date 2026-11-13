@@ -137,6 +137,37 @@ describe("Input", () => {
   });
 });
 
+describe("Input without id or name (#6568)", () => {
+  it("still names the field with its label and links hint and error", () => {
+    render(
+      <Input
+        label="Vorname"
+        hint="So wie im Ausweis."
+        error="Bitte geben Sie einen Vornamen ein."
+      />,
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "Vorname" }),
+    ).toHaveAccessibleDescription(
+      "So wie im Ausweis. Bitte geben Sie einen Vornamen ein.",
+    );
+  });
+
+  it("gives two unnamed fields their own labels", () => {
+    render(
+      <>
+        <Input label="Vorname" />
+        <Input label="Nachname" />
+      </>,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Vorname" })).not.toBe(
+      screen.getByRole("textbox", { name: "Nachname" }),
+    );
+  });
+});
+
 describe("Input required mark (#5217)", () => {
   it("marks a required field with a star that stays out of its name", () => {
     render(<Input label="Vorname" name="first_name" required />);

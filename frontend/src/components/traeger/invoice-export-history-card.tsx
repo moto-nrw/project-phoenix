@@ -77,7 +77,7 @@ function stepTitle(step: InvoiceStep): string {
 
 function stepDetail(step: InvoiceStep): string | null {
   if (step.kind === "mail_requested")
-    return "E-Mail-Versand beauftragt. Den Stand sehen Sie beim Rechnungslauf.";
+    return "E-Mail-Versand beauftragt. Den Stand sehen Sie beim Abrechnungslauf.";
   if (step.kind === "sent") return "Vom E-Mail-Dienst angenommen.";
   if (step.kind === "exported" && step.file) return step.file.fileName;
   return null;
@@ -87,7 +87,16 @@ function stepDetail(step: InvoiceStep): string | null {
 export function InvoiceExportHistoryCard({
   kind,
   invoiceId,
-}: Readonly<{ kind: InvoiceHistoryKind; invoiceId: string }>) {
+  embedded = false,
+}: Readonly<{
+  kind: InvoiceHistoryKind;
+  invoiceId: string;
+  /**
+   * Inside a panel whose head already carries the title (the holiday run's
+   * slide-over): no own card surface and no second title.
+   */
+  embedded?: boolean;
+}>) {
   const [history, setHistory] = useState<InvoiceHistory | null>(null);
   const load = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = load;
@@ -116,11 +125,16 @@ export function InvoiceExportHistoryCard({
 
   return (
     <SectionCard
-      title="Ausstellung, Versand und Exporte"
+      title={embedded ? undefined : "Ausstellung, Versand und Exporte"}
+      bare={embedded}
+      bodyClassName={embedded ? "mt-4" : undefined}
       description={
-        exports === 0
-          ? "Was mit der Rechnung geschah. Sie war noch in keiner Datei für Kämmerei, Steuerbüro oder Bank."
-          : `Was mit der Rechnung geschah. Sie war in ${exports === 1 ? "einer Datei" : `${exports} Dateien`} für Kämmerei, Steuerbüro oder Bank.`
+        // Until the steps are read, the count of files is not known.
+        !history
+          ? "Was mit der Rechnung geschah."
+          : exports === 0
+            ? "Was mit der Rechnung geschah. Sie war noch in keiner Datei für Kämmerei, Steuerbüro oder Bank."
+            : `Was mit der Rechnung geschah. Sie war in ${exports === 1 ? "einer Datei" : `${exports} Dateien`} für Kämmerei, Steuerbüro oder Bank.`
       }
       loading={!history && !load.error}
     >
@@ -151,9 +165,9 @@ export function InvoiceExportHistoryCard({
                       {stepDetail(step)}
                     </p>
                   ) : null}
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm wrap-anywhere text-gray-500">
                     {exportedAtLabel(step.at)} ·{" "}
-                    {byLabel(step.byYou, step.byAccount)}
+                    {byLabel(step.byYou, step.byAccount, step.accountName)}
                   </p>
                 </div>
               </ListRow>

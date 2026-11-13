@@ -35,7 +35,7 @@ func writeSourceInternalSQLTest(t *testing.T, repo string) {
 // key order: the internal-test import of database/sql sorts before the
 // production edge the vertical fixture already carries.
 func testInfrastructureBaseline() string {
-	return "{\"scope\":\"internal_test\",\"rule\":\"imports.forbidden\",\"source\":\"example.test/architecture-fixture/source\",\"target\":\"database/sql\",\"issue\":\"https://github.com/moto-nrw/project-phoenix/issues/2583\"}\n" +
+	return "{\"scope\":\"internal_test\",\"rule\":\"imports.forbidden\",\"source\":\"example.test/architecture-fixture/source\",\"target\":\"database/sql\",\"issue\":\"https://github.com/moto-ogs/project-phoenix/issues/2583\"}\n" +
 		legacyRecord(2583)
 }
 

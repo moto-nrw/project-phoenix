@@ -25,9 +25,11 @@ func DeleteComposedSettingAudit[I interface{ Int64() int64 }](ctx context.Contex
 	if !ok {
 		return 0, 0, fmt.Errorf("settings retention: unsupported transaction %T", transaction)
 	}
+	// The database function deletes with its own clock and window; years
+	// only names the window in the report.
 	now := clock()
 	cutoff := now.AddDate(-years, 0, 0)
-	deleted, err := NewSettingAuditRetention(settingAuditTransaction{tx: tx}).DeleteChangedBefore(ctx, tenantID.Int64(), cutoff)
+	deleted, err := NewSettingAuditRetention(settingAuditTransaction{tx: tx}).deleteExpired(ctx, tenantID.Int64())
 	if err != nil {
 		return 0, 0, err
 	}

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The instance lifecycle (WP-B9, #3424 slice S1) drives the state machine of

@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
@@ -307,7 +310,7 @@ function ManualTemplateEntry({
 }>) {
   const about = `„${template.name}“`;
   return (
-    <li className="flex flex-col gap-2 py-3 text-sm text-gray-700 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center">
+    <ResponsiveActionRow className="text-sm text-gray-700">
       <div className="min-w-0">
         <p>
           <span className="font-medium text-gray-900">{template.name}</span>,{" "}
@@ -357,7 +360,7 @@ function ManualTemplateEntry({
           Im Betreuungsplan ansehen
         </ButtonLink>
       </div>
-    </li>
+    </ResponsiveActionRow>
   );
 }
 

@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"testing"
 
-	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	owner0 "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	usersModels "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 func TestRowMissing(t *testing.T) {

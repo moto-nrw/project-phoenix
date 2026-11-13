@@ -3,8 +3,8 @@ package application
 import (
 	context "context"
 
-	domain "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	domain "github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/domain"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 type RoomDirectory struct{ Rooms facilitiesModule.Query }

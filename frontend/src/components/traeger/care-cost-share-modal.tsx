@@ -244,7 +244,7 @@ export function CareCostShareModal({
           error: err instanceof Error ? err.message : String(err),
         });
         if (!op.isCurrent()) return;
-        void formErrors.show(err, { object: "den Kostenträger-Anteil" });
+        void formErrors.show(err, { object: "die Kostenübernahme" });
       }
     });
   };
@@ -375,6 +375,7 @@ export function CareCostShareModal({
               }
             />
             <Input
+              controlSize="touch"
               id="care-cost-share-value"
               name={valueField}
               aria-label={
@@ -394,6 +395,7 @@ export function CareCostShareModal({
             />
           </div>
           <Input
+            controlSize="touch"
             id="care-cost-share-reference"
             name="reference"
             label="Bescheid"

@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	accountHTTP "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	accountHTTP "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // enrollMFA records the e-mail factor of a fixture account the way the

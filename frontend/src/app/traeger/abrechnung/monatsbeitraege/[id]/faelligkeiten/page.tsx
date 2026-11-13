@@ -8,7 +8,9 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { formatMonth } from "~/components/traeger/care-billing-format";
+import { careDebitItems } from "~/components/traeger/care-debit-hints";
 import { RunDueDatesForm } from "~/components/traeger/run-due-dates-form";
+import { usePrenotificationDays } from "~/components/traeger/use-prenotification-days";
 import { Alert } from "~/components/ui/alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -49,6 +51,9 @@ export default function TraegerCareRunDueDatesPage() {
     void load();
   }, [load]);
 
+  // The pre-notification days name the rule under the direct debit date.
+  const prenotificationDays = usePrenotificationDays();
+
   return (
     <TenantPage
       title="Fälligkeiten"
@@ -71,6 +76,9 @@ export default function TraegerCareRunDueDatesPage() {
           kind="care"
           runId={run.id}
           dueDates={run.dueDates ?? []}
+          debitItems={careDebitItems(run.invoices)}
+          prenotificationDays={prenotificationDays}
+          issuedOn={run.invoiceDate}
           onCancel={() => router.push(runHref)}
           onSaved={() => router.push(runHref)}
         />

@@ -1234,13 +1234,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) DeletePerson(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalid(\"person ID is required\")\n\t}\n\treturn s.runWrite(ctx, \"delete_person\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tif err := s.requireLocked(txCtx, id, stats); err != nil {\n\t\t\treturn err\n\t\t}\n\t\tdeleteStats, err := s.store.SoftDelete(txCtx, id)\n\t\tstats.Add(deleteStats)\n\t\treturn err\n\t})\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/peopledirectory/internal/application/Service.DeletePerson",
-      "owner": "modules/peopledirectory"
-    },
-    {
-      "build": "production",
       "evidence": "func (s *Service) DeleteStudent(ctx context.Context, studentID int64) (int64, error) {\n\tif studentID \u003c= 0 {\n\t\treturn 0, invalidStudent(\"student ID is required\")\n\t}\n\trows, err := s.students.Delete(ctx, studentID)\n\treturn rows, MapError(err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/peopledirectory/internal/application/Service.DeleteStudent",

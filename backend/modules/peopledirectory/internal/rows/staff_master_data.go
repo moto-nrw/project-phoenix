@@ -3,7 +3,7 @@ package users
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Gender values for users.staff_master_data.gender. Nil means "keine Angabe".

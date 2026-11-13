@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 func (s *Service) ListStudentDepartureModes(ctx context.Context, ids []int64) (map[int64]map[string][]string, error) {

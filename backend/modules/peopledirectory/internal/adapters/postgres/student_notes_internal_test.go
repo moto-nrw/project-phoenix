@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -25,7 +25,7 @@ func TestStudentNoteStoreSoftDeleteReturnsAffectedRowsError(t *testing.T) {
 	db := testpkg.NewBunDB(sqlDB)
 	store := NewStudentNoteStore(func(context.Context) (bun.IDB, TenantScope, error) {
 		return db, TenantScope{TenantID: 42}, nil
-	})
+	}, testpkg.StudentDirectory{})
 	rowsAffectedErr := errors.New("affected rows unavailable")
 	mock.ExpectExec("UPDATE.*student_notes").
 		WillReturnResult(sqlmock.NewErrorResult(rowsAffectedErr))

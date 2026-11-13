@@ -66,6 +66,25 @@ export interface AdminRequestChildOffering {
    * correction replaces it, see `upcoming_offerings` on the child.
    */
   starts_later?: boolean;
+  /**
+   * The catalog terms the parents submitted and signed (#6837). Absent for
+   * a booking without a snapshot.
+   */
+  submitted_terms?: AdminSubmittedOfferingTerms;
+  /**
+   * What the catalog changed since the submission. While a current booking
+   * lists any, the approval needs `acceptOfferingChanges`.
+   */
+  changed_terms?: OfferingTermChange[];
+}
+
+type OfferingTermChange = "price" | "days" | "activity";
+
+interface AdminSubmittedOfferingTerms {
+  name: string;
+  price_cents?: number;
+  days_of_week_mode: string;
+  available_days: string[];
 }
 
 interface AdminOfferingAdjustmentSnapshot {
@@ -711,6 +730,7 @@ export async function decideAdminChild(
   status: DecisionStatus,
   reason?: string,
   existingChildChoice?: ExistingChildChoice,
+  acceptOfferingChanges?: boolean,
 ): Promise<AdminRequestChild> {
   // Flattened path: the proxy reads request_id/child_id from the body.
   // The deep dynamic /requests/[id]/children/[childId]/decide path
@@ -725,6 +745,10 @@ export async function decideAdminChild(
       status,
       reason: reason ?? "",
       ...existingChildChoiceFields(existingChildChoice),
+      // The office confirmed the offering changes since submission (#6837).
+      ...(acceptOfferingChanges === true
+        ? { accept_offering_changes: true }
+        : {}),
     }),
   });
   if (!response.ok) {

@@ -1,9 +1,9 @@
 # Löschfristen trägt das moto-Team je Schule ein, die Schule sieht sie nur
 
 Status: accepted. Gilt für die Löschfristen aus
-[#3839](https://github.com/moto-nrw/project-phoenix/issues/3839) und
-[#2788](https://github.com/moto-nrw/project-phoenix/issues/2788), Teil des
-Epics [#3846](https://github.com/moto-nrw/project-phoenix/issues/3846)
+[#3839](https://github.com/moto-ogs/project-phoenix/issues/3839) und
+[#2788](https://github.com/moto-ogs/project-phoenix/issues/2788), Teil des
+Epics [#3846](https://github.com/moto-ogs/project-phoenix/issues/3846)
 (Vertragsreife). Recherche:
 [aufbewahrungsfristen-2026-10-12.md](../research/aufbewahrungsfristen-2026-10-12.md).
 

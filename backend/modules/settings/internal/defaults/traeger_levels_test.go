@@ -4,7 +4,7 @@ import (
 	"sort"
 	"testing"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -54,7 +54,10 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 		config.KeyParentBillingDatevAccountLength, config.KeyParentBillingDatevChartOfAccounts,
 		config.KeyParentBillingDatevClientNumber, config.KeyParentBillingDatevConsultantNumber,
 		config.KeyParentBillingDatevCostCenterRequired, config.KeyParentBillingDatevFiscalYearStart, config.KeyParentBillingDatevLocked,
-		config.KeyParentBillingDatevRevenueAccount, config.KeyParentBillingDebtorNumberOnConfirm,
+		config.KeyParentBillingDatevRevenueAccount,
+		// The format of a debtor number (#6675).
+		config.KeyParentBillingDebtorNumberDigitsOnly, config.KeyParentBillingDebtorNumberMaxDigits,
+		config.KeyParentBillingDebtorNumberMinDigits, config.KeyParentBillingDebtorNumberOnConfirm,
 		// The SEPA mandate in the parents portal (#4696).
 		config.KeyParentBillingOnlineMandate,
 		config.KeyParentBillingPaymentText, config.KeyParentBillingSiblingRank,

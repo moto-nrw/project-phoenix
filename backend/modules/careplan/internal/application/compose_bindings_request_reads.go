@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	careRecordPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	careRecordPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
 )
 
 // requestReadRecords translates the application's list selection into the public query filter.

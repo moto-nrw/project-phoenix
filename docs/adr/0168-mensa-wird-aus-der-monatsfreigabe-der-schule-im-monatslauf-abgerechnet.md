@@ -6,8 +6,8 @@ status: proposed
 
 **Status: Vorgeschlagen.**
 
-Entscheidung zu [#4686](https://github.com/moto-nrw/project-phoenix/issues/4686),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung zu [#4686](https://github.com/moto-ogs/project-phoenix/issues/4686),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 64, 65 und 78. Sie setzt die Mensa-Monatsfreigabe aus
 [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)
 § 6 um und baut die Mensa in den Monatslauf aus

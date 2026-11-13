@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Presence cleanup owns one transaction per school. Output is published only

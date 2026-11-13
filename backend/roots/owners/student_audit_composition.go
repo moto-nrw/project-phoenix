@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // StudentAuditCapability is the owner surface this seam translates to.

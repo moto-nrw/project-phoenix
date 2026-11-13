@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ClassArrivalBaselineFromTimes reads retained weekday maps without changing

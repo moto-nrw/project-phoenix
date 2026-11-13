@@ -7,13 +7,24 @@
 
 import { Suspense, useCallback, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import {
+  DEBTOR_NUMBER_DIGITS_ONLY_KEY,
+  DEBTOR_NUMBER_MAX_DIGITS_KEY,
+  DEBTOR_NUMBER_MIN_DIGITS_KEY,
+  DebtorNumberLengthField,
+} from "~/components/settings/debtor-number-length-field";
 import { SettingsCategory } from "~/components/settings/settings-category";
 import { displayTabLabel } from "~/components/settings/settings-filter";
 import { Alert } from "~/components/ui/alert";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
+import {
+  debtorNumberExample,
+  debtorNumberFormat,
+} from "~/lib/debtor-number-format";
 import { createLogger } from "~/lib/logger";
 import type {
   ResolvedSetting,
+  SchemaCategory,
   SchemaTab,
   SettingsSchema,
 } from "~/lib/settings-api";
@@ -59,6 +70,24 @@ function letterheadText(schema: SettingsSchema): string {
     ? tabItem(branding, "branding.letterhead_text")?.value
     : undefined;
   return typeof value === "string" ? value : "";
+}
+
+/** The two lengths stand in the row of their switch, not as own rows (#6675). */
+const DEBTOR_NUMBER_LENGTH_KEYS = new Set([
+  DEBTOR_NUMBER_MIN_DIGITS_KEY,
+  DEBTOR_NUMBER_MAX_DIGITS_KEY,
+]);
+
+function withoutLengthRows(category: SchemaCategory): SchemaCategory {
+  if (!category.items.some((item) => DEBTOR_NUMBER_LENGTH_KEYS.has(item.key))) {
+    return category;
+  }
+  return {
+    ...category,
+    items: category.items.filter(
+      (item) => !DEBTOR_NUMBER_LENGTH_KEYS.has(item.key),
+    ),
+  };
 }
 
 function hasWritableSetting(schema: SettingsSchema): boolean {
@@ -122,9 +151,12 @@ function TraegerSettingsContent() {
   const activeTab = contactActive
     ? null
     : (tabs.find((tab) => tab.key === selectedTab) ?? tabs[0] ?? null);
-  const contact = useTraegerMasterData("die Kontaktdaten", contactActive);
+  const contact = useTraegerMasterData(
+    "die Angabe der Kontaktdaten",
+    contactActive,
+  );
   const afterContactWrite = useRefreshAfterWrite(
-    "die Anzeige des Ansprechpartners",
+    "die Anzeige der Ansprechperson",
     contact.read,
   );
   // Ein fehlgeschlagenes Nachladen lässt die Kontaktkarte stehen, außer bei einer Ablehnung.
@@ -152,7 +184,8 @@ function TraegerSettingsContent() {
         tabs.length > 0 ? (
           <TenantPageStats
             items={[
-              // Die Bereiche der Einstellungen und „Kontakt“.
+              // Die Bereiche der Einstellungen und „Kontakt“: auf dem
+              // Telefon liegen einige Reiter außerhalb des Ausschnitts.
               { value: tabs.length + 1, label: "Bereiche" },
               { value: fromTraeger, label: "vom Träger festgelegt" },
             ]}
@@ -188,23 +221,51 @@ function TraegerSettingsContent() {
           message="Sie können die Werte nur ansehen. Ändern kann, wer im Träger-Büro das Recht dazu hat."
         />
       ) : null}
-      {schema && contactActive && contact.loaded ? (
-        <TraegerContactSection
-          masterData={contact.masterData}
-          letterheadText={letterheadText(schema)}
-          onSaved={afterContactWrite.refresh}
-        />
+      {schema && contact.loaded ? (
+        // Stays mounted while another tab is open: a typed contact that is
+        // not saved yet survives a switch of the tab.
+        <div
+          className={
+            contactActive
+              ? "compact:gap-4 flex flex-col gap-6 max-sm:gap-3"
+              : "hidden"
+          }
+        >
+          <TraegerContactSection
+            masterData={contact.masterData}
+            letterheadText={letterheadText(schema)}
+            onSaved={afterContactWrite.refresh}
+          />
+        </div>
       ) : null}
-      {activeTab?.categories.map((category) => (
-        <SettingsCategory
-          key={category.key}
-          category={category}
-          onSave={handleSave}
-          onReset={handleReset}
-          onSchemaRefresh={() => void refresh()}
-          audience="traeger"
-        />
-      ))}
+      {activeTab?.categories.map((category) => {
+        const minDigits = tabItem(activeTab, DEBTOR_NUMBER_MIN_DIGITS_KEY);
+        const maxDigits = tabItem(activeTab, DEBTOR_NUMBER_MAX_DIGITS_KEY);
+        return (
+          <SettingsCategory
+            key={category.key}
+            category={withoutLengthRows(category)}
+            onSave={handleSave}
+            onReset={handleReset}
+            onSchemaRefresh={() => void refresh()}
+            audience="traeger"
+            headingLevel={2}
+            autosaveNote
+            renderAddon={(setting) =>
+              setting.key === DEBTOR_NUMBER_DIGITS_ONLY_KEY &&
+              setting.value === true &&
+              minDigits &&
+              maxDigits ? (
+                <DebtorNumberLengthField
+                  minSetting={minDigits}
+                  maxSetting={maxDigits}
+                  onSave={handleSave}
+                />
+              ) : null
+            }
+          />
+        );
+      })}
       {activeTab && paymentText ? (
         // The payment sentence with example values, bold as the letter
         // prints it; a display only, the text changes in the field above.
@@ -218,6 +279,18 @@ function TraegerSettingsContent() {
                 typeof paymentText.value === "string" ? paymentText.value : "",
                 tabItem(activeTab, DEBTOR_NUMBER_ON_CONFIRM_KEY)?.value ===
                   true,
+                debtorNumberExample(
+                  debtorNumberFormat(
+                    tabItem(activeTab, DEBTOR_NUMBER_DIGITS_ONLY_KEY)?.value ===
+                      true,
+                    Number(
+                      tabItem(activeTab, DEBTOR_NUMBER_MIN_DIGITS_KEY)?.value,
+                    ),
+                    Number(
+                      tabItem(activeTab, DEBTOR_NUMBER_MAX_DIGITS_KEY)?.value,
+                    ),
+                  ),
+                ),
               )}
             </p>
           </figure>

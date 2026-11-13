@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	schedule "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

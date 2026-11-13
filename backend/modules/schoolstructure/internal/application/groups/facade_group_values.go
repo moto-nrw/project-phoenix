@@ -1,8 +1,8 @@
 package groups
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 func PublicGroup(row *domain.Group) *schoolstructure.Group {

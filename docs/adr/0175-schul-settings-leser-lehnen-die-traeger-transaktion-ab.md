@@ -4,7 +4,7 @@ status: proposed
 
 # Schul-Settings-Leser lehnen die Träger-Transaktion ab
 
-Für [#6221](https://github.com/moto-nrw/project-phoenix/issues/6221) erweitert
+Für [#6221](https://github.com/moto-ogs/project-phoenix/issues/6221) erweitert
 Settings Platform seinen bestehenden Runtime-Port um `IsTraegerTransaction`.
 Nur die Composition bindet ihn an Tenant Runtime; die Application importiert
 weder Tenant Runtime noch PostgreSQL. Der zentrale Schul-Leser prüft den

@@ -1,5 +1,9 @@
 {
+  "archived": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "color_already_in_use": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "not_released": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+  "not_released": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "required_by_care_offering": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "session_running": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "still_planned": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }

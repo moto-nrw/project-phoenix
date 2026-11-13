@@ -3,7 +3,7 @@ package schoolstructure
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
+	"github.com/moto-ogs/project-phoenix/internal/schoolclass"
 	"github.com/stretchr/testify/assert"
 )
 

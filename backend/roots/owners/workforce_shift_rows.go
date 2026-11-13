@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // newWorkforceShiftRows binds the staff-shift rows to the Workforce capability.

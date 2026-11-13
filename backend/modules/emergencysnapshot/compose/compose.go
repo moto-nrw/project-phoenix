@@ -2,8 +2,8 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
-	legacy "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/internal/adapters/nameorder"
+	"github.com/moto-ogs/project-phoenix/modules/emergencysnapshot"
+	legacy "github.com/moto-ogs/project-phoenix/modules/emergencysnapshot/internal/adapters/nameorder"
 )
 
 // New builds the Notfallliste; it lists children in German dictionary order.

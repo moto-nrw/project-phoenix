@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Receipt } from "lucide-react";
+import { Pencil, Plus, Receipt, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -38,14 +38,14 @@ const KIND_TEXT: Record<
   sibling: {
     title: "Geschwister",
     description:
-      "Geschwister in derselben Ferienanmeldung zahlen weniger. Das erste Kind zahlt voll. Welches das ist, steht in den Einstellungen unter Allgemein im Bereich Ferienbetreuung.",
-    add: "Geschwisterregel hinzufügen",
+      "Für die Ferienbetreuung: Geschwister in derselben Ferienanmeldung zahlen weniger. Das erste Kind zahlt voll. Welches das ist, steht in den Einstellungen unter Allgemein im Bereich Ferienbetreuung.",
+    add: "Geschwisterregel anlegen",
     empty: "Keine Geschwisterregel. Alle Kinder zahlen den vollen Preis.",
   },
   benefits_exemption: {
     title: "Befreiung bei Leistungsbezug",
     description: `${EXEMPTION_RULE_SCOPE} Befreite Familien zahlen nichts.`,
-    add: "Befreiungsregel hinzufügen",
+    add: "Befreiungsregel anlegen",
     empty:
       "Keine Befreiungsregel. Alle Familien zahlen, auch bei Leistungsbezug.",
   },
@@ -121,14 +121,15 @@ export function ContributionRulesCard({
       render: (rule) => (
         <OverflowMenu
           ariaLabel={`Aktionen für die Regel ${ruleValidity(rule)}`}
-          triggerSize="sm"
           items={[
             {
               label: "Ändern",
+              icon: <Pencil className="size-4" aria-hidden />,
               onClick: () => setEdit({ kind: "change", rule }),
             },
             {
               label: "Löschen",
+              icon: <Trash2 className="size-4" aria-hidden />,
               destructive: true,
               onClick: () => setDeleting(rule),
             },

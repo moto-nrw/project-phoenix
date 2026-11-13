@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The template writes of the Timetable owner (#3424 slice S2): creating,
@@ -246,6 +246,12 @@ type UpdateTemplateCommand struct {
 	// Wochennotiz-only save resolved from a capped predecessor (#6141).
 	PropagateNotesToPredecessors bool
 	StartDate                    *calendar.Date
+	// ReplanFuture rebuilds the template's planned occurrences from today
+	// through the end of its planning period in the update's transaction, so
+	// a changed series never leaves stale or duplicate occurrences behind
+	// (#6838). ActorAccountID attributes dropped deviations.
+	ReplanFuture   bool
+	ActorAccountID *int64
 }
 
 // SplitTemplateCommand is "Dieser und alle folgenden" (WP-B3): the update

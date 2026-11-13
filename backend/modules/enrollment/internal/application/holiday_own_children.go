@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Children of the hosting school itself in the weeks it hosts (#6678, ADR
@@ -27,6 +27,10 @@ type HolidayOwnChildStore interface {
 	// ListOwnChildren reads the confirmed children of the school itself in
 	// every hosted week of a published period that ends on today or later.
 	ListOwnChildren(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayOwnChildBooking, error)
+	// ListHomeSchoolBookings reads the confirmed bookings of the school's
+	// own children in weeks other schools of its Träger host that end on
+	// today or later (#6679).
+	ListHomeSchoolBookings(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayHomeSchoolBooking, error)
 }
 
 // ownChildMatcher finds the student of the school a registration names, by
@@ -261,4 +265,70 @@ func (h *HolidayGuests) HolidayOwnChildAssignments(ctx context.Context, host enr
 		assignments = append(assignments, assignment)
 	}
 	return assignments, nil
+}
+
+// HolidayHomeSchoolBookings lists the confirmed bookings of the school's own
+// children at other schools of its Träger (#6679), assigns each to the
+// student it fits by the rule of the school's own children, and records the
+// read in the same transaction when there is any. An empty answer is no
+// read.
+func (h *HolidayGuests) HolidayHomeSchoolBookings(ctx context.Context, host enrollment.HolidayHost) ([]enrollment.HolidayHomeSchoolBooking, error) {
+	if host.SchoolID <= 0 || host.AccountID <= 0 {
+		return nil, errors.New("enrollment: the home school and the account are required")
+	}
+	bookings, err := h.store.ListHomeSchoolBookings(ctx, host.SchoolID, h.today())
+	if err != nil {
+		return nil, err
+	}
+	if len(bookings) == 0 {
+		return []enrollment.HolidayHomeSchoolBooking{}, nil
+	}
+	identities := make([]enrollment.HolidayStudentIdentity, len(bookings))
+	for i, booking := range bookings {
+		identities[i] = enrollment.HolidayStudentIdentity{FirstName: booking.FirstName, LastName: booking.LastName, BirthDate: booking.BirthDate}
+	}
+	matcher, err := newOwnChildMatcher(ctx, h.children, identities)
+	if err != nil {
+		return nil, err
+	}
+	for i := range bookings {
+		booking := &bookings[i]
+		studentID, assignment, _ := matcher.match(identities[i], bookedDays(booking.Days, booking.StartsOn, booking.EndsOn))
+		booking.Assignment = assignment
+		if assignment == enrollment.HolidayOwnChildMatched {
+			booking.StudentID = &studentID
+		}
+	}
+	if err := h.log.RecordHolidayGuestAccess(ctx, homeSchoolAccess(host, bookings)); err != nil {
+		return nil, fmt.Errorf("record holiday home school bookings read: %w", err)
+	}
+	return bookings, nil
+}
+
+// homeSchoolAccess is the access log entry of a read of the home school
+// bookings: the weeks it showed, the span from the first to the last day of
+// those weeks and the number of children: a child booked in two weeks counts
+// once. bookings is not empty.
+func homeSchoolAccess(host enrollment.HolidayHost, bookings []enrollment.HolidayHomeSchoolBooking) enrollment.HolidayGuestAccess {
+	access := enrollment.HolidayGuestAccess{
+		Kind: enrollment.HolidayGuestAccessHomeSchool, ActorAccountID: host.AccountID, ActorRole: host.Role,
+		StartsOn: bookings[0].StartsOn, EndsOn: bookings[0].EndsOn,
+	}
+	seen, children := map[int64]bool{}, map[int64]bool{}
+	for _, booking := range bookings {
+		children[booking.ChildID] = true
+		if !seen[booking.WeekID] {
+			seen[booking.WeekID] = true
+			access.WeekIDs = append(access.WeekIDs, booking.WeekID)
+		}
+		if booking.StartsOn.Before(access.StartsOn) {
+			access.StartsOn = booking.StartsOn
+		}
+		if booking.EndsOn.After(access.EndsOn) {
+			access.EndsOn = booking.EndsOn
+		}
+	}
+	access.WeekID = access.WeekIDs[0]
+	access.Guests = len(children)
+	return access
 }

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 type studentConsentHistory struct {

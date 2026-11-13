@@ -7,14 +7,14 @@ import (
 	"net"
 	"testing"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	mail "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	mail "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

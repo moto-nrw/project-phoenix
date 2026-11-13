@@ -3,7 +3,7 @@ package enrollment
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // HolidayGuestGroup is a group of the hosting school that is the

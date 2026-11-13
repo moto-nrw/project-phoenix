@@ -25,6 +25,7 @@ import { RosterDeviationTodos } from "~/components/home/roster-deviation-todos";
 import { SchoolVacationHintsCore } from "~/components/timetable/school-vacation-hints-core";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { Button } from "~/components/ui/button";
+import { ICON_ONLY } from "~/components/ui/control-geometry";
 import { EmptyState } from "~/components/ui/empty-state";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -488,12 +489,13 @@ function HomeContent() {
           // „Anpassen" größer als alles, wofür man die Startseite öffnet.
           // Name und Tooltip sagen „Anpassen". Die Kopfkarte gibt dem
           // Symbolknopf dieselbe Höhe wie „Abbrechen" und „Fertig".
-          // `data-icon-only` an der Hülle hält ihn unter sm in der
-          // Titelzeile; die Blase steht rechtsbündig, weil der Knopf am
-          // rechten Rand sitzt. Zeigen, Fokus oder Antippen laden das
-          // Anpassen schon vor dem Klick (#6469).
+          // Die Blase steht rechtsbündig, weil der Knopf am rechten Rand
+          // sitzt. Zeigen, Fokus oder Antippen laden das Anpassen schon vor
+          // dem Klick (#6469); die Hülle trägt das, weil ein gesperrter Knopf
+          // keine Zeiger-Ereignisse meldet. Als reines Symbol (`ICON_ONLY`)
+          // bleibt sie unter sm in der Titelzeile.
           <div
-            data-icon-only=""
+            {...ICON_ONLY}
             onPointerEnter={preloadHomeBoardEditor}
             onPointerDown={preloadHomeBoardEditor}
             onFocus={preloadHomeBoardEditor}

@@ -3,7 +3,7 @@ package application
 import (
 	"strings"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The masking and diff helpers of the guardian payment audit (#2608). They

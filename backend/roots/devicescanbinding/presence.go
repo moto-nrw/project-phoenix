@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // classifyPresence maps a retained presence service failure to the port
@@ -103,6 +103,9 @@ func (v visits) Record(ctx context.Context, studentID, sessionID int64) (int64, 
 		}
 		if errors.Is(err, studentpresence.ErrStudentGraduated) || errors.Is(err, studentpresence.ErrStudentCareEnded) {
 			return 0, mapError(err, ports.ErrStudentNotInCare)
+		}
+		if errors.Is(err, studentpresence.ErrGroupNotFound) {
+			return 0, mapError(err, ports.ErrSessionEnded)
 		}
 		return 0, err
 	}
@@ -263,7 +266,13 @@ func (a attendance) Status(ctx context.Context, studentID int64) (*ports.Attenda
 func (a attendance) Toggle(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (string, error) {
 	result, err := a.active.ToggleStudentAttendance(ctx, studentID, staffID, deviceID, skipAuthCheck)
 	if err != nil {
-		return "", classifyPresence(err)
+		classified := classifyPresence(err)
+		// A kiosk without a session gets the 404 the session routes already
+		// answer, not a 500 (#5710).
+		if errors.Is(err, studentpresence.ErrNoActiveSession) {
+			classified = mapError(classified, ports.ErrNoActiveSession)
+		}
+		return "", classified
 	}
 	return result.Action, nil
 }

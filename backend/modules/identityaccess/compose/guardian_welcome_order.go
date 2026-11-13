@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	applicationBindings "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	applicationBindings "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	identityBindingPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 const (

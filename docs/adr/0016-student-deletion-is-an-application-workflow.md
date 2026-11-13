@@ -4,9 +4,9 @@ status: accepted
 
 # Student Deletion is an application workflow
 
-The child lifecycle cutover in [#2710](https://github.com/moto-nrw/project-phoenix/issues/2710)
+The child lifecycle cutover in [#2710](https://github.com/moto-ogs/project-phoenix/issues/2710)
 implements the second irreversible lifecycle workflow required by
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), after the
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), after the
 staff offboarding in [ADR 0013](0013-staff-offboarding-is-an-application-workflow.md).
 Add `student-deletion` as a workflow owner, with no runtime data ownership.
 It coordinates the permanent deletion and anonymization of a child: the

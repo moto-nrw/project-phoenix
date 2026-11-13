@@ -3,7 +3,7 @@ package studentpresencehttp
 import (
 	context "context"
 
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // StudentPresence is the consumer-owned presence port of the students inbound

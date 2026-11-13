@@ -1,7 +1,7 @@
 package users
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // CompanionStrandingBatch collects the "would dropping this edge strand the far

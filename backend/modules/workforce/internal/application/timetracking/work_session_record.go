@@ -3,8 +3,8 @@ package timetracking
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type WorkSession struct {
@@ -20,8 +20,13 @@ type WorkSession struct {
 	BreakMinutes   int           `bun:"break_minutes,notnull,default:0" json:"break_minutes"`
 	Notes          string        `bun:"notes" json:"notes,omitempty"`
 	AutoCheckedOut bool          `bun:"auto_checked_out,notnull,default:false" json:"auto_checked_out"`
-	CreatedBy      int64         `bun:"created_by,notnull" json:"created_by"`
-	UpdatedBy      *int64        `bun:"updated_by" json:"updated_by,omitempty"`
+	// The credit rule the block was closed with (#6851, #6852); the credited
+	// time is derived from it when the block is read (sessionCredit).
+	PackUpMinutes           int    `bun:"pack_up_minutes,notnull,default:0" json:"-"`
+	RoundingIntervalMinutes int    `bun:"rounding_interval_minutes,notnull,default:0" json:"-"`
+	RoundingMode            string `bun:"rounding_mode,notnull,default:''" json:"-"`
+	CreatedBy               int64  `bun:"created_by,notnull" json:"created_by"`
+	UpdatedBy               *int64 `bun:"updated_by" json:"updated_by,omitempty"`
 }
 
 func (ws *WorkSession) Validate() error {

@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	configSvc "github.com/moto-nrw/project-phoenix/modules/settings"
+	configSvc "github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // RequestSettingsCacheMiddleware attaches the request-scoped settings memo

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // Decoder uses a fresh parser for every upload, including concurrent requests.

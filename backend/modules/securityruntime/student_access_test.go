@@ -3,7 +3,7 @@ package securityruntime
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 )
 
 // TestStudentDocumentPermissionsMatchTheRegistry pins the restated names to

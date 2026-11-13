@@ -5,10 +5,10 @@ status: accepted
 # A presence write locks the child before its visits
 
 Decision of 2026-10-29 for
-[#5278](https://github.com/moto-nrw/project-phoenix/issues/5278). It fixes
+[#5278](https://github.com/moto-ogs/project-phoenix/issues/5278). It fixes
 the order of the child row and the child's visit rows. The order of visit,
 session and room row is
-[#5280](https://github.com/moto-nrw/project-phoenix/issues/5280); this
+[#5280](https://github.com/moto-ogs/project-phoenix/issues/5280); this
 decision sits above it and does not change it. It approves one command-effect
 entry and adds no owner, no data object, no policy rule and no migration.
 

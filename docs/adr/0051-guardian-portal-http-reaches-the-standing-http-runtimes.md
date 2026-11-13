@@ -4,8 +4,8 @@ status: accepted
 
 # The guardian portal HTTP composition reaches the standing HTTP runtimes
 
-Decision for [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421),
-under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580). The user
+Decision for [#3421](https://github.com/moto-ogs/project-phoenix/issues/3421),
+under [#2580](https://github.com/moto-ogs/project-phoenix/issues/2580). The user
 chose this path for the ticket's second stage. The implementation remains
 subject to PR review.
 

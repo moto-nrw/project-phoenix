@@ -3,8 +3,8 @@ package requestreviewbinding
 import (
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
-	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/offeringrequests"
+	"github.com/moto-ogs/project-phoenix/modules/requestreview"
 )
 
 func OfferingRequestDiffLines(entries []offeringrequests.DiffEntry) []requestreview.OfferingRequestDiffResponse {

@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"encoding/json"
@@ -6,10 +6,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 // decisionErrorGolden is one rendered answer of a Care Plan decision error:
@@ -41,7 +43,7 @@ func TestCarePlanDecisionErrorsGolden(t *testing.T) {
 			{careplan.ErrOfferingChangeInvalid, http.StatusBadRequest, "", "enrollment: invalid offering change request"},
 			{careplan.ErrOfferingAdjustmentInvalid, http.StatusBadRequest, "", "offering adjustment is invalid"},
 		} {
-			assertDecisionErrorGolden(t, tt, rendererStatus(t, offeringDecisionErrorRenderer(tt.err)))
+			assertDecisionErrorGolden(t, tt, rendererStatus(t, careplanhttp.OfferingDecisionErrorRendererForTest(tt.err)))
 		}
 	})
 
@@ -61,7 +63,7 @@ func TestCarePlanDecisionErrorsGolden(t *testing.T) {
 			{careplan.ErrPickupAdjustmentStudentNotFound, http.StatusNotFound, "", "pickup adjustment: student not found"},
 		} {
 			recorder := httptest.NewRecorder()
-			renderPickupAdjustmentError(recorder, httptest.NewRequest(http.MethodPost, "/", nil), tt.err)
+			careplanhttp.RenderPickupAdjustmentErrorForTest(recorder, httptest.NewRequest(http.MethodPost, "/", nil), tt.err)
 
 			var body common.ErrResponse
 			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
@@ -86,7 +88,7 @@ func TestCarePlanDecisionErrorsGolden(t *testing.T) {
 	t.Run("pickup reset", func(t *testing.T) {
 		t.Parallel()
 		tt := decisionErrorGolden{careplan.ErrPickupResetNoOffering, http.StatusConflict, "students.pickup_reset_requires_offering", "für diesen Tag gibt es keine Angebots-Gehzeit"}
-		assertDecisionErrorGolden(t, tt, rendererStatus(t, pickupResetErrorRenderer(tt.err)))
+		assertDecisionErrorGolden(t, tt, rendererStatus(t, careplanhttp.PickupResetErrorRendererForTest(tt.err)))
 	})
 
 	t.Run("parent request conflict resolution", func(t *testing.T) {
@@ -97,7 +99,7 @@ func TestCarePlanDecisionErrorsGolden(t *testing.T) {
 			{careplan.ErrOfferingChangeForbidden, http.StatusForbidden, "", "enrollment: offering change request forbidden"},
 			{careplan.ErrOfferingChangeInvalid, http.StatusBadRequest, common.CodeStudentsStaffValueInvalid, "Der eingetragene Wert passt nicht zu diesen Anfragen. Bitte prüfen Sie ihn."},
 		} {
-			assertDecisionErrorGolden(t, tt, rendererStatus(t, resolveConflictErrorRenderer(tt.err)))
+			assertDecisionErrorGolden(t, tt, rendererStatus(t, careplanhttp.ResolveConflictErrorRendererForTest(tt.err)))
 		}
 	})
 }
