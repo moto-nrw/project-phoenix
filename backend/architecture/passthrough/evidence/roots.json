@@ -3663,21 +3663,21 @@
     },
     {
       "build": "production",
-      "evidence": "func (r StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID int64, status string, date absencerecords.Date, at time.Time, source string) error {\n\treturn r.Capability.ClearStudentStatusDays(ctx, studentID, status, []careplan.Date{careplan.Date(date)}, at, source)\n}",
+      "evidence": "func (r StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID int64, status string, date absencerecords.Date, at time.Time, source string, accountID *int64) error {\n\treturn r.Capability.ClearStudentStatusDays(ctx, studentID, status, []careplan.Date{careplan.Date(date)}, at, source, accountID)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/StudentStatusDayRepository.MarkCleared",
       "owner": "roots"
     },
     {
       "build": "production",
-      "evidence": "func (r StudentStatusDayRepository) MarkClearedByID(ctx context.Context, id int64, at time.Time, source string) error {\n\treturn r.Capability.ClearStudentStatusDayByID(ctx, id, at, source)\n}",
+      "evidence": "func (r StudentStatusDayRepository) MarkClearedByID(ctx context.Context, id int64, at time.Time, source string, accountID *int64) error {\n\treturn r.Capability.ClearStudentStatusDayByID(ctx, id, at, source, accountID)\n}",
       "form": "forward-debt",
       "id": "roots/owners/StudentStatusDayRepository.MarkClearedByID",
       "owner": "roots"
     },
     {
       "build": "production",
-      "evidence": "func (r StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []absencerecords.Date, at time.Time, source string) error {\n\tpublicDates := make([]careplan.Date, len(dates))\n\tfor i := range dates {\n\t\tpublicDates[i] = careplan.Date(dates[i])\n\t}\n\treturn r.Capability.ClearStudentStatusDays(ctx, studentID, status, publicDates, at, source)\n}",
+      "evidence": "func (r StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []absencerecords.Date, at time.Time, source string, accountID *int64) error {\n\tpublicDates := make([]careplan.Date, len(dates))\n\tfor i := range dates {\n\t\tpublicDates[i] = careplan.Date(dates[i])\n\t}\n\treturn r.Capability.ClearStudentStatusDays(ctx, studentID, status, publicDates, at, source, accountID)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/StudentStatusDayRepository.MarkClearedForDates",
       "owner": "roots"

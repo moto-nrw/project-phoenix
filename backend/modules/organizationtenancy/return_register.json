@@ -2887,11 +2887,39 @@
           "type": "bigint",
           "udt": "int8",
           "nullable": true
+        },
+        {
+          "name": "reported_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "cleared_source",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
+        },
+        {
+          "name": "cleared_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
         }
       ],
       "relationships": [
         {
+          "column": "cleared_by_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
           "column": "guardian_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "reported_by_account_id",
           "targetTable": "auth.accounts",
           "targetColumn": "id"
         },
@@ -29703,9 +29731,26 @@
           "type": "text",
           "udt": "text",
           "nullable": false
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
+        },
+        {
+          "name": "account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
         }
       ],
       "relationships": [
+        {
+          "column": "account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
         {
           "column": "student_id",
           "targetTable": "users.student_profiles",

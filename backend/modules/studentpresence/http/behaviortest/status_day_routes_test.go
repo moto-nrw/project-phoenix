@@ -44,12 +44,12 @@ func TestStudentStatusDayHandlers_CreateGetDelete(t *testing.T) {
 		"status": absencerecords.StudentStatusDaySick,
 		"dates":  []string{"2026-05-25", "2026-05-26"},
 	})
-	createRR := executeStatusDayHandler(t, router, createReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	createRR := executeStatusDayHandler(t, router, createReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, createRR.Code)
 	assert.Contains(t, createRR.Body.String(), `"status":"sick"`)
 
 	getReq := testutil.NewRequest("GET", fmt.Sprintf("/%d/status-days?from=2026-05-25&to=2026-05-26", student.ID), nil)
-	getRR := executeStatusDayHandler(t, router, getReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	getRR := executeStatusDayHandler(t, router, getReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, getRR.Code)
 	assert.Contains(t, getRR.Body.String(), `"label":"Krank"`)
 
@@ -58,12 +58,12 @@ func TestStudentStatusDayHandlers_CreateGetDelete(t *testing.T) {
 	require.Len(t, rows, 2)
 
 	deleteReq := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/%d", student.ID, rows[0].ID), nil)
-	deleteRR := executeStatusDayHandler(t, router, deleteReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	deleteRR := executeStatusDayHandler(t, router, deleteReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, deleteRR.Code)
 	assert.Contains(t, deleteRR.Body.String(), `"deleted":true`)
 
 	deleteAgainReq := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/%d", student.ID, rows[0].ID), nil)
-	deleteAgainRR := executeStatusDayHandler(t, router, deleteAgainReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	deleteAgainRR := executeStatusDayHandler(t, router, deleteAgainReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	assert.Equal(t, http.StatusNotFound, deleteAgainRR.Code)
 }
 
@@ -85,7 +85,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 		"status": absencerecords.StudentStatusDaySick,
 		"dates":  []string{today},
 	})
-	sickRR := executeStatusDayHandler(t, router, sickReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	sickRR := executeStatusDayHandler(t, router, sickReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, sickRR.Code)
 	require.Len(t, notifier.reports, 1)
 
@@ -93,7 +93,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 		"status": absencerecords.StudentStatusDaySick,
 		"dates":  []string{today},
 	})
-	repeatedSickRR := executeStatusDayHandler(t, router, repeatedSickReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	repeatedSickRR := executeStatusDayHandler(t, router, repeatedSickReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	require.Equal(t, http.StatusConflict, repeatedSickRR.Code)
 	assert.Contains(t, repeatedSickRR.Body.String(), `"status":409`)
 	assert.NotContains(t, repeatedSickRR.Body.String(), `"error"`)
@@ -113,7 +113,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 		"status": absencerecords.StudentStatusDayExcused,
 		"dates":  []string{today},
 	})
-	excusedRR := executeStatusDayHandler(t, router, excusedReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	excusedRR := executeStatusDayHandler(t, router, excusedReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	require.Equal(t, http.StatusConflict, excusedRR.Code)
 	require.Len(t, notifier.reports, 1, "a conflict must not notify or overwrite")
 
@@ -130,14 +130,14 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	assert.False(t, *fresh.Excused)
 
 	deleteSickReq := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/%d", student.ID, rows[0].ID), nil)
-	deleteSickRR := executeStatusDayHandler(t, router, deleteSickReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	deleteSickRR := executeStatusDayHandler(t, router, deleteSickReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, deleteSickRR.Code)
 
 	excusedAfterDeleteReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 		"status": absencerecords.StudentStatusDayExcused,
 		"dates":  []string{today},
 	})
-	excusedAfterDeleteRR := executeStatusDayHandler(t, router, excusedAfterDeleteReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	excusedAfterDeleteRR := executeStatusDayHandler(t, router, excusedAfterDeleteReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, excusedAfterDeleteRR.Code)
 	require.Len(t, notifier.reports, 2)
 	assert.Equal(t, absencerecords.StudentStatusDayExcused, notifier.reports[1].Status)
@@ -146,7 +146,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 		"status": absencerecords.StudentStatusDayClassTrip,
 		"dates":  []string{today},
 	})
-	classTripRR := executeStatusDayHandler(t, router, classTripReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	classTripRR := executeStatusDayHandler(t, router, classTripReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	require.Equal(t, http.StatusConflict, classTripRR.Code)
 
 	rows, err = resource.StudentStatusDayService.FindActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24))
@@ -155,14 +155,14 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	assert.Equal(t, absencerecords.StudentStatusDayExcused, rows[0].Status)
 
 	deleteExcusedReq := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/%d", student.ID, rows[0].ID), nil)
-	deleteExcusedRR := executeStatusDayHandler(t, router, deleteExcusedReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	deleteExcusedRR := executeStatusDayHandler(t, router, deleteExcusedReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, deleteExcusedRR.Code)
 
 	classTripAfterDeleteReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 		"status": absencerecords.StudentStatusDayClassTrip,
 		"dates":  []string{today},
 	})
-	classTripAfterDeleteRR := executeStatusDayHandler(t, router, classTripAfterDeleteReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	classTripAfterDeleteRR := executeStatusDayHandler(t, router, classTripAfterDeleteReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, classTripAfterDeleteRR.Code)
 
 	rows, err = resource.StudentStatusDayService.FindActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24))
@@ -180,7 +180,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	assert.Nil(t, fresh.ExcusedSince)
 
 	deleteReq := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/%d", student.ID, rows[0].ID), nil)
-	deleteRR := executeStatusDayHandler(t, router, deleteReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	deleteRR := executeStatusDayHandler(t, router, deleteReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, deleteRR.Code)
 
 	fresh, err = findStudentState(t, resource, student.ID)
@@ -261,7 +261,7 @@ func TestStudentStatusDayHandlers_InvalidRequests(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			req := testutil.NewAuthenticatedRequest(t, tc.method, tc.path, tc.body)
-			rr := executeStatusDayHandler(t, router, req, testutil.AdminTestClaims(42), []string{"admin:*"})
+			rr := executeStatusDayHandler(t, router, req, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 			assert.Equal(t, http.StatusBadRequest, rr.Code)
 		})
 	}
@@ -278,7 +278,7 @@ func TestStudentStatusDayHandlers_RepositoryMissingAndForbidden(t *testing.T) {
 	router := statusDayTestRouter(resource)
 
 	getReq := testutil.NewRequest("GET", fmt.Sprintf("/%d/status-days", student.ID), nil)
-	getRR := executeStatusDayHandler(t, router, getReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	getRR := executeStatusDayHandler(t, router, getReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, getRR.Code)
 	assert.Contains(t, getRR.Body.String(), `"data":[]`)
 
@@ -286,18 +286,18 @@ func TestStudentStatusDayHandlers_RepositoryMissingAndForbidden(t *testing.T) {
 		"status": absencerecords.StudentStatusDaySick,
 		"dates":  []string{"2026-05-25"},
 	})
-	createRR := executeStatusDayHandler(t, router, createReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	createRR := executeStatusDayHandler(t, router, createReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	assert.Equal(t, http.StatusInternalServerError, createRR.Code)
 
 	deleteReq := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/42", student.ID), nil)
-	deleteRR := executeStatusDayHandler(t, router, deleteReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	deleteRR := executeStatusDayHandler(t, router, deleteReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 	assert.Equal(t, http.StatusInternalServerError, deleteRR.Code)
 
 	forbiddenReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 		"status": absencerecords.StudentStatusDaySick,
 		"dates":  []string{"2026-05-25"},
 	})
-	forbiddenRR := executeStatusDayHandler(t, statusDayTestRouter(newStatusDayTestResource(db)), forbiddenReq, testutil.AdminTestClaims(42), []string{"users:update"})
+	forbiddenRR := executeStatusDayHandler(t, statusDayTestRouter(newStatusDayTestResource(db)), forbiddenReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"users:update"})
 	assert.Equal(t, http.StatusForbidden, forbiddenRR.Code)
 }
 
@@ -313,7 +313,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 	t.Run("get maps repository error to internal server error", func(t *testing.T) {
 		baseResource.StudentStatusDayService = presenceservice.NewStatusDays(&fakeStatusDayRepo{findRangeErr: errors.New("find failed")}, nil, nil, lockExceptionDay)
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/status-days?from=2026-05-25&to=2026-05-26", student.ID), nil)
-		rr := executeStatusDayHandler(t, statusDayTestRouter(baseResource), req, testutil.AdminTestClaims(42), []string{"admin:*"})
+		rr := executeStatusDayHandler(t, statusDayTestRouter(baseResource), req, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	})
 
@@ -327,7 +327,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 			"status": absencerecords.StudentStatusDaySick,
 			"dates":  []string{"2026-05-25"},
 		})
-		rr := executeStatusDayHandler(t, statusDayTestRouter(resource), req, testutil.AdminTestClaims(42), []string{"admin:*"})
+		rr := executeStatusDayHandler(t, statusDayTestRouter(resource), req, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	})
 
@@ -341,7 +341,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 			"status": absencerecords.StudentStatusDayExcused,
 			"dates":  []string{"2026-05-25"},
 		})
-		rr := executeStatusDayHandler(t, statusDayTestRouter(resource), req, testutil.AdminTestClaims(42), []string{"admin:*"})
+		rr := executeStatusDayHandler(t, statusDayTestRouter(resource), req, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	})
 
@@ -352,7 +352,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 			"status": absencerecords.StudentStatusDaySick,
 			"dates":  []string{"2026-05-25"},
 		})
-		rr := executeStatusDayHandler(t, statusDayTestRouter(resource), req, testutil.AdminTestClaims(42), []string{"admin:*"})
+		rr := executeStatusDayHandler(t, statusDayTestRouter(resource), req, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	})
 
@@ -360,12 +360,12 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 		resource := newStatusDayTestResource(db)
 		resource.StudentStatusDayService = presenceservice.NewStatusDays(&fakeStatusDayRepo{findByIDErr: errFakeRowNotFound}, nil, nil, lockExceptionDay)
 		missingReq := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/42", student.ID), nil)
-		missingRR := executeStatusDayHandler(t, statusDayTestRouter(resource), missingReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+		missingRR := executeStatusDayHandler(t, statusDayTestRouter(resource), missingReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 		assert.Equal(t, http.StatusNotFound, missingRR.Code)
 
 		resource.StudentStatusDayService = presenceservice.NewStatusDays(&fakeStatusDayRepo{findByIDRow: &absencerecords.StudentStatusDay{StudentID: 99}}, nil, nil, lockExceptionDay)
 		foreignReq := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/42", student.ID), nil)
-		foreignRR := executeStatusDayHandler(t, statusDayTestRouter(resource), foreignReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+		foreignRR := executeStatusDayHandler(t, statusDayTestRouter(resource), foreignReq, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 		assert.Equal(t, http.StatusNotFound, foreignRR.Code)
 	})
 
@@ -376,7 +376,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 			clearByIDErr: errors.New("clear failed"),
 		}, nil, nil, lockExceptionDay)
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/42", student.ID), nil)
-		rr := executeStatusDayHandler(t, statusDayTestRouter(resource), req, testutil.AdminTestClaims(42), []string{"admin:*"})
+		rr := executeStatusDayHandler(t, statusDayTestRouter(resource), req, testutil.AdminTestClaims(statusDayAdmin(t, db)), []string{"admin:*"})
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	})
 }
@@ -427,15 +427,15 @@ func (r *fakeStatusDayRepo) UpsertReported(_ context.Context, _ *absencerecords.
 	return r.upsertErr
 }
 
-func (r *fakeStatusDayRepo) MarkCleared(_ context.Context, _ int64, _ string, _ calendar.Date, _ time.Time, _ string) error {
+func (r *fakeStatusDayRepo) MarkCleared(_ context.Context, _ int64, _ string, _ calendar.Date, _ time.Time, _ string, _ *int64) error {
 	return nil
 }
 
-func (r *fakeStatusDayRepo) MarkClearedByID(_ context.Context, _ int64, _ time.Time, _ string) error {
+func (r *fakeStatusDayRepo) MarkClearedByID(_ context.Context, _ int64, _ time.Time, _ string, _ *int64) error {
 	return r.clearByIDErr
 }
 
-func (r *fakeStatusDayRepo) MarkClearedForDates(_ context.Context, _ int64, _ string, _ []calendar.Date, _ time.Time, _ string) error {
+func (r *fakeStatusDayRepo) MarkClearedForDates(_ context.Context, _ int64, _ string, _ []calendar.Date, _ time.Time, _ string, _ *int64) error {
 	return r.clearForDatesErr
 }
 
@@ -558,3 +558,10 @@ func (fakeRowNotFoundError) Error() string { return "record not found" }
 
 // RepositoryNotFound marks the repository not-found sentinel.
 func (fakeRowNotFoundError) RepositoryNotFound() {}
+
+// statusDayAdmin is a real account to sign the request in with: status-day
+// writes record the reporting and clearing account (#6842).
+func statusDayAdmin(t *testing.T, db *bun.DB) int {
+	t.Helper()
+	return int(testpkg.CreateTestAccount(t, db, "status-day-admin").ID)
+}

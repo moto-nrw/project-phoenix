@@ -564,7 +564,7 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 	// Clearing the sick day (production path: MarkClearedByID sets cleared_at,
 	// then releases the slots) restores its rows — and must replay the still
 	// active pickup cutoff instead of leaving the late blocks expected.
-	err = repos.StudentStatusDay.MarkClearedByID(h.ctx, statusDay.ID, time.Now(), absencerecords.StudentStatusSourceManual)
+	err = repos.StudentStatusDay.MarkClearedByID(h.ctx, statusDay.ID, time.Now(), absencerecords.StudentStatusSourceManual, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, studentpresence.SessionAttendanceExpected, h.attendance(t, h.beforeRow).Status)

@@ -65,7 +65,7 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, empty)
 
-	require.NoError(t, repo.MarkCleared(ctx, student.ID, absencerecords.StudentStatusDaySick, date, time.Now(), absencerecords.StudentStatusSourceNextCheckin))
+	require.NoError(t, repo.MarkCleared(ctx, student.ID, absencerecords.StudentStatusDaySick, date, time.Now(), absencerecords.StudentStatusSourceNextCheckin, nil))
 
 	activeRows, err := repo.FindActiveByStudentAndDateRange(ctx, student.ID, date, date)
 	require.NoError(t, err)
@@ -75,7 +75,9 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, allRows, 1)
 	assert.NotNil(t, allRows[0].ClearedAt)
-	assert.Equal(t, absencerecords.StudentStatusSourceNextCheckin, allRows[0].Source)
+	assert.Equal(t, absencerecords.StudentStatusSourceManual, allRows[0].Source, "clearing keeps the report's source (#6842)")
+	require.NotNil(t, allRows[0].ClearedSource)
+	assert.Equal(t, absencerecords.StudentStatusSourceNextCheckin, *allRows[0].ClearedSource)
 }
 
 func TestStudentStatusDayRepository_ListOverviewPaginatesPersonOrder(t *testing.T) {
@@ -146,9 +148,9 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 		}
 	}
 	require.NotZero(t, firstRowID)
-	require.NoError(t, repo.MarkClearedByID(ctx, firstRowID, now, absencerecords.StudentStatusSourceManual))
-	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, absencerecords.StudentStatusDayExcused, []calendar.Date{secondDate, secondDate}, now, absencerecords.StudentStatusSourceManual))
-	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, absencerecords.StudentStatusDayExcused, nil, now, absencerecords.StudentStatusSourceManual))
+	require.NoError(t, repo.MarkClearedByID(ctx, firstRowID, now, absencerecords.StudentStatusSourceManual, nil))
+	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, absencerecords.StudentStatusDayExcused, []calendar.Date{secondDate, secondDate}, now, absencerecords.StudentStatusSourceManual, nil))
+	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, absencerecords.StudentStatusDayExcused, nil, now, absencerecords.StudentStatusSourceManual, nil))
 
 	activeRows, err := repo.FindActiveByStudentAndDateRange(ctx, student.ID, firstDate, secondDate)
 	require.NoError(t, err)
@@ -159,7 +161,9 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 	require.Len(t, allRows, 2)
 	for _, row := range allRows {
 		assert.NotNil(t, row.ClearedAt)
-		assert.Equal(t, absencerecords.StudentStatusSourceManual, row.Source)
+		assert.Equal(t, absencerecords.StudentStatusSourcePlanned, row.Source, "clearing keeps the report's source (#6842)")
+		require.NotNil(t, row.ClearedSource)
+		assert.Equal(t, absencerecords.StudentStatusSourceManual, *row.ClearedSource)
 	}
 }
 
@@ -248,7 +252,7 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 
 	cleared := create("Cleared", "Dashboard")
 	report(ctxA, cleared, absencerecords.StudentStatusDayExcused)
-	require.NoError(t, repo.MarkCleared(ctxA, cleared, absencerecords.StudentStatusDayExcused, today, now, absencerecords.StudentStatusSourceManual))
+	require.NoError(t, repo.MarkCleared(ctxA, cleared, absencerecords.StudentStatusDayExcused, today, now, absencerecords.StudentStatusSourceManual, nil))
 
 	inactive := create("Inactive", "Dashboard")
 	report(ctxA, inactive, absencerecords.StudentStatusDayExcused)
@@ -326,7 +330,7 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 	assert.Equal(t, reason, *rows[0].Note)
 
 	// 3. Clear the day, then re-report sick with NO reason.
-	require.NoError(t, repo.MarkCleared(ctx, student.ID, absencerecords.StudentStatusDaySick, date, time.Now(), absencerecords.StudentStatusSourceNextCheckin))
+	require.NoError(t, repo.MarkCleared(ctx, student.ID, absencerecords.StudentStatusDaySick, date, time.Now(), absencerecords.StudentStatusSourceNextCheckin, nil))
 	require.NoError(t, repo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       date,
