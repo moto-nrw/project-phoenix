@@ -410,7 +410,19 @@ export function RolePermissionsTab({
           variant="outline"
           size="md"
           disabled={saving || filteredPermissions.length === 0}
+          disabledReason={
+            saving
+              ? undefined
+              : searchTerm.trim()
+                ? "Keine Berechtigung passt zu Ihrer Suche."
+                : "Es gibt keine Berechtigung zum Auswählen."
+          }
           onClick={() => toggleMany(filteredPermissions)}
+          tooltip={
+            allFilteredChecked
+              ? "Wählt alle angezeigten Berechtigungen ab, noch ohne zu speichern."
+              : "Wählt alle angezeigten Berechtigungen aus, noch ohne zu speichern."
+          }
         >
           {allFilteredChecked ? "Alle abwählen" : "Alle auswählen"}
         </Button>

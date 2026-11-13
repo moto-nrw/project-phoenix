@@ -201,7 +201,7 @@ describe("AbsenceBookingModal", () => {
       screen.getByRole("radio", { name: /Dienstreise/ }),
     ).toBeInTheDocument();
     // Nothing is preselected, so nothing is booked by accident.
-    expect(submit()).toBeDisabled();
+    expect(submit()).toHaveAttribute("aria-disabled", "true");
   });
 
   it("books vacation directly and shows what is left afterwards", async () => {
@@ -262,7 +262,7 @@ describe("AbsenceBookingModal", () => {
         "Nicht genug Tage: Regenerationstag hat noch 1 Tag, diese Eintragung braucht 2 Tage. Ändern Sie zuerst den Anspruch oder wählen Sie eine andere Art.",
       ),
     ).toBeInTheDocument();
-    expect(submit()).toBeDisabled();
+    expect(submit()).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Halber Tag" }));
     await waitFor(() =>
@@ -383,7 +383,7 @@ describe("AbsenceBookingModal", () => {
       expect(
         await screen.findByText(/spätere Eintragungen von Regenerationstag/),
       ).toBeInTheDocument();
-      expect(submit()).toBeDisabled();
+      expect(submit()).toHaveAttribute("aria-disabled", "true");
     });
 
     it("keeps booking blocked while the preview cannot be loaded", async () => {
@@ -402,7 +402,7 @@ describe("AbsenceBookingModal", () => {
           catalogText("general.unavailable", "die Übersicht der Kontingente"),
         ),
       ).toBeInTheDocument();
-      expect(submit()).toBeDisabled();
+      expect(submit()).toHaveAttribute("aria-disabled", "true");
       // Wiederholen lädt die Vorschau neu, ohne den Dialog zu schließen.
       const calls = mocks.previewAllowance.mock.calls.length;
       fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
@@ -435,7 +435,7 @@ describe("AbsenceBookingModal", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Urlaub 2026: noch übrig")).toBeInTheDocument();
     expect(screen.getByText("Urlaub 2027: noch übrig")).toBeInTheDocument();
-    expect(submit()).toBeDisabled();
+    expect(submit()).toHaveAttribute("aria-disabled", "true");
   });
 
   it("enables booking again after a failed account load succeeds on retry", async () => {
@@ -456,7 +456,7 @@ describe("AbsenceBookingModal", () => {
     expect(
       screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
     ).toHaveTextContent("req-quota");
-    expect(submit()).toBeDisabled();
+    expect(submit()).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.change(screen.getByLabelText("Von"), {
       target: { value: "2027-01-05" },
@@ -550,7 +550,7 @@ describe("AbsenceBookingModal", () => {
       expect(
         screen.getByText("Bereits geplante Buchungen"),
       ).toBeInTheDocument();
-      expect(submit()).toBeDisabled();
+      expect(submit()).toHaveAttribute("aria-disabled", "true");
 
       fireEvent.click(
         screen.getByRole("checkbox", {
@@ -616,7 +616,7 @@ describe("AbsenceBookingModal", () => {
       expect(
         await screen.findByText(/Stundenkonto wird berechnet/),
       ).toBeInTheDocument();
-      expect(submit()).toBeDisabled();
+      expect(submit()).toHaveAttribute("aria-disabled", "true");
 
       resolvePreview({
         currentBalanceMinutes: 600,
@@ -629,7 +629,7 @@ describe("AbsenceBookingModal", () => {
       expect(
         await screen.findByText(/fällt damit unter null/),
       ).toBeInTheDocument();
-      expect(submit()).toBeDisabled();
+      expect(submit()).toHaveAttribute("aria-disabled", "true");
     });
   });
 });

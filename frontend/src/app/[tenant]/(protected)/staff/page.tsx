@@ -800,6 +800,7 @@ function StaffPageContent() {
               variant="outline"
               size="md"
               onClick={() => setSearchTerm("")}
+              tooltip="Leert die Suche und zeigt wieder alle Ehemaligen."
             >
               Suche zurücksetzen
             </Button>
@@ -828,6 +829,7 @@ function StaffPageContent() {
                 setSearchTerm("");
                 setLocationFilter("all");
               }}
+              tooltip="Leert Suche und Ortsfilter und zeigt wieder alle Personen."
             >
               Suche zurücksetzen
             </Button>
@@ -837,6 +839,7 @@ function StaffPageContent() {
               variant="primary"
               size="md"
               onClick={() => router.push("/database/personal")}
+              tooltip="Öffnet das Personal in der Datenverwaltung, dort legen Sie Personen an."
             >
               Zur Datenverwaltung
             </Button>
