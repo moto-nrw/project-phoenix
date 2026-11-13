@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-ogs/project-phoenix/api"
 	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -68,12 +69,21 @@ func TestOpenRoomWorkflowAndAdminAmendmentDoNotDeadlock(t *testing.T) {
 // One ambient sweep locks two idle sessions without children, A before B,
 // while a scan checks a child into A. Neither order may deadlock. A child
 // checked in before the sweep's lock defers the whole sweep: A is in use
-// again, and the next run ends B (#6502, #6977).
+// again, and the next run ends B (#6502, #6977). A scan that reaches A only
+// after the sweep ended it resolves the room again (#7024): it joins another
+// open session of the room or, without one, gets the room's refusal.
 func TestTimeoutCohortAndScanDoNotDeadlock(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupTestDB(t)
-	for _, first := range []string{"cleanup_first", "scan_first"} {
-		t.Run(first, func(t *testing.T) {
+	for _, tc := range []struct {
+		name                       string
+		cleanupFirst, otherSession bool
+	}{
+		{name: "cleanup_first", cleanupFirst: true},
+		{name: "cleanup_first_room_has_another_session", cleanupFirst: true, otherSession: true},
+		{name: "scan_first"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			testpkg.OwnTenant(t)
 			f, _ := newSessionEndScanFixture(t)
@@ -86,6 +96,12 @@ func TestTimeoutCohortAndScanDoNotDeadlock(t *testing.T) {
 			require.NoError(t, err)
 			testpkg.LinkDeviceToActiveGroup(t, f.k.db, source, testpkg.CreateTestDevice(t, f.k.db, "cohort-b-device").ID)
 			require.Less(t, f.scanStay, source, "the sweep locks A before B")
+			var another int64
+			if tc.otherSession {
+				// In use, so the sweep keeps it; the scan prefers A, linked to its device.
+				another = testpkg.CreateTestActiveGroup(t, f.k.db, testpkg.CreateTestActivityGroup(t, f.k.db, "Timeout Cohort Other").ID, f.scanRoom).ID
+				testpkg.CreateTestVisit(t, f.k.db, testpkg.CreateTestStudent(t, f.k.db, "Other", "Session", "3a").ID, another, time.Now().Add(-time.Hour), nil)
+			}
 			queries := testpkg.CaptureQueries(t, f.k.db)
 			var count int
 			cleanup := func(ctx context.Context) error {
@@ -97,7 +113,7 @@ func TestTimeoutCohortAndScanDoNotDeadlock(t *testing.T) {
 			}
 			var ended <-chan error
 			var scanned <-chan *httptest.ResponseRecorder
-			if first == "cleanup_first" {
+			if tc.cleanupFirst {
 				// The sweep holds A and waits for B; the scan queues on A.
 				holder := holdRow(t, f.k.db, "SELECT id FROM active.groups WHERE id = ? FOR UPDATE", source)
 				ended = startLockOrderCommand(t, cleanup)
@@ -122,15 +138,22 @@ func TestTimeoutCohortAndScanDoNotDeadlock(t *testing.T) {
 			require.Len(t, groups, 2)
 			visits, err := f.k.presence(t).ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{source, f.scanStay}, OpenOnly: true})
 			require.NoError(t, err)
-			if first == "cleanup_first" {
-				// The scan reaches A only after the sweep ended it; its answer
-				// to that is #7024. Here it must just not deadlock.
-				require.NotNil(t, response)
+			if tc.cleanupFirst {
 				require.Equal(t, 2, count)
 				for _, group := range groups {
 					require.NotNil(t, group.EndTime)
 				}
 				require.Empty(t, visits)
+				if !tc.otherSession {
+					testutil.AssertErrorResponse(t, response, 404)
+					require.Equal(t, devicescan.CodeNoGroupsInRoom, testutil.ParseJSONResponse(t, response.Body.Bytes())["code"])
+					return
+				}
+				testutil.AssertSuccessResponse(t, response, 200)
+				joined, err := f.k.presence(t).ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{f.student}, OpenOnly: true})
+				require.NoError(t, err)
+				require.Len(t, joined, 1)
+				require.Equal(t, another, joined[0].ActiveGroupID, "the scan joins the room's open session")
 				return
 			}
 			testutil.AssertSuccessResponse(t, response, 200)
