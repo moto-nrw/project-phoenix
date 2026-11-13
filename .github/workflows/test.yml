@@ -131,7 +131,7 @@ jobs:
           # binaries hold a pool of twelve each, and every isolated clone adds
           # its own: with two clones per package the default of 100 answered
           # "too many clients already" (#6784).
-          POSTGRES_INITDB_ARGS: --set max_connections=300
+          POSTGRES_INITDB_ARGS: --set max_connections=300 --set shared_preload_libraries=pg_stat_statements --set pg_stat_statements.max=20000 --set pg_stat_statements.track_utility=on
         ports:
           - 5432:5432
         # Package database drops force checkpoints. These disposable databases
@@ -428,6 +428,20 @@ jobs:
               "| idle | | \($idle) |"
             ' "$RUNNER_TEMP/actiongraph.json"
           } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Postgres statement statistics (diagnostic)
+        if: ${{ !cancelled() }}
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          q() { docker exec -i "$PG_CONTAINER" psql -U postgres -d postgres -X -P pager=off "$@"; }
+          q -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements'
+          q -c "SELECT count(*) AS entries, round(sum(total_exec_time)/1000) AS exec_s, round(sum(total_plan_time)/1000) AS plan_s, sum(calls) AS calls, (SELECT dealloc FROM pg_stat_statements_info) AS dealloc FROM pg_stat_statements"
+          q -c "SELECT CASE WHEN query ~* '^\\s*create database' THEN 'CREATE DATABASE' WHEN query ~* '^\\s*drop database' THEN 'DROP DATABASE' WHEN query ~* '^\\s*(insert)' THEN 'INSERT' WHEN query ~* '^\\s*(update)' THEN 'UPDATE' WHEN query ~* '^\\s*(delete)' THEN 'DELETE' WHEN query ~* '^\\s*(select|with)' THEN 'SELECT/WITH' WHEN query ~* '^\\s*(truncate)' THEN 'TRUNCATE' WHEN query ~* '^\\s*(begin|commit|rollback|savepoint|release|set|reset|show)' THEN 'tx/set' ELSE 'other: ' || left(regexp_replace(query, '\\s+', ' ', 'g'), 24) END AS kind, sum(calls) AS calls, round(sum(total_exec_time)/1000) AS exec_s, round(sum(total_plan_time)/1000) AS plan_s FROM pg_stat_statements GROUP BY 1 ORDER BY 3 DESC LIMIT 25"
+          q -c "SELECT left(regexp_replace(query, '\\s+', ' ', 'g'), 150) AS query, sum(calls) AS calls, round(sum(total_exec_time)/1000) AS exec_s, round((sum(total_plan_time)/1000)::numeric, 1) AS plan_s FROM pg_stat_statements GROUP BY 1 ORDER BY 3 DESC LIMIT 40"
+          q -c "SELECT sum(xact_commit) AS commits, sum(xact_rollback) AS rollbacks, sum(tup_inserted) AS ins, sum(tup_updated) AS upd, sum(tup_deleted) AS del, sum(tup_returned) AS returned, sum(tup_fetched) AS fetched FROM pg_stat_database"
+          q -c "SELECT * FROM pg_stat_checkpointer" -x
+          q -c "SELECT wal_records, wal_fpi, pg_size_pretty(wal_bytes) AS wal FROM pg_stat_wal"
 
       # A package over its budget fails the pull request that made it slower,
       # not the next unrelated one that crosses Go's timeout (#6784).
