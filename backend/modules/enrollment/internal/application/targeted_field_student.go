@@ -86,13 +86,13 @@ func (r *targetedFieldSync) applyConsentFlags() {
 // persist writes the dirty student, records the consent transitions and
 // assembles the dispatch's errors.
 //
-// The companion refusals are kept as a WRAPPED error, not flattened into the
-// string list: the enrollment departure workflow reconciles the "läuft mit"
+// The companion refusals are kept as a separately WRAPPED error, not joined
+// into the field errors: the enrollment departure workflow reconciles the "läuft mit"
 // edges for every caller, and these two sentinels are expected,
 // user-actionable refusals (fix the other child's Heimweg first / retry after
-// the concurrent edit). Reducing them to text — as every other best-effort
-// field error is — would turn a legitimate enrollment change into an opaque
-// 500 at the handler (#1694).
+// the concurrent edit). A caller that tolerates field errors still has to
+// return them, or a legitimate enrollment change would end as an opaque 500
+// at the handler (#1694).
 func (r *targetedFieldSync) persist(before *Student) (bool, error) {
 	departurePlanSynced, studentUpdated, companionRefusal := r.writeStudent(before)
 	if studentUpdated && r.d.deps.StudentConsents != nil {
@@ -107,15 +107,31 @@ func (r *targetedFieldSync) persist(before *Student) (bool, error) {
 	}
 	if companionRefusal != nil {
 		if len(r.errs) > 0 {
-			return departurePlanSynced, fmt.Errorf("%s; %w", strings.Join(r.errs, "; "), companionRefusal)
+			return departurePlanSynced, fmt.Errorf("%w; %w", fieldErrors(r.errs), companionRefusal)
 		}
 		return departurePlanSynced, companionRefusal
 	}
 	if len(r.errs) > 0 {
-		return departurePlanSynced, errors.New(strings.Join(r.errs, "; "))
+		return departurePlanSynced, fieldErrors(r.errs)
 	}
 	return departurePlanSynced, nil
 }
+
+// fieldErrors joins the dispatch's field errors into one "; "-separated
+// message and keeps every error in the chain, so a caller can still tell
+// invalid request data (ErrDecisionInvalidData) from an infrastructure
+// failure.
+type fieldErrors []error
+
+func (e fieldErrors) Error() string {
+	msgs := make([]string, len(e))
+	for i, err := range e {
+		msgs[i] = err.Error()
+	}
+	return strings.Join(msgs, "; ")
+}
+
+func (e fieldErrors) Unwrap() []error { return e }
 
 // writeStudent writes a dirty student. Carrying a departure plan is a
 // NECESSARY, not a sufficient, condition for a companion change: writing the
@@ -143,7 +159,7 @@ func (r *targetedFieldSync) writeStudent(before *Student) (planSynced, updated b
 	if r.d.isCompanionRefusal(updateErr) {
 		return false, false, fmt.Errorf("update student: %w", updateErr)
 	}
-	r.errs = append(r.errs, fmt.Sprintf("update student: %v", updateErr))
+	r.errs = append(r.errs, fmt.Errorf("update student: %w", updateErr))
 	return false, false, nil
 }
 

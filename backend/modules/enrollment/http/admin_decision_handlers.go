@@ -705,6 +705,9 @@ func (rs *Resource) decideErrorRules(r *http.Request) []common.ErrorRule {
 		{Target: capability.ErrDecisionInvalidData, Render: func(err error) render.Renderer {
 			return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentApprovalDataInvalid)
 		}},
+		{Target: capability.ErrDecisionReviewerStaffRequired, Render: func(err error) render.Renderer {
+			return common.ErrorForbiddenWithCode(err, common.CodeEnrollmentApprovalStaffProfileRequired)
+		}},
 		{Target: capability.ErrWaitlistDisabled, Render: func(err error) render.Renderer {
 			return common.ErrorConflictWithCode(err, common.CodeEnrollmentWaitlistDisabled)
 		}},

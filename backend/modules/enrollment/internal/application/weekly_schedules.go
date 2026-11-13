@@ -88,17 +88,17 @@ func (d *Decisions) resolveReviewerStaffID(ctx context.Context, reviewerAccountI
 		return 0, fmt.Errorf("find reviewer person: %w", err)
 	}
 	if person == nil {
-		return 0, fmt.Errorf("reviewer account %d has no linked person", reviewerAccountID)
+		return 0, fmt.Errorf("%w: reviewer account %d has no linked person", enrollment.ErrDecisionReviewerStaffRequired, reviewerAccountID)
 	}
 	staffID, err := people.Staff.StaffIDByPerson(ctx, person.ID)
 	if err != nil {
 		if d.deps.Runtime.NotFound(err) {
-			return 0, fmt.Errorf("reviewer account %d has no linked staff", reviewerAccountID)
+			return 0, fmt.Errorf("%w: reviewer account %d has no linked staff", enrollment.ErrDecisionReviewerStaffRequired, reviewerAccountID)
 		}
 		return 0, fmt.Errorf("find reviewer staff: %w", err)
 	}
 	if staffID <= 0 {
-		return 0, fmt.Errorf("reviewer account %d has no linked staff", reviewerAccountID)
+		return 0, fmt.Errorf("%w: reviewer account %d has no linked staff", enrollment.ErrDecisionReviewerStaffRequired, reviewerAccountID)
 	}
 	return staffID, nil
 }

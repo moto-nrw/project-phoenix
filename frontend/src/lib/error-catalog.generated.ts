@@ -321,6 +321,8 @@ export const ERROR_CATALOG = {
         "Für dieses Kind ist kein Betreuungsangebot gebucht. Die Familie muss zuerst ein Angebot ergänzen.",
       "enrollment.approval_data_invalid":
         "Die Angaben dieser Anmeldung sind unvollständig. Bitte korrigieren Sie die Daten des Kindes.",
+      "enrollment.approval_staff_profile_required":
+        "Diese Anmeldung enthält Abhol- oder Bringzeiten. Freigeben kann sie nur jemand mit Personalprofil.",
       "enrollment.captcha_failed":
         "Die Sicherheitsabfrage hat nicht geklappt. Bitte versuchen Sie es noch einmal.",
       "enrollment.captcha_required":
@@ -2200,6 +2202,8 @@ export const ERROR_CATALOG = {
       "communication.survey_not_open": "This survey no longer accepts answers.",
       "display.manage_forbidden":
         "You can view info displays, but cannot change them. Please contact your school management.",
+      "enrollment.approval_staff_profile_required":
+        "This registration contains pickup or arrival times. Only someone with a staff profile can approve it.",
       "enrollment.captcha_failed":
         "The security check did not work. Please try again.",
       "enrollment.captcha_required": "Please complete the security check.",
@@ -2897,6 +2901,8 @@ export const ERROR_CATALOG = {
       "communication.survey_not_open": "Этот опрос больше не принимает ответы.",
       "display.manage_forbidden":
         "Вы можете просматривать информационные экраны, но не изменять их. Обратитесь к руководству школы.",
+      "enrollment.approval_staff_profile_required":
+        "В этой заявке указано время прихода или ухода. Одобрить её может только сотрудник с профилем персонала.",
       "enrollment.captcha_failed":
         "Проверка безопасности не пройдена. Попробуйте ещё раз.",
       "enrollment.captcha_required": "Пройдите проверку безопасности.",
@@ -3492,6 +3498,8 @@ export const ERROR_CATALOG = {
       "communication.survey_not_open": "Ky sondazh nuk pranon më përgjigje.",
       "display.manage_forbidden":
         "Mund t’i shikoni ekranet informuese, por nuk mund t’i ndryshoni. Ju lutemi kontaktoni drejtuesit e shkollës.",
+      "enrollment.approval_staff_profile_required":
+        "Ky regjistrim përmban orare marrjeje ose sjelljeje. Vetëm dikush me profil stafi mund ta miratojë.",
       "enrollment.captcha_failed":
         "Kontrolli i sigurisë nuk funksionoi. Ju lutemi provoni përsëri.",
       "enrollment.captcha_required":
@@ -4100,6 +4108,8 @@ export const ERROR_CATALOG = {
         "Ta ankieta nie przyjmuje już odpowiedzi.",
       "display.manage_forbidden":
         "Możesz przeglądać ekrany informacyjne, ale nie możesz ich zmieniać. Skontaktuj się z dyrekcją szkoły.",
+      "enrollment.approval_staff_profile_required":
+        "To zgłoszenie zawiera godziny odbioru lub przyprowadzenia. Zatwierdzić je może tylko osoba z profilem pracownika.",
       "enrollment.captcha_failed":
         "Weryfikacja bezpieczeństwa nie powiodła się. Spróbuj ponownie.",
       "enrollment.captcha_required": "Potwierdź weryfikację bezpieczeństwa.",
@@ -4694,6 +4704,8 @@ export const ERROR_CATALOG = {
       "communication.survey_not_open": "Bu anket artık yanıt kabul etmiyor.",
       "display.manage_forbidden":
         "Bilgi ekranlarını görüntüleyebilirsiniz, ancak değiştiremezsiniz. Lütfen okul yönetimine başvurun.",
+      "enrollment.approval_staff_profile_required":
+        "Bu kayıtta alma veya getirme saatleri var. Yalnızca personel profili olan biri onaylayabilir.",
       "enrollment.captcha_failed":
         "Güvenlik doğrulaması başarısız oldu. Lütfen tekrar deneyin.",
       "enrollment.captcha_required":
@@ -5293,6 +5305,8 @@ export const ERROR_CATALOG = {
         "Це опитування більше не приймає відповіді.",
       "display.manage_forbidden":
         "Ви можете переглядати інформаційні екрани, але не змінювати їх. Зверніться до керівництва школи.",
+      "enrollment.approval_staff_profile_required":
+        "У цій заявці вказано час приходу або забирання. Схвалити її може лише працівник із профілем персоналу.",
       "enrollment.captcha_failed":
         "Перевірка безпеки не вдалася. Спробуйте ще раз.",
       "enrollment.captcha_required": "Пройдіть перевірку безпеки.",

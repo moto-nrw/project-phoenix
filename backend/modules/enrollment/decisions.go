@@ -20,6 +20,10 @@ var (
 	// student/person validators. Mapped to 400, not 500 — submit/edit now
 	// validate up front, so this is defense-in-depth for legacy rows.
 	ErrDecisionInvalidData = errors.New("enrollment request data is invalid")
+	// ErrDecisionReviewerStaffRequired marks an approval whose weekly pickup
+	// or arrival rows need a staff author, while the reviewing account has no
+	// staff profile. Another staff member has to approve (#6839).
+	ErrDecisionReviewerStaffRequired = errors.New("approving weekly schedules requires a staff profile")
 	// ErrGuardianAccountMismatch marks an approval whose authenticated
 	// submitter account (request.guardian_account_id) conflicts with the
 	// guardian profile the request's email resolves to: the email already

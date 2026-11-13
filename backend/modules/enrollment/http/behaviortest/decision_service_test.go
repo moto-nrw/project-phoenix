@@ -2352,6 +2352,91 @@ func TestDecisionService_Decide_ConsentAuditFailureRollsBackFreshStudent(t *test
 	assert.Nil(t, child.CreatedStudentID)
 }
 
+// A fresh approval whose targeted field cannot be taken over must fail
+// instead of creating a student without that master data and reporting
+// success (#6839).
+func TestDecisionService_Decide_TargetedFieldFailureRollsBackFreshStudent(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "targeted-failure@example.com", "Anna", "Abholfehler", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	child.CustomData = testFormValues(map[string]any{
+		"pickup_times": map[string]any{"sat": "14:45"},
+	})
+	require.NoError(t, UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
+
+	studentCountBefore, err := env.db.NewSelect().
+		TableExpr("users.student_profiles").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Count(ctx)
+	require.NoError(t, err)
+
+	decideErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, decisionErr := testpkg.TenantQuery1(t, txCtx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+			RequestID:  reqID,
+			ChildID:    childID,
+			Status:     enrollmentNative.DecisionApproved,
+			ReviewedBy: reviewerAccountID,
+		})
+		return decisionErr
+	})
+	require.ErrorIs(t, decideErr, enrollmentNative.ErrDecisionInvalidData,
+		"an unusable pickup plan must surface as invalid request data, not as a silent success")
+
+	studentCountAfter, err := env.db.NewSelect().
+		TableExpr("users.student_profiles").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, studentCountBefore, studentCountAfter, "the student must not exist without its pickup plan")
+
+	child, err = ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentNative.ChildStatusSubmitted, child.Status)
+	assert.Nil(t, child.CreatedStudentID)
+}
+
+// A legacy request whose guardian phone fails the format check must not end
+// as a child without the phone number, nor as an opaque server error (#6839).
+func TestDecisionService_Decide_InvalidGuardianPhoneRollsBackFreshStudent(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "legacy-phone@example.com", "Anna", "Telefon", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	_, err := env.db.NewRaw("UPDATE enrollment.requests SET guardian_phone = 'keine Nummer' WHERE tenant_id = ? AND id = ?",
+		testpkg.Tenant(t), reqID).Exec(ctx)
+	require.NoError(t, err)
+
+	decideErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, decisionErr := testpkg.TenantQuery1(t, txCtx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+			RequestID:  reqID,
+			ChildID:    childID,
+			Status:     enrollmentNative.DecisionApproved,
+			ReviewedBy: reviewerAccountID,
+		})
+		return decisionErr
+	})
+	require.ErrorIs(t, decideErr, enrollmentNative.ErrDecisionInvalidData)
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	assert.Nil(t, child.CreatedStudentID, "the student must not exist without the guardian phone")
+}
+
 func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) {
 	t.Parallel()
 
@@ -2808,7 +2893,10 @@ func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T)
 		"enrollment rows mark the care day and inherit later class-time changes")
 }
 
-func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortApproval(t *testing.T) {
+// A reviewer without a staff membership cannot author the weekly pickup rows.
+// The approval must fail like the renewal path does, instead of creating the
+// student without the submitted pickup plan (#6839).
+func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffRollsBackApproval(t *testing.T) {
 	t.Parallel()
 
 	env := setupDecisionTest(t)
@@ -2819,19 +2907,22 @@ func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortAp
 	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-no-staff@example.com", "Anna", "NoStaff", map[string]any{
 		"pickup_times": map[string]any{"mon": "14:45"},
 	})
-	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
-		RequestID:  reqID,
-		ChildID:    childID,
-		Status:     enrollmentNative.DecisionApproved,
-		ReviewedBy: reviewerAccount.ID,
+	decideErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, decisionErr := testpkg.TenantQuery1(t, txCtx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+			RequestID:  reqID,
+			ChildID:    childID,
+			Status:     enrollmentNative.DecisionApproved,
+			ReviewedBy: reviewerAccount.ID,
+		})
+		return decisionErr
 	})
-	require.NoError(t, err, "targeted-field schedule failures must not poison the approval transaction")
-	require.NotNil(t, outcome.Child.CreatedStudentID)
-	assert.Equal(t, enrollmentNative.ChildStatusApproved, outcome.Child.Status)
+	require.ErrorIs(t, decideErr, enrollmentNative.ErrDecisionReviewerStaffRequired,
+		"a pickup plan without a staff author must abort the approval, not vanish")
 
-	rows, err := env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
-	assert.Empty(t, rows, "without a staff author, schedule dispatch should skip before inserting")
+	assert.Equal(t, enrollmentNative.ChildStatusSubmitted, child.Status)
+	assert.Nil(t, child.CreatedStudentID)
 }
 
 // TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBack
@@ -2840,9 +2931,8 @@ func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortAp
 // student's live arrival/pickup rows before re-inserting the resubmitted
 // weekdays. A dispatch failure AFTER that delete must be fatal so the
 // surrounding tenant tx rolls the whole approval back: the live schedule must
-// never be committed deleted-but-not-rebuilt. Contrast with
-// TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortApproval
-// above, which is the additive fresh-create path where a skip is harmless.
+// never be committed deleted-but-not-rebuilt. The fresh-create path aborts the
+// same way since #6839 (TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffRollsBackApproval).
 func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBack(t *testing.T) {
 	t.Parallel()
 

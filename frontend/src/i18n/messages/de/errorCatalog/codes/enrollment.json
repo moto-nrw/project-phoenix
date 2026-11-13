@@ -4,6 +4,7 @@
   "approval_care_offering_exactly_one": "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
   "approval_care_offering_missing": "Für dieses Kind ist kein Betreuungsangebot gebucht. Die Familie muss zuerst ein Angebot ergänzen.",
   "approval_data_invalid": "Die Angaben dieser Anmeldung sind unvollständig. Bitte korrigieren Sie die Daten des Kindes.",
+  "approval_staff_profile_required": "Diese Anmeldung enthält Abhol- oder Bringzeiten. Freigeben kann sie nur jemand mit Personalprofil.",
   "captcha_failed": "Die Sicherheitsabfrage hat nicht geklappt. Bitte versuchen Sie es noch einmal.",
   "captcha_required": "Bitte bestätigen Sie die Sicherheitsabfrage.",
   "care_offering_auto_add_invalid": "Die automatische Zubuchung passt so nicht. Bitte prüfen Sie die auslösenden Angebote und die Tagesauswahl.",

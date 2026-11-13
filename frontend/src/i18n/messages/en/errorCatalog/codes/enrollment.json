@@ -4,6 +4,7 @@
   "approval_care_offering_exactly_one": "{object} could not be changed. Please check its current status.",
   "approval_care_offering_missing": "{object} could not be changed. Please check its current status.",
   "approval_data_invalid": "{object} could not be saved. Please check your entries.",
+  "approval_staff_profile_required": "This registration contains pickup or arrival times. Only someone with a staff profile can approve it.",
   "captcha_failed": "The security check did not work. Please try again.",
   "captcha_required": "Please complete the security check.",
   "care_offering_auto_add_invalid": "{object} could not be saved. Please check your entries.",

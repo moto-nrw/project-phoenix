@@ -4,6 +4,7 @@
   "approval_care_offering_exactly_one": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "approval_care_offering_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "approval_data_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "approval_staff_profile_required": "Ky regjistrim përmban orare marrjeje ose sjelljeje. Vetëm dikush me profil stafi mund ta miratojë.",
   "captcha_failed": "Kontrolli i sigurisë nuk funksionoi. Ju lutemi provoni përsëri.",
   "captcha_required": "Ju lutemi plotësoni kontrollin e sigurisë.",
   "care_offering_auto_add_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

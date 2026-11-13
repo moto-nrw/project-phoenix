@@ -25,6 +25,12 @@
       "legacy": "enrollment.approval_data_invalid"
     },
     {
+      "code": "enrollment.approval_staff_profile_required",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "enrollment.approval_staff_profile_required"
+    },
+    {
       "code": "enrollment.captcha_failed",
       "class": "input",
       "parameters": [],
