@@ -23,6 +23,8 @@ const (
 	apiReasonBounce = "hard_bounce"
 	apiReasonSpam   = "spam_complaint"
 	apiTypeEmail    = "email"
+	apiTypeDomain   = "domain"
+	apiScopeGlobal  = "global"
 )
 
 // lettermintClientConfig configures the Team API client. BaseURL is empty in production;
@@ -112,8 +114,9 @@ func (c *lettermintClient) MessageEvents(ctx context.Context, providerMessageID 
 	for range apiMaxPages {
 		var page struct {
 			Data []struct {
-				Event     string `json:"event"`
-				Timestamp string `json:"timestamp"`
+				Event     string          `json:"event"`
+				Timestamp string          `json:"timestamp"`
+				Metadata  json.RawMessage `json:"metadata"`
 			} `json:"data"`
 			NextCursor *string `json:"next_cursor"`
 		}
@@ -121,7 +124,7 @@ func (c *lettermintClient) MessageEvents(ctx context.Context, providerMessageID 
 			return nil, err
 		}
 		for _, item := range page.Data {
-			if event, ok := lettermintAPIEvent(item.Event, item.Timestamp, providerMessageID); ok {
+			if event, ok := lettermintAPIEvent(item.Event, item.Timestamp, providerMessageID, item.Metadata); ok {
 				events = append(events, event)
 			}
 		}
@@ -133,7 +136,9 @@ func (c *lettermintClient) MessageEvents(ctx context.Context, providerMessageID 
 	return events, nil
 }
 
-func lettermintAPIEvent(name, timestamp, providerMessageID string) (domain.EmailDeliveryEvent, bool) {
+// lettermintAPIEvent maps one event of the Team API. A suppression names its block
+// in the event's metadata, so a permanent one marks the address here as well.
+func lettermintAPIEvent(name, timestamp, providerMessageID string, metadata json.RawMessage) (domain.EmailDeliveryEvent, bool) {
 	outcome, known := lettermintOutcomes[strings.TrimPrefix(name, "message.")]
 	occurredAt, err := time.Parse(time.RFC3339, timestamp)
 	if !known || err != nil {
@@ -141,6 +146,7 @@ func lettermintAPIEvent(name, timestamp, providerMessageID string) (domain.Email
 	}
 	event := outcome.event("")
 	event.KeepsAddress = event.KeepsAddress || event.State == domain.EmailDeliveryFailed
+	lettermintBlockOf(metadata).apply(&event)
 	event.ProviderEventID = "api:" + name + ":" + timestamp
 	event.ProviderMessageID = providerMessageID
 	event.OccurredAt = occurredAt
