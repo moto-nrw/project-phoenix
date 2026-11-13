@@ -1176,7 +1176,7 @@ interface AbsencePlanGapWire {
   open_blocks: number;
 }
 
-export function mapAbsencePlanGap(row: AbsencePlanGapWire): AbsencePlanGap {
+function mapAbsencePlanGap(row: AbsencePlanGapWire): AbsencePlanGap {
   return {
     absenceId: String(row.absence_id),
     staffId: String(row.staff_id),
