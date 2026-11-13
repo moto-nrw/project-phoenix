@@ -109,6 +109,11 @@ func (rs *Resource) parseStudentListPlan(r *http.Request) (studentListPlan, rend
 	if err := parseCareOfferingFilter(r, params); err != nil {
 		return studentListPlan{}, common.ErrorInvalidRequest(err)
 	}
+	if err := readEnrollmentAnswerFilter(r, params); errors.Is(err, errEnrollmentAnswerForbidden) {
+		return studentListPlan{}, common.ErrorForbidden(err)
+	} else if err != nil {
+		return studentListPlan{}, common.ErrorInvalidRequest(err)
+	}
 	now := rs.Now()
 	planningDate, isToday, dateErr := resolvePlanningDate(params.date, now)
 	if dateErr != nil {
@@ -310,6 +315,11 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		if done {
 			return students, totalCount, nil
 		}
+	}
+	if nonEmpty, err := rs.resolveEnrollmentAnswerFilter(ctx, params); err != nil {
+		return nil, 0, err
+	} else if !nonEmpty {
+		return []*peopleModule.StudentState{}, 0, nil
 	}
 	if nonEmpty, err := rs.resolveOperationalParticipantFilter(ctx, params); err != nil {
 		return nil, 0, err

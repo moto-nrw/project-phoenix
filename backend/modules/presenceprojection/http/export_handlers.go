@@ -66,6 +66,9 @@ type studentExportFilters struct {
 	// the caller cannot see, or that another filter drops, stays out. Empty
 	// means no selection.
 	StudentIDs []string `json:"student_ids"`
+	// EnrollmentAnswer keeps the children with one answer to a registration
+	// question, "<key>=<value>" like the list's enrollment_answer (#6954).
+	EnrollmentAnswer string `json:"enrollment_answer"`
 }
 
 type weeklySchedule struct {
@@ -206,6 +209,9 @@ func decodeStudentExportRequest(r *http.Request) (studentExportRequest, error) {
 	if _, err := parseExportStudentIDs(req.Filters.StudentIDs); err != nil {
 		return req, err
 	}
+	if _, err := parseEnrollmentAnswer(req.Filters.EnrollmentAnswer); err != nil {
+		return req, err
+	}
 	return req, nil
 }
 
@@ -342,6 +348,8 @@ func exportRequestToListParams(req studentExportRequest, today calendar.Date) *s
 		studentIDs: studentIDs,
 	}
 	params.groupIDs = parseGroupIDList([]string{req.Filters.GroupID})
+	// decodeStudentExportRequest already rejected a malformed value.
+	params.enrollmentAnswer, _ = parseEnrollmentAnswer(req.Filters.EnrollmentAnswer)
 	if req.Filters.RoomID != "" {
 		if roomID, err := strconv.ParseInt(req.Filters.RoomID, 10, 64); err == nil {
 			params.roomID = roomID

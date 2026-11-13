@@ -24,3 +24,9 @@ func newStore() *postgres.Store {
 // NewOfferingSelectionReferences binds the catalog's deletion guard to the
 // caller's school transaction and Enrollment's own selection table.
 func NewOfferingSelectionReferences() enrollment.OfferingSelectionReferences { return newStore() }
+
+// NewStudentAnswers reads the registration answers of the school's children
+// in the caller's tenant transaction (#6954).
+func NewStudentAnswers() enrollment.StudentAnswers {
+	return applicationNative.NewStudentAnswers(newStore())
+}
