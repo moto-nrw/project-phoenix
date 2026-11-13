@@ -328,7 +328,7 @@ AS $function$
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> 'ecc1fe36a69bf1565114644cd9d27d63869fd218ed76932a7f3c29509091342a' THEN
+    ) AS edge) <> '61af89cd3a78c8f8f87ae712e7fc3b095a329ef36b0e6e67ca1953f1da635cb4' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.

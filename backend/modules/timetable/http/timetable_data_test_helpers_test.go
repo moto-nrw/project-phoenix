@@ -256,7 +256,10 @@ func calendarPeriodUsageFor(usage timetablePorts.CalendarPeriodUsageRepository) 
 		}
 		result := make(map[int64]CalendarPeriodUsageCounts, len(values))
 		for id, value := range values {
-			result[id] = CalendarPeriodUsageCounts(value)
+			result[id] = CalendarPeriodUsageCounts{
+				EnrollmentPhases: value.EnrollmentPhases, ActivityGroups: value.ActivityGroups, Schedules: value.Schedules,
+				StudentEnrollments: value.StudentEnrollments, Supervisors: value.Supervisors, ActivityInstances: value.ActivityInstances,
+			}
 		}
 		return result, nil
 	})

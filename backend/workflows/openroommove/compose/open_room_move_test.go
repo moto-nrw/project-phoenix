@@ -113,7 +113,10 @@ func newMoveStack(t *testing.T) *moveStack {
 		DB:           db,
 		DeletionLock: func(context.Context) error { return nil },
 		Usage:        unusedRooms{},
-		Observe:      func(facilitiesCompose.Observation) {},
+		References: func(context.Context, int64) (facilities.RoomReferences, error) {
+			return facilities.RoomReferences{}, nil
+		},
+		Observe: func(facilitiesCompose.Observation) {},
 	})
 	require.NoError(t, err)
 	s := &moveStack{rooms: rooms, timetable: owners.NewTestTimetable(t, testpkg.MustDatabase(db)), presence: newRecordingPresence()}

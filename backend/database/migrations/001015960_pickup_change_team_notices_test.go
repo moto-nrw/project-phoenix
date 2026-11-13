@@ -71,6 +71,8 @@ func TestPickupChangeTeamNoticesMigrationRoundTrip(t *testing.T) {
 		require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.school_erasure_preflight(bigint,bigint)'::regprocedure)`).Scan(ctx, &definition))
 		return definition
 	}
+	// The room archive (#6845) changes the fingerprint at the head; it goes first.
+	require.NoError(t, roomsArchiveDown(ctx, db))
 	require.True(t, exists())
 	assert.Contains(t, preflight(), pickupChangeTeamNoticesFingerprint)
 

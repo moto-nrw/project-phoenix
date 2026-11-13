@@ -1455,6 +1455,47 @@ func TestDeletePeriod(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "verknüpften Betreuungsangebot")
 	})
 
+	t.Run("refuses with 409 while Dienstplan series use the period", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{
+			period: newTestPeriod(),
+			usage:  map[int64]CalendarPeriodUsageCounts{42: {StaffShiftSeries: 2}},
+		}
+		res := newResourceForTest(periodDependencies(mock))
+		router := setupTestRouter(res.deletePeriod, http.MethodDelete, true)
+
+		w := executeRequest(router, http.MethodDelete, "/42", nil)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), `"code":"timetable.calendar_period_shift_series_conflict"`)
+		assert.Contains(t, w.Body.String(), `"staff_shift_series_count":2`)
+		assert.Zero(t, mock.lastDeletedID, "the period must not be removed")
+	})
+
+	t.Run("classifies the series FK backstop as 409", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{
+			period:    newTestPeriod(),
+			deleteErr: fmt.Errorf("delete calendar period: %w", schoolcalendar.ErrCalendarPeriodUsedByShiftSeries),
+		}
+		res := newResourceForTest(periodDependencies(mock))
+		router := setupTestRouter(res.deletePeriod, http.MethodDelete, true)
+
+		w := executeRequest(router, http.MethodDelete, "/42", nil)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), `"code":"timetable.calendar_period_shift_series_conflict"`)
+	})
+
+	t.Run("returns 500 when the usage read fails", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{period: newTestPeriod(), usageErr: errors.New("usage down")}
+		res := newResourceForTest(periodDependencies(mock))
+		router := setupTestRouter(res.deletePeriod, http.MethodDelete, true)
+
+		w := executeRequest(router, http.MethodDelete, "/42", nil)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Zero(t, mock.lastDeletedID)
+	})
+
 	t.Run("returns 500 on service error", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{
 			period:    newTestPeriod(),

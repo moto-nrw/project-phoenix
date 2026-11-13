@@ -684,12 +684,15 @@ export function DienstplanResourceGrid({
 
   const legendEntries: PlanLegendEntry[] = useMemo(
     () => [
-      ...shiftTypes.map((type) => ({
-        key: `type-${type.id}`,
-        label: type.name,
-        color: type.color,
-        variant: "bar" as const,
-      })),
+      // Entfernte Dienstarten färben nur noch ihre Dienste (#6845).
+      ...shiftTypes
+        .filter((type) => !type.archivedAt)
+        .map((type) => ({
+          key: `type-${type.id}`,
+          label: type.name,
+          color: type.color,
+          variant: "bar" as const,
+        })),
       { key: "state-absent", label: "Abwesend", variant: "hatched" },
       { key: "state-cancelled", label: "Fällt aus", variant: "cancelled" },
       {

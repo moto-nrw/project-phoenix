@@ -88,12 +88,8 @@
     "GET tenant /api/staff/qualifications"
   ],
   "api/staff/shift-types": [
-    "GET tenant /api/shift-types",
+    "GET tenant /api/shift-types query=include_archived,with_usage",
     "POST tenant /api/shift-types"
-  ],
-  "api/staff/shift-types/[shiftTypeId]": [
-    "DELETE tenant /api/shift-types/shiftTypeId%2F1",
-    "PUT tenant /api/shift-types/shiftTypeId%2F1"
   ],
   "api/staff/shift-types/defaults": [
     "POST tenant /api/shift-types/defaults"

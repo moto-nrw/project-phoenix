@@ -51,6 +51,8 @@ export interface BackendRoom {
   // Whether the OGS administration has permanently released this room for use
   // ("offener Raum"). Owned by the backend's Facilities module (#3064).
   is_open_room?: boolean;
+  // Set once a removed room was kept for its history (#6845).
+  archived_at?: string;
   activity_name?: string;
   group_name?: string;
   supervisor_name?: string; // Legacy singular field
@@ -74,6 +76,8 @@ export interface Room {
   isSystem?: boolean;
   /** Permanently released for use ("offener Raum"), set by the administration. */
   isOpenRoom?: boolean;
+  /** Archiviert: aus allen Listen genommen, nur noch im Verlauf (#6845). */
+  archivedAt?: string;
   activityName?: string;
   groupName?: string;
   supervisorName?: string;
@@ -147,6 +151,7 @@ export function mapRoomResponse(backendRoom: BackendRoom): Room {
     isOccupied: backendRoom.is_occupied,
     isSystem: backendRoom.is_system,
     isOpenRoom: backendRoom.is_open_room,
+    archivedAt: backendRoom.archived_at,
     activityName: backendRoom.activity_name,
     groupName: backendRoom.group_name,
     supervisorName: backendRoom.supervisor_names ?? backendRoom.supervisor_name,

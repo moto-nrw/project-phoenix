@@ -38,6 +38,7 @@ type WorkforceShiftType struct {
 	Color       string
 	Description string
 	IsActive    bool
+	ArchivedAt  *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

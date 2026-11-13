@@ -20,18 +20,19 @@ type Store struct{ database Database }
 
 type roomRow struct {
 	bun.BaseModel `bun:"table:rooms,alias:room"`
-	ID            int64     `bun:"id,pk,autoincrement"`
-	TenantID      int64     `bun:"tenant_id,notnull"`
-	CreatedAt     time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt     time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	Name          string    `bun:"name,notnull"`
-	Building      string    `bun:"building"`
-	Floor         *int      `bun:"floor"`
-	Capacity      *int      `bun:"capacity"`
-	Category      *string   `bun:"category"`
-	Color         *string   `bun:"color"`
-	IsSystem      bool      `bun:"is_system,notnull,default:false"`
-	IsOpenRoom    bool      `bun:"is_open_room,notnull,default:false"`
+	ID            int64      `bun:"id,pk,autoincrement"`
+	TenantID      int64      `bun:"tenant_id,notnull"`
+	CreatedAt     time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt     time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	Name          string     `bun:"name,notnull"`
+	Building      string     `bun:"building"`
+	Floor         *int       `bun:"floor"`
+	Capacity      *int       `bun:"capacity"`
+	Category      *string    `bun:"category"`
+	Color         *string    `bun:"color"`
+	IsSystem      bool       `bun:"is_system,notnull,default:false"`
+	IsOpenRoom    bool       `bun:"is_open_room,notnull,default:false"`
+	ArchivedAt    *time.Time `bun:"archived_at"`
 }
 
 func New(database Database) *Store {
@@ -83,9 +84,13 @@ func (s *Store) Update(ctx context.Context, input facilities.UpdateRoom) (facili
 		row.IsOpenRoom = *input.IsOpenRoom
 		columns = append(columns, "is_open_room")
 	}
+	// A room renamed to a toilet name becomes the kiosk's toilet room, a
+	// system room like the provisioned one: is_system is the one mark every
+	// protection reads (#6845).
 	query := db.NewUpdate().Model(&row).
 		ModelTableExpr(`facilities.rooms AS "room"`).
 		Column(columns...).
+		Set(`is_system = "room".is_system OR ? IN (?, ?)`, input.Name, domain.WCRoomName, domain.WCRoomAliasName).
 		Where(`"room".id = ?`, input.ID).
 		Where(`"room".tenant_id = ?`, tenantID)
 	stats := domain.OperationStats{Queries: 1}
@@ -99,31 +104,80 @@ func (s *Store) Update(ctx context.Context, input facilities.UpdateRoom) (facili
 	return toDomain(row), stats, nil
 }
 
-func (s *Store) Delete(ctx context.Context, id int64) (domain.OperationStats, error) {
+// Delete removes the room unless another row still references it. The
+// statement runs inside a savepoint: a foreign-key violation rolls back only
+// the delete, reports deleted=false and leaves the caller's transaction
+// usable, so the room can be archived instead (#6845). Every reference to
+// facilities.rooms is a NO ACTION key, so nothing is ever nulled.
+func (s *Store) Delete(ctx context.Context, id int64) (bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.OperationStats{}, err
+		return false, domain.OperationStats{}, err
 	}
-	query := db.NewDelete().Model((*roomRow)(nil)).
+	stats := domain.OperationStats{Queries: 3}
+	started := time.Now()
+	defer func() { stats.StatementDuration = time.Since(started) }()
+	if _, err := db.ExecContext(ctx, `SAVEPOINT facilities_room_delete`); err != nil {
+		return false, stats, fmt.Errorf("facilities postgres: open room delete savepoint: %w", err)
+	}
+	result, deleteErr := db.NewDelete().Model((*roomRow)(nil)).
 		ModelTableExpr(`facilities.rooms AS "room"`).
 		Where(`"room".id = ?`, id).
-		Where(`"room".tenant_id = ?`, tenantID)
-	stats := domain.OperationStats{Queries: 1}
-	started := time.Now()
-	result, err := query.Exec(ctx)
-	stats.StatementDuration = time.Since(started)
-	if err != nil {
-		return stats, fmt.Errorf("facilities postgres: delete room: %w", err)
+		Where(`"room".tenant_id = ?`, tenantID).
+		Exec(ctx)
+	if deleteErr != nil {
+		if !isForeignKeyViolation(deleteErr) {
+			return false, stats, fmt.Errorf("facilities postgres: delete room: %w", deleteErr)
+		}
+		stats.Queries++
+		if _, err := db.ExecContext(ctx, `ROLLBACK TO SAVEPOINT facilities_room_delete`); err != nil {
+			return false, stats, fmt.Errorf("facilities postgres: roll back room delete: %w", err)
+		}
+	}
+	if _, err := db.ExecContext(ctx, `RELEASE SAVEPOINT facilities_room_delete`); err != nil {
+		return false, stats, fmt.Errorf("facilities postgres: release room delete savepoint: %w", err)
+	}
+	if deleteErr != nil {
+		return false, stats, nil
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return stats, fmt.Errorf("facilities postgres: count deleted rooms: %w", err)
+		return false, stats, fmt.Errorf("facilities postgres: count deleted rooms: %w", err)
 	}
 	if rows != 1 {
-		return stats, fmt.Errorf("facilities postgres: expected one deleted room, got %d", rows)
+		return false, stats, fmt.Errorf("facilities postgres: expected one deleted room, got %d", rows)
 	}
 	stats.Rows = rows
-	return stats, nil
+	return true, stats, nil
+}
+
+// Archive keeps the room for the history that names it and takes it out of
+// every list (#6845).
+func (s *Store) Archive(ctx context.Context, id int64) (facilities.Room, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return facilities.Room{}, domain.OperationStats{}, err
+	}
+	row := roomRow{}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewUpdate().Model(&row).
+		ModelTableExpr(`facilities.rooms AS "room"`).
+		Set(`archived_at = COALESCE("room".archived_at, now())`).
+		Where(`"room".id = ?`, id).
+		Where(`"room".tenant_id = ?`, tenantID).
+		Returning("*").Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return facilities.Room{}, stats, fmt.Errorf("facilities postgres: archive room: %w", err)
+	}
+	stats.Rows = 1
+	return toDomain(row), stats, nil
+}
+
+func isForeignKeyViolation(err error) bool {
+	var postgresError pgdriver.Error
+	return errors.As(err, &postgresError) && postgresError.Field('C') == "23503"
 }
 
 func (s *Store) FindByID(ctx context.Context, id int64, lock string) (facilities.Room, bool, domain.OperationStats, error) {
@@ -160,7 +214,8 @@ func (s *Store) FindByName(ctx context.Context, name string) (facilities.Room, b
 	row := roomRow{}
 	query := roomSelect(db, &row).
 		Where(`LOWER("room".name) = LOWER(?)`, name).
-		Where(`"room".tenant_id = ?`, tenantID)
+		Where(`"room".tenant_id = ?`, tenantID).
+		Where(`"room".archived_at IS NULL`)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx)
@@ -184,6 +239,7 @@ func (s *Store) FindToilet(ctx context.Context, excludeRoomID int64) (facilities
 	query := roomSelect(db, &row).
 		Where(`"room".name IN (?, ?)`, domain.WCRoomName, domain.WCRoomAliasName).
 		Where(`"room".tenant_id = ?`, tenantID).
+		Where(`"room".archived_at IS NULL`).
 		OrderExpr(`CASE "room".name WHEN ? THEN 0 ELSE 1 END`, domain.WCRoomName).
 		Limit(1)
 	if excludeRoomID > 0 {
@@ -287,6 +343,9 @@ func (s *Store) ListPage(ctx context.Context, filter facilities.RoomFilter, offs
 }
 
 func applyRoomListFilter(query *bun.SelectQuery, filter facilities.RoomFilter) (*bun.SelectQuery, bool) {
+	// Archived rooms only keep their history (#6845): no list or selection
+	// offers them.
+	query = query.Where(`"room".archived_at IS NULL`)
 	if filter.Name != nil {
 		query = query.Where(`LOWER("room".name) = LOWER(?)`, *filter.Name)
 	}
@@ -379,7 +438,7 @@ func toDomain(row roomRow) facilities.Room {
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, Building: row.Building, Floor: row.Floor, Capacity: row.Capacity,
 		Category: row.Category, Color: row.Color, IsSystem: row.IsSystem,
-		IsOpenRoom: row.IsOpenRoom,
+		IsOpenRoom: row.IsOpenRoom, ArchivedAt: row.ArchivedAt,
 	}
 }
 
