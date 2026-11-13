@@ -18,7 +18,6 @@ import {
   SOLL_FIELD_LABELS,
   sollFileName,
   sollPreview,
-  sollHasCreditColumn,
   sollSplitsLines,
   unknownBookingTextPlaceholder,
 } from "~/components/traeger/finance-export-format";
@@ -167,7 +166,7 @@ function BookingTextField({
                 disabled={column.value.length + placeholder.token.length >= 60}
                 disabledReason="Der Text hat schon fast 60 Zeichen."
                 onClick={() => insert(placeholder.token)}
-                className="max-w-full gap-2 bg-white"
+                className="max-w-full gap-2"
               >
                 <code aria-hidden="true" className="shrink-0 text-gray-900">
                   {placeholder.token}
