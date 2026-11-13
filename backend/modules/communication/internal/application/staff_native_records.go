@@ -77,9 +77,9 @@ type ParentAnnouncementRepository interface {
 	SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error
 	ClearEngagement(ctx context.Context, announcementID int64) error
 	PublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error)
-	// RecordRecipients stores the guardian accounts a publication reached and
+	// RecordRecipients stores the children the publication reaches now
 	// (#6988); SetPublished(nil) clears them again.
-	RecordRecipients(ctx context.Context, id int64, accountIDs []int64) error
+	RecordRecipients(ctx context.Context, tenantID, id int64) error
 	SetReminder(ctx context.Context, id int64, reminderAt *time.Time, reminderText *string) (bool, error)
 	ListDueReminders(ctx context.Context, notBefore, dueBefore time.Time) ([]*StaffParentAnnouncement, error)
 	ClaimReminder(ctx context.Context, id int64, sentAt time.Time) (bool, error)

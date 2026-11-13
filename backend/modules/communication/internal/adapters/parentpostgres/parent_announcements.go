@@ -388,9 +388,9 @@ func (s *AnnouncementStore) SetPublished(ctx context.Context, id int64, publishe
 		query.Set("reminder_at = NULL").
 			Set("reminder_text = NULL").
 			Set("reminder_sent_at = NULL").
-			// The recipients belonged to the withdrawn publication too; the
-			// next one records the audience of its own moment (#6988).
-			Set("recipient_account_ids = NULL")
+			// The recorded children belonged to the withdrawn publication too;
+			// the next one records those of its own moment (#6988).
+			Set("recipient_student_ids = NULL")
 	}
 	query = withTenant(query, parentAnnouncementAlias, scope)
 	if _, err := query.Exec(ctx); err != nil {
@@ -426,20 +426,20 @@ func (s *AnnouncementStore) PublishIfDraft(ctx context.Context, id int64, publis
 	return affected > 0, nil
 }
 
-// RecordRecipients stores the guardian accounts a publication reached
-// (#6988). A recorded publication that reached nobody stores an empty array,
-// which readers tell apart from NULL, "not recorded". RLS pins the update to
-// the current tenant.
-func (s *AnnouncementStore) RecordRecipients(ctx context.Context, id int64, accountIDs []int64) error {
+// RecordRecipients stores the children a publication reached (#6988). A
+// recorded publication that reached nobody stores an empty array, which
+// readers tell apart from NULL, "not recorded". RLS pins the update to the
+// current tenant.
+func (s *AnnouncementStore) RecordRecipients(ctx context.Context, id int64, studentIDs []int64) error {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
-	recorded := append(make([]int64, 0, len(accountIDs)), accountIDs...)
+	recorded := append(make([]int64, 0, len(studentIDs)), studentIDs...)
 	query := db.NewUpdate().
 		Model((*parentAnnouncementRow)(nil)).
 		ModelTableExpr(parentAnnouncementTableExpr).
-		Set("recipient_account_ids = ?::bigint[]", pgdialect.Array(recorded)).
+		Set("recipient_student_ids = ?::bigint[]", pgdialect.Array(recorded)).
 		Where(`"parent_announcement".id = ?`, id)
 	query = withTenant(query, parentAnnouncementAlias, scope)
 	if _, err := query.Exec(ctx); err != nil {

@@ -118,8 +118,7 @@ func (p *Projection) CountAudience(ctx context.Context, schoolID, announcementID
 const accountMatchesSQL = pendingApplicantsFeedCTE + `SELECT ` + reachedAccountBound
 
 // AccountMatchesAnnouncement reports whether a guardian account is in an
-// announcement's audience right now or was a recorded recipient that may
-// still open the portal (#6988).
+// announcement's audience right now.
 func (p *Projection) AccountMatchesAnnouncement(ctx context.Context, schoolID, announcementID, accountID int64) (bool, error) {
 	applicants, err := p.pendingApplicantsForSchools(ctx, []int64{schoolID})
 	if err != nil {
@@ -135,7 +134,6 @@ func (p *Projection) AccountMatchesAnnouncement(ctx context.Context, schoolID, a
 		applicants,
 		schoolID, schoolID, today, today, today, announcementID, schoolID, p.guardianLinks(db, schoolID), schoolID, accountID,
 		schoolID, accountID, accountID, announcementID, schoolID,
-		announcementID, schoolID, accountID, p.guardianLinks(db, schoolID), accountID, schoolID, // recorded recipient
 	).Scan(ctx, &matched); err != nil {
 		return false, fmt.Errorf("check parent announcement audience match: %w", err)
 	}
@@ -341,47 +339,25 @@ func (p *Projection) ResolveDeliveryRecipients(ctx context.Context, schoolID, an
 	return recipients, nil
 }
 
-// audienceRecipientsSQL lists the recipient ACCOUNTS of an announcement,
+// audienceRecipientsSQL lists the guardian ACCOUNTS an announcement reaches,
 // each with a display name and the account's read/ack state; an account
-// reachable through several children or paths collapses to one row. Once the
-// publication recorded its recipients (#6988) these are the recorded
-// accounts, named from the school's guardian profile or the pending request;
-// before, the audience of today.
-const audienceRecipientsSQL = pendingApplicantsCTE + `, recorded AS (` + recordedMarkBound + `
-			)
+// reachable through several children or paths collapses to one row.
+const audienceRecipientsSQL = pendingApplicantsCTE + `
 			SELECT acc.account_id,
-				COALESCE(min(NULLIF(acc.first_name, '')), '') AS first_name,
-				COALESCE(min(NULLIF(acc.last_name, '')), '') AS last_name,
+				min(acc.first_name) AS first_name,
+				min(acc.last_name) AS last_name,
 				COALESCE(min(locale_gp.portal_locale), 'de') AS portal_locale,
 				par.read_at AS read_at,
 				par.acknowledged_at AS acknowledged_at
 			FROM (
-				SELECT rec.account_id,
-					COALESCE(NULLIF(name_gp.first_name, ''), name_req.guardian_first_name, '') AS first_name,
-					COALESCE(NULLIF(name_gp.last_name, ''), name_req.guardian_last_name, '') AS last_name
-				FROM (` + recordedAccountsBound + `
-				) rec
-				LEFT JOIN users.guardian_profiles name_gp
-					ON name_gp.account_id = rec.account_id AND name_gp.tenant_id = ?
-				LEFT JOIN auth.accounts name_acc ON name_acc.id = rec.account_id
-				LEFT JOIN pending_applicants name_req
-					ON name_req.guardian_account_id = rec.account_id
-					OR (name_req.guardian_account_id IS NULL
-						AND LOWER(TRIM(name_req.guardian_email)) = LOWER(TRIM(name_acc.email)))
-				WHERE COALESCE((SELECT yes FROM recorded), FALSE)
-
-				UNION
-
 				SELECT gp.account_id,
 					COALESCE(gp.first_name, '') AS first_name, COALESCE(gp.last_name, '') AS last_name` + reachedStudentsBound + portalGuardiansBound + `
-				WHERE NOT COALESCE((SELECT yes FROM recorded), FALSE)
 
 				UNION
 
 				SELECT COALESCE(req.guardian_account_id, ea.id) AS account_id,
 					COALESCE(req.guardian_first_name, '') AS first_name, COALESCE(req.guardian_last_name, '') AS last_name` + pendingApplicantAccountsBound + `
 					AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL
-					AND NOT COALESCE((SELECT yes FROM recorded), FALSE)
 			) acc
 			LEFT JOIN users.guardian_profiles locale_gp
 				ON locale_gp.account_id = acc.account_id AND locale_gp.tenant_id = ?
@@ -399,9 +375,8 @@ type recipientStatusRow struct {
 	AcknowledgedAt *time.Time `bun:"acknowledged_at"`
 }
 
-// AudienceRecipients returns the recipient accounts of an announcement with
-// name and read/ack state, ordered by name: the recorded recipients of a
-// publication that recorded them, otherwise the audience of today.
+// AudienceRecipients returns the guardian accounts an announcement currently
+// reaches with name and read/ack state, ordered by name.
 func (p *Projection) AudienceRecipients(ctx context.Context, schoolID, announcementID int64) ([]*contract.ParentAnnouncementRecipientStatus, error) {
 	applicants, err := p.pendingApplicants(ctx)
 	if err != nil {
@@ -415,9 +390,6 @@ func (p *Projection) AudienceRecipients(ctx context.Context, schoolID, announcem
 	var rows []recipientStatusRow
 	if err := db.NewRaw(audienceRecipientsSQL,
 		applicants,
-		announcementID, schoolID, // recorded mark
-		announcementID, schoolID, // recorded recipients
-		schoolID, // recorded recipient names
 		schoolID, schoolID, today, today, today, announcementID, schoolID, p.guardianLinks(db, schoolID), schoolID,
 		announcementID, schoolID,
 		schoolID,       // guardian locale

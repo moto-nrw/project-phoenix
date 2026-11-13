@@ -14,35 +14,35 @@ func init() {
 		Version:     parentAnnouncementRecipientsVersion,
 		Description: "Ankündigungen: Empfänger beim Veröffentlichen festhalten (#6988)",
 		DependsOn: []string{
-			parentAnnouncementsVersion, // the announcements that record their recipients (1.15.161)
+			parentAnnouncementsVersion, // the announcements that record their reached children (1.15.161)
 		},
 	})
 	Migrations.MustRegister(parentAnnouncementRecipientsUp, parentAnnouncementRecipientsDown)
 }
 
-// parentAnnouncementRecipientsUpSQL records who an announcement reached when
-// it was published (#6988).
+// parentAnnouncementRecipientsUpSQL records which children an announcement
+// reached when it was published (#6988).
 //
-//   - recipient_account_ids holds the guardian accounts the publication
-//     reached. Statistics and the staff recipient list count these accounts,
-//     so a child who changes class after the publication does not move the
-//     e-mail recipients of the old class out of "Wer hat noch nicht
-//     bestätigt" and the parents of the new class in.
+//   - recipient_student_ids holds the children the targets reached at the
+//     publication. Statistics, the recipient list, the feed, the letter
+//     status and the reminders follow these children, so a child who changes
+//     class after a letter went out keeps it and the new class does not get
+//     it. Who may read for a child stays live: the guardian relationship and
+//     its parent_portal permissions decide as before.
 //   - NULL means "not recorded": a draft, or an announcement published before
-//     this column existed; those keep the audience of today. An empty array
-//     is a recorded publication that reached nobody.
+//     this column existed; those keep matching the targets of today. An empty
+//     array is a recorded publication that reached no child.
 //   - The IDs live on the announcement row, so they go with it, are retracted
 //     with it (unpublish sets NULL) and follow its retention and the school
-//     erasure without a table of their own. An erased account keeps an inert
-//     ID here: the readers require an active school membership, which the
-//     erasure removes.
+//     erasure. A child ID holds no personal data of its own; a deleted child
+//     no longer joins.
 const parentAnnouncementRecipientsUpSQL = `
-ALTER TABLE users.parent_announcements ADD COLUMN recipient_account_ids BIGINT[];
-COMMENT ON COLUMN users.parent_announcements.recipient_account_ids IS
-	'Guardian accounts the publication reached (#6988); NULL for drafts and for announcements published before recording.';
+ALTER TABLE users.parent_announcements ADD COLUMN recipient_student_ids BIGINT[];
+COMMENT ON COLUMN users.parent_announcements.recipient_student_ids IS
+	'Children the publication reached (#6988); NULL for drafts and for announcements published before recording.';
 `
 
-const parentAnnouncementRecipientsDownSQL = `ALTER TABLE users.parent_announcements DROP COLUMN IF EXISTS recipient_account_ids;`
+const parentAnnouncementRecipientsDownSQL = `ALTER TABLE users.parent_announcements DROP COLUMN IF EXISTS recipient_student_ids;`
 
 func parentAnnouncementRecipientsUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, parentAnnouncementRecipientsUpSQL); err != nil {

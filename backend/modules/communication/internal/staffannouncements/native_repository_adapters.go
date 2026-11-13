@@ -68,8 +68,8 @@ func (r *nativeAnnouncementRepository) ReplaceTargets(ctx context.Context, tenan
 	})))
 	return err
 }
-func (r *nativeAnnouncementRepository) RecordRecipients(ctx context.Context, id int64, accountIDs []int64) error {
-	return r.source.AnnouncementRecordRecipients(ctx, id, accountIDs)
+func (r *nativeAnnouncementRepository) RecordRecipients(ctx context.Context, tenantID, id int64) error {
+	return r.source.AnnouncementRecordRecipients(ctx, tenantID, id)
 }
 func (r *nativeAnnouncementRepository) SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {
 	err := r.source.AnnouncementSetPublished(ctx, id, publishedAt)

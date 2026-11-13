@@ -75,8 +75,30 @@ const studentTargetMatchBound = studentTargetMatchPrefix + activeEnrollmentBound
 // Bind order: today, today, today.
 const studentTargetMatchFeed = studentTargetMatchPrefix + activeEnrollmentFeed
 
+// A published announcement records the children it reached
+// (recipient_student_ids, #6988). From then on it reaches exactly those
+// children, whatever their class, group or enrolment says today: a child who
+// changes class after a letter went out keeps it, and the new class does not
+// get it. The guardian side stays live, so a guardian of a recorded child who
+// gains portal access later can still read and confirm, and one who loses it
+// loses the announcement. NULL (a draft, or an announcement published before
+// recording) keeps matching the targets of today.
+
+// studentReachedBound is studentTargetMatchBound for a target row whose
+// announcement is joined as ra.
+//
+// Bind order: school, today, today, today.
+const studentReachedBound = `(ra.recipient_student_ids IS NOT NULL AND s.id = ANY(ra.recipient_student_ids))
+					OR (ra.recipient_student_ids IS NULL AND (` + studentTargetMatchBound + `))`
+
+// studentReachedFeed is studentTargetMatchFeed for the announcement row a.
+//
+// Bind order: today, today, today.
+const studentReachedFeed = `(a.recipient_student_ids IS NOT NULL AND s.id = ANY(a.recipient_student_ids))
+					OR (a.recipient_student_ids IS NULL AND (` + studentTargetMatchFeed + `))`
+
 // reachedStudentsBound is every live, non-graduated child an announcement's
-// targets reach, as the derived table s with the columns id, announcement_id
+// targets reach (its recorded children once published, #6988), as the derived table s with the columns id, announcement_id
 // and tenant_id. Graduated (alumnus) students are soft-deleted: their
 // guardians drop out of every audience once the child has left the OGS.
 //
@@ -92,7 +114,8 @@ const reachedStudentsBound = `
 			FROM (WITH reached AS MATERIALIZED (
 				SELECT DISTINCT s.id, pt.announcement_id, pt.tenant_id
 				FROM users.parent_announcement_targets pt
-				JOIN users.student_profiles s ON s.tenant_id = ?` + studentMembershipJoins + ` AND (` + studentTargetMatchBound + `
+				JOIN users.parent_announcements ra ON ra.id = pt.announcement_id AND ra.tenant_id = pt.tenant_id
+				JOIN users.student_profiles s ON s.tenant_id = ?` + studentMembershipJoins + ` AND (` + studentReachedBound + `
 				)
 				JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 					AND sm.status <> 'alumnus'
@@ -182,17 +205,15 @@ const audienceAccountsBound = `
 				AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL`
 
 // reachedAccountFeed is the SQL boolean "the bound account is reached by
-// announcement a right now, or was a recorded recipient of it and may still
-// open the portal" (#6988) for the cross-school feed, where the announcement
+// announcement a right now" for the cross-school feed, where the announcement
 // and school are column references.
 //
-// Bind order: today, today, today, guardian links, account, account, account,
-// account, guardian links, account.
+// Bind order: today, today, today, guardian links, account, account, account.
 const reachedAccountFeed = `(
 		EXISTS (
 			SELECT 1
 			FROM users.parent_announcement_targets pt
-			JOIN users.student_profiles s ON s.tenant_id = a.tenant_id` + studentMembershipJoins + ` AND (` + studentTargetMatchFeed + `
+			JOIN users.student_profiles s ON s.tenant_id = a.tenant_id` + studentMembershipJoins + ` AND (` + studentReachedFeed + `
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			AND sm.status <> 'alumnus'
@@ -222,15 +243,13 @@ const reachedAccountFeed = `(
 			WHERE pt.announcement_id = a.id AND pt.tenant_id = a.tenant_id
 				AND pt.target_type = 'pending_enrollment'
 		)
-		OR ` + recordedRecipientFeed + `
 	)`
 
 // reachedAccountBound is reachedAccountFeed for one bound announcement.
 //
 // Bind order: school, school, today, today, today, announcement, school,
 // guardian links of the school, school, account, school, account, account,
-// announcement, school, announcement, school, account, guardian links of the
-// school, account, school.
+// announcement, school.
 const reachedAccountBound = `(
 		EXISTS (
 			SELECT 1` + reachedStudentsBound + `
@@ -259,7 +278,6 @@ const reachedAccountBound = `(
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ?
 				AND pt.target_type = 'pending_enrollment'
 	)
-	OR ` + recordedRecipientBound + `
 )`
 
 // openPollForAccountFeed is the SQL boolean "announcement a is an open poll
@@ -275,7 +293,7 @@ const openPollForAccountFeed = `(
 		AND EXISTS (
 			SELECT 1
 			FROM users.parent_announcement_targets pt
-			JOIN users.student_profiles s ON s.tenant_id = a.tenant_id` + studentMembershipJoins + ` AND (` + studentTargetMatchFeed + `
+			JOIN users.student_profiles s ON s.tenant_id = a.tenant_id` + studentMembershipJoins + ` AND (` + studentReachedFeed + `
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			AND sm.status <> 'alumnus'

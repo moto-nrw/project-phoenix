@@ -59,7 +59,7 @@ describe("ReachSummary", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Gezählt werden die Eltern, die die Mitteilung am 07.09.2026 bekommen haben.",
+        "Gezählt werden die Eltern der Kinder, die die Mitteilung am 07.09.2026 erreicht hat.",
       ),
     ).toBeInTheDocument();
   });

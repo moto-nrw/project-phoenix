@@ -25,8 +25,8 @@ type fakeAnnouncementRepo struct {
 	updateCalls  int
 	publishCalls int
 	deleteCalls  int
-	// recorded holds the accounts the last publication recorded (#6988);
-	// nil until a publication recorded any.
+	// recorded holds tenant and announcement of the last recording (#6988);
+	// nil until a publication recorded its children.
 	recorded []int64
 	// editOnPublish, when set, replaces the stored row the instant PublishIfDraft
 	// runs — simulating a concurrent edit that committed while PublishIfDraft was
@@ -78,8 +78,8 @@ func (f *fakeAnnouncementRepo) SetPublished(_ context.Context, _ int64, publishe
 	return nil
 }
 
-func (f *fakeAnnouncementRepo) RecordRecipients(_ context.Context, _ int64, accountIDs []int64) error {
-	f.recorded = append([]int64{}, accountIDs...)
+func (f *fakeAnnouncementRepo) RecordRecipients(_ context.Context, tenantID, id int64) error {
+	f.recorded = []int64{tenantID, id}
 	return nil
 }
 
@@ -511,19 +511,12 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 	}
 }
 
-// A publication records the accounts it reached (#6988), so statistics and
-// the staff recipient list keep counting them after a child changes class.
-func TestPublish_RecordsTheReachedAccounts(t *testing.T) {
+// A publication records the children it reaches (#6988) in its own
+// transaction, and a retraction drops the record again.
+func TestPublish_RecordsTheReachedChildren(t *testing.T) {
 	t.Parallel()
 
-	repo := &fakeAnnouncementRepo{
-		announcement: draftAnnouncement(false),
-		audience: []*StaffAnnouncementRecipientStatus{
-			{AccountID: 101},
-			{AccountID: 202},
-			{AccountID: 101},
-		},
-	}
+	repo := &fakeAnnouncementRepo{announcement: draftAnnouncement(false)}
 	svc := NewService(ServiceConfig{
 		Repo:     repo,
 		Settings: &fakeSettings{enabled: true},
@@ -533,14 +526,15 @@ func TestPublish_RecordsTheReachedAccounts(t *testing.T) {
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
 	}
-	if !slices.Equal(repo.recorded, []int64{101, 202}) {
-		t.Fatalf("recorded recipients %v, want [101 202]", repo.recorded)
+	want := []int64{repo.announcement.GetTenantID(), repo.announcement.ID}
+	if !slices.Equal(repo.recorded, want) {
+		t.Fatalf("recorded %v, want %v", repo.recorded, want)
 	}
 	if _, err := svc.Unpublish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("unpublish failed: %v", err)
 	}
 	if repo.recorded != nil {
-		t.Fatalf("retraction kept recorded recipients %v", repo.recorded)
+		t.Fatalf("retraction kept the recorded children %v", repo.recorded)
 	}
 }
 

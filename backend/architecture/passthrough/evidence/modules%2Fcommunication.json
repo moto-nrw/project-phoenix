@@ -86,13 +86,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *announcementRepository) AnnouncementRecordRecipients(ctx context.Context, id int64, accountIDs []int64) error {\n\treturn r.store.RecordRecipients(ctx, id, accountIDs)\n}",
-      "form": "unchanged-forward-evidence",
-      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.AnnouncementRecordRecipients",
-      "owner": "modules/communication"
-    },
-    {
-      "build": "production",
       "evidence": "func (r *announcementRepository) AnswerableChildren(ctx context.Context, accountID int64, announcementIDs []int64) ([]*communication.PortalAnnouncementPollChild, error) {\n\tvalues, err := r.AnnouncementAudienceReads.AnswerableChildren(ctx, accountID, announcementIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]*communication.PortalAnnouncementPollChild, 0, len(values))\n\tfor _, value := range values {\n\t\trows = append(rows, \u0026communication.PortalAnnouncementPollChild{AnnouncementID: value.AnnouncementID, StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName, SelectedOptions: value.SelectedOptions})\n\t}\n\treturn rows, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.AnswerableChildren",
@@ -1269,7 +1262,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *nativeAnnouncementRepository) RecordRecipients(ctx context.Context, id int64, accountIDs []int64) error {\n\treturn r.source.AnnouncementRecordRecipients(ctx, id, accountIDs)\n}",
+      "evidence": "func (r *nativeAnnouncementRepository) RecordRecipients(ctx context.Context, tenantID, id int64) error {\n\treturn r.source.AnnouncementRecordRecipients(ctx, tenantID, id)\n}",
       "form": "unchanged-forward-evidence",
       "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.RecordRecipients",
       "owner": "modules/communication"

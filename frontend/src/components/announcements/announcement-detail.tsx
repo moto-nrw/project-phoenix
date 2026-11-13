@@ -225,8 +225,9 @@ function ReachMeter({
 
 /**
  * The read statistics of a published announcement. Its denominator is the
- * parents the publication reached (#6988): a child who changes class later
- * adds nobody and removes nobody, so the sentence names that moment.
+ * parents of the children the publication reached (#6988): a child who
+ * changes class later adds nobody and removes nobody, so the sentence names
+ * that moment.
  */
 export function ReachSummary({
   stats,
@@ -261,8 +262,8 @@ export function ReachSummary({
       </div>
       {stats.recorded && publishedAt && (
         <p className="text-sm text-gray-600">
-          Gezählt werden die Eltern, die die Mitteilung am{" "}
-          {formatBerlinDate(publishedAt)} bekommen haben.
+          Gezählt werden die Eltern der Kinder, die die Mitteilung am{" "}
+          {formatBerlinDate(publishedAt)} erreicht hat.
         </p>
       )}
     </div>
