@@ -45,7 +45,17 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 	}
 	slices.Sort(ids)
 	if _, shared := tenant.TransactionFromContext(ctx); shared && len(ids) > 0 {
-		if err := s.SchoolPresence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{GroupIDs: ids}); err != nil {
+		err := s.SchoolPresence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{GroupIDs: ids})
+		if errors.Is(err, studentpresence.ErrVisitWriteConflict) {
+			// A child was checked into a candidate after the selection, so
+			// that session is in use again. The sweep has written nothing
+			// yet; the next run ends the sessions that stay abandoned.
+			s.getLogger().InfoContext(ctx, "abandoned session cleanup deferred: a session is in use again",
+				slog.Int("candidates", len(ids)),
+			)
+			return 0, nil
+		}
+		if err != nil {
 			return 0, &ActiveError{Op: "CleanupAbandonedSessions", Err: err}
 		}
 	}

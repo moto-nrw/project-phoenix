@@ -62,14 +62,6 @@ func TestAbandonedSessionCleanupRechecksTheLockedSession(t *testing.T) {
 			if scanned != nil {
 				testutil.AssertSuccessResponse(t, awaitScan(t, scanned), 200)
 			}
-			if scenario.scan {
-				// The scan checked a child into the planned cohort while the
-				// sweep waited for its lock: the sweep rolls back and the next
-				// run sees a session in use.
-				require.ErrorIs(t, awaitReattach(t, swept), studentpresence.ErrVisitWriteConflict)
-				f.assertOpen(t, true)
-				return
-			}
 			require.NoError(t, awaitReattach(t, swept))
 			if scenario.ends {
 				require.Equal(t, 1, *count)
@@ -77,7 +69,7 @@ func TestAbandonedSessionCleanupRechecksTheLockedSession(t *testing.T) {
 				return
 			}
 			require.Zero(t, *count, "a resumed session is no longer abandoned")
-			f.assertOpen(t, false)
+			f.assertOpen(t, scenario.scan)
 		})
 	}
 }
