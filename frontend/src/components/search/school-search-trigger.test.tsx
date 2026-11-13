@@ -61,4 +61,55 @@ describe("SchoolSearchTrigger", () => {
     );
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
+
+  it("opens with Cmd/Ctrl+K where only the page head carries the search (tablet)", async () => {
+    render(
+      <SchoolSearchProvider>
+        <SchoolSearchSlot placement="pageHead" />
+      </SchoolSearchProvider>,
+    );
+    fireEvent.keyDown(globalThis.window, { key: "k", ctrlKey: true });
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("opens one search for header and page head together", async () => {
+    render(
+      <SchoolSearchProvider>
+        <SchoolSearchSlot placement="header" />
+        <SchoolSearchSlot placement="pageHead" />
+      </SchoolSearchProvider>,
+    );
+    fireEvent.keyDown(globalThis.window, { key: "k", metaKey: true });
+    expect(await screen.findAllByRole("dialog")).toHaveLength(1);
+  });
+
+  it("opens from the phone's Mehr sheet and hands the focus back to its button", async () => {
+    const closeSheet = vi.fn();
+    function Sheet() {
+      return (
+        <>
+          <button type="button" id="mehr">
+            Mehr
+          </button>
+          <SchoolSearchSlot
+            placement="moreSheet"
+            onOpen={closeSheet}
+            returnFocus={() => document.getElementById("mehr")}
+          />
+        </>
+      );
+    }
+    render(
+      <SchoolSearchProvider>
+        <Sheet />
+      </SchoolSearchProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Überall suchen/ }));
+    expect(closeSheet).toHaveBeenCalled();
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
+    await vi.waitFor(() =>
+      expect(screen.getByRole("button", { name: "Mehr" })).toHaveFocus(),
+    );
+  });
 });

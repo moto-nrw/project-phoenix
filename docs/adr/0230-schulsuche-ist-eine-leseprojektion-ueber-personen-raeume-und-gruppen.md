@@ -32,6 +32,9 @@ Drei Fragen waren offen:
 2. **Reichen Abfragen auf den bestehenden Tabellen?** Ja. Eine Schule hat
    einige hundert Kinder, Kontaktpersonen und Telefonnummern. Jede Abfrage
    filtert auf die Schule und begrenzt ihr Ergebnis; RLS gilt zusätzlich.
+   Gemessen (Pläne und Endpunkt, [Messung im PR](https://github.com/moto-ogs/project-phoenix/pull/7016#issuecomment-6863948202)):
+   bei zehnfacher Seed-Größe p95 höchstens 64 ms, bei fünfzigfacher bis
+   200 ms, weil Namen, Notizen und Nummern je Zeile verglichen werden.
 3. **Welcher Owner stellt die Suche bereit?** Keiner der Domänen-Owner: die
    Abfragen verbinden Tabellen mehrerer Owner in einer Anweisung.
 
@@ -47,8 +50,13 @@ Drei Fragen waren offen:
    (ADR 0066, Punkt 6). Sie liest in der Schul-Transaktion der Anfrage, jede
    Anweisung filtert zusätzlich auf deren Schule.
 2. **Die Anmeldeantworten bleiben bei Enrollment.** Enrollment bietet
-   `StudentAnswers` an: Filterfragen mit Antworten und Anzahl, die Kinder zu
-   einer Antwort, und eine Textsuche über Frage und Antwort. Gelesen werden
+   `StudentAnswers` an: Filterfragen mit Antworten und den Kindern je
+   Antwort, die Kinder zu einer Antwort, und eine Textsuche über Frage und
+   Antwort. Enrollment kennt nur die Verknüpfung, nicht, wer noch an der
+   Schule ist: Die Kinderliste zählt je Antwort die Kinder, die sie selbst
+   zeigt (laufende Betreuung, ohne Ehemalige), damit Zahl und Liste gleich
+   sind. Die Suche fragt alle Treffer ab und nimmt die ersten Kinder, die
+   noch an der Schule sind. Gelesen werden
    dieselben Antworten wie auf der Kinderakte (neueste Anmeldung je Kind und
    Frage). Gezählt werden nur freie Kinderfragen der Typen Ja/Nein, Auswahl,
    Text, Zahl und Datum. Fragen mit Ziel stehen schon in der Kinderakte;
@@ -60,13 +68,23 @@ Drei Fragen waren offen:
    müsste.
 3. **Die Telefonnummer wird beim Lesen normalisiert.** Gespeicherte Nummern
    sind Freitext. Suche und Speicher werden auf dieselbe Ziffernfolge ohne
-   Verkehrsausscheidungs- und Ländervorwahl gebracht
-   (`schoolsearchview.PhoneSearchKey` und die gleichlautende SQL-Konstante).
-   Teilnummern treffen als Teil dieser Folge. Nur Kontaktpersonen werden
-   über diese Folge gesucht; alle anderen Felder vergleichen den Text wie
-   eingegeben, damit Ziffern auch einen Raum „1012“ finden. Eine generierte Spalte oder ein
-   Funktionsindex lohnt bei einigen hundert Nummern je Schule nicht und
-   bräuchte eine Migration im Owner People Directory.
+   eingeklammerte Null, Verkehrsausscheidungs- und Ländervorwahl gebracht
+   (`schoolsearchview.PhoneNumberKey`, die gleichlautende SQL-Konstante und
+   `phoneSearchKey` im Frontend). Jedes Unicode-Leerzeichen und jeder
+   Gedankenstrich trennt wie Leerzeichen und Bindestrich, weil kopierte
+   Nummern aus Signaturen und Telefon-Apps sie enthalten. Eine Suche braucht
+   nach dem Entfernen der Vorwahlen mindestens vier Ziffern. Eine führende
+   49 ohne + oder 00 gilt erst ab elf Ziffern als Ländervorwahl, weil eine
+   kürzere Folge das Ende einer Nummer sein kann. Teilnummern treffen als
+   Teil der gespeicherten Folge. Eine Durchwahl in der Suche („0221 5550001-12“)
+   trifft die gespeicherte Nummer ohne sie, wenn diese mindestens sieben
+   Ziffern hat und höchstens fünf Ziffern folgen: Eine Durchwahl lässt sich an
+   der Schreibweise nicht sicher erkennen, diese Regel trifft nur eine
+   vollständige gespeicherte Nummer. Nur Kontaktpersonen werden über diese
+   Folge gesucht; alle anderen Felder vergleichen den Text wie eingegeben,
+   damit Ziffern auch einen Raum „1012“ finden. Eine generierte Spalte oder
+   ein Funktionsindex bräuchte eine Migration im Owner People Directory und
+   lohnt erst bei Schulen jenseits der gemessenen zehnfachen Größe.
 4. **Die Suche zeigt nur, was das Konto ohne Suche lesen darf.** Die Route
    leitet aus den Rechten einen Scope ab und sucht nur in den Arten und
    Feldern, die er öffnet: Kinder mit `users:read` oder `students:read`;
@@ -76,8 +94,13 @@ Drei Fragen waren offen:
    `rooms:read`, Gruppen mit `groups:read` und einem Kinder-Leserecht, weil
    ein Gruppen-Treffer „Alle Kinder“ mit dieser Gruppe öffnet. Ohne Kontaktrecht sucht die
    Projektion keine Telefonnummer; die Antwort hat dieselbe Form mit leeren
-   Listen. Der Filter nach Anmeldeangaben in Liste und Export verlangt
-   `users:read`.
+   Listen. Die Antwort nennt den Scope des Kontos, damit der Dialog seine
+   Hinweise aus der Entscheidung des Servers ableitet; der Scope hängt nur
+   vom Konto ab, nicht von den Treffern. Der Filter nach Anmeldeangaben, seine
+   Auswahl und der gefilterte Export verlangen dasselbe wie die Angaben auf
+   der Kinderakte: `users:read` und einen Personaleintrag der Schule, oder
+   Admin. Archivierte Räume fehlen wie in der Raumliste. Eine Elternnotiz
+   kommt als Ausschnitt um den Treffer, höchstens 120 Zeichen.
 5. **Der Suchbegriff bleibt aus URLs und Protokollen.** Er reist im Body
    eines `POST`, nie als Query-Parameter. Fehler nennen die gescheiterte
    Lesung, nie den Text. bun schreibt gebundene Werte in das SQL, das das
@@ -91,6 +114,23 @@ Drei Fragen waren offen:
    wie bei jeder bestehenden Namenssuche. Das betrifft den Betrieb, nicht
    diese Projektion. Die Route ist eine Lesung und kein Kernvorgang der
    Nutzungsanalyse; die Mitarbeiter-Vorschau darf sie aufrufen.
+
+6. **Der Suchdialog ist ein Kit-Baustein mit einem Verwender.**
+   `CommandPalette` steht in `components/ui/`, obwohl ADR 0149 für neue
+   Bausteine drei Verwender in zwei Bereichen verlangt. Eine lokale Lösung
+   ist hier nicht möglich: Combobox, Listbox und Optionen dürfen nach der
+   harten Regel `ui-kit/no-hand-rolled-menu` nur im Kit stehen, und kein
+   bestehender Baustein trägt gruppierte Treffer mit Symbol und zweiter Zeile
+   (`SuggestInput` kennt nur Textvorschläge, `ListboxDropdown` nur eine
+   Auswahl hinter einem Auslöser). Der Baustein enthält keine Fachlogik: Er
+   bekommt Gruppen, Text und Zustände über Props und lädt nichts. Diese
+   Ausnahme gilt nur für ihn; ein zweiter Verwender nutzt ihn, statt eine
+   weitere Liste zu bauen.
+7. **Kompositionsbudget.** `modules/enrollment/compose` wächst um den
+   Konstruktor von `StudentAnswers` (+5 Zeilen), `modules/schoolsearchview/compose`
+   kommt mit 38 Zeilen hinzu; das Budget in
+   `backend/test/module_legacy_budget_ratchet_test.go` nennt diese
+   Entscheidung.
 
 ## Nicht entschieden
 

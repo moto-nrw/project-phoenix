@@ -52,7 +52,12 @@ interface CommandPaletteProps {
   readonly onQueryChange: (next: string) => void;
   readonly placeholder: string;
   readonly groups: readonly CommandPaletteGroup[];
-  /** A search is running: the field shows a spinner, the list stays. */
+  /**
+   * The rows belong to an older text and the result for the typed one is on
+   * its way. The rows stay in view but dimmed and inert: arrow keys and a
+   * click do nothing, and Enter waits for the new result and opens its marked
+   * entry. Typing on drops the waiting Enter.
+   */
   readonly busy?: boolean;
   /**
    * Shown instead of the list when it has no entry: a loading skeleton, an
@@ -122,6 +127,17 @@ export function CommandPalette({
   }, [itemKey]);
 
   const active = items[Math.min(activeIndex, items.length - 1)];
+
+  // An Enter pressed while the result was on its way, with the rows it saw.
+  const waitingEnter = useRef<string | null>(null);
+  useEffect(() => {
+    const seen = waitingEnter.current;
+    if (busy || seen === null) return;
+    waitingEnter.current = null;
+    // New rows: their first is the best hit; the same rows: the marked one.
+    const target = itemKey === seen ? active : items[0];
+    target?.onSelect();
+  }, [busy, itemKey, items, active]);
   useEffect(() => {
     if (!active) return;
     const element = document.getElementById(optionId(active));
@@ -129,6 +145,18 @@ export function CommandPalette({
   }, [active, optionId]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (busy) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        waitingEnter.current = itemKey;
+      } else if (
+        event.key.startsWith("Arrow") ||
+        event.key.startsWith("Page")
+      ) {
+        event.preventDefault();
+      }
+      return;
+    }
     if (items.length === 0) return;
     const last = items.length - 1;
     const moves: Record<string, () => number> = {
@@ -191,10 +219,13 @@ export function CommandPalette({
             aria-controls={listId}
             aria-activedescendant={active ? optionId(active) : undefined}
             className="pr-10 pl-11"
-            onChange={(event) => onQueryChange(event.target.value)}
+            onChange={(event) => {
+              waitingEnter.current = null;
+              onQueryChange(event.target.value);
+            }}
             onKeyDown={handleKeyDown}
           />
-          {busy ? (
+          {busy && items.length > 0 ? (
             <span
               aria-hidden="true"
               className={`pointer-events-none absolute top-3 right-17 ${Z_LAYER.raised} flex h-12 items-center text-gray-400`}
@@ -210,7 +241,13 @@ export function CommandPalette({
           {items.length === 0 ? (
             placeholderContent
           ) : (
-            <div id={listId} role="listbox" aria-label={label}>
+            <div
+              id={listId}
+              role="listbox"
+              aria-label={label}
+              aria-busy={busy || undefined}
+              className={cn("transition-opacity", busy && "opacity-60")}
+            >
               {visibleGroups.map((group) => (
                 <div
                   key={group.id}
@@ -236,12 +273,16 @@ export function CommandPalette({
                         // Never focused: the field keeps the focus.
                         tabIndex={-1}
                         aria-selected={isActive}
+                        aria-disabled={busy || undefined}
                         aria-label={item.label}
                         onMouseMove={() => {
-                          if (!isActive) setActiveIndex(items.indexOf(item));
+                          if (!busy && !isActive)
+                            setActiveIndex(items.indexOf(item));
                         }}
                         onMouseDown={(event) => event.preventDefault()}
-                        onClick={item.onSelect}
+                        onClick={() => {
+                          if (!busy) item.onSelect();
+                        }}
                         className={OPTION_CLASS}
                       >
                         <span
@@ -278,8 +319,11 @@ export function CommandPalette({
           )}
         </div>
         <div className="flex items-center justify-between gap-4 border-t border-gray-100 px-4 py-3 md:px-6">
-          <div className="min-w-0 truncate text-sm">{footer}</div>
-          <p className="hidden shrink-0 items-center gap-3 text-xs text-gray-500 pointer-fine:flex">
+          {/* Two lines at most: the hint names what this account finds, and
+              cutting it would hide just that. The keys show from sm on with a
+              mouse or touchpad; a phone has no arrow keys. */}
+          <div className="line-clamp-2 min-w-0 text-sm">{footer}</div>
+          <p className="hidden shrink-0 items-center gap-3 text-xs text-gray-500 sm:pointer-fine:flex">
             <span>
               <CommandPaletteKey>↑</CommandPaletteKey>
               <CommandPaletteKey>↓</CommandPaletteKey> auswählen

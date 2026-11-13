@@ -15,15 +15,19 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// answerSearch is Enrollment's answer search as the root binds it; it
-// records whether the projection asked.
+// answerSearch is Enrollment's answer search as the root binds it: it
+// returns its matches in order, cut at a positive limit, and records whether
+// the projection asked.
 type answerSearch struct {
 	matches []enrollment.StudentAnswerMatch
 	asked   int
 }
 
-func (a *answerSearch) SearchStudentAnswers(context.Context, string, int) ([]enrollment.StudentAnswerMatch, error) {
+func (a *answerSearch) SearchStudentAnswers(_ context.Context, _ string, limit int) ([]enrollment.StudentAnswerMatch, error) {
 	a.asked++
+	if limit > 0 && len(a.matches) > limit {
+		return a.matches[:limit], nil
+	}
 	return a.matches, nil
 }
 
@@ -76,6 +80,42 @@ func TestPhoneQueryFindsTheFamilyInEveryFormat(t *testing.T) {
 	require.Empty(t, search(t, db, tenantID, nil, "0171 1234567", fullScope).Contacts, "another number finds nobody")
 }
 
+// TestPhoneQueryFindsPastedAndExtendedNumbers covers numbers as people paste
+// them (Unicode spaces and dashes on either side), with the country code typed
+// without a plus, with an extension, and with a foreign bracketed trunk zero,
+// and keeps the extension rule from finding numbers it should not.
+func TestPhoneQueryFindsPastedAndExtendedNumbers(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	child := testpkg.CreateTestStudent(t, db, "Ole", "Brandt", "2b")
+	father := testpkg.CreateTestGuardianProfileNamed(t, db, "Tom", "Brandt", "tom")
+	aunt := testpkg.CreateTestGuardianProfileNamed(t, db, "Ida", "Brandt", "ida")
+	grandma := testpkg.CreateTestGuardianProfileNamed(t, db, "Eva", "Brandt", "eva")
+	for _, guardian := range []int64{father.ID, aunt.ID, grandma.ID} {
+		testpkg.CreateTestStudentGuardianLink(t, db, child.ID, guardian, "other")
+	}
+	addPhone(t, db, tenantID, father.ID, "0221\u00a05550001") // pasted from a signature
+	addPhone(t, db, tenantID, aunt.ID, "+43 (0)1 2345678")    // foreign, bracketed trunk zero
+	addPhone(t, db, tenantID, grandma.ID, "0221 555")         // too short for the extension rule
+
+	found := func(query string) []int64 {
+		ids := []int64{}
+		for _, contact := range search(t, db, tenantID, nil, query, fullScope).Contacts {
+			ids = append(ids, contact.ID)
+		}
+		return ids
+	}
+	for _, query := range []string{"0221\u20135550001", "0221\u202f555\u00a00001", "49 221 5550001", "0221 5550001-12", "+49 221 5550001 12345"} {
+		require.Equal(t, []int64{father.ID}, found(query), query)
+	}
+	require.Equal(t, []int64{aunt.ID}, found("+43 1 2345678"))
+	require.Equal(t, []int64{aunt.ID}, found("0043 (0)1 2345678"))
+	require.Empty(t, found("0221 5550001 123456"), "six more digits are no extension")
+	require.Equal(t, []int64{father.ID}, found("0221 5550001"), "the short number is no prefix of a longer query")
+	require.Empty(t, found("0221 5559"), "a stored number shorter than seven key digits takes no extension")
+}
+
 func TestWithoutContactAccessTheSearchFindsNoContactData(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -91,7 +131,8 @@ func TestWithoutContactAccessTheSearchFindsNoContactData(t *testing.T) {
 	require.Equal(t, schoolsearchview.Result{
 		Children: []schoolsearchview.Child{}, Contacts: []schoolsearchview.Contact{},
 		Staff: []schoolsearchview.Staff{}, Rooms: []schoolsearchview.Room{}, Groups: []schoolsearchview.Group{},
-	}, byPhone, "the same empty shape as a number nobody has")
+		Scope: guest,
+	}, byPhone, "the same empty shape as a number nobody has; the scope is the account's own")
 	byEmail := search(t, db, tenantID, answers, "jens.brueckner", guest)
 	require.Empty(t, byEmail.Contacts)
 	require.Empty(t, byEmail.Children)
@@ -121,6 +162,48 @@ func TestChildDetailsFindParentNotesAndRegistrationAnswers(t *testing.T) {
 
 	restricted := search(t, db, tenantID, answers, "oma", schoolsearchview.Scope{Children: true})
 	require.Empty(t, restricted.Children, "parent notes stay behind users:read")
+}
+
+// TestAnswerHitsFillUpPastFormerPupils keeps the answer hits from coming up
+// short: Enrollment's newest answers may belong to children who have left the
+// school, and a live child behind them still fills a free place.
+func TestAnswerHitsFillUpPastFormerPupils(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	matches := []enrollment.StudentAnswerMatch{}
+	for range schoolsearchview.ChildLimit + 1 {
+		former := testpkg.CreateTestStudent(t, db, "Ehemals", "Hier", "4b")
+		_, err := db.ExecContext(testpkg.Ctx(t), `UPDATE users.student_school_memberships SET status = 'alumnus' WHERE student_profile_id = ?`, former.ID)
+		require.NoError(t, err)
+		matches = append(matches, enrollment.StudentAnswerMatch{StudentID: former.ID, Label: "Wunsch-AG", Answer: "Theater"})
+	}
+	live := testpkg.CreateTestStudent(t, db, "Noch", "Da", "2b")
+	matches = append(matches, enrollment.StudentAnswerMatch{StudentID: live.ID, Label: "Wunsch-AG", Answer: "Theater"})
+
+	result := search(t, db, tenantID, &answerSearch{matches: matches}, "theater", fullScope)
+	require.Len(t, result.Children, 1)
+	require.Equal(t, live.ID, result.Children[0].ID)
+}
+
+// TestParentNoteHitShowsTheMatchedPart returns a bounded part of a long
+// parent note around the match, not the whole note.
+func TestParentNoteHitShowsTheMatchedPart(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	child := testpkg.CreateTestStudent(t, db, "Nora", "Lang", "3c")
+	note := strings.Repeat("Montags Hausaufgaben im Gruppenraum. ", 10) + "Freitags holt die Oma ab. " + strings.Repeat("Bitte Sonnencreme mitgeben. ", 10)
+	_, err := db.ExecContext(testpkg.Ctx(t), `UPDATE users.student_profiles SET extra_info = ? WHERE id = ?`, note, child.ID)
+	require.NoError(t, err)
+
+	result := search(t, db, tenantID, nil, "oma", fullScope)
+	require.Len(t, result.Children, 1)
+	match := result.Children[0].Match
+	require.Equal(t, schoolsearchview.MatchParentNote, match.Field)
+	require.Contains(t, match.Text, "Freitags holt die Oma ab.")
+	require.LessOrEqual(t, len([]rune(match.Text)), schoolsearchview.MaxMatchTextRunes)
+	require.True(t, strings.HasPrefix(match.Text, "…") && strings.HasSuffix(match.Text, "…"), match.Text)
 }
 
 func TestSearchStaysInsideTheSchool(t *testing.T) {
@@ -174,6 +257,23 @@ func TestStaffRoomsAndGroupsFollowTheirScope(t *testing.T) {
 	require.Empty(t, none.Staff)
 	require.Empty(t, none.Rooms)
 	require.Empty(t, none.Groups)
+}
+
+// TestArchivedRoomsStayOutOfTheSearch follows the room list (#6845): an
+// archived room is gone from the school's rooms, so the search does not find
+// it either.
+func TestArchivedRoomsStayOutOfTheSearch(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	kept := testpkg.CreateTestRoom(t, db, "Bastelkeller Nord")
+	archived := testpkg.CreateTestRoom(t, db, "Bastelkeller Süd")
+	_, err := db.ExecContext(testpkg.Ctx(t), `UPDATE facilities.rooms SET archived_at = now() WHERE id = ?`, archived.ID)
+	require.NoError(t, err)
+
+	result := search(t, db, tenantID, nil, "bastelkeller", fullScope)
+	require.Len(t, result.Rooms, 1)
+	require.Equal(t, kept.ID, result.Rooms[0].ID)
 }
 
 // TestSearchQueryBudget keeps one search flat in the size of the school:

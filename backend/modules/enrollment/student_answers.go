@@ -19,8 +19,10 @@ import (
 // the caller's tenant transaction. Callers check users:read first.
 type StudentAnswers interface {
 	// StudentAnswerFilters lists the yes/no and choice questions with at
-	// least one answer, each with the answers given and how many children
-	// gave them. The newest form version names a question and its options.
+	// least one answer, each with the answers given and the children who gave
+	// them. The newest form version names a question and its options. The
+	// children are every linked child, also one who has left the school: the
+	// caller counts the ones its list shows.
 	StudentAnswerFilters(ctx context.Context) ([]StudentAnswerFilter, error)
 	// StudentsWithAnswer returns the children whose newest answer to the
 	// question key equals value ("true"/"false" for yes/no, the option value
@@ -29,7 +31,9 @@ type StudentAnswers interface {
 	// SearchStudentAnswers finds children whose answer or question matches
 	// text, folded like a name search, newest registrations first. A
 	// question matches only where the answer says something: yes, a choice,
-	// a text, a number or a date, never no.
+	// a text, a number or a date, never no. A limit of zero or less returns
+	// every child found; the children may include ones who have left the
+	// school.
 	SearchStudentAnswers(ctx context.Context, text string, limit int) ([]StudentAnswerMatch, error)
 }
 
@@ -41,12 +45,12 @@ type StudentAnswerFilter struct {
 	Options []StudentAnswerOption `json:"options"`
 }
 
-// StudentAnswerOption is one answer of a filter question with the number of
-// children who gave it.
+// StudentAnswerOption is one answer of a filter question with the children
+// whose newest answer it is.
 type StudentAnswerOption struct {
-	Value string `json:"value"`
-	Label string `json:"label"`
-	Count int    `json:"count"`
+	Value      string
+	Label      string
+	StudentIDs []int64
 }
 
 // StudentAnswerMatch is a child found through an answer: the question and the

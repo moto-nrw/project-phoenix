@@ -158,7 +158,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			CareDayService:         live.CareDay,
 			CareLifecycleService:   lifecycle,
 			CompanionService:       NewStudentHTTPTestCompanions(students, repoFactory.Student, peopleServices.PeopleDirectory, peopleServices.StudentAudit),
-			EnrollmentAnswers:      newStudentEnrollmentAnswerFilters(), ExcusedRequestService: svc.ExcusedRequests,
+			EnrollmentAnswers:      newStudentEnrollmentAnswerFilters(newStudentAnswers()), ExcusedRequestService: svc.ExcusedRequests,
 			InstanceService:       liveTimetable.Instance,
 			ListExportService:     lists.NewRenderer(),
 			Logger:                slog.Default(),

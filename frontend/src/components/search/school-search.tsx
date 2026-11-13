@@ -20,7 +20,7 @@ import {
   useStaffNavSettings,
   type StaffNavItem,
 } from "~/components/dashboard/staff-nav-items";
-import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
+import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { childrenConcept } from "~/lib/concepts/children";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { parentsConcept } from "~/lib/concepts/parents";
@@ -38,6 +38,7 @@ import {
   type SchoolSearchChild,
   type SchoolSearchContact,
   type SchoolSearchResult,
+  type SchoolSearchScope,
 } from "~/lib/school-search";
 import { foldForSearch } from "~/lib/search-fold";
 import { useOpenCareGroupMode, usePresenceMode } from "~/lib/tenant-context";
@@ -47,12 +48,22 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 /** Waiting time after the last key before the search asks the server. */
 const SEARCH_DEBOUNCE_MS = 200;
 
+const NO_SCOPE: SchoolSearchScope = {
+  children: false,
+  childDetails: false,
+  contacts: false,
+  staff: false,
+  rooms: false,
+  groups: false,
+};
+
 const EMPTY_RESULT: SchoolSearchResult = {
   children: [],
   contacts: [],
   staff: [],
   rooms: [],
   groups: [],
+  scope: NO_SCOPE,
 };
 
 type SearchState =
@@ -67,7 +78,11 @@ type SearchState =
  * answer for an older text is dropped. A failure goes the shared load error
  * path; neither it nor anything else here logs the text.
  */
-function useSchoolSearch(query: string, enabled: boolean) {
+function useSchoolSearch(
+  query: string,
+  enabled: boolean,
+  onScope?: (scope: SchoolSearchScope) => void,
+) {
   const [state, setState] = useState<SearchState>({ kind: "idle" });
   const [lastResult, setLastResult] = useState<SchoolSearchResult | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -96,6 +111,7 @@ function useSchoolSearch(query: string, enabled: boolean) {
           if (controller.signal.aborted) return;
           setState({ kind: "ready", term });
           setLastResult(result);
+          onScope?.(result.scope);
         })
         .catch((failure: unknown) => {
           // An aborted request was replaced by a newer text; it has no
@@ -113,7 +129,7 @@ function useSchoolSearch(query: string, enabled: boolean) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [searchable, term, attempt, showLoadError, clearLoadError]);
+  }, [searchable, term, attempt, showLoadError, clearLoadError, onScope]);
 
   const settled =
     (state.kind === "ready" || state.kind === "error") && state.term === term;
@@ -146,6 +162,37 @@ function useSearchablePages(): readonly StaffNavItem[] {
         staffNavItemPermitted(item, viewer),
     );
   }, [session, settings, moduleNav, openCareGroupMode, isBinaryMode]);
+}
+
+/** Joins names as German prose: "A", "A und B", "A, B und C". */
+function listInProse(names: readonly string[]): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} und ${names.at(-1)}`;
+}
+
+/**
+ * The footer line: what this account finds beyond names, or else which kinds
+ * it searches, both as the server granted them. Before the first answer the
+ * dialog does not know the scope and says only when the search starts.
+ */
+function scopeHint(scope: SchoolSearchScope | null): string {
+  if (!scope)
+    return `Ab ${SCHOOL_SEARCH_MIN_LENGTH} Zeichen sucht moto in der Schule.`;
+  const extras = [
+    scope.contacts && "Telefonnummern",
+    scope.childDetails && "Anmeldeangaben",
+    scope.staff && "Mitarbeitende",
+  ].filter((name): name is string => Boolean(name));
+  if (scope.contacts || scope.childDetails)
+    return `Auch ${listInProse(extras)}`;
+  const kinds = [
+    scope.children && "Kinder",
+    scope.staff && "Mitarbeitende",
+    scope.rooms && "Räume",
+    scope.groups && "Gruppen",
+    "Seiten",
+  ].filter((name): name is string => Boolean(name));
+  return listInProse(kinds);
 }
 
 function childSubtitle(child: SchoolSearchChild): string {
@@ -317,27 +364,31 @@ function SearchSkeleton() {
 interface SchoolSearchDialogProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
+  /** What the server granted this account at its last search, if known. */
+  readonly scope?: SchoolSearchScope | null;
+  /** Receives the scope each answer states. */
+  readonly onScope?: (scope: SchoolSearchScope) => void;
 }
 
 /**
  * The search over the school (#6954): children, contact persons, staff,
  * rooms, groups and the pages of the app, in one dialog. What a person may
- * find is decided by the server; this dialog only explains a phone search
- * that the account cannot run.
+ * find is decided by the server; every hint here follows the scope the
+ * server states with its answer.
  */
 export function SchoolSearchDialog({
   isOpen,
   onClose,
+  scope: knownScope = null,
+  onScope,
 }: Readonly<SchoolSearchDialogProps>) {
   const router = useTenantRouter();
-  const { data: session } = useSession();
   const pages = useSearchablePages();
   const [query, setQuery] = useState("");
-  const { result, busy, error } = useSchoolSearch(query, isOpen);
+  const { result, busy, error } = useSchoolSearch(query, isOpen, onScope);
+  const scope = result?.scope ?? knownScope;
   const term = query.trim();
   const isPhone = looksLikePhoneNumber(term);
-  const readsContacts =
-    hasRole(session, "admin") || hasPermission(session, "users:read");
 
   const close = useCallback(() => {
     setQuery("");
@@ -356,9 +407,11 @@ export function SchoolSearchDialog({
     [close, router],
   );
 
+  // A failed search shows its error alone: matching pages beside it would
+  // hide it.
   const groups = useMemo(
-    () => buildGroups(result ?? EMPTY_RESULT, pages, term, open),
-    [result, pages, term, open],
+    () => (error ? [] : buildGroups(result ?? EMPTY_RESULT, pages, term, open)),
+    [error, result, pages, term, open],
   );
   const hits = countHits(groups);
   const searching = term.length >= SCHOOL_SEARCH_MIN_LENGTH;
@@ -378,9 +431,9 @@ export function SchoolSearchDialog({
         variant="compact"
         title="Nichts gefunden"
         description={
-          isPhone && !readsContacts
+          isPhone && scope && !scope.contacts
             ? "Telefonnummern finden nur Konten, die Kontaktdaten sehen dürfen."
-            : "Suchen Sie nach Name, Klasse, Gruppe, Telefonnummer oder E-Mail."
+            : `Suchen Sie nach ${scope?.contacts ? "Name, Klasse, Gruppe, Telefonnummer oder E-Mail" : "Name, Klasse, Gruppe oder Seite"}.`
         }
       />
     );
@@ -388,13 +441,7 @@ export function SchoolSearchDialog({
 
   // A hint, never a link carrying the text: the typed text stays out of
   // every URL (ADR 0230).
-  const footer = (
-    <span className="text-gray-500">
-      {readsContacts
-        ? "Auch Telefonnummern und Anmeldeangaben"
-        : "Kinder, Räume, Gruppen und Seiten"}
-    </span>
-  );
+  const footer = <span className="text-gray-500">{scopeHint(scope)}</span>;
 
   return (
     <CommandPalette
@@ -404,12 +451,12 @@ export function SchoolSearchDialog({
       query={query}
       onQueryChange={setQuery}
       placeholder={
-        readsContacts
+        scope?.contacts
           ? "Name, Telefonnummer, Klasse …"
           : "Name, Klasse, Seite …"
       }
       groups={groups}
-      busy={busy && hits > 0}
+      busy={busy}
       placeholderContent={placeholderContent}
       footer={footer}
       status={searching && !busy && !error ? `${hits} Treffer` : undefined}

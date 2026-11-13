@@ -67,12 +67,26 @@ interface SchoolSearchGroup {
   readonly name: string;
 }
 
+/**
+ * What this account may find, as the server decided it from its rights. It
+ * depends on the account only, never on the hits.
+ */
+export interface SchoolSearchScope {
+  readonly children: boolean;
+  readonly childDetails: boolean;
+  readonly contacts: boolean;
+  readonly staff: boolean;
+  readonly rooms: boolean;
+  readonly groups: boolean;
+}
+
 export interface SchoolSearchResult {
   readonly children: readonly SchoolSearchChild[];
   readonly contacts: readonly SchoolSearchContact[];
   readonly staff: readonly SchoolSearchStaff[];
   readonly rooms: readonly SchoolSearchRoom[];
   readonly groups: readonly SchoolSearchGroup[];
+  readonly scope: SchoolSearchScope;
 }
 
 /** Shortest query the backend searches; shorter input shows only pages. */
@@ -92,16 +106,48 @@ export function searchSchool(
   });
 }
 
+/** Fewest digits a phone query keeps after its prefixes go. */
+const MIN_PHONE_DIGITS = 4;
+/** From this length a leading 49 without + or 00 is the country code. */
+const MIN_FULL_GERMAN_DIGITS = 11;
+
+// Separators between the digits of a number, as the backend's
+// isPhoneSeparator: every Unicode space, every dash, the minus sign and
+// + / . ( ).
+const PHONE_QUERY = /^[0-9\p{White_Space}\p{Pd}\u2212+/.()]+$/u;
+const TRUNK_ZERO_MARKER = /\( *0 *\)/g;
+
 /**
- * Reads a query as a phone number the way the backend does
- * (schoolsearchview.PhoneSearchKey): only digits and the separators people
- * type, at least four digits. The dialog uses it to explain a phone search
- * and to never offer a name search link for a number.
+ * The digits a phone query is compared with, or "" when the query is no
+ * phone number: the backend's schoolsearchview.PhoneSearchKey, with the same
+ * cases in both tests. The key drops the bracketed trunk zero, the
+ * international 00, the German country code 49 and the German trunk zero; a
+ * foreign number keeps its country code. A leading 49 without + or 00 goes
+ * only from eleven digits on. The key needs at least four digits.
+ */
+export function phoneSearchKey(query: string): string {
+  if (!PHONE_QUERY.test(query)) return "";
+  const text = query.replace(TRUNK_ZERO_MARKER, "");
+  const marks = text.replace(/[^0-9+]/g, "");
+  let key = text.replace(/[^0-9]/g, "");
+  const international = marks.startsWith("+") || key.startsWith("00");
+  if (key.startsWith("00")) key = key.slice(2);
+  if (
+    key.startsWith("49") &&
+    (international || key.length >= MIN_FULL_GERMAN_DIGITS)
+  ) {
+    key = key.slice(2);
+  }
+  if (!international || key.startsWith("0")) key = key.replace(/^0+/, "");
+  return key.length >= MIN_PHONE_DIGITS ? key : "";
+}
+
+/**
+ * Whether the backend reads the query as a phone number. The dialog uses it
+ * to explain a phone search the account cannot run.
  */
 export function looksLikePhoneNumber(query: string): boolean {
-  const trimmed = query.trim();
-  if (!/^[\d\s+\-/.()]+$/.test(trimmed)) return false;
-  return (trimmed.match(/\d/g) ?? []).length >= 4;
+  return phoneSearchKey(query) !== "";
 }
 
 /**

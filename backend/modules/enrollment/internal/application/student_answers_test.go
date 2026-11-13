@@ -66,16 +66,16 @@ func answerFixture() studentAnswerRecords {
 	}
 }
 
-func TestStudentAnswerFiltersCountTheNewestAnswerPerChild(t *testing.T) {
+func TestStudentAnswerFiltersNameTheChildrenOfTheNewestAnswer(t *testing.T) {
 	t.Parallel()
 	filters, err := NewStudentAnswers(answerFixture()).StudentAnswerFilters(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, []enrollment.StudentAnswerFilter{
 		{Key: "seepferdchen", Label: "Seepferdchen vorhanden", Type: enrollment.FormFieldBoolean, Options: []enrollment.StudentAnswerOption{
-			{Value: "true", Label: "Ja", Count: 2}, {Value: "false", Label: "Nein", Count: 1},
+			{Value: "true", Label: "Ja", StudentIDs: []int64{11, 12}}, {Value: "false", Label: "Nein", StudentIDs: []int64{13}},
 		}},
 		{Key: "club", Label: "Wunsch-AG", Type: enrollment.FormFieldSelect, Options: []enrollment.StudentAnswerOption{
-			{Value: "chor", Label: "Chor", Count: 1}, {Value: "fussball", Label: "Fußball", Count: 1},
+			{Value: "chor", Label: "Chor", StudentIDs: []int64{12}}, {Value: "fussball", Label: "Fußball", StudentIDs: []int64{11}},
 		}},
 	}, filters, "newest labels; text, date, targeted and guardian questions are no filters")
 }
@@ -126,6 +126,17 @@ func TestSearchStudentAnswersMatchesStatedAnswersOnly(t *testing.T) {
 	limited, err := reads.SearchStudentAnswers(context.Background(), "seepferd", 1)
 	require.NoError(t, err)
 	require.Len(t, limited, 1)
+	every, err := reads.SearchStudentAnswers(context.Background(), "seepferd", 0)
+	require.NoError(t, err)
+	require.Equal(t, []int64{11, 12}, studentIDsOf(every), "no limit returns every child, newest registrations first")
+}
+
+func studentIDsOf(matches []enrollment.StudentAnswerMatch) []int64 {
+	ids := make([]int64, 0, len(matches))
+	for _, match := range matches {
+		ids = append(ids, match.StudentID)
+	}
+	return ids
 }
 
 func TestStudentAnswersFailOnAnUnreadableFormVersion(t *testing.T) {

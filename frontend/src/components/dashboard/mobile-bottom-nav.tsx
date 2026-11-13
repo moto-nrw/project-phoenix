@@ -11,6 +11,7 @@ import {
   usePortalBottomNavIndicator,
 } from "~/components/ui/portal-bottom-nav";
 import { PortalMoreBottomNav } from "~/components/ui/portal-more-bottom-nav";
+import { SchoolSearchSlot } from "~/components/search/school-search-slot";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
@@ -1066,6 +1067,14 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
           <div className="min-h-0 w-full flex-1 overflow-y-auto">
             <div className="px-4 pt-6 pb-4">
               <div className="space-y-5">
+                {/* Die Suche über die Schule (#6954) steht auf dem Handy hier
+                    oben statt im Seitenkopf. Das Personalportal füllt den
+                    Platz; andere Portale lassen ihn leer. */}
+                <SchoolSearchSlot
+                  placement="moreSheet"
+                  onOpen={() => setIsOverflowMenuOpen(false)}
+                  returnFocus={() => moreButtonRef.current}
+                />
                 {/* Rückweg ins Träger-Portal (#5687): ganz oben, unter 1024 px
                     gibt es weder Seitenleiste noch Kopfzeile. */}
                 {traegerReturnHref ? (

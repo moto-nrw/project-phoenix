@@ -30,6 +30,14 @@ export interface BackendSchoolSearchResult {
   staff: Array<{ id: string; first_name: string; last_name: string }>;
   rooms: Array<{ id: string; name: string; building?: string }>;
   groups: Array<{ id: string; name: string }>;
+  scope?: {
+    children?: boolean;
+    child_details?: boolean;
+    contacts?: boolean;
+    staff?: boolean;
+    rooms?: boolean;
+    groups?: boolean;
+  };
 }
 
 interface BackendMatch {
@@ -86,5 +94,14 @@ export function mapSchoolSearchResult(
       id: group.id,
       name: group.name,
     })),
+    // A missing answer field grants nothing.
+    scope: {
+      children: result.scope?.children === true,
+      childDetails: result.scope?.child_details === true,
+      contacts: result.scope?.contacts === true,
+      staff: result.scope?.staff === true,
+      rooms: result.scope?.rooms === true,
+      groups: result.scope?.groups === true,
+    },
   };
 }

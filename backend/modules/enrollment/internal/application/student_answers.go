@@ -181,19 +181,19 @@ func (s *StudentAnswers) StudentAnswerFilters(ctx context.Context) ([]enrollment
 	if err != nil {
 		return nil, err
 	}
-	counts := map[string]map[string]int{}
+	students := map[string]map[string][]int64{}
 	for _, answer := range set.answers {
 		if answer.value == "" {
 			continue
 		}
 		key := answer.field.Key
-		if counts[key] == nil {
-			counts[key] = map[string]int{}
+		if students[key] == nil {
+			students[key] = map[string][]int64{}
 		}
-		counts[key][answer.value]++
+		students[key][answer.value] = append(students[key][answer.value], answer.studentID)
 	}
-	filters := make([]enrollment.StudentAnswerFilter, 0, len(counts))
-	for key, byValue := range counts {
+	filters := make([]enrollment.StudentAnswerFilter, 0, len(students))
+	for key, byValue := range students {
 		question := set.questions[key]
 		filters = append(filters, enrollment.StudentAnswerFilter{
 			Key: key, Label: question.Label, Type: question.Type, Options: filterOptions(question, byValue),
@@ -210,12 +210,14 @@ func (s *StudentAnswers) StudentAnswerFilters(ctx context.Context) ([]enrollment
 
 // filterOptions lists the answers in the question's order: yes before no, a
 // choice in the order of the newest form, answers no longer offered last.
-func filterOptions(question enrollment.FormField, counts map[string]int) []enrollment.StudentAnswerOption {
+func filterOptions(question enrollment.FormField, students map[string][]int64) []enrollment.StudentAnswerOption {
 	options := []enrollment.StudentAnswerOption{}
 	listed := map[string]bool{}
 	add := func(value, label string) {
 		listed[value] = true
-		options = append(options, enrollment.StudentAnswerOption{Value: value, Label: label, Count: counts[value]})
+		ids := append([]int64{}, students[value]...)
+		slices.Sort(ids)
+		options = append(options, enrollment.StudentAnswerOption{Value: value, Label: label, StudentIDs: ids})
 	}
 	if question.Type == enrollment.FormFieldBoolean {
 		add("true", "Ja")
@@ -223,12 +225,12 @@ func filterOptions(question enrollment.FormField, counts map[string]int) []enrol
 		return options
 	}
 	for _, option := range question.Options {
-		if counts[option.Value] > 0 {
+		if len(students[option.Value]) > 0 {
 			add(option.Value, option.Label)
 		}
 	}
 	rest := make([]string, 0)
-	for value := range counts {
+	for value := range students {
 		if !listed[value] {
 			rest = append(rest, value)
 		}
@@ -259,17 +261,18 @@ func (s *StudentAnswers) StudentsWithAnswer(ctx context.Context, key, value stri
 	return ids, nil
 }
 
-// SearchStudentAnswers finds children by question or answer text.
+// SearchStudentAnswers finds children by question or answer text; a limit of
+// zero or less returns every child found.
 func (s *StudentAnswers) SearchStudentAnswers(ctx context.Context, text string, limit int) ([]enrollment.StudentAnswerMatch, error) {
 	query := collation.FoldForSearch(strings.TrimSpace(text))
-	if query == "" || limit <= 0 {
+	if query == "" {
 		return []enrollment.StudentAnswerMatch{}, nil
 	}
 	set, err := s.load(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]enrollment.StudentAnswerMatch, 0, limit)
+	out := make([]enrollment.StudentAnswerMatch, 0)
 	found := map[int64]bool{}
 	for _, answer := range set.answers {
 		if found[answer.studentID] || !answerMatches(answer, set.questions[answer.field.Key].Label, query) {

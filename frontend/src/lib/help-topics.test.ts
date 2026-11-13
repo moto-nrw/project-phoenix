@@ -308,7 +308,7 @@ describe("getParentHelpTopicForPath", () => {
       id: HELP_TOPICS.studentSearch,
       group: "kinder",
     });
-    expect(caregiverTopics[9]?.instructionGroups).toHaveLength(5);
+    expect(caregiverTopics[9]?.instructionGroups).toHaveLength(6);
     expect(caregiverTopics[9]?.instructionGroups?.[3]).toMatchObject({
       title: "Ein Anwesenheitsprotokoll herunterladen",
       steps: expect.arrayContaining([

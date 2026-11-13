@@ -1,7 +1,7 @@
 {
   "scenario": "api.students.enrollment_answer_filters.list",
-  "max": 5,
+  "max": 13,
   "exact": false,
-  "description": "api/students — GET /students/enrollment-answer-filters (#6954), ten\nanswered children: the request frame plus one read of the linked answers and\none of their form versions.",
+  "description": "api/students — GET /students/enrollment-answer-filters (#6954), ten\nanswered children: the request frame with the staff check of the child\npage's access, one read of the linked answers and one of their form\nversions, then the list's own path for the counts (running care of today\nand one directory read of the answered children), so a count is what the\nlist shows.",
   "route": "GET /api/students/enrollment-answer-filters"
 }

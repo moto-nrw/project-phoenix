@@ -145,6 +145,81 @@ describe("CommandPalette", () => {
     );
   });
 
+  it("never opens a row of an older text while the new result is on its way", async () => {
+    const user = userEvent.setup();
+    const select = vi.fn();
+    const props = {
+      isOpen: true,
+      onClose: () => undefined,
+      label: "Suchen",
+      query: "Mü",
+      onQueryChange: () => undefined,
+      placeholder: "Name …",
+    } as const;
+    const older = groupsWith(select);
+    const { rerender } = render(
+      <CommandPalette {...props} groups={older} busy />,
+    );
+    const field = screen.getByRole("combobox", { name: "Suchen" });
+    await user.click(field);
+    const stale = screen.getAllByRole("option");
+    expect(stale[0]).toHaveAttribute("aria-disabled", "true");
+
+    await user.keyboard("{ArrowDown}");
+    expect(field).toHaveAttribute("aria-activedescendant", stale[0]?.id);
+    await user.click(screen.getByRole("option", { name: "Ole" }));
+    await user.keyboard("{Enter}");
+    expect(select).not.toHaveBeenCalled();
+
+    // The result for the typed text arrives: Enter opens its best hit.
+    rerender(
+      <CommandPalette
+        {...props}
+        groups={[
+          {
+            id: "children",
+            title: "Kinder",
+            items: [
+              {
+                id: "mueller",
+                label: "Mia Müller",
+                title: "Mia Müller",
+                onSelect: () => select("mueller"),
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(select).toHaveBeenCalledWith("mueller");
+  });
+
+  it("drops a waiting Enter when the person types on", async () => {
+    const user = userEvent.setup();
+    const select = vi.fn();
+    const onQueryChange = vi.fn();
+    const props = {
+      isOpen: true,
+      onClose: () => undefined,
+      label: "Suchen",
+      query: "Mü",
+      onQueryChange,
+      placeholder: "Name …",
+      groups: groupsWith(select),
+    } as const;
+    const { rerender } = render(<CommandPalette {...props} busy />);
+    await user.click(screen.getByRole("combobox", { name: "Suchen" }));
+    await user.keyboard("{Enter}");
+    await user.keyboard("l");
+    expect(onQueryChange).toHaveBeenCalledWith("Mül");
+    rerender(<CommandPalette {...props} query="Mül" />);
+    expect(select).not.toHaveBeenCalled();
+    // Anchor: without a waiting Enter the same rows open on Enter.
+    await user.keyboard("{Enter}");
+    expect(select).toHaveBeenCalledWith("mia");
+  });
+
   it("keeps what a person types out of session recordings", () => {
     render(<Palette groups={[]} />);
     expect(

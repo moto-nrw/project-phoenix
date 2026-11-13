@@ -7873,8 +7873,9 @@ export const schoolSearchTopic = function schoolSearchTopic(): HelpTopic {
         title: "Die Suche öffnen",
         ordered: false,
         steps: [
-          "Am Computer: Wählen Sie oben `Überall suchen`. Oder drücken Sie Strg und K. Am Mac drücken Sie ⌘ und K.",
-          "Am Tablet und am Handy: Wählen Sie oben neben dem Fragezeichen die Lupe. Der Reiter `Suchen` unten öffnet dagegen `Alle Kinder`.",
+          "Am Computer: Wählen Sie oben `Überall suchen`. Oder drücken Sie Strg und K. Am Mac drücken Sie ⌘ und K. Das geht auch am Tablet mit Tastatur.",
+          "Am Tablet: Wählen Sie oben neben dem Fragezeichen die Lupe.",
+          "Am Handy: Wählen Sie unten `Mehr` und dann ganz oben `Überall suchen`. Der Reiter `Suchen` unten öffnet dagegen `Alle Kinder`.",
         ],
       },
       {
@@ -7890,8 +7891,9 @@ export const schoolSearchTopic = function schoolSearchTopic(): HelpTopic {
         // Der Anlass aus #6954: verpasste Anrufe im Büro.
         title: "Eine Telefonnummer suchen",
         steps: [
-          "Geben Sie die Nummer so ein, wie Sie sie sehen. Leerzeichen, Striche, +49 oder eine 0 am Anfang sind egal.",
-          "Auch die letzten Ziffern reichen, mindestens vier.",
+          "Geben Sie die Nummer so ein, wie Sie sie sehen, oder fügen Sie sie aus einer E-Mail ein. Leerzeichen, Striche, +49 oder eine 0 am Anfang sind egal.",
+          "Steht hinter der Nummer eine Durchwahl, findet moto die Nummer auch ohne sie.",
+          "Auch die letzten Ziffern reichen, mindestens vier ohne Vorwahl 0 oder +49.",
           "Der Treffer zeigt die Person und das Kind, zu dem sie gehört.",
           "Wählen Sie den Treffer. moto öffnet beim Kind den Reiter `Erziehungsberechtigte`.",
         ],
@@ -8795,6 +8797,18 @@ export const studentSearchTopic = function studentSearchTopic(
           "Wählen Sie `Aufheben`, um alle Kreuze zu entfernen.",
         ],
       },
+      {
+        // #6954: der Filter steht im Filterfeld unter `Anmeldung`, nur mit
+        // Zugriff auf die Angaben der Kinderakte und nur bei eigenen
+        // Ja/Nein- oder Auswahlfragen der Online-Anmeldung.
+        title: "Nach Angaben aus der Anmeldung filtern",
+        steps: [
+          "Wählen Sie rechts neben der Suche das Filtersymbol.",
+          "Wählen Sie unter `Anmeldung` bei `Angabe aus der Anmeldung` eine Antwort, zum Beispiel eine Frage mit `Ja`.",
+          "Die Zahl in Klammern nennt, wie viele Kinder die Liste dann zeigt. Kinder, die die Schule verlassen haben, zählen nicht.",
+          "`Alle Angaben` hebt den Filter wieder auf.",
+        ],
+      },
     ],
     result:
       "Sie sehen jetzt die Angaben des Kindes. Über dem Namen steht `Zurück zur Kinderübersicht`. Damit kommen Sie zur Liste zurück.",
@@ -8804,11 +8818,13 @@ export const studentSearchTopic = function studentSearchTopic(
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
       "Fehlen `Gruppen` und `Aktuelle Aufsicht` in der Navigation? Dann wählen Sie in `Alle Kinder` oben `Meine Gruppe` oder `Meine Aufsicht`.",
       "Einige Bereiche brauchen zusätzliche Rechte: `Betreuungsplan`, `Dokumente` und `Änderungsprotokoll`. Fehlt ein Bereich? Fragen Sie Ihre Leitung.",
+      "Fehlt im Filter `Anmeldung`? Den Filter sehen nur Mitarbeitende, die auch die Angaben aus der Anmeldung beim Kind sehen. Er erscheint erst, wenn die Online-Anmeldung eigene Fragen mit Ja/Nein oder zur Auswahl hat.",
       ...(presenceDifference ? [presenceDifference] : []),
     ],
     ...(transitNotes.length > 0 ? { notes: transitNotes } : {}),
     troubleshooting: HELP_TOPICS.missingChildOrGroup,
     related: [
+      HELP_TOPICS.schoolSearch,
       HELP_TOPICS.editStudent,
       HELP_TOPICS.webAttendance,
       HELP_TOPICS.absences,

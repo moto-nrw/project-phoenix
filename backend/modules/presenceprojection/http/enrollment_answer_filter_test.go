@@ -10,6 +10,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/api"
 	"github.com/moto-ogs/project-phoenix/api/testutil"
 	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
@@ -47,10 +48,18 @@ func registrationAnswers(t *testing.T, tc *testContext, answers map[int64]bool) 
 	}
 }
 
-func listByAnswer(t *testing.T, tc *testContext, answer string, perms ...string) (int, []int64) {
+// answerReader is a staff member of the school with users:read: the access
+// the answers on the child's page need.
+func answerReader(t *testing.T, tc *testContext) sessiontoken.AppClaims {
+	t.Helper()
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Antwort", "Leserin")
+	return testutil.TeacherTestClaims(int(account.ID))
+}
+
+func listByAnswer(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, answer string, perms ...string) (int, []int64) {
 	t.Helper()
 	path := "/?page_size=100&enrollment_answer=" + url.QueryEscape(answer)
-	rr := authExec(t, tc, testutil.NewRequest("GET", path, nil), testutil.AdminTestClaims(1), perms)
+	rr := authExec(t, tc, testutil.NewRequest("GET", path, nil), claims, perms)
 	if rr.Code != http.StatusOK {
 		return rr.Code, nil
 	}
@@ -74,17 +83,18 @@ func TestListStudentsFiltersByARegistrationAnswer(t *testing.T) {
 	learner := testpkg.CreateTestStudent(t, tc.db, "Lio", "Lerner", "2a").ID
 	unanswered := testpkg.CreateTestStudent(t, tc.db, "Ute", "Ohne", "2a").ID
 	registrationAnswers(t, tc, map[int64]bool{swimmer: true, learner: false})
+	reader := answerReader(t, tc)
 
-	code, ids := listByAnswer(t, tc, "seepferdchen=true", "users:read")
+	code, ids := listByAnswer(t, tc, reader, "seepferdchen=true", "users:read")
 	require.Equal(t, http.StatusOK, code)
 	assert.Equal(t, []int64{swimmer}, ids)
-	_, ids = listByAnswer(t, tc, "seepferdchen=false", "users:read")
+	_, ids = listByAnswer(t, tc, reader, "seepferdchen=false", "users:read")
 	assert.Equal(t, []int64{learner}, ids)
 	assert.NotContains(t, ids, unanswered)
-	_, ids = listByAnswer(t, tc, "unbekannt=true", "users:read")
+	_, ids = listByAnswer(t, tc, reader, "unbekannt=true", "users:read")
 	assert.Empty(t, ids, "an unknown question finds nobody instead of everybody")
 
-	rr := authExec(t, tc, testutil.NewRequest("GET", "/enrollment-answer-filters", nil), testutil.AdminTestClaims(1), []string{"users:read"})
+	rr := authExec(t, tc, testutil.NewRequest("GET", "/enrollment-answer-filters", nil), reader, []string{"users:read"})
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var options struct {
 		Data []struct {
@@ -107,12 +117,13 @@ func TestListStudentsFiltersByARegistrationAnswer(t *testing.T) {
 func TestListStudentsAnswerFilterNeedsUsersRead(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t, fixedCalendarClock)
-	code, _ := listByAnswer(t, tc, "seepferdchen=true", "students:read")
+	reader := answerReader(t, tc)
+	code, _ := listByAnswer(t, tc, reader, "seepferdchen=true", "students:read")
 	assert.Equal(t, http.StatusForbidden, code, "a filtered count would reveal the answers")
-	rr := authExec(t, tc, testutil.NewRequest("GET", "/enrollment-answer-filters", nil), testutil.AdminTestClaims(1), []string{"students:read"})
+	rr := authExec(t, tc, testutil.NewRequest("GET", "/enrollment-answer-filters", nil), reader, []string{"students:read"})
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 	for _, malformed := range []string{"seepferdchen", "=true", "seepferdchen="} {
-		code, _ := listByAnswer(t, tc, malformed, "users:read")
+		code, _ := listByAnswer(t, tc, reader, malformed, "users:read")
 		assert.Equal(t, http.StatusBadRequest, code, malformed)
 	}
 }
@@ -131,10 +142,11 @@ func TestEnrollmentAnswerFilterOptionsQueryBudget(t *testing.T) {
 		}
 		registrationAnswers(t, tc, answers)
 	}
+	reader := answerReader(t, tc)
 	counter := testpkg.CaptureQueries(t, tc.db)
 	run := func() int {
 		counter.Reset()
-		rr := authExec(t, tc, testutil.NewRequest("GET", "/enrollment-answer-filters", nil), testutil.AdminTestClaims(1), []string{"users:read"})
+		rr := authExec(t, tc, testutil.NewRequest("GET", "/enrollment-answer-filters", nil), reader, []string{"users:read"})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 		return counter.Total()
 	}
@@ -144,4 +156,72 @@ func TestEnrollmentAnswerFilterOptionsQueryBudget(t *testing.T) {
 	large := run()
 	assert.Equal(t, small, large, "query count must not grow with the number of answers")
 	querybudgets.AssertQueryBudget(t, "api.students.enrollment_answer_filters.list", counter.Measurement(counter.Queries()))
+}
+
+func answerFilterCounts(t *testing.T, tc *testContext, reader sessiontoken.AppClaims) map[string]int {
+	t.Helper()
+	rr := authExec(t, tc, testutil.NewRequest("GET", "/enrollment-answer-filters", nil), reader, []string{"users:read"})
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var options struct {
+		Data []struct {
+			Key     string `json:"key"`
+			Options []struct {
+				Value string `json:"value"`
+				Count int    `json:"count"`
+			} `json:"options"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &options))
+	counts := map[string]int{}
+	for _, filter := range options.Data {
+		for _, option := range filter.Options {
+			counts[filter.Key+"="+option.Value] = option.Count
+		}
+	}
+	return counts
+}
+
+// TestEnrollmentAnswerFilterCountsWhatTheListShows keeps the number next to an
+// answer equal to the children the list shows for it: a child who left the
+// school keeps its registration, but neither the list nor the count shows it.
+func TestEnrollmentAnswerFilterCountsWhatTheListShows(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	stays := testpkg.CreateTestStudent(t, tc.db, "Bleibt", "Schwimmer", "3a").ID
+	left := testpkg.CreateTestStudent(t, tc.db, "Ging", "Schwimmer", "3a").ID
+	learner := testpkg.CreateTestStudent(t, tc.db, "Lernt", "Noch", "3a").ID
+	registrationAnswers(t, tc, map[int64]bool{stays: true, left: true, learner: false})
+	_, err := tc.db.ExecContext(testpkg.Ctx(t), `UPDATE users.student_school_memberships SET status = 'alumnus' WHERE student_profile_id = ?`, left)
+	require.NoError(t, err)
+
+	reader := answerReader(t, tc)
+	_, listed := listByAnswer(t, tc, reader, "seepferdchen=true", "users:read")
+	require.Equal(t, []int64{stays}, listed)
+	counts := answerFilterCounts(t, tc, reader)
+	assert.Equal(t, len(listed), counts["seepferdchen=true"], "the count is what the list shows")
+	assert.Equal(t, 1, counts["seepferdchen=false"])
+}
+
+// TestEnrollmentAnswerFilterNeedsTheChildPageAccess gives the filter, its
+// options and the filtered export the gate of the answers on the child's
+// page: users:read and a staff record of the school, or an administrator.
+func TestEnrollmentAnswerFilterNeedsTheChildPageAccess(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	guest := testpkg.CreateTestAccount(t, tc.db, "answers-guest@example.com")
+	claims := testutil.TeacherTestClaims(int(guest.ID))
+	read := []string{"users:read"}
+
+	list := authExec(t, tc, testutil.NewRequest("GET", "/?enrollment_answer=seepferdchen%3Dtrue", nil), claims, read)
+	assert.Equal(t, http.StatusForbidden, list.Code, list.Body.String())
+	options := authExec(t, tc, testutil.NewRequest("GET", "/enrollment-answer-filters", nil), claims, read)
+	assert.Equal(t, http.StatusForbidden, options.Code, options.Body.String())
+	export := authExec(t, tc, birthdayExportRequest(t, `{"format":"xlsx","preset":"birthday_list","filters":{"months":["09"],"enrollment_answer":"seepferdchen=true"}}`), claims, read)
+	assert.Equal(t, http.StatusForbidden, export.Code)
+
+	// Anchor: the same account reads the list and exports without the filter.
+	plain := authExec(t, tc, testutil.NewRequest("GET", "/", nil), claims, read)
+	assert.Equal(t, http.StatusOK, plain.Code, plain.Body.String())
+	unfiltered := authExec(t, tc, birthdayExportRequest(t, `{"format":"xlsx","preset":"birthday_list","filters":{"months":["09"]}}`), claims, read)
+	assert.Equal(t, http.StatusOK, unfiltered.Code)
 }

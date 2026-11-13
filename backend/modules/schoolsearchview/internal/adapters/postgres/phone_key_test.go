@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/moto-ogs/project-phoenix/modules/schoolsearchview"
@@ -20,10 +21,23 @@ func TestPhoneSearchKeySQLMatchesGo(t *testing.T) {
 		"+49 170 1234567", "+491701234567", "0049 170 1234567", "0049-170-1234567", "+49 (0)170 1234567",
 		"0170 1234567", "0170/1234567", "0170-123 45 67", "(0170) 123.45.67", "  0221 98765  ",
 		"+43 1 2345678", "0043 1 2345678", "1234567", "+4930 1234", "00 49 30 1234",
+		"0170\u00a01234567", "0170\u202f123\u00a045\u00a067", "0170\t1234567", "0170\u20131234567",
+		"0170\u20111234567", "0170\u22121234567", "\u00a0+49\u00a0170\u00a01234567",
+		"+43 (0)1 2345678", "0043 (0) 1 2345678", "49 221 5550001", "4930 1234",
+		"0221 5550001-12", "Tel. +49 221 5550001", "0170", "",
 	} {
 		var key string
 		require.NoError(t, db.NewRaw(`SELECT `+phoneKeyOfStoredNumber+` FROM (SELECT CAST(? AS text) AS phone_number) AS phone`, number).
 			Scan(testpkg.Ctx(t), &key), number)
-		require.Equal(t, schoolsearchview.PhoneSearchKey(number), key, number)
+		require.Equal(t, schoolsearchview.PhoneNumberKey(number), key, number)
 	}
+}
+
+// TestPhoneSQLSpellsOutTheGoBounds keeps the numbers the SQL spells out equal
+// to the Go constants they stand for.
+func TestPhoneSQLSpellsOutTheGoBounds(t *testing.T) {
+	t.Parallel()
+	require.Contains(t, phoneKeyOfStoredNumber, "length(j.d1) >= "+strconv.Itoa(schoolsearchview.MinFullGermanDigits))
+	require.Contains(t, contactsByPhoneSQL, "length(stored.key) >= "+strconv.Itoa(schoolsearchview.MinStoredPhoneDigits))
+	require.Contains(t, contactsByPhoneSQL, "BETWEEN 1 AND "+strconv.Itoa(schoolsearchview.MaxExtensionDigits))
 }

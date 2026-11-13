@@ -88,6 +88,10 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	if strings.TrimSpace(req.Filters.EnrollmentAnswer) != "" && !rs.canReadEnrollmentAnswers(r.Context()) {
+		renderError(w, r, common.ErrorForbidden(errEnrollmentAnswerForbidden))
+		return
+	}
 
 	selection, errResp := rs.selectExportResponses(r, req)
 	if errResp != nil {

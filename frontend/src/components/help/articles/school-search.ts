@@ -20,8 +20,9 @@ export function schoolSearchTopic(): HelpTopic {
         title: "Die Suche öffnen",
         ordered: false,
         steps: [
-          "Am Computer: Wählen Sie oben `Überall suchen`. Oder drücken Sie Strg und K. Am Mac drücken Sie ⌘ und K.",
-          "Am Tablet und am Handy: Wählen Sie oben neben dem Fragezeichen die Lupe. Der Reiter `Suchen` unten öffnet dagegen `Alle Kinder`.",
+          "Am Computer: Wählen Sie oben `Überall suchen`. Oder drücken Sie Strg und K. Am Mac drücken Sie ⌘ und K. Das geht auch am Tablet mit Tastatur.",
+          "Am Tablet: Wählen Sie oben neben dem Fragezeichen die Lupe.",
+          "Am Handy: Wählen Sie unten `Mehr` und dann ganz oben `Überall suchen`. Der Reiter `Suchen` unten öffnet dagegen `Alle Kinder`.",
         ],
       },
       {
@@ -37,8 +38,9 @@ export function schoolSearchTopic(): HelpTopic {
         // Der Anlass aus #6954: verpasste Anrufe im Büro.
         title: "Eine Telefonnummer suchen",
         steps: [
-          "Geben Sie die Nummer so ein, wie Sie sie sehen. Leerzeichen, Striche, +49 oder eine 0 am Anfang sind egal.",
-          "Auch die letzten Ziffern reichen, mindestens vier.",
+          "Geben Sie die Nummer so ein, wie Sie sie sehen, oder fügen Sie sie aus einer E-Mail ein. Leerzeichen, Striche, +49 oder eine 0 am Anfang sind egal.",
+          "Steht hinter der Nummer eine Durchwahl, findet moto die Nummer auch ohne sie.",
+          "Auch die letzten Ziffern reichen, mindestens vier ohne Vorwahl 0 oder +49.",
           "Der Treffer zeigt die Person und das Kind, zu dem sie gehört.",
           "Wählen Sie den Treffer. moto öffnet beim Kind den Reiter `Erziehungsberechtigte`.",
         ],

@@ -74,6 +74,14 @@ describe("POST /api/search", () => {
         staff: [{ id: "31", first_name: "Greta", last_name: "Wiesenthal" }],
         rooms: [{ id: "41", name: "Atelier", building: "Altbau" }],
         groups: [{ id: "51", name: "Füchse" }],
+        scope: {
+          children: true,
+          child_details: true,
+          contacts: true,
+          staff: false,
+          rooms: true,
+          groups: true,
+        },
       },
     });
 
@@ -122,6 +130,35 @@ describe("POST /api/search", () => {
       staff: [{ id: "31", firstName: "Greta", lastName: "Wiesenthal" }],
       rooms: [{ id: "41", name: "Atelier", building: "Altbau" }],
       groups: [{ id: "51", name: "Füchse" }],
+      scope: {
+        children: true,
+        childDetails: true,
+        contacts: true,
+        staff: false,
+        rooms: true,
+        groups: true,
+      },
+    });
+  });
+
+  it("grants nothing the answer does not state", async () => {
+    mockApiPost.mockResolvedValueOnce({
+      data: { children: [], contacts: [], staff: [], rooms: [], groups: [] },
+    });
+    const response = await POST(
+      searchRequest({ query: "Mia" }),
+      createMockContext(),
+    );
+    const json = (await response.json()) as {
+      data: { scope: Record<string, boolean> };
+    };
+    expect(json.data.scope).toEqual({
+      children: false,
+      childDetails: false,
+      contacts: false,
+      staff: false,
+      rooms: false,
+      groups: false,
     });
   });
 

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 	"github.com/moto-ogs/project-phoenix/modules/schoolsearchview"
@@ -19,9 +18,9 @@ type Reader interface {
 	// Children finds children by name, class or group; with notes also by
 	// their parent note (Elternnotizen).
 	Children(ctx context.Context, text string, notes bool, limit int) ([]schoolsearchview.Child, error)
-	// ChildrenByID reads the rows of the given children that are still at
-	// the school, in no particular order.
-	ChildrenByID(ctx context.Context, ids []int64) ([]schoolsearchview.Child, error)
+	// ChildrenByID reads the first limit of the given children that are
+	// still at the school, in the order of ids.
+	ChildrenByID(ctx context.Context, ids []int64, limit int) ([]schoolsearchview.Child, error)
 	// Contacts finds contact persons of a child at the school by name or
 	// e-mail address, or by the phone key when phoneKey is not empty.
 	Contacts(ctx context.Context, text, phoneKey string, limit int) ([]schoolsearchview.Contact, error)
@@ -49,6 +48,7 @@ func (s *Search) SearchSchool(ctx context.Context, query schoolsearchview.Query)
 	result := schoolsearchview.Result{
 		Children: []schoolsearchview.Child{}, Contacts: []schoolsearchview.Contact{},
 		Staff: []schoolsearchview.Staff{}, Rooms: []schoolsearchview.Room{}, Groups: []schoolsearchview.Group{},
+		Scope: query.Scope,
 	}
 	text, err := schoolsearchview.ValidateQueryText(query.Text)
 	if err != nil {
@@ -71,6 +71,11 @@ func (s *Search) searchPeople(ctx context.Context, text, phoneKey string, scope 
 		if err != nil {
 			return fmt.Errorf("school search: children: %w", err)
 		}
+		for i := range children {
+			if children[i].Match.Field == schoolsearchview.MatchParentNote {
+				children[i].Match.Text = matchSnippet(children[i].Match.Text, text)
+			}
+		}
 		if scope.ChildDetails {
 			children, err = s.withAnswerHits(ctx, text, children)
 			if err != nil {
@@ -91,15 +96,16 @@ func (s *Search) searchPeople(ctx context.Context, text, phoneKey string, scope 
 
 // withAnswerHits appends the children found through a registration answer
 // after the direct hits, up to the child limit. A child already found
-// directly keeps its direct reason.
+// directly keeps its direct reason. Enrollment's hits may name children who
+// have left the school, so the search asks for every hit and keeps the first
+// ones still at the school, newest answers first: former pupils never leave a
+// free place empty.
 func (s *Search) withAnswerHits(ctx context.Context, text string, children []schoolsearchview.Child) ([]schoolsearchview.Child, error) {
 	free := schoolsearchview.ChildLimit - len(children)
 	if free <= 0 {
 		return children, nil
 	}
-	// Ask for enough to fill the free slots after the children already found
-	// directly drop out.
-	hits, err := s.answers.SearchStudentAnswers(ctx, text, schoolsearchview.ChildLimit+len(children))
+	hits, err := s.answers.SearchStudentAnswers(ctx, text, 0)
 	if err != nil {
 		return nil, fmt.Errorf("school search: registration answers: %w", err)
 	}
@@ -122,22 +128,14 @@ func (s *Search) withAnswerHits(ctx context.Context, text string, children []sch
 	if len(ids) == 0 {
 		return children, nil
 	}
-	rows, err := s.reader.ChildrenByID(ctx, ids)
+	rows, err := s.reader.ChildrenByID(ctx, ids, free)
 	if err != nil {
 		return nil, fmt.Errorf("school search: answer children: %w", err)
 	}
-	// Keep Enrollment's order: the newest answers first.
-	slices.SortStableFunc(rows, func(a, b schoolsearchview.Child) int {
-		return slices.Index(ids, a.ID) - slices.Index(ids, b.ID)
-	})
 	for _, row := range rows {
-		if free == 0 {
-			break
-		}
 		hit := byStudent[row.ID]
 		row.Match = schoolsearchview.Match{Field: schoolsearchview.MatchEnrollmentAnswer, Label: hit.Label, Text: hit.Answer}
 		children = append(children, row)
-		free--
 	}
 	return children, nil
 }

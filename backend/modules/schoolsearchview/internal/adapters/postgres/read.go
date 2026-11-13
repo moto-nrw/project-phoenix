@@ -35,14 +35,18 @@ func New(database Database) *Reader { return &Reader{database: database} }
 // LIKE metacharacters escaped (#5791). Its `?` is the first argument.
 const patternJoin = ` CROSS JOIN (SELECT '%' || ` + collation.UnaccentLikePatternSQL + ` || '%' AS p) AS q `
 
-// phoneKeyOfStoredNumber is schoolsearchview.PhoneSearchKey for
-// phone.phone_number: its digits without the German trunk or country prefix.
+// phoneKeyOfStoredNumber is schoolsearchview.PhoneNumberKey for
+// phone.phone_number: its digits without the bracketed trunk zero, the
+// international 00, the German country code and trunk zero. Every character
+// but a digit (and the plus that marks an international number) is a
+// separator, Unicode spaces and dashes included.
 // TestPhoneSearchKeySQLMatchesGo holds both to the same cases.
 const phoneKeyOfStoredNumber = `(SELECT CASE WHEN NOT k.intl OR k.d2 LIKE '0%' THEN ltrim(k.d2, '0') ELSE k.d2 END
-	FROM (SELECT j.intl, CASE WHEN j.intl AND j.d1 LIKE '49%' THEN substr(j.d1, 3) ELSE j.d1 END AS d2
+	FROM (SELECT j.intl, CASE WHEN j.d1 LIKE '49%' AND (j.intl OR length(j.d1) >= 11) THEN substr(j.d1, 3) ELSE j.d1 END AS d2
 		FROM (SELECT i.intl, regexp_replace(i.digits, '^00', '') AS d1
-			FROM (SELECT btrim(phone.phone_number) LIKE '+%' OR regexp_replace(phone.phone_number, '[^0-9]', '', 'g') LIKE '00%' AS intl,
-				regexp_replace(phone.phone_number, '[^0-9]', '', 'g') AS digits) AS i) AS j) AS k)`
+			FROM (SELECT regexp_replace(t.s, '[^0-9+]', '', 'g') LIKE '+%' OR regexp_replace(t.s, '[^0-9]', '', 'g') LIKE '00%' AS intl,
+				regexp_replace(t.s, '[^0-9]', '', 'g') AS digits
+				FROM (SELECT regexp_replace(phone.phone_number, '\( *0 *\)', '', 'g') AS s) AS t) AS i) AS j) AS k)`
 
 // liveChildJoins narrow a child profile to a child still at the school: a
 // live person and a live, non-graduated membership, with its OGS group.
@@ -77,10 +81,13 @@ const childrenSQL = protocol.RedactLiteralsInLog + `SELECT hit.id, hit.first_nam
 	ORDER BY hit.rank, hit.last_name, hit.first_name, hit.id
 	LIMIT ?`
 
-// childrenByIDSQL: school, ids.
+// childrenByIDSQL: school, ids, ids, limit. The first children of the list
+// that are still at the school, in the order of the list.
 const childrenByIDSQL = `SELECT student.id, person.first_name, person.last_name, membership.school_class, COALESCE(grp.name, '') AS group_name
 	FROM users.student_profiles AS student ` + liveChildJoins + `
-	WHERE student.tenant_id = ? AND student.id IN (?)`
+	WHERE student.tenant_id = ? AND student.id = ANY(ARRAY[?]::bigint[])
+	ORDER BY array_position(ARRAY[?]::bigint[], student.id)
+	LIMIT ?`
 
 type childRow struct {
 	ID          int64  `bun:"id"`
@@ -118,9 +125,10 @@ func (r *Reader) Children(ctx context.Context, text string, notes bool, limit in
 	return childValues(rows), nil
 }
 
-// ChildrenByID reads the given children that are still at the school.
-func (r *Reader) ChildrenByID(ctx context.Context, ids []int64) ([]schoolsearchview.Child, error) {
-	if len(ids) == 0 {
+// ChildrenByID reads the first limit children of ids that are still at the
+// school, in the order of ids.
+func (r *Reader) ChildrenByID(ctx context.Context, ids []int64, limit int) ([]schoolsearchview.Child, error) {
+	if len(ids) == 0 || limit <= 0 {
 		return []schoolsearchview.Child{}, nil
 	}
 	db, schoolID, err := r.database(ctx)
@@ -128,7 +136,7 @@ func (r *Reader) ChildrenByID(ctx context.Context, ids []int64) ([]schoolsearchv
 		return nil, err
 	}
 	var rows []childRow
-	if err := db.NewRaw(childrenByIDSQL, schoolID, bun.List(ids)).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(childrenByIDSQL, schoolID, bun.List(ids), bun.List(ids), limit).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("school search view: children by id: %w", err)
 	}
 	return childValues(rows), nil
@@ -140,16 +148,23 @@ const contactHasLiveChild = `EXISTS (SELECT 1 FROM users.student_guardian_relati
 	JOIN users.student_profiles AS student ON student.id = rel.student_id AND student.tenant_id = rel.tenant_id ` + liveChildJoins + `
 	WHERE rel.guardian_profile_id = guardian.id AND rel.tenant_id = guardian.tenant_id)`
 
-// contactsByPhoneSQL: phone key, school, limit. It matches the key as a part
-// of each stored number's key and reports the number that matched, the
-// primary one first.
+// contactsByPhoneSQL: phone key, school, limit. A stored number matches when
+// the query key is a part of its key (a partial number, the last digits), or
+// when the query is the whole stored number of at least 7 key digits plus an
+// extension of 1 to 5 digits ("0221 5550001-12" finds "0221 5550001";
+// schoolsearchview.MinStoredPhoneDigits and MaxExtensionDigits). It reports
+// the number that matched, the primary one first.
 const contactsByPhoneSQL = protocol.RedactLiteralsInLog + `SELECT * FROM (
 		SELECT DISTINCT ON (guardian.id) guardian.id, guardian.first_name, guardian.last_name,
 			'phone' AS match_field, phone.phone_number AS match_text
 		FROM users.guardian_phone_numbers AS phone
 		JOIN users.guardian_profiles AS guardian ON guardian.id = phone.guardian_profile_id AND guardian.tenant_id = phone.tenant_id
 		CROSS JOIN (SELECT CAST(? AS text) AS key) AS q
-		WHERE phone.tenant_id = ? AND strpos(` + phoneKeyOfStoredNumber + `, q.key) > 0 AND ` + contactHasLiveChild + `
+		CROSS JOIN LATERAL (SELECT ` + phoneKeyOfStoredNumber + ` AS key) AS stored
+		WHERE phone.tenant_id = ? AND (strpos(stored.key, q.key) > 0
+				OR (length(stored.key) >= 7 AND length(q.key) - length(stored.key) BETWEEN 1 AND 5
+					AND left(q.key, length(stored.key)) = stored.key))
+			AND ` + contactHasLiveChild + `
 		ORDER BY guardian.id, phone.is_primary DESC, phone.priority, phone.id) AS hit
 	ORDER BY hit.last_name, hit.first_name, hit.id
 	LIMIT ?`
@@ -273,11 +288,11 @@ func (r *Reader) Staff(ctx context.Context, text string, limit int) ([]schoolsea
 }
 
 // roomsSQL: text, school, toilet names, Schulhof, limit. Like the room list
-// it leaves out the kiosk toilets and every other system room but the
-// Schulhof, by Facilities' own names (ADR 0019).
+// it leaves out archived rooms (#6845), the kiosk toilets and every other
+// system room but the Schulhof, by Facilities' own names (ADR 0019).
 const roomsSQL = protocol.RedactLiteralsInLog + `SELECT room.id, room.name, COALESCE(room.building, '') AS building
 	FROM facilities.rooms AS room ` + patternJoin + `
-	WHERE room.tenant_id = ? AND room.name NOT IN (?, ?) AND (NOT room.is_system OR room.name = ?)
+	WHERE room.tenant_id = ? AND room.archived_at IS NULL AND room.name NOT IN (?, ?) AND (NOT room.is_system OR room.name = ?)
 		AND (public.f_unaccent(room.name) ILIKE q.p ESCAPE '\' OR public.f_unaccent(COALESCE(room.building, '')) ILIKE q.p ESCAPE '\')
 	ORDER BY room.name, room.id
 	LIMIT ?`

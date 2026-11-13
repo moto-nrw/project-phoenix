@@ -109,7 +109,7 @@ func (rs *Resource) parseStudentListPlan(r *http.Request) (studentListPlan, rend
 	if err := parseCareOfferingFilter(r, params); err != nil {
 		return studentListPlan{}, common.ErrorInvalidRequest(err)
 	}
-	if err := readEnrollmentAnswerFilter(r, params); errors.Is(err, errEnrollmentAnswerForbidden) {
+	if err := rs.readEnrollmentAnswerFilter(r, params); errors.Is(err, errEnrollmentAnswerForbidden) {
 		return studentListPlan{}, common.ErrorForbidden(err)
 	} else if err != nil {
 		return studentListPlan{}, common.ErrorInvalidRequest(err)
