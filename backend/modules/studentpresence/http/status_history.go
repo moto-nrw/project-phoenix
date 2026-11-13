@@ -64,18 +64,8 @@ type statusTransition struct {
 	clearRequested bool
 }
 
-// requestAccountID is the signed-in account of the request, nil without one.
-func requestAccountID(ctx context.Context) *int64 {
-	claims := sessiontoken.ClaimsFromCtx(ctx)
-	if claims.ID <= 0 {
-		return nil
-	}
-	accountID := int64(claims.ID)
-	return &accountID
-}
-
 func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID int64, status string, transition statusTransition, reportedAt time.Time, date calendar.Date, now time.Time, note *string) error {
-	accountID := requestAccountID(ctx)
+	accountID := sessiontoken.ActorAccountIDFromCtx(ctx)
 	if transition.isActive && transition.wasActive && note == nil {
 		// The status stands unchanged: a day that already shows it keeps the
 		// report that set it, with its source and report time (#6291).

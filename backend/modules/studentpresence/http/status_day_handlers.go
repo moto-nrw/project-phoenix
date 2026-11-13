@@ -144,7 +144,7 @@ func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []
 	tenantID := tenant.FromContext(r.Context())
 	return studentpresence.StatusDayWriteContext{
 		TenantID:       tenantID,
-		ActorAccountID: requestAccountID(r.Context()),
+		ActorAccountID: sessiontoken.ActorAccountIDFromCtx(r.Context()),
 		StudentService: newStatusDayStudents(rs.PeopleDirectory, func(ctx context.Context, student *peopleModule.StudentState, status string) bool {
 			ok, _ := rs.canManageStudentStatus(ctx, userPermissions, student, status)
 			return ok

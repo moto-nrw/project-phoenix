@@ -310,7 +310,7 @@ func (w *ExcusedRequests) revertApprovedAbsence(ctx context.Context, req *carepl
 				careplan.ErrParentRequestCorrectionUnsupported, germanDate(row.Date))
 		}
 	}
-	return w.carePlan.ClearStudentStatusDays(ctx, req.StudentID, req.AbsenceStatus, req.Dates, time.Now(), careplan.StudentStatusSourceParent, &reviewer)
+	return w.carePlan.ClearStudentStatusDays(ctx, req.StudentID, req.AbsenceStatus, req.Dates, time.Now(), careplan.StudentStatusSourceManual, &reviewer)
 }
 
 // absenceRowWrittenByRequest reports whether this status day is still the one

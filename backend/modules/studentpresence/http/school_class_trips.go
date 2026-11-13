@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
@@ -38,6 +39,7 @@ func (t SchoolClassTrips) RecordClassTrip(ctx context.Context, studentIDs []int6
 		return errors.New("school class trips: class check is required")
 	}
 	wc := t.rs.schoolClassWriteContext(tenant.FromContext(ctx), absencerecords.StudentStatusDayClassTrip, inClass)
+	wc.ActorAccountID = sessiontoken.ActorAccountIDFromCtx(ctx)
 	return t.rs.StudentStatusDayService.BulkCreateForDates(ctx, wc, studentIDs, absencerecords.StudentStatusDayClassTrip, reason, dates)
 }
 
