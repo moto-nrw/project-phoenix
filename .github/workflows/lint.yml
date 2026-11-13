@@ -68,8 +68,8 @@ jobs:
           filter: blob:none
       # This job already runs for every migration change. Fail before Go setup.
       # development -> main promotes migrations already checked on development;
-      # it is a release, not a stack whose additions must exceed development.
-      - name: Check new migration versions against current base tips
+      # it is a release, not a stack with additions of its own.
+      - name: Check new migration names and function redefinitions against current base tips
         if: github.event_name == 'pull_request' && !(github.base_ref == 'main' && github.head_ref == 'development' && github.event.pull_request.head.repo.full_name == github.repository)
         env:
           BASE_REF: ${{ github.base_ref }}

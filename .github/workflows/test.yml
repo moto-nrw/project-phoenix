@@ -318,6 +318,15 @@ jobs:
           BACKEND_RACE: ${{ inputs.backend-race }}
           SPLIT_SUITES: ${{ inputs.backend-race }}
         run: |
+          # A migration this pull request adds below the newest one of its
+          # base reaches deployed databases after it. Name those for
+          # TestLateMigrationsYieldTheFreshSchema, which replays that order
+          # (ADR 0223). Usually none: the test then skips.
+          if [ -n "$BASE_REF" ]; then
+            PHX_LATE_MIGRATIONS=$(node ../scripts/check-migration-versions.mjs --late "origin/$BASE_REF" HEAD)
+            export PHX_LATE_MIGRATIONS
+            echo "Late migrations: [$PHX_LATE_MIGRATIONS]"
+          fi
           TEST_PACKAGES=
           if [ "$FULL_SUITE" != true ]; then
             # A selector failure fails the job; a go.mod or go.sum change
