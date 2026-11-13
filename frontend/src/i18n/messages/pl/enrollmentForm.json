@@ -4,6 +4,8 @@
     "download": "Pobierz",
     "openLabel": "Otwórz {label}",
     "downloadLabel": "Pobierz {label}",
+    "openHint": "Otwiera plik PDF w nowej karcie.",
+    "downloadHint": "Zapisuje plik PDF na tym urządzeniu.",
     "errorObject": "plik PDF",
     "popupBlocked": "Zezwól na otwarcie nowego okna."
   },
