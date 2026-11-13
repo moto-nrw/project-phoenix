@@ -367,6 +367,22 @@ out of its cache key (`resolveTenantCached` in
 `frontend/src/app/[tenant]/layout.tsx`). Each limiter rejection writes one
 `RATE_LIMIT_EXCEEDED` event; a 429 a handler writes itself writes none.
 
+The auth limiter on the login, second-factor, reset and other credential
+routes of every portal (`buildAuthRateLimiters`) spends a token per client IP
+only on a refused attempt (a 4xx answer) and on a request that mails a reset
+link or a code (`sendsAuthMail`); an accepted login gives its token back
+(#6738). Parents at a parents' evening or a school's staff behind one address
+thus sign in together, while guesses from that address meet
+`RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE` (burst `max(10, value)`). A request
+holds its token while it runs, so parallel guesses cannot pass together.
+Guessing one account from many addresses meets the account's own failure
+lock (`checkPasswordLogin`); the general limiter still bounds the volume per
+address, accepted logins included. At most burst requests of one address
+run at once, and a 5xx answer spends no token. The other routes behind this
+limiter (parent SEPA mandate and declaration writes, caterer password and
+factor changes, invitation previews and accepts) follow the same rule. A new
+auth-limited route that mails on success extends `authMailPathSuffixes`.
+
 ### Password-reset address limits
 
 Every normalized address receives the same password-reset response sequence,
