@@ -372,6 +372,11 @@ func (h *HolidayContributions) rememberChildren(ctx context.Context, reviewer pa
 	if number == nil || *number == "" {
 		return nil
 	}
+	// The family is known to the list of families from the confirmation on,
+	// as with a number per payer (#6692), but keeps no number of its own.
+	if err := h.knowFamilies(ctx, reviewer, registrations); err != nil {
+		return err
+	}
 	var numbers []parentbilling.ChildDebtorNumber
 	for _, registration := range registrations {
 		if len(registration.Children) != 1 || parentbilling.FamilyKey(registration.GuardianEmail) == "" {
@@ -395,6 +400,31 @@ func (h *HolidayContributions) rememberChildren(ctx context.Context, reviewer pa
 	}
 	if err := h.store.InsertChildDebtorNumberEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingSave, saved); err != nil {
 		return fmt.Errorf("parent billing: record the child's number: %w", err)
+	}
+	return nil
+}
+
+// knowFamilies adds a row without a contract and without a number for each
+// family of the registrations that has none, with the parent who registered
+// and how long the registration needs it. A family that has a row keeps it
+// as it is. The trail of every row without a number and a contract the
+// confirmation holds records it.
+func (h *HolidayContributions) knowFamilies(ctx context.Context, reviewer parentbilling.HolidayReviewer,
+	registrations []parentbilling.HolidayRegistration,
+) error {
+	memories := familyMemories(registrations, "", h.today())
+	for i := range memories {
+		memories[i].DebtorNumber = nil
+	}
+	held, err := h.store.LockFamilies(ctx, reviewer.OrganizationID, memories)
+	if err != nil {
+		return err
+	}
+	known := slices.DeleteFunc(held, func(family parentbilling.FamilyBilling) bool {
+		return family.DebtorNumber != "" || family.ContractID != 0
+	})
+	if err := h.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingSave, known); err != nil {
+		return fmt.Errorf("parent billing: record the family of the holiday care: %w", err)
 	}
 	return nil
 }

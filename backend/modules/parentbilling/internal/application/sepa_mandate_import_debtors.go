@@ -244,13 +244,20 @@ func assignChildDebtorNumbers(candidates []importCandidate, table importTable, c
 // once each, in line order.
 func childNumbersToSet(candidates []importCandidate) []parentbilling.ChildDebtorNumber {
 	var set []parentbilling.ChildDebtorNumber
-	seen := map[string]bool{}
+	at := map[string]int{}
 	for _, candidate := range candidates {
 		key := importChildKey(candidate)
-		if !candidate.perChild || candidate.row.DebtorNumberStatus != parentbilling.DebtorNumberNew || seen[key] {
+		if !candidate.perChild || candidate.row.DebtorNumberStatus != parentbilling.DebtorNumberNew {
 			continue
 		}
-		seen[key] = true
+		// Rows of one child through several contracts: the latest end counts.
+		if i, seen := at[key]; seen {
+			if candidate.until.After(set[i].LastUsedOn) {
+				set[i].LastUsedOn = candidate.until
+			}
+			continue
+		}
+		at[key] = len(set)
 		child := candidate.child
 		set = append(set, parentbilling.ChildDebtorNumber{FamilyEmail: candidate.family, ChildFirstName: child.FirstName,
 			ChildLastName: child.LastName, ChildBirthDate: child.BirthDate, DebtorNumber: candidate.row.DebtorNumber,

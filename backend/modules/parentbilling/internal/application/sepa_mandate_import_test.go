@@ -411,3 +411,17 @@ func TestContainsIBANFindsAnIBANInsideText(t *testing.T) {
 		assert.False(t, containsIBAN(value), value)
 	}
 }
+
+// Rows of one child through several contracts give its number once, kept
+// until the end of the latest contract (#7007).
+func TestChildNumbersToSetKeepTheLatestContractEnd(t *testing.T) {
+	t.Parallel()
+	child := parentbilling.FamilyChild{FirstName: "Mia", LastName: "Beispiel"}
+	row := func(until calendar.Date) importCandidate {
+		return importCandidate{family: "eva@example.org", child: child, perChild: true, until: until,
+			row: parentbilling.SEPAMandateImportRow{DebtorNumber: "1", DebtorNumberStatus: parentbilling.DebtorNumberNew}}
+	}
+	set := childNumbersToSet([]importCandidate{row(calendar.NewDate(2027, 7, 31)), row(calendar.NewDate(2030, 7, 31))})
+	require.Len(t, set, 1)
+	assert.Equal(t, calendar.NewDate(2030, 7, 31), set[0].LastUsedOn)
+}

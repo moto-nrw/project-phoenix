@@ -116,7 +116,10 @@ func TestChildDebtorNumbersReachTheMonthlyInvoiceOfEachChild(t *testing.T) {
 	}
 	assert.Equal(t, map[int64]string{mia: "10 0001", noah: "10 0002"}, numbers, "each sibling's invoice carries the child's own number")
 
-	assert.Equal(t, http.StatusOK, setChildNumber(t, f, f.office.token, family, "Noah", ""), "an empty number removes it")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, childDebtorNumberPath, map[string]any{"family_email": family,
+		"child_first_name": "Noah", "child_last_name": "Beispiel", "debtor_number": ""})
+	require.Equal(t, http.StatusOK, rec.Code, "an empty number removes it: %s", rec.Body.String())
+	assert.Equal(t, "", decodeSchoolPortalData[listedChild](t, rec.Body.Bytes()).DebtorNumber, "the answer is the child without its number")
 	assert.Equal(t, []listedChild{{"Mia", "Beispiel", "10 0001"}, {"Noah", "Beispiel", ""}}, listChildFamilies(t, f, f.office.token)[0].Children)
 	var trail []string
 	require.NoError(t, f.db.NewRaw(`SELECT DISTINCT action FROM parent_billing.child_debtor_number_events WHERE organization_id = ? ORDER BY action`,
@@ -253,4 +256,18 @@ func TestSEPAMandateImportPreviewChangesWithTheScope(t *testing.T) {
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	code, _ := registrationRefusalOf(t, rec)
 	assert.Equal(t, "parent_billing.sepa_import_changed", code)
+}
+
+// With a number per child a holiday family is listed from the confirmation
+// on, also with several children, whose one number names no single child.
+func TestHolidayFamilyOfSeveralChildrenIsListedWithANumberPerChild(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Familie je Kind")
+	setTraegerValue(t, f, configModels.KeyParentBillingDebtorNumberScope, "child")
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.siblings, map[string]any{"debtor_number": "70001"}).Code)
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	rec := traegerJSON(t, f.traeger, billing, http.MethodGet, "/traeger/billing-families", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"family_email":"eva.muster@example.org"`, "the family is listed before any invoice")
+	assert.Equal(t, "", f.familyNumber(t, "eva.muster@example.org"), "with no number of its own")
 }
