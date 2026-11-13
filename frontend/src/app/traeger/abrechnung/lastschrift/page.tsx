@@ -94,6 +94,7 @@ export default function TraegerLastschriftPage() {
             href={traegerPath("/traeger/abrechnung/lastschrift/import")}
             variant="outline"
             size="md"
+            tooltip="Öffnet den Import bestehender Mandate aus einer CSV-Datei."
           >
             Mandate importieren
           </ButtonLink>

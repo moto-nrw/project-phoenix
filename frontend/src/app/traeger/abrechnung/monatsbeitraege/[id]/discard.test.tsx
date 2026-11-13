@@ -126,7 +126,7 @@ describe("discarding an empty monthly run", () => {
 
     expect(
       await screen.findByRole("button", { name: "Lauf freigeben" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.queryByRole("button", { name: "Leeren Lauf verwerfen" }),
     ).toBeNull();
