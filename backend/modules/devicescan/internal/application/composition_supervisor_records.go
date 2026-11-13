@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
 )
 
 func LifecycleSupervisorsBinding(ctx context.Context, source devicescan.SupervisionQuery, sessionID int64) ([]ports.LifecycleSupervisor, error) {

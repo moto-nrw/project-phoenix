@@ -3,21 +3,11 @@
 
 import type { CareMealMode, CareMealTariff } from "~/lib/traeger-care-meal-api";
 import { formatMonth } from "./care-billing-format";
-import { formatEuro } from "./contribution-format";
 
 export const MEAL_MODE_LABELS: Record<CareMealMode, string> = {
   per_meal: "Je Essen",
   flat: "Pauschale",
 };
-
-/** One line that says how a price bills: „4,80 € je Essen“. */
-export function mealPriceText(
-  tariff: Pick<CareMealTariff, "mode" | "amountCents">,
-): string {
-  return tariff.mode === "per_meal"
-    ? `${formatEuro(tariff.amountCents)} je Essen`
-    : `${formatEuro(tariff.amountCents)} je Kind und Monat`;
-}
 
 /** The prices of a school, the earliest first. */
 export function mealStands(

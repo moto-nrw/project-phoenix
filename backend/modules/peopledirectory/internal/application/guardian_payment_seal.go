@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strconv"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // Guardian bank values are sealed with the bank ring (#6332, ADR 0183). The

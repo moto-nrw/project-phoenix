@@ -28,5 +28,6 @@
   "device_same_school": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "person_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "person_has_supervisions": "Не удалось изменить: {object}. Проверьте текущее состояние.",
-  "caregiver_capability_blocked": "Не удалось изменить: {object}. Проверьте текущее состояние."
+  "caregiver_capability_blocked": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "person_has_active_profile": "Не удалось изменить: {object}. Проверьте текущее состояние."
 }

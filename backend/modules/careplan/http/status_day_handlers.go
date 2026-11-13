@@ -4,7 +4,7 @@ import (
 	errors "errors"
 	http "net/http"
 
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func parseStatusDayRange(r *http.Request) (calendar.Date, calendar.Date, error) {

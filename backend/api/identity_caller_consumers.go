@@ -3,10 +3,10 @@ package api
 import (
 	"context"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/grouplive"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // GroupLiveCaller serves the caller context to the live-group adapters in

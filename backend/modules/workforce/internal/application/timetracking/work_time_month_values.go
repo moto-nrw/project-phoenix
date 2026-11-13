@@ -3,7 +3,7 @@ package timetracking
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ---- month arithmetic ----------------------------------------------------
@@ -39,8 +39,11 @@ func (k monthKey) before(o monthKey) bool {
 }
 
 type monthAggregates struct {
-	target           int
-	targetToDate     int
+	target       int
+	targetToDate int
+	// hasTarget: a maintained Soll source prices at least one day of the
+	// month (DayTargetResolver.HasSource, #6887).
+	hasTarget        bool
 	actual           int
 	creditedSick     int
 	creditedVacation int
@@ -49,13 +52,45 @@ type monthAggregates struct {
 	sickDays         float64
 	vacationDays     float64
 	trainingDays     float64
-	hasShifts        bool
-	plannedShift     int
-	adjustment       int
-	adjustments      []*StaffBalanceAdjustment
+	// daysWithoutTarget counts the absence workdays of a month without a
+	// maintained Soll; they credit nothing (#6889).
+	daysWithoutTarget absenceDayCounts
+	hasShifts         bool
+	plannedShift      int
+	adjustment        int
+	adjustments       []*StaffBalanceAdjustment
 	// creditedByType splits the credit of the school's own absence types
 	// (#4807): the DATEV export books a mapped type onto its wage type.
 	creditedByType map[int64]AbsenceTypeCredit
+}
+
+// absenceDayCounts counts absence days by fixed category. Freizeitausgleich
+// has no day counter.
+type absenceDayCounts struct {
+	sick, vacation, training, other float64
+}
+
+func (c *absenceDayCounts) count(absenceType string, fraction float64) {
+	switch absenceType {
+	case AbsenceTypeSick:
+		c.sick += fraction
+	case AbsenceTypeVacation:
+		c.vacation += fraction
+	case AbsenceTypeTraining:
+		c.training += fraction
+	case AbsenceTypeCompTime:
+	default:
+		c.other += fraction
+	}
+}
+
+// isWorkdayWithoutPlan reports whether d is a workday no maintained Soll
+// governs: no Sonderarbeitszeit, schedule version or stand-in template
+// (DayTargetResolver.Maintains), Monday to Friday like the vacation request's
+// working-day count, and no statutory holiday or closing day, whose Soll is 0
+// by contract, not for lack of maintenance (#6889).
+func isWorkdayWithoutPlan(d calendar.Date, resolver *dailyTargetResolver) bool {
+	return isWorkingDay(d) && !resolver.NonWorkingDays[d] && !resolver.Maintains(d)
 }
 
 // AbsenceTypeCredit is the credit of one school absence type in a month: the

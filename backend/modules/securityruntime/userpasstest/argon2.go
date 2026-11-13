@@ -3,7 +3,7 @@
 // reaching into the hashing package themselves.
 package userpasstest
 
-import "github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/userpass"
+import "github.com/moto-ogs/project-phoenix/modules/securityruntime/internal/domain/userpass"
 
 // cheapParams is the test-only Argon2id profile. Production DefaultParams
 // (64MiB memory, 3 iterations) cost 55-120ms per hash; this profile is

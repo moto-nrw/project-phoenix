@@ -1,7 +1,7 @@
 // lib/room-helpers.ts
 // Type definitions and helper functions for rooms
 
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "RoomHelpers" });
@@ -14,9 +14,9 @@ const logger = createLogger({ component: "RoomHelpers" });
 // rooms/page.tsx and components/rooms/room-detail-content.tsx.
 const ROOM_CATEGORY_COLORS: Record<string, string> = {
   "Normaler Raum": MOTO_COLOR_PALETTE.indigo.base,
-  Gruppenraum: MOTO_COLOR_PALETTE.roomCategory.group,
-  Themenraum: MOTO_COLOR_PALETTE.roomCategory.theme,
-  Sport: MOTO_COLOR_PALETTE.roomCategory.sport,
+  Gruppenraum: MOTO_COLOR_PALETTE.emerald.base,
+  Themenraum: MOTO_COLOR_PALETTE.violet.base,
+  Sport: MOTO_COLOR_PALETTE.pink.base,
 };
 
 const ROOM_CATEGORY_FALLBACK_COLOR = MOTO_COLOR_PALETTE.neutral.base;
@@ -51,6 +51,8 @@ export interface BackendRoom {
   // Whether the OGS administration has permanently released this room for use
   // ("offener Raum"). Owned by the backend's Facilities module (#3064).
   is_open_room?: boolean;
+  // Set once a removed room was kept for its history (#6845).
+  archived_at?: string;
   activity_name?: string;
   group_name?: string;
   supervisor_name?: string; // Legacy singular field
@@ -74,6 +76,8 @@ export interface Room {
   isSystem?: boolean;
   /** Permanently released for use ("offener Raum"), set by the administration. */
   isOpenRoom?: boolean;
+  /** Archiviert: aus allen Listen genommen, nur noch im Verlauf (#6845). */
+  archivedAt?: string;
   activityName?: string;
   groupName?: string;
   supervisorName?: string;
@@ -147,6 +151,7 @@ export function mapRoomResponse(backendRoom: BackendRoom): Room {
     isOccupied: backendRoom.is_occupied,
     isSystem: backendRoom.is_system,
     isOpenRoom: backendRoom.is_open_room,
+    archivedAt: backendRoom.archived_at,
     activityName: backendRoom.activity_name,
     groupName: backendRoom.group_name,
     supervisorName: backendRoom.supervisor_names ?? backendRoom.supervisor_name,

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // The phase eligibility gates of a submission and its edits (#1663): the

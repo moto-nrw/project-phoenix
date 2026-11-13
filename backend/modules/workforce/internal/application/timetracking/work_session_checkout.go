@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*WorkSession, error) {
@@ -79,14 +79,8 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 		return nil, err
 	}
 
-	// Close the session using repository method
-	closed, err := s.repo.CloseWorkSession(ctx, session.ID, now, false)
-	err = workSessionWriteError("close session", err)
-	if err != nil {
-		return nil, fmt.Errorf("failed to close session: %w", err)
-	}
-	if !closed {
-		return nil, workforce.ErrNoActiveSession
+	if err := s.closeRegularCheckout(ctx, session.ID, now); err != nil {
+		return nil, err
 	}
 
 	if deviation != nil {

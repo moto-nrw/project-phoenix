@@ -173,7 +173,6 @@ function PermissionStammdatenTab({ permission }: { permission: Permission }) {
             size={18}
           />
         }
-        accentColor="purple"
       >
         <DataGrid>
           <DataField label="Ressource">

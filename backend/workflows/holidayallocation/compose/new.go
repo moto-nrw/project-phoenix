@@ -3,8 +3,8 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/holidayallocation"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/holidayallocation"
 )
 
 // New builds the workflow over the owner commands the root binds.

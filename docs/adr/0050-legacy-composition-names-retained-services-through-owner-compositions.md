@@ -11,8 +11,8 @@ status: historical
 > `compose/vocabulary` and `retained` aliases this decision left in place are
 > debt, not target. #4085 removes them.
 
-Accepted for [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747)
-under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), following
+Accepted for [#2747](https://github.com/moto-ogs/project-phoenix/issues/2747)
+under [#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), following
 the precedent of ADR 0049. The pull request review is where it can still be
 rejected; the exception activates only in the policy epoch that review merges
 (37 → 38).

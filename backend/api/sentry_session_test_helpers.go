@@ -6,7 +6,7 @@ import (
 	"errors"
 	"net/http"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // sentrySessionTestAdapters supplies the shared HTTP runtime at the root's

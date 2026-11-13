@@ -55,6 +55,7 @@ describe("mapTimeAccountRow", () => {
       name: "Anna Müller",
       employment_type: "part_time",
       soll_minutes: 600,
+      has_target: false,
       ist_minutes: 660,
       balance_minutes: 60,
       remaining_vacation_days: 12.5,
@@ -62,6 +63,7 @@ describe("mapTimeAccountRow", () => {
 
     expect(mapTimeAccountRow(row).staffId).toBe("42");
     expect(mapTimeAccountRow(row).remainingVacationDays).toBe(12.5);
+    expect(mapTimeAccountRow(row).hasTarget).toBe(false);
   });
 });
 

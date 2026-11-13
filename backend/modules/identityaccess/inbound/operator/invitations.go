@@ -11,9 +11,9 @@ import (
 	"github.com/go-chi/render"
 	"github.com/gofrs/uuid"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // InvitationsResource handles operator invitation endpoints. Depends on the
@@ -328,6 +328,8 @@ func invitationErrorRenderer(err error) render.Renderer {
 		return common.OperatorRejection(http.StatusConflict, common.CodeIdentityEmailAlreadyExists, "Ein Operator mit dieser E-Mail existiert bereits")
 	case errors.Is(err, identityaccess.ErrOperatorInvitationRateLimited):
 		return common.OperatorRejection(http.StatusTooManyRequests, common.CodeIdentityInvitationRateLimited, "Zu viele Einladungen. Bitte warte eine Stunde.")
+	case errors.Is(err, identityaccess.ErrOperatorAuditUnavailable):
+		return operatorAuditUnavailable()
 	default:
 		return common.OperatorInternal("Ein Fehler ist aufgetreten")
 	}
@@ -344,6 +346,8 @@ func publicInvitationErrorRenderer(err error) render.Renderer {
 		errors.Is(err, identityaccess.ErrOperatorEmailExists):
 		// One code for both cases to prevent email enumeration
 		return common.OperatorRejection(http.StatusBadRequest, common.CodeIdentityOperatorInvitationInvalid, "dieser Link ist abgelaufen oder ungültig")
+	case errors.Is(err, identityaccess.ErrOperatorAuditUnavailable):
+		return operatorAuditUnavailable()
 	default:
 		return common.OperatorInternal("Ein Serverfehler ist aufgetreten")
 	}

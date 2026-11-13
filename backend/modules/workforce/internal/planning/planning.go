@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/planexport"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // capabilityError reports a Workforce sentinel through errors.Is while keeping
@@ -511,6 +511,7 @@ var planningErrorKinds = []struct {
 	{ErrShiftInvalid, workforce.ErrInvalidStaffShift},
 	{ErrShiftTypeNotFound, workforce.ErrShiftTypeNotFound},
 	{ErrShiftTypeInactive, workforce.ErrShiftTypeInactive},
+	{ErrShiftTypeArchived, workforce.ErrShiftTypeArchived},
 	{ErrSeriesNotFound, workforce.ErrShiftSeriesNotFound},
 	{ErrSeriesInvalid, workforce.ErrInvalidShiftSeries},
 }

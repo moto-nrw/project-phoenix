@@ -24,6 +24,10 @@ import { MealCaterer } from "./meal-caterer";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const invitation = {
   id: "5",
@@ -99,11 +103,7 @@ describe("MealCaterer", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Widerrufen" }));
     expect(mocks.revokeMealCatererInvitation).not.toHaveBeenCalled();
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(
-      Array.from(dialog.querySelectorAll("button")).find(
-        (button) => button.textContent === "Widerrufen",
-      )!,
-    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Widerrufen" }));
     await waitFor(() =>
       expect(mocks.revokeMealCatererInvitation).toHaveBeenCalledWith("5"),
     );
@@ -303,7 +303,8 @@ describe("reload after a write (#6652)", () => {
     );
   }
 
-  it("discards the caterer and open dialogs when a post-write reload refuses access", async () => {
+  it("keeps a visible refusal when a post-write document reload does not navigate", async () => {
+    resetPageReloads();
     const reload = deferred<{
       supply: null;
       invitations: (typeof invitation)[];
@@ -316,13 +317,14 @@ describe("reload after a write (#6652)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Caterer einladen" }));
     expect(await screen.findByRole("dialog")).toBeVisible();
     await act(async () => reload.reject(new ApiError("refused", 403)));
-    expect(
-      await screen.findByText(
-        `${catalogText("general.permission", "die Anzeige des Caterers")} ${SAVED_BUT_STALE_SUFFIX}`,
-      ),
-    ).toBeVisible();
-    expect(screen.queryByText("kueche@example.com")).not.toBeInTheDocument();
+    // #6801: the page loads anew; its first load shows the refusal.
+    await expectPageReloadedAfterRefusal();
+    // A cancelled navigation must leave an error, not an endless skeleton.
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText("general.permission", "die Anzeige des Caterers"),
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText(invitation.email)).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Caterer einladen" }),
     ).not.toBeInTheDocument();
@@ -403,11 +405,7 @@ describe("reload after a write (#6652)", () => {
     );
     fireEvent.click(screen.getByRole("menuitem", { name: "Widerrufen" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(
-      Array.from(dialog.querySelectorAll("button")).find(
-        (button) => button.textContent === "Widerrufen",
-      )!,
-    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Widerrufen" }));
 
     await expectReloadOnly(
       mocks.revokeMealCatererInvitation,

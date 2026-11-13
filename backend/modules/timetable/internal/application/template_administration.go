@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type templateAdministrationQueries interface {
@@ -289,6 +289,8 @@ func templateUpdateInput(cmd timetable.UpdateTemplateCommand) TemplateUpdateInpu
 		SeriesRosterPrimaryChanged:   cmd.SeriesRosterPrimaryChanged,
 		PropagateNotesToPredecessors: cmd.PropagateNotesToPredecessors,
 		StartDate:                    cmd.StartDate,
+		ReplanFuture:                 cmd.ReplanFuture,
+		ActorAccountID:               cmd.ActorAccountID,
 	}
 }
 
@@ -361,6 +363,7 @@ func newTemplateAdministrationService(deps ports.TemplateAdministrationDependenc
 		RecurrenceLock:         deps.RecurrenceLock,
 		SickReports:            deps.SickReports,
 		Deviations:             deps.Deviations,
+		Periods:                deps.Periods,
 		SchoolClasses:          deps.SchoolClasses,
 		Staffing:               deps.Staffing,
 		Logger:                 deps.Logger,

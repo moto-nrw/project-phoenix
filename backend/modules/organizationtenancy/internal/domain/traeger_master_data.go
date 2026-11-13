@@ -8,7 +8,7 @@ import (
 	"image/png"
 	"regexp"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/sepa"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/sepa"
 )
 
 // Checks of the master data of a Träger (#4653, ADR 0112).

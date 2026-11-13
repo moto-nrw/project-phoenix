@@ -532,9 +532,11 @@ limit 15`);
  * Dead clicks (events) and rage clicks (PostHog's heatmap data; autocapture
  * is off in the project, so there is no `$rageclick` event) per page of the
  * given portals, with the heatmap link. The heatmap rows carry no surface,
- * so they are matched to the portal through their browser session. The
- * heatmap behind the link is per route template and mixes portals that share
- * one (`/`, `/messages`).
+ * so they are matched to the portal through their browser session: a session
+ * belongs to a portal once it opened one of its pages. Reading only page
+ * views keeps that lookup cheap; across all events of the parents portal it
+ * hit PostHog's execution time limit. The heatmap behind the link is per
+ * route template and mixes portals that share one (`/`, `/messages`).
  */
 function frictionTable(projectId, deployment, surfaces, days = 30) {
   const origin = heatmapOrigin(deployment);
@@ -549,21 +551,22 @@ select
 from (
   select properties.$pathname as Seite, countIf(event = '$pageview') as Aufrufe, countIf(event = '$dead_click') as Dead
   from events
-  where ${where}
-    and properties.surface in ${sqlList(surfaces)}
-    and event in ('$pageview', '$dead_click')
+  where event in ('$pageview', '$dead_click')
     and timestamp > now() - interval ${days} day
+    and ${where}
+    and properties.surface in ${sqlList(surfaces)}
   group by Seite
 ) as e
 left join (
   select replaceOne(current_url, ${sqlString(origin)}, '') as Seite, count() as Rage
   from heatmaps
-  where startsWith(current_url, ${sqlString(`${origin}/`)})${deployment === 'production' ? ` and ${ON_WORKDAY}` : ''}
-    and type = 'rageclick'
+  where type = 'rageclick'
     and timestamp > now() - interval ${days} day
+    and startsWith(current_url, ${sqlString(`${origin}/`)})${deployment === 'production' ? ` and ${ON_WORKDAY}` : ''}
     and session_id in (
       select $session_id from events
-      where ${where} and properties.surface in ${sqlList(surfaces)} and timestamp > now() - interval ${days} day
+      where event = '$pageview' and timestamp > now() - interval ${days} day
+        and ${where} and properties.surface in ${sqlList(surfaces)}
     )
   group by Seite
 ) as r on e.Seite = r.Seite
@@ -1226,7 +1229,11 @@ export function posthogClient({ apiKey, request = fetch }) {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await response.text();
-    if (!response.ok) throw new Error(`PostHog ${method} ${path}: ${response.status} ${text.slice(0, 500)}`);
+    if (!response.ok) {
+      const error = new Error(`PostHog ${method} ${path}: ${response.status} ${text.slice(0, 500)}`);
+      error.status = response.status;
+      throw error;
+    }
     return text ? JSON.parse(text) : null;
   };
 }
@@ -1317,15 +1324,40 @@ export async function sync(api, projectId, definitions, { dryRun = false } = {})
   return log;
 }
 
-/** Runs every insight query once; a query PostHog rejects fails the run. */
+/**
+ * PostHog's answer when a query ran into its execution time limit. Load on
+ * PostHog's side decides it as much as the query does, so `check` tries such
+ * a query once more; every other error fails at once.
+ */
+export const isQueryTimeout = (error) => error?.status === 504 && /max execution time/i.test(error.message);
+
+/** Attempts per query in `check`: one more only after a timeout (`isQueryTimeout`). */
+const QUERY_ATTEMPTS = 2;
+
+/**
+ * Runs every insight query; a query PostHog rejects fails the run. A query
+ * that times out twice fails too, and one that passed on its second attempt
+ * says so in the log.
+ */
 export async function check(api, projectId, definitions) {
   const log = [];
   let failed = false;
   for (const definition of definitions) {
     for (const insight of definition.insights) {
       try {
-        const result = await api('POST', `/api/projects/${projectId}/query/`, { query: insight.query.source });
-        log.push(`ok   ${insight.name}: ${result.results?.length ?? 0} rows`);
+        let result;
+        let attempt = 1;
+        for (;;) {
+          try {
+            result = await api('POST', `/api/projects/${projectId}/query/`, { query: insight.query.source });
+            break;
+          } catch (error) {
+            if (attempt >= QUERY_ATTEMPTS || !isQueryTimeout(error)) throw error;
+            attempt++;
+          }
+        }
+        const retried = attempt > 1 ? ' (retried after a timeout)' : '';
+        log.push(`ok   ${insight.name}: ${result.results?.length ?? 0} rows${retried}`);
       } catch (error) {
         failed = true;
         log.push(`FAIL ${insight.name}: ${error.message}`);

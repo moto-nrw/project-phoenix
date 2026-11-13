@@ -3,8 +3,8 @@ package application
 import (
 	"errors"
 
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // Registered error codes (error-registry/) of a rejected substitution.

@@ -39,6 +39,8 @@ import { holidayRegistrationDeletionNotice } from "~/components/traeger/holiday-
 import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registration-history";
 import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
+import { HolidayRegistrationMailProblemsAlert } from "~/components/traeger/holiday-registration-mail-problems";
+import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { isRefusal } from "~/components/traeger/use-traeger-confirmed-resource";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
@@ -64,12 +66,17 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
+import { childrenConcept } from "~/lib/concepts/children";
+import { confirmationsConcept } from "~/lib/concepts/confirmations";
+import { parentsConcept } from "~/lib/concepts/parents";
+import { pickupConcept } from "~/lib/concepts/pickup";
 import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
 import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
 import {
   fetchHolidayContribution,
+  fetchHolidayFamilyDebtorNumber,
   type HolidayContribution,
 } from "~/lib/traeger-contributions-api";
 import {
@@ -89,6 +96,8 @@ import {
   useHolidayKnownChildren,
 } from "~/components/traeger/holiday-known-child";
 import { traegerPath } from "~/lib/traeger-url";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
 
 const PDF_LABELS: AttachmentLabels = {
   open: "Öffnen",
@@ -170,6 +179,8 @@ export default function TraegerHolidayRegistrationPage() {
     loadError: periodError,
     error: periodFailure,
   } = useTraegerHolidayPeriod(periodId);
+  // The way to the invoice of this period (#5688), for the billing right only.
+  const billingHref = useHolidayPeriodBillingHref(period);
   const [registration, setRegistration] =
     useState<HolidayRegistrationDetail | null>(null);
   const [contribution, setContribution] = useState<HolidayContribution | null>(
@@ -178,6 +189,9 @@ export default function TraegerHolidayRegistrationPage() {
   // Whether the Träger asks for the debtor number (#5621).
   const [confirmation, setConfirmation] =
     useState<HolidayConfirmationSettings | null>(null);
+  // The number the family already has at the Träger, proposed at the
+  // confirmation (#6692).
+  const [familyDebtorNumber, setFamilyDebtorNumber] = useState("");
   // The exemption the confirmation applies; it starts with the parents'
   // statement and the preview follows it.
   const [exemption, setExemption] = useState(false);
@@ -210,6 +224,7 @@ export default function TraegerHolidayRegistrationPage() {
         setHealth(null);
         setContribution(null);
         setConfirmation(null);
+        setFamilyDebtorNumber("");
         setEditing(null);
       }
       throw error;
@@ -220,6 +235,7 @@ export default function TraegerHolidayRegistrationPage() {
         loadedContribution,
         loadedHealth,
         loadedConfirmation,
+        loadedFamilyDebtorNumber,
       ] = await Promise.all([
         fetchHolidayRegistration(periodId, registrationId).catch(refusedRead),
         fetchHolidayContribution(periodId, registrationId).catch(refusedRead),
@@ -229,10 +245,14 @@ export default function TraegerHolidayRegistrationPage() {
             )
           : Promise.resolve(null),
         fetchHolidayConfirmationSettings().catch(refusedRead),
+        fetchHolidayFamilyDebtorNumber(periodId, registrationId).catch(
+          refusedRead,
+        ),
       ]);
       if (request !== latestRegistration.current) return;
       latestContribution.current++;
       setConfirmation(loadedConfirmation);
+      setFamilyDebtorNumber(loadedFamilyDebtorNumber);
       setRegistration(loadedRegistration);
       setHealth(loadedHealth);
       setContribution(loadedContribution);
@@ -333,7 +353,7 @@ export default function TraegerHolidayRegistrationPage() {
       });
       setConfirmingSplit(false);
       setSplitting(false);
-      void splitErrors.show(err, { object: "die Geschwister" });
+      void splitErrors.show(err, { object: "die Geschwistergruppe" });
       return;
     }
     success("Die Anmeldung ist von den Geschwistern getrennt.");
@@ -374,7 +394,8 @@ export default function TraegerHolidayRegistrationPage() {
     registrationId,
     knownChildrenKey(registration?.children),
   );
-  // The health answers stand beside the other answers, marked "(Gesundheit)".
+  // The health answers join the registration's answers, marked
+  // "(Gesundheit)"; a child's stand in its Gesundheit box.
   const view = registration
     ? withHolidayHealthAnswers(registration, health)
     : null;
@@ -421,6 +442,7 @@ export default function TraegerHolidayRegistrationPage() {
   return (
     <TenantPage
       title={title}
+      leading={<ConceptIconTile concept={holidayWeeksConcept} size="page" />}
       back
       backHref={traegerPath(`/traeger/ferien/${periodId}/anmeldungen`)}
       backLabel="Zurück zu den Anmeldungen"
@@ -463,12 +485,17 @@ export default function TraegerHolidayRegistrationPage() {
           {deletionNotice ? (
             <Alert type="info" message={deletionNotice} />
           ) : null}
+          <HolidayRegistrationMailProblemsAlert
+            problems={registration.mailProblems}
+          />
           <HolidayRegistrationStatusCard
             periodId={periodId}
             registration={registration}
             contribution={contribution}
             previewPending={previewPending}
             debtorNumberRequired={confirmation?.debtorNumberRequired ?? false}
+            debtorNumberFormat={confirmation?.debtorNumberFormat}
+            familyDebtorNumber={familyDebtorNumber}
             exemption={exemption}
             onExemptionChange={changeExemption}
             costBearers={confirmation?.costBearers}
@@ -478,6 +505,7 @@ export default function TraegerHolidayRegistrationPage() {
             onReload={afterWrite.refresh}
             onDebtorNumberChanged={afterWrite.refresh}
             canManageBillingSettings={canManageBillingSettings}
+            billingHref={billingHref}
           />
           <HolidayRegistrationCriteriaCard
             periodId={periodId}
@@ -486,6 +514,7 @@ export default function TraegerHolidayRegistrationPage() {
           />
           {contribution?.siblings?.length ? (
             <SectionCard
+              leading={<ConceptIconTile concept={childrenConcept} />}
               title="Geschwister"
               description="Die Kinder dieser Anmeldungen zählen beim Ferienbeitrag zusammen. Welches Kind das 1. Kind ist, steht in den Einstellungen unter Allgemein im Bereich Ferienbetreuung."
               action={
@@ -566,6 +595,7 @@ export default function TraegerHolidayRegistrationPage() {
             />
           ) : (
             <SectionCard
+              leading={<ConceptIconTile concept={parentsConcept} />}
               title="Eltern"
               description={cancelled ? CANCELLED_EDIT_TEXT : undefined}
               action={editAction("guardians", "Angaben der Eltern ändern")}
@@ -604,6 +634,7 @@ export default function TraegerHolidayRegistrationPage() {
           <HolidayDeclarationTextsCard registration={registration} />
           {registration.secondGuardian && editing !== "guardians" ? (
             <SectionCard
+              leading={<ConceptIconTile concept={parentsConcept} />}
               title="Zweite sorgeberechtigte Person"
               action={editAction(
                 "guardians",
@@ -664,7 +695,7 @@ export default function TraegerHolidayRegistrationPage() {
           ) : registration.form.fields.length > 0 ? (
             <SectionCard
               title="Allgemeine Angaben"
-              description={`Antworten auf die Fragen des Formulars, Version ${registration.form.version}. Antworten zu einem Kind stehen beim Kind.`}
+              description={`Antworten auf die Fragen aus Formular-Version ${registration.form.version}. Antworten zu einem Kind stehen beim Kind.`}
               action={
                 editableQuestions(registration.form.fields, false).length > 0
                   ? editAction("answers", "Allgemeine Angaben ändern")
@@ -689,7 +720,10 @@ export default function TraegerHolidayRegistrationPage() {
             </SectionCard>
           ) : null}
           {registration.form.legalBlocks?.some((block) => block.enabled) ? (
-            <SectionCard title="Hinweise und Einwilligungen">
+            <SectionCard
+              leading={<ConceptIconTile concept={confirmationsConcept} />}
+              title="Hinweise und Einwilligungen"
+            >
               <div className="space-y-4">
                 {registration.form.legalBlocks
                   .filter((block) => block.enabled)
@@ -730,6 +764,7 @@ export default function TraegerHolidayRegistrationPage() {
             <ContactsEditor {...editorProps} />
           ) : (
             <SectionCard
+              leading={<ConceptIconTile concept={pickupConcept} />}
               title="Notfallkontakte und Abholung"
               action={editAction(
                 "contacts",

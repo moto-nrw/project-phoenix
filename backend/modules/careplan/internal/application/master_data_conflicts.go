@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
 )
 
 // The Stammdaten queue's part in the cross-kind bulk approval and conflict
@@ -103,6 +103,18 @@ func (s *MasterDataDecisions) bulkCandidate(ctx context.Context, requestID int64
 func (s *MasterDataDecisions) LockBulkRequest(ctx context.Context, requestID int64) error {
 	_, err := s.lockPendingRequest(ctx, requestID)
 	return err
+}
+
+// LockBulkClassChanges takes the class-writes and recurrence gates when a
+// candidate asks for a new Klasse: its approval re-plans Regeltermine
+// (#6951), and the gates must precede every child row lock.
+func (s *MasterDataDecisions) LockBulkClassChanges(ctx context.Context, candidates map[int64]*careplan.MasterDataReviewItem) error {
+	for _, item := range candidates {
+		if item != nil && item.Request != nil && isClassRequest(item.Request.Target, item.Request.FieldKey) {
+			return s.lockClassChanges(ctx)
+		}
+	}
+	return nil
 }
 
 // LockBulkStudents takes all children in ascending ID order BEFORE any request
@@ -212,10 +224,15 @@ func (s *MasterDataDecisions) writeStaffStudentValue(ctx context.Context, write 
 	if err != nil {
 		return err
 	}
-	_, err = s.records.UpdateStudent(ctx, write.StudentID, write.ReviewerID, func(ports.MasterDataStudent) (ports.MasterDataStudentWrite, error) {
+	var previous string
+	_, err = s.records.UpdateStudent(ctx, write.StudentID, write.ReviewerID, func(student ports.MasterDataStudent) (ports.MasterDataStudentWrite, error) {
+		previous = student.SchoolClass
 		return ports.MasterDataStudentWrite{SchoolClass: &value}, nil
 	})
-	return labelMasterDataWrite(err, "review: load student for staff value", "review: write staff student value", "review: audit staff student value")
+	if err != nil {
+		return labelMasterDataWrite(err, "review: load student for staff value", "review: write staff student value", "review: audit staff student value")
+	}
+	return s.followClassChange(ctx, write.StudentID, previous, value)
 }
 
 func (s *MasterDataDecisions) writeStaffDepartureValue(ctx context.Context, write ports.StaffValueWrite, field string, raw json.RawMessage) error {

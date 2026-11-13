@@ -143,10 +143,10 @@ job signals, and a second API cannot see the first API's local signals.
 The relay covers the school-scoped Worker producers and school/group/account/
 guardian broadcasts. Legacy unscoped API `BroadcastToAll` calls remain local;
 they cannot safely enter the school-scoped channel without an audience contract. That migration is tracked in
-[#5492](https://github.com/moto-nrw/project-phoenix/issues/5492).
+[#5492](https://github.com/moto-ogs/project-phoenix/issues/5492).
 
 Content-bearing `notification` events cross processes by ID only
-([#5504](https://github.com/moto-nrw/project-phoenix/issues/5504)): the
+([#5504](https://github.com/moto-ogs/project-phoenix/issues/5504)): the
 producing process stores a two-minute copy in `platform.realtime_notifications`,
 and each API loads it in the school's transaction and shows it only to the
 recipients the copy names. Content is never accepted from the unauthenticated

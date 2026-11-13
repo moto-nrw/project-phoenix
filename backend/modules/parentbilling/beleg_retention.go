@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Beleg types of a Träger (#4720 slice 2, ADR 0184). Each Beleg of the Träger
@@ -28,6 +28,12 @@ const (
 	// BelegSEPADebit is a submitted SEPA direct debit.
 	BelegSEPADebit = "sepa_debit"
 )
+
+// BelegFamilyDebtorNumber names, in the deletion log only, the rows of the
+// families without a care contract whose debtor number went after its own
+// period (#6692). It is no Beleg type: the instruction and the deletion
+// stop of the Träger for its holiday documents govern it.
+const BelegFamilyDebtorNumber = "family_debtor_number"
 
 // BelegTypes lists every Beleg type in display order.
 var BelegTypes = []string{BelegHolidayDocument, BelegCareInvoice, BelegCareNotice, BelegCareContract, BelegSEPAMandate, BelegSEPADebit}

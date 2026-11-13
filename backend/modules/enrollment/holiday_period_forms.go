@@ -51,12 +51,14 @@ type HolidayAnswers map[string]json.RawMessage
 
 // HolidayPeriodForm is one version of the form of a period.
 // AddressRequirement says whether the version asks for the postal address
-// of the parent who registers (#5625).
+// of the parent who registers (#5625), HealthRequirement whether allergies
+// and medication of each child are optional or required (#6686).
 type HolidayPeriodForm struct {
 	LegalBlocks        []FormLegalBlock          `json:"legal_blocks"`
 	Version            int                       `json:"version"`
 	Fields             []HolidayFormField        `json:"fields"`
 	AddressRequirement HolidayAddressRequirement `json:"address_requirement"`
+	HealthRequirement  HolidayHealthRequirement  `json:"health_requirement"`
 	CreatedAt          time.Time                 `json:"created_at"`
 }
 
@@ -85,6 +87,34 @@ func ValidateHolidayAddressRequirement(requirement HolidayAddressRequirement) (H
 		return requirement, nil
 	}
 	return "", invalidInputf(CodeHolidayFormFieldNotAllowed, "address_requirement", "unknown address requirement %q", requirement)
+}
+
+// HolidayHealthRequirement is the fixed building block "Gesundheit" of a
+// version of the form (#6686): the fixed fields allergies and medication of
+// each child are optional or required. A required field takes "Keine" as
+// its answer, so a parent states that the child has none instead of leaving
+// the field empty; that answer is health information like any other. The
+// further health notes stay optional. A version without it keeps both
+// fields optional.
+type HolidayHealthRequirement string
+
+// The settings of the building block "Gesundheit".
+const (
+	HolidayHealthOptional HolidayHealthRequirement = "optional"
+	HolidayHealthRequired HolidayHealthRequirement = "required"
+)
+
+// ValidateHolidayHealthRequirement normalizes the setting of a new version:
+// an empty value keeps the fields optional, an unknown one is refused at
+// "health_requirement".
+func ValidateHolidayHealthRequirement(requirement HolidayHealthRequirement) (HolidayHealthRequirement, error) {
+	switch requirement {
+	case "":
+		return HolidayHealthOptional, nil
+	case HolidayHealthOptional, HolidayHealthRequired:
+		return requirement, nil
+	}
+	return "", invalidInputf(CodeHolidayFormFieldNotAllowed, "health_requirement", "unknown health requirement %q", requirement)
 }
 
 // HolidayFormMaxFields bounds one version: the paper forms of a Träger

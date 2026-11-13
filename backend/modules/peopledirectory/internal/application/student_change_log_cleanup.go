@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	internalports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // NewStudentChangeLogCleanupService constructs the cleanup service. tenants

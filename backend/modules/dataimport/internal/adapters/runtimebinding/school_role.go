@@ -1,6 +1,6 @@
 package runtimebinding
 
-import "github.com/moto-nrw/project-phoenix/modules/dataimport"
+import "github.com/moto-ogs/project-phoenix/modules/dataimport"
 
 func AssignmentFacts[F any](role *dataimport.SchoolRole, construct func(int64, *int64, string, bool, *string, bool) F) *F {
 	if role == nil {

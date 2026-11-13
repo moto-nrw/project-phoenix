@@ -7,6 +7,11 @@
  */
 
 import type { BillingDocumentKind } from "./traeger-billing-api";
+import {
+  type BackendDebtorNumberFormat,
+  type DebtorNumberFormat,
+  debtorNumberFormatOf,
+} from "./debtor-number-format";
 import { traegerRequest } from "./traeger-api";
 import type { PaymentMethod } from "./traeger-billing-terms-api";
 
@@ -44,6 +49,14 @@ export interface BillingFamily extends BillingAmounts {
   readonly documentCount: number;
   /** Calendar date "YYYY-MM-DD"; empty without a document. */
   readonly lastIssuedOn: string;
+  /** The key of the family, the address of its registrations (#6692). */
+  readonly familyEmail: string;
+  /** The debtor number the family has at the Träger; "" for none. */
+  readonly familyDebtorNumber: string;
+  /** No care contract and no monthly invoice: known from the holiday care. */
+  readonly holidayOnly: boolean;
+  /** The family has an issued document, so it opens a page of its own. */
+  readonly hasDocuments: boolean;
 }
 
 export interface BillingFamilyDocument {
@@ -95,6 +108,9 @@ interface BackendFamily {
   open_invoice_count: number;
   document_count: number;
   last_issued_on?: string;
+  family_email?: string;
+  family_debtor_number?: string;
+  holiday_only?: boolean;
   issued_cents: number;
   cancelled_cents: number;
   credited_cents: number;
@@ -144,6 +160,10 @@ function familyFromBackend(family: BackendFamily): BillingFamily {
     openInvoiceCount: family.open_invoice_count,
     documentCount: family.document_count,
     lastIssuedOn: family.last_issued_on ?? "",
+    familyEmail: family.family_email ?? family.recipient_email,
+    familyDebtorNumber: family.family_debtor_number ?? "",
+    holidayOnly: family.holiday_only ?? false,
+    hasDocuments: family.id !== 0,
     issuedCents: family.issued_cents,
     cancelledCents: family.cancelled_cents,
     creditedCents: family.credited_cents,
@@ -179,7 +199,10 @@ function documentFromBackend(
 
 const FAMILIES_PATH = "/api/traeger/billing-families";
 
-/** The families with an issued document, by name. */
+/**
+ * The families with an issued document or a number of their own, also the
+ * families of the holiday care before their first invoice (#6692), by name.
+ */
 export async function fetchBillingFamilies(): Promise<BillingFamily[]> {
   const families = await traegerRequest<BackendFamily[] | null>(FAMILIES_PATH);
   return (families ?? []).map(familyFromBackend);
@@ -196,4 +219,34 @@ export async function fetchBillingFamily(
     ...familyFromBackend(family),
     documents: (family.documents ?? []).map(documentFromBackend),
   };
+}
+
+/**
+ * Sets the debtor number of a family by its address (#6692), also of a
+ * family without a care contract; "" removes it. Returns the number it has.
+ */
+export async function setFamilyDebtorNumber(
+  familyEmail: string,
+  debtorNumber: string,
+): Promise<string> {
+  const saved = await traegerRequest<{ debtor_number: string }>(
+    `${FAMILIES_PATH}/debtor-number`,
+    {
+      method: "PUT",
+      body: { family_email: familyEmail, debtor_number: debtorNumber },
+    },
+  );
+  return saved.debtor_number;
+}
+
+/**
+ * The format of the Träger's debtor numbers (#6675), so a field can name it
+ * and check it before the backend does.
+ */
+export async function fetchDebtorNumberFormat(): Promise<DebtorNumberFormat> {
+  return debtorNumberFormatOf(
+    await traegerRequest<BackendDebtorNumberFormat | null>(
+      `${FAMILIES_PATH}/debtor-number-format`,
+    ),
+  );
 }

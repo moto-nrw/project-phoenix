@@ -3,7 +3,7 @@ package application
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // The display value is the audit trail's record of who the entry named, so

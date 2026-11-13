@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	deliverycompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	peoplecompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	deliverycompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	peoplecompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

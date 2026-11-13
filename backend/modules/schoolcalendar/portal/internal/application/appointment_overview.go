@@ -6,12 +6,12 @@ import (
 	"sort"
 	"strings"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
-func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID int64) (*AppointmentOverview, error) {
+func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID int64, occurrenceDate appointmentcap.Date) (*AppointmentOverview, error) {
 	if appointmentID <= 0 {
 		return nil, fmt.Errorf("%w: appointment id is required", ErrInvalidRequest)
 	}
@@ -32,18 +32,27 @@ func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID
 	if err != nil {
 		return nil, err
 	}
-	_, recipientID := staffRecipientStatus(recipients, staff.ID)
-	if appointment.OrganizerStaffID != staff.ID && recipientID == nil {
+	isRecipient := staffRecipient(recipients, staff.ID) != nil
+	if appointment.OrganizerStaffID != staff.ID && !isRecipient {
 		return nil, ErrNotFound
 	}
-	if !canStaffViewOverview(appointment, staff.ID, recipientID != nil) {
+	if !canStaffViewOverview(appointment, staff.ID, isRecipient) {
 		return nil, ErrForbidden
 	}
-	return s.buildAppointmentOverview(ctx, appointment, recipients)
+	occurrenceDate, err = s.answeredOccurrence(ctx, appointment, occurrenceDate)
+	if err != nil {
+		return nil, err
+	}
+	return s.buildAppointmentOverview(ctx, appointment, occurrenceDate, recipients, recipients)
 }
 
-func (s *service) buildAppointmentOverview(ctx context.Context, appointment *appointmentcap.Appointment, recipients []*appointmentcap.AppointmentRecipient) (*AppointmentOverview, error) {
-	staffIDs, guardianIDs := recipientPersonIDs(recipients)
+// buildAppointmentOverview counts the answers of all recipients and names only
+// the listed ones, so names of unlisted recipients are never loaded. With an
+// occurrence date it shows the answers for that date of a series (#6987),
+// without one the answers for the whole series. The time of an answer is
+// kept for the whole series only: a row stores one time for all its answers.
+func (s *service) buildAppointmentOverview(ctx context.Context, appointment *appointmentcap.Appointment, occurrenceDate appointmentcap.Date, recipients, listed []*appointmentcap.AppointmentRecipient) (*AppointmentOverview, error) {
+	staffIDs, guardianIDs := recipientPersonIDs(listed)
 	staffByID, err := s.cfg.StaffRepo.FindWithPersonByIDs(ctx, staffIDs)
 	if err != nil {
 		return nil, err
@@ -53,15 +62,18 @@ func (s *service) buildAppointmentOverview(ctx context.Context, appointment *app
 		return nil, err
 	}
 
-	attendees := make([]AppointmentAttendee, 0, len(recipients))
-	for _, recipient := range recipients {
-		attendees = append(attendees, AppointmentAttendee{
+	attendees := make([]AppointmentAttendee, 0, len(listed))
+	for _, recipient := range listed {
+		attendee := AppointmentAttendee{
 			RecipientID:   formatID(recipient.ID),
 			RecipientType: recipient.RecipientType,
 			Name:          attendeeName(recipient, staffByID, guardiansByID),
-			Status:        recipient.Status,
-			RespondedAt:   recipient.RespondedAt,
-		})
+			Status:        recipient.StatusOn(occurrenceDate),
+		}
+		if occurrenceDate.IsZero() {
+			attendee.RespondedAt = recipient.RespondedAt
+		}
+		attendees = append(attendees, attendee)
 	}
 	sort.SliceStable(attendees, func(i, j int) bool {
 		if attendees[i].RecipientType != attendees[j].RecipientType {
@@ -74,8 +86,44 @@ func (s *service) buildAppointmentOverview(ctx context.Context, appointment *app
 		AppointmentID:      formatID(appointment.ID),
 		DeliveryMode:       appointment.DeliveryMode,
 		OverviewVisibility: appointment.OverviewVisibility,
+		OccurrenceDate:     occurrenceDate,
+		Counts:             countResponses(recipients, occurrenceDate),
 		Attendees:          attendees,
 	}, nil
+}
+
+func countResponses(recipients []*appointmentcap.AppointmentRecipient, occurrenceDate appointmentcap.Date) AppointmentResponseCounts {
+	var counts AppointmentResponseCounts
+	for _, recipient := range recipients {
+		switch recipient.StatusOn(occurrenceDate) {
+		case appointmentcap.ResponseStatusAccepted:
+			counts.Accepted++
+		case appointmentcap.ResponseStatusDeclined:
+			counts.Declined++
+		case appointmentcap.ResponseStatusPending:
+			counts.Pending++
+		}
+	}
+	return counts
+}
+
+// parentListedRecipients keeps the recipients a parent may see by name: every
+// staff member and the parent's own guardian entries for their visible
+// children. Other parents stay in the counts only (#6846).
+func parentListedRecipients(recipients []*appointmentcap.AppointmentRecipient, guardianProfileIDs, studentIDs []int64) []*appointmentcap.AppointmentRecipient {
+	visibleStudents := int64Set(studentIDs)
+	listed := make([]*appointmentcap.AppointmentRecipient, 0, len(recipients))
+	for _, recipient := range recipients {
+		if recipient.StaffID != nil {
+			listed = append(listed, recipient)
+		}
+	}
+	for _, recipient := range recipientsOfGuardians(recipients, int64Set(guardianProfileIDs)) {
+		if recipientHasStudent(recipient, visibleStudents) {
+			listed = append(listed, recipient)
+		}
+	}
+	return listed
 }
 
 // recipientPersonIDs splits the recipients into the staff and guardian

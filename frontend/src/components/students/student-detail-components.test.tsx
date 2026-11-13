@@ -40,7 +40,8 @@ import { SectionCard } from "~/components/ui/section-card";
 import { ApiError } from "~/lib/api-error";
 import { fetchStudentCompanions } from "~/lib/student-companion-api";
 import type { Student } from "~/lib/student-helpers";
-import { getLocationBadgeTone, LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getPillTone } from "~/lib/kit-palette";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import type { AttendanceActor } from "~/lib/attendance-actor";
 
@@ -307,7 +308,7 @@ describe("Kopf der Kindakte", () => {
       // The badge paints the custom room color's tone: the shared neutral
       // surface for unknown legacy colors, the darkened hue in the label.
       // No dot carries the raw hex any more (#2476).
-      const tone = getLocationBadgeTone("#A3D977");
+      const tone = getPillTone("#A3D977");
       const badgeContainer = screen.getByText("Bibliothek").closest("span");
       expect(badgeContainer).toHaveStyle({
         backgroundColor: tone.backgroundColor,
@@ -1340,5 +1341,53 @@ describe("StudentHistorySection", () => {
       .closest("button");
     fireEvent.click(feedbackButton!);
     expect(onNavigate).toHaveBeenCalledWith("/students/456/feedback-history");
+  });
+});
+
+// #6663: the header counts a sick child as "not coming" from the arrival
+// schedule. With a location text that has no status prefix it shows the
+// contradiction hint, while the lists show "Krank". Kept until decided.
+describe("StudentHeaderLocation, Sonderfall #6663", () => {
+  const sickChild: Student = {
+    id: "1",
+    name: "Max Mustermann",
+    first_name: "Max",
+    second_name: "Mustermann",
+    school_class: "3a",
+    sick: true,
+    current_location: "Klassenraum",
+  };
+
+  it("shows Ungeplant anwesend for a sick child the schedule marks absent", () => {
+    render(
+      <StudentHeaderLocation
+        student={sickChild}
+        myGroups={[]}
+        myGroupRooms={[]}
+        mySupervisedRooms={[]}
+        isArrivalAbsent
+        todayArrivalNote="Krank"
+      />,
+    );
+
+    expect(screen.getByText("Ungeplant anwesend")).toHaveAttribute(
+      "title",
+      "Krank",
+    );
+    expect(screen.queryByText("Krank")).not.toBeInTheDocument();
+  });
+
+  it("shows the Krank hint without the schedule's absence", () => {
+    render(
+      <StudentHeaderLocation
+        student={sickChild}
+        myGroups={[]}
+        myGroupRooms={[]}
+        mySupervisedRooms={[]}
+      />,
+    );
+
+    expect(screen.getByText("Krank")).toBeInTheDocument();
+    expect(screen.queryByText("Ungeplant anwesend")).not.toBeInTheDocument();
   });
 });

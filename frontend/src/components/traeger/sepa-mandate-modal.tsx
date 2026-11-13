@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { Radio } from "~/components/ui/radio";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
@@ -175,7 +176,7 @@ export function SepaMandateModal({
           Übernehmen Sie die Angaben aus dem unterschriebenen Mandat.
         </p>
         <Input
-          controlSize="compact"
+          controlSize="touch"
           id="sepa-mandate-holder"
           name="account_holder"
           label="Kontoinhaber"
@@ -188,7 +189,7 @@ export function SepaMandateModal({
         />
         <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id="sepa-mandate-iban"
             name="iban"
             label="IBAN"
@@ -204,7 +205,7 @@ export function SepaMandateModal({
             onChange={(event) => set({ iban: groupIBAN(event.target.value) })}
           />
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id="sepa-mandate-bic"
             name="bic"
             label="BIC"
@@ -229,7 +230,7 @@ export function SepaMandateModal({
             onChange={(value) => set({ signedOn: value })}
           />
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id="sepa-mandate-reference"
             name="reference"
             label="Mandatsreferenz"
@@ -242,30 +243,38 @@ export function SepaMandateModal({
           />
         </div>
         <div className="space-y-2">
-          <FieldLabel>Art</FieldLabel>
+          <FieldLabel id="sepa-mandate-kind-label">Art</FieldLabel>
           <div
-            role="group"
-            aria-label="Art"
+            role="radiogroup"
+            aria-labelledby="sepa-mandate-kind-label"
             className="grid gap-2 sm:grid-cols-2"
           >
             {KINDS.map((kind) => (
               <ChoiceTile
                 key={kind}
-                as="button"
                 selected={draft.kind === kind}
-                aria-pressed={draft.kind === kind}
-                onClick={() =>
-                  set(
-                    kind === "one_off" ? { kind, sequence: "first" } : { kind },
-                  )
-                }
-                className="flex flex-col items-start gap-0.5 px-4 py-3 text-left"
+                className="items-start gap-3 px-4 py-3"
               >
-                <span className="font-medium text-gray-900">
-                  {MANDATE_KIND_LABELS[kind]}
-                </span>
-                <span className="text-sm text-gray-600">
-                  {MANDATE_KIND_HINTS[kind]}
+                <Radio
+                  name="sepa-mandate-kind"
+                  value={kind}
+                  checked={draft.kind === kind}
+                  onChange={() =>
+                    set(
+                      kind === "one_off"
+                        ? { kind, sequence: "first" }
+                        : { kind },
+                    )
+                  }
+                  className="mt-0.5"
+                />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="font-medium text-gray-900">
+                    {MANDATE_KIND_LABELS[kind]}
+                  </span>
+                  <span className="text-sm font-normal text-gray-600">
+                    {MANDATE_KIND_HINTS[kind]}
+                  </span>
                 </span>
               </ChoiceTile>
             ))}

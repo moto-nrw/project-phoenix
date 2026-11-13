@@ -3,11 +3,11 @@ package owners
 import (
 	"context"
 
-	directoryPorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	directoryPorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 func timetableStudents(students peopledirectory.StudentQuery) directoryPorts.StudentDirectory {

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -176,7 +176,9 @@ func (s *stubShiftTypeService) UpdateShiftType(_ context.Context, t *workforce.S
 	return t, nil
 }
 
-func (s *stubShiftTypeService) DeleteShiftType(context.Context, int64) error { return nil }
+func (s *stubShiftTypeService) DeleteShiftType(context.Context, int64) (workforce.ShiftTypeRemoval, error) {
+	return workforce.ShiftTypeRemovalDeleted, nil
+}
 
 func (s *stubShiftTypeService) CreateDefaultShiftTypes(context.Context) ([]*workforce.ShiftTypeRecord, error) {
 	return nil, nil

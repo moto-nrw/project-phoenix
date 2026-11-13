@@ -3,8 +3,8 @@ package parentportal_test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/compose"
 )
 
 // newPickupBaselineService binds native records in the fixture's legacy booking mode.

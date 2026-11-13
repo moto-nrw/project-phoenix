@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/internal/gitfixture"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 const legacyKey = "production|imports.forbidden|example.test/architecture-fixture/source|example.test/architecture-fixture/target"
@@ -39,7 +39,7 @@ func TestAuditDeduplicatesLegacyIssuesAndIgnoresRuleIssues(t *testing.T) {
 			defer server.Close()
 			policy := mutatePolicy(t, readFile(t, fixturePath(t, "rules-stale.json")), func(doc map[string]any) {
 				rules := doc["rules"].([]any)
-				rules[0].(map[string]any)["issue"] = "https://github.com/moto-nrw/project-phoenix/issues/2736"
+				rules[0].(map[string]any)["issue"] = "https://github.com/moto-ogs/project-phoenix/issues/2736"
 			})
 			path := filepath.Join(t.TempDir(), "policy.json")
 			writeFile(t, path, policy)
@@ -113,7 +113,7 @@ func TestLegacyBaselineJSONOmitsLocations(t *testing.T) {
 			Source: "example.test/architecture-fixture/source", Target: "example.test/architecture-fixture/target",
 			Locations: []Location{{File: "source/source.go", Line: 3, Declaration: "import example.test/architecture-fixture/target"}},
 		},
-		Issue: "https://github.com/moto-nrw/project-phoenix/issues/2583",
+		Issue: "https://github.com/moto-ogs/project-phoenix/issues/2583",
 	}
 	encoded, err := json.Marshal(entry)
 	if err != nil {
@@ -912,11 +912,11 @@ func TestAuditIssuesRejectsClosedDebtIssue(t *testing.T) {
 	t.Parallel()
 
 	server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
-		if r.URL.Path != "/repos/moto-nrw/project-phoenix/issues/2583" {
+		if r.URL.Path != "/repos/moto-ogs/project-phoenix/issues/2583" {
 			w.WriteHeader(testpkg.HTTPStatusNotFound)
 			return
 		}
-		_, _ = w.Write([]byte(`{"state":"closed","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
+		_, _ = w.Write([]byte(`{"state":"closed","html_url":"https://github.com/moto-ogs/project-phoenix/issues/2583"}`))
 	})
 	defer server.Close()
 
@@ -949,11 +949,11 @@ func TestAuditIssuesCoversConvertedImportDebt(t *testing.T) {
 		t.Run(state, func(t *testing.T) {
 			t.Parallel()
 			server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
-				if r.URL.Path != "/repos/moto-nrw/project-phoenix/issues/2743" {
+				if r.URL.Path != "/repos/moto-ogs/project-phoenix/issues/2743" {
 					w.WriteHeader(testpkg.HTTPStatusNotFound)
 					return
 				}
-				_, _ = w.Write([]byte(`{"state":"` + state + `","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2743"}`))
+				_, _ = w.Write([]byte(`{"state":"` + state + `","html_url":"https://github.com/moto-ogs/project-phoenix/issues/2743"}`))
 			})
 			defer server.Close()
 			output, err := runArchitecture(t, "audit-issues", "--policy", fixturePath(t, "vertical-allowed.json"), "--baseline", manifest, "--api-url", server.URL)
@@ -972,7 +972,7 @@ func TestAuditIssuesAcceptsOneOpenIssueForMultipleEntries(t *testing.T) {
 	t.Parallel()
 
 	server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, _ *testpkg.HTTPRequest) {
-		_, _ = w.Write([]byte(`{"state":"open","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
+		_, _ = w.Write([]byte(`{"state":"open","html_url":"https://github.com/moto-ogs/project-phoenix/issues/2583"}`))
 	})
 	defer server.Close()
 	manifest := legacyRecordWithTarget(2583, "example.test/architecture-fixture/another") + legacyRecord(2583)
@@ -999,7 +999,7 @@ func TestAuditIssuesDoesNotForwardGitHubTokenToCustomAPI(t *testing.T) {
 			requests := 0
 			client := issueClientFunc(func(_ context.Context, request IssueRequest) (IssueResponse, error) {
 				requests++
-				if want := tc.apiURL + "/repos/moto-nrw/project-phoenix/issues/2583"; request.URL != want {
+				if want := tc.apiURL + "/repos/moto-ogs/project-phoenix/issues/2583"; request.URL != want {
 					t.Fatalf("issue URL = %q, want %q", request.URL, want)
 				}
 				if got := request.Headers["Authorization"]; got != tc.authorization {
@@ -1053,13 +1053,13 @@ func TestCheckRejectsNonCanonicalIssueURLs(t *testing.T) {
 	t.Parallel()
 
 	for _, issue := range []string{
-		"https://github.com/moto-nrw/project-phoenix/issues/2583/",
-		"https://user@github.com/moto-nrw/project-phoenix/issues/2583",
-		"https://github.com/moto-nrw/project-phoenix/pulls/2583",
-		"https://github.com/moto-nrw/project-phoenix/issues/02583",
+		"https://github.com/moto-ogs/project-phoenix/issues/2583/",
+		"https://user@github.com/moto-ogs/project-phoenix/issues/2583",
+		"https://github.com/moto-ogs/project-phoenix/pulls/2583",
+		"https://github.com/moto-ogs/project-phoenix/issues/02583",
 	} {
 		t.Run(issue, func(t *testing.T) {
-			manifest := strings.Replace(legacyRecord(2583), "https://github.com/moto-nrw/project-phoenix/issues/2583", issue, 1)
+			manifest := strings.Replace(legacyRecord(2583), "https://github.com/moto-ogs/project-phoenix/issues/2583", issue, 1)
 			output, err := runArchitecture(t, "check", "--project", fixturePath(t, "valid"), "--policy", fixturePath(t, "vertical-forbidden.json"), "--baseline", writeManifest(t, manifest))
 			if err == nil || !strings.Contains(output, "migration issue") {
 				t.Fatalf("non-canonical issue URL was accepted: %v\n%s", err, output)
@@ -1073,7 +1073,7 @@ func legacyRecord(issue int) string {
 }
 
 func legacyRecordWithTarget(issue int, target string) string {
-	return fmt.Sprintf("{\"scope\":\"production\",\"rule\":\"imports.forbidden\",\"source\":\"example.test/architecture-fixture/source\",\"target\":%q,\"issue\":\"https://github.com/moto-nrw/project-phoenix/issues/%d\"}\n", target, issue)
+	return fmt.Sprintf("{\"scope\":\"production\",\"rule\":\"imports.forbidden\",\"source\":\"example.test/architecture-fixture/source\",\"target\":%q,\"issue\":\"https://github.com/moto-ogs/project-phoenix/issues/%d\"}\n", target, issue)
 }
 
 func writeManifest(t *testing.T, contents string) string {

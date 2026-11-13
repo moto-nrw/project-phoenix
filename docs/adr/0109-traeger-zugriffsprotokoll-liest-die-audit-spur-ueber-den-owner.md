@@ -4,8 +4,8 @@ status: accepted
 
 # Träger-Zugriffsprotokoll liest die Audit-Spur über ihren Owner
 
-Entscheidung vom 25.10.2026 zu [#4655](https://github.com/moto-nrw/project-phoenix/issues/4655),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611)
+Entscheidung vom 25.10.2026 zu [#4655](https://github.com/moto-ogs/project-phoenix/issues/4655),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611)
 (User Story 10). Sie setzt
 [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md)
 Abschnitt 7 um und hält fest, was das Zugriffsprotokoll in den Registern

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // The guardian's proof of an Erklärung (#3430) as a PDF in the moto design.

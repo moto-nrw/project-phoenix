@@ -4,8 +4,8 @@ status: accepted
 
 # Stammdaten des Trägers liegen bei Organisation & Tenancy
 
-Entscheidung vom 25.10.2026 zu [#4653](https://github.com/moto-nrw/project-phoenix/issues/4653),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 25.10.2026 zu [#4653](https://github.com/moto-ogs/project-phoenix/issues/4653),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Story 9. Sie setzt
 [ADR 0086](0086-traeger-werte-liegen-zwischen-standard-und-schule.md)
 Abschnitt 1 für das Branding um und hält fest, was das in den Registern

@@ -3,7 +3,7 @@ package enrollmenttest
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // enrollmentDecisionFixtureRoot supplies the unit owned by the production HTTP root.

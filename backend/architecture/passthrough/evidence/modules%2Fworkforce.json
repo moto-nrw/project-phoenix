@@ -800,20 +800,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (c staffAbsenceCapability) ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforce.StaffAbsenceResponse, error) {\n\treturn c.absence(c.absences.ApproveAbsence(ctx, absenceID, actorAccountID, decidedByStaffID, note))\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.ApproveAbsence",
-      "owner": "modules/workforce"
-    },
-    {
-      "build": "production",
-      "evidence": "func (c staffAbsenceCapability) CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error {\n\treturn mapTimeTrackingFailure(c.absences.CancelAbsence(ctx, staffID, actorAccountID, absenceID))\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.CancelAbsence",
-      "owner": "modules/workforce"
-    },
-    {
-      "build": "production",
       "evidence": "func (c staffAbsenceCapability) DeleteVacationOpening(ctx context.Context, staffID, deletedBy int64, year int) error {\n\treturn mapTimeTrackingFailure(c.absences.DeleteVacationOpening(ctx, staffID, deletedBy, year))\n}",
       "form": "unclassified-evidence",
       "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.DeleteVacationOpening",
@@ -1171,7 +1157,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (a shiftTypeAdministration) DeleteShiftType(ctx context.Context, id int64) error {\n\treturn mapShiftTypeError(a.types.DeleteShiftType(ctx, id))\n}",
+      "evidence": "func (a shiftTypeAdministration) DeleteShiftType(ctx context.Context, id int64) (workforce.ShiftTypeRemoval, error) {\n\tremoval, err := a.types.DeleteShiftType(ctx, id)\n\treturn removal, mapShiftTypeError(err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/workforce/internal/planning/shiftTypeAdministration.DeleteShiftType",
       "owner": "modules/workforce"

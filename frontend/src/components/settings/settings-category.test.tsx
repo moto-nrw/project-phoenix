@@ -399,3 +399,64 @@ describe("SettingsCategory collapsible (#2830)", () => {
     expect(visible.querySelector("h3")).toBeInTheDocument();
   });
 });
+
+describe("SettingsCategory for the Träger", () => {
+  it("says once on the card that its values hold for all schools", () => {
+    const base = makeCategory();
+    const items = base.items.map((item) => ({
+      ...item,
+      levels: "traeger" as const,
+      source: "default" as const,
+    }));
+    const { getAllByText, getByText } = renderWithProviders(
+      <SettingsCategory
+        category={{ ...base, items }}
+        onSave={vi.fn()}
+        onReset={vi.fn()}
+        audience="traeger"
+        autosaveNote
+      />,
+    );
+
+    expect(
+      getAllByText(
+        "Diese Werte gelten für alle Schulen. Die Schulen können sie nicht ändern.",
+      ),
+    ).toHaveLength(1);
+    expect(
+      getByText(/Änderungen werden sofort gespeichert\./),
+    ).toBeInTheDocument();
+    // No field repeats it.
+    expect(
+      document.body.textContent?.includes(
+        "Die Schulen können den Wert nicht ändern.",
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps the line per field when the card also holds school values", () => {
+    const base = makeCategory();
+    const items = [
+      {
+        ...base.items[0]!,
+        levels: "traeger" as const,
+        source: "default" as const,
+      },
+      base.items[1]!,
+    ];
+    const { getByText } = renderWithProviders(
+      <SettingsCategory
+        category={{ ...base, items }}
+        onSave={vi.fn()}
+        onReset={vi.fn()}
+        audience="traeger"
+      />,
+    );
+
+    expect(
+      getByText(
+        "Gilt für alle Schulen. Die Schulen können den Wert nicht ändern.",
+      ),
+    ).toBeInTheDocument();
+  });
+});

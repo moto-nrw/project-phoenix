@@ -5,7 +5,7 @@ status: accepted
 # Raumbesuchs-Aufbewahrung löscht und protokolliert je Stapel
 
 Entscheidung vom 10.11.2026 zu
-[#6455](https://github.com/moto-nrw/project-phoenix/issues/6455). Sie ändert,
+[#6455](https://github.com/moto-ogs/project-phoenix/issues/6455). Sie ändert,
 wie die Aufbewahrung abgelaufene Raumbesuche löscht, und genehmigt die
 umbenannte Bindung von Student Presence. Kein neuer Owner, kein neues
 Datenobjekt, keine Policy-Regel, kein neuer Port zwischen Ownern.

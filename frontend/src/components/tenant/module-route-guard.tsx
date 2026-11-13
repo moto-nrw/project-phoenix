@@ -2,8 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { ModuleNotBookedState } from "~/components/tenant/module-not-booked-state";
-import { SectionCard } from "~/components/ui/section-card";
+import { NotBookedPageSlot } from "~/components/tenant/module-not-booked-state";
 import { TenantPage } from "~/components/ui/tenant-page";
 import type { ModuleKey } from "~/lib/modules";
 import { useBookedModules, useTenantSafe } from "~/lib/tenant-context";
@@ -31,11 +30,11 @@ export function ModuleRouteGuard({
     return <>{children}</>;
   }
 
+  // The scaffold shows the explanation through the same slot as every page
+  // of an unbooked module (#6577).
   return (
-    <TenantPage title={title}>
-      <SectionCard>
-        <ModuleNotBookedState module={module} />
-      </SectionCard>
-    </TenantPage>
+    <NotBookedPageSlot module={module}>
+      <TenantPage title={title} />
+    </NotBookedPageSlot>
   );
 }

@@ -838,7 +838,7 @@ function AddBlockModal({
       isOpen={open}
       onClose={onClose}
       title="Baustein hinzufügen"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-3xl"
+      size="lg-wide"
     >
       {addable.length === 0 ? (
         <EmptyState

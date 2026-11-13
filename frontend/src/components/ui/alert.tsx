@@ -4,7 +4,21 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { CloseIcon } from "~/components/ui/close-icon";
-import { getLocationBadgeTone } from "~/lib/location-helper";
+import { useKitDefault } from "~/components/ui/kit-locale";
+import { TINT_CLASSES, getPillTone } from "~/lib/kit-palette";
+
+/** Tinted surface of each type: the palette tint, with its strong text for
+ *  WCAG AA on the soft surface. */
+function tintClasses(tint: (typeof TINT_CLASSES)[keyof typeof TINT_CLASSES]) {
+  return `${tint.surface} ${tint.text} ${tint.border}`;
+}
+
+const ALERT_TYPE_CLASSES = {
+  error: tintClasses(TINT_CLASSES.red),
+  success: tintClasses(TINT_CLASSES.green),
+  warning: tintClasses(TINT_CLASSES.orange),
+  info: tintClasses(TINT_CLASSES.blue),
+};
 
 export type AlertType = "error" | "success" | "warning" | "info";
 
@@ -46,13 +60,15 @@ interface AlertProps extends Omit<HTMLAttributes<HTMLDivElement>, "color"> {
   /**
    * Hex aus `LOCATION_COLORS`, wenn der Hinweis einen Standort oder Status
    * trägt (Kommt heute nicht, Klassenfahrt). Tönt Fläche und Text wie
-   * `getLocationBadgeTone`; `type` bestimmt weiter Symbol und Ansage.
+   * `getPillTone`; `type` bestimmt weiter Symbol und Ansage.
    */
   readonly color?: string;
   /** Zeigt oben rechts ein Schließen-X; der Aufrufer blendet den Hinweis aus. */
   readonly onDismiss?: () => void;
   /** Name des Schließen-X für Screenreader. */
   readonly dismissLabel?: string;
+  /** What the close X does (#6744); pass a translated one with `dismissLabel`. */
+  readonly dismissTooltip?: string;
   /** Zusätzliche Klassen für den Rahmen, z. B. Außenabstände. */
   readonly className?: string;
 }
@@ -69,28 +85,21 @@ export function Alert({
   size = "default",
   color,
   onDismiss,
-  dismissLabel = "Hinweis schließen",
+  dismissLabel,
+  dismissTooltip,
   className = "",
   style,
   ...props
 }: Readonly<AlertProps>) {
+  const kitDefault = useKitDefault();
   if (message === null || message === undefined || message === "") return null;
   const compact = size === "compact";
   const isAssertive = type === "error" || type === "warning";
   const announcement = announce ?? (isAssertive ? "assertive" : "polite");
 
-  // Brand hexes from LOCATION_COLORS (red DANGER, orange SCHOOLYARD, blue
-  // OTHER_ROOM), with darker foregrounds for WCAG AA on the tinted surfaces.
-  const styles = {
-    error: "bg-moto-red-soft text-moto-red-strong border-moto-red/20",
-    success: "bg-moto-green-soft text-moto-green-strong border-moto-green/20",
-    warning:
-      "bg-moto-orange-soft text-moto-orange-strong border-moto-orange/20",
-    info: "bg-moto-blue-soft text-moto-blue-strong border-moto-blue/20",
-  };
   // Standort- oder Statusfarbe: dieselbe Tönung wie die Pille dieser Farbe,
   // der Rand ist der Grundton mit 20 % Deckkraft wie bei den Typen oben.
-  const tone = color ? getLocationBadgeTone(color) : null;
+  const tone = color ? getPillTone(color) : null;
   const toneStyle: CSSProperties | undefined = tone
     ? {
         backgroundColor: tone.backgroundColor,
@@ -178,6 +187,15 @@ export function Alert({
     icons[type]
   );
   const padding = compact ? "px-3 py-2 text-xs" : "p-4 text-sm";
+  // The symbol stands beside the first line as soon as something stacks
+  // under the message (details, a stacked action, a responsive action on a
+  // phone). Centred, it would float between the message and the action.
+  const align =
+    (title && details) || onDismiss || (action && actionLayout === "stacked")
+      ? "items-start"
+      : action && actionLayout === "responsive"
+        ? "items-start sm:items-center"
+        : "items-center";
 
   return (
     <div
@@ -192,7 +210,7 @@ export function Alert({
       }
       aria-live={announcement === "off" ? undefined : announcement}
       aria-atomic={announcement === "off" ? undefined : "true"}
-      className={`flex ${(title && details) || onDismiss ? "items-start" : "items-center"} rounded-xl border shadow-sm ${padding} ${action ? "flex-wrap gap-y-2" : ""} ${onDismiss ? "relative pr-12" : ""} ${tone ? "" : styles[type]} ${className}`}
+      className={`flex ${align} rounded-xl border shadow-sm ${padding} ${action ? "flex-wrap gap-y-2" : ""} ${onDismiss ? "relative pr-12" : ""} ${tone ? "" : ALERT_TYPE_CLASSES[type]} ${className}`}
     >
       {leading}
       {/* Mit Aktion darf die Meldung schrumpfen (min-w-0 flex-1), sonst würde
@@ -207,10 +225,11 @@ export function Alert({
         <div className={action ? "min-w-0 flex-1" : undefined}>{message}</div>
       )}
       {/* basis-full: die Aktion rutscht auf schmalen Bildschirmen unter die
-          Meldung, statt den Text in eine schmale Spalte zu quetschen. Ab sm
-          steht sie wieder rechts in derselben Zeile. max-w-full hält eine
-          lange Aktion (Vorgangskennung) in der Fläche, statt sie über den
-          Rand laufen zu lassen. */}
+          Meldung, statt den Text in eine schmale Spalte zu quetschen, und
+          beginnt dort wie bei `stacked` bündig mit dem Text, nicht unter dem
+          Symbol. Ab sm steht sie wieder rechts in derselben Zeile.
+          max-w-full hält eine lange Aktion (Vorgangskennung) in der Fläche,
+          statt sie über den Rand laufen zu lassen. */}
       {action ? (
         <div
           className={
@@ -219,7 +238,7 @@ export function Alert({
               : actionLayout === "stacked"
                 ? // pl-7 = icon (h-5 w-5) plus its mr-2: flush with the text.
                   `max-w-full min-w-0 basis-full ${compact ? "pl-6" : "pl-7"}`
-                : "max-w-full min-w-0 shrink-0 basis-full sm:ml-auto sm:basis-auto sm:pl-4"
+                : `max-w-full min-w-0 shrink-0 basis-full ${compact ? "pl-6" : "pl-7"} sm:ml-auto sm:basis-auto sm:pl-4`
           }
         >
           {action}
@@ -232,7 +251,8 @@ export function Alert({
           type="button"
           variant="ghost_tone"
           size="icon"
-          aria-label={dismissLabel}
+          aria-label={dismissLabel ?? "Hinweis schließen"}
+          tooltip={dismissTooltip ?? kitDefault("Blendet den Hinweis aus.")}
           onClick={onDismiss}
           className="absolute top-2.5 right-2.5"
         >

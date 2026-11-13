@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	classdayCompose "github.com/moto-ogs/project-phoenix/modules/classday/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type roomHistorySettingsDouble struct {

@@ -50,8 +50,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/stretchr/testify/require"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/uptrace/bun"
 )
 
@@ -66,7 +66,7 @@ func checkRouteTableGolden(t *testing.T, apiInstance *goldenRuntime) {
 		names := make([]string, 0, len(middlewares))
 		for _, middleware := range middlewares {
 			name := runtime.FuncForPC(reflect.ValueOf(middleware).Pointer()).Name()
-			name = strings.TrimPrefix(name, "github.com/moto-nrw/project-phoenix/")
+			name = strings.TrimPrefix(name, "github.com/moto-ogs/project-phoenix/")
 			names = append(names, compilerGeneratedNamePart.ReplaceAllString(name, "#"))
 		}
 		middlewareRoutes = append(middlewareRoutes, fmt.Sprintf("%s %s -> %s", method, route, strings.Join(names, " > ")))
@@ -162,7 +162,7 @@ func checkRouteTableGolden(t *testing.T, apiInstance *goldenRuntime) {
 			var authenticated, guarded bool
 			for _, middleware := range middlewares {
 				name := runtime.FuncForPC(reflect.ValueOf(middleware).Pointer()).Name()
-				name = strings.TrimPrefix(name, "github.com/moto-nrw/project-phoenix/")
+				name = strings.TrimPrefix(name, "github.com/moto-ogs/project-phoenix/")
 				switch {
 				case strings.HasPrefix(name, authenticator):
 					authenticated = true
@@ -439,6 +439,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 			t.Run("enrollment submission", func(t *testing.T) { checkEnrollmentSubmissionGolden(t, api) })
 			t.Run("open room kiosk booking", func(t *testing.T) { checkOpenRoomKioskBooking(t, api) })
 			t.Run("move bypass authorization", func(t *testing.T) { checkMoveBypassAuthorization(t, api) })
+			t.Run("check-in to a room or activity", func(t *testing.T) { checkCheckInToTarget(t, api) })
 			t.Run("IoT error codes", func(t *testing.T) { checkIoTErrorCodes(t, api) })
 			t.Run("phase response query budget", func(t *testing.T) { checkPhaseResponseQueryBudget(t, api) })
 			t.Run("caterer delivery export query budget", func(t *testing.T) { checkCatererDeliveryExportQueryBudget(t, api) })

@@ -4,8 +4,8 @@ status: accepted
 
 # Ferienbeitrag entsteht in der Elternabrechnung und wird bei der Bestätigung festgehalten
 
-Entscheidung vom 25.10.2026 zu [#4664](https://github.com/moto-nrw/project-phoenix/issues/4664),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 25.10.2026 zu [#4664](https://github.com/moto-ogs/project-phoenix/issues/4664),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 29, 61, 63 und 69. Sie ist der erste Bau-Schnitt des Owners
 Elternabrechnung aus
 [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)

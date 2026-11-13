@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	supervisionDashboardService "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	supervisionDashboardService "github.com/moto-ogs/project-phoenix/modules/supervisiondashboard"
 )
 
 // getSupervisionDashboard handles GET /active/supervision-dashboard?group_id={id}.

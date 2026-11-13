@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type fakeLegalDocumentReferenceRepository struct {

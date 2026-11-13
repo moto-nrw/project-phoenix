@@ -11,14 +11,14 @@ status: accepted
 > expressed as a classification, not a rule
 > ([ADR 0057](0057-only-the-target-is-a-rule.md), point 3).
 
-Decision for [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747)
-under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580). It
+Decision for [#2747](https://github.com/moto-ogs/project-phoenix/issues/2747)
+under [#2580](https://github.com/moto-ogs/project-phoenix/issues/2580). It
 also settles the role of the Identity behaviour suites
-([#3446](https://github.com/moto-nrw/project-phoenix/issues/3446)) and the
+([#3446](https://github.com/moto-ogs/project-phoenix/issues/3446)) and the
 shared-fixture reach of the session token adapter
-([#2748](https://github.com/moto-nrw/project-phoenix/issues/2748)). The policy
+([#2748](https://github.com/moto-ogs/project-phoenix/issues/2748)). The policy
 change activates in the epoch that
-[#4001](https://github.com/moto-nrw/project-phoenix/issues/4001) merges.
+[#4001](https://github.com/moto-ogs/project-phoenix/issues/4001) merges.
 
 ## Context
 
@@ -85,7 +85,7 @@ rules from the root into implementation roles
 (`root-composition.to.workforce-adapter`,
 `root-composition.compose.production.data-import.adapter`,
 `root-composition.compose.scheduler-runtime-postgres`) become exact debt under
-[#4003](https://github.com/moto-nrw/project-phoenix/issues/4003).
+[#4003](https://github.com/moto-ogs/project-phoenix/issues/4003).
 
 ### 3. The standing reach of an owner's composition
 
@@ -93,7 +93,7 @@ An owner's `compose` may import every role of its own owner in production. This
 replaces the enumerated same-owner compose rules. It grants nothing across
 owners. No new cross-owner reach is added to an owner's `compose`; glue moving
 out of `services` binds in the root. The 206 existing cross-owner reaches stay
-until [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) decides
+until [#4004](https://github.com/moto-ogs/project-phoenix/issues/4004) decides
 them.
 
 ### 4. Compositions construct and bind, they do not decide
@@ -112,7 +112,7 @@ owner compositions, whose signatures stay as they are. Root code names no
 `bun` type. This removes `api -> bun`, `cmd -> bun` and both
 `database.direct-access` keys of #2750, and it stops them from coming back
 while code moves from `services` into the root
-([#4002](https://github.com/moto-nrw/project-phoenix/issues/4002)).
+([#4002](https://github.com/moto-ogs/project-phoenix/issues/4002)).
 
 ### 6. The session codec comes from Identity's composition
 
@@ -168,10 +168,10 @@ direction of the existing rules.
 - Moved code takes the Transaction Runtime value (point 5) and names no `bun`
   type.
 - The test hooks move first
-  ([#4005](https://github.com/moto-nrw/project-phoenix/issues/4005)). Once
+  ([#4005](https://github.com/moto-ogs/project-phoenix/issues/4005)). Once
   they sit in the root or in owner test support, the production slices
-  ([#4006](https://github.com/moto-nrw/project-phoenix/issues/4006) to
-  [#4013](https://github.com/moto-nrw/project-phoenix/issues/4013)) no longer
+  ([#4006](https://github.com/moto-ogs/project-phoenix/issues/4006) to
+  [#4013](https://github.com/moto-ogs/project-phoenix/issues/4013)) no longer
   pull the tests along.
 - #2747 deletes the empty Factory and the top-level `services` package. It
   removes the remaining #2747 keys and the coupled keys `api/testutil ->

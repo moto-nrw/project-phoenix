@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	mealplanModule "github.com/moto-ogs/project-phoenix/modules/mealplan"
 )
 
 type Middleware = func(http.Handler) http.Handler

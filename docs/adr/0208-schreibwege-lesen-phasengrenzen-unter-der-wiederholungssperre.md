@@ -5,7 +5,7 @@ status: proposed
 # Schreibwege lesen Phasengrenzen unter der Wiederholungssperre
 
 **Status: Vorgeschlagen.** Vorschlag vom 11.11.2026 zu
-[#6657](https://github.com/moto-nrw/project-phoenix/issues/6657). Ergänzt
+[#6657](https://github.com/moto-ogs/project-phoenix/issues/6657). Ergänzt
 [ADR 0202](0202-phasenaenderungen-verschieben-offene-plaene-und-schuetzen-wirksame-buchungen.md)
 und
 [ADR 0205](0205-phasenaenderungen-fuehren-die-buchungsgrenzen-der-phase-mit.md).

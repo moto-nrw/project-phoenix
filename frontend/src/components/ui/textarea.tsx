@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useId, useImperativeHandle, useRef } from "react";
+import { useEffect, useImperativeHandle, useRef } from "react";
 
 import { cn } from "~/lib/utils";
 
-import { FieldLabel, isInvalidAria, isRequiredField } from "./field-label";
+import { isInvalidAria, isRequiredField } from "./field-label";
+import { FieldShell, useFieldIds } from "./field-shell";
 
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   /** For a caller that sets the caret, such as inserting a placeholder. */
@@ -75,54 +76,35 @@ export function Textarea({
   "aria-invalid": ariaInvalid,
   ...props
 }: TextareaProps) {
-  const generatedId = useId();
-  const inputId = id ?? name ?? generatedId;
+  const ids = useFieldIds({ id: id ?? name, hint, error, describedBy });
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   useImperativeHandle(ref, () => fieldRef.current as HTMLTextAreaElement, []);
   useAutoGrow(fieldRef, autoGrow, props.value);
-  const errorId = error ? `${inputId}-error` : undefined;
-  const hintId = hint ? `${inputId}-hint` : undefined;
 
   return (
-    <div>
-      {label && (
-        <FieldLabel
-          htmlFor={inputId}
-          required={isRequiredField(props)}
-          invalid={Boolean(error) || isInvalidAria(ariaInvalid)}
-        >
-          {label}
-        </FieldLabel>
-      )}
+    <FieldShell
+      ids={ids}
+      keepWrapper
+      label={label}
+      required={isRequiredField(props)}
+      invalid={Boolean(error) || isInvalidAria(ariaInvalid)}
+      hint={hint}
+      error={error}
+      errorLive={errorLive}
+    >
       <textarea
         ref={fieldRef}
-        id={inputId}
+        id={ids.id}
         name={name}
         {...props}
         aria-invalid={error ? true : ariaInvalid}
-        aria-describedby={
-          [describedBy, hintId, errorId].filter(Boolean).join(" ") || undefined
-        }
+        aria-describedby={ids.describedBy}
         className={cn(
-          "aria-[invalid=true]:ring-moto-red block w-full resize-none rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 read-only:bg-gray-50 read-only:text-gray-500 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200",
+          "aria-[invalid=true]:ring-moto-red block w-full resize-none rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 read-only:bg-gray-50 read-only:text-gray-500 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-600 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 pointer-coarse:text-base",
           autoGrow && "max-h-40 overflow-hidden",
           className,
         )}
       />
-      {hint && (
-        <p id={hintId} className="mt-1 text-xs text-gray-600">
-          {hint}
-        </p>
-      )}
-      {error && (
-        <p
-          id={errorId}
-          role={errorLive ? "alert" : undefined}
-          className="text-moto-red-strong mt-1 text-xs"
-        >
-          {error}
-        </p>
-      )}
-    </div>
+    </FieldShell>
   );
 }

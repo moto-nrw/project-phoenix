@@ -5,6 +5,7 @@
 import { useId, useState } from "react";
 
 import { cn } from "~/lib/utils";
+import { Z_LAYER } from "./overlay-styles";
 
 /**
  * Tooltip: the shared kit tooltip.
@@ -59,7 +60,7 @@ export function Tooltip({
       <span
         tabIndex={0}
         aria-describedby={id}
-        className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+        className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-gray-600"
         onKeyDown={dismissOnEscape}
       >
         {children}
@@ -69,7 +70,7 @@ export function Tooltip({
         id={id}
         style={isDismissed ? { visibility: "hidden", opacity: 0 } : undefined}
         className={cn(
-          "pointer-events-none invisible absolute top-full left-0 z-20 mt-1 w-max max-w-xs rounded-md bg-gray-900 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity",
+          `pointer-events-none invisible absolute top-full left-0 ${Z_LAYER.sticky} mt-1 w-max max-w-xs rounded-md bg-gray-900 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity`,
           "group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100",
           bubbleClassName,
         )}

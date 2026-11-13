@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentLifecycle is the presence view of where a child stands in the care
@@ -154,6 +154,9 @@ type StatusDayWriteContext struct {
 	// locks and before the partial-absence check, so a partial absence the
 	// caller did not confirm still refuses the write. Nil replaces nothing.
 	ReplacePartialAbsences func(ctx context.Context, studentID int64) error
+	// ActorAccountID is the account that writes or clears the days, nil
+	// when no account acts (#6842).
+	ActorAccountID *int64
 }
 
 // ApplyLiveStatusForToday mutates a student's live sick/excused flags to reflect

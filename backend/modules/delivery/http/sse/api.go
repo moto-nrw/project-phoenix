@@ -77,12 +77,16 @@ func (rs *Resource[E, C]) resolveSSESubscription(ctx context.Context, tenantID i
 }
 
 // writeSSESetupError maps a subscription-resolution error to the SSE HTTP
-// response: the carried status for an *SSESetupError (401/403), 500 otherwise.
+// response: the carried status for an *SSESetupError (401/403), 499 when the
+// client went away meanwhile, 500 otherwise.
 func (rs *Resource[E, C]) writeSSESetupError(w http.ResponseWriter, ctx context.Context, err error) {
 	var setupErr SetupRejection
 	if errors.As(err, &setupErr) {
 		slog.WarnContext(ctx, "SSE setup failed", slog.String("error", setupErr.SetupMessage()))
 		writeSSEProblem(w, setupErr.SetupStatus(), setupProblemCode(setupErr.SetupStatus()), setupErr.SetupMessage())
+		return
+	}
+	if writeClientGone(ctx, w) {
 		return
 	}
 	slog.ErrorContext(ctx, "SSE failed to determine supervised groups", slog.String("error", err.Error()))

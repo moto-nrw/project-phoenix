@@ -6,40 +6,47 @@ import (
 	"fmt"
 	"time"
 
-	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
-	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
-	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/observability"
+	appointmentsModule "github.com/moto-ogs/project-phoenix/modules/appointments"
+	appointmentsCompose "github.com/moto-ogs/project-phoenix/modules/appointments/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	feedbackModule "github.com/moto-ogs/project-phoenix/modules/feedback"
+	feedbackCompose "github.com/moto-ogs/project-phoenix/modules/feedback/compose"
+	mealplanModule "github.com/moto-ogs/project-phoenix/modules/mealplan"
+	mealplanCompose "github.com/moto-ogs/project-phoenix/modules/mealplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	membershipCompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	schoolStructureCompose "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/observability"
 )
 
 // BuildServeOrganizations composes Organisation & Tenancy.
 func BuildServeOrganizations(db transactionruntime.Database) (organizationtenancy.Capability, error) {
 	return organizationCompose.New(organizationCompose.Dependencies{DB: db.Pool(), Observe: observeOrganizationTenancy})
+}
+
+// NewTraegerMemberNames composes the names of the Träger memberships
+// (#4693) on the caller's transaction runtime.
+func NewTraegerMemberNames() organizationtenancy.TraegerMemberNames {
+	return organizationCompose.NewTraegerMemberNames(observeOrganizationTenancy)
 }
 
 // observeOrganizationTenancy records one Organisation & Tenancy operation.
@@ -70,12 +77,19 @@ func BuildServeRooms(db transactionruntime.Database) (facilitiesModule.Catalog, 
 
 // BuildFacilitiesModule composes Facilities with its room deletion: the
 // deletion asks Student Presence for open sessions and Care Plan's
-// care-offering catalog for the rooms its offerings need (#4010).
-func BuildFacilitiesModule(db transactionruntime.Database, observe func(facilitiesCompose.Observation), lock timetable.RecurrenceWriteLock, sessions studentpresence.Owner, offerings careplan.CareOfferingGuards) (facilitiesModule.Capability, error) {
+// care-offering catalog for the rooms its offerings need (#4010), and
+// Timetable, School Structure, Device Fleet and Student Presence what else
+// still uses the room (#6845).
+func BuildFacilitiesModule(db transactionruntime.Database, observe func(facilitiesCompose.Observation), lock timetable.RecurrenceWriteLock, sessions studentpresence.Owner, offerings careplan.CareOfferingGuards, groups schoolstructure.GroupListing, devices devicefleet.Capability) (facilitiesModule.Capability, error) {
+	references, err := NewRoomReferences(db, sessions, groups, devices)
+	if err != nil {
+		return nil, err
+	}
 	return facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB: db.Pool(), DeletionLock: lock.LockRecurrenceWrites,
-		Usage:   &RoomUsage{Sessions: sessions, Offerings: offerings},
-		Observe: observe,
+		Usage:      &RoomUsage{Sessions: sessions, Offerings: offerings},
+		References: references,
+		Observe:    observe,
 	})
 }
 
@@ -256,4 +270,14 @@ func BuildServeTimetable(db transactionruntime.Database, persons peopledirectory
 			timetable.ErrorCode(observation.Err), observation.Err,
 		)
 	})
+}
+
+// observeTimetableActivities records one Timetable activities operation of
+// the room reference count (#6845).
+func observeTimetableActivities(observation timetableCompose.Observation) {
+	observability.ObserveTimetableActivitiesOperation(
+		observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
+		observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration,
+		timetable.ErrorCode(observation.Err), observation.Err,
+	)
 }

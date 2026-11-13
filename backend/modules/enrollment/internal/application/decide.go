@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/selection"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Activation modes of enrollmentNative.default_activation_mode.
@@ -107,7 +107,7 @@ func (d *Decisions) Decide(ctx context.Context, input enrollmentNative.DecideInp
 // choice, which also re-checks a parent pin's relationship authority (#6053).
 func (d *Decisions) prepareApproval(ctx context.Context, target *decisionTarget, phase *enrollmentNative.Phase, input enrollmentNative.DecideInput) error {
 	if input.Status == enrollmentNative.DecisionApproved {
-		if err := d.validateApprovalOfferingSelection(ctx, target.child, phase); err != nil {
+		if err := d.validateApprovalOfferingSelection(ctx, target.child, phase, input.AcceptOfferingChanges); err != nil {
 			return err
 		}
 	}
@@ -317,7 +317,7 @@ func isParentVisibleDecision(status enrollmentNative.DecisionStatus) bool {
 	return status == enrollmentNative.DecisionApproved || status == enrollmentNative.DecisionRejected || status == enrollmentNative.DecisionWaitlisted
 }
 
-func (d *Decisions) validateApprovalOfferingSelection(ctx context.Context, child *enrollmentNative.RequestChild, phase *enrollmentNative.Phase) error {
+func (d *Decisions) validateApprovalOfferingSelection(ctx context.Context, child *enrollmentNative.RequestChild, phase *enrollmentNative.Phase, acceptOfferingChanges bool) error {
 	careOfferingsEnabled, err := d.careOfferingsEnabled(ctx)
 	if err != nil {
 		return fmt.Errorf("decision: resolve care offerings setting: %w", err)
@@ -332,6 +332,17 @@ func (d *Decisions) validateApprovalOfferingSelection(ctx context.Context, child
 	offerings, err := d.deps.Offerings.ListByIDs(ctx, uniqueCareOfferingIDs(links))
 	if err != nil {
 		return fmt.Errorf("decision: list child offerings: %w", err)
+	}
+	// The approval books the current catalog. When it no longer matches what
+	// the parents signed, the office confirms the change first (#6837); the
+	// confirmed change is logged with the approval.
+	if changed := changedSubmittedOfferingTerms(links, offerings); len(changed) > 0 {
+		if !acceptOfferingChanges {
+			return fmt.Errorf("%w (%s)", enrollmentNative.ErrOfferingTermsChanged, strings.Join(changed, "; "))
+		}
+		d.logger().Info("decision: office confirmed offering changes since submission",
+			slog.Int64("request_child_id", child.ID),
+			slog.String("changes", strings.Join(changed, "; ")))
 	}
 	// An application submitted before a group got the per-day rule can hold
 	// two variants on one day (#4514). The approval names it; the bookings
@@ -366,6 +377,30 @@ func checkApprovalSelectionMode(phase *enrollmentNative.Phase, offerings []*offe
 		}
 	}
 	return nil
+}
+
+// changedSubmittedOfferingTerms names, per booked offering, the catalog terms
+// that differ from the snapshot its submitted choice keeps (#6837). A booking
+// without a snapshot (stored before, or booked by staff) and a deleted
+// catalog row have nothing to compare.
+func changedSubmittedOfferingTerms(links []*enrollmentNative.RequestChildOfferingRecord, offerings []*offeringContract.CareOfferingRecord) []string {
+	catalog := make(map[int64]*offeringContract.CareOfferingRecord, len(offerings))
+	for _, offering := range offerings {
+		if offering != nil {
+			catalog[offering.ID] = offering
+		}
+	}
+	var changed []string
+	for _, link := range links {
+		if link == nil || catalog[link.CareOfferingID] == nil {
+			continue
+		}
+		terms := enrollmentNative.ChangedOfferingTerms(link.SubmittedTerms, currentOfferingTerms(catalog[link.CareOfferingID]), link.SelectedDays)
+		if len(terms) > 0 {
+			changed = append(changed, fmt.Sprintf("offering %d: %v", link.CareOfferingID, terms))
+		}
+	}
+	return changed
 }
 
 func checkApprovalDayRules(phaseID int64, links []*enrollmentNative.RequestChildOfferingRecord, offerings []*offeringContract.CareOfferingRecord) error {

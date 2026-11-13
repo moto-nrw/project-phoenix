@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
 )
 
 // The fields a Stammdaten request can change.
@@ -50,13 +50,18 @@ func (s *MasterDataDecisions) applyStudentChange(ctx context.Context, req *carep
 	if value == "" {
 		return false, masterdatarequests.ErrReviewInvalidValue
 	}
+	var previous string
 	trimmed, err := s.records.UpdateStudent(ctx, req.StudentID, reviewedBy, func(student ports.MasterDataStudent) (ports.MasterDataStudentWrite, error) {
 		if !domain.SameJSON(domain.JSONString(student.SchoolClass), req.OldValue) {
 			return ports.MasterDataStudentWrite{}, masterdatarequests.ErrReviewStaleValue
 		}
+		previous = student.SchoolClass
 		return ports.MasterDataStudentWrite{SchoolClass: &value}, nil
 	})
-	return trimmed, labelMasterDataWrite(err, "review: load student", "review: update student class", "review: audit student class")
+	if err != nil {
+		return false, labelMasterDataWrite(err, "review: load student", "review: update student class", "review: audit student class")
+	}
+	return trimmed, s.followClassChange(ctx, req.StudentID, previous, value)
 }
 
 func (s *MasterDataDecisions) applyPersonChange(ctx context.Context, req *careplan.StudentDataChangeRequest) error {

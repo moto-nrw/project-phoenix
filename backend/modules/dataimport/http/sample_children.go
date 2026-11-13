@@ -6,7 +6,7 @@ import (
 	"net"
 	"net/http"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // Registered codes of a refused sample children request (error-registry/,

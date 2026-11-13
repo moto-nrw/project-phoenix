@@ -4,7 +4,7 @@ package enrollmenttest
 import (
 	"maps"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // Phase and Date let shared fixtures use owner values without a production dependency.

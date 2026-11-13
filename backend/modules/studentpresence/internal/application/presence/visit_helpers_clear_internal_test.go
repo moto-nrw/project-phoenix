@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +25,7 @@ func (r *failingPlannedStatusRead) UpsertReported(context.Context, *absencerecor
 	return r.upsertErr
 }
 
-func (r *failingPlannedStatusRead) MarkCleared(context.Context, int64, string, calendar.Date, time.Time, string) error {
+func (r *failingPlannedStatusRead) MarkCleared(context.Context, int64, string, calendar.Date, time.Time, string, *int64) error {
 	return r.historyErr
 }
 
@@ -60,7 +60,7 @@ func TestLiveStatusHistoryFailuresDoNotClearFlags(t *testing.T) {
 	}
 }
 
-func (r *failingPlannedStatusRead) MarkClearedByID(context.Context, int64, time.Time, string) error {
+func (r *failingPlannedStatusRead) MarkClearedByID(context.Context, int64, time.Time, string, *int64) error {
 	return r.clearErr
 }
 
@@ -416,4 +416,8 @@ func (m *mockStudentRepoForClear) FindByIDForUpdate(ctx context.Context, id int6
 
 func (m *mockStudentRepoForClear) FindByIDsForUpdate(context.Context, []int64) (map[int64]*StudentRecord, error) {
 	panic("FindByIDsForUpdate is not part of the auto-clear surface")
+}
+
+func (r *failingPlannedStatusRead) FindSignedOffByStudentIDsAndDate(context.Context, []int64, calendar.Date) ([]*absencerecords.StudentStatusDay, error) {
+	return nil, r.err
 }

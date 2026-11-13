@@ -71,7 +71,9 @@ describe("TraegerAbrechnungPage", () => {
     expect(
       (await screen.findAllByText("Herbstferien 2026"))[0],
     ).toBeInTheDocument();
-    expect(screen.getAllByText("2 · 180,00 €")[0]).toBeInTheDocument();
+    expect(
+      screen.getAllByText("2 Rechnungen · 180,00 €")[0],
+    ).toBeInTheDocument();
     expect(screen.getAllByText("Freigegeben")[0]).toBeInTheDocument();
   });
 
@@ -94,6 +96,27 @@ describe("TraegerAbrechnungPage", () => {
     await waitFor(() =>
       expect(mockPush).toHaveBeenCalledWith("/abrechnung/12"),
     );
+  });
+
+  it("opens the run in preview instead of starting a second one", async () => {
+    api.fetchBillingRuns.mockResolvedValue([
+      { ...RELEASED, id: "14", status: "calculated", releasedAt: null },
+    ]);
+    renderPage();
+    await screen.findAllByText("Herbstferien 2026");
+
+    fireEvent.click(screen.getByRole("button", { name: /Lauf starten/ }));
+    expect(
+      await screen.findByText(
+        /Für diesen Ferienzeitraum ist schon ein Lauf in der Vorschau/,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Lauf öffnen" }));
+
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith("/abrechnung/14"),
+    );
+    expect(api.startBillingRun).not.toHaveBeenCalled();
   });
 
   it("states that a run needs a published period", async () => {
@@ -125,9 +148,9 @@ describe("TraegerAbrechnungPage", () => {
 
       // Anker: der Lauf des gefilterten Zeitraums steht in der Liste.
       expect(
-        (await screen.findAllByText("1 · 50,00 €"))[0],
+        (await screen.findAllByText("1 Rechnung · 50,00 €"))[0],
       ).toBeInTheDocument();
-      expect(screen.queryAllByText("2 · 180,00 €")).toHaveLength(0);
+      expect(screen.queryAllByText("2 Rechnungen · 180,00 €")).toHaveLength(0);
       expect(screen.getByText("Abrechnungslauf")).toBeInTheDocument();
 
       fireEvent.click(

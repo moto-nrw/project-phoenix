@@ -8,6 +8,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/settings/http/behaviortest",
+      "owner": "settings-platform",
+      "role": "test-support",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/settings/internal/adapters/configpostgres",
       "owner": "settings-platform",
       "role": "postgres",
@@ -57,6 +64,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/settings/inbound/operator/behaviortest",
+      "owner": "settings-platform",
+      "role": "test-support",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/settings",
       "owner": "settings-platform",
       "role": "public",
@@ -64,9 +78,23 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/settings/behaviortest",
+      "owner": "settings-platform",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/settings/compose",
       "owner": "settings-platform",
       "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/settings/compose/behaviortest",
+      "owner": "settings-platform",
+      "role": "test-support",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
     },

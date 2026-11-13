@@ -4,7 +4,7 @@ status: accepted
 
 # Offering-gap decision lives on the care offering
 
-Issue [#5140](https://github.com/moto-nrw/project-phoenix/issues/5140): at
+Issue [#5140](https://github.com/moto-ogs/project-phoenix/issues/5140): at
 Schule am Berg 46 children of Klasse 3 and 4 booked „Randstunde“, but no
 Regeltermin took them over. The Betreuungsplan now names an offering whose
 booked children no Regeltermin of the planning period covers, and the school

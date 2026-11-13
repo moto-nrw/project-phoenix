@@ -11,14 +11,21 @@ import {
   Z_LAYER,
 } from "./overlay-styles";
 
-type DrawerDirection = "top" | "bottom" | "left" | "right";
+type DrawerDirection = "bottom" | "left";
 
 // Mirror Vaul's own direction prop down to DrawerContent so consumers
 // don't have to thread it twice. Bottom keeps the iOS-style drag handle;
-// the side variants drop it (no swipe-to-dismiss UX on desktop).
+// the side panel drops it (no swipe-to-dismiss UX on desktop).
 const DrawerDirectionContext = React.createContext<DrawerDirection>("bottom");
 
-type DrawerRootProps = React.ComponentProps<typeof DrawerPrimitive.Root>;
+// Vaul's props are a union (with or without snap points); omit per member.
+type OmitEach<T, K extends PropertyKey> = T extends unknown
+  ? Omit<T, K>
+  : never;
+type DrawerRootProps = OmitEach<
+  React.ComponentProps<typeof DrawerPrimitive.Root>,
+  "direction"
+> & { readonly direction?: DrawerDirection };
 
 const Drawer = ({
   shouldScaleBackground = true,
@@ -56,15 +63,13 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
 // Position + shape per direction. Vaul handles the slide animation; we
 // only own the static layout (which edges are pinned, which corners are
-// rounded). Side panels (left/right) use square edges — review feedback:
+// rounded). The side panel uses square edges — review feedback:
 // the rounded inner edge looked off against the page chrome, and the
 // outer edge is flush against the viewport so nothing's there to round.
 // Width caps live in className overrides at the call site.
 const directionContentClasses: Record<DrawerDirection, string> = {
   bottom:
     "fixed inset-x-0 bottom-0 mt-24 flex h-auto max-h-[90vh] flex-col rounded-t-2xl",
-  top: "fixed inset-x-0 top-0 mb-24 flex h-auto max-h-[90vh] flex-col rounded-b-2xl",
-  right: "fixed inset-y-0 right-0 flex h-full w-full max-w-lg flex-col",
   left: "fixed inset-y-0 left-0 flex h-full w-full max-w-lg flex-col",
 };
 
@@ -79,7 +84,7 @@ const DrawerContent = React.forwardRef<
     <DrawerPortal>
       <DrawerOverlay />
       <DrawerPrimitive.Content
-        ref={(node) => {
+        ref={(node: HTMLDivElement | null) => {
           sheetRef.current = node;
           if (typeof ref === "function") ref(node);
           else if (ref) ref.current = node;

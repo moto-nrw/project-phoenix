@@ -19,7 +19,6 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type {
   ActiveFilter,
@@ -406,33 +405,29 @@ function DevicesPageContent() {
           </div>
         ),
       }}
-      search={
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={{
-            icon: (
-              <MotoDuotoneIcon
-                icon={devicesConcept.icon}
-                tone={devicesConcept.tone}
-                size={20}
-              />
-            ),
-            count: filteredDevices.length,
-            label: "Geräte",
-          }}
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Geräte suchen…",
-          }}
-          filters={filters}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-          }}
-        />
-      }
+      searchRow={{
+        badge: {
+          icon: (
+            <MotoDuotoneIcon
+              icon={devicesConcept.icon}
+              tone={devicesConcept.tone}
+              size={20}
+            />
+          ),
+          count: filteredDevices.length,
+          label: "Geräte",
+        },
+        search: {
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Geräte suchen…",
+        },
+        filters,
+        activeFilters,
+        onClearAllFilters: () => {
+          setSearchTerm("");
+        },
+      }}
     >
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">

@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 )
 
 // UpdateGroupWithDetails updates a group's core fields, replaces its

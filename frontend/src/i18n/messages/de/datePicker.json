@@ -9,6 +9,10 @@
     "selectTime": "Uhrzeit auswählen",
     "hour": "Stunde",
     "minute": "Minute",
-    "minimum": "Frühestens {time} Uhr"
-  }
+    "minimum": "Frühestens {time} Uhr",
+    "selectTimeHint": "Öffnet die Auswahl der Uhrzeit."
+  },
+  "clearHint": "Leert das Feld, danach ist kein Tag mehr gewählt.",
+  "previousMonthHint": "Blättert im Kalender einen Monat zurück.",
+  "nextMonthHint": "Blättert im Kalender einen Monat weiter."
 }

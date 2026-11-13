@@ -289,10 +289,12 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    #3118): jedes String-Literal und jeder Template-Abschnitt mit einem
    CSS-Hexwert (`#83CD2D`, `text-[#4070C8]`, `text-[#666]`, ein nacktes
    `#abcd`) fällt durch; ein Literal zählt einmal. Ausgenommen sind die
-   Quelle der Token selbst (`lib/location-helper.ts`), das Web-App-Manifest
-   (`lib/favicon-variants.ts`) und `app/global-error.tsx`, das ohne
-   Stylesheet rendert. Hard-zero seit #3119: die Raumkategorie-Farben
-   liegen als `MOTO_COLOR_PALETTE.roomCategory`, die neutrale Blockkante
+   Quelle der Token selbst (`lib/kit-palette.ts`), die fachlichen
+   Legacy-Farben (`lib/location-helper.ts`), das
+   Web-App-Manifest (`lib/favicon-variants.ts`) und
+   `app/global-error.tsx`, das ohne Stylesheet rendert. Hard-zero seit
+   #3119: die Raumkategorie-Farben liegen als
+   `MOTO_COLOR_PALETTE.emerald`/`violet`/`pink`, die neutrale Blockkante
    der Planung als `MOTO_COLOR_PALETTE.neutral.muted`, alles andere läuft
    über `moto-*`-Klassen oder Tailwind-Grau. `src/test/` ist nicht
    im Scope; das Eltern-Portal zählt seit #5606 mit.
@@ -302,9 +304,10 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    mit dem Literal `disabled: true` fällt durch; `disabled: busy` ist ein
    Zustand und passiert. Auswahlfeld-Optionen (`value` + `label`) sind keine
    Menüeinträge.
-7. Erweiterung von `tenant-page-scaffold.test.ts`: jede Seite deklariert ihre
-   Bauart, und die Zuordnung ist vollständig. **Umgesetzt** (#3118): die
-   Zuordnung liegt zentral im Test (`BAUART`), damit eine neue Seite ohne
+7. Jede Seite deklariert ihre Bauart, und die Zuordnung ist vollständig.
+   **Umgesetzt** (#3118): die Zuordnung liegt zentral in
+   `app/[tenant]/(protected)/bauart.test.ts` (`BAUART`, seit #6582 neben den
+   Seiten), damit eine neue Seite ohne
    Eintrag und ein Eintrag ohne Seite gleichermaßen durchfallen. Eine Route
    mit dynamischem Segment (`[id]`) ist immer eine Objektansicht. Seiten,
    die in keine der vier Bauarten passen, stehen mit Begründung in

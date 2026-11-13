@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Person is the directory identity behind a card.
@@ -96,6 +96,9 @@ var (
 	ErrStudentAlreadyActive = errors.New("student already has an active visit")
 	// ErrStudentNotInCare reports a graduated child or an ended care.
 	ErrStudentNotInCare = errors.New("student is not in care")
+	// ErrSessionEnded reports a target session that was no longer open when
+	// the visit took its lock, typically ended while the scan waited (#7024).
+	ErrSessionEnded = errors.New("session no longer open")
 	// ErrNoAttendanceRecord reports a daily checkout without today's row.
 	ErrNoAttendanceRecord = errors.New("student has no attendance record for today")
 	// ErrConflict, ErrNotFound and ErrInvalid classify presence refusals
@@ -120,7 +123,8 @@ type Visits interface {
 	Current(ctx context.Context, studentID int64) (*CurrentVisit, error)
 	EndVisit(ctx context.Context, visitID int64) error
 	// Record opens a visit. A full room is *RoomCapacityExceeded, a
-	// duplicate ErrStudentAlreadyActive, a departed child ErrStudentNotInCare.
+	// duplicate ErrStudentAlreadyActive, a departed child ErrStudentNotInCare,
+	// a session that is no longer open ErrSessionEnded.
 	Record(ctx context.Context, studentID, sessionID int64) (int64, error)
 }
 

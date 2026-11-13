@@ -3,7 +3,7 @@ package application
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
 	"github.com/stretchr/testify/assert"
 )
 

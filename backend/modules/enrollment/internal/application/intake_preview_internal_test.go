@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	"github.com/stretchr/testify/require"
 )
 

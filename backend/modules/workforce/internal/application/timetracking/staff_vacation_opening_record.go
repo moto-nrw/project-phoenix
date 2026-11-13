@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func hasOneDecimalPlace(value float64) bool {

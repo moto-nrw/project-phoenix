@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
+	filestorageModule "github.com/moto-ogs/project-phoenix/modules/filestorage"
 )
 
 type attachmentAudienceStub struct{ tenantID int64 }

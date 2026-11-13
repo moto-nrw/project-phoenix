@@ -7,14 +7,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
+	"github.com/moto-ogs/project-phoenix/internal/gitfixture"
 )
 
 func projectionRelocationRepository(t *testing.T) (string, string, *Policy) {
 	t.Helper()
 	repo := t.TempDir()
 	p := studentProjectionPolicy(t)
-	writeFile(t, filepath.Join(repo, "go.mod"), "module github.com/moto-nrw/project-phoenix\n\ngo 1.25\n")
+	writeFile(t, filepath.Join(repo, "go.mod"), "module github.com/moto-ogs/project-phoenix\n\ngo 1.25\n")
 	for _, pkg := range p.Packages {
 		writeFile(t, filepath.Join(repo, pkg.Path, "projection.go"), "package projection\n")
 	}
@@ -36,7 +36,7 @@ func projectionRelocationRepository(t *testing.T) (string, string, *Policy) {
 	p.PolicyEpoch++
 	p.Packages[0].Path = to
 	p.ReadProjections[0].Package = to
-	p.Relocations = []Relocation{{From: from, To: to, Issue: "https://github.com/moto-nrw/project-phoenix/issues/4086"}}
+	p.Relocations = []Relocation{{From: from, To: to, Issue: "https://github.com/moto-ogs/project-phoenix/issues/4086"}}
 	return repo, base, p
 }
 

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // BreakDurationUpdate represents an update to a single break's duration
@@ -64,6 +64,11 @@ type SessionResponse struct {
 	Breaks           []*WorkSessionBreak `json:"breaks"`
 	EditCount        int                 `json:"edit_count"`
 	AuditCount       int                 `json:"audit_count"`
+	// PackUpMinutes and RoundingMinutes explain the credit inside NetMinutes
+	// (#6851, #6852): the pack-up time of a regular checkout and the signed
+	// change the rounding made. Both are 0 for an open block.
+	PackUpMinutes   int `json:"pack_up_minutes"`
+	RoundingMinutes int `json:"rounding_minutes"`
 }
 
 // MarshalJSON emits the session id as a decimal STRING instead of the model's
@@ -202,6 +207,9 @@ type settingsResolver interface {
 	DeviationToleranceMinutes(ctx context.Context) (int, error)
 	// TimeTrackingRetentionDays is how long the audit feed keeps its entries.
 	TimeTrackingRetentionDays(ctx context.Context) (int, error)
+	// WorkTimeCredit is the credit rule of completed blocks: pack-up minutes
+	// of a regular checkout, rounding interval (0 for none) and direction.
+	WorkTimeCredit(ctx context.Context) (packUpMinutes, roundingMinutes int, roundingMode string, err error)
 }
 
 // WorkSessionService defines operations for staff time tracking

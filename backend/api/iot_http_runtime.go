@@ -5,17 +5,17 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
-	devicesAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/http/devices"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	checkinAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/checkin"
-	dataAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/data"
-	sessionsAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/sessions"
-	staffclockAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/staffclock"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	iotAPI "github.com/moto-ogs/project-phoenix/api/iot"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth"
+	devicesAPI "github.com/moto-ogs/project-phoenix/modules/devicefleet/http/devices"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	checkinAPI "github.com/moto-ogs/project-phoenix/modules/devicescan/http/checkin"
+	dataAPI "github.com/moto-ogs/project-phoenix/modules/devicescan/http/data"
+	sessionsAPI "github.com/moto-ogs/project-phoenix/modules/devicescan/http/sessions"
+	staffclockAPI "github.com/moto-ogs/project-phoenix/modules/devicescan/http/staffclock"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func iotInfoRuntime() iotAPI.Runtime {

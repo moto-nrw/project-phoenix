@@ -5,7 +5,7 @@ package compose
 import (
 	"context"
 
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
 )
 
 type TeacherGroupRecords interface {

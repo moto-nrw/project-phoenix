@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
 )
 
 // activeRoomDirectory adapts the room owner for the retained session

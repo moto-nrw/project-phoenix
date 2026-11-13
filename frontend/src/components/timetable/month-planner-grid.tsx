@@ -13,7 +13,7 @@ import {
   groupInstancesByDate,
   toISODate,
 } from "~/lib/timetable-helpers";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { TIMETABLE_UNTYPED_EDGE_COLOR } from "./timetable-colors";

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Children of the hosting school itself in the weeks it hosts (#6678, ADR
@@ -111,6 +111,65 @@ func (s *HolidayGuestStore) ListOwnChildren(ctx context.Context, schoolID int64,
 	for _, contact := range contacts {
 		if booking, ok := byBooking[weekChild{contact.WeekID, contact.ChildID}]; ok {
 			appendContact(&booking.Emergency, &booking.Pickup, contact.holidayGuestContactRow)
+		}
+	}
+	return bookings, nil
+}
+
+// homeSchoolBookingsQuery reads the confirmed, placed bookings of the
+// school's own children in the open weeks other schools of its Träger host
+// (#6679) through the database's own narrow function: one statement for any
+// number of weeks and children. The function checks the home school, the
+// Träger and the end of the week by the Berlin day itself; the statement
+// names the end by the service's calendar day once more.
+const homeSchoolBookingsQuery = `SELECT child_id, first_name, last_name, birth_date, week_id, period_name, starts_on, ends_on,
+		host_school_id, time_model_name, starts_at AS time_model_starts, ends_at AS time_model_ends, days::text AS days
+	FROM enrollment.holiday_home_school_bookings()
+	WHERE ends_on >= ?
+	ORDER BY starts_on, week_id, lower(last_name), lower(first_name), child_id`
+
+type homeSchoolBookingRow struct {
+	ChildID         int64         `bun:"child_id"`
+	FirstName       string        `bun:"first_name"`
+	LastName        string        `bun:"last_name"`
+	BirthDate       calendar.Date `bun:"birth_date"`
+	WeekID          int64         `bun:"week_id"`
+	PeriodName      string        `bun:"period_name"`
+	StartsOn        calendar.Date `bun:"starts_on"`
+	EndsOn          calendar.Date `bun:"ends_on"`
+	HostSchoolID    int64         `bun:"host_school_id"`
+	TimeModelName   string        `bun:"time_model_name"`
+	TimeModelStarts string        `bun:"time_model_starts"`
+	TimeModelEnds   string        `bun:"time_model_ends"`
+	Days            *string       `bun:"days"`
+}
+
+// ListHomeSchoolBookings reads the confirmed bookings of the school's own
+// children in open weeks other schools of its Träger host, in the tenant
+// transaction of the home school.
+func (s *HolidayGuestStore) ListHomeSchoolBookings(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayHomeSchoolBooking, error) {
+	db, err := hostDB(ctx, schoolID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []homeSchoolBookingRow
+	if err := db.NewRaw(homeSchoolBookingsQuery, today).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read the holiday bookings of the school's children at other schools: %w", err)
+	}
+	bookings := make([]enrollment.HolidayHomeSchoolBooking, len(rows))
+	for i, row := range rows {
+		days, err := holidayDaysOf(row.Days)
+		if err != nil {
+			return nil, err
+		}
+		if days == nil {
+			days = []calendar.Date{}
+		}
+		bookings[i] = enrollment.HolidayHomeSchoolBooking{
+			ChildID: row.ChildID, FirstName: row.FirstName, LastName: row.LastName, BirthDate: row.BirthDate,
+			WeekID: row.WeekID, PeriodName: row.PeriodName, StartsOn: row.StartsOn, EndsOn: row.EndsOn,
+			HostSchoolID: row.HostSchoolID, TimeModelName: row.TimeModelName,
+			TimeModelStarts: row.TimeModelStarts, TimeModelEnds: row.TimeModelEnds, Days: days,
 		}
 	}
 	return bookings, nil

@@ -13,7 +13,7 @@ import { readFileSync, appendFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const MODULE = "github.com/moto-nrw/project-phoenix/";
+const MODULE = "github.com/moto-ogs/project-phoenix/";
 
 export function loadBudgets(path = join(dirname(fileURLToPath(import.meta.url)), "backend-package-budgets.json")) {
   const raw = JSON.parse(readFileSync(path, "utf8"));
