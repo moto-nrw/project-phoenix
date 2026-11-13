@@ -25,7 +25,7 @@ var (
 	ibanLike = regexp.MustCompile(`\b[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}\b`)
 	// stringLiteral is any SQL string literal, a doubled quote inside it
 	// included. Only statements marked with protocol.RedactLiteralsInLog
-	// lose them: there they carry what a person typed (ADR 0229).
+	// lose them: there they carry what a person typed (ADR 0230).
 	stringLiteral = regexp.MustCompile(`'(?:[^']|'')*'`)
 )
 

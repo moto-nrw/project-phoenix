@@ -1,5 +1,5 @@
 // Package schoolsearchview is the public contract of the school search
-// projection (ADR 0229, #6954): one search over the children, their contact
+// projection (ADR 0230, #6954): one search over the children, their contact
 // persons, the staff, the rooms and the OGS groups of the school in the
 // caller's tenant transaction. The projection owns no data and never writes.
 //

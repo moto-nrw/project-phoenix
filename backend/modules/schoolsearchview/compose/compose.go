@@ -1,4 +1,4 @@
-// Package compose builds the school search projection (ADR 0229). It reads in
+// Package compose builds the school search projection (ADR 0230). It reads in
 // the caller's school transaction and never opens one of its own.
 package compose
 

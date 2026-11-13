@@ -12,7 +12,7 @@ import (
 	schoolSearchHTTP "github.com/moto-ogs/project-phoenix/modules/schoolsearchview/http"
 )
 
-// mountSchoolSearch serves the school search at /api/search (ADR 0229,
+// mountSchoolSearch serves the school search at /api/search (ADR 0230,
 // #6954) over Enrollment's registration answers and the caller's staff check.
 func mountSchoolSearch(tenant chi.Router, staff schoolSearchHTTP.StaffCheck) error {
 	search, err := schoolSearchCompose.New(enrollmentCompose.NewStudentAnswers())

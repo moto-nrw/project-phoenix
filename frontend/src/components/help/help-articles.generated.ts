@@ -7854,7 +7854,7 @@ export const roomsTopic = function roomsTopic(
   };
 } satisfies typeof authored_roomsTopic;
 
-// Die Suche über die ganze Schul-App (#6954, ADR 0229). Was jemand findet,
+// Die Suche über die ganze Schul-App (#6954, ADR 0230). Was jemand findet,
 // entscheidet der Server nach den Rechten des Kontos; der Artikel nennt nur,
 // was die Person dann anders sieht.
 export const schoolSearchTopic = function schoolSearchTopic(): HelpTopic {

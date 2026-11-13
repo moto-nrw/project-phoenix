@@ -25,7 +25,7 @@ func newStore() *postgres.Store {
 // caller's school transaction and Enrollment's own selection table.
 func NewOfferingSelectionReferences() enrollment.OfferingSelectionReferences { return newStore() }
 
-// NewStudentAnswers reads the school's registration answers in the caller's tenant transaction (ADR 0229).
+// NewStudentAnswers reads the school's registration answers in the caller's tenant transaction (ADR 0230).
 func NewStudentAnswers() enrollment.StudentAnswers {
 	return applicationNative.NewStudentAnswers(newStore())
 }

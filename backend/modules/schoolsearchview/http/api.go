@@ -1,4 +1,4 @@
-// Package schoolsearchviewhttp serves the school search (ADR 0229, #6954) at
+// Package schoolsearchviewhttp serves the school search (ADR 0230, #6954) at
 // POST /api/search inside the protected tenant routes.
 //
 // The query travels in the body, not in the URL: a phone number or a name
