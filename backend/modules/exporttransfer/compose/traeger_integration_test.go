@@ -396,11 +396,11 @@ func TestTraegerStoreFiltersTheTraegerBelowRowLevelSecurity(t *testing.T) {
 		assigned, err := store.AssignFormat(ctx, f.org, "datev", foreign, 0)
 		require.NoError(t, err)
 		assert.False(t, assigned, "a format never goes to another Träger's recipient")
-		require.NoError(t, store.ReplaceSealedPassword(ctx, f.org, foreign, []byte("rewrapped")))
+		require.NoError(t, store.ReplaceSealedPasswords(ctx, f.org, []int64{foreign}, [][]byte{[]byte("rewrapped")}))
 		deleted, err := store.DeleteRecipient(ctx, f.org, foreign)
 		require.NoError(t, err)
 		assert.False(t, deleted)
-		require.NoError(t, store.ReplaceSealedPassword(ctx, f.org, own, []byte("rewrapped")))
+		require.NoError(t, store.ReplaceSealedPasswords(ctx, f.org, []int64{own}, [][]byte{[]byte("rewrapped")}))
 		_, err = store.DeleteRecipient(ctx, f.org, own)
 		return err
 	})

@@ -43,8 +43,9 @@ type RecipientStore interface {
 	UpdateRecipient(ctx context.Context, recipient domain.StoredRecipient, actorAccountID int64) (bool, error)
 	// DeleteRecipient answers whether it existed; its formats go with it.
 	DeleteRecipient(ctx context.Context, organizationID, recipientID int64) (bool, error)
-	// ReplaceSealedPassword writes only the ciphertext, for the rekey.
-	ReplaceSealedPassword(ctx context.Context, organizationID, recipientID int64, sealed []byte) error
+	// ReplaceSealedPasswords writes only the ciphertexts of a rekey batch in
+	// one statement; ids and sealed pair up by position.
+	ReplaceSealedPasswords(ctx context.Context, organizationID int64, ids []int64, sealed [][]byte) error
 	// AssignFormat sends the format to the recipient, or to the download for
 	// recipientID 0; a recipient of another Träger answers false.
 	AssignFormat(ctx context.Context, organizationID int64, format string, recipientID, actorAccountID int64) (bool, error)

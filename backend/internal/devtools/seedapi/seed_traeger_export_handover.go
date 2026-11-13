@@ -14,11 +14,15 @@ import (
 // and the export page, the protocol and the journal show a handover that
 // did not arrive, with its reason.
 func seedExportHandover(client *Client, auth AuthRef, runID int64) error {
-	kaemmerei, err := seedExportRecipient(client, auth, "Kämmerei", "192.0.2.10", "kaemmerei", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789+/AbCdE")
+	existing, err := seededExportRecipients(client, auth)
 	if err != nil {
 		return err
 	}
-	steuerbuero, err := seedExportRecipient(client, auth, "Steuerbüro", "192.0.2.20", "steuerbuero", "ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543210+/ZyXwV")
+	kaemmerei, err := seedExportRecipient(client, auth, existing, "Kämmerei", "192.0.2.10", "kaemmerei", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789+/AbCdE")
+	if err != nil {
+		return err
+	}
+	steuerbuero, err := seedExportRecipient(client, auth, existing, "Steuerbüro", "192.0.2.20", "steuerbuero", "ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543210+/ZyXwV")
 	if err != nil {
 		return err
 	}
@@ -50,15 +54,49 @@ func seedExportHandover(client *Client, auth AuthRef, runID int64) error {
 	return nil
 }
 
-// seedExportRecipient adds one recipient and answers its id.
-func seedExportRecipient(client *Client, auth AuthRef, name, host, username, fingerprint string) (int64, error) {
-	raw, err := client.PostWithAuth(auth, "/traeger/export-recipient/", map[string]any{
+// seededExportRecipients reads the recipients the Träger already has, by
+// name: a second seed run on the same database saves them again instead of
+// adding a recipient of a taken name.
+func seededExportRecipients(client *Client, auth AuthRef) (map[string]int64, error) {
+	raw, err := client.GetWithAuth(auth, "/traeger/export-recipient/")
+	if err != nil {
+		return nil, fmt.Errorf("read the recipients of the finance exports: %w", err)
+	}
+	var envelope struct {
+		Data struct {
+			Recipients []struct {
+				ID   int64  `json:"id"`
+				Name string `json:"name"`
+			} `json:"recipients"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return nil, fmt.Errorf("read the recipients of the finance exports: %w", err)
+	}
+	existing := make(map[string]int64, len(envelope.Data.Recipients))
+	for _, recipient := range envelope.Data.Recipients {
+		existing[recipient.Name] = recipient.ID
+	}
+	return existing, nil
+}
+
+// seedExportRecipient adds one recipient, or saves the one of that name
+// again, and answers its id.
+func seedExportRecipient(client *Client, auth AuthRef, existing map[string]int64, name, host, username, fingerprint string) (int64, error) {
+	body := map[string]any{
 		"name": name, "enabled": true, "host": host, "port": 22, "username": username,
 		// A placeholder of the seed, never a credential of a real recipient.
 		"password":             "seed-kein-echtes-passwort",
 		"remote_directory":     "/eingang/moto",
 		"host_key_fingerprint": "SHA256:" + fingerprint,
-	})
+	}
+	var raw []byte
+	var err error
+	if id, ok := existing[name]; ok {
+		raw, err = client.PutWithAuth(auth, fmt.Sprintf("/traeger/export-recipient/%d", id), body)
+	} else {
+		raw, err = client.PostWithAuth(auth, "/traeger/export-recipient/", body)
+	}
 	if err != nil {
 		return 0, fmt.Errorf("enter the recipient %s of the finance exports: %w", name, err)
 	}

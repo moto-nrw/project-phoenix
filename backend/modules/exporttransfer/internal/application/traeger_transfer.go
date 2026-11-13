@@ -159,6 +159,8 @@ func (r RecipientRekey) Batch(ctx context.Context, organizationID, cursor int64,
 		return exporttransfer.RekeyResult{}, err
 	}
 	var result exporttransfer.RekeyResult
+	var ids []int64
+	var sealed [][]byte
 	for _, recipient := range recipients {
 		result.Scanned++
 		result.LastID = recipient.ID
@@ -172,10 +174,12 @@ func (r RecipientRekey) Batch(ctx context.Context, organizationID, cursor int64,
 		if string(rewrapped) == string(recipient.SealedPassword) {
 			continue
 		}
-		if err := r.Recipients.ReplaceSealedPassword(ctx, organizationID, recipient.ID, rewrapped); err != nil {
-			return exporttransfer.RekeyResult{}, err
-		}
-		result.Changed++
+		ids, sealed = append(ids, recipient.ID), append(sealed, rewrapped)
 	}
+	// One statement for the whole batch, under the locks of its read.
+	if err := r.Recipients.ReplaceSealedPasswords(ctx, organizationID, ids, sealed); err != nil {
+		return exporttransfer.RekeyResult{}, err
+	}
+	result.Changed = len(ids)
 	return result, nil
 }

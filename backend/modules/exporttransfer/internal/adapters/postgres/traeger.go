@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/domain"
 )
@@ -65,6 +66,7 @@ type recipientRow struct {
 	Formats            []string  `bun:"formats,array"`
 	// The newest handover of the recipient, when the read joins it.
 	LastID              *int64     `bun:"last_id"`
+	LastRecipientName   *string    `bun:"last_recipient_name"`
 	LastCreatedAt       *time.Time `bun:"last_created_at"`
 	LastFormat          *string    `bun:"last_format"`
 	LastFilename        *string    `bun:"last_filename"`
@@ -91,7 +93,8 @@ const (
 	lockRecipient = selectRecipient + ` FOR UPDATE OF recipient`
 	// selectRecipients joins the newest handover of each recipient: its
 	// error state stays visible until the next handover.
-	selectRecipients = `SELECT ` + recipientColumns + `, last.id AS last_id, last.created_at AS last_created_at,
+	selectRecipients = `SELECT ` + recipientColumns + `, last.id AS last_id, last.recipient_name AS last_recipient_name,
+		last.created_at AS last_created_at,
 		last.export_format AS last_format, last.filename AS last_filename, last.byte_size AS last_byte_size,
 		last.target_host AS last_target_host, last.target_directory AS last_target_directory, last.status AS last_status,
 		last.failure_reason AS last_reason, last.dispatch_state AS last_dispatch_state,
@@ -120,7 +123,7 @@ func storedRecipient(row recipientRow) domain.StoredRecipient {
 	if row.LastID != nil {
 		id := row.ID
 		recipient.LastHandover = &domain.TraegerJournalRow{ID: *row.LastID, CreatedAt: *row.LastCreatedAt, RecipientID: &id,
-			RecipientName: row.Name, Format: *row.LastFormat, Filename: *row.LastFilename, ByteSize: *row.LastByteSize,
+			RecipientName: *row.LastRecipientName, Format: *row.LastFormat, Filename: *row.LastFilename, ByteSize: *row.LastByteSize,
 			TargetHost: *row.LastTargetHost, TargetDirectory: *row.LastTargetDirectory, Status: *row.LastStatus, Reason: *row.LastReason,
 			DispatchState: *row.LastDispatchState, DispatchExpired: row.LastDispatchExpired != nil && *row.LastDispatchExpired}
 	}
@@ -288,16 +291,25 @@ func affected(result sql.Result) (bool, error) {
 	return n > 0, nil
 }
 
-// ReplaceSealedPassword writes only the ciphertext of the rekey; no other
-// column and no timestamp changes.
-func (s *TraegerStore) ReplaceSealedPassword(ctx context.Context, organizationID, recipientID int64, sealed []byte) error {
+// ReplaceSealedPasswords writes only the ciphertexts of a rekey batch, in
+// one statement; no other column and no timestamp changes. ids and sealed
+// pair up by position.
+func (s *TraegerStore) ReplaceSealedPasswords(ctx context.Context, organizationID int64, ids []int64, sealed [][]byte) error {
+	if len(ids) != len(sealed) {
+		return errors.New("export transfer postgres: every rewrapped password needs its recipient")
+	}
+	if len(ids) == 0 {
+		return nil
+	}
 	db, err := s.database(ctx, organizationID)
 	if err != nil {
 		return err
 	}
-	if _, err := db.NewRaw(`UPDATE config.traeger_export_recipients SET password_sealed = ? WHERE organization_id = ? AND id = ?`,
-		sealed, organizationID, recipientID).Exec(ctx); err != nil {
-		return fmt.Errorf("export transfer postgres: rewrap the recipient password: %w", err)
+	if _, err := db.NewRaw(`UPDATE config.traeger_export_recipients AS recipient SET password_sealed = rewrapped.sealed
+		FROM unnest(?::bigint[], ?::bytea[]) AS rewrapped (id, sealed)
+		WHERE recipient.organization_id = ? AND recipient.id = rewrapped.id`,
+		pgdialect.Array(ids), pgdialect.Array(sealed), organizationID).Exec(ctx); err != nil {
+		return fmt.Errorf("export transfer postgres: rewrap the recipient passwords: %w", err)
 	}
 	return nil
 }

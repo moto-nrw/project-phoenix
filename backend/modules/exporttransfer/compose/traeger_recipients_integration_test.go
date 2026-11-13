@@ -99,8 +99,24 @@ func TestTraegerFailureStaysWithItsRecipient(t *testing.T) {
 	arrived, err := f.transfers.Transfer(f.ctx, formatRequest(f.org, "pain008", "pain.xml", &destinations))
 	require.NoError(t, err)
 	require.True(t, arrived.Transferred)
+	// Saving the recipient changes no handover: its answer keeps the failure.
+	input.HostKeyFingerprint = f.server.Fingerprint
+	saved, err := f.transfers.SaveRecipient(f.ctx, f.org, 0, steuerbuero, input)
+	require.NoError(t, err)
+	require.NotNil(t, saved.LastHandover, "the save answer keeps the newest handover")
+	assert.Equal(t, exporttransfer.TraegerFailed, saved.LastHandover.State)
+	// A rename leaves the name a handover had.
+	input.Name = "Steuerkanzlei"
+	_, err = f.transfers.SaveRecipient(f.ctx, f.org, 0, steuerbuero, input)
+	require.NoError(t, err)
 	page, err := f.transfers.Recipients(f.ctx, f.org, 10)
 	require.NoError(t, err)
+	for _, recipient := range page.Recipients {
+		if recipient.ID == steuerbuero {
+			assert.Equal(t, "Steuerkanzlei", recipient.Name)
+			assert.Equal(t, "Steuerbüro", recipient.LastHandover.RecipientName, "the last handover keeps the name it had, as in the journal")
+		}
+	}
 	states := map[int64]string{}
 	for _, recipient := range page.Recipients {
 		require.NotNil(t, recipient.LastHandover)

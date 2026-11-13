@@ -238,8 +238,20 @@ func (s *TraegerService) SaveRecipient(ctx context.Context, organizationID, acto
 			return nameTaken(err)
 		}
 		saved, _, err := s.recipients.Recipient(txCtx, organizationID, recipientID)
+		if err != nil {
+			return err
+		}
+		// A save changes no handover: the answer keeps the newest one, so a
+		// failure stays in view until the next handover.
+		rows, err := s.journal.List(txCtx, organizationID, recipientID, 1)
+		if err != nil {
+			return err
+		}
+		if len(rows) > 0 {
+			saved.LastHandover = &rows[0]
+		}
 		view = s.view(saved)
-		return err
+		return nil
 	})
 	return view, err
 }
