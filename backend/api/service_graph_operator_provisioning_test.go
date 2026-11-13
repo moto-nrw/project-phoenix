@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
@@ -480,6 +481,47 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_StudentBlocked(t *test
 	blocked := requireProvisioningError(t, err, "PersonHasActiveProfileError")
 	assert.Equal(t, student.PersonID, blocked.FieldByName("PersonID").Int())
 	assertOperatorPersonKept(t, db, student.PersonID)
+}
+
+// A child profile that a concurrent transaction attaches to the person
+// while the operator deletes it must not end on an anonymised person (#6949).
+// The deletion locks the person before it checks, so it waits for that
+// transaction and then sees the child.
+func TestOperatorProvisioningIntegration_SoftDeletePerson_WaitsForConcurrentProfile(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := buildOperatorProvisioning(t, db)
+	ctx := provisioningContext(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	bare := testpkg.CreateTestPerson(t, db, "Bare", "Person")
+	student := testpkg.CreateTestStudent(t, db, "Moving", "Child", "2b")
+
+	attach, err := db.BeginTx(testpkg.Ctx(t), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = attach.Rollback() })
+	var attachPID int
+	require.NoError(t, attach.QueryRowContext(testpkg.Ctx(t), "SELECT pg_backend_pid()").Scan(&attachPID))
+	_, err = attach.ExecContext(testpkg.Ctx(t), "UPDATE users.student_profiles SET person_id = ? WHERE id = ?", bare.ID, student.ID)
+	require.NoError(t, err)
+
+	deleted := make(chan error, 1)
+	go func() { deleted <- service.SoftDeletePerson(ctx, bare.ID, operatorID, provisioningTestClientIP) }()
+	require.Eventually(t, func() bool {
+		select {
+		case err := <-deleted:
+			deleted <- err
+			return true
+		default:
+		}
+		var waiting int
+		err := db.QueryRowContext(testpkg.Ctx(t),
+			"SELECT count(*) FROM pg_stat_activity WHERE ? = ANY(pg_blocking_pids(pid))", attachPID).Scan(&waiting)
+		return err == nil && waiting > 0
+	}, 10*time.Second, 10*time.Millisecond)
+	require.NoError(t, attach.Commit())
+
+	requireProvisioningError(t, <-deleted, "PersonHasActiveProfileError")
+	assertOperatorPersonKept(t, db, bare.ID)
 }
 
 func assertOperatorPersonKept(t *testing.T, db *bun.DB, personID int64) {

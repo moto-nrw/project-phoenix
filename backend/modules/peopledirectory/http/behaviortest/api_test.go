@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -156,7 +155,6 @@ func newHarness(t *testing.T, directory *fakeDirectory) *harness {
 				Total    int `json:"total"`
 			}{pagination.Page, pagination.PageSize, pagination.Total}})
 		},
-		NoContent: func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) },
 		Failure: func(w http.ResponseWriter, r *http.Request, kind usersHTTP.FailureKind, err error) {
 			_ = render.Render(w, r, errorResponse{StatusCode: statusOf[kind], Status: statusOf[kind], Kind: string(kind), Detail: err.Error()})
 		},
@@ -355,27 +353,6 @@ func TestUpdatePersonKeepsStoredLinksWhenBodyOmitsThem(t *testing.T) {
 
 	missing := h.do(t, http.MethodPut, "/users/8", map[string]any{"first_name": "New", "last_name": "Name"})
 	assert.Equal(t, http.StatusNotFound, missing.Code)
-}
-
-func TestDeletePersonRespondsNoContentAndMapsModuleErrors(t *testing.T) {
-	t.Parallel()
-	directory := &fakeDirectory{persons: map[int64]peopledirectory.Person{}}
-	h := newHarness(t, directory)
-	h.permitted["users:delete"] = true
-
-	recorder := h.do(t, http.MethodDelete, "/users/7", nil)
-	assert.Equal(t, http.StatusNoContent, recorder.Code)
-	assert.EqualValues(t, 7, directory.deleted)
-
-	directory.err = peopledirectory.ErrPersonNotFound
-	missing := h.do(t, http.MethodDelete, "/users/7", nil)
-	assert.Equal(t, http.StatusNotFound, missing.Code)
-
-	directory.err = errors.New("storage down")
-	failed := h.do(t, http.MethodDelete, "/users/7", nil)
-	assert.Equal(t, http.StatusInternalServerError, failed.Code)
-	assert.Equal(t, "storage down", decodeError(t, failed).Detail)
-	assert.Contains(t, h.observed, "Internal Server Error:internal_error")
 }
 
 func TestNewResourceRequiresEveryDependency(t *testing.T) {
