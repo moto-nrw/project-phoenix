@@ -8198,7 +8198,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0226",
+      "approval_adr": "0227",
       "binding": "github.com/moto-ogs/project-phoenix/modules/workforce/compose.WorkTime.ShiftPlanReferences",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -16728,7 +16728,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0226",
+      "approval_adr": "0227",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/workforce/internal/application.Service.RemoveShiftType",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -17028,7 +17028,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0226",
+      "approval_adr": "0227",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/workforce/internal/application.Service.ShiftPlanReferences",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -23522,7 +23522,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0226",
+      "approval_adr": "0227",
       "binding": "github.com/moto-ogs/project-phoenix/modules/workforce/compose.WorkTime.RemoveShiftType",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -23614,7 +23614,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0226",
+      "approval_adr": "0227",
       "binding": "github.com/moto-ogs/project-phoenix/modules/workforce/compose.WorkTime.ShiftPlanReferences",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -24625,7 +24625,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0226",
+      "approval_adr": "0227",
       "binding": "github.com/moto-ogs/project-phoenix/modules/workforce/internal/planning.Records.RemoveShiftType",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -24648,7 +24648,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0226",
+      "approval_adr": "0227",
       "binding": "github.com/moto-ogs/project-phoenix/modules/workforce/internal/planning.Records.ShiftPlanReferences",
       "classification": "unresolved",
       "effect": "unresolved",
