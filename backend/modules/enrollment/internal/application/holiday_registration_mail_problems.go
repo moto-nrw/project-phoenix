@@ -66,11 +66,20 @@ func (h *HolidayRegistrationReview) registrationMails(ctx context.Context, organ
 	if len(ids) == 0 {
 		return ids, nil, nil
 	}
-	wanted := make(map[int64]bool, len(ids))
+	keys, byKey := closureMailKeys(ids, closureKeys)
+	states, err := h.mailStates.HolidayMails(ctx, organizationID, ids, keys)
+	if err != nil {
+		return nil, nil, fmt.Errorf("enrollment: read the mails of the holiday registrations: %w", err)
+	}
+	return ids, mailsByRegistration(ids, byKey, states), nil
+}
+
+// closureMailKeys lists each key of a closing day notice once, with the
+// registrations it names.
+func closureMailKeys(ids []int64, closureKeys map[int64][]string) ([]string, map[string][]int64) {
 	byKey := map[string][]int64{}
 	keys := []string{}
 	for _, id := range ids {
-		wanted[id] = true
 		for _, key := range closureKeys[id] {
 			if _, seen := byKey[key]; !seen {
 				keys = append(keys, key)
@@ -78,9 +87,16 @@ func (h *HolidayRegistrationReview) registrationMails(ctx context.Context, organ
 			byKey[key] = append(byKey[key], id)
 		}
 	}
-	states, err := h.mailStates.HolidayMails(ctx, organizationID, ids, keys)
-	if err != nil {
-		return nil, nil, fmt.Errorf("enrollment: read the mails of the holiday registrations: %w", err)
+	return keys, byKey
+}
+
+// mailsByRegistration assigns a closing day notice to every registration its
+// key names and any other mail to the registration it relates to; a mail of
+// a registration outside ids stays out.
+func mailsByRegistration(ids []int64, byKey map[string][]int64, states []enrollment.HolidayMailState) map[int64][]enrollment.HolidayMailState {
+	wanted := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		wanted[id] = true
 	}
 	byRegistration := map[int64][]enrollment.HolidayMailState{}
 	for _, state := range states {
@@ -92,7 +108,7 @@ func (h *HolidayRegistrationReview) registrationMails(ctx context.Context, organ
 			byRegistration[id] = append(byRegistration[id], state)
 		}
 	}
-	return ids, byRegistration, nil
+	return byRegistration
 }
 
 // holidayMailProblems names the mails that did not reach the parents.
