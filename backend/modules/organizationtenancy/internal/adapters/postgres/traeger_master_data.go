@@ -18,10 +18,6 @@ import (
 // section 5, ADR 0105): every statement here runs in the Träger transaction
 // of the Träger it names, and names it once more in its own filter.
 
-// traegerAuditRetention is how long the master data log keeps an entry, the
-// three years of the settings audit (#4044, ADR 0107 point 6).
-const traegerAuditRetention = "3 years"
-
 // TraegerMasterDataStore persists the master data in the Träger transaction.
 type TraegerMasterDataStore struct{}
 
@@ -133,11 +129,14 @@ const (
 		WHERE organization_id = ? AND is_default`
 	deleteTraegerBankAccountQuery = `DELETE FROM platform.traeger_bank_accounts WHERE organization_id = ? AND id = ?`
 
-	pruneTraegerMasterDataAuditQuery = `DELETE FROM platform.traeger_master_data_audit
-		WHERE organization_id = ? AND occurred_at < CURRENT_TIMESTAMP - INTERVAL '` + traegerAuditRetention + `'`
+	// appendTraegerMasterDataAuditQuery prunes and appends in one statement.
+	// The tenant role holds no DELETE on the log (#6844): the fixed function
+	// in FROM drops the Träger's entries older than three years, the window
+	// of the settings audit (#4044, ADR 0107 point 6), before the row goes in.
 	appendTraegerMasterDataAuditQuery = `INSERT INTO platform.traeger_master_data_audit
 		(organization_id, subject, subject_id, action, old_value, new_value, actor_account_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`
+		SELECT ?, ?, ?, ?, ?, ?, ?
+		FROM platform.delete_expired_traeger_master_data_audit(?)`
 )
 
 // traegerMasterDataRow is one bank account of the Träger next to its
@@ -398,15 +397,12 @@ func (s *TraegerMasterDataStore) AppendAudit(ctx context.Context, entry domain.T
 	if err != nil {
 		return err
 	}
-	if _, err := db.ExecContext(ctx, pruneTraegerMasterDataAuditQuery, entry.OrganizationID); err != nil {
-		return fmt.Errorf("organization tenancy postgres: prune Träger master data log: %w", err)
-	}
 	var subjectID *int64
 	if entry.SubjectID > 0 {
 		subjectID = &entry.SubjectID
 	}
 	if _, err := db.ExecContext(ctx, appendTraegerMasterDataAuditQuery, entry.OrganizationID, entry.Subject, subjectID, entry.Action,
-		jsonOrNull(entry.OldValue), jsonOrNull(entry.NewValue), traegerActor(entry.ActorAccountID)); err != nil {
+		jsonOrNull(entry.OldValue), jsonOrNull(entry.NewValue), traegerActor(entry.ActorAccountID), entry.OrganizationID); err != nil {
 		return fmt.Errorf("organization tenancy postgres: append Träger master data log: %w", err)
 	}
 	return nil

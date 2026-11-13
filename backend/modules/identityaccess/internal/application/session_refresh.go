@@ -84,16 +84,6 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 	if err != nil {
 		return nil, failed("generate tokens", err)
 	}
-	// Filed at the school the successor is kept at, which the refresh
-	// validated: the route carries no tenant. A parent session at a Träger
-	// has none, and its account may have none either (ADR 0216).
-	audit := &mintAudit{event: domain.AuthEventTokenRefresh, ipAddress: ipAddress, userAgent: userAgent, schoolID: rotated.newSession.TenantID}
-	if rotated.newSession.SessionKind() == domain.SessionKindTraegerParent {
-		audit = s.schoollessAudit(ctx, rotated.account.ID, domain.AuthEventTokenRefresh, ipAddress, userAgent)
-	}
-	if audit != nil {
-		s.auditSession(ctx, rotated.account.ID, *audit)
-	}
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshTokenString}, nil
 }
 
@@ -196,7 +186,25 @@ func (r *refreshRotation) run(ctx context.Context) error {
 	if err := r.service.requireSessionFloor(ctx, r.account.ID, current.TenantID, current, factReads{locked: true}); err != nil {
 		return err
 	}
-	return r.persist(ctx, current, wasRecovered, now)
+	if err := r.persist(ctx, current, wasRecovered, now); err != nil {
+		return err
+	}
+	return r.audit(ctx)
+}
+
+// audit files the refresh in the rotation transaction (#6844), at the school
+// the successor is kept at, which the refresh validated: the route carries no
+// tenant. A parent session at a Träger has none, and its account may have
+// none either (ADR 0216).
+func (r *refreshRotation) audit(ctx context.Context) error {
+	audit := &mintAudit{event: domain.AuthEventTokenRefresh, ipAddress: r.ipAddress, userAgent: r.userAgent, schoolID: r.newSession.TenantID}
+	if r.newSession.SessionKind() == domain.SessionKindTraegerParent {
+		audit = r.service.schoollessAudit(ctx, r.account.ID, domain.AuthEventTokenRefresh, r.ipAddress, r.userAgent)
+	}
+	if audit == nil {
+		return nil
+	}
+	return r.service.auditSession(ctx, r.account.ID, *audit)
 }
 
 func (r *refreshRotation) lockAccount(ctx context.Context) error {

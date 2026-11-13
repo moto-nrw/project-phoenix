@@ -90,13 +90,7 @@ func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.Reque
 			items = append(items, item)
 			continue
 		}
-		if err := s.careRequestDiff(ctx, row, student, item, today, plans); err != nil {
-			s.deps.Logger.Warn("schedule: build care request diff failed",
-				"request_id", row.ID,
-				"error", err.Error(),
-			)
-			item.Diff = requestedCareSummary(row.Payload)
-		}
+		s.reviewDiff(ctx, row, student, item, today, plans)
 		items = append(items, item)
 	}
 	return items, next, nil

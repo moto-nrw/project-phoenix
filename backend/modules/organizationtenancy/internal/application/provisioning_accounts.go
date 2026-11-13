@@ -41,11 +41,13 @@ func (p *Provisioning) InviteSchoolAdmin(ctx context.Context, schoolID, operator
 		if err != nil {
 			return nil, err
 		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceInvitation, &invitation.ID, clientIP, map[string]any{
+		if err := p.recordAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceInvitation, &invitation.ID, clientIP, map[string]any{
 			"schoolID": school.ID,
 			"email":    invitation.Email,
 			"roleID":   invitation.RoleID,
-		})
+		}); err != nil {
+			return nil, err
+		}
 		view := organizationtenancy.SchoolAdminInvitation(invitation)
 		return &view, nil
 	})

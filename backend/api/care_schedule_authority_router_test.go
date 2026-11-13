@@ -54,9 +54,13 @@ func TestCareScheduleAuthorityHTTPFlow(t *testing.T) {
 
 	decisionPath := "/api/students/care-schedule-change-requests/" + strconv.FormatInt(requestID, 10) + "/decide"
 	// #2267: reason policy defaults to "both", so a staff approval carries a reason.
+	// #6843: an approval names the diff the reviewer saw; the decision path
+	// with that token is covered by careplan/http TestWeeklyApprovalRefusesPlanChangedSinceReview.
 	decided := doCareScheduleJSON(t, router, http.MethodPost, decisionPath, staffToken, map[string]any{"approve": true, "reason": "Passt so"})
-	require.Equal(t, http.StatusOK, decided.Code, decided.Body.String())
-	assert.Contains(t, decided.Body.String(), `"status":"approved"`)
+	require.Equal(t, http.StatusBadRequest, decided.Code, decided.Body.String())
+	rejected = doCareScheduleJSON(t, router, http.MethodPost, decisionPath, staffToken, map[string]any{"approve": false, "reason": "Passt nicht"})
+	require.Equal(t, http.StatusOK, rejected.Code, rejected.Body.String())
+	assert.Contains(t, rejected.Body.String(), `"status":"rejected"`)
 }
 
 func careScheduleParentToken(t *testing.T, chain testpkg.ParentChain) string {
@@ -85,6 +89,36 @@ func doCareScheduleJSON(t *testing.T, handler http.Handler, method, path, token 
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 	return recorder
+}
+
+// careScheduleImpactToken reads the impact token the open queue shows for one
+// pending care request (#6843).
+func careScheduleImpactToken(t *testing.T, handler http.Handler, token string, studentID, requestID int64) string {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/api/students/change-requests?view=open&types=care_schedule&student_id="+strconv.FormatInt(studentID, 10), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var response struct {
+		Data struct {
+			Items []struct {
+				Data struct {
+					ID          string `json:"id"`
+					ImpactToken string `json:"impact_token"`
+				} `json:"data"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	for _, item := range response.Data.Items {
+		if item.Data.ID == strconv.FormatInt(requestID, 10) {
+			require.NotEmpty(t, item.Data.ImpactToken)
+			return item.Data.ImpactToken
+		}
+	}
+	t.Fatalf("care request %d missing from the open queue", requestID)
+	return ""
 }
 
 func careSchedulePendingRequestID(t *testing.T, recorder *httptest.ResponseRecorder) int64 {

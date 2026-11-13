@@ -1331,6 +1331,8 @@ export const ERROR_CATALOG = {
         "Bitte wählen Sie höchstens 500 Kinder auf einmal aus.",
       "students.care_offerings_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "students.care_request_plan_changed":
+        "Der Betreuungsplan wurde gerade geändert. Bitte laden Sie die Seite neu. Prüfen Sie die Anfrage dann noch einmal.",
       "students.care_resume_alumnus":
         "Dieses Kind wurde beim Schuljahreswechsel abgemeldet. Sie finden es unter Schuljahreswechsel, Bereich Abgänge.",
       "students.care_resume_missing":
@@ -2584,6 +2586,8 @@ export const ERROR_CATALOG = {
         "{object} has been changed in the meantime. Please check your details again.",
       "students.care_offerings_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "students.care_request_plan_changed":
+        "The care plan has just changed. Please reload the page. Then check the request again.",
       "students.change_request_stale":
         "{object} has been changed in the meantime. Please reload the page.",
       "students.export_selection_too_large":
@@ -3237,6 +3241,8 @@ export const ERROR_CATALOG = {
         "Данные изменились: {object}. Проверьте свои данные ещё раз.",
       "students.care_offerings_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "students.care_request_plan_changed":
+        "План присмотра только что изменился. Обновите страницу. Затем проверьте запрос ещё раз.",
       "students.change_request_stale":
         "Данные изменились: {object}. Обновите страницу.",
       "students.export_selection_too_large":
@@ -3848,6 +3854,8 @@ export const ERROR_CATALOG = {
         "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
       "students.care_offerings_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "students.care_request_plan_changed":
+        "Plani i kujdesit sapo ndryshoi. Ju lutemi rifreskoni faqen. Pastaj kontrolloni sërish kërkesën.",
       "students.change_request_stale":
         "Ndërkohë është ndryshuar: {object}. Ju lutemi ringarkoni faqen.",
       "students.export_selection_too_large":
@@ -4447,6 +4455,8 @@ export const ERROR_CATALOG = {
         "W międzyczasie zmieniono: {object}. Sprawdź ponownie swoje dane.",
       "students.care_offerings_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "students.care_request_plan_changed":
+        "Plan opieki właśnie się zmienił. Odśwież stronę. Następnie sprawdź wniosek jeszcze raz.",
       "students.change_request_stale":
         "W międzyczasie zmieniono: {object}. Odśwież stronę.",
       "students.export_selection_too_large":
@@ -5051,6 +5061,8 @@ export const ERROR_CATALOG = {
         "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
       "students.care_offerings_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "students.care_request_plan_changed":
+        "Bakım planı az önce değişti. Lütfen sayfayı yenileyin. Ardından talebi tekrar kontrol edin.",
       "students.change_request_stale":
         "{object} bu arada değiştirildi. Lütfen sayfayı yenileyin.",
       "students.export_selection_too_large":
@@ -5648,6 +5660,8 @@ export const ERROR_CATALOG = {
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",
       "students.care_offerings_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "students.care_request_plan_changed":
+        "План догляду щойно змінився. Оновіть сторінку. Потім ще раз перевірте запит.",
       "students.change_request_stale":
         "Дані змінилися: {object}. Оновіть сторінку.",
       "students.export_selection_too_large":

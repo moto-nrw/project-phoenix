@@ -58,7 +58,8 @@ func TestProvisioningInviteSchoolAdmin(t *testing.T) {
 		assert.Empty(t, h.identity.invitations)
 	})
 
-	t.Run("audit failure does not fail the invitation", func(t *testing.T) {
+	// The invitation commits only with its operator audit entry (#6844).
+	t.Run("audit failure fails the invitation", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seedDeviceSchools(h)
@@ -66,8 +67,8 @@ func TestProvisioningInviteSchoolAdmin(t *testing.T) {
 
 		invitation, err := h.svc.InviteSchoolAdmin(context.Background(), 10, testOperatorID, operatorIP, input)
 
-		require.NoError(t, err)
-		require.NotNil(t, invitation)
+		require.ErrorIs(t, err, errBoom)
+		assert.Nil(t, invitation)
 	})
 
 	for name, tc := range map[string]struct {
