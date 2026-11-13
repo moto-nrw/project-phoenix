@@ -83,6 +83,7 @@ func (m *SEPAMandates) ImportSEPAMandates(ctx context.Context, reviewer parentbi
 		}
 		return result, nil
 	}
+	table, withoutMandate := dropRowsWithoutMandate(table, columns)
 	candidates, err := m.evaluateImport(ctx, reviewer, table, columns, creditor.CreditorID, request.Sequences)
 	if err != nil {
 		return parentbilling.SEPAMandateImport{}, err
@@ -99,7 +100,25 @@ func (m *SEPAMandates) ImportSEPAMandates(ctx context.Context, reviewer parentbi
 		countImportRow(&result.Counts, candidate.row.Status)
 	}
 	countDebtorNumbers(&result.Counts, candidates)
+	result.Counts.WithoutMandate = withoutMandate
 	return result, nil
+}
+
+// dropRowsWithoutMandate leaves out the rows with neither an IBAN nor a
+// reference and counts them (#7009): a file with a row per child names
+// every child, also one whose family pays without a mandate. Such a row is
+// no mistake; a row with only one of the two still is.
+func dropRowsWithoutMandate(table importTable, columns importColumnIndex) (importTable, int) {
+	check := importCheck{columns: columns}
+	kept := table
+	kept.rows, kept.lines = make([][]string, 0, len(table.rows)), make([]int, 0, len(table.lines))
+	for i, cells := range table.rows {
+		if check.cell(cells, parentbilling.ImportFieldIBAN) == "" && check.cell(cells, parentbilling.ImportFieldReference) == "" {
+			continue
+		}
+		kept.rows, kept.lines = append(kept.rows, cells), append(kept.lines, table.lines[i])
+	}
+	return kept, len(table.rows) - len(kept.rows)
 }
 
 // bindCreditorChoice keeps the office's choice that the file holds the

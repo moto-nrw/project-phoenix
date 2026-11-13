@@ -33,3 +33,20 @@ func TestCSVDelimiterSkipsLeadingEmptyLines(t *testing.T) {
 		}
 	}
 }
+
+// A NUL in the role of a quote becomes a quote, and a quote inside such a
+// field is doubled; a NUL elsewhere stays (#7009).
+func TestQuoteNULDelimiters(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]string{
+		"\x00a\x00;\x00\x00\r\n\x00b\"c\x00": "\"a\";\"\"\r\n\"b\"\"c\"",
+		"\xEF\xBB\xBF\x00a\x00,b":            "\"a\",b",
+		"a;b\n":                              "a;b\n",
+		"a\x00b;c":                           "a\x00b;c",
+		"\x00a;b":                            "\x00a;b",
+	} {
+		if got := string(QuoteNULDelimiters([]byte(in))); got != want {
+			t.Errorf("QuoteNULDelimiters(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

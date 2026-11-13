@@ -35,6 +35,43 @@ func DecodeCSVText(content []byte) (string, string, error) {
 	return text, encoding, nil
 }
 
+// QuoteNULDelimiters reads a NUL character in the role of the quote
+// character as a quote (#7009): some programs, OGS Connect among them,
+// write \x00Name\x00 where a CSV has "Name". A NUL counts as a quote only
+// at the start of a field (start of the file or line, after a delimiter)
+// and at its end (before a delimiter, line break or the end of the file);
+// a quote inside such a field is doubled. Any other NUL stays, so
+// DecodeCSVText still refuses the file as no text. A file without NUL is
+// answered unchanged.
+func QuoteNULDelimiters(content []byte) []byte {
+	if !bytes.Contains(content, []byte{0}) {
+		return content
+	}
+	content = bytes.TrimPrefix(content, []byte("\xEF\xBB\xBF"))
+	boundary := func(b byte) bool { return b == ';' || b == ',' || b == '\t' || b == '\n' || b == '\r' }
+	out := make([]byte, 0, len(content)+16)
+	quoted := false
+	for i, b := range content {
+		switch {
+		case b == 0 && !quoted && (i == 0 || boundary(content[i-1])):
+			quoted = true
+			out = append(out, '"')
+		case b == 0 && quoted && (i == len(content)-1 || boundary(content[i+1])):
+			quoted = false
+			out = append(out, '"')
+		case b == '"' && quoted:
+			out = append(out, '"', '"')
+		default:
+			out = append(out, b)
+		}
+	}
+	if quoted {
+		// An unclosed field: the NUL was no quote, the file stays refused.
+		return content
+	}
+	return out
+}
+
 // CSVDelimiter is the chosen delimiter or, when none is chosen, the one
 // of semicolon, comma and tab the first nonempty line holds most often outside
 // quotes; a tie takes the semicolon German spreadsheets write.

@@ -222,6 +222,11 @@ type SEPAMandateImportCounts struct {
 	Conflict  int `json:"conflict"`
 	Invalid   int `json:"invalid"`
 	Imported  int `json:"imported"`
+	// WithoutMandate counts the rows without an IBAN and a reference, which
+	// the import skips: a file with a row per child, such as the master
+	// data of OGS Connect, has them for every child without a mandate
+	// (#7009).
+	WithoutMandate int `json:"without_mandate"`
 	// DebtorNumbers counts the families whose debtor number the import
 	// takes over; DebtorConflicts the rows whose number it leaves.
 	DebtorNumbers   int `json:"debtor_numbers"`
