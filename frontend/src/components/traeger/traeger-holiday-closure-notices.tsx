@@ -21,7 +21,10 @@ import {
 } from "lucide-react";
 import { formatClosingRange } from "~/components/traeger/closing-day-format";
 import { Button } from "~/components/ui/button";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
@@ -191,10 +194,7 @@ export function TraegerHolidayClosureNotices({
     const { current, previous } = notice;
     const showFamilies = notice.status === "suggested" && notice.families > 0;
     return (
-      <li
-        key={row.notice.id}
-        className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-start"
-      >
+      <ResponsiveActionRow key={row.notice.id} align="start">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <p className="text-sm font-semibold wrap-anywhere text-gray-900">
@@ -264,7 +264,7 @@ export function TraegerHolidayClosureNotices({
             </Button>
           </div>
         ) : null}
-      </li>
+      </ResponsiveActionRow>
     );
   };
   if (loadError)

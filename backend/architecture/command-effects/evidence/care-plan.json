@@ -15601,14 +15601,6 @@
       "target_owner": "people-directory"
     },
     {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
-      "binding_digest": "116f64c508cc92711ef3d1138f480102",
-      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.GuardianAbsenceRecords.ClearStudentStatusDays",
-      "source_owner": "care-plan",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinTenant",
-      "target_owner": "tenant-runtime"
-    },
-    {
       "binding": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.LockStudentAndExceptionDay",
       "binding_digest": "54031e4a924237a16ac93fe961099ffe",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.GuardianAbsenceRecords.LockStudentAndExceptionDay",

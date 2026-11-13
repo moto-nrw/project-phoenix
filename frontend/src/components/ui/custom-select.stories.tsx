@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import type { ComponentProps } from "react";
 import { useState } from "react";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { CustomSelect } from "./custom-select";
 
 const OPTIONS = [
@@ -73,5 +74,47 @@ export const Empty: Story = {
   args: {
     options: [],
     ariaLabel: "Gruppe auswählen",
+  },
+};
+
+/** Beschriftung, Hinweis und Fehler aus der Feld-Hülle (#6579). */
+export const WithLabelHintAndError: Story = {
+  render: (args) => <ControlledCustomSelect {...args} />,
+  args: {
+    options: OPTIONS,
+    ariaLabel: undefined,
+    label: "Gruppe",
+    required: true,
+    hint: "Die Gruppe, in der das Kind betreut wird.",
+    error: "Bitte wählen Sie eine Gruppe.",
+  },
+};
+
+/** Dichte Zeilen: die kleinere Feldhöhe. */
+export const Compact: Story = {
+  render: (args) => <ControlledCustomSelect {...args} />,
+  args: {
+    options: OPTIONS,
+    value: "group-a",
+    ariaLabel: "Gruppe auswählen",
+    controlSize: "dense",
+  },
+};
+
+/** Offene Liste mit Suchfeld (#6576, Baseline des Pixel-Vergleichs). */
+export const SearchableOpened: Story = {
+  render: (args) => <ControlledCustomSelect {...args} />,
+  args: {
+    options: OPTIONS,
+    ariaLabel: "Gruppe auswählen",
+    searchable: true,
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("combobox", { name: "Gruppe auswählen" }),
+    );
+    await expect(
+      await screen.findByRole("textbox", { name: "Suchen" }),
+    ).toBeVisible();
   },
 };

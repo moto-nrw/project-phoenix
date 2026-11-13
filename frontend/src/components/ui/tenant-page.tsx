@@ -5,7 +5,6 @@ import { MobilePageHelpTarget } from "~/components/ui/mobile-page-help-target";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ChevronDown, Info } from "lucide-react";
 import type {
-  InputHTMLAttributes,
   KeyboardEvent,
   MouseEvent,
   PointerEvent,
@@ -26,22 +25,24 @@ import {
   type PageBodyEmpty,
   type PageBodyError,
 } from "~/components/ui/page-body";
-import { useNotBookedSlots } from "./not-booked-slot";
-import { useNotBookedPageModule } from "~/lib/not-booked-page-context";
+import { useNotBookedPageModule } from "./not-booked-slot";
+import { usePagePath } from "./page-path";
 import { BackLink } from "~/components/ui/back-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
-import type { PageHeaderWithSearchProps } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import {
+  TenantPageSearchRow,
+  type TenantPageSearchRowProps,
+} from "~/components/ui/tenant-page-search-row";
 import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
-import { useTenantAwarePath } from "~/lib/tenant-path";
-import type {
-  ActiveFilter,
-  FilterConfig,
-  OverflowMenuItem,
-} from "~/components/ui/page-header/types";
 import { createLogger } from "~/lib/logger";
+import {
+  HEAD_ACTIONS_LAYOUT,
+  HEAD_CONTROL_HEIGHT,
+  HEAD_PADDING,
+  HEAD_TITLE_SIZE,
+} from "./control-geometry";
 import { cn } from "~/lib/utils";
 
 /**
@@ -83,7 +84,7 @@ export interface TenantPageTab {
   readonly href?: string;
 }
 
-export interface TenantPageProps {
+export interface TenantPageProps extends TenantPageSearchRowProps {
   readonly title: string;
   /**
    * Statuszeile unter dem Titel: echte Zahlen der Seite, die sie ohnehin lädt
@@ -118,60 +119,18 @@ export interface TenantPageProps {
   /** Blendet die Kopfkarte nur für eine druckbare Inhaltsansicht aus. */
   readonly printHideHeader?: boolean;
 
-  /** Suchfeld in der Kopfkarte. */
-  readonly search?: {
-    readonly value: string;
-    readonly onChange: (value: string) => void;
-    readonly placeholder?: string;
-    /** Attribute des zugrunde liegenden Suchfelds, etwa `disabled`. */
-    readonly inputProps?: InputHTMLAttributes<HTMLInputElement>;
-    /** Verzögert die Übergabe der Eingabe an die Seite. */
-    readonly debounceMs?: number;
-    /** Setzt einen noch nicht übergebenen Suchentwurf zurück. */
-    readonly resetKey?: string | number;
-  };
-  readonly filters?: readonly FilterConfig[];
-  readonly activeFilters?: readonly ActiveFilter[];
-  readonly onClearAllFilters?: () => void;
-  readonly overflowMenu?: readonly OverflowMenuItem[];
   /**
-   * Zaehler-Plakette in der Such- und Filterzeile, z. B. die Zahl der
-   * gefundenen Kinder. Nur fuer eine Zahl, die sich mit der Filterung aendert
-   * — feste Kennzahlen gehoeren in `stats`.
-   */
-  readonly badge?: {
-    readonly icon?: ReactNode;
-    readonly count: number;
-    readonly label?: string;
-  };
-  /**
-   * Sammelt viele Filter hinter einer Schaltflaeche statt sie in die Zeile zu
-   * legen. Ab etwa drei Filtern ist das die richtige Wahl — eine Zeile, die
-   * umbricht, ist keine Zeile mehr. Mit `filterSections` bekommt die Flaeche
-   * dahinter Ueberschriften.
-   */
-  readonly filterVariant?: "default" | "quiet";
-  readonly filterSections?: PageHeaderWithSearchProps["filterSections"];
-  /** Ab welcher Breite die Filter wieder in der Zeile stehen duerfen. */
-  readonly desktopFiltersFrom?: PageHeaderWithSearchProps["desktopFiltersFrom"];
-  /** Aktive Filter als Zahl auf der Schaltflaeche statt als Chip-Reihe. */
-  readonly activeFilterDisplay?: PageHeaderWithSearchProps["activeFilterDisplay"];
-  /**
-   * Hauptaktion IN der Such- und Filterzeile statt in der Titelzeile. Nur fuer
-   * Aktionen, die zur Liste darunter gehoeren (An- und Abmelden).
-   */
-  readonly primaryAction?: ReactNode;
-
-  /**
-   * Fertige Such- und Filterzeile fuer Layout-Adapter (DatabasePageLayout),
-   * die ihre PageHeaderWithSearch selbst konfigurieren. Seiten nutzen
-   * search/filters und NICHT diesen Slot.
+   * Bedienband der Kopfkarte, das keine Such- und Filterzeile ist: die
+   * Zeitnavigation der Planungsflächen (`PlanningContextBar`) oder die
+   * Aktionskarten der Kindakte. Suche und Filter gehören in
+   * `search`/`filters` und NICHT in diesen Slot.
    */
   readonly searchSlot?: ReactNode;
 
   /**
    * Hoehe der Elemente im searchSlot. "controls" (Standard) zieht Knoepfe,
-   * Felder und Auswahllisten auf die einheitliche Bedienhoehe von 36 px.
+   * Felder und Auswahllisten auf die Bedienhoehe der Kopfkarte
+   * (`HEAD_CONTROL_HEIGHT`).
    * "natural" laesst dem Slot seine eigene Hoehe -- fuer Inhalte, die keine
    * Bedienzeile sind, sondern die Hauptaktion der Seite (die grossen
    * Aktionskarten in der Kindakte).
@@ -429,24 +388,6 @@ export function TenantPageStats({
 }
 
 /**
- * Eine Bedienhöhe im Seitenkopf. Ohne diese Klammer stehen dort 32, 36 und
- * 40 px nebeneinander, je nachdem welches Kit-Bauteil eine Seite gerade
- * greift — gemessen auf /statistics: Zeitraum 32, Export 36, Filter 40.
- * Der Selektor greift auch verschachtelte Auslöser, deshalb Nachfahren und
- * nicht nur direkte Kinder.
- */
-// Eine Bedienhöhe in der Kopfkarte: 40 px für Schaltflächen, Links in
-// Button-Optik (`ButtonLink`), Auswahl- UND Eingabefelder, auf dem Telefon
-// 44 px (die Untergrenze für eine Touch-Fläche, dieselbe wie die
-// Fingerregel des Kits). Das Eingabefeld fehlte hier anfangs, deshalb stand das
-// Suchfeld mit 42 px neben Filterknöpfen mit 36 — auf acht Seiten derselbe
-// Versatz; ebenso stand ein `ButtonLink` mit 32 oder 36 px neben 40-px-Knöpfen
-// (#5531). Der `SegmentedControl` behauptet seine Segmenthöhe mit `!` und
-// kommt mitsamt Spur ebenfalls auf 40 px — siehe dort.
-const CONTROL_HEIGHT =
-  "[&_button]:h-10 [&_a[data-button-link]]:h-10 [&_select]:h-10 [&_input]:h-10 max-sm:[&_button]:h-11 max-sm:[&_a[data-button-link]]:h-11 max-sm:[&_select]:h-11 max-sm:[&_input]:h-11";
-
-/**
  * Die Such- und Filterzeile der Kopfkarte als eigene Fläche im Inhalt, direkt
  * über der Liste, die sie filtert. Nur für eine Seite, deren Liste weit unter
  * der Kopfkarte beginnt, weil andere Flächen davor stehen (Aktuelle Aufsicht,
@@ -471,13 +412,11 @@ export function TenantPageListSearch({
   return (
     // Die Auswahl „Gruppe“ öffnet über den Kartenrand hinaus.
     <SectionCard overflow="visible">
-      <div role="search" aria-label={label} className={CONTROL_HEIGHT}>
-        <PageHeaderSearchLayout
-          embedded
-          title=""
+      <div role="search" aria-label={label} className={HEAD_CONTROL_HEIGHT}>
+        <TenantPageSearchRow
           search={search}
-          filters={filters as FilterConfig[] | undefined}
-          activeFilters={activeFilters as ActiveFilter[] | undefined}
+          filters={filters}
+          activeFilters={activeFilters}
           onClearAllFilters={onClearAllFilters}
         />
       </div>
@@ -490,19 +429,21 @@ const DEFAULT_BACK_HREF = "/database";
 const DEFAULT_BACK_LABEL = "Zurück zur Datenverwaltung";
 
 /**
- * `BackLink` im Tenant-Portal: löst den Pfad für die Schule auf. Das Gerüst
- * setzt ihn über den Titel; nur eine Fläche ohne Kopfkarte (ein Skelett vor
- * dem Gerüst) rendert ihn selbst.
+ * `BackLink` im Seitengerüst: löst den Pfad über die Pfadauflösung des
+ * Portals auf (`PagePathProvider`, im Tenant-Bereich die Schule); ohne sie
+ * gilt der Pfad, wie er übergeben wird. Das Gerüst setzt ihn über den Titel;
+ * nur eine Fläche ohne Kopfkarte (ein Skelett vor dem Gerüst) rendert ihn
+ * selbst.
  */
 export function TenantBackLink({
   href,
   label,
   className = "mb-2",
 }: Readonly<{ href?: string; label?: string; className?: string }>) {
-  const tenantPath = useTenantAwarePath();
+  const pagePath = usePagePath();
   return (
     <BackLink
-      href={tenantPath(href ?? DEFAULT_BACK_HREF)}
+      href={pagePath(href ?? DEFAULT_BACK_HREF)}
       // Ohne eigenen Text nennt der Rückweg die Datenverwaltung nur, wenn er
       // auch dorthin führt.
       label={label ?? (href ? "Zurück" : DEFAULT_BACK_LABEL)}
@@ -513,15 +454,16 @@ export function TenantBackLink({
 
 /**
  * Jede Seite der Mitarbeiter-Oberfläche rendert dieses Gerüst. Gehört die
- * Seite zu einem Modul, das die Schule nicht gebucht hat (Modul-Register,
- * #4894), steht unter ihrem Titel statt des Inhalts die Erklärung: zu
- * welchem Modul sie gehört und wer handelt. Welches Modul gesperrt ist,
- * ermittelt `NotBookedPageProvider` im Layout.
+ * Seite zu einem Modul, das die Schule nicht gebucht hat (#4894), behält
+ * das Gerüst nur Titel und Rückweg; den erklärenden Zustand darunter rendert
+ * `PageBody` aus demselben Slot (`NotBookedSlots.pageModule`, #6577).
  */
 export function TenantPage(props: TenantPageProps) {
-  const notBookedModule = useNotBookedPageModule();
-  const NotBookedState = useNotBookedSlots()?.State;
-  if (notBookedModule && NotBookedState) {
+  if (useNotBookedPageModule()) {
+    // Bewusst nur der Kopf: Inhalt, Zustände und `overlays` der Seite
+    // entfallen, wie vor #6577. Eine gesperrte Seite öffnet keine Dialoge.
+    // Den Rumpf rendert `TenantPageView` trotzdem: `PageBody` zeigt dort
+    // die Erklärung aus dem Slot, auch ohne `children`.
     return (
       <TenantPageView
         title={props.title}
@@ -530,11 +472,7 @@ export function TenantPage(props: TenantPageProps) {
         backLabel={props.backLabel}
         printHideHeader={props.printHideHeader}
         testId={props.testId}
-      >
-        <SectionCard>
-          <NotBookedState module={notBookedModule} />
-        </SectionCard>
-      </TenantPageView>
+      />
     );
   }
   return <TenantPageView {...props} />;
@@ -612,10 +550,7 @@ function TenantPageView({
   onClearAllFilters,
   overflowMenu,
   badge,
-  filterVariant,
-  filterSections,
-  desktopFiltersFrom,
-  activeFilterDisplay,
+  filterPanel,
   primaryAction,
   searchSlot,
   searchSlotHeight = "controls",
@@ -669,7 +604,8 @@ function TenantPageView({
       <header
         ref={headRef}
         className={cn(
-          "moto-content-surface compact:p-4 rounded-2xl border p-5 max-sm:p-4",
+          "moto-content-surface rounded-2xl border",
+          HEAD_PADDING,
           printHideHeader && "print:hidden",
         )}
       >
@@ -695,9 +631,7 @@ function TenantPageView({
                     // Dichte-Stufe kleiner Bildschirme ziehen ihn je eine
                     // Stufe herunter (#2824). Beide Varianten schliessen
                     // einander aus, es gilt also immer genau eine.
-                    prominent
-                      ? "compact:text-2xl text-[28px] leading-tight max-sm:text-2xl"
-                      : "compact:text-xl text-2xl leading-tight max-sm:text-xl",
+                    HEAD_TITLE_SIZE[prominent ? "prominent" : "standard"],
                   )}
                 >
                   {title}
@@ -733,19 +667,10 @@ function TenantPageView({
               actions
                 ? "ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2"
                 : "contents",
-              "[&>div[data-icon-only]]:inline-flex",
-              // Unter sm gilt: JEDE Zeile ist voll. Textknöpfe bekommen
-              // eine eigene, volle Zeile (auch ein einzelner — rechtsbündig
-              // neben Leerraum las er sich als toter Bereich); reine
-              // Symbolknöpfe (das Kebab-Menü, `Button size="icon"`, per
-              // `data-icon-only`) behalten ihr Maß und bleiben in der
-              // Titel-/Statuszeile, die ihr Text füllt.
-              "max-sm:contents",
-              "max-sm:[&>*:not([data-icon-only])]:order-last max-sm:[&>*:not([data-icon-only])]:basis-full",
-              // A menu behind a text button („Herunterladen ⌄“) sits in a
-              // wrapper: the row is full, so its button fills it too.
-              "max-sm:[&>div:not([data-icon-only])>button]:w-full",
-              CONTROL_HEIGHT,
+              // Unter sm gilt: JEDE Zeile ist voll. Ein einzelner Textknopf
+              // rechtsbündig neben Leerraum las sich als toter Bereich.
+              HEAD_ACTIONS_LAYOUT,
+              HEAD_CONTROL_HEIGHT,
             )}
           >
             {actions}
@@ -762,25 +687,19 @@ function TenantPageView({
           <div
             className={cn(
               "compact:mt-3 mt-4 max-sm:mt-3",
-              searchSlotHeight === "controls" && CONTROL_HEIGHT,
+              searchSlotHeight === "controls" && HEAD_CONTROL_HEIGHT,
             )}
           >
             {searchSlot}
             {!searchSlot && hasSearchRow && (
-              <PageHeaderSearchLayout
-                // Der Titel steht in der Kopfkarte darüber.
-                embedded
-                title=""
+              <TenantPageSearchRow
                 search={search}
-                filters={filters as FilterConfig[] | undefined}
-                activeFilters={activeFilters as ActiveFilter[] | undefined}
+                filters={filters}
+                activeFilters={activeFilters}
                 onClearAllFilters={onClearAllFilters}
-                overflowMenu={overflowMenu as OverflowMenuItem[] | undefined}
+                overflowMenu={overflowMenu}
                 badge={badge}
-                filterVariant={filterVariant}
-                filterSections={filterSections}
-                desktopFiltersFrom={desktopFiltersFrom}
-                activeFilterDisplay={activeFilterDisplay}
+                filterPanel={filterPanel}
                 primaryAction={primaryAction}
               />
             )}
@@ -988,13 +907,20 @@ function TenantPageTabs({
     </>
   );
 
+  // `overflow`: ein gemessen verborgener Reiter. Auf dem Desktop steht er
+  // unter „Mehr“ und ist im Band ausgeblendet, auf dem Telefon bleibt er im
+  // scrollenden Band stehen.
   const renderTab = (
     item: TenantPageTab,
     measuring = false,
-    extraClassName?: string,
+    overflow = false,
   ) => {
     const active = item.value === value;
-    const className = cn(tabClass(active, item.disabled), extraClassName);
+    const className = cn(
+      tabClass(active, item.disabled),
+      overflow && "sm:hidden",
+    );
+    const overflowMarker = overflow ? { "data-tab-overflow": "" } : {};
     if (item.href && !item.disabled) {
       return (
         <Link
@@ -1004,6 +930,7 @@ function TenantPageTabs({
           aria-selected={measuring ? undefined : active}
           tabIndex={measuring ? -1 : item.value === rovingValue ? 0 : -1}
           data-tab-value={item.value}
+          {...overflowMarker}
           className={className}
           onClick={(event: MouseEvent<HTMLAnchorElement>) => {
             // Mittelklick und Klick mit Zusatztaste öffnen ein zweites
@@ -1034,6 +961,7 @@ function TenantPageTabs({
         aria-selected={measuring ? undefined : active}
         tabIndex={measuring ? -1 : item.value === rovingValue ? 0 : -1}
         data-tab-value={item.value}
+        {...overflowMarker}
         disabled={item.disabled}
         onClick={() => onChange(item.value)}
         className={className}
@@ -1097,11 +1025,12 @@ function TenantPageTabs({
       tablistRef.current.querySelectorAll<HTMLElement>('[role="tab"]'),
     ).filter((tab) => {
       if (tab.hasAttribute("disabled")) return false;
-      // Desktop: die via `sm:hidden` gerenderten Überlauf-Reiter sind nicht
-      // sichtbar. Telefon: „Mehr“ ist via `max-sm:hidden` ausgeblendet.
+      // Desktop: die Überlauf-Reiter stehen unter „Mehr“, nicht im Band.
+      // Telefon: „Mehr“ ist ausgeblendet; als einziger Reiter trägt er
+      // keinen Wert.
       return isPhone
-        ? !tab.classList.contains("max-sm:hidden")
-        : !tab.classList.contains("sm:hidden");
+        ? tab.dataset.tabValue !== undefined
+        : !tab.hasAttribute("data-tab-overflow");
     });
     const index = tabs.indexOf(current);
     if (index === -1 || tabs.length === 0) return;
@@ -1164,7 +1093,7 @@ function TenantPageTabs({
             {visible.map((item) => renderTab(item))}
             {/* Auf dem Telefon bleiben auch die gemessen verborgenen Reiter im
                 Band stehen; der Sammelreiter verschwindet dort. */}
-            {hidden.map((item) => renderTab(item, false, "sm:hidden"))}
+            {hidden.map((item) => renderTab(item, false, true))}
             {/* Der Sammelreiter gehört semantisch zum Reiterband. Außerhalb
                 davon würde er sich für Screenreader zwar als Reiter, aber
                 nicht als Teil dieser Seitennavigation ankündigen. */}

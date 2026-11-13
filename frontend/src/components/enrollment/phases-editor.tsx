@@ -1686,7 +1686,7 @@ function PhaseForm(props: PhaseFormProps) {
           <div>
             <ISODatePicker
               id="service_start_date"
-              controlSize="md"
+              controlSize="compact"
               label="Beginn"
               ariaLabel="Beginn"
               value={draft.service_start_date}
@@ -1715,7 +1715,7 @@ function PhaseForm(props: PhaseFormProps) {
           <div>
             <ISODatePicker
               id="service_end_date"
-              controlSize="md"
+              controlSize="compact"
               label="Ende"
               ariaLabel="Ende"
               min={draft.service_start_date || undefined}

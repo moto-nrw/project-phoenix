@@ -64,7 +64,7 @@ import {
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import {
   formatCalendarDate,
   formatLocalizedDate,

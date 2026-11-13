@@ -307,7 +307,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
                 setUploadCategory(value as StaffDocumentCategory)
               }
               disabled={visibleCategories.length === 0}
-              controlSize="compact"
+              controlSize="dense"
               className="w-56"
             />
           </div>
@@ -341,7 +341,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
               value={filter}
               options={filterItems}
               onChange={(value) => setFilter(value as CategoryFilter)}
-              controlSize="compact"
+              controlSize="dense"
               className="w-56"
             />
           </div>

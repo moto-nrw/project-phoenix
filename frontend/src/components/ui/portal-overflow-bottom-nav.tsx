@@ -4,19 +4,11 @@ import type { ReactNode } from "react";
 
 import { useState } from "react";
 import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-} from "~/components/ui/drawer";
-import {
   PortalBottomNav,
-  PortalBottomNavButton,
   PortalBottomNavLink,
   PortalNavSheetLink,
 } from "~/components/ui/portal-bottom-nav";
-import { moreConcept } from "~/lib/concepts/more";
+import { PortalMoreBottomNav } from "~/components/ui/portal-more-bottom-nav";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
 const PADDING = "px-4";
@@ -60,6 +52,7 @@ export interface PortalOverflowNavItem {
 export function PortalOverflowBottomNav({
   items,
   navItemAttribute,
+  moreConcept,
   moreLabel = "Mehr",
   moreDescription = "Weitere Bereiche",
   activeInMore = false,
@@ -68,6 +61,8 @@ export function PortalOverflowBottomNav({
   readonly items: readonly PortalOverflowNavItem[];
   /** Das Attribut, das jeden Eintrag für Touren und Tests benennt. */
   readonly navItemAttribute: `data-${string}`;
+  /** Das Bild des Felds „Mehr“ (`moreConcept` aus `~/lib/concepts/more`). */
+  readonly moreConcept: MotoConcept;
   readonly moreLabel?: string;
   readonly moreDescription?: string;
   /**
@@ -98,81 +93,74 @@ export function PortalOverflowBottomNav({
     [navItemAttribute]: item.key,
   });
 
-  // „Mehr" leuchtet auch, wenn eine seiner Seiten offen ist; sonst stünde
-  // man auf einer Seite vor einer Leiste, in der nichts markiert ist.
-  const moreActive = moreOpen || moreItems.some((item) => item.active);
+  const barLinks = barItems.map((item) => (
+    <PortalBottomNavLink
+      key={item.key}
+      {...linkProps(item)}
+      shortLabel={item.shortLabel}
+      paddingClassName={PADDING}
+      labelClassName={LABEL}
+      shrinkActive
+    />
+  ));
+
+  const moreAttribute: Record<`data-${string}`, string> = {
+    [navItemAttribute]: "more",
+  };
+
+  if (!crowded) {
+    return <PortalBottomNav listClassName="gap-0">{barLinks}</PortalBottomNav>;
+  }
+
   const shownInMore = activeInMore
     ? moreItems.find((item) => item.active)
     : undefined;
 
   return (
-    <>
-      <PortalBottomNav listClassName="gap-0">
-        {barItems.map((item) => (
-          <PortalBottomNavLink
-            key={item.key}
-            {...linkProps(item)}
-            shortLabel={item.shortLabel}
-            paddingClassName={PADDING}
-            labelClassName={LABEL}
-            shrinkActive
-          />
-        ))}
-        {crowded ? (
-          <PortalBottomNavButton
-            label={
-              shownInMore ? `${moreLabel}: ${shownInMore.label}` : moreLabel
-            }
-            shortLabel={
-              shownInMore
-                ? (shownInMore.shortLabel ?? shownInMore.label)
-                : undefined
-            }
-            // The dots stay: beside the open page's name they keep saying
-            // that this field opens the other areas.
-            {...(moreIcon ? { icon: moreIcon } : { concept: moreConcept })}
-            active={moreActive}
-            onClick={() => setMoreOpen(true)}
-            {...{ [navItemAttribute]: "more" }}
-            aria-haspopup="dialog"
-            aria-expanded={moreOpen}
-            paddingClassName={PADDING}
-            labelClassName={LABEL}
-            shrinkActive
-          />
-        ) : null}
-      </PortalBottomNav>
-
-      {crowded ? (
-        <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
-          <DrawerContent className="bg-white">
-            <DrawerHeader className="sr-only">
-              <DrawerTitle>{moreLabel}</DrawerTitle>
-              <DrawerDescription>{moreDescription}</DrawerDescription>
-            </DrawerHeader>
-            {/* Auf einem quer gehaltenen Telefon ist die Schublade niedriger
-                als die Liste: die Liste scrollt in ihr, sonst lägen die
-                unteren Ziele außer Reichweite. */}
-            <ul className="min-h-0 space-y-2 overflow-y-auto px-4 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))]">
-              {moreItems.map((item) => (
-                <li
-                  key={item.key}
-                  className={
-                    item.separated
-                      ? "mt-5 border-t border-gray-200 pt-5"
-                      : undefined
-                  }
-                >
-                  <PortalNavSheetLink
-                    {...linkProps(item)}
-                    onClick={() => setMoreOpen(false)}
-                  />
-                </li>
-              ))}
-            </ul>
-          </DrawerContent>
-        </Drawer>
-      ) : null}
-    </>
+    <PortalMoreBottomNav
+      listClassName="gap-0"
+      open={moreOpen}
+      onOpenChange={setMoreOpen}
+      moreItemActive={moreItems.some((item) => item.active)}
+      more={{
+        ...moreAttribute,
+        label: shownInMore ? `${moreLabel}: ${shownInMore.label}` : moreLabel,
+        shortLabel: shownInMore
+          ? (shownInMore.shortLabel ?? shownInMore.label)
+          : undefined,
+        // The dots stay: beside the open page's name they keep saying that
+        // this field opens the other areas.
+        ...(moreIcon ? { icon: moreIcon } : { concept: moreConcept }),
+        paddingClassName: PADDING,
+        labelClassName: LABEL,
+        shrinkActive: true,
+      }}
+      sheetTitle={moreLabel}
+      sheetDescription={moreDescription}
+      sheet={
+        // Auf einem quer gehaltenen Telefon ist die Schublade niedriger als
+        // die Liste: die Liste scrollt in ihr, sonst lägen die unteren Ziele
+        // außer Reichweite.
+        <ul className="min-h-0 space-y-2 overflow-y-auto px-4 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+          {moreItems.map((item) => (
+            <li
+              key={item.key}
+              className={
+                item.separated
+                  ? "mt-5 border-t border-gray-200 pt-5"
+                  : undefined
+              }
+            >
+              <PortalNavSheetLink
+                {...linkProps(item)}
+                onClick={() => setMoreOpen(false)}
+              />
+            </li>
+          ))}
+        </ul>
+      }
+    >
+      {barLinks}
+    </PortalMoreBottomNav>
   );
 }

@@ -35,7 +35,7 @@ export function DateField({
       disabled={disabled}
       placeholder={emptyLabel ?? "Datum auswählen"}
       calendarLayout="popover"
-      controlSize="md"
+      controlSize="compact"
       className="w-44"
     />
   );

@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-
 import { StatusBadge } from "~/components/ui/status-badge";
 
 interface OriginChipProps {
@@ -7,8 +5,6 @@ interface OriginChipProps {
   readonly label: string;
   /** Optional long-form explanation, shown as native tooltip. */
   readonly title?: string;
-  /** Optional 12px leading icon. */
-  readonly icon?: ReactNode;
 }
 
 /**
@@ -18,14 +14,6 @@ interface OriginChipProps {
  * The Betreuungsplan header names its source as plain text in the context
  * line. Do not scatter it across arbitrary figures.
  */
-export function OriginChip({ label, title, icon }: OriginChipProps) {
-  return (
-    <StatusBadge
-      tone="outline"
-      compact
-      label={label}
-      title={title}
-      icon={icon}
-    />
-  );
+export function OriginChip({ label, title }: OriginChipProps) {
+  return <StatusBadge tone="outline" compact label={label} title={title} />;
 }

@@ -6,7 +6,8 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import { useExportRun } from "~/hooks/use-export-run";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
-import { ExportDialog, type ExportFileFormat } from "./export-dialog";
+import { ExportDialog } from "./export-dialog";
+import type { ExportFileFormat } from "./export-formats";
 
 // Der Dialog ist ein SlideOver; Vaul rendert in jsdom nichts.
 vi.mock("vaul", () => import("~/test/mocks/vaul"));

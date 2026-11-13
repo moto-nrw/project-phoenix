@@ -47,3 +47,39 @@ export const WithStringCount: Story = {
     count: "99+",
   },
 };
+
+export const ActiveWithBadge: Story = {
+  args: {
+    href: "#",
+    label: "Überblick",
+    isActive: true,
+    count: 4,
+    badge: { count: 3, tone: "orange", ariaLabel: "3 ungelesene Anmeldungen" },
+  },
+};
+
+export const Locked: Story = {
+  args: {
+    href: "#",
+    label: "Speiseplan",
+    isActive: false,
+    count: 2,
+    locked: true,
+  },
+};
+
+export const LongLabelWithCount: Story = {
+  decorators: [
+    (Story) => (
+      <div className="w-56">
+        <Story />
+      </div>
+    ),
+  ],
+  args: {
+    href: "#",
+    label: "Eine sehr lange Gruppenbezeichnung, die gekürzt wird",
+    isActive: false,
+    count: "12/20",
+  },
+};

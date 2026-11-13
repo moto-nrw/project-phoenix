@@ -22,7 +22,7 @@ import { ButtonLink } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuItem } from "~/components/ui/page-header/types";
 import { TenantPage, type TenantPageTab } from "~/components/ui/tenant-page";
 import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
 import {

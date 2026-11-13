@@ -92,6 +92,9 @@ type StudentStatusDay struct {
 	// ClearedSource is the source that cleared the day; Source stays the
 	// report's (#6842). Nil while the day stands. It is never serialized.
 	ClearedSource *string `json:"-"`
+	// ClearedByAccountID is the account that cleared the day, nil for a
+	// device or an automatic run (#6842). It is never serialized.
+	ClearedByAccountID *int64 `json:"-"`
 }
 
 // StudentStatusCounts is the effective dashboard absence buckets of one day.

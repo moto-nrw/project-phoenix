@@ -5,7 +5,15 @@ import { forwardRef, useState } from "react";
 
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
 
-import { FieldLabel, isInvalidAria, isRequiredField } from "./field-label";
+import { CONTROL_HEIGHT_CLASS, type ControlSize } from "./control-geometry";
+import { isInvalidAria, isRequiredField } from "./field-label";
+import { FieldShell, useFieldIds } from "./field-shell";
+
+/** The sizes of `Input` from the kit's one vocabulary (control-geometry.ts). */
+export type InputControlSize = Extract<
+  ControlSize,
+  "large" | "compact" | "touch"
+>;
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   readonly label?: string;
@@ -19,11 +27,12 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
    */
   readonly errorLive?: boolean;
   /**
-   * `compact`: 40 px, like a `field` button. `touch`: 40 px from `lg` on,
-   * 44 px with 16-px text below (finger height, no zoom on iOS) — for a field
-   * that stands alone in a phone layout, such as the help search.
+   * `large` (default): 16-px text with roomy padding. `compact`: 40 px, like
+   * a `field` button. `touch`: 40 px from `lg` on, 44 px with 16-px text
+   * below (finger height, no zoom on iOS) — for a field that stands alone in
+   * a phone layout, such as the help search.
    */
-  readonly controlSize?: "default" | "compact" | "touch";
+  readonly controlSize?: InputControlSize;
   /**
    * With `type="password"`: an eye button in the field shows and hides the
    * value. The field keeps the visibility itself unless `revealed` is passed.
@@ -39,13 +48,13 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 const CONTROL_SIZE_CLASS = {
-  default: "px-4 py-3 text-base",
+  large: "px-4 py-3 text-base",
   // By finger 16-px text even in the dense field: no zoom on focus.
-  compact: "h-10 px-3 py-2 text-sm pointer-coarse:text-base",
+  compact: `${CONTROL_HEIGHT_CLASS.compact} px-3 py-2 text-sm pointer-coarse:text-base`,
   // By finger 44 px and 16 px text (no zoom on focus), with a mouse the
   // compact field: the pointer decides, not the window width.
-  touch: "h-10 px-3 py-2 text-sm pointer-coarse:h-11 pointer-coarse:text-base",
-} as const;
+  touch: `${CONTROL_HEIGHT_CLASS.touch} px-3 py-2 text-sm pointer-coarse:text-base`,
+} as const satisfies Record<InputControlSize, string>;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   {
@@ -56,7 +65,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     hint,
     errorLive = false,
     className = "",
-    controlSize = "default",
+    controlSize = "large",
     maxLength,
     type,
     revealable = false,
@@ -70,45 +79,40 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   },
   ref,
 ) {
-  // Mirrors ui/Textarea: a caller may identify the field with `id`, `name`, or
-  // both. Deriving the association from `name` alone left `htmlFor` undefined
-  // whenever only `id` was passed.
-  const inputId = id ?? name;
+  // A caller may identify the field with `id`, `name`, both or neither. With
+  // neither, a generated id still links label, hint and error to the field.
+  const ids = useFieldIds({ id: id ?? name, hint, error, describedBy });
   const [ownRevealed, setOwnRevealed] = useState(false);
   const isRevealed = revealed ?? ownRevealed;
-  const errorId = error && inputId ? `${inputId}-error` : undefined;
-  const hintId = hint && inputId ? `${inputId}-hint` : undefined;
 
   const controlClassName = `block w-full rounded-lg border-0 bg-white text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-600 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 read-only:bg-gray-50 read-only:text-gray-500 aria-[invalid=true]:ring-moto-red ${CONTROL_SIZE_CLASS[controlSize]}`;
 
-  const revealPadding = controlSize === "default" ? "pr-12" : "pr-10";
+  const revealPadding = controlSize === "large" ? "pr-12" : "pr-10";
   const control = (
     <input
       ref={ref}
-      id={inputId}
+      id={ids.id}
       name={name}
       type={revealable && isRevealed ? "text" : type}
       maxLength={maxLength ?? getDefaultMaxLength(type ?? "text")}
       {...props}
       aria-invalid={error ? true : ariaInvalid}
-      aria-describedby={
-        [describedBy, hintId, errorId].filter(Boolean).join(" ") || undefined
-      }
+      aria-describedby={ids.describedBy}
       className={`${controlClassName} ${revealable ? revealPadding : ""} ${className}`}
     />
   );
 
   return (
-    <div>
-      {label && (
-        <FieldLabel
-          htmlFor={inputId}
-          required={isRequiredField(props)}
-          invalid={Boolean(error) || isInvalidAria(ariaInvalid)}
-        >
-          {label}
-        </FieldLabel>
-      )}
+    <FieldShell
+      ids={ids}
+      keepWrapper
+      label={label}
+      required={isRequiredField(props)}
+      invalid={Boolean(error) || isInvalidAria(ariaInvalid)}
+      hint={hint}
+      error={error}
+      errorLive={errorLive}
+    >
       {revealable ? (
         <div className="relative">
           {control}
@@ -131,20 +135,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       ) : (
         control
       )}
-      {hint && (
-        <p id={hintId} className="mt-1 text-sm text-gray-600">
-          {hint}
-        </p>
-      )}
-      {error && (
-        <p
-          id={errorId}
-          role={errorLive ? "alert" : undefined}
-          className="text-moto-red-strong mt-1 text-sm"
-        >
-          {error}
-        </p>
-      )}
-    </div>
+    </FieldShell>
   );
 });

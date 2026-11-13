@@ -2,8 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 import { SECURE_CHROME_SETUP, secureChromeUse } from "./scripts/secure-chrome";
 
 // Layouttests im echten Browser (pnpm run test:layout). Sie kompilieren
-// `src/styles/globals.css` selbst und rendern nachgebautes Markup mit
-// `page.setContent`: kein Next-Server, kein Login, keine Umgebungsvariablen.
+// `src/styles/globals.css` selbst und rendern Markup mit `page.setContent`:
+// nachgebautes oder das echte einer Komponente (`renderToStaticMarkup`, bei
+// Abhängigkeiten auf Next über `loadSourceModules` im Harness). Kein
+// Next-Server, kein Login, keine Umgebungsvariablen.
 // jsdom und happy-dom rechnen kein Layout; Fehler wie #3328 (eine Karte, die
 // nicht mehr schrumpft) sieht nur ein Browser.
 

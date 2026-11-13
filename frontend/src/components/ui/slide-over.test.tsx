@@ -144,6 +144,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "./slide-over";
+import { Modal } from "./modal";
 import {
   useFormModalPending,
   type FormModalOperation,
@@ -183,7 +184,9 @@ describe("SlideOver", () => {
               <div data-date-picker-panel>Calendar</div>
             )}
             {overlay === "modal" && (
-              <div data-modal-focus-scope="true">Confirmation</div>
+              <Modal isOpen onClose={() => {}} title="Confirmation">
+                Confirmation
+              </Modal>
             )}
           </SlideOverContent>
         </SlideOver>,
@@ -802,5 +805,18 @@ describe("SlideOver", () => {
       screen.queryByRole("button", { name: /schließen/i }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Titel")).toBeInTheDocument();
+  });
+
+  // #6567: a slide-over footer spaces its actions like the Modal and
+  // FormModal footers (gap-3), not tighter.
+  it("spaces footer actions with gap-3, like Modal and FormModal", () => {
+    render(
+      <SlideOverFooter data-testid="footer">
+        <button type="button">Abbrechen</button>
+        <button type="button">Speichern</button>
+      </SlideOverFooter>,
+    );
+    const footer = screen.getByTestId("footer");
+    expect(footer).toHaveClass("gap-3");
   });
 });

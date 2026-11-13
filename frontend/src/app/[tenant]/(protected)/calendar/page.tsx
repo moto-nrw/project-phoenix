@@ -1107,7 +1107,7 @@ function StaffCalendarPageInner() {
                         label="Startdatum"
                         id="calendar-start-date"
                         name="start_date"
-                        controlSize="lg"
+                        controlSize="large"
                         value={startDate}
                         error={formErrors.fieldError("start_date")}
                         onChange={(next) => {
@@ -1123,7 +1123,7 @@ function StaffCalendarPageInner() {
                         label="Enddatum"
                         id="calendar-end-date"
                         name="end_date"
-                        controlSize="lg"
+                        controlSize="large"
                         value={endDate}
                         error={formErrors.fieldError("end_date")}
                         min={startDate}
@@ -1369,7 +1369,7 @@ function StaffCalendarPageInner() {
                       <ISODatePicker
                         label="Endet am"
                         id="calendar-recurrence-end"
-                        controlSize="lg"
+                        controlSize="large"
                         value={endsOn}
                         min={startDate}
                         onChange={setEndsOn}
@@ -1430,7 +1430,7 @@ function StaffCalendarPageInner() {
               clearOverviewError();
             }}
             title="Teilnehmer"
-            widthClass="mx-4 w-[calc(100%-2rem)] max-w-xl"
+            size="md-wide"
           >
             {overviewLoading ? (
               <SkeletonRegion label="Teilnehmer werden geladen…">
