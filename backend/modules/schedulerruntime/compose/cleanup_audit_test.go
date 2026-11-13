@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	scheduler "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose"
 	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
-	"github.com/stretchr/testify/require"
 )
 
 type auditedFeedback struct{ school int64 }

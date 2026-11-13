@@ -1,14 +1,16 @@
-package compose
+package compose_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
-	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	scheduler "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // fenceMargin is the Worker's margin before its lease ends (api/worker_lease.go).
@@ -21,7 +23,7 @@ func TestWorkerLeaseStoreBindsTheDatabaseLeaseToTheSchedulerPort(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, authDB.Close()) })
 	ctx := context.Background()
 
-	store, err := NewWorkerLeaseStore(testpkg.TenantRuntime(t, authDB))
+	store, err := scheduler.NewWorkerLeaseStore(testpkg.TenantRuntime(t, authDB))
 	require.NoError(t, err)
 
 	first, acquired, err := store.Acquire(ctx, "worker", "holder-a", time.Minute)
