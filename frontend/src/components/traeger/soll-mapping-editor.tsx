@@ -130,8 +130,9 @@ function BookingTextField({
     });
   };
   const example = bookingTextSample(column.value).trim();
+  const helpId = `booking-text-${index}-help`;
   return (
-    <div className="flex min-w-0 flex-col gap-3 sm:col-span-2 lg:col-span-3">
+    <>
       <Input
         ref={inputRef}
         controlSize="compact"
@@ -140,6 +141,7 @@ function BookingTextField({
         value={column.value}
         maxLength={60}
         placeholder="SKB {Monat} {Kind}"
+        aria-describedby={helpId}
         error={error}
         onChange={(event) => {
           onChange({ ...column, value: event.target.value });
@@ -147,30 +149,30 @@ function BookingTextField({
         }}
         onSelect={(event) => remember(event.currentTarget)}
       />
-      <div className="flex flex-col gap-2">
-        <p className="text-sm text-gray-600" id={`booking-text-${index}-help`}>
-          Feste Wörter schreiben Sie selbst. Platzhalter füllt moto für jede
-          Rechnung aus.
+      <InsetPanel
+        padding="md"
+        className="flex min-w-0 flex-col gap-3 sm:col-span-2 lg:col-span-3"
+      >
+        <p className="text-sm text-gray-600" id={helpId}>
+          Feste Wörter schreiben Sie selbst. Einen Platzhalter füllt moto für
+          jede Rechnung aus. Ein Klick setzt ihn ein.
         </p>
-        <ul
-          className="flex flex-wrap gap-2"
-          aria-describedby={`booking-text-${index}-help`}
-        >
+        <ul className="flex flex-wrap gap-2" aria-label="Platzhalter">
           {BOOKING_TEXT_PLACEHOLDERS.map((placeholder) => (
-            <li key={placeholder.token}>
+            <li key={placeholder.token} className="max-w-full min-w-0">
               <Button
                 type="button"
                 variant="outline"
                 size="compact"
-                disabled={column.value.length + placeholder.token.length > 59}
-                disabledReason="Der Text hat schon 60 Zeichen."
+                disabled={column.value.length + placeholder.token.length >= 60}
+                disabledReason="Der Text hat schon fast 60 Zeichen."
                 onClick={() => insert(placeholder.token)}
-                className="gap-2"
+                className="max-w-full gap-2 bg-white"
               >
-                <code aria-hidden="true" className="text-gray-900">
+                <code aria-hidden="true" className="shrink-0 text-gray-900">
                   {placeholder.token}
                 </code>
-                <span className="text-gray-500">
+                <span className="min-w-0 truncate text-gray-500">
                   <span className="sr-only">{`Platzhalter „${placeholder.label}“ einfügen`}</span>
                   <span aria-hidden="true">{placeholder.label}</span>
                 </span>
@@ -178,17 +180,17 @@ function BookingTextField({
             </li>
           ))}
         </ul>
-      </div>
-      <InsetPanel padding="sm" className="flex min-w-0 items-baseline gap-2">
-        <span className="shrink-0 text-sm text-gray-500">Beispiel:</span>
-        <span
-          className="min-w-0 font-mono text-sm wrap-anywhere text-gray-900"
-          aria-live="polite"
-        >
-          {example || "–"}
-        </span>
+        <p className="flex min-w-0 flex-col gap-1 border-t border-gray-200 pt-3 text-sm sm:flex-row sm:items-baseline sm:gap-2">
+          <span className="shrink-0 text-gray-500">So steht es in der Datei:</span>
+          <span
+            className="min-w-0 font-mono wrap-anywhere text-gray-900"
+            aria-live="polite"
+          >
+            {example || "–"}
+          </span>
+        </p>
       </InsetPanel>
-    </div>
+    </>
   );
 }
 
