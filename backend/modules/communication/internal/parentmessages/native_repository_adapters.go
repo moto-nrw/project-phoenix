@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	values "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
 )
 
 func NewMessageRepository(source values.ParentMessageRepositorySource) ParentMessageRepository {

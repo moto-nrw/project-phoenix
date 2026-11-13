@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 )
 
 // Both class lists print the same columns in the same order (#4749); a

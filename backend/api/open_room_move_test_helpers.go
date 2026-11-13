@@ -6,11 +6,11 @@ import (
 	"context"
 	"log/slog"
 
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove"
 )
 
 // NewOpenRoomMoveTestRunner binds the production workflow over real owners.

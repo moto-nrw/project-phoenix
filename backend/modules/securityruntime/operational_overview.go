@@ -3,7 +3,7 @@ package securityruntime
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime/internal/application/authorize"
 )
 
 // OverviewSettings resolves tenant policy through the settings registry.

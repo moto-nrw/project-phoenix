@@ -78,7 +78,7 @@ Zugangsdaten in Kommandozeilen, Dateien dieses Repos, Chat oder Nachweise kopier
 
 Dieses Runbook benötigt **PostgreSQL ≥17**: `inherit_option` und `set_option`
 gibt es seit 16, das abgefragte Recht `MAINTAIN` erst seit 17.
-`environments/production.compose.yml` verwendet `postgres:17-alpine`; das ist
+`environments/production.compose.yml` pinnt ein PostgreSQL-17-Image; das ist
 kein Nachweis der laufenden Produktionsversion. Vor Einrichtung und Nachweis
 in `psql` prüfen und bei `false` abbrechen:
 

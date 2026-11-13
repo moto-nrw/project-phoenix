@@ -4,7 +4,7 @@ package delivery
 import (
 	"context"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 )
 
 // Capability enqueues, cancels and reports durable mail and push intents and

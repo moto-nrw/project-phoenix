@@ -302,7 +302,7 @@ describe("StepPersonalKinder — Angebots-Quelle", () => {
       offeringSources: [],
     });
 
-    const trigger = screen.getByRole("button", {
+    const trigger = screen.getByRole("combobox", {
       name: "Angebote als Quelle",
     });
     expect(trigger).toBeEnabled();
@@ -365,7 +365,7 @@ describe("StepPersonalKinder — Angebots-Quelle", () => {
     });
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Angebote als Quelle" }),
+      screen.getByRole("combobox", { name: "Angebote als Quelle" }),
     );
     expect(
       screen.queryByText(/Nicht mehr verfügbares Angebot/),

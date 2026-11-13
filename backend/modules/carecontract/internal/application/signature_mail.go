@@ -3,7 +3,7 @@ package application
 import (
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
 )
 
 // The mails of the signature (#4679): the reminder with a new one-time link

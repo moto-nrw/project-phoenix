@@ -902,6 +902,11 @@
     },
     {
       "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.RecordRecipients",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
       "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ReleaseReminderClaim",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

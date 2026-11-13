@@ -4,10 +4,10 @@ import (
 	context "context"
 	fmt "fmt"
 
-	filestorage "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	ports "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
-	identityaccess "github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopledirectory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	filestorage "github.com/moto-ogs/project-phoenix/modules/filestorage"
+	ports "github.com/moto-ogs/project-phoenix/modules/filestorage/internal/ports"
+	identityaccess "github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	peopledirectory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // IdentityAdapter serves the membership and role reads straight from

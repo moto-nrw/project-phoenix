@@ -3,8 +3,8 @@ package importpkg
 import (
 	"strings"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 // Step 5c of #5552 (ADR 0067 addendum of 2026-11-08): in a batch segment, a

@@ -1,7 +1,7 @@
 package studentpresencehttp
 
 import (
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // broadcastStudentUpdated emits an SSE student_updated event to the

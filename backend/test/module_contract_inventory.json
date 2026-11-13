@@ -26,7 +26,7 @@
   {
     "module": "communication",
     "contract_package": "modules/communication",
-    "test_file": "modules/communication/public_contract_test.go",
+    "test_file": "modules/communication/behaviortest/public_contract_test.go",
     "test": "TestPublicCommunicationContractPersistsNormalizedAnnouncement"
   },
   {
@@ -38,7 +38,7 @@
   {
     "module": "device-fleet",
     "contract_package": "modules/devicefleet",
-    "test_file": "modules/devicefleet/public_contract_test.go",
+    "test_file": "modules/devicefleet/behaviortest/public_contract_test.go",
     "test": "TestPublicDeviceContractPersistsRoomAndMapsMissingDevice"
   },
   {
@@ -110,7 +110,7 @@
   {
     "module": "people-directory",
     "contract_package": "modules/peopledirectory",
-    "test_file": "modules/peopledirectory/peopledirectory_test.go",
+    "test_file": "modules/peopledirectory/behaviortest/peopledirectory_test.go",
     "test": "TestErrorCodeIsStable"
   },
   {
@@ -122,7 +122,7 @@
   {
     "module": "school-calendar",
     "contract_package": "modules/schoolcalendar",
-    "test_file": "modules/schoolcalendar/public_contract_test.go",
+    "test_file": "modules/schoolcalendar/behaviortest/public_contract_test.go",
     "test": "TestPublicCalendarContractPreservesCalendarDaysAndStoredReason"
   },
   {
@@ -146,7 +146,7 @@
   {
     "module": "settings-platform",
     "contract_package": "modules/settings",
-    "test_file": "modules/settings/public_contract_test.go",
+    "test_file": "modules/settings/behaviortest/public_contract_test.go",
     "test": "TestPublicSettingsContractDistinguishesOverrideFromRegistryDefault"
   },
   {
@@ -176,7 +176,7 @@
   {
     "module": "workforce",
     "contract_package": "modules/workforce",
-    "test_file": "modules/workforce/public_contract_test.go",
+    "test_file": "modules/workforce/behaviortest/public_contract_test.go",
     "test": "TestPublicWorkforceContractUpsertsAndReadsOneVacationQuota"
   }
 ]

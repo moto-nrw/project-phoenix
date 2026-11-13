@@ -15,6 +15,8 @@ import {
   parseLocation,
 } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
+import type { StudentMoveResult } from "~/lib/active-service";
+import { checkInToTarget, type TargetRoomOption } from "~/lib/move-targets";
 import {
   schoolCheckinStudent,
   schoolCheckinStudentsBatch,
@@ -25,6 +27,7 @@ import {
 import { STUDENT_KEY_FAMILIES, studentKeys } from "~/lib/swr/portal-keys";
 import { groupKeys } from "~/lib/swr/groups-keys";
 import { SEARCH_STUDENTS_KEY_PREFIX } from "~/lib/swr/search-students-key";
+import { roomKeys } from "~/lib/swr/rooms-keys";
 
 /**
  * Presence state shown in check-in mode. Maps 1:1 onto the brand color
@@ -99,6 +102,60 @@ export function checkoutConfirmationRoom(
  */
 const CHECKIN_OBJECT = "die Anwesenheit";
 
+/**
+ * The batch outcome of a check-in into a target (#6953), in the shape of the
+ * school check-in batch, so the page's retry and failure handling stays one.
+ * A child the server found present stays where it is and counts as done and
+ * unchanged; a child it skipped failed.
+ */
+export function placementOutcome(
+  sentIds: readonly string[],
+  result: StudentMoveResult,
+): SchoolCheckinBatchOutcome {
+  const skipped = new Map(
+    result.skipped.map((item) => [String(item.student_id), item.reason]),
+  );
+  const checkedIn = new Set((result.checked_in ?? []).map(String));
+  const results: SchoolCheckinBatchOutcome["results"] = [
+    ...sentIds.map((studentId) => {
+      const reason = skipped.get(studentId);
+      return reason
+        ? { studentId, ok: false, changed: false, error: reason }
+        : {
+            studentId,
+            ok: true,
+            changed: checkedIn.has(studentId),
+            location: "Anwesend" as const,
+          };
+    }),
+  ];
+  const failed = results.filter((item) => !item.ok).length;
+  return {
+    action: "in",
+    results,
+    succeeded: results.length - failed,
+    failed,
+  };
+}
+
+/** „5 Kinder in Mensa angemeldet. 2 waren schon da und bleiben, wo sie sind.“ */
+export function placementMessage(
+  placed: number,
+  alreadyPresent: number,
+  roomName: string,
+): string {
+  const head =
+    placed === 0
+      ? "Alle ausgewählten Kinder sind schon angemeldet."
+      : `${placed} ${placed === 1 ? "Kind" : "Kinder"} in ${roomName} angemeldet.`;
+  if (placed === 0 || alreadyPresent === 0) return head;
+  return `${head} ${alreadyPresent} ${
+    alreadyPresent === 1 ? "war" : "waren"
+  } schon da und ${alreadyPresent === 1 ? "bleibt" : "bleiben"}, wo ${
+    alreadyPresent === 1 ? "es ist" : "sie sind"
+  }.`;
+}
+
 interface CheckinModeSession {
   isActive: boolean;
   successCount: number;
@@ -136,7 +193,9 @@ function checkinModeSessionReducer(
  * student-detail matches on the bare prefix because any of the batch's
  * children may have an open detail cache entry.
  */
-async function invalidatePresenceCachesBulk(): Promise<void> {
+async function invalidatePresenceCachesBulk(
+  placedInRoom: boolean,
+): Promise<void> {
   await globalMutate(
     (key) =>
       typeof key === "string" &&
@@ -144,8 +203,31 @@ async function invalidatePresenceCachesBulk(): Promise<void> {
         key.includes(SEARCH_STUDENTS_KEY_PREFIX) ||
         key.includes("tracking-supervisions-") ||
         key.includes("tracking-indicators-") ||
-        key.includes(STUDENT_KEY_FAMILIES.detail)),
+        key.includes(STUDENT_KEY_FAMILIES.detail) ||
+        (placedInRoom && isRoomPresenceKey(key))),
   );
+}
+
+/** Room lists and room pages count the children a check-in placed (#6953). */
+function isRoomPresenceKey(key: string): boolean {
+  return (
+    key.includes("room-students-") ||
+    key.includes("room-detail-") ||
+    key.includes("room-bulk-") ||
+    key.includes(roomKeys.family) ||
+    key.includes("dashboard")
+  );
+}
+
+interface UseSchoolCheckinModeOptions {
+  /**
+   * Where a check-in puts the children (#6953); null or missing keeps
+   * „Anwesend (ohne Raum)“. Only check-ins use it: a checkout ends the stay
+   * wherever it is.
+   */
+  readonly target?: TargetRoomOption | null;
+  /** The backend refused the target (ended, no longer released): reload it. */
+  readonly onTargetRefused?: () => void;
 }
 
 interface UseSchoolCheckinModeResult {
@@ -243,7 +325,15 @@ interface UseSchoolCheckinModeResult {
  * ogs-students-, search-students-, or tracking-* gets revalidated so that
  * the card's locationBadge and pendingIds converge with the backend truth.
  */
-export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
+export function useSchoolCheckinMode(
+  options: UseSchoolCheckinModeOptions = {},
+): UseSchoolCheckinModeResult {
+  const targetRef = useRef(options.target ?? null);
+  const onTargetRefusedRef = useRef(options.onTargetRefused);
+  useLayoutEffect(() => {
+    targetRef.current = options.target ?? null;
+    onTargetRefusedRef.current = options.onTargetRefused;
+  });
   const [{ isActive, successCount }, dispatchSession] = useReducer(
     checkinModeSessionReducer,
     { isActive: false, successCount: 0 },
@@ -265,6 +355,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
   // class names the reason instead of offering a retry (#2220, #2513).
   const errors = useApiErrorDisplay();
   const showError = errors.show;
+  const showMessage = errors.showMessage;
   const latestToggleRef = useRef<
     (
       studentId: string,
@@ -361,16 +452,33 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
       });
 
       const action = actionForState(currentState);
+      const target = action === "in" ? targetRef.current : null;
 
       try {
-        await (checkoutReason
-          ? schoolCheckinStudent(
-              studentId,
-              action,
-              checkoutNote,
-              checkoutReason,
-            )
-          : schoolCheckinStudent(studentId, action, checkoutNote));
+        // With a target the server checks the child in and places it; a
+        // child it finds present already stays where it is (keepPresent), so
+        // a card that still showed it absent never moves it (#6953).
+        let placedNot = false;
+        if (target) {
+          const placement = await checkInToTarget([studentId], target, true);
+          placedNot = placement.skipped.length > 0;
+        } else if (checkoutReason) {
+          await schoolCheckinStudent(
+            studentId,
+            action,
+            checkoutNote,
+            checkoutReason,
+          );
+        } else {
+          await schoolCheckinStudent(studentId, action, checkoutNote);
+        }
+        if (target && placedNot) {
+          // The server answered, but did not take the child (no longer in
+          // care, or a stay it could not open): say so, it stays visible.
+          showMessage(
+            `Das Kind wurde nicht in ${target.roomName} angemeldet. Prüfen Sie die Angaben des Kindes.`,
+          );
+        }
 
         await globalMutate(
           (key) =>
@@ -379,20 +487,23 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
               key.includes(SEARCH_STUDENTS_KEY_PREFIX) ||
               key.includes("tracking-supervisions-") ||
               key.includes("tracking-indicators-") ||
-              key.endsWith(studentKeys.detail(studentId))),
+              key.endsWith(studentKeys.detail(studentId)) ||
+              (target !== null && isRoomPresenceKey(key))),
         );
 
         // Bump the per-session counter so the ModeBar can surface "X
         // angemeldet" feedback. We count both directions equally — the
         // banner copy makes the direction unambiguous.
-        dispatchSession("increment");
+        if (!placedNot) dispatchSession("increment");
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error("school_checkin_toggle_failed", {
           student_id: studentId,
           action,
+          ...(target ? { target_kind: target.kind } : {}),
           error: message,
         });
+        if (target) onTargetRefusedRef.current?.();
         void showError(error, {
           object: CHECKIN_OBJECT,
           retry: () =>
@@ -411,7 +522,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
         });
       }
     },
-    [pendingIds, showError],
+    [pendingIds, showError, showMessage],
   );
   useLayoutEffect(() => {
     latestToggleRef.current = toggle;
@@ -424,6 +535,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
       checkoutReason?: SchoolCheckoutReason,
     ): Promise<SchoolCheckinBatchOutcome | null> => {
       if (isBulkRunningRef.current) return null;
+      const target = action === "in" ? targetRef.current : null;
 
       // An explicit id list is a dialog's displayed snapshot and runs
       // exactly as displayed — no intersection with the live selection (see
@@ -445,17 +557,35 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
       let failedRunIds: ReadonlySet<string> = new Set(ids);
 
       try {
-        const outcome = await (checkoutReason
-          ? schoolCheckinStudentsBatch(ids, action, checkoutReason)
-          : schoolCheckinStudentsBatch(ids, action));
+        // A run into a room keeps present children where they are: the
+        // check-in mode places only the children it checks in, so „Alle
+        // auswählen“ never pulls a whole school into one room (#6953).
+        let outcome: SchoolCheckinBatchOutcome;
+        let placement: StudentMoveResult | null = null;
+        if (target) {
+          placement = await checkInToTarget(ids, target, true);
+          outcome = placementOutcome(ids, placement);
+        } else {
+          outcome = await (checkoutReason
+            ? schoolCheckinStudentsBatch(ids, action, checkoutReason)
+            : schoolCheckinStudentsBatch(ids, action));
+        }
 
-        await invalidatePresenceCachesBulk();
+        await invalidatePresenceCachesBulk(target !== null);
         dispatchSession({ type: "addSuccesses", count: outcome.succeeded });
 
         // Clean run → summary toast right here (counts only, no names). A
         // partial failure is the caller's job: naming the failed children
         // needs the student list, which this hook does not hold.
-        if (outcome.failed === 0) {
+        if (outcome.failed === 0 && target && placement) {
+          toast.success(
+            placementMessage(
+              placement.moved.length,
+              placement.unchanged.length,
+              target.roomName,
+            ),
+          );
+        } else if (outcome.failed === 0) {
           const alreadyDone = outcome.results.filter(
             (result) => result.ok && !result.changed,
           ).length;
@@ -492,8 +622,10 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
         logger.error("school_checkin_bulk_failed", {
           action,
           student_count: ids.length,
+          ...(target ? { target_kind: target.kind } : {}),
           error: message,
         });
+        if (target) onTargetRefusedRef.current?.();
         // No retry button: the caller shows the outcome of a run, which a
         // toast retry would bypass. The selection stays marked for a new tap.
         void showError(error, { object: CHECKIN_OBJECT });

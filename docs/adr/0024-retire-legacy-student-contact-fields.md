@@ -4,7 +4,7 @@ status: accepted
 
 # Retire student contact copies without changing school workflows
 
-For [#3387](https://github.com/moto-nrw/project-phoenix/issues/3387), the agreed
+For [#3387](https://github.com/moto-ogs/project-phoenix/issues/3387), the agreed
 direction is to retire `guardian_name`, `guardian_contact`, `guardian_email`
 and `guardian_phone` from the student contract and application storage access.
 Linked contact people remain authoritative. Keeping a singular projection would
@@ -20,7 +20,7 @@ messaging fields with the same names are separate contracts and stay intact.
 
 Application work is separate from production reconciliation. Production rollout
 requires a fresh reconciliation check; destructive storage cleanup belongs to
-[#2760](https://github.com/moto-nrw/project-phoenix/issues/2760).
+[#2760](https://github.com/moto-ogs/project-phoenix/issues/2760).
 
 ## Evidence and limits
 

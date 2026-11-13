@@ -12,11 +12,12 @@ import {
 } from "react";
 import { Z_LAYER } from "./overlay-styles";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
-import { NavLink, type NavLinkProps } from "~/components/ui/nav-link";
+import NavigationLink, {
+  type NavigationLinkProps,
+} from "~/components/ui/navigation-link";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
-const ITEM =
-  "relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full py-2.5 transition-colors duration-200";
+const ITEM = `relative ${Z_LAYER.raised} flex min-h-[44px] items-center justify-center gap-2.5 rounded-full py-2.5 transition-colors duration-200`;
 const ITEM_ACTIVE = "bg-gray-100 text-gray-900";
 const ITEM_IDLE = "text-gray-500 hover:text-gray-700";
 const ITEM_IDLE_QUIET = "text-gray-400 hover:text-gray-600";
@@ -107,6 +108,11 @@ type PortalNavIconProps =
 
 interface PortalBottomNavItemProps {
   readonly label: string;
+  /**
+   * The shown name where `label` is too long for the bar; `label` stays the
+   * accessible name and must contain it as a whole word (axe).
+   */
+  readonly shortLabel?: string;
   readonly active: boolean;
   /** Ein Zähler am Feld. */
   readonly badge?: ReactNode;
@@ -263,7 +269,7 @@ export function PortalBottomNav({
 }
 
 type PortalNavLinkProps = Omit<
-  NavLinkProps,
+  NavigationLinkProps,
   "children" | "className" | "aria-current" | "aria-label" | "target" | "rel"
 > &
   PortalNavIconProps & {
@@ -281,6 +287,7 @@ type PortalNavLinkProps = Omit<
  */
 export function PortalBottomNavLink({
   label,
+  shortLabel,
   concept,
   iconConcept,
   icon,
@@ -295,12 +302,12 @@ export function PortalBottomNavLink({
 }: PortalNavLinkProps & PortalBottomNavItemProps) {
   return (
     <li className={shrinkActive ? bottomNavItemShrink(active) : undefined}>
-      <NavLink
+      <NavigationLink
         {...linkProps}
         data-active={active ? "true" : "false"}
         aria-current={active ? "page" : undefined}
         {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-        aria-label={label}
+        aria-label={accessibleBottomNavName(label, shortLabel, active)}
         className={bottomNavItemClassName({
           active,
           paddingClassName,
@@ -309,12 +316,12 @@ export function PortalBottomNavLink({
       >
         <BottomNavItemContent
           {...({ concept, iconConcept, icon } as PortalNavIconProps)}
-          label={label}
+          label={shortLabel ?? label}
           active={active}
           badge={badge}
           labelClassName={labelClassName}
         />
-      </NavLink>
+      </NavigationLink>
     </li>
   );
 }
@@ -326,6 +333,7 @@ export function PortalBottomNavLink({
  */
 export function PortalBottomNavButton({
   label,
+  shortLabel,
   concept,
   iconConcept,
   icon,
@@ -348,7 +356,7 @@ export function PortalBottomNavButton({
         {...buttonProps}
         type="button"
         data-active={active ? "true" : "false"}
-        aria-label={label}
+        aria-label={accessibleBottomNavName(label, shortLabel, active)}
         className={`${bottomNavItemClassName({
           active,
           paddingClassName,
@@ -357,7 +365,7 @@ export function PortalBottomNavButton({
       >
         <BottomNavItemContent
           {...({ concept, iconConcept, icon } as PortalNavIconProps)}
-          label={label}
+          label={shortLabel ?? label}
           active={active}
           badge={badge}
           labelClassName={labelClassName}
@@ -390,7 +398,7 @@ export function PortalNavSheetLink({
   ...linkProps
 }: PortalNavLinkProps & { readonly plain?: boolean }) {
   return (
-    <NavLink
+    <NavigationLink
       {...linkProps}
       {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
       data-active={active ? "true" : "false"}
@@ -412,7 +420,7 @@ export function PortalNavSheetLink({
           aria-hidden="true"
         />
       )}
-    </NavLink>
+    </NavigationLink>
   );
 }
 
@@ -442,4 +450,23 @@ export function PortalNavSheetButton({
       {label}
     </button>
   );
+}
+
+/**
+ * Der zugängliche Name eines Felds: der volle Name. Zeigt das aktive Feld ein
+ * Kurzwort, das kein ganzes Wort des Namens ist („Ferien“ zu
+ * „Ferienbetreuung“), beginnt der Name mit dem sichtbaren Wort
+ * (WCAG 2.5.3 „Label in Name“), danach folgt der volle Name.
+ */
+export function accessibleBottomNavName(
+  label: string,
+  shortLabel: string | undefined,
+  active: boolean,
+): string {
+  if (!active || !shortLabel || shortLabel === label) return label;
+  const words = label.toLocaleLowerCase("de-DE").split(/[^\p{L}\p{N}]+/u);
+  const shown = shortLabel.toLocaleLowerCase("de-DE").split(/[^\p{L}\p{N}]+/u);
+  return shown.every((word) => words.includes(word))
+    ? label
+    : `${shortLabel}, ${label}`;
 }

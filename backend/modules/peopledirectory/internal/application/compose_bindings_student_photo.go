@@ -5,7 +5,7 @@ import (
 	errors "errors"
 	time "time"
 
-	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
+	internalports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/ports"
 )
 
 type DisabledStudentPhotos struct{}

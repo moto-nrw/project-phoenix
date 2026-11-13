@@ -1,7 +1,7 @@
 package postgres
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
 )
 

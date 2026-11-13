@@ -10,8 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 var (

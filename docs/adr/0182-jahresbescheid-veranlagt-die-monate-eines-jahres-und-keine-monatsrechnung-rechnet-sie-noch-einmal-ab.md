@@ -6,9 +6,9 @@ status: proposed
 
 **Status: Vorgeschlagen.**
 
-Vorschlag vom 08.11.2026 zu [#6219](https://github.com/moto-nrw/project-phoenix/issues/6219),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
-Rest aus [#4688](https://github.com/moto-nrw/project-phoenix/issues/4688), Vorbild
+Vorschlag vom 08.11.2026 zu [#6219](https://github.com/moto-ogs/project-phoenix/issues/6219),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
+Rest aus [#4688](https://github.com/moto-ogs/project-phoenix/issues/4688), Vorbild
 Gemeinde Hardt (MK-007, nur Seite 1 belegt). Er baut auf
 [ADR 0119](0119-abrechnungslauf-stellt-unveraenderliche-rechnungen-aus-einem-nummernkreis-aus.md)
 (mit den Nachträgen zu Storno und Prüfphase),

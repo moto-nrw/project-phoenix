@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 )
 
@@ -139,6 +139,11 @@ func applyLiveGroupScopeFilter(query *bun.SelectQuery, filter studentpresence.Li
 	}
 	if filter.LastActivityBefore != nil {
 		query = query.Where("last_activity < ?", *filter.LastActivityBefore)
+	}
+	if filter.WithoutOpenVisitsOnly {
+		query = query.Where(`NOT EXISTS (SELECT 1 FROM active.visits AS open_visit
+			WHERE open_visit.tenant_id = active.groups.tenant_id
+			AND open_visit.active_group_id = active.groups.id AND open_visit.exit_time IS NULL)`)
 	}
 	if filter.EndedOnly {
 		query = query.Where("end_time IS NOT NULL")

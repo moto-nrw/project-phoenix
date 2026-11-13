@@ -21,6 +21,9 @@ const allowedClasses = new Set([
   "unavailable",
   "server",
 ]);
+// Portals whose readers turn to someone else than the school. Each lists the
+// classes whose fallback names that contact (#6871).
+const portalClasses = { traeger: ["permission"] };
 const failures = [];
 const runtimeCatalog = {};
 
@@ -80,8 +83,27 @@ for (const { code: locale } of locales) {
       failures.push(`${locale}: ${action}: missing action text`);
     }
   }
+  for (const [portal, classNames] of Object.entries(portalClasses)) {
+    const texts = catalog?.portalClasses?.[portal] ?? {};
+    for (const className of classNames) {
+      if (typeof texts[className] !== "string" || !texts[className].trim()) {
+        failures.push(`${locale}: ${portal}.${className}: missing portal class`);
+      }
+    }
+    for (const className of Object.keys(texts)) {
+      if (!classNames.includes(className)) {
+        failures.push(`${locale}: ${portal}.${className}: unknown portal class`);
+      }
+    }
+  }
+  for (const portal of Object.keys(catalog?.portalClasses ?? {})) {
+    if (!(portal in portalClasses)) {
+      failures.push(`${locale}: ${portal}: unknown portal`);
+    }
+  }
   runtimeCatalog[locale] = {
     classes: catalog?.classes,
+    portalClasses: catalog?.portalClasses,
     actions: catalog?.actions,
     codes: overrides,
   };

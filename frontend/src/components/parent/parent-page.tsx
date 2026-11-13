@@ -180,7 +180,7 @@ export function ParentPageSkeleton({ rows = 2 }: Readonly<{ rows?: number }>) {
   return (
     <SkeletonRegion label={t("sectionLoading")}>
       <div className="w-full space-y-5">
-        <TenantPageHeaderSkeleton />
+        <TenantPageHeaderSkeleton matches="parent-page" />
         {Array.from({ length: rows }, (_, index) => (
           <ParentSectionSkeleton key={index} announce={false} />
         ))}

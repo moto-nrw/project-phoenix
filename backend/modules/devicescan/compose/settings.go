@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/internal/application"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
 )
 
 var errSettingsNotConfigured = application.ErrSettingsNotConfigured

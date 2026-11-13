@@ -4,9 +4,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 func HistoryDecidedAt(reviewedAt *time.Time, updatedAt time.Time) time.Time {
@@ -27,6 +27,8 @@ func ToCareRequestDiffResponses(entries []careplan.CareRequestDiffEntry) []CareR
 			CareKind: e.CareKind,
 			OldModes: e.OldModes,
 			NewMode:  e.NewMode,
+			// The family saw this value when it submitted (#6990).
+			SubmittedOld: e.SubmittedOld,
 		})
 	}
 	return out
@@ -94,7 +96,8 @@ func ToCareRequestHistoryResponse(item *careplan.CareScheduleHistoryItem) CareRe
 
 func careImpactToken(item *careplan.CareScheduleReviewItem) string {
 	if !item.ImpactAvailable {
-		return ""
+		// A weekly request pins its displayed diff (#6843).
+		return item.ImpactToken
 	}
 	return securityruntime.Fingerprint(carerequests.PickupImpactContent(item.AffectedBlocks))
 }

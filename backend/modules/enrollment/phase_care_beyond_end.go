@@ -3,7 +3,7 @@ package enrollment
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PhaseUpdateReport is what a phase edit tells the school beyond the saved

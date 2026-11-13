@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

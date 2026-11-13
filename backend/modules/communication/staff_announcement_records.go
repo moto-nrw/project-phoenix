@@ -69,9 +69,10 @@ type PortalAnnouncementRecipientStatus struct {
 	AcknowledgedAt *time.Time `json:"acknowledged_at,omitempty"`
 }
 type PortalAnnouncementStats struct {
-	TargetCount       int `json:"target_count"`
-	ReadCount         int `json:"read_count"`
-	AcknowledgedCount int `json:"acknowledged_count"`
+	TargetCount       int  `json:"target_count"`
+	ReadCount         int  `json:"read_count"`
+	AcknowledgedCount int  `json:"acknowledged_count"`
+	Recorded          bool `json:"recorded"`
 }
 type AnnouncementDraftRecords interface {
 	AnnouncementCreate(ctx context.Context, a *PortalParentAnnouncement) error
@@ -83,6 +84,12 @@ type AnnouncementDraftRecords interface {
 	AnnouncementSetPublished(ctx context.Context, id int64, publishedAt *time.Time) error
 	AnnouncementClearEngagement(ctx context.Context, announcementID int64) error
 	AnnouncementPublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error)
+}
+
+// AnnouncementRecipientRecords keeps the children a publication reached
+// (#6988), apart from the draft records it does not belong to.
+type AnnouncementRecipientRecords interface {
+	AnnouncementRecordRecipients(ctx context.Context, tenantID, id int64) error
 }
 type AnnouncementReminderRecords interface {
 	AnnouncementSetReminder(ctx context.Context, id int64, reminderAt *time.Time, reminderText *string) (bool, error)

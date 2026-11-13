@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ListChildOfferings returns the offerings each child in this request
@@ -192,6 +192,8 @@ func childOfferingRow(
 		row.IncludesLunch = offering.IncludesLunch
 		row.IncludesHolidayCare = offering.IncludesHolidayCare
 		row.PriceCents = offering.PriceCents
+		row.ChangedTerms = enrollmentNative.ChangedOfferingTerms(link.SubmittedTerms, currentOfferingTerms(offering), link.SelectedDays)
 	}
+	row.SubmittedTerms = link.SubmittedTerms
 	return row
 }

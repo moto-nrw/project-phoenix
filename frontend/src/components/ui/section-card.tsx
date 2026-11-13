@@ -1,5 +1,6 @@
 "use client";
 
+import { useKitDefault } from "~/components/ui/kit-locale";
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
@@ -7,12 +8,11 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { IconTile } from "~/components/ui/icon-tile";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import {
-  SECTION_CARD_PADDING,
-  SectionCardSurface,
-} from "~/components/ui/section-card-surface";
+import { CARD_SURFACE_PADDING } from "~/components/ui/card-surface";
+import { SectionCardSurface } from "~/components/ui/section-card-surface";
+import { Z_LAYER } from "~/components/ui/overlay-styles";
 import type { MotoConcept } from "~/lib/moto-concepts";
-import type { MotoDuotoneTone } from "~/lib/location-helper";
+import type { MotoDuotoneTone } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
 
 // Mit `flush` oder `footer` liegt das Polster auf den Zonen statt auf der
@@ -101,6 +101,19 @@ function SectionCardConceptIcon({
   );
 }
 
+/** What the collapse toggle does in each state (#6744). */
+export interface SectionCollapseTooltip {
+  /** While collapsed: what a click shows. */
+  readonly expand: string;
+  /** While open: what a click hides. */
+  readonly collapse: string;
+}
+
+const DEFAULT_COLLAPSE_TOOLTIP: SectionCollapseTooltip = {
+  expand: "Zeigt den Inhalt dieses Abschnitts.",
+  collapse: "Blendet den Inhalt dieses Abschnitts aus.",
+};
+
 /**
  * The disclosure toggle of a collapsible `SectionCard`. Exported for a
  * section whose expanded head is drawn by its content (the block roster on a
@@ -111,13 +124,18 @@ export function SectionCollapseToggle({
   collapsed,
   controls,
   onToggle,
+  tooltip,
 }: Readonly<{
   title?: string;
   collapsed: boolean;
+  tooltip?: SectionCollapseTooltip;
   /** Id of the body the toggle shows or hides, while it is rendered. */
   controls?: string;
   onToggle: () => void;
 }>) {
+  const kitDefault = useKitDefault();
+  const sentences = tooltip ?? DEFAULT_COLLAPSE_TOOLTIP;
+  const sentence = collapsed ? sentences.expand : sentences.collapse;
   return (
     <Button
       type="button"
@@ -134,6 +152,7 @@ export function SectionCollapseToggle({
       }
       aria-expanded={!collapsed}
       aria-controls={controls}
+      tooltip={tooltip ? sentence : kitDefault(sentence)}
       onClick={onToggle}
     >
       <ChevronDown
@@ -208,6 +227,10 @@ export function SectionCollapseHead({
   );
 }
 
+/** Unter `lg` liegt unten die Navigation, der Fuß klebt darüber. */
+const STICKY_FOOTER =
+  "sticky bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-0";
+
 /**
  * The canonical content section of the calm design language the app converged
  * on (Anmeldungen, Planung, Personal-Stammdaten, Elternportal): a
@@ -242,6 +265,7 @@ export function SectionCard({
   bare = false,
   testId,
   collapsible = false,
+  collapseTooltip,
   defaultCollapsed = false,
   collapsed: collapsedProp,
   onCollapsedChange,
@@ -255,6 +279,7 @@ export function SectionCard({
   overflow = "hidden",
   flush = false,
   footer,
+  stickyFooter = false,
   padding = "default",
   loading = false,
   loadingRows = 3,
@@ -298,6 +323,8 @@ export function SectionCard({
   /** Testanker; erspart eine zusätzliche Hülle nur für den Selektor. */
   testId?: string;
   collapsible?: boolean;
+  /** Overrides the toggle's sentences, e.g. for a section that also loads. */
+  collapseTooltip?: SectionCollapseTooltip;
   defaultCollapsed?: boolean;
   /** Controlled open state; `onCollapsedChange` then reports the requested one. */
   collapsed?: boolean;
@@ -331,6 +358,12 @@ export function SectionCard({
    * zum Inhalt). Sie klappt mit der Karte ein.
    */
   footer?: ReactNode;
+  /**
+   * Die Fußzone klebt am unteren Bildschirmrand, solange die Karte höher als
+   * der Bildschirm ist (langes Formular mit Speichern im Fuß). Am Ende der
+   * Karte liegt sie an ihrem Platz. Die Karte schneidet dann nichts ab.
+   */
+  stickyFooter?: boolean;
   /** `none`: Fläche ohne Polster, wenn der Inhalt eigene Zeilen mitbringt. */
   padding?: "default" | "none";
   /** Zeigt Balken in Feldform statt des Inhalts; der Kopf bleibt echt. */
@@ -379,7 +412,7 @@ export function SectionCard({
   // Zonen tragen das Polster, wenn ein Teil bis an den Rand laufen soll.
   const zoned = !bare && padding === "default" && (flush || footer != null);
   let surfacePadding = "";
-  if (padding === "default" && !zoned) surfacePadding = SECTION_CARD_PADDING;
+  if (padding === "default" && !zoned) surfacePadding = CARD_SURFACE_PADDING;
   const bodySpacing =
     hasHeader && !bare ? (bodyClassName ?? "compact:mt-3 mt-4") : bodyClassName;
   const bodyClasses = zoned
@@ -400,7 +433,7 @@ export function SectionCard({
       bare={bare}
       as={as}
       hoverElevated={hoverElevated}
-      overflow={overflow}
+      overflow={stickyFooter ? "visible" : overflow}
       className={cn(!bare && surfacePadding, className)}
     >
       {hasHeader && (
@@ -420,9 +453,13 @@ export function SectionCard({
               auseinander und der Titel wirkt zu hoch. Mit Beschreibung bleibt
               es bei oben bündig, sonst rutschte das Symbol in die Mitte des
               Textblocks. */}
+          {/* Mindestbreite 12rem: in einer schmalen Karte (Seitenspalte)
+              rutschen die Aktionen unter den Titel, statt Titel und
+              Beschreibung auf wenige Wörter je Zeile zusammenzudrücken. Der
+              Einklapp-Pfeil passt auch auf 320 px noch daneben. */}
           <div
             className={cn(
-              "flex min-w-0 flex-1 gap-3",
+              "flex min-w-0 flex-[1_1_12rem] gap-3",
               !description && !kicker && "items-center",
             )}
           >
@@ -487,6 +524,7 @@ export function SectionCard({
             <SectionCollapseToggle
               title={title}
               collapsed={collapsed}
+              tooltip={collapseTooltip}
               controls={showBody ? bodyId : undefined}
               onToggle={() => {
                 const next = !collapsed;
@@ -521,6 +559,8 @@ export function SectionCard({
           className={cn(
             "border-t border-gray-100 bg-gray-50/70 py-3",
             ZONE_PADDING_X,
+            stickyFooter &&
+              `${STICKY_FOOTER} ${Z_LAYER.raised} rounded-b-2xl bg-gray-50/95 backdrop-blur-sm`,
           )}
         >
           {footer}

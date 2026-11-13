@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // The change requests as these routes speak them: the owner's cases with

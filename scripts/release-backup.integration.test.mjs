@@ -20,8 +20,8 @@ test('real PostgreSQL snapshot restores data, outbox schema, roles, uploads and 
   };
   const docker = (...args) => run('docker', args);
   const sql = query => run('docker', ['compose', 'exec', '-T', 'postgres', 'psql', '-X', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At'], query);
-  docker('pull', 'postgres:17-alpine');
-  const image = docker('image', 'inspect', 'postgres:17-alpine', '--format', '{{index .RepoDigests 0}}');
+  docker('pull', 'postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f');
+  const image = docker('image', 'inspect', 'postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f', '--format', '{{index .RepoDigests 0}}');
   writeFileSync(join(cwd, '.env'), 'RELEASE_MARKER=before\n');
   writeFileSync(join(cwd, '.deploy-state'), 'CURRENT_SHA=9c95677\n');
   writeFileSync(join(cwd, 'docker-compose.yml'), `name: ${project}

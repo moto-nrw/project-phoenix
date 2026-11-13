@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
-	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/internal/gitfixture"
 )
 
 func TestInventoryBaseRemainsImmutableAfterCandidateMutation(t *testing.T) {
@@ -78,7 +78,7 @@ func TestInventoryOrphanBaseCannotBootstrap(t *testing.T) {
 		t.Fatal(err)
 	}
 	sha := commitGapFixture(t, project)
-	_, _, err := loadBaseCommandEffects(project, effectBase{root: project, sha: sha, addedADRs: map[string]bool{}})
+	_, _, err := loadBaseCommandEffects(project, effectBase{root: project, sha: sha, addedADRs: map[string]bool{}}, nil)
 	if err == nil || !strings.Contains(err.Error(), "orphan") {
 		t.Fatalf("orphan base bypassed immutable inventory load: %v", err)
 	}

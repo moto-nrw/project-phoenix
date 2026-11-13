@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	calendarSvc "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
 )
 
 func (f *fakeCalendarService) ListSchoolParentConferences(context.Context) (*calendarSvc.SchoolParentConferenceList, error) {

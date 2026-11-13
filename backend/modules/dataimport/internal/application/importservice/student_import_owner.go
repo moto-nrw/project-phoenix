@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog/consents"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // This file holds the owner-backed read and write paths of the student
@@ -523,6 +523,7 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record p
 			return copyErrorf("Kind aktualisieren: %w", err)
 		}
 	}
+	noteCohortChange(ctx, record, renewal.SchoolClass, patch)
 	if c.ConsentHistory != nil {
 		before := consentSnapshot(record.ID, record.AGBAcceptedAt, record.DataProcessingAcceptedAt, record.EmailContactAcceptedAt, record.PhotoConsentGivenAt)
 		if err := ports.ObserveCommand(ctx, "audit-platform", "record_consent_transitions", func() error {

@@ -4,11 +4,11 @@ import (
 	"context"
 	"net/http"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	carePlanModule "github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanHTTP "github.com/moto-ogs/project-phoenix/modules/careplan/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // newBookingAuthorityImpact serves Care Plan's review before a school

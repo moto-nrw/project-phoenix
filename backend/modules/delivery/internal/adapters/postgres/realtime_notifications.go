@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )

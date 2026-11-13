@@ -1,6 +1,6 @@
 # Identity & Access native persistence and token adapter evidence (#3226)
 
-Issue: [#3226](https://github.com/moto-nrw/project-phoenix/issues/3226).
+Issue: [#3226](https://github.com/moto-ogs/project-phoenix/issues/3226).
 Measured locally on 2026-09-21, Go 1.27.0, macOS arm64, PostgreSQL 17.11,
 hermetic test database, sequential concurrency 1, five warmups and 30 measured
 calls per operation. The accepted checkpoint remains #3020; this document does
@@ -36,7 +36,7 @@ scripts/run-go-toolchain.sh go -C backend test -tags=testhooks \
 ```
 
 The harness now lives in
-`backend/modules/identityaccess/inbound/account/identity_persistence_runtime_evidence_test.go`.
+`backend/modules/identityaccess/inbound/account/behaviortest/identity_persistence_runtime_evidence_test.go`.
 At measurement time it was `backend/api/auth/identity_persistence_runtime_evidence_test.go`
 and ran as `./api/auth`.
 

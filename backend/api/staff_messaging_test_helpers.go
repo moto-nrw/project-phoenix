@@ -11,20 +11,20 @@ import (
 	"sync"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/communication/http/messageattachments"
-	staffmessagingHTTP "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/communication/http/messageattachments"
+	staffmessagingHTTP "github.com/moto-ogs/project-phoenix/modules/communication/http/staffmessages"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // StaffMessagingTestModule is the Communication owner's staff messaging.

@@ -151,6 +151,30 @@ Minuten kontrolliert wieder. Sie stellt die aktive Raumaufsicht und die beim
 Beenden noch anwesenden Kinder wieder her; eine Aktivität zu einem späteren
 Zeitpunkt neu anzulegen ist keine Rücknahme.
 
+## Trägerphase
+
+Eine **Trägerphase** ist eine Anmeldephase, die das Träger-Büro einmal für
+alle oder ausgewählte Schulen des Trägers pflegt. Jede Schule bekommt erst nach
+der Freigabe durch das Büro eine eigene Anmeldephase daraus, ihre **Kopie**
+([ADR 0195](docs/adr/0195-traegerphase-und-traegerangebot-werden-je-schule-kopiert-und-erst-nach-freigabe-abgeglichen.md)).
+
+## Trägerangebot
+
+Ein **Trägerangebot** ist ein Betreuungsangebot einer Trägerphase, mit Preis und
+Vertragsvorlage. Beim Übertragen bekommt jede Schule der Phase ein eigenes
+Betreuungsangebot (ihre Kopie), dazu Tarif und Vertragsvorlage.
+
+_Vermeiden_: Vorlage, Angebotsvorlage (belegt durch Stundenplan-, Vertrags- und
+Dokumentvorlage).
+
+## Kopie (Träger)
+
+Eine **Kopie** ist die gewöhnliche Anmeldephase oder das gewöhnliche Angebot
+einer Schule, das aus einer Trägerphase oder einem Trägerangebot entstand. Die
+Schule darf alles daran ändern; jede Änderung ist eine **Abweichung**, die ein
+späterer Abgleich behält. Löschen kann nur das Büro (Zurückziehen). Wechselt die
+Schule den Träger, wird die Kopie ein gewöhnliches Angebot ohne Trägerbezug.
+
 ## Gehzeit
 
 Die **Gehzeit** ist die geplante Uhrzeit, zu der ein Kind an einem Betreuungstag

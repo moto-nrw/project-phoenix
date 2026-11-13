@@ -3,8 +3,8 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // HolidayClosureCalendarReads reads and locks current schools in one batch.

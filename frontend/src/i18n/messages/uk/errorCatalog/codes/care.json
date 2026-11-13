@@ -60,6 +60,7 @@
   "offering_changes_disabled": "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
   "payer_guardian_protected": "У вас немає доступу до: {object}. Зверніться до школи.",
   "photo_consent_not_withdrawn": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "pickup_change_care_day_ended": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "pickup_change_cutoff_passed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "pickup_change_disabled": "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
   "pickup_permission_request_required": "Для нового дозволу потрібен ваш підпис. Потім OGS його підтвердить.",

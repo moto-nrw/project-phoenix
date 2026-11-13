@@ -4,15 +4,15 @@ import (
 	"context"
 	"log/slog"
 
-	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	"github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
+	appointmentsCompose "github.com/moto-ogs/project-phoenix/modules/appointments/compose"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	"github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	schoolStructureCompose "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	studentdeletioncompose "github.com/moto-ogs/project-phoenix/workflows/studentdeletion/compose"
 )
 
 // NewStudentDeletionOwners builds the owners the student deletion workflow

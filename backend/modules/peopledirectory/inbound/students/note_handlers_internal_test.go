@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+	securitycontract "github.com/moto-ogs/project-phoenix/modules/securityruntime/ports"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

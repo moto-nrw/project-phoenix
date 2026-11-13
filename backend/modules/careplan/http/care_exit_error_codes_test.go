@@ -1,14 +1,16 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"fmt"
 	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 // Every care-lifecycle refusal answers with its own code, so the dialog words
@@ -49,7 +51,7 @@ func TestCareExitErrorRendererAnswersWithCodes(t *testing.T) {
 			t.Parallel()
 
 			// Wrapped like the service returns it: the rule still matches.
-			resp, ok := careExitErrorRenderer(fmt.Errorf("care exit: %w", tc.err)).(*common.ErrResponse)
+			resp, ok := careplanhttp.CareExitErrorRendererForTest(fmt.Errorf("care exit: %w", tc.err)).(*common.ErrResponse)
 			require.True(t, ok)
 			assert.Equal(t, tc.status, resp.HTTPStatusCode)
 			assert.Equal(t, tc.code, resp.Code)

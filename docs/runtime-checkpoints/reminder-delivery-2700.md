@@ -1,10 +1,10 @@
 # Reminder Delivery migration evidence
 
-Issue: [#2700](https://github.com/moto-nrw/project-phoenix/issues/2700).
+Issue: [#2700](https://github.com/moto-ogs/project-phoenix/issues/2700).
 Implementation baseline: `5d6c3dba59`. Measured locally on 2026-09-05.
 
 This flow-specific evidence supplements the accepted runtime checkpoint
-[#3019](https://github.com/moto-nrw/project-phoenix/issues/3019#issuecomment-5552473019).
+[#3019](https://github.com/moto-ogs/project-phoenix/issues/3019#issuecomment-5552473019).
 It does not claim a staging or production observation window.
 
 ## Cutover
@@ -29,7 +29,7 @@ Static cleanup evidence:
 - Composition field/setter targets: **847 → 847**.
 - Policy `owners` and `data_objects` are unchanged.
 - `services/reminders` and `services/calendar/reminders.go` are deleted.
-- No Go source imports `github.com/moto-nrw/project-phoenix/services/reminders`.
+- No Go source imports `github.com/moto-ogs/project-phoenix/services/reminders`.
 - The only production `EnqueueDueAppointmentReminders` implementation is the
   workflow command. Its only production caller is the scheduler.
 - Generated composition inventories retain immutable historical evidence and

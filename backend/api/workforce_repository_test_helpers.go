@@ -5,11 +5,11 @@ package api
 import (
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceCapability "github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
 )
 
 // WorkforceTestRepositories is the Workforce suites' repository graph of the

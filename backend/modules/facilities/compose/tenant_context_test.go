@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant/tenanttest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -60,7 +60,10 @@ func TestEveryOperationRejectsMissingTenantContext(t *testing.T) {
 			_, err := module.UpdateRoom(ctx, facilities.UpdateRoom{ID: id, Name: "Igelraum"})
 			return err
 		}},
-		{name: "delete room", call: func(ctx context.Context, module facilities.Capability) error { return module.DeleteRoom(ctx, id) }},
+		{name: "delete room", call: func(ctx context.Context, module facilities.Capability) error {
+			_, err := module.DeleteRoom(ctx, id)
+			return err
+		}},
 	}
 	db := testpkg.SetupTestDB(t)
 	checkOperations := func(name string, ctx context.Context) {

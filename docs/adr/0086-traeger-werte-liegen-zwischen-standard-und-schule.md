@@ -4,8 +4,8 @@ status: accepted
 
 # Träger-Werte liegen zwischen Standard und Schule
 
-Entscheidung vom 23.10.2026 zu [#4646](https://github.com/moto-nrw/project-phoenix/issues/4646),
-Etappe 0 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 23.10.2026 zu [#4646](https://github.com/moto-ogs/project-phoenix/issues/4646),
+Etappe 0 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 8, 9 und 14. Der Product Owner hat sie am 23.10.2026 angenommen.
 Sie baut auf
 [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md)
@@ -26,7 +26,7 @@ Das Settings-System kennt zwei Ebenen: Standard der Registry und Zeile in
 Eine neue Schule bekommt keine Zeilen und läuft auf den Standards
 ([ADR 0043](0043-einrichtungs-assistent-zustand-bei-settings-fortschritt-als-projektion.md)).
 Änderungen landen in `config.setting_audit` je Schule; scheitert der Eintrag,
-wird das nur geloggt.
+wurde das bis #6844 nur geloggt. Seitdem scheitert mit ihm die Änderung.
 
 Der Träger hat nur `platform.organizations` mit einer JSONB-Spalte `settings`,
 die nichts liest (#934). Jede Schule hat genau einen Träger

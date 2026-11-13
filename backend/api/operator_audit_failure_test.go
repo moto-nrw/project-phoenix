@@ -3,10 +3,10 @@ package api
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,6 +35,40 @@ func TestOperatorAuditFailureRollsBackRotation(t *testing.T) {
 	var after string
 	require.NoError(t, db.NewRaw(`SELECT api_key_hash FROM iot.devices WHERE id = ?`, device.ID).Scan(ctx, &after))
 	assert.True(t, before == after, "audit failure must roll back the credential change")
+}
+
+// The school account commits only after its operator audit entry (#6984):
+// the entry commits in its own administrative unit before the school unit,
+// so a rejected append leaves no account behind.
+func TestOperatorAuditFailureRollsBackSchoolAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service := buildOperatorProvisioning(t, db)
+	ctx := provisioningContext(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	_, schoolID := provisionTestSchool(t, db, service, operatorID, "audit-account")
+	_, err := db.ExecContext(ctx, `CREATE FUNCTION platform.reject_operator_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+	BEGIN RAISE EXCEPTION 'injected audit failure'; END $$;
+	CREATE TRIGGER reject_operator_audit BEFORE INSERT ON platform.operator_audit_log
+	FOR EACH ROW EXECUTE FUNCTION platform.reject_operator_audit()`)
+	require.NoError(t, err)
+
+	input := schoolScopedInput(service.CreateSchoolAccount)
+	input.Email = "audit-account@example.test"
+	input.Password = testpkg.NewTestPassword()
+	input.FirstName = "Erika"
+	input.LastName = "Audit"
+	input.CaregiverEnabled = true
+	account, err := service.CreateSchoolAccount(ctx, schoolID, operatorID, provisioningTestClientIP, input)
+
+	var unavailable *organizationtenancy.OperatorAuditUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Nil(t, account, "a failed audit must not return an account")
+	var accounts, persons int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.accounts WHERE email = ?`, input.Email).Scan(ctx, &accounts))
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.persons WHERE tenant_id = ? AND last_name = 'Audit'`, schoolID).Scan(ctx, &persons))
+	assert.Zero(t, accounts, "audit failure must roll back the account")
+	assert.Zero(t, persons, "audit failure must roll back the school identity")
 }
 
 func TestOperatorAuditFailureRollsBackMFAOverride(t *testing.T) {

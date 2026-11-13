@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Take the complete submitted roster before any row writes, in the same
 // ascending staff order as deviation saves, including weekday-only people.
-func (s *TemplateService) lockTemplateUpdateStaff(ctx context.Context, in TemplateUpdateInput) error {
+func (s *TemplateService) lockTemplateUpdateStaff(ctx context.Context, in TemplateUpdateInput, replanStaff []int64) error {
 	roster, err := resolveTemplateRoster(in.Weekdays, in.StudentIDs, in.StaffIDs, in.PrimaryStaffID, in.WeekdayAssignments)
 	if err != nil {
 		return &ports.ScheduleError{Op: "update template: resolve roster", Err: err}
@@ -22,6 +22,7 @@ func (s *TemplateService) lockTemplateUpdateStaff(ctx context.Context, in Templa
 	for _, row := range roster.Staff {
 		staffIDs = append(staffIDs, row.PersonID)
 	}
+	staffIDs = append(staffIDs, replanStaff...)
 	if err := lockStaffRows(ctx, s.deps.InstanceStaffRepo, staffIDs); err != nil {
 		return &ports.ScheduleError{Op: "update template: lock staff", Err: err}
 	}

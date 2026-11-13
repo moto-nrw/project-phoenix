@@ -1,52 +1,6 @@
 import { render } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import { EyeIcon, EyeOffIcon, CheckIcon, SpinnerIcon } from "./icons";
-
-describe("EyeIcon", () => {
-  it("renders with default className", () => {
-    const { container } = render(<EyeIcon />);
-
-    const svg = container.querySelector("svg");
-    expect(svg).toHaveClass("h-5", "w-5");
-  });
-
-  it("renders with custom className", () => {
-    const { container } = render(<EyeIcon className="h-8 w-8 text-blue-500" />);
-
-    const svg = container.querySelector("svg");
-    expect(svg).toHaveClass("h-8", "w-8", "text-blue-500");
-  });
-
-  it("renders SVG paths", () => {
-    const { container } = render(<EyeIcon />);
-
-    const paths = container.querySelectorAll("path");
-    expect(paths.length).toBe(2);
-  });
-});
-
-describe("EyeOffIcon", () => {
-  it("renders with default className", () => {
-    const { container } = render(<EyeOffIcon />);
-
-    const svg = container.querySelector("svg");
-    expect(svg).toHaveClass("h-5", "w-5");
-  });
-
-  it("renders with custom className", () => {
-    const { container } = render(<EyeOffIcon className="h-6 w-6" />);
-
-    const svg = container.querySelector("svg");
-    expect(svg).toHaveClass("h-6", "w-6");
-  });
-
-  it("renders SVG path", () => {
-    const { container } = render(<EyeOffIcon />);
-
-    const path = container.querySelector("path");
-    expect(path).toBeInTheDocument();
-  });
-});
+import { CheckIcon, SpinnerIcon } from "./icons";
 
 describe("CheckIcon", () => {
   it("renders with default className", () => {

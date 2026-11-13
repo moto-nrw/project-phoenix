@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	declarations "github.com/moto-nrw/project-phoenix/modules/communication"
+	declarations "github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // Erklärungen (#3430): the staff side. An Erklärung is an announcement in

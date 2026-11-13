@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/staffmessageinbox/contract"
+	"github.com/moto-ogs/project-phoenix/modules/staffmessageinbox/contract"
 
 	"github.com/uptrace/bun"
 )

@@ -1,7 +1,7 @@
 package care
 
 import (
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The field-state helpers compare snapshots, not persistence rows. The

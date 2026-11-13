@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	sessionsAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/sessions"
-	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
+	sessionsAPI "github.com/moto-ogs/project-phoenix/modules/devicescan/http/sessions"
+	"github.com/moto-ogs/project-phoenix/workflows/sessionend"
 )
 
 // BindIoTSessionEnd supplies the kiosk's session-close port from the workflow.

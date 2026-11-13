@@ -73,6 +73,8 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useBreadcrumb: () => mockUseBreadcrumb(),
 }));
 
+vi.mock("./header/staff-news-button", () => ({ StaffNewsButton: () => null }));
+
 vi.mock("./header/brand-link", () => ({
   BrandLink: () => <div data-testid="brand-link">Brand</div>,
   BreadcrumbDivider: () => <div data-testid="divider">/</div>,

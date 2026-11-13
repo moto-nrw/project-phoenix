@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/demoprofile"
+	"github.com/moto-ogs/project-phoenix/demoprofile"
 )
 
 const DefaultSeedStatePath = demoprofile.DefaultSeedStatePath

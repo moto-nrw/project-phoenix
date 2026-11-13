@@ -4,7 +4,7 @@ import (
 	http "net/http"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
+	common "github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // renderError writes an error response to the HTTP response writer.

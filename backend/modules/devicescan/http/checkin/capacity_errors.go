@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
 )
 
 // Registered error codes (error-registry/) of the check-in conflicts.

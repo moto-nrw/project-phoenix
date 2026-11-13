@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { LogIn, LogOut } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -26,6 +27,10 @@ interface SchoolCheckinSelectionBarProps {
   readonly runningAction?: "in" | "out" | null;
   /** „Alle N auswählen“ for the children on screen (#4762). */
   readonly selectAll?: SelectAllControl;
+  /** „Anmelden in“ (#6953): where a check-in puts the children. */
+  readonly targetPicker?: ReactNode;
+  /** The chosen target's room, so the Anmelden button names it. */
+  readonly targetRoomName?: string | null;
 }
 
 /**
@@ -50,6 +55,8 @@ export function SchoolCheckinSelectionBar({
   isRunning,
   runningAction = null,
   selectAll,
+  targetPicker,
+  targetRoomName = null,
 }: SchoolCheckinSelectionBarProps) {
   const noneSelected = selectedCount === 0;
   const leftOut = selectAll ? leftOutLabel(selectAll.leftOutCount) : null;
@@ -141,7 +148,7 @@ export function SchoolCheckinSelectionBar({
               ) : (
                 <LogIn className="h-3.5 w-3.5" aria-hidden />
               )}
-              Anmelden
+              {targetRoomName ? `In ${targetRoomName} anmelden` : "Anmelden"}
             </Button>
             <Button
               type="button"
@@ -163,6 +170,10 @@ export function SchoolCheckinSelectionBar({
           finishButton
         )
       }
-    />
+    >
+      {targetPicker ? (
+        <div className="mt-2 border-t border-gray-100 pt-2">{targetPicker}</div>
+      ) : null}
+    </SelectionBar>
   );
 }

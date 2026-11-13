@@ -5,10 +5,10 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
+	schedule "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 	"github.com/uptrace/bun"
 )
 

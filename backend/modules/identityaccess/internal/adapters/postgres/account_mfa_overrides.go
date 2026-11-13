@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 const accountMFAOverrideColumns = "id, account_id, tenant_id, override, set_by, set_by_type, reason"

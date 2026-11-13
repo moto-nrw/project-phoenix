@@ -36,7 +36,7 @@ func validateEffectDirection(entry commandEffectEntry, ownerKinds map[string]str
 }
 
 func careExitEffectCallback(target string) bool {
-	const prefix = "github.com/moto-nrw/project-phoenix/workflows/careexit."
+	const prefix = "github.com/moto-ogs/project-phoenix/workflows/careexit."
 	switch strings.TrimPrefix(strings.TrimPrefix(target, "*"), prefix) {
 	case "Roster.CloseOpenStudentAssignments", "Roster.LockOpenStudentAssignments",
 		"Roster.LockPlannedRosterForCareExit", "Roster.ReconnectCareExitAssignmentPickupExceptions",

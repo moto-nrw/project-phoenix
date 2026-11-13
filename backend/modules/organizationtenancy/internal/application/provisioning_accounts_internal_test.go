@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +58,8 @@ func TestProvisioningInviteSchoolAdmin(t *testing.T) {
 		assert.Empty(t, h.identity.invitations)
 	})
 
-	t.Run("audit failure does not fail the invitation", func(t *testing.T) {
+	// The invitation commits only with its operator audit entry (#6844).
+	t.Run("audit failure fails the invitation", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seedDeviceSchools(h)
@@ -66,8 +67,8 @@ func TestProvisioningInviteSchoolAdmin(t *testing.T) {
 
 		invitation, err := h.svc.InviteSchoolAdmin(context.Background(), 10, testOperatorID, operatorIP, input)
 
-		require.NoError(t, err)
-		require.NotNil(t, invitation)
+		require.ErrorIs(t, err, errBoom)
+		assert.Nil(t, invitation)
 	})
 
 	for name, tc := range map[string]struct {
@@ -220,7 +221,8 @@ func TestProvisioningCreateSchoolAccount(t *testing.T) {
 		assert.Empty(t, h.identity.assigned)
 	})
 
-	t.Run("audit failure does not fail the creation", func(t *testing.T) {
+	// The account commits only after its operator audit entry (#6984).
+	t.Run("audit failure fails the creation", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seedDeviceSchools(h)
@@ -228,8 +230,11 @@ func TestProvisioningCreateSchoolAccount(t *testing.T) {
 
 		account, err := h.svc.CreateSchoolAccount(context.Background(), 10, testOperatorID, operatorIP, accountInput(nil))
 
-		require.NoError(t, err)
-		require.NotNil(t, account)
+		var unavailable *organizationtenancy.OperatorAuditUnavailableError
+		require.ErrorAs(t, err, &unavailable)
+		require.ErrorIs(t, err, errBoom)
+		assert.Nil(t, account)
+		assert.ErrorIs(t, h.tx.lastErr, errBoom, "the school unit must roll back")
 	})
 
 	caregiver := func(input organizationtenancy.SchoolAccountInput) organizationtenancy.SchoolAccountInput {

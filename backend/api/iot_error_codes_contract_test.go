@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // checkIoTErrorCodes drives the kiosk refusals of #3939 through the assembled
@@ -103,6 +103,10 @@ func checkIoTErrorCodes(t *testing.T, api *goldenRuntime) {
 				http.StatusNotFound, "iot.person_not_student", "person is not a student"},
 			{"attendance toggle of unknown card", http.MethodPost, "/api/iot/attendance/toggle", map[string]any{"rfid": unknownTag, "action": "confirm"},
 				http.StatusNotFound, "iot.rfid_tag_not_found", "RFID tag not found"},
+			// A kiosk without a session answers like the session routes, not
+			// with a 500 (#5710).
+			{"attendance toggle without session", http.MethodPost, "/api/iot/attendance/toggle", map[string]any{"rfid": childTag, "action": "confirm"},
+				http.StatusNotFound, "iot.no_active_session", "no active session - please start an activity first"},
 			{"daily checkout of unknown card", http.MethodPost, "/api/iot/attendance/toggle", map[string]any{"rfid": unknownTag, "action": "confirm_daily_checkout", "destination": "zuhause"},
 				http.StatusNotFound, "iot.rfid_tag_not_found", "RFID tag not found"},
 			{"daily checkout without attendance", http.MethodPost, "/api/iot/attendance/toggle", map[string]any{"rfid": childTag, "action": "confirm_daily_checkout", "destination": "zuhause"},

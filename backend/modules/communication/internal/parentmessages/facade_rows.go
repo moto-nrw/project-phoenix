@@ -1,7 +1,7 @@
 package messaging
 
 import (
-	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	values "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
 )
 
 func NativeFacadeErrors() values.ParentMessageErrors {

@@ -8,14 +8,14 @@
 
 NFC-based student attendance and room management for schools.
 
-[![GitHub Stars](https://img.shields.io/github/stars/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/stargazers)
-[![GitHub Issues](https://img.shields.io/github/issues/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/issues)
-[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/pulls)
+[![GitHub Stars](https://img.shields.io/github/stars/moto-ogs/project-phoenix?style=flat-square)](https://github.com/moto-ogs/project-phoenix/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/moto-ogs/project-phoenix?style=flat-square)](https://github.com/moto-ogs/project-phoenix/issues)
+[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/moto-ogs/project-phoenix?style=flat-square)](https://github.com/moto-ogs/project-phoenix/pulls)
 [![License](https://img.shields.io/badge/License-Source--Available-blue?style=flat-square)](LICENSE)
 [Privacy implementation and operational limits](SECURITY.md#gdpr-compliance)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
 
-[![Go](https://img.shields.io/badge/Go-1.27.3-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.27.4-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -58,14 +58,14 @@ Project Phoenix is the software behind [**moto**](https://moto-ogs.de), the digi
 
 ## Hardware
 
-The NFC scanning happens on Raspberry Pi kiosks running [**PyrePortal**](https://github.com/moto-nrw/PyrePortal) (Tauri + React). The kiosks talk to this backend through the device-authenticated `/api/iot/*` API.
+The NFC scanning happens on Raspberry Pi kiosks running [**PyrePortal**](https://github.com/moto-ogs/PyrePortal) (Tauri + React). The kiosks talk to this backend through the device-authenticated `/api/iot/*` API.
 
 ## Quick Start
 
 **Prerequisites:** [Docker](https://docs.docker.com/get-docker/), [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/), and [direnv](https://direnv.net/docs/installation.html). Devbox pins every tool version, so the whole team gets an identical environment.
 
 ```bash
-git clone https://github.com/moto-nrw/project-phoenix.git
+git clone https://github.com/moto-ogs/project-phoenix.git
 cd project-phoenix
 
 direnv allow              # one-time: activates the devbox environment
@@ -91,7 +91,7 @@ Editor/LSP setup, fresh worktrees and tooling health checks:
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | Go 1.27.3, Chi Router, Bun ORM |
+| **Backend** | Go 1.27.4, Chi Router, Bun ORM |
 | **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
 | **Database** | PostgreSQL 17 with 15 domain schemas, SSL, Row-Level Security |
 | **Auth** | JWT with refresh tokens + MFA, NextAuth.js, six isolated portals (staff / operator / parents / school / caterer / Träger) |
@@ -129,7 +129,7 @@ This project handles sensitive student data and treats that responsibility as a 
 - [ ] Träger dashboard with cross-school analytics
 - [ ] Push notifications
 
-See the [open issues](https://github.com/moto-nrw/project-phoenix/issues) for everything in flight.
+See the [open issues](https://github.com/moto-ogs/project-phoenix/issues) for everything in flight.
 
 ## Contributing
 
@@ -150,7 +150,7 @@ Distributed under a Source-Available License. See [LICENSE](LICENSE) for more in
 ## Contact
 
 - **Website:** [moto-ogs.de](https://moto-ogs.de)
-- **Issues:** [Report a bug or request a feature](https://github.com/moto-nrw/project-phoenix/issues)
+- **Issues:** [Report a bug or request a feature](https://github.com/moto-ogs/project-phoenix/issues)
 
 ---
 

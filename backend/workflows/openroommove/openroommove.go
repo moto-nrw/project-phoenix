@@ -17,7 +17,8 @@ import (
 )
 
 var (
-	// ErrInvalidMove reports a request without children or without a room.
+	// ErrInvalidMove reports a request without children or without a room,
+	// or a check-in without the staff member it names.
 	ErrInvalidMove = errors.New("student_ids and target_room_id are required")
 	// ErrRoomNotFound reports that the tenant has no such room.
 	ErrRoomNotFound = errors.New("room not found")
@@ -54,6 +55,19 @@ type Move struct {
 	Actor      Actor
 }
 
+// CheckIn asks to check children in to the school and place them in the
+// released room in one unit (#6953): the app path that equals a scan at the
+// room. Children already present move with every right of a Move.
+type CheckIn struct {
+	StudentIDs []int64
+	RoomID     int64
+	// CheckedInBy is the staff member the attendance names.
+	CheckedInBy int64
+	// KeepPresent leaves children who are already present where they are.
+	KeepPresent bool
+	Actor       Actor
+}
+
 // Skipped names a child the move left where it was, and why.
 type Skipped struct {
 	StudentID int64
@@ -68,6 +82,8 @@ type Result struct {
 	Moved         []int64
 	Unchanged     []int64
 	Skipped       []Skipped
+	// CheckedIn names the children a CheckIn checked in to the school.
+	CheckedIn []int64
 }
 
 // Command records a move into a released room. It joins the caller's tenant
@@ -76,4 +92,5 @@ type Result struct {
 // returned error means the caller must roll back.
 type Command interface {
 	MoveToOpenRoom(ctx context.Context, move Move) (Result, error)
+	CheckInToOpenRoom(ctx context.Context, checkIn CheckIn) (Result, error)
 }

@@ -7,15 +7,15 @@ import (
 	"log/slog"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // GuardianInvitationTestConfig is what a guardian invitation test varies:

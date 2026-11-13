@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestSeedCoverageRatchet keeps the demo seeder honest about which tables it
@@ -94,9 +94,6 @@ var seedCoverageExemptions = map[string]string{
 	"calendar.appointment_occurrence_overrides":     "empty in prod too",
 	"calendar.appointment_reminder_push_deliveries": "empty in prod too",
 
-	"config.work_time_model_entries": "empty in prod too",
-	"config.work_time_models":        "empty in prod too",
-
 	"display.displays": "empty in prod too",
 
 	"education.grade_transition_class_list_entries": "not in prod yet (migration newer than the deployed image)",
@@ -152,8 +149,6 @@ var seedCoverageTransient = map[string]string{
 	"auth.invitation_tokens":                     "short-lived invitation state; the seed accepts some and leaves some open",
 	"care_contract.contract_reminders":           "reminders of an unsigned care contract (#4679) go out only once the Träger's reminder days passed since the last mail; the seed sends its contracts minutes before the check",
 	"parent_billing.care_invoices":               "monthly invoices bill only active contracts (#4684); the Worker concludes the contracts of Weg b on its five-minute tick (#4680), so a seed run may finish before the first one is active, and a later seed run issues them",
-	"parent_billing.family_billing":              "deviations of families (#4689); the seed sets them for the contracts the monthly run bills, so present exactly when the run has an invoice, see parent_billing.care_invoices",
-	"parent_billing.family_billing_events":       "the trail of the deviations above (#4689); present exactly when a deviation is",
 	"parent_billing.sepa_mandates":               "SEPA mandates of the families (#4695); the seed gives them to the contracts the monthly run bills, so present exactly when the run has an invoice, see parent_billing.care_invoices",
 	"parent_billing.sepa_mandate_events":         "the trail of the mandates above (#4695); present exactly when a mandate is",
 	"parent_billing.sepa_debit_files":            "the stored PAIN.008 file of a message (#6314, ADR 0187); the office's download writes it, which the seed never does, so present exactly when someone downloaded a debit file",

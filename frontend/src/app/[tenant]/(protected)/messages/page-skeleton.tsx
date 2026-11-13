@@ -5,7 +5,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 
 /**
  * Data-region skeleton: just the thread-list rows. The real header
- * (PageHeaderWithSearch) and filter/compose bar render immediately
+ * (TenantPage search row) and filter/compose bar render immediately
  * regardless of loading state — only this data-bound region skeletonizes
  * while the inbox loads.
  */

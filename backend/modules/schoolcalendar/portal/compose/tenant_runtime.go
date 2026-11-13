@@ -3,8 +3,8 @@ package compose
 import (
 	"context"
 
-	runtimeBinding "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	runtimeBinding "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

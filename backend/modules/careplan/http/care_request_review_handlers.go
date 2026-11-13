@@ -6,9 +6,9 @@ import (
 	http "net/http"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	carerequests "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	carerequests "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // DecideCareRequestBody is the body of POST
@@ -36,6 +36,7 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	input.ReviewedBy = int64(claims.ID)
 	input.ReasonRequired = rs.staffReasonRequired(r)
+	input.WeeklyImpact = rs.CareRequestReviews
 	item, err := rs.CareRequestService.Decide(r.Context(), input)
 	if err != nil {
 		renderError(w, r, careRequestDecisionErrorRenderer(err))
@@ -75,6 +76,7 @@ var careRequestDecisionErrorRenderer = common.RulesRenderer(parentRequestRules(
 	common.ErrorRule{Target: carerequests.ErrPickupChangeAlreadyCompleted, Render: conflictWithCode(common.CodeStudentsPickupChangeCompleted)},
 	common.ErrorRule{Target: carerequests.ErrPickupChangeExpired, Render: conflictWithCode(common.CodeStudentsPickupChangeExpired)},
 	common.ErrorRule{Target: carerequests.ErrPickupChangeImpactChanged, Render: conflictWithCode(common.CodeStudentsPickupChangeImpactChanged)},
+	common.ErrorRule{Target: carerequests.ErrWeeklyPlanChanged, Render: conflictWithCode(common.CodeStudentsCareRequestPlanChanged)},
 	common.ErrorRule{Target: carerequests.ErrCareDayManagedByBooking, Render: conflictWithCode(common.CodeStudentsCareDayManagedByBooking)},
 	common.ErrorRule{Match: isInvalidCareRequestDecision, Render: common.ErrorInvalidRequest},
 ), careRequestDecisionFallback)
@@ -102,5 +104,6 @@ func isInvalidCareRequestDecision(err error) bool {
 	return errors.Is(err, carerequests.ErrRejectReasonRequired) ||
 		errors.Is(err, carerequests.ErrRejectReasonTooLong) ||
 		errors.Is(err, carerequests.ErrInvalidPayload) ||
-		errors.Is(err, carerequests.ErrPickupChangeImpactRequired)
+		errors.Is(err, carerequests.ErrPickupChangeImpactRequired) ||
+		errors.Is(err, carerequests.ErrWeeklyPlanImpactRequired)
 }

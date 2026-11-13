@@ -2,7 +2,7 @@
 # No application service exists here, so `up` cannot start regular processing.
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f
     restart: "no"
     ports:
       - "127.0.0.1:${RESTORE_POSTGRES_PORT:?RESTORE_POSTGRES_PORT is required}:5432"

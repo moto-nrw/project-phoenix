@@ -1013,7 +1013,7 @@ describe("PhasesEditor", () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listSchemas.mockResolvedValue([schema()]);
     mocks.getPhaseDeleteImpact.mockResolvedValue({
-      requests: 1,
+      requests: 0,
       care_offerings: 1,
       students_kept: 0,
     });
@@ -1049,10 +1049,11 @@ describe("PhasesEditor", () => {
   it("explains in the dialog why a phase with booked children stays (#6505)", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listSchemas.mockResolvedValue([schema()]);
+    // The preview showed no request; one arrived before the delete ran.
     mocks.getPhaseDeleteImpact.mockResolvedValue({
-      requests: 1,
+      requests: 0,
       care_offerings: 1,
-      students_kept: 1,
+      students_kept: 0,
     });
     mocks.deletePhase.mockRejectedValue(
       new ApiError("phase still has effective care offering bookings", 409, {
@@ -1082,6 +1083,36 @@ describe("PhasesEditor", () => {
         "Für diese Anmeldephase sind noch Kinder gebucht. Deshalb kann sie nicht gelöscht werden. Wählen Sie stattdessen „Deaktivieren“ oder beenden Sie zuerst die Buchungen.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("blocks deleting a phase with requests and names „Deaktivieren“ instead (#6836)", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.getPhaseDeleteImpact.mockResolvedValue({
+      requests: 2,
+      care_offerings: 1,
+      students_kept: 1,
+    });
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Löschen" }));
+    const dialog = await screen.findByRole("dialog");
+
+    expect(
+      await within(dialog).findByText(
+        "Zu ihr gibt es 2 Anmeldungen. Wählen Sie stattdessen „Deaktivieren“.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Löschen" }),
+    ).toBeDisabled();
+    expect(mocks.deletePhase).not.toHaveBeenCalled();
   });
 
   it("uses tenant-aware phase detail links in the action menu", async () => {

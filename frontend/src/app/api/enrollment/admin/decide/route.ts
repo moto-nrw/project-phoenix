@@ -16,6 +16,7 @@ interface DecideBody {
   reason?: string;
   existing_student_id?: string | number;
   create_new_student?: boolean;
+  accept_offering_changes?: boolean;
 }
 
 export const POST = tenant.route(async (request) => {
@@ -30,6 +31,10 @@ export const POST = tenant.route(async (request) => {
         ? { existing_student_id: String(body.existing_student_id) }
         : {}),
       ...(body.create_new_student === true ? { create_new_student: true } : {}),
+      // The office confirmed offering changes since the submission (#6837).
+      ...(body.accept_offering_changes === true
+        ? { accept_offering_changes: true }
+        : {}),
     },
   });
 });

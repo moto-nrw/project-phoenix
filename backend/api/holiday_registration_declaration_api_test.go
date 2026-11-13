@@ -15,12 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
-// The texts of version 4 word for word, with the retention of a year the
-// Träger keeps by default (#6691). They bind; a change is a new version, and
+// The texts of version 5 word for word, with the retention of a year the
+// Träger keeps by default (#6691) and the kept debtor number (#6692). They bind; a change is a new version, and
 // another retention another wording of this one.
 const (
 	declarationPrivacyText = "Ich bin einverstanden, dass der Träger die Angaben für die Ferienbetreuung nutzt. " +
@@ -30,7 +30,10 @@ const (
 		"die der Träger für sie freigibt. Gesundheitsangaben sieht sie nur, wenn ich zustimme. " +
 		"Die OGS sieht das schon vor der Ferienwoche. So kann sie sich vorbereiten. " +
 		"Die Liste der Kinder sieht sie bis zum letzten Tag der Woche. " +
-		"Name, Telefon und Antworten kann sie danach höchstens 7 Tage lesen. Dann werden sie gelöscht."
+		"Name, Telefon und Antworten kann sie danach höchstens 7 Tage lesen. Dann werden sie gelöscht. " +
+		"Bekommt meine Rechnung eine Kundennummer der Gemeinde (Debitorennummer), behält der Träger sie für spätere Anmeldungen. " +
+		"Er löscht sie am Ende des dritten Jahres nach der letzten Anmeldung. " +
+		"Muss er Rechnungen länger aufbewahren, löscht er sie danach."
 	declarationHealthText = "Ich bin einverstanden: Der Träger und die OGS sehen die Gesundheitsangaben meiner Kinder. " +
 		"Es geht um die OGS, die ein Kind in einer Ferienwoche betreut. " +
 		"Sie sieht die Angaben ab der Bestätigung bis zum letzten Tag der Woche."
@@ -51,7 +54,7 @@ func TestHolidayOfferServesTheTextsOfTheCurrentVersion(t *testing.T) {
 		ConsentTexts enrollment.HolidayConsentTexts `json:"consent_texts"`
 	}](t, rec.Body.Bytes())
 	assert.Equal(t, enrollment.HolidayConsentTexts{
-		Version: 4, RetentionDays: 365, PrivacyConsent: declarationPrivacyText, HealthConsent: declarationHealthText,
+		Version: 5, RetentionDays: 365, PrivacyConsent: declarationPrivacyText, HealthConsent: declarationHealthText,
 		BindingConfirmed: declarationBindingText, CustodyConfirmed: declarationCustodyText, DeclarationName: declarationNameText,
 	}, offer.ConsentTexts)
 	for _, word := range []string{"Unterschrift", "unterschreib", "schriftlich"} {
@@ -113,7 +116,7 @@ func TestHolidayRegistrationRequiresTheCustodyAndTheName(t *testing.T) {
 		SameAt  bool   `bun:"same_at"`
 		Name    string `bun:"declaration_name"`
 		Version int    `bun:"consent_version"`
-	}{Custody: true, SameAt: true, Name: "Eva Muster", Version: 4}, stored, "the custody, the trimmed name and version 4 are stored")
+	}{Custody: true, SameAt: true, Name: "Eva Muster", Version: 5}, stored, "the custody, the trimmed name and version 5 are stored")
 }
 
 // declarationMail is the declaration of a receipt mail as Delivery stores it.
@@ -148,7 +151,7 @@ func TestHolidayReceiptAndDetailRepeatTheDeclaration(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(payload), &mail))
 	require.NotNil(t, mail.Declaration, "the receipt carries the parent's copy of the declaration")
 	assert.Equal(t, "Eva Muster", mail.Declaration.Name)
-	assert.Equal(t, 4, mail.Declaration.ConsentVersion)
+	assert.Equal(t, 5, mail.Declaration.ConsentVersion)
 	assert.False(t, mail.Declaration.GivenAt.IsZero(), "the receipt names when the declaration was given")
 	assert.Equal(t, []enrollment.HolidayDeclarationStatement{
 		{Title: "Datenschutz", Text: declarationPrivacyText},
@@ -166,7 +169,7 @@ func TestHolidayReceiptAndDetailRepeatTheDeclaration(t *testing.T) {
 	detail := decodeSchoolPortalData[enrollment.HolidayRegistrationDetail](t, rec.Body.Bytes())
 	assert.Equal(t, "Eva Muster", detail.DeclarationName)
 	require.NotNil(t, detail.CustodyConfirmedAt)
-	assert.Equal(t, 4, detail.ConsentVersion)
+	assert.Equal(t, 5, detail.ConsentVersion)
 	require.NotNil(t, detail.ConsentTexts, "the detail names the texts of its version")
 	assert.Equal(t, declarationCustodyText, detail.ConsentTexts.CustodyConfirmed)
 	assert.Equal(t, declarationPrivacyText, detail.ConsentTexts.PrivacyConsent)

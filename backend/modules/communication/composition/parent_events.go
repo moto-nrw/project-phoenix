@@ -3,13 +3,13 @@ package compose
 import (
 	"log/slog"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
-	parentMessages "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/application/parentmessaging"
+	parentMessages "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // ParentEventEmitterConfig supplies the retained conversation stores the

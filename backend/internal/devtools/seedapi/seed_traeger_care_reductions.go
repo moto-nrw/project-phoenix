@@ -7,7 +7,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The rule chain of the monthly contribution (#4685): placeholder rules for

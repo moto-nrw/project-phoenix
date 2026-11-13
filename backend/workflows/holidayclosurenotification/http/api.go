@@ -12,8 +12,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	notification "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	notification "github.com/moto-ogs/project-phoenix/workflows/holidayclosurenotification"
 )
 
 // Resource serves both portals' routes.

@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/domain"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // ParentAnnouncementFixtures binds native test values without replacing the

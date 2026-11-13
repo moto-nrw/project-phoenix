@@ -3,9 +3,9 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (d *timetableData) ListUnderstaffedInstances(ctx context.Context, from, to calendar.Date) ([]timetable.UnderstaffedInstance, error) {

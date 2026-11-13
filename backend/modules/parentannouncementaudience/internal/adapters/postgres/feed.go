@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
+	"github.com/moto-ogs/project-phoenix/modules/parentannouncementaudience/contract"
 )
 
 type feedRow struct {
@@ -124,8 +124,9 @@ func (p *Projection) CountOutstandingForAccount(ctx context.Context, accountID i
 	return count, nil
 }
 
-// statsSQL intersects read/ack counts with the CURRENT audience so the staff
-// "X von Y" never shows more readers than the live target count.
+// statsSQL intersects read/ack counts with the audience so the staff "X von Y"
+// never shows more readers than the target count. Once published, the
+// audience is that of the recorded children (#6988); recorded says so.
 const statsSQL = pendingApplicantsCTE + `, audience AS (` + audienceAccountsBound + `
 			)
 			SELECT
@@ -135,7 +136,9 @@ const statsSQL = pendingApplicantsCTE + `, audience AS (` + audienceAccountsBoun
 						AND par.account_id IN (SELECT account_id FROM audience)) AS read_count,
 				(SELECT COUNT(*) FROM users.parent_announcement_reads par
 					WHERE par.announcement_id = ? AND par.tenant_id = ? AND par.acknowledged_at IS NOT NULL
-						AND par.account_id IN (SELECT account_id FROM audience)) AS acknowledged_count`
+						AND par.account_id IN (SELECT account_id FROM audience)) AS acknowledged_count,
+				(SELECT ra.recipient_student_ids IS NOT NULL FROM users.parent_announcements ra
+					WHERE ra.id = ? AND ra.tenant_id = ?) AS recorded`
 
 // Stats returns the reach/read/ack counts for an announcement.
 func (p *Projection) Stats(ctx context.Context, schoolID, announcementID int64) (*contract.ParentAnnouncementStats, error) {
@@ -155,7 +158,8 @@ func (p *Projection) Stats(ctx context.Context, schoolID, announcementID int64) 
 		announcementID, schoolID,
 		announcementID, schoolID,
 		announcementID, schoolID,
-	).Scan(ctx, &stats.TargetCount, &stats.ReadCount, &stats.AcknowledgedCount); err != nil {
+		announcementID, schoolID, // recorded
+	).Scan(ctx, &stats.TargetCount, &stats.ReadCount, &stats.AcknowledgedCount, &stats.Recorded); err != nil {
 		return nil, fmt.Errorf("parent announcement stats: %w", err)
 	}
 	return stats, nil
@@ -173,7 +177,7 @@ const answerableChildrenSQL = `
 			FROM users.parent_announcements a
 			JOIN users.parent_announcement_targets pt
 				ON pt.announcement_id = a.id AND pt.tenant_id = a.tenant_id
-			JOIN users.student_profiles s ON s.tenant_id = a.tenant_id` + studentMembershipJoins + ` AND (` + studentTargetMatchFeed + `
+			JOIN users.student_profiles s ON s.tenant_id = a.tenant_id` + studentMembershipJoins + ` AND (` + studentReachedFeed + `
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 				AND sm.status <> 'alumnus'

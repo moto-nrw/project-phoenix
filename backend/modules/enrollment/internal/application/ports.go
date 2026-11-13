@@ -8,8 +8,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
 )
 
 // Transactions opens a tenant transaction for a standalone caller or joins
@@ -83,7 +83,7 @@ type PhaseRecords interface {
 	Schema(context.Context, int64) (*enrollment.FormSchema, error)
 	CountPhaseRequests(context.Context, int64) (int, error)
 	CountCreatedStudentsByPhase(context.Context, int64) (int, error)
-	RemovePhase(context.Context, int64) (int, error)
+	RemovePhase(context.Context, int64) error
 	PhaseResponseChildren(ctx context.Context, phaseID int64, statuses []string) ([]enrollment.PhaseResponseChild, error)
 	StudentCarePeriodsByStudentIDs(ctx context.Context, studentIDs []int64) ([]*enrollment.StudentCarePeriod, error)
 	UpdateChildActivationPlan(ctx context.Context, id int64, mode string, on *enrollment.Date) error
@@ -96,6 +96,7 @@ type PhaseList interface {
 
 // PhaseOfferings reads the Care Plan offerings linked to a phase.
 type PhaseOfferings interface {
+	HasTraegerCopiesForPhase(context.Context, int64) (bool, error)
 	OfferingIDsForPhase(ctx context.Context, phaseID int64) ([]int64, error)
 	CountOfferingsForPhase(ctx context.Context, phaseID int64) (int, error)
 	// CareOfferingBookingsForPhase lists the bookings of the phase's

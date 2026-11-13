@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The care lifecycle (#2487, #3427): ending a child's care ("Betreuung

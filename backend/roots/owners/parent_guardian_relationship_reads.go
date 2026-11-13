@@ -4,14 +4,25 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
-func NewParentStudentGuardianReads(source peopledirectory.GuardianRelationshipReads) parentportal.StudentGuardianReads {
+// ParentGuardianRelationshipSource is what the parent portal reads of People
+// Directory's guardian relationships: the shared reads and the batch read by
+// children (#6682).
+type ParentGuardianRelationshipSource interface {
+	peopledirectory.GuardianRelationshipReads
+	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*peopledirectory.GuardianRelationshipSnapshot, error)
+}
+
+func NewParentStudentGuardianReads(source ParentGuardianRelationshipSource) parentportal.StudentGuardianReads {
 	return parentportal.NewStudentGuardianReads(parentportal.GuardianRelationshipCallbacks{
 		ByStudent: func(ctx context.Context, id int64) ([]*parentportal.GuardianRelationship, error) {
 			return parentGuardianRelationships(source.GuardianRelationshipsForStudent(ctx, id))
+		},
+		ByStudents: func(ctx context.Context, ids []int64) ([]*parentportal.GuardianRelationship, error) {
+			return parentGuardianRelationships(source.FindByStudentIDs(ctx, ids))
 		},
 		ByProfile: func(ctx context.Context, id int64) ([]*parentportal.GuardianRelationship, error) {
 			return parentGuardianRelationships(source.GuardianRelationshipsForProfile(ctx, id))

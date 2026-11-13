@@ -122,9 +122,10 @@
 //                               string literal or template chunk holding a
 //                               CSS hex color (`#83CD2D`, `text-[#4070C8]`,
 //                               a bare `#666`); one literal counts once.
-//                               The token source itself, the web manifest
-//                               and global-error.tsx (no stylesheet at that
-//                               boundary) are exempt by name
+//                               The token source (lib/kit-palette.ts), the
+//                               domain colours in location-helper.ts, the web
+//                               manifest and global-error.tsx (no stylesheet
+//                               at that boundary) are exempt by name
 //                               (HEX_TOKEN_SOURCES). Hard-zero since #3119;
 //                               src/test/ excluded.
 //
@@ -329,7 +330,7 @@ const ROW_ACTION_BASELINE = new Map(
     ],
     "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1310"],
     "src/components/staff/stammdaten-section-forms.tsx": [
-      "Qualifikation entfernen@477",
+      "Qualifikation entfernen@478",
     ],
     "src/components/students/companion-picker.tsx": ["entfernen@297"],
     "src/components/students/student-create-modal.tsx": [
@@ -1597,7 +1598,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Schule bearbeiten@163",
     ],
     "src/app/school/kalender/page.tsx": [
-      "Schultermin anlegen Schultermin bearbeiten@329",
+      "Schultermin anlegen Schultermin bearbeiten@332",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
       "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@274",
@@ -1606,7 +1607,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@1011",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@1045",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@1031",
     ],
     "src/components/files/folder-modal.tsx": [
       "Ordner bearbeiten Neuer Ordner@149",
@@ -1618,7 +1619,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Tagesinformation bearbeiten Neue Tagesinformation@190",
     ],
     "src/components/timetable/calendar-period-modal.tsx": [
-      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@432",
+      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@439",
     ],
     // Kontoaktionen mit eigenem Ablauf (Begründung und Rückfrage bei der
     // Zwei-Faktor-Authentifizierung, Auflösen offener Zuordnungen bei der
@@ -1895,7 +1896,9 @@ function findShortHexColor(text) {
 // Files that define or must emit raw hex by construction. Not a baseline:
 // these do not shrink.
 const HEX_TOKEN_SOURCES = new Set([
-  // Die Quelle der Farbwerte selbst (LOCATION_COLORS, MOTO_COLOR_PALETTE).
+  // The dependency-neutral source of UI colour tokens.
+  "src/lib/kit-palette.ts",
+  // Fachliche Farbwerte, die das Kit nicht kennt: Legacy-Raumfarben (#6573).
   "src/lib/location-helper.ts",
   // Web-App-Manifest: theme_color/background_color sind Hex per Spezifikation.
   "src/lib/favicon-variants.ts",
@@ -1909,7 +1912,7 @@ const noRawStatusHex = {
     type: "problem",
     docs: {
       description:
-        "Status and planning colors come from LOCATION_COLORS / MOTO_COLOR_PALETTE or moto-* classes; no raw hex value outside src/lib/location-helper.ts.",
+        "Status and planning colors come from LOCATION_COLORS / MOTO_COLOR_PALETTE or moto-* classes; no raw hex value outside src/lib/kit-palette.ts and src/lib/location-helper.ts.",
     },
     messages: {
       rawHex:

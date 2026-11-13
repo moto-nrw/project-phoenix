@@ -223,7 +223,7 @@ function ActivitiesPageContent() {
     [mutatePageData, toastSuccess],
   );
 
-  // Prepare filters for PageHeaderWithSearch
+  // Prepare filters for the TenantPage search row
   const filters: FilterConfig[] = useMemo(() => {
     const baseFilters: FilterConfig[] = [
       {

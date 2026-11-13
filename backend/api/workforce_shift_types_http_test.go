@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -32,9 +32,9 @@ type shiftTypeRoute struct {
 func setupShiftTypeRoute(t *testing.T) *shiftTypeRoute {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	shiftTypes, module, err := NewShiftTypeTestModule(testpkg.NewDatabase(t, db))
+	shiftTypes, references, module, err := NewShiftTypeTestModule(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	resource := newShiftTypesResource(shiftTypes)
+	resource := newShiftTypesResource(shiftTypes, references)
 
 	claims := testutil.DefaultTestClaims()
 	claims.TenantID = testpkg.Tenant(t)

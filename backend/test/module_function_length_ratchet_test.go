@@ -467,7 +467,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/001015443_student_departure_exceptions.go:studentDepartureExceptionsUp": 74,
 	// ADR 0087.
-	"database/migrations/00_migrations.go:DetectVersionCollisions": 76,
+	"database/migrations/00_migrations.go:DetectVersionCollisions": 75,
 	// ADR 0087.
 	// ADR 0087.
 	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).copyBatch": 68,

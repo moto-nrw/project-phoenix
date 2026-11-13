@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

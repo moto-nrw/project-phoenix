@@ -4,15 +4,15 @@ import (
 	"context"
 	"log/slog"
 
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/observability"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/observability"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // NewEnrollmentIntake composes Enrollment's intake over the sources.

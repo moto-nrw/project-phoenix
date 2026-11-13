@@ -14,7 +14,6 @@ import {
 import { roomKeys } from "~/lib/swr/rooms-keys";
 import { ResourcePrefetchProvider } from "./resource-prefetch-provider";
 import NavigationLink from "~/components/ui/navigation-link";
-import { NavLink } from "~/components/ui/nav-link";
 import { ButtonLink } from "~/components/ui/button";
 
 vi.unmock("swr");
@@ -57,7 +56,7 @@ function Destination() {
 function Harness({
   Link = NavigationLink,
 }: {
-  Link?: typeof NavigationLink | typeof NavLink | typeof ButtonLink;
+  Link?: typeof NavigationLink | typeof ButtonLink;
 }) {
   const [opened, setOpened] = useState(false);
   return (
@@ -322,7 +321,7 @@ describe("review intent boundaries", () => {
   });
 });
 describe("locked navigation data intent", () => {
-  it.each([NavigationLink, NavLink, ButtonLink])(
+  it.each([NavigationLink, ButtonLink])(
     "preloads exactly the destination resource once after hover (%s)",
     async (Link) => {
       render(<Harness Link={Link} />);
@@ -355,7 +354,7 @@ describe("locked navigation data intent", () => {
     await advance(300);
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
-  it.each([NavigationLink, NavLink, ButtonLink])(
+  it.each([NavigationLink, ButtonLink])(
     "preloads link data only after a tap ends (%s)",
     async (Link) => {
       render(<Harness Link={Link} />);

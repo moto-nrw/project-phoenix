@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 var testBerlin = time.FixedZone("Europe/Berlin", 2*60*60)
@@ -873,11 +873,13 @@ func TestExcusedAndClassTripCancelTheMealLikeASickNote(t *testing.T) {
 	before := time.Date(2026, 9, 6, 18, 0, 0, 0, testBerlin)
 	createStatusDay(t, db, student.TenantID, student.ID, "2026-09-07", "excused", before)
 	createStatusDay(t, db, student.TenantID, student.ID, "2026-09-08", "class_trip", before)
-	createStatusDay(t, db, student.TenantID, student.ID, "2026-09-09", "excused", before)
+	// One status stands per day (#6958): the sick row is lifted before the
+	// excused one is reported.
 	sick := createSickStatusDay(t, db, student.TenantID, student.ID, "2026-09-09", before)
 	_, err := db.NewUpdate().Model(sick).ModelTableExpr(`active.student_status_days AS "student_status_day"`).
 		Set(`cleared_at = ?`, before.Add(time.Hour)).WherePK().Exec(context.Background())
 	require.NoError(t, err)
+	createStatusDay(t, db, student.TenantID, student.ID, "2026-09-09", "excused", before)
 
 	plan, err := module.Participation(ctx, student.ID, "2026-09-07", "2026-09-09")
 	require.NoError(t, err)

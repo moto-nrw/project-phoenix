@@ -2,7 +2,8 @@
 
 import { EXTERNAL_CAREGIVER_LABEL, getRoleDisplayName } from "./auth-helpers";
 import type { ExternalAccountStatus, Staff } from "./staff-api";
-import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "./location-helper";
+import { LOCATION_COLORS } from "./location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 
 // Location status type matching the pattern from OGS groups
 interface LocationStatus {
@@ -24,7 +25,7 @@ const STAFF_STATUS_COLORS: Record<string, string> = {
   Abwesend: LOCATION_COLORS.HOME,
   // Eigener Ton, weil Homeoffice weder Anwesenheit vor Ort noch Abwesenheit
   // ist. Der Hex muss byte-gleich zu MOTO_COLOR_PALETTE.timeTracking.base
-  // bleiben, denn LOCATION_BADGE_TONES ist genau darauf geschlüsselt.
+  // bleiben, denn PILL_TONES (kit-palette) findet den Ton über diesen Hex.
   Unterwegs: MOTO_COLOR_PALETTE.timeTracking.base,
 };
 

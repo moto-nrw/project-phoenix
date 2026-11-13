@@ -23,8 +23,8 @@ export interface AccountBalance {
  * Live Stundenkonto (cumulative Saldo since the account start) for a staff
  * member, read from the server-computed Monatskarte model (#1842).
  *
- * `computeStaffMetrics` cannot produce this number correctly: its only
- * schedule input is the CURRENT StaffSchedule, which it applies to every day
+ * The removed `computeStaffMetrics` could not produce this number correctly:
+ * its only schedule input was the CURRENT StaffSchedule, which it applied to every day
  * back to the account start. After a contract change (8h -> 4h) it re-prices
  * months of history at today's hours, so its `accountBalance` contradicted the
  * Monatskarte — both labelled "Stundenkonto" — by hours on the same screen.

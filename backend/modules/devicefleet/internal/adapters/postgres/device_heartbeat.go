@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/domain"
 )
 
 // RecordHeartbeat folds the old live-device lookup into the update. Select

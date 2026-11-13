@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // StatusDayOverview asks for one page of the status-day overview: the days
@@ -43,6 +43,7 @@ func StatusDayOverviewOptions(overview StatusDayOverview) *StudentScheduleQueryO
 		Conditions: []StudentScheduleQueryCondition{{Field: "cleared_at", Operator: "IS NULL"}},
 		Or: []StudentScheduleQueryFilter{{Conditions: []StudentScheduleQueryCondition{
 			{Field: "source", Operator: "=", Value: excusedrequests.StudentStatusSourceEndOfDay},
+			{Field: "cleared_source", Operator: "IS NULL"},
 		}}},
 	}
 	filter.And = []StudentScheduleQueryFilter{statusDayWindowsFilter(overview.Children), active}

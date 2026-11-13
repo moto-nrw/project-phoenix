@@ -5,16 +5,16 @@ package api
 import (
 	"log/slog"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	settingsOperatorAPI "github.com/moto-ogs/project-phoenix/modules/settings/inbound/operator"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // OperatorSettingsTestModule is the Settings side of the operator settings

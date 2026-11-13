@@ -3,13 +3,15 @@ package config
 import (
 	"context"
 	"fmt"
-	"time"
 )
 
+// deleteExpiredSettingAuditSQL calls the fixed retention function of #6844:
+// the tenant role holds no DELETE on config.setting_audit, and the function
+// deletes only the calling school's changes older than three years.
+const deleteExpiredSettingAuditSQL = `SELECT config.delete_expired_setting_audit(?)`
+
 // SettingAuditRetention deletes expired setting changes of one school
-// (#4044). The tenant role holds DELETE on config.setting_audit; the explicit
-// tenant filter keeps a runtime without row-level security to the school as
-// well.
+// (#4044).
 type SettingAuditRetention struct {
 	runtime Runtime
 }
@@ -19,27 +21,19 @@ func NewSettingAuditRetention(runtime Runtime) *SettingAuditRetention {
 	return &SettingAuditRetention{runtime: runtime}
 }
 
-// DeleteChangedBefore removes the school's setting changes made before the
-// instant and reports how many went.
-func (r *SettingAuditRetention) DeleteChangedBefore(ctx context.Context, tenantID int64, before time.Time) (int, error) {
+// deleteExpired removes the school's setting changes older than the fixed
+// window and reports how many went.
+func (r *SettingAuditRetention) deleteExpired(ctx context.Context, tenantID int64) (int, error) {
 	if tenantID <= 0 {
 		return 0, fmt.Errorf("delete expired setting changes: tenant is required")
 	}
-	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
-	if databaseErr1 != nil {
-		return *new(int), databaseErr1
-	}
-	result, err := ambientDB1.NewDelete().
-		TableExpr(tableSettingAudit).
-		Where("tenant_id = ?", tenantID).
-		Where("changed_at < ?", before).
-		Exec(ctx)
+	db, err := r.runtime.DB(ctx)
 	if err != nil {
+		return 0, err
+	}
+	var deleted int64
+	if err := db.NewRaw(deleteExpiredSettingAuditSQL, tenantID).Scan(ctx, &deleted); err != nil {
 		return 0, fmt.Errorf("delete expired setting changes: %w", err)
 	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("delete expired setting changes: %w", err)
-	}
-	return int(rows), nil
+	return int(deleted), nil
 }

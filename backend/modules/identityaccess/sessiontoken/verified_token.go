@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/jwtauth/v5"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // decodedToken is the one parse of a verified token. ParseVerified stores it

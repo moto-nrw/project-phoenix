@@ -316,7 +316,7 @@ function TemplateEditorPage({
           {!canEdit ? (
             <Alert
               type="info"
-              message="Sie können die Vorlage nur ansehen. Ändern kann, wer im Träger-Büro das Recht „Einstellungen“ hat."
+              message="Sie können die Vorlage nur ansehen. Ändern kann, wer im Träger-Büro die Rolle „Verwaltung“ hat."
             />
           ) : null}
           {/* Zwei Spalten ab xl: links bearbeiten, rechts die Vorschau, die
@@ -356,6 +356,7 @@ function TemplateEditorPage({
                 >
                   <FormErrorAlert message={formErrors.error} />
                   <Input
+                    controlSize="touch"
                     id="template-subject"
                     label="Betreff"
                     name="subject"
@@ -367,6 +368,7 @@ function TemplateEditorPage({
                     disabled={!canEdit || saving}
                   />
                   <Input
+                    controlSize="touch"
                     id="template-salutation"
                     label="Anrede"
                     name="salutation"
@@ -389,7 +391,9 @@ function TemplateEditorPage({
                     error={formErrors.fieldError("body")}
                     maxLength={10000}
                     disabled={!canEdit || saving}
-                    className="font-mono"
+                    // The whole letter in view, no box cut mid-line: the
+                    // field grows with its text, at least 14 lines high.
+                    className="[field-sizing:content] min-h-72 font-mono"
                   />
                   <Textarea
                     id="template-closing"
@@ -442,18 +446,26 @@ function TemplateEditorPage({
                     />
                   ) : null}
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="md"
-                      tooltip="Zeigt, wie der Brief mit dem aktuellen Text aussieht."
-                      disabled={saving || previewing || !previewStale}
-                      isLoading={previewing}
-                      loadingText="Vorschau lädt…"
-                      onClick={() => void showPreview()}
-                    >
-                      Vorschau zeigen
-                    </Button>
+                    {/* The note stands right beside the button it explains. */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="md"
+                        tooltip="Zeigt, wie der Brief mit dem aktuellen Text aussieht."
+                        disabled={saving || previewing || !previewStale}
+                        isLoading={previewing}
+                        loadingText="Vorschau lädt…"
+                        onClick={() => void showPreview()}
+                      >
+                        Vorschau zeigen
+                      </Button>
+                      {!previewStale && !previewing ? (
+                        <span className="text-sm text-gray-600">
+                          Die Vorschau ist aktuell.
+                        </span>
+                      ) : null}
+                    </div>
                     {canEdit && changed ? (
                       <EditActions
                         onCancel={() => {
@@ -468,10 +480,12 @@ function TemplateEditorPage({
                 </form>
               </SectionCard>
             </div>
+            {/* Below xl the preview follows the form directly: checking the
+                letter after an edit is the frequent step. */}
             <div className="min-w-0 xl:sticky xl:top-6 xl:row-span-3">
               <SectionCard
                 title="Vorschau"
-                description="So sieht der ganze Brief mit erfundenen Beispieldaten aus. Logo, Absender, Ansprechperson und Fußzeile kommen aus dem Briefkopf."
+                description="So sieht der ganze Brief aus. Kopf, Infoblock und Fußzeile kommen aus dem Briefkopf. Im Brieftext ist alles ein Beispiel: Familie, Kinder, Beträge, Schulen und Ansprechperson."
               >
                 {previewStale ? (
                   <Alert

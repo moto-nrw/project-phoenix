@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -435,7 +435,11 @@ func (w *targetRiskWorkload) prepare(t *testing.T, scenario checkpointScenario) 
 			scenario.Body = fmt.Sprintf(`{"rfid_tag":%q,"action":"checkin","status":"present"}`, w.staffTag)
 		}
 	case "request-review.care-schedule-decide":
-		scenario.Path = strings.Replace(scenario.Path, checkpointRequestPlaceholder, strconv.FormatInt(w.pendingCareRequest(t), 10), 1)
+		requestID := w.pendingCareRequest(t)
+		scenario.Path = strings.Replace(scenario.Path, checkpointRequestPlaceholder, strconv.FormatInt(requestID, 10), 1)
+		// #6843: the approval names the diff the open queue shows.
+		impact := careScheduleImpactToken(t, w.handler, w.token, w.parentStudentID, requestID)
+		scenario.Body = fmt.Sprintf(`{"approve":true,"reason":"Checkpoint","impact_token":%q}`, impact)
 	case "care-plan.care-end":
 		scenario.Body = w.prepareCareEnd(t, false)
 	case "care-plan.care-end-replan":

@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	parentinbox "github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/contract"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	parentinbox "github.com/moto-ogs/project-phoenix/modules/parentmessageinbox/contract"
 )
 
 type parentInboxProjection interface {

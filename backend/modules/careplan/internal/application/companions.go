@@ -7,9 +7,9 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
 )
 
 // Companions is the native "läuft mit" application (#3427): the edges Care

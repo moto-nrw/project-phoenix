@@ -34,8 +34,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Priority levels for a notification event.

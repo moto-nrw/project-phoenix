@@ -143,6 +143,9 @@ type ParentAnnouncementStats struct {
 	TargetCount       int
 	ReadCount         int
 	AcknowledgedCount int
+	// Recorded is true once the publication recorded its recipients (#6988):
+	// the counts then refer to them, not to the audience of today.
+	Recorded bool
 }
 
 // PendingAnnouncementApplicant identifies an account or pre-account e-mail

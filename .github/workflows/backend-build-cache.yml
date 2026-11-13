@@ -19,7 +19,10 @@ on:
       - 'backend/**'
       - 'scripts/backend-architecture/**'
       - 'scripts/backend-test-matrix.sh'
+      - 'scripts/go-cache-sweep.sh'
       - '.github/workflows/backend-build-cache.yml'
+      # Part of the lint cache key below.
+      - '.github/workflows/lint.yml'
 
 permissions: {}
 
@@ -76,6 +79,14 @@ jobs:
           key: ${{ steps.build-cache-key.outputs.key }}
           restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
 
+      # The restore by prefix carries every older entry forward, and Go drops
+      # an entry only after five unused days: the cache grew from 2.2 GB to
+      # 9.65 GB in twelve hours and every pull request paid for loading it
+      # (#6784). Keep only what this commit's build uses.
+      - name: Mark restored build cache entries
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: scripts/go-cache-sweep.sh mark "$RUNNER_TEMP/build-cache-marker" ~/.cache/go-build
+
       # Compiles and vets every test package as "Run Go tests" does and links
       # each test binary, but runs none: -exec hands the binary to true.
       - name: Build every test package
@@ -83,9 +94,197 @@ jobs:
         working-directory: backend
         run: go test -count=1 -exec true ./... > /dev/null
 
+      - name: Drop build cache entries this build did not use
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: scripts/go-cache-sweep.sh sweep "$RUNNER_TEMP/build-cache-marker" ~/.cache/go-build
+
       - name: Save backend build cache
         if: steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/go-build
           key: ${{ steps.build-cache-key.outputs.key }}
+
+  # The lint cache pull requests restore in "Backend lint" (lint.yml). The
+  # nightly run alone did not keep it: its entry was pushed out of the cache
+  # within hours, and every first run of a pull request then linted cold,
+  # 200-310 s against 35 s (#6784). A lint from the previous entry takes one
+  # to three minutes on a development push.
+  #
+  # The key, the cached paths and the golangci-lint version must match
+  # "Backend lint" in lint.yml, and so must the environment: that job sets no
+  # GOFLAGS, and -trimpath would change every compile action behind the
+  # export data.
+  warm-lint:
+    name: Warm backend lint cache
+    # Same image and size as the lint job.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      GOFLAGS: ""
+      GOLANGCI_LINT_CACHE: /home/runner/.cache/golangci-lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Go
+        id: go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Compute backend lint cache key
+        id: lint-cache-key
+        env:
+          LINT_CACHE_PREFIX: backend-lint-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum', '.github/workflows/lint.yml') }}-
+          LINT_SOURCE_HASH: ${{ hashFiles('backend/**/*.go', 'backend/.golangci.yml') }}
+        run: |
+          echo "prefix=$LINT_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "key=$LINT_CACHE_PREFIX$LINT_SOURCE_HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Restore backend lint cache
+        id: lint-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/.cache/golangci-lint
+          key: ${{ steps.lint-cache-key.outputs.key }}
+          restore-keys: ${{ steps.lint-cache-key.outputs.prefix }}
+
+      # Prune only the Go build cache. A warm lint can load cached issues
+      # without reading their dependency facts, so unread analyzer entries
+      # are not necessarily stale. Leave golangci-lint's own expiry intact.
+      - name: Mark restored lint build cache entries
+        if: steps.lint-cache.outputs.cache-hit != 'true'
+        run: scripts/go-cache-sweep.sh mark "$RUNNER_TEMP/lint-cache-marker" ~/.cache/go-build
+
+      # The findings are the pull request's business; this run only fills the
+      # cache. A finding on development must not keep the entry from saving.
+      - name: Lint every backend package
+        id: lint
+        if: steps.lint-cache.outputs.cache-hit != 'true'
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        continue-on-error: true
+        with:
+          version: v2.14.0
+          args: --timeout 10m ./...
+          working-directory: backend
+          skip-cache: true
+
+      # Only after a complete lint: a run that stopped early used too few
+      # entries, and the next pull request would lint cold.
+      - name: Drop lint build cache entries this lint did not use
+        if: steps.lint-cache.outputs.cache-hit != 'true' && steps.lint.outcome == 'success'
+        run: scripts/go-cache-sweep.sh sweep "$RUNNER_TEMP/lint-cache-marker" ~/.cache/go-build
+
+      - name: Save backend lint cache
+        if: steps.lint-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/.cache/golangci-lint
+          key: ${{ steps.lint-cache-key.outputs.key }}
+
+  # The build cache "Seed and simulate smoke" restores in pull requests
+  # (test.yml). Only the nightly run saved it, so by the afternoon each of the
+  # three scenario jobs compiled a day of development: "Build backend and dev
+  # tools binaries" took 23-27 s right after a save and 78-86 s in the median
+  # of 36 jobs (12.11.2026), up to 132 s after a Go update.
+  #
+  # The key, the cached paths, GOFLAGS and the runner image must match
+  # "Restore seed smoke build cache" in test.yml. That job runs on a hosted
+  # runner, so this entry lives in the repository's 10 GB GitHub cache: the
+  # sweep keeps the build cache to one build, go.sum in the key bounds the
+  # module cache, and the last step deletes its predecessors.
+  warm-seed-smoke:
+    name: Warm seed smoke build cache
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # Deletes the superseded entries of this cache.
+      actions: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      # The seed smoke cache carries the module cache too, as in test.yml.
+      - name: Setup Go
+        id: go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+
+      - name: Compute seed smoke build cache key
+        id: build-cache-key
+        env:
+          SEED_CACHE_PREFIX: seed-smoke-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum') }}-
+        run: |
+          source_hash=$(git ls-files --stage -- 'backend/*.go' | sha256sum | cut -d' ' -f1)
+          echo "prefix=$SEED_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "key=$SEED_CACHE_PREFIX$source_hash" >> "$GITHUB_OUTPUT"
+
+      - name: Restore seed smoke build cache
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ steps.build-cache-key.outputs.key }}
+          restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
+
+      - name: Mark restored build cache entries
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: scripts/go-cache-sweep.sh mark "$RUNNER_TEMP/seed-cache-marker" ~/.cache/go-build
+
+      # What the three scenarios build: both binaries and the coverage ratchet.
+      - name: Build the seed smoke binaries
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        working-directory: backend
+        run: |
+          go build -o "$RUNNER_TEMP/phoenix" .
+          go build -o "$RUNNER_TEMP/devtools" ./cmd/devtools
+          go test -c -o "$RUNNER_TEMP/seed-coverage.test" ./internal/devtools/seedapi/
+
+      - name: Drop build cache entries this build did not use
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: scripts/go-cache-sweep.sh sweep "$RUNNER_TEMP/seed-cache-marker" ~/.cache/go-build
+
+      - name: Save seed smoke build cache
+        id: save
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ steps.build-cache-key.outputs.key }}
+
+      # Pull requests restore the newest entry by prefix; an older one only
+      # takes room other caches need.
+      - name: Delete superseded seed smoke build caches
+        if: steps.save.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREFIX: ${{ steps.build-cache-key.outputs.prefix }}
+          KEY: ${{ steps.build-cache-key.outputs.key }}
+        run: |
+          gh cache list --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF" --key "$PREFIX" --limit 100 --json id,key \
+            --jq ".[] | select(.key != \"$KEY\") | .id" |
+            while IFS= read -r id; do
+              gh cache delete "$id" --repo "$GITHUB_REPOSITORY"
+            done

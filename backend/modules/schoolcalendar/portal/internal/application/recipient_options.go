@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 func (s *service) RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error) {

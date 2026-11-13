@@ -15,10 +15,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	staffmessaging "github.com/moto-ogs/project-phoenix/modules/communication/http/staffmessages"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

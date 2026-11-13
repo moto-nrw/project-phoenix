@@ -206,7 +206,7 @@ export function RenewalBanners({
         title={openBlock?.title ?? ""}
         closeLabel={t("modalClose")}
         backdropLabel={t("modalBackdropClose")}
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
+        size="lg"
       >
         <div className="max-h-[60vh] overflow-y-auto text-sm text-gray-700">
           <LegalMarkdown text={openBlock?.text ?? ""} />

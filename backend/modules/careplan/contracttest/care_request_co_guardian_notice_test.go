@@ -5,15 +5,15 @@ import (
 	"log/slog"
 	"testing"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	communicationtest "github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	communicationtest "github.com/moto-ogs/project-phoenix/modules/communication/communicationtest"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -94,7 +94,7 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 func careServiceWithCoGuardianEmitter(t *testing.T, f *careFixture, sharedWith []int64) carerequests.Service {
 	t.Helper()
 	emitter := f.emitter(t, messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
-	return owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	return owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(nil,
 		f.reposCare.CarePlan(), f.persons,
 		f.schedules.Arrivals, f.schedules.Pickups, newPickupChangePresence(t, f.db), f.autoExcusal,
 		f.reposCare.CarePlan(),

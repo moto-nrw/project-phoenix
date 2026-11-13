@@ -6,10 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	usersAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/http"
 	"github.com/stretchr/testify/assert"
 )
 

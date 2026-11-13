@@ -3,8 +3,8 @@ package application
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // lifecycleError translates a flow error to the public contract: the
@@ -49,6 +49,7 @@ var lifecycleSentinels = []struct {
 	{domain.ErrSchoolIdentityTagConflict, identityaccess.ErrSchoolIdentityTagConflict},
 	{domain.ErrSchoolIdentityTagTaken, identityaccess.ErrSchoolIdentityTagTaken},
 	{identityaccess.ErrEmailAlreadyExists, identityaccess.ErrEmailAlreadyExists},
+	{identityaccess.ErrAccountSharedAcrossSchools, identityaccess.ErrAccountSharedAcrossSchools},
 	{identityaccess.ErrUsernameAlreadyExists, identityaccess.ErrUsernameAlreadyExists},
 	{identityaccess.ErrCannotRemovePrimaryGuardian, identityaccess.ErrCannotRemovePrimaryGuardian},
 	{identityaccess.ErrCannotRemoveStaffManagedGuardian, identityaccess.ErrCannotRemoveStaffManagedGuardian},

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	calendarService "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // Elternsprechtag (#4801). The workflow resolves the child through its

@@ -1,6 +1,6 @@
 package studentpresence
 
-import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 // Belegung nach Uhrzeit (#4764): how many children are there at which time of
 // day, planned and actual, in a fixed raster over the care day. The section is
