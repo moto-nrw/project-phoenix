@@ -108,9 +108,11 @@ type statusTransition struct {
 func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID int64, status string, transition statusTransition, reportedAt time.Time, date calendar.Date, now time.Time, note *string) error {
 	accountID := sessiontoken.ActorAccountIDFromCtx(ctx)
 	if transition.isActive && transition.wasActive && note == nil {
-		// The status stands unchanged: a day that already shows it keeps the
-		// report that set it, with its source and report time (#6291).
-		standing, err := rs.statusStandsOn(ctx, studentID, status, date)
+		// The flag stands unchanged: a day that already shows a status keeps
+		// the report that set it, with its source and report time (#6291).
+		// That may be a newer report of another status, which replaced the
+		// flag's own (#6958); an untouched flag must not take the day back.
+		standing, err := rs.dayHasStandingStatus(ctx, studentID, date)
 		if err != nil || standing {
 			return err
 		}
@@ -128,12 +130,15 @@ func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID in
 	}
 	if transition.wasActive {
 		// Lifting the flag clears the day's report and keeps who made it
-		// (#6842); only a flag without a row gets one first.
+		// (#6842). A flag without a row gets one that is cleared from the
+		// start: it never stands, so it replaces no other status of the day
+		// (#6958).
 		standing, err := rs.statusStandsOn(ctx, studentID, status, date)
 		if err != nil {
 			return err
 		}
 		if !standing {
+			clearedSource := absencerecords.StudentStatusSourceManual
 			if err := rs.StudentStatusDayService.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 				StudentID:           studentID,
 				Date:                date,
@@ -141,6 +146,9 @@ func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID in
 				ReportedAt:          reportedAt,
 				Source:              absencerecords.StudentStatusSourceManual,
 				ReportedByAccountID: accountID,
+				ClearedAt:           &now,
+				ClearedSource:       &clearedSource,
+				ClearedByAccountID:  accountID,
 			}); err != nil {
 				return err
 			}
@@ -170,6 +178,15 @@ func (rs *Resource) statusStandsOn(ctx context.Context, studentID int64, status 
 		}
 	}
 	return false, nil
+}
+
+// dayHasStandingStatus reports whether any status stands for the day.
+func (rs *Resource) dayHasStandingStatus(ctx context.Context, studentID int64, date calendar.Date) (bool, error) {
+	rows, err := rs.StudentStatusDayService.FindSignedOffByStudentIDsAndDate(ctx, []int64{studentID}, date)
+	if err != nil {
+		return false, err
+	}
+	return len(rows) > 0, nil
 }
 
 func (rs *Resource) NotifyAbsenceReported(ctx context.Context, tenantID int64, studentIDs []int64, status string, dates []calendar.Date, fromParent bool, actorAccountID int64) error {

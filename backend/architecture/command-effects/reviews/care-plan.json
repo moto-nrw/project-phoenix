@@ -21192,17 +21192,6 @@
       "target_owner": "people-directory"
     },
     {
-      "adr": "0098",
-      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.GuardianAbsenceRecords.ClearStudentStatusDays",
-      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithinTenant (tenant-runtime) through modules/careplan.Capability.ClearStudentStatusDays. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "care-plan",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinTenant",
-      "target_owner": "tenant-runtime"
-    },
-    {
       "adr": "0067",
       "binding": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.LockStudentAndExceptionDay",
       "classification": "leaf",

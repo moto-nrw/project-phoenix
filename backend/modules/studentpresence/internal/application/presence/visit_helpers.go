@@ -348,19 +348,23 @@ func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int
 	}
 	today := calendar.DateFromTime(now)
 	// A day that already shows the status keeps its report: the clearing
-	// goes next to it and never replaces who reported it (#6842). Only a
-	// flag without a row gets one first.
+	// goes next to it and never replaces who reported it (#6842). A flag
+	// without a row gets one that is cleared from the start: it never
+	// stands, so it replaces no other status of the day (#6958).
 	standing, err := s.StudentStatusRepo.FindSignedOffByStudentIDsAndDate(ctx, []int64{studentID}, today)
 	if err != nil {
 		return fmt.Errorf("clear student status: %w", err)
 	}
 	if !slices.ContainsFunc(standing, func(row *absencerecords.StudentStatusDay) bool { return row.Status == status }) {
+		clearedSource := source
 		if err := s.StudentStatusRepo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
-			StudentID:  studentID,
-			Date:       today,
-			Status:     status,
-			ReportedAt: reportedAt,
-			Source:     source,
+			StudentID:     studentID,
+			Date:          today,
+			Status:        status,
+			ReportedAt:    reportedAt,
+			Source:        source,
+			ClearedAt:     &now,
+			ClearedSource: &clearedSource,
 		}); err != nil {
 			return fmt.Errorf("clear student status: %w", err)
 		}

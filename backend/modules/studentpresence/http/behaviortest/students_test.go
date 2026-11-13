@@ -191,9 +191,10 @@ func TestUpdateStudent_StatusOnClassTripDayIsRejected(t *testing.T) {
 		})
 	}
 
+	// A class trip and a sick day cannot stand on the same day any more
+	// (#6958); a sick day that stands repeats without an error.
 	t.Run("standing_status_repeats_as_no_op", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ClassTrip", "Standing", "CT2")
-		testpkg.CreateTestStudentStatusDay(t, tc.db, student.ID, today, absencerecords.StudentStatusDayClassTrip)
 		testpkg.CreateTestStudentStatusDay(t, tc.db, student.ID, today, absencerecords.StudentStatusDaySick)
 
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
@@ -228,4 +229,39 @@ func TestUpdateStudent_StatusSinceUsesRequestInstant(t *testing.T) {
 			assert.True(t, since.Equal(now), "since %s, want %s", since, now)
 		})
 	}
+}
+
+// TestUpdateStudent_UnchangedSickFlagKeepsANewerStatus pins #6958: a newer
+// report replaced the sick day while the live sick flag stayed set. Saving
+// the profile without touching the flag keeps the newer status.
+func TestUpdateStudent_UnchangedSickFlagKeepsANewerStatus(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRoute(t)
+	student := testpkg.CreateTestStudent(t, tc.db, "Stale", "Flag", "SF1")
+	put := func(body map[string]any) {
+		t.Helper()
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	}
+	put(map[string]any{"sick": true})
+
+	// A class trip entered for the day replaces the sick day and leaves the
+	// live flag alone.
+	ctx := context.Background()
+	_, err := tc.db.ExecContext(ctx, `UPDATE active.student_status_days SET cleared_at = NOW() WHERE student_id = ? AND status = 'sick'`, student.ID)
+	require.NoError(t, err)
+	_, err = tc.db.ExecContext(ctx, `
+		INSERT INTO active.student_status_days (tenant_id, student_id, date, status, reported_at, source)
+		SELECT tenant_id, student_id, date, 'class_trip', NOW(), 'manual' FROM active.student_status_days
+		WHERE student_id = ? AND status = 'sick'`, student.ID)
+	require.NoError(t, err)
+
+	// A save that leaves the sick flag untouched.
+	put(map[string]any{"excused": false})
+
+	var standing []string
+	require.NoError(t, tc.db.NewRaw(`SELECT status FROM active.student_status_days WHERE student_id = ? AND cleared_at IS NULL`, student.ID).Scan(ctx, &standing))
+	assert.Equal(t, []string{"class_trip"}, standing, "the untouched sick flag does not take the day back")
 }

@@ -127,15 +127,14 @@ func (w *ExcusedRequests) WriteStaffValue(ctx context.Context, write careplan.Ex
 	}
 	now := time.Now()
 	reviewer := write.ReviewerID
-	// Clear every status the staff verdict is not, then write the one it is.
-	// Clearing first keeps a day from carrying two active statuses for the
-	// instant between the two writes.
-	for _, other := range careplan.StudentStatusDayStatusesExcept(status) {
-		if err := w.carePlan.ClearStudentStatusDays(ctx, write.StudentID, other, dates, now, careplan.StudentStatusSourceManual, &reviewer); err != nil {
-			return fmt.Errorf("care plan: clear status days for staff value: %w", err)
-		}
-	}
+	// "Present" lifts every status of the days; any other verdict replaces
+	// the status standing for each day as it is written (#6958).
 	if status == careplan.StudentStatusDayPresent {
+		for _, other := range careplan.StudentStatusDayStatusesExcept(status) {
+			if err := w.carePlan.ClearStudentStatusDays(ctx, write.StudentID, other, dates, now, careplan.StudentStatusSourceManual, &reviewer); err != nil {
+				return fmt.Errorf("care plan: clear status days for staff value: %w", err)
+			}
+		}
 		return nil
 	}
 	reason := write.Reason

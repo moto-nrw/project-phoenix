@@ -739,7 +739,7 @@ func TestDecideApproveAppliesDaysNotifiesInsideAndBroadcastsAfterCommit(t *testi
 	require.NoError(t, err)
 	assert.Equal(t, careplan.ExcusedRequestStatusApproved, item.Request.Status)
 	assert.Equal(t, "Felix", item.FirstName)
-	assert.Equal(t, []string{"excused:parent", "class_trip:parent"}, cleared, "every competing status is cleared before the requested one is written")
+	assert.Empty(t, cleared, "the store replaces the status standing for each written day (#6958)")
 	require.Len(t, upserted, 2)
 	assert.Equal(t, careplan.StudentStatusSourceParent, upserted[0].Source)
 	require.NotNil(t, upserted[0].GuardianAccountID)
@@ -793,9 +793,6 @@ func TestDecidePropagatesEveryWriteFailure(t *testing.T) {
 	cases := map[string]func(*fakeCarePlan, *fakeStudents){
 		"student lock": func(_ *fakeCarePlan, s *fakeStudents) {
 			s.lock = func(context.Context, int64) (careplan.ReviewStudent, error) { return careplan.ReviewStudent{}, errBoom }
-		},
-		"clear competing days": func(p *fakeCarePlan, _ *fakeStudents) {
-			p.clearDays = func(context.Context, int64, string, []careplan.Date, time.Time, string) error { return errBoom }
 		},
 		"upsert requested day": func(p *fakeCarePlan, _ *fakeStudents) {
 			p.upsertDay = func(context.Context, careplan.StudentStatusDay) (careplan.StudentStatusDay, error) {
