@@ -115,6 +115,8 @@ func TestReadImportTableRefusesANULOutsideTheRoleOfAQuote(t *testing.T) {
 		"inside a field of another delimiter": "Mandatsreferenz;Notiz\nSJR-1;a,\x00b\x00,c\n",
 		"inside a quoted field":               "Mandatsreferenz;Notiz\nSJR-1;\"a\x00\x00b\"\n",
 		"after a literal quote":               "Mandatsreferenz;Notiz\nx;\"a\"b;\x00value\x00;suffix\"\n",
+		"after a lone carriage return":        "Mandatsreferenz;Notiz\nx;\"a\"\rb;\x00value\x00;suffix\"\n",
+		"a delimiter inside the NUL quotes":   "Mandatsreferenz;Notiz\nSJR-1;\x00a;b\x00\n",
 	} {
 		_, err := readImportTable([]byte(content), "")
 		require.ErrorIs(t, err, parentbilling.ErrImportFileInvalid, name)

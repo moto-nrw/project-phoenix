@@ -34,24 +34,27 @@ func TestCSVDelimiterSkipsLeadingEmptyLines(t *testing.T) {
 	}
 }
 
-// A NUL in the role of a quote becomes a quote, and a quote inside such a
-// field is doubled; a NUL elsewhere stays (#7009): inside a field of another
-// delimiter and inside an ordinary quoted field too.
-func TestQuoteNULDelimiters(t *testing.T) {
+// A cell in NUL quotes loses them; any other NUL refuses the cell (#7009).
+func TestUnquoteNULCell(t *testing.T) {
 	t.Parallel()
-	for in, want := range map[string]string{
-		"\x00a\x00;\x00\x00\r\n\x00b\"c\x00": "\"a\";\"\"\r\n\"b\"\"c\"",
-		"\xEF\xBB\xBF\x00a\x00;b":            "\"a\";b",
-		"a;b\n":                              "a;b\n",
-		"a\x00b;c":                           "a\x00b;c",
-		"\x00a;b":                            "\x00a;b",
-		"x;prefix,\x00value\x00,suffix":      "x;prefix,\x00value\x00,suffix",
-		"\"a\x00\x00b\";\x00c\x00":           "\"a\x00\x00b\";\"c\"",
-		"\"a\"\"\x00\";b":                    "\"a\"\"\x00\";b",
-		"x;\"a\"b;\x00value\x00;suffix\"\n":  "x;\"a\"b;\x00value\x00;suffix\"\n",
-	} {
-		if got := string(QuoteNULDelimiters([]byte(in), ';')); got != want {
-			t.Errorf("QuoteNULDelimiters(%q) = %q, want %q", in, got, want)
+	for in, want := range map[string]string{"a": "a", "\x00a\x00": "a", "\x00\x00": "", "\x00a\"b\x00": "a\"b", "": ""} {
+		got, ok := UnquoteNULCell(in)
+		if !ok || got != want {
+			t.Errorf("UnquoteNULCell(%q) = %q, %v; want %q", in, got, ok, want)
 		}
+	}
+	for _, in := range []string{"\x00", "\x00a", "a\x00", "a\x00b", "\x00a\x00b\x00"} {
+		if _, ok := UnquoteNULCell(in); ok {
+			t.Errorf("UnquoteNULCell(%q) accepted", in)
+		}
+	}
+	if _, _, err := DecodeCSVText([]byte("a;\x00b\x00\n")); err == nil {
+		t.Error("DecodeCSVText accepted a NUL")
+	}
+	if text, _, err := DecodeCSVTextWithNULQuotes([]byte("\xEF\xBB\xBFa;\x00b\x00\n")); err != nil || text != "a;\x00b\x00\n" {
+		t.Errorf("DecodeCSVTextWithNULQuotes = %q, %v", text, err)
+	}
+	if _, _, err := DecodeCSVTextWithNULQuotes([]byte("a;\x01b\n")); err == nil {
+		t.Error("DecodeCSVTextWithNULQuotes accepted another control character")
 	}
 }

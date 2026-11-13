@@ -14,6 +14,17 @@ import (
 // else Windows-1252. Control characters other than tab and line breaks
 // mark a file that is no text, whatever its name says.
 func DecodeCSVText(content []byte) (string, string, error) {
+	return decodeCSVText(content, false)
+}
+
+// DecodeCSVTextWithNULQuotes is DecodeCSVText for a file that may write a
+// NUL where a CSV has a quote, as OGS Connect does (#7009): it keeps the NUL
+// in the text, and the reader of each cell takes it off with UnquoteNULCell.
+func DecodeCSVTextWithNULQuotes(content []byte) (string, string, error) {
+	return decodeCSVText(content, true)
+}
+
+func decodeCSVText(content []byte, nulQuotes bool) (string, string, error) {
 	content = bytes.TrimPrefix(content, []byte("\xEF\xBB\xBF"))
 	encoding := "utf-8"
 	if !utf8.Valid(content) {
@@ -25,86 +36,32 @@ func DecodeCSVText(content []byte) (string, string, error) {
 	}
 	text := string(content)
 	for _, r := range text {
+		if nulQuotes && r == 0 {
+			continue
+		}
 		if r == unicode.ReplacementChar || (unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r') {
 			return "", "", errors.New("invalid CSV text")
 		}
 	}
-	if strings.TrimSpace(text) == "" {
+	if strings.TrimSpace(strings.ReplaceAll(text, "\x00", "")) == "" {
 		return "", "", errors.New("invalid CSV text")
 	}
 	return text, encoding, nil
 }
 
-// QuoteNULDelimiters reads a NUL character in the role of the quote
-// character as a quote (#7009): some programs, OGS Connect among them,
-// write \x00Name\x00 where a CSV has "Name". With the file's delimiter it
-// follows the fields: a NUL opens a field only as its first character and
-// closes it only before the delimiter, a line break or the end of the file;
-// a quote inside such a field is doubled. An ordinary quoted field closes
-// as csv.Reader with LazyQuotes closes it. A NUL anywhere else, also inside
-// an ordinary quoted field, stays, so DecodeCSVText still refuses the file
-// as no text. A file without NUL, or with a NUL field that never closes, is
-// answered unchanged.
-func QuoteNULDelimiters(content []byte, comma rune) []byte {
-	if !bytes.Contains(content, []byte{0}) || comma <= 0 || comma >= utf8.RuneSelf {
-		return content
+// UnquoteNULCell takes the NUL quotes off a cell a csv.Reader read from a
+// DecodeCSVTextWithNULQuotes text (#7009): a cell without NUL stays, a cell
+// that starts and ends with a NUL and has none in between loses both. ok is
+// false for any other NUL, also one a delimiter or a line break inside the
+// quotes left at one end only: the file is then no text the import can read.
+func UnquoteNULCell(cell string) (string, bool) {
+	if !strings.Contains(cell, "\x00") {
+		return cell, true
 	}
-	content = bytes.TrimPrefix(content, []byte("\xEF\xBB\xBF"))
-	delimiter := byte(comma)
-	ends := func(i int) bool {
-		return i == len(content) || content[i] == delimiter || content[i] == '\n' || content[i] == '\r'
+	if len(cell) >= 2 && cell[0] == 0 && cell[len(cell)-1] == 0 && !strings.Contains(cell[1:len(cell)-1], "\x00") {
+		return cell[1 : len(cell)-1], true
 	}
-	const (
-		plain = iota
-		nulQuoted
-		quoted
-	)
-	out := make([]byte, 0, len(content)+16)
-	state, fieldStart := plain, true
-	for i := 0; i < len(content); i++ {
-		b := content[i]
-		switch state {
-		case nulQuoted:
-			switch {
-			case b == 0 && ends(i+1):
-				state = plain
-				out = append(out, '"')
-			case b == '"':
-				out = append(out, '"', '"')
-			default:
-				out = append(out, b)
-			}
-			continue
-		case quoted:
-			// As csv.Reader with LazyQuotes: "" is a quote, a quote before
-			// the delimiter or a line break closes the field, any other
-			// quote is text.
-			out = append(out, b)
-			switch {
-			case b == '"' && i+1 < len(content) && content[i+1] == '"':
-				out = append(out, '"')
-				i++
-			case b == '"' && ends(i+1):
-				state = plain
-			}
-			continue
-		}
-		switch {
-		case fieldStart && b == 0:
-			state = nulQuoted
-			out = append(out, '"')
-		case fieldStart && b == '"':
-			state = quoted
-			out = append(out, b)
-		default:
-			out = append(out, b)
-		}
-		fieldStart = b == delimiter || b == '\n' || b == '\r'
-	}
-	if state == nulQuoted {
-		return content
-	}
-	return out
+	return "", false
 }
 
 // CSVDelimiter is the chosen delimiter or, when none is chosen, the one
