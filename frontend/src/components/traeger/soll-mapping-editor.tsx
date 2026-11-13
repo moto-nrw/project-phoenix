@@ -8,6 +8,8 @@
 import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import {
+  BOOKING_TEXT_PLACEHOLDERS,
+  bookingTextSample,
   SOLL_DATES,
   SOLL_DECIMALS,
   SOLL_DELIMITERS,
@@ -16,7 +18,9 @@ import {
   SOLL_FIELD_LABELS,
   sollFileName,
   sollPreview,
+  sollHasCreditColumn,
   sollSplitsLines,
+  unknownBookingTextPlaceholder,
 } from "~/components/traeger/finance-export-format";
 import { BOOKING_ACCOUNTS_PATH } from "~/components/traeger/finance-export-datev";
 import { Alert } from "~/components/ui/alert";
@@ -64,6 +68,14 @@ export function sollMappingErrors(
     if (mapping.headerRow && column.header.trim() === "") {
       errors[`columns.${index}.header`] = "Bitte einen Spaltennamen eingeben.";
     }
+    const unknown =
+      column.field === "booking_text"
+        ? unknownBookingTextPlaceholder(column.value)
+        : null;
+    if (unknown) {
+      errors[`columns.${index}.value`] =
+        `${unknown} kennt moto nicht. Wählen Sie einen Platzhalter darunter.`;
+    }
   });
   if (mapping.decimalSeparator === mapping.delimiter) {
     errors.decimal_separator =
@@ -74,6 +86,110 @@ export function sollMappingErrors(
       "Der Name braucht einmal {NR} und nur Buchstaben, Ziffern, Punkt, Strich und Unterstrich.";
   }
   return errors;
+}
+
+/**
+ * The pattern of a booking text (#7008): fixed words and placeholders that
+ * moto fills per row. A click on a placeholder puts it where the cursor
+ * stands; the example shows the text of the sample invoice.
+ */
+function BookingTextField({
+  column,
+  index,
+  error,
+  onChange,
+}: Readonly<{
+  column: SollColumn;
+  index: number;
+  error: string | undefined;
+  onChange: (column: SollColumn) => void;
+}>) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const caret = useRef<{ start: number; end: number } | null>(null);
+  const remember = (field: HTMLInputElement) => {
+    caret.current = {
+      start: field.selectionStart ?? field.value.length,
+      end: field.selectionEnd ?? field.value.length,
+    };
+  };
+  const insert = (token: string) => {
+    const pattern = column.value;
+    const end = Math.min(caret.current?.end ?? pattern.length, pattern.length);
+    const start = Math.min(caret.current?.start ?? pattern.length, end);
+    const before = start > 0 && pattern[start - 1] !== " " ? " " : "";
+    const after = end < pattern.length && pattern[end] !== " " ? " " : "";
+    const text = before + token + after;
+    const value = pattern.slice(0, start) + text + pattern.slice(end);
+    if (value.length > 60) return;
+    onChange({ ...column, value });
+    const next = start + before.length + token.length;
+    caret.current = { start: next, end: next };
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(next, next);
+    });
+  };
+  const example = bookingTextSample(column.value).trim();
+  return (
+    <div className="flex min-w-0 flex-col gap-3 sm:col-span-2 lg:col-span-3">
+      <Input
+        ref={inputRef}
+        controlSize="compact"
+        label="Text der Buchung"
+        name={`columns.${index}.value`}
+        value={column.value}
+        maxLength={60}
+        placeholder="SKB {Monat} {Kind}"
+        error={error}
+        onChange={(event) => {
+          onChange({ ...column, value: event.target.value });
+          remember(event.target);
+        }}
+        onSelect={(event) => remember(event.currentTarget)}
+      />
+      <div className="flex flex-col gap-2">
+        <p className="text-sm text-gray-600" id={`booking-text-${index}-help`}>
+          Feste Wörter schreiben Sie selbst. Platzhalter füllt moto für jede
+          Rechnung aus.
+        </p>
+        <ul
+          className="flex flex-wrap gap-2"
+          aria-describedby={`booking-text-${index}-help`}
+        >
+          {BOOKING_TEXT_PLACEHOLDERS.map((placeholder) => (
+            <li key={placeholder.token}>
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                disabled={column.value.length + placeholder.token.length > 59}
+                disabledReason="Der Text hat schon 60 Zeichen."
+                onClick={() => insert(placeholder.token)}
+                className="gap-2"
+              >
+                <code aria-hidden="true" className="text-gray-900">
+                  {placeholder.token}
+                </code>
+                <span className="text-gray-500">
+                  <span className="sr-only">{`Platzhalter „${placeholder.label}“ einfügen`}</span>
+                  <span aria-hidden="true">{placeholder.label}</span>
+                </span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <InsetPanel padding="sm" className="flex min-w-0 items-baseline gap-2">
+        <span className="shrink-0 text-sm text-gray-500">Beispiel:</span>
+        <span
+          className="min-w-0 font-mono text-sm wrap-anywhere text-gray-900"
+          aria-live="polite"
+        >
+          {example || "–"}
+        </span>
+      </InsetPanel>
+    </div>
+  );
 }
 
 function ColumnRow({
@@ -155,6 +271,20 @@ function ColumnRow({
               onChange({ ...column, value: event.target.value })
             }
           />
+        ) : null}
+        {column.field === "booking_text" ? (
+          <BookingTextField
+            column={column}
+            index={index}
+            error={error(`columns.${index}.value`)}
+            onChange={onChange}
+          />
+        ) : null}
+        {column.field === "credit_amount" ? (
+          <p className="text-sm text-gray-600 sm:col-span-2 lg:col-span-1 lg:mt-7">
+            Stornos und Gutschriften stehen hier ohne Minus. Bei ihnen bleibt
+            die Spalte „Betrag“ leer.
+          </p>
         ) : null}
       </div>
       <div className="mt-7 shrink-0">

@@ -15,6 +15,7 @@ import {
   type SollField,
   type SollMapping,
   SOLL_BOOKING_FIELDS,
+  SOLL_BOOKING_TEXT_PLACEHOLDERS,
 } from "~/lib/traeger-finance-exports-api";
 
 /** What a column of the Sollstellung shows, in the order of the choice. */
@@ -24,6 +25,7 @@ export const SOLL_FIELD_LABELS: Record<SollField, string> = {
   invoice_date: "Rechnungsdatum",
   due_on: "Fällig am",
   amount: "Betrag",
+  credit_amount: "Gutschrift",
   recipient_name: "Name des Empfängers",
   recipient_street: "Straße",
   recipient_postal_code: "Postleitzahl",
@@ -39,8 +41,53 @@ export const SOLL_FIELD_LABELS: Record<SollField, string> = {
   revenue_account: "Erlöskonto",
   cost_center: "Kostenstelle (KOST1)",
   cost_center_2: "Zweite Kostenstelle (KOST2)",
+  booking_text: "Buchungstext",
   constant: "Fester Wert",
 };
+
+/**
+ * What a placeholder of a booking text stands for, with its value in the
+ * sample invoice (#7008).
+ */
+export const BOOKING_TEXT_PLACEHOLDERS: readonly {
+  readonly token: (typeof SOLL_BOOKING_TEXT_PLACEHOLDERS)[number];
+  readonly label: string;
+}[] = [
+  { token: "{Monat}", label: "Leistungsmonat" },
+  { token: "{Kind}", label: "Name des Kindes" },
+  { token: "{Empfänger}", label: "Name des Empfängers" },
+  { token: "{Rechnungsnummer}", label: "Rechnungsnummer" },
+];
+
+/** The first text in braces that is no placeholder, or null. */
+export function unknownBookingTextPlaceholder(pattern: string): string | null {
+  for (const match of pattern.matchAll(/\{[^{}]*\}/g)) {
+    const named = match[0];
+    if (
+      !(SOLL_BOOKING_TEXT_PLACEHOLDERS as readonly string[]).includes(named)
+    ) {
+      return named;
+    }
+  }
+  return null;
+}
+
+/** The booking text of the sample invoice or its Storno. */
+export function bookingTextSample(
+  pattern: string,
+  document: 0 | 1 = 0,
+): string {
+  const values: Record<string, string> = {
+    "{Monat}": "10/2026",
+    "{Kind}": SAMPLE_ROWS.child_name[document],
+    "{Empfänger}": SAMPLE_ROWS.recipient_name[document],
+    "{Rechnungsnummer}": SAMPLE_ROWS.invoice_number[document],
+  };
+  return pattern.replaceAll(
+    /\{[^{}]*\}/g,
+    (named) => values[named] ?? named,
+  );
+}
 
 export const SOLL_FIELDS = Object.keys(SOLL_FIELD_LABELS) as SollField[];
 
@@ -105,6 +152,7 @@ const SAMPLE_ROWS: Record<SollField, readonly [string, string]> = {
   invoice_date: ["2026-10-30", "2026-11-02"],
   due_on: ["2026-11-04", ""],
   amount: ["7800", "-7800"],
+  credit_amount: ["", "7800"],
   recipient_name: ["Eva Müller", "Eva Müller"],
   recipient_street: ["Sonnenweg 7", "Sonnenweg 7"],
   recipient_postal_code: ["75177", "75177"],
@@ -120,6 +168,7 @@ const SAMPLE_ROWS: Record<SollField, readonly [string, string]> = {
   revenue_account: ["4400", "4400"],
   cost_center: ["KST100", "KST100"],
   cost_center_2: ["", ""],
+  booking_text: ["", ""],
   constant: ["", ""],
 };
 
@@ -174,6 +223,7 @@ function lineValue(
 ): string | null {
   switch (column.field) {
     case "amount":
+    case "credit_amount":
       return formatCents(line.cents, decimal);
     case "revenue_account":
       return line.account;
@@ -200,9 +250,23 @@ function sampleValue(
   fileNumber: number,
 ): string {
   if (column.field === "constant") return column.value;
+  if (column.field === "booking_text") {
+    return bookingTextSample(column.value, sample.document);
+  }
   if (column.field === "file_number") return String(fileNumber);
+  // #7008: with a credit column the Storno leaves the amount empty and
+  // writes its amount there, without the minus.
+  const credit = sollHasCreditColumn(mapping);
+  if (column.field === "amount" && credit && sample.document === 1) return "";
+  if (column.field === "credit_amount" && sample.document === 0) return "";
   if (sample.line) {
-    const value = lineValue(column, sample.line, mapping.decimalSeparator);
+    const value = lineValue(
+      column,
+      column.field === "credit_amount"
+        ? { ...sample.line, cents: Math.abs(sample.line.cents) }
+        : sample.line,
+      mapping.decimalSeparator,
+    );
     if (value !== null) return value;
   }
   const raw = SAMPLE_ROWS[column.field][sample.document];
@@ -214,10 +278,15 @@ function sampleValue(
     const [year, month, day] = raw.split("-");
     return `${day}.${month}.${year}`;
   }
-  if (column.field === "amount") {
+  if (column.field === "amount" || column.field === "credit_amount") {
     return formatCents(Number(raw), mapping.decimalSeparator);
   }
   return raw;
+}
+
+/** Whether the mapping writes Stornos and credits in a column of their own. */
+export function sollHasCreditColumn(mapping: SollMapping): boolean {
+  return mapping.columns.some((column) => column.field === "credit_amount");
 }
 
 function quoted(value: string, delimiter: SollDelimiter): string {

@@ -23,6 +23,7 @@ export type SollField =
   | "invoice_date"
   | "due_on"
   | "amount"
+  | "credit_amount"
   | "debtor_number"
   | "recipient_name"
   | "recipient_street"
@@ -39,7 +40,21 @@ export type SollField =
   | "revenue_account"
   | "cost_center"
   | "cost_center_2"
+  | "booking_text"
   | "constant";
+
+/** Placeholders a booking text fills per row (#7008), as the backend reads them. */
+export const SOLL_BOOKING_TEXT_PLACEHOLDERS = [
+  "{Monat}",
+  "{Kind}",
+  "{Empfänger}",
+  "{Rechnungsnummer}",
+] as const;
+
+/** Whether a column of the field carries a value: a constant or a pattern. */
+export function sollColumnKeepsValue(field: SollField): boolean {
+  return field === "constant" || field === "booking_text";
+}
 
 /** Fields that write one row per revenue account and cost centers (#4821). */
 export const SOLL_BOOKING_FIELDS: readonly SollField[] = [
@@ -56,7 +71,7 @@ export type SollEncoding = "utf-8-bom" | "utf-8" | "windows-1252";
 export interface SollColumn {
   readonly field: SollField;
   readonly header: string;
-  /** Only a constant column carries a value. */
+  /** The fixed value of a constant or the pattern of a booking text. */
   readonly value: string;
 }
 
@@ -323,7 +338,7 @@ function mappingToBackend(mapping: SollMapping): BackendMapping {
     columns: mapping.columns.map((column) => ({
       field: column.field,
       header: column.header,
-      ...(column.field === "constant" ? { value: column.value } : {}),
+      ...(sollColumnKeepsValue(column.field) ? { value: column.value } : {}),
     })),
     delimiter: mapping.delimiter,
     decimal_separator: mapping.decimalSeparator,
