@@ -209,7 +209,7 @@ test('a new migration may create a function but not redefine an existing one', t
   const f = fixture(t);
   f.git('checkout', '-q', 'development');
   f.add(migration('001015700'), 'const sql = `CREATE OR REPLACE FUNCTION platform.erase_visitors() RETURNS void`\n');
-  f.add('backend/database/migrations/erase_helper.go', 'const sql = `create function Auth.is_unused(BIGINT) RETURNS boolean`\n');
+  f.add('backend/database/migrations/erase_helper.go', 'const sql = `create\tfunction  Auth.is_unused(BIGINT) RETURNS boolean`\n');
   f.commit();
   f.git('checkout', '-q', 'feature');
   f.git('merge', '-q', 'development');

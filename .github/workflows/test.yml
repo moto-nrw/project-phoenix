@@ -325,7 +325,7 @@ jobs:
           if [ -n "$BASE_REF" ]; then
             PHX_LATE_MIGRATIONS=$(node ../scripts/check-migration-versions.mjs --late "origin/$BASE_REF" HEAD)
             export PHX_LATE_MIGRATIONS
-            echo "Late migrations: ${PHX_LATE_MIGRATIONS:-none}"
+            echo "Late migrations: [$PHX_LATE_MIGRATIONS]"
           fi
           TEST_PACKAGES=
           if [ "$FULL_SUITE" != true ]; then

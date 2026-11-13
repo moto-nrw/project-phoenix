@@ -102,7 +102,7 @@ function addedLines(cwd, mergeBase, head, worktree) {
   return lines;
 }
 function redefinitionErrors({ cwd, mergeBase, head, worktree }) {
-  const existing = new Set(functionNames(grep(cwd, ['CREATE +(OR +REPLACE +)?FUNCTION +[a-z_0-9]+\\.[a-z_0-9]+',
+  const existing = new Set(functionNames(grep(cwd, ['CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?FUNCTION[[:space:]]+[a-z_0-9]+\\.[a-z_0-9]+',
     mergeBase, '--', directory, `:(exclude)${directory}*_test.go`])));
   const errors = [];
   for (const [file, text] of addedLines(cwd, mergeBase, head, worktree)) {
