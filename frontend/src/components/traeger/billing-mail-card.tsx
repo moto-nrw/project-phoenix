@@ -158,6 +158,7 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
             size="md"
             isLoading={printing}
             loadingText="Wird erstellt …"
+            tooltip="Lädt alle Schreiben in einer PDF zum Drucken herunter."
             onClick={() => void print()}
           >
             Alle Schreiben drucken
@@ -169,6 +170,7 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
             isLoading={sendingAll}
             loadingText="Wird gesendet …"
             disabled={!mailings}
+            tooltip="Sendet jeder Familie mit Mail-Adresse sofort ihr noch nicht gesendetes Schreiben."
             onClick={() => void sendAll()}
           >
             An alle Familien senden
@@ -223,6 +225,11 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
                       isLoading={sendingOne === mailing.documentId}
                       loadingText="Wird gesendet …"
                       disabled={sendingOne !== null || sendingAll}
+                      tooltip={
+                        mailing.status === "not_sent"
+                          ? "Sendet der Familie sofort ihr Schreiben per Mail."
+                          : "Sendet der Familie sofort ihr Schreiben noch einmal per Mail."
+                      }
                       onClick={() => void sendOne(mailing)}
                     >
                       {mailing.status === "not_sent"

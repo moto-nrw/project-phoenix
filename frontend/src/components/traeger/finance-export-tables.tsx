@@ -158,6 +158,15 @@ function DatevActions({
   let describedBy: string | undefined;
   if (!ready) describedBy = DATEV_READINESS_ID;
   else if (nothingNew) describedBy = datevStateId(run);
+  let blockedReason: string | undefined;
+  if (!ready) {
+    blockedReason = "Tragen Sie zuerst die fehlenden DATEV-Werte ein.";
+  } else if (nothingNew) {
+    blockedReason =
+      state.fiscalYears.length > 0 && run.lastDatev
+        ? "Es gibt keine neue Buchung; eine verlorene Datei holen Sie über das Menü."
+        : "Dieser Lauf hat keine Rechnung mit Betrag, also keine Buchung.";
+  }
   return (
     <>
       <Button
@@ -167,6 +176,8 @@ function DatevActions({
         isLoading={downloading === runFileKey("datev", run)}
         loadingText="Wird erstellt"
         disabled={downloading !== null || !ready || nothingNew}
+        disabledReason={blockedReason}
+        tooltip="Lädt die neuen Buchungen als DATEV-Datei (CSV) mit neuer Dateinummer herunter."
         aria-describedby={describedBy}
         aria-label={
           state && state.newBookings > 0
@@ -185,7 +196,8 @@ function DatevActions({
           items={[
             {
               label: "Alle Buchungen erneut",
-              description: "Nur für eine verlorene Datei",
+              description:
+                "Lädt alle Buchungen erneut, nur für eine verlorene Datei. moto fragt vorher nach.",
               icon: <RotateCcw className="h-4 w-4" aria-hidden />,
               onClick: () => onRepeat(run),
             },
@@ -278,6 +290,7 @@ function runColumns({
             loadingText="Wird erstellt"
             disabled={downloading !== null}
             aria-label={`Sollstellung von ${run.label} herunterladen`}
+            tooltip="Lädt alle Rechnungen des Laufs als CSV-Datei mit neuer Dateinummer herunter."
             onClick={() => onDownload("sollstellung", run)}
           >
             <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />
@@ -419,6 +432,7 @@ function CostCenterFallbackList({
           variant="ghost"
           size="compact"
           aria-expanded={open}
+          noTooltip="Das Wort nennt, was der Klick zeigt; nichts ändert sich."
           onClick={() => setOpen((value) => !value)}
         >
           {open

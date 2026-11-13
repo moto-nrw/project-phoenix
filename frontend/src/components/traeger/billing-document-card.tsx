@@ -116,6 +116,7 @@ function DocumentHistory({
               type="button"
               variant="outline"
               size="md"
+              tooltip="Öffnet den offenen Lauf dieser Ferien oder berechnet einen neuen."
               onClick={onReissue}
             >
               Neu ausstellen
