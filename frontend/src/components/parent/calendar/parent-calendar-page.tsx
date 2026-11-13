@@ -896,6 +896,17 @@ function CalendarEventPopover({
       preferredWidth={380}
       className="overflow-hidden p-0"
       renderTrigger={renderTrigger}
+      // Zusagen und Absagen bleiben unter dem scrollenden Inhalt stehen, auch
+      // wenn Beschreibung und Rückmeldungen die Höhe füllen (#6846).
+      footer={
+        state === "needsResponse" ? (
+          <CalendarEventRespond
+            event={event}
+            responding={responding}
+            onRespond={onRespond}
+          />
+        ) : undefined
+      }
     >
       {({ close }) => (
         <CalendarEventDetails
@@ -904,6 +915,7 @@ function CalendarEventPopover({
           responding={responding}
           status={status}
           state={state}
+          withRespond={false}
           onClose={close}
           onRespond={onRespond}
         />
@@ -919,6 +931,7 @@ function CalendarEventDetails({
   status,
   state,
   mobile = false,
+  withRespond = true,
   onClose,
   onRespond,
 }: Readonly<{
@@ -928,21 +941,12 @@ function CalendarEventDetails({
   status: { label: string; tone: StatusBadgeTone } | null;
   state: EventState;
   mobile?: boolean;
+  /** False when the host shows the answer in its own fixed footer. */
+  withRespond?: boolean;
   onClose: () => void;
   onRespond: (status: "accepted" | "declined") => Promise<void>;
 }>) {
   const t = useCareTermTranslations("parentCalendar");
-  // The details are an open popover or drawer, so the error stays inside.
-  const {
-    error: respondError,
-    show: showRespondError,
-    clear: clearRespondError,
-  } = useApiFormError();
-  const respondHere = useRespondWithError(
-    onRespond,
-    showRespondError,
-    clearRespondError,
-  );
 
   return (
     <>
@@ -1005,40 +1009,75 @@ function CalendarEventDetails({
         ) : null}
         <ParentResponseSummary event={event} />
       </div>
-      {state === "needsResponse" ? (
+      {withRespond && state === "needsResponse" ? (
         <div
-          className={`border-t border-gray-100 px-4 py-3 ${mobile ? "pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : ""}`}
+          className={`border-t border-gray-100 ${mobile ? "pb-[env(safe-area-inset-bottom)]" : ""}`}
         >
-          <FormErrorAlert message={respondError} className="mb-3" />
-          {event.recurring ? (
-            <p className="mb-3 flex items-center gap-1.5 text-xs leading-5 text-gray-500">
-              <RepeatIcon size={14} className="shrink-0" aria-hidden="true" />
-              {t("seriesAnswer")}
-            </p>
-          ) : null}
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              isLoading={responding}
-              onClick={() => void respondHere("accepted")}
-            >
-              {t("accept")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline_danger"
-              size="md"
-              disabled={responding}
-              onClick={() => void respondHere("declined")}
-            >
-              {t("decline")}
-            </Button>
-          </div>
+          <CalendarEventRespond
+            event={event}
+            responding={responding}
+            onRespond={onRespond}
+          />
         </div>
       ) : null}
     </>
+  );
+}
+
+/**
+ * Zusagen und Absagen einer offenen Einladung, mit dem Hinweis, dass die
+ * Antwort für die ganze Reihe gilt. Der Fehler bleibt in den offenen Details.
+ */
+function CalendarEventRespond({
+  event,
+  responding,
+  onRespond,
+}: Readonly<{
+  event: CalendarEvent;
+  responding: boolean;
+  onRespond: (status: "accepted" | "declined") => Promise<void>;
+}>) {
+  const t = useCareTermTranslations("parentCalendar");
+  const {
+    error: respondError,
+    show: showRespondError,
+    clear: clearRespondError,
+  } = useApiFormError();
+  const respondHere = useRespondWithError(
+    onRespond,
+    showRespondError,
+    clearRespondError,
+  );
+  return (
+    <div className="px-4 py-3">
+      <FormErrorAlert message={respondError} className="mb-3" />
+      {event.recurring ? (
+        <p className="mb-3 flex items-center gap-1.5 text-xs leading-5 text-gray-500">
+          <RepeatIcon size={14} className="shrink-0" aria-hidden="true" />
+          {t("seriesAnswer")}
+        </p>
+      ) : null}
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          isLoading={responding}
+          onClick={() => void respondHere("accepted")}
+        >
+          {t("accept")}
+        </Button>
+        <Button
+          type="button"
+          variant="outline_danger"
+          size="md"
+          disabled={responding}
+          onClick={() => void respondHere("declined")}
+        >
+          {t("decline")}
+        </Button>
+      </div>
+    </div>
   );
 }
 
