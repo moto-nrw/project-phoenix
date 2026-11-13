@@ -38,13 +38,25 @@ func init() {
 // with its fixed three-year window on the database clock.
 // active.staff_absence_audit has no retention of its own; its rows go with
 // their absence through ON DELETE CASCADE, which needs no privilege.
-// TestAuditTablesAppendOnlyForTenantRole guards every table named *audit*.
+//
+// Three change logs without "audit" in their name are append-only too: the
+// vacation quota and leave allowance changes leave with
+// users.erase_retired_staff_records, the meal sickness history with its
+// child or the school erasure, all SECURITY DEFINER or cascades.
+// education.grade_transition_history keeps UPDATE: the student deletion
+// anonymizes its names (#2710).
+//
+// TestAuditTablesAppendOnlyForTenantRole guards every table named *audit*
+// and these change logs.
 const auditTablesAppendOnlySQL = `
 REVOKE UPDATE, DELETE, TRUNCATE ON
 	config.setting_audit,
 	config.traeger_setting_audit,
 	active.staff_absence_audit,
-	platform.traeger_master_data_audit
+	platform.traeger_master_data_audit,
+	active.staff_vacation_quota_changes,
+	active.staff_absence_type_allowance_changes,
+	schedule.meal_sickness_status_history
 FROM phoenix_tenant;
 `
 
@@ -57,7 +69,9 @@ func auditTablesAppendOnlyUp(ctx context.Context, db *bun.DB) error {
 
 // TRUNCATE was never granted, so the rollback does not restore it.
 const auditTablesAppendOnlyDownSQL = `
-GRANT UPDATE, DELETE ON config.setting_audit, active.staff_absence_audit TO phoenix_tenant;
+GRANT UPDATE, DELETE ON config.setting_audit, active.staff_absence_audit,
+	active.staff_vacation_quota_changes, active.staff_absence_type_allowance_changes,
+	schedule.meal_sickness_status_history TO phoenix_tenant;
 GRANT DELETE ON config.traeger_setting_audit, platform.traeger_master_data_audit TO phoenix_tenant;
 `
 

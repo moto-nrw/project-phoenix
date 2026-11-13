@@ -12,7 +12,8 @@ import (
 )
 
 // auditNamedTablesOutsideAuditSchema lists every table outside the audit
-// schema whose name says it is an audit trail (#6844). The audit schema has
+// schema whose name says it is an audit trail, plus appendOnlyChangeLogs
+// (#6844). The audit schema has
 // its own guard in TestAuditSchemaAppendOnlyForTenantRole; the default ACL of
 // the other schemas hands phoenix_tenant UPDATE and DELETE on every new table,
 // so only this guard keeps an audit table there append-only.
@@ -25,10 +26,18 @@ func auditNamedTablesOutsideAuditSchema(t *testing.T, db *testpkg.DB) []string {
 		JOIN pg_namespace n ON n.oid = c.relnamespace
 		WHERE c.relkind IN ('r', 'p')
 		  AND n.nspname NOT IN ('audit', 'pg_catalog', 'information_schema')
-		  AND c.relname LIKE '%audit%'
+		  AND (c.relname LIKE '%audit%' OR n.nspname || '.' || c.relname IN (?))
 		ORDER BY 1
-	`).Scan(context.Background(), &tables))
+	`, bun.List(appendOnlyChangeLogs)).Scan(context.Background(), &tables))
 	return tables
+}
+
+// appendOnlyChangeLogs are change logs without "audit" in their name that
+// are append-only for the tenant role as well (#6844).
+var appendOnlyChangeLogs = []string{
+	"active.staff_vacation_quota_changes",
+	"active.staff_absence_type_allowance_changes",
+	"schedule.meal_sickness_status_history",
 }
 
 // TestAuditTablesAppendOnlyForTenantRole: an audit trail outside the audit
@@ -41,6 +50,7 @@ func TestAuditTablesAppendOnlyForTenantRole(t *testing.T) {
 	tables := auditNamedTablesOutsideAuditSchema(t, db)
 	require.Contains(t, tables, "config.setting_audit", "the guard must see the audit tables outside the audit schema")
 	require.Contains(t, tables, "active.staff_absence_audit")
+	require.Subset(t, tables, appendOnlyChangeLogs)
 
 	for _, relation := range tables {
 		for _, privilege := range []string{"UPDATE", "DELETE", "TRUNCATE"} {

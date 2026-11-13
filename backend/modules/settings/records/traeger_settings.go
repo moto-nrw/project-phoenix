@@ -53,6 +53,6 @@ type TraegerSettingRepository interface {
 	Upsert(ctx context.Context, value *TraegerSettingValue) error
 	Delete(ctx context.Context, organizationID int64, key string) error
 	// RecordChange appends a change to the Träger's change log and drops
-	// its changes made before retainedSince, in the caller's transaction.
+	// its changes older than three years, in the caller's transaction.
 	RecordChange(ctx context.Context, entry *TraegerSettingAuditEntry) error
 }

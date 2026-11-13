@@ -70,7 +70,7 @@ func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account d
 	minted, err := s.mintAccountSession(ctx, mintRequest{
 		portal: domain.PortalParent, account: account, email: email, tenantID: bookedTenantIDs[0],
 		op: "parent login", booked: bookedTenantIDs,
-		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent},
+		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: bookedTenantIDs[0]},
 	})
 	return minted.accessToken, minted.refreshToken, err
 }

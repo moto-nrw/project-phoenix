@@ -436,17 +436,13 @@ func (s *AccountAuthentication) auditSession(txCtx context.Context, accountID in
 			slog.String("event_type", audit.event))
 		return nil
 	}
-	schoolID := audit.schoolID
-	if schoolID <= 0 {
-		// The ledger is school-scoped: a session without a school files at
-		// the account's default school.
-		var err error
-		if schoolID, _, err = s.resolveAccountTenantDefault(txCtx, accountID); err != nil {
-			return fmt.Errorf("audit %s: resolve school: %w", audit.event, err)
-		}
+	// The ledger is school-scoped; every caller names the school the event
+	// is filed at (a schoolless session its account's default school).
+	if audit.schoolID <= 0 {
+		return fmt.Errorf("audit %s: school is required", audit.event)
 	}
 	if err := s.audit.RecordAuthEvent(txCtx, domain.AuthEvent{
-		AccountID: accountID, TenantID: schoolID, Type: audit.event, Success: true,
+		AccountID: accountID, TenantID: audit.schoolID, Type: audit.event, Success: true,
 		IPAddress: audit.ipAddress, UserAgent: audit.userAgent,
 	}); err != nil {
 		return fmt.Errorf("audit %s: %w", audit.event, err)
