@@ -4,6 +4,7 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { CloseIcon } from "~/components/ui/close-icon";
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { TINT_CLASSES, getPillTone } from "~/lib/kit-palette";
 
 /** Tinted surface of each type: the palette tint, with its strong text for
@@ -66,6 +67,8 @@ interface AlertProps extends Omit<HTMLAttributes<HTMLDivElement>, "color"> {
   readonly onDismiss?: () => void;
   /** Name des Schließen-X für Screenreader. */
   readonly dismissLabel?: string;
+  /** What the close X does (#6744); pass a translated one with `dismissLabel`. */
+  readonly dismissTooltip?: string;
   /** Zusätzliche Klassen für den Rahmen, z. B. Außenabstände. */
   readonly className?: string;
 }
@@ -82,11 +85,13 @@ export function Alert({
   size = "default",
   color,
   onDismiss,
-  dismissLabel = "Hinweis schließen",
+  dismissLabel,
+  dismissTooltip,
   className = "",
   style,
   ...props
 }: Readonly<AlertProps>) {
+  const kitDefault = useKitDefault();
   if (message === null || message === undefined || message === "") return null;
   const compact = size === "compact";
   const isAssertive = type === "error" || type === "warning";
@@ -246,7 +251,8 @@ export function Alert({
           type="button"
           variant="ghost_tone"
           size="icon"
-          aria-label={dismissLabel}
+          aria-label={dismissLabel ?? "Hinweis schließen"}
+          tooltip={dismissTooltip ?? kitDefault("Blendet den Hinweis aus.")}
           onClick={onDismiss}
           className="absolute top-2.5 right-2.5"
         >

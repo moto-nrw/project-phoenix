@@ -210,6 +210,8 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 - `disabledReason`: what is missing or comes first („Wählen Sie zuerst mindestens ein Kind aus.“), never just „Nicht möglich.“
 - `noTooltip` only if the word says it all with no side effect („Abbrechen“, „Zurück“, a pure „Speichern“); never deleting, sending, releasing, icon buttons.
 
+Kit pieces bring their sentence (#6744); override if the click does more: `closeTooltip`, `confirmTooltip`, `confirmDisabledReason` (modals), `saveTooltip`/`disabledReason` (`EditActions`), `buttonTooltip`, `collapseTooltip`, `loadMoreTooltip`, `triggerTooltip`, `tooltip` (`ExportMenu`), `dismissTooltip`, `removeTooltip`, `*Hint` date/time labels. German defaults drop under a non-German `KitLocaleProvider` (parents, enrollment): pass one.
+
 Examples: „Löscht die PDF sofort aus dem Anmeldeformular.“ · „Übernimmt Ihre Auswahl für die Startseite aller Mitarbeitenden.“ · „Öffnet den Rechtstext für Eltern zum Bearbeiten.“
 
 ## Several notices of the same kind

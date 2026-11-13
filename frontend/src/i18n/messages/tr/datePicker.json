@@ -9,6 +9,10 @@
     "selectTime": "Saat seçin",
     "hour": "Saat",
     "minute": "Dakika",
-    "minimum": "En erken {time}"
-  }
+    "minimum": "En erken {time}",
+    "selectTimeHint": "Saat seçimini açar."
+  },
+  "clearHint": "Alanı temizler, ardından hiçbir gün seçili olmaz.",
+  "previousMonthHint": "Takvimde bir ay geri gider.",
+  "nextMonthHint": "Takvimde bir ay ileri gider."
 }

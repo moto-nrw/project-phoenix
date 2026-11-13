@@ -13,6 +13,8 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { ActionHint } from "~/components/ui/action-hint";
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { buttonClassName } from "~/components/ui/button";
 import type { ButtonSize, ButtonVariant } from "~/components/ui/button-styles";
 import Link from "~/components/ui/navigation-link";
@@ -61,6 +63,12 @@ interface OverflowMenuProps {
   /** Optional visible trigger content; the default is the kebab icon. */
   readonly triggerContent?: ReactNode;
   /**
+   * What a click on the trigger does (#6744). Defaults to „Zeigt weitere
+   * Aktionen.“ for the kebab and to a neutral sentence for a text trigger;
+   * a page tab (`triggerRole="tab"`) gets none.
+   */
+  readonly triggerTooltip?: string;
+  /**
    * Draws the trigger as a kit button. `triggerContent` is its label,
    * `triggerClassName` carries layout only, as on `Button`.
    */
@@ -99,6 +107,10 @@ interface OverflowMenuProps {
   readonly preferredSide?: "below" | "above";
 }
 
+const KEBAB_TOOLTIP = "Zeigt weitere Aktionen.";
+// Ein Menü hinter einem Textknopf: erst ein Eintrag darin wirkt.
+const TEXT_TRIGGER_TOOLTIP = "Öffnet die Auswahl, noch passiert nichts.";
+
 /**
  * Generic kebab (⋮) overflow menu. Anchored bottom-right of the trigger by
  * default; flips to bottom-left if the page edge is too close on the right, and
@@ -120,6 +132,7 @@ export function OverflowMenu({
   triggerSize = "default",
   triggerClassName = "",
   triggerContent,
+  triggerTooltip,
   triggerButton,
   wrapperClassName = "inline-block",
   tourTarget,
@@ -128,6 +141,7 @@ export function OverflowMenu({
   portalZIndex,
   preferredSide = "below",
 }: OverflowMenuProps) {
+  const kitDefault = useKitDefault();
   // Size variant: the "default" values are byte-for-byte the previous hardcoded
   // ones, so unchanged callers keep the exact 36px trigger + 20px icon +
   // gray-600 color. "sm" shrinks to a 24px trigger (44px under pointer:
@@ -411,6 +425,39 @@ export function OverflowMenu({
 
   if (items.length === 0) return null;
 
+  const triggerHint =
+    triggerTooltip ??
+    (triggerRole === undefined
+      ? triggerContent == null
+        ? kitDefault(KEBAB_TOOLTIP)
+        : kitDefault(TEXT_TRIGGER_TOOLTIP)
+      : undefined);
+  const trigger = (
+    <button
+      ref={triggerRef}
+      type="button"
+      onClick={handleOpen}
+      disabled={disabled}
+      role={triggerRole}
+      aria-selected={triggerAriaSelected}
+      tabIndex={triggerTabIndex}
+      aria-label={ariaLabel}
+      aria-haspopup="menu"
+      aria-expanded={isOpen}
+      aria-controls={isOpen ? menuId : undefined}
+      className={
+        triggerButton
+          ? buttonClassName({
+              ...triggerButton,
+              className: triggerClassName,
+            })
+          : `inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none ${triggerClassName}`
+      }
+    >
+      {triggerContent ?? <MoreVertical className={iconSizeClass} aria-hidden />}
+    </button>
+  );
+
   return (
     <div
       className={`relative ${wrapperClassName}`}
@@ -419,28 +466,11 @@ export function OverflowMenu({
       {...iconOnlyMarker(triggerContent == null)}
       data-setup-tour={tourTarget}
     >
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={handleOpen}
-        disabled={disabled}
-        role={triggerRole}
-        aria-selected={triggerAriaSelected}
-        tabIndex={triggerTabIndex}
-        aria-label={ariaLabel}
-        aria-haspopup="menu"
-        aria-expanded={isOpen}
-        aria-controls={isOpen ? menuId : undefined}
-        className={
-          triggerButton
-            ? buttonClassName({ ...triggerButton, className: triggerClassName })
-            : `inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none ${triggerClassName}`
-        }
-      >
-        {triggerContent ?? (
-          <MoreVertical className={iconSizeClass} aria-hidden />
-        )}
-      </button>
+      {triggerHint ? (
+        <ActionHint text={triggerHint}>{trigger}</ActionHint>
+      ) : (
+        trigger
+      )}
 
       {isOpen && portalContainer
         ? createPortal(

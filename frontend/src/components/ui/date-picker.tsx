@@ -464,6 +464,7 @@ export function DatePicker({
             }}
             className="shrink-0"
             aria-label={labels.clear}
+            tooltip={labels.clearHint}
           >
             <svg
               className="h-4 w-4"

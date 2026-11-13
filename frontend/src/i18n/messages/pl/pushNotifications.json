@@ -47,5 +47,6 @@
   "enableTooltip": "Włącza tu powiadomienia, gdy urządzenie zapyta o Twoją zgodę.",
   "disableTooltip": "Od razu wyłącza powiadomienia, tylko na tym urządzeniu.",
   "installTooltip": "Rozpoczyna instalację moto jako aplikacji na tym urządzeniu.",
-  "checkAgainTooltip": "Sprawdza ponownie, czy moto może wysyłać powiadomienia na to urządzenie."
+  "checkAgainTooltip": "Sprawdza ponownie, czy moto może wysyłać powiadomienia na to urządzenie.",
+  "moreActionsHint": "Pokazuje więcej działań."
 }

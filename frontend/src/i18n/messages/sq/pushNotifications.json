@@ -47,5 +47,6 @@
   "enableTooltip": "Aktivizon njoftimet këtu, pasi pajisja t'ju kërkojë leje.",
   "disableTooltip": "Çaktivizon menjëherë njoftimet, vetëm në këtë pajisje.",
   "installTooltip": "Nis instalimin e moto si aplikacion në këtë pajisje.",
-  "checkAgainTooltip": "Kontrollon përsëri nëse moto mund t'ju njoftojë në këtë pajisje."
+  "checkAgainTooltip": "Kontrollon përsëri nëse moto mund t'ju njoftojë në këtë pajisje.",
+  "moreActionsHint": "Shfaq më shumë veprime."
 }

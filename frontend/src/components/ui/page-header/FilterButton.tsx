@@ -43,6 +43,11 @@ export function FilterButton({
       // of the name (WCAG 2.5.3, axe label-content-name-mismatch).
       aria-label={showCountBadge ? `Filter, ${activeCount} aktiv` : "Filter"}
       aria-expanded={isOpen}
+      tooltip={
+        isOpen
+          ? "Blendet die Filter wieder aus."
+          : "Zeigt die Filter für diese Liste."
+      }
       data-filters-active={showRing ? "" : undefined}
       className={cn("relative", className)}
     >

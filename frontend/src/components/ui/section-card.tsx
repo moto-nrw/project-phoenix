@@ -1,5 +1,6 @@
 "use client";
 
+import { useKitDefault } from "~/components/ui/kit-locale";
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
@@ -100,6 +101,19 @@ function SectionCardConceptIcon({
   );
 }
 
+/** What the collapse toggle does in each state (#6744). */
+export interface SectionCollapseTooltip {
+  /** While collapsed: what a click shows. */
+  readonly expand: string;
+  /** While open: what a click hides. */
+  readonly collapse: string;
+}
+
+const DEFAULT_COLLAPSE_TOOLTIP: SectionCollapseTooltip = {
+  expand: "Zeigt den Inhalt dieses Abschnitts.",
+  collapse: "Blendet den Inhalt dieses Abschnitts aus.",
+};
+
 /**
  * The disclosure toggle of a collapsible `SectionCard`. Exported for a
  * section whose expanded head is drawn by its content (the block roster on a
@@ -110,13 +124,18 @@ export function SectionCollapseToggle({
   collapsed,
   controls,
   onToggle,
+  tooltip,
 }: Readonly<{
   title?: string;
   collapsed: boolean;
+  tooltip?: SectionCollapseTooltip;
   /** Id of the body the toggle shows or hides, while it is rendered. */
   controls?: string;
   onToggle: () => void;
 }>) {
+  const kitDefault = useKitDefault();
+  const sentences = tooltip ?? DEFAULT_COLLAPSE_TOOLTIP;
+  const sentence = collapsed ? sentences.expand : sentences.collapse;
   return (
     <Button
       type="button"
@@ -133,6 +152,7 @@ export function SectionCollapseToggle({
       }
       aria-expanded={!collapsed}
       aria-controls={controls}
+      tooltip={tooltip ? sentence : kitDefault(sentence)}
       onClick={onToggle}
     >
       <ChevronDown
@@ -245,6 +265,7 @@ export function SectionCard({
   bare = false,
   testId,
   collapsible = false,
+  collapseTooltip,
   defaultCollapsed = false,
   collapsed: collapsedProp,
   onCollapsedChange,
@@ -302,6 +323,8 @@ export function SectionCard({
   /** Testanker; erspart eine zusätzliche Hülle nur für den Selektor. */
   testId?: string;
   collapsible?: boolean;
+  /** Overrides the toggle's sentences, e.g. for a section that also loads. */
+  collapseTooltip?: SectionCollapseTooltip;
   defaultCollapsed?: boolean;
   /** Controlled open state; `onCollapsedChange` then reports the requested one. */
   collapsed?: boolean;
@@ -501,6 +524,7 @@ export function SectionCard({
             <SectionCollapseToggle
               title={title}
               collapsed={collapsed}
+              tooltip={collapseTooltip}
               controls={showBody ? bodyId : undefined}
               onToggle={() => {
                 const next = !collapsed;
