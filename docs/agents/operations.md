@@ -813,10 +813,18 @@ it on the affected database:
 2. `REINDEX INDEX CONCURRENTLY <index>;` for each one.
 3. `ALTER COLLATION public.german_name REFRESH VERSION;`
 
-Pin the postgres image to an exact alpine tag (`17.x-alpine3.yy`) or digest
-before relying on it: the floating `17-alpine` tag is rebuilt on alpine
-updates and can change the ICU version without a visible change in the
-compose file.
+The postgres image is pinned to an exact alpine tag and its index digest
+(`postgres:17.x-alpine3.yy@sha256:…`). The floating `17-alpine` tag is
+rebuilt on alpine and minor updates and can change the ICU version or
+PostgreSQL behavior without a visible change in the compose file; on
+2026-11-12, 17.12 turned every pull request red overnight (#6916).
+`environments/production.compose.yml` holds the pin; CI workflows, the other
+compose files and the script tests repeat it, and `TestToolchainPinsRatchet`
+fails when one of them differs. Dependabot proposes updates in
+`environments/`; complete such a pull request with every other reference in
+the same branch. Before merging an update, compare `icu-libs` of the old and
+new image (`docker run --rm IMAGE apk info -v | grep '^icu-libs-'`); a
+changed ICU version needs the reindex above after the deploy.
 
 ## Product screenshots (marketing images)
 
