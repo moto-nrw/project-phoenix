@@ -8,6 +8,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 	"github.com/moto-ogs/project-phoenix/modules/schoolsearchview"
 	"github.com/moto-ogs/project-phoenix/modules/schoolsearchview/compose"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/protocol"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
@@ -214,4 +215,27 @@ func TestSearchQueryBudget(t *testing.T) {
 	large := run()
 	require.Equal(t, small, large, "the statement count must not grow with the school")
 	querybudgets.AssertQueryBudget(t, "modules.schoolsearchview.search", counter.Measurement(reads()))
+}
+
+// TestEveryStatementWithTheTypedTextIsMarkedForTheLog keeps names and phone
+// numbers out of the slow-query log: bun writes bound values into the logged
+// SQL, so each statement that carries the text must carry the marker that
+// makes the log drop its literals (ADR 0227).
+func TestEveryStatementWithTheTypedTextIsMarkedForTheLog(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	counter := testpkg.CaptureQueries(t, db)
+	for _, text := range []string{"Zyxwortel", "0170 9876543"} {
+		counter.Reset()
+		search(t, db, tenantID, nil, text, fullScope)
+		typed := strings.ToLower(strings.Fields(text)[0])
+		carrying := counter.Matching(func(sql string) bool {
+			return strings.Contains(strings.ToLower(sql), typed) || strings.Contains(sql, "1709876543")
+		})
+		require.NotEmpty(t, carrying, text)
+		for _, statement := range carrying {
+			require.True(t, strings.HasPrefix(statement, protocol.RedactLiteralsInLog), "unmarked statement: %.120s", statement)
+		}
+	}
 }

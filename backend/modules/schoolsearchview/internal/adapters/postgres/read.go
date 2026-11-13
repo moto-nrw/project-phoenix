@@ -6,7 +6,9 @@
 // every table they read.
 //
 // The query text is bound as the first argument of each statement and folded
-// into a contains pattern (patternJoin); it never becomes part of the SQL.
+// into a contains pattern (patternJoin). bun writes bound values into the SQL
+// it hands to the query log, so every statement that carries the text opens
+// with protocol.RedactLiteralsInLog: the slow-query log never repeats it.
 package postgres
 
 import (
@@ -15,6 +17,7 @@ import (
 
 	"github.com/moto-ogs/project-phoenix/modules/facilities"
 	"github.com/moto-ogs/project-phoenix/modules/schoolsearchview"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/protocol"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 	"github.com/uptrace/bun"
 )
@@ -61,7 +64,7 @@ const (
 
 // childrenSQL: text, school, notes, limit. A name hit ranks before a class,
 // group or note hit; within a rank the list is sorted by name.
-const childrenSQL = `SELECT hit.id, hit.first_name, hit.last_name, hit.school_class, hit.group_name, hit.match_field, hit.match_text FROM (
+const childrenSQL = protocol.RedactLiteralsInLog + `SELECT hit.id, hit.first_name, hit.last_name, hit.school_class, hit.group_name, hit.match_field, hit.match_text FROM (
 	SELECT student.id, person.first_name, person.last_name, membership.school_class, COALESCE(grp.name, '') AS group_name,
 		CASE WHEN ` + childNameMatch + ` THEN 'name' WHEN ` + childClassMatch + ` THEN 'class'
 			WHEN ` + childGroupMatch + ` THEN 'group' ELSE 'parent_note' END AS match_field,
@@ -140,7 +143,7 @@ const contactHasLiveChild = `EXISTS (SELECT 1 FROM users.student_guardian_relati
 // contactsByPhoneSQL: phone key, school, limit. It matches the key as a part
 // of each stored number's key and reports the number that matched, the
 // primary one first.
-const contactsByPhoneSQL = `SELECT * FROM (
+const contactsByPhoneSQL = protocol.RedactLiteralsInLog + `SELECT * FROM (
 		SELECT DISTINCT ON (guardian.id) guardian.id, guardian.first_name, guardian.last_name,
 			'phone' AS match_field, phone.phone_number AS match_text
 		FROM users.guardian_phone_numbers AS phone
@@ -159,7 +162,7 @@ const (
 
 // contactsByTextSQL: text, school, limit. It matches the name in either order
 // or the e-mail address; name hits first.
-const contactsByTextSQL = `SELECT guardian.id, guardian.first_name, guardian.last_name,
+const contactsByTextSQL = protocol.RedactLiteralsInLog + `SELECT guardian.id, guardian.first_name, guardian.last_name,
 		CASE WHEN ` + contactNameMatch + ` THEN 'contact' ELSE 'email' END AS match_field,
 		CASE WHEN ` + contactNameMatch + ` THEN '' ELSE guardian.email END AS match_text
 	FROM users.guardian_profiles AS guardian ` + patternJoin + `
@@ -236,7 +239,7 @@ func (r *Reader) Contacts(ctx context.Context, text, phoneKey string, limit int)
 }
 
 // staffSQL: text, school, limit. Current staff by name in either order.
-const staffSQL = `SELECT staff.id, person.first_name, person.last_name
+const staffSQL = protocol.RedactLiteralsInLog + `SELECT staff.id, person.first_name, person.last_name
 	FROM users.staff_school_memberships AS staff
 	JOIN users.persons AS person ON person.id = staff.person_id AND person.tenant_id = staff.tenant_id AND person.deleted_at IS NULL
 	` + patternJoin + `
@@ -272,7 +275,7 @@ func (r *Reader) Staff(ctx context.Context, text string, limit int) ([]schoolsea
 // roomsSQL: text, school, toilet names, Schulhof, limit. Like the room list
 // it leaves out the kiosk toilets and every other system room but the
 // Schulhof, by Facilities' own names (ADR 0019).
-const roomsSQL = `SELECT room.id, room.name, COALESCE(room.building, '') AS building
+const roomsSQL = protocol.RedactLiteralsInLog + `SELECT room.id, room.name, COALESCE(room.building, '') AS building
 	FROM facilities.rooms AS room ` + patternJoin + `
 	WHERE room.tenant_id = ? AND room.name NOT IN (?, ?) AND (NOT room.is_system OR room.name = ?)
 		AND (public.f_unaccent(room.name) ILIKE q.p ESCAPE '\' OR public.f_unaccent(COALESCE(room.building, '')) ILIKE q.p ESCAPE '\')
@@ -304,7 +307,7 @@ func (r *Reader) Rooms(ctx context.Context, text string, limit int) ([]schoolsea
 }
 
 // groupsSQL: text, school, limit.
-const groupsSQL = `SELECT grp.id, grp.name FROM education.groups AS grp ` + patternJoin + `
+const groupsSQL = protocol.RedactLiteralsInLog + `SELECT grp.id, grp.name FROM education.groups AS grp ` + patternJoin + `
 	WHERE grp.tenant_id = ? AND public.f_unaccent(grp.name) ILIKE q.p ESCAPE '\'
 	ORDER BY grp.name, grp.id
 	LIMIT ?`

@@ -93,6 +93,17 @@
       "target_role": "public"
     },
     {
+      "id": "school-search-view.postgres.transaction-runtime.contract",
+      "description": "ADR 0227: the search statements carry the query log marker that keeps the typed text out of the log.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-search-view",
+      "source_role": "postgres",
+      "target_owner": "transaction-runtime",
+      "target_role": "contract"
+    },
+    {
       "id": "school-search-view.compose.tenant-runtime",
       "description": "ADR 0227: composition binds only the existing school transaction and its tenant.",
       "scopes": [

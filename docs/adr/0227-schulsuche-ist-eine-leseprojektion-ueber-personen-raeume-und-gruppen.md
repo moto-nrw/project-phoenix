@@ -77,8 +77,13 @@ Drei Fragen waren offen:
    `users:read`.
 5. **Der Suchbegriff bleibt aus URLs und Protokollen.** Er reist im Body
    eines `POST`, nie als Query-Parameter. Fehler nennen die gescheiterte
-   Lesung, nie den Text. Die Route ist eine Lesung und kein Kernvorgang der
-   Nutzungsanalyse.
+   Lesung, nie den Text. bun schreibt gebundene Werte in das SQL, das das
+   Abfrage-Log (langsame und fehlerhafte Anweisungen) erhält. Jede Anweisung,
+   die den Text trägt, beginnt deshalb mit `protocol.RedactLiteralsInLog` von
+   Transaction Runtime; das Log ersetzt dann alle ihre Textliterale. Der
+   Suchdialog trägt `data-analytics-block`, eine Sitzungsaufzeichnung enthält
+   ihn nicht. Die Route ist eine Lesung und kein Kernvorgang der
+   Nutzungsanalyse; die Mitarbeiter-Vorschau darf sie aufrufen.
 
 ## Nicht entschieden
 

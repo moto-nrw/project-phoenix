@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/protocol"
 )
 
 func newTestQueryHook(t *testing.T) (*QueryHook, *bytes.Buffer) {
@@ -95,5 +97,35 @@ func TestQueryLogRedactsBankData(t *testing.T) {
 	}
 	if !strings.Contains(logged, "[redacted]") || !strings.Contains(logged, "SJR-1") {
 		t.Fatalf("the query log should keep the rest of the query: %s", logged)
+	}
+}
+
+// TestMarkedStatementsLoseTheirTypedTextInTheLog keeps a search text out of
+// the slow-query log: bun writes bound values into the logged SQL (ADR 0227).
+func TestMarkedStatementsLoseTheirTypedTextInTheLog(t *testing.T) {
+	t.Parallel()
+	hook, buf := newTestQueryHook(t)
+	hook.logQuery(context.Background(), queryLogData{
+		operation: "SELECT",
+		query:     protocol.RedactLiteralsInLog + `SELECT 1 FROM education.groups AS grp CROSS JOIN (SELECT '%' || public.f_unaccent('O''Brien 0170 1234567') || '%' AS p) AS q`,
+		started:   time.Now().Add(-10 * time.Millisecond),
+	})
+	logged := buf.String()
+	for _, typed := range []string{"Brien", "0170", "1234567"} {
+		if strings.Contains(logged, typed) {
+			t.Fatalf("log %q still names the typed text %q", logged, typed)
+		}
+	}
+	if !strings.Contains(logged, "education.groups") {
+		t.Fatalf("log %q lost the statement itself", logged)
+	}
+
+	unmarked, buf := newTestQueryHook(t)
+	unmarked.logQuery(context.Background(), queryLogData{
+		operation: "SELECT", query: `SELECT 1 FROM rooms WHERE name = 'Atelier'`,
+		started: time.Now().Add(-10 * time.Millisecond),
+	})
+	if !strings.Contains(buf.String(), "Atelier") {
+		t.Fatalf("an unmarked statement keeps its literals for diagnosis: %q", buf.String())
 	}
 }
