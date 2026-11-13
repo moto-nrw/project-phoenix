@@ -18,6 +18,10 @@ import { SectionCard } from "~/components/ui/section-card";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { UploadSection } from "~/components/import/upload-section";
+import {
+  DISCARD_UPLOAD_HINT,
+  TEMPLATE_DOWNLOAD_HINT,
+} from "~/components/import/import-hints";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
 import {
@@ -406,6 +410,7 @@ export default function ClassListImportPage() {
             type="button"
             variant="primary"
             size="field"
+            tooltip={TEMPLATE_DOWNLOAD_HINT}
             onClick={() => void handleDownloadTemplate()}
             className="gap-2"
           >
@@ -464,6 +469,7 @@ export default function ClassListImportPage() {
               variant="outline"
               size="md"
               className="flex-1"
+              tooltip={DISCARD_UPLOAD_HINT}
               onClick={resetForm}
             >
               Abbrechen
@@ -475,6 +481,12 @@ export default function ClassListImportPage() {
               className="flex-1"
               onClick={() => void handleImport()}
               disabled={(!importInterrupted && stats.new === 0) || isImporting}
+              disabledReason={
+                isImporting
+                  ? undefined
+                  : "Die Datei enthält keine neuen Einträge."
+              }
+              tooltip="Setzt die neuen Kinder ohne OGS-Betreuung auf die Klassenlisten."
             >
               {isImporting
                 ? "Wird importiert…"

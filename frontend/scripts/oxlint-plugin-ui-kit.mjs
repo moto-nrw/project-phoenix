@@ -6108,6 +6108,21 @@ const TOOLTIP_SCOPE = [
   "src/components/time-tracking/monatskarte.tsx",
   "src/components/time-tracking/own-dienstplan-view.tsx",
   "src/components/time-tracking/vacation-request-modal.tsx",
+  // Datenverwaltung: Seiten AGs, Datenbank, Infobildschirme, Listen (#6753).
+  "src/app/[tenant]/(protected)/activities/page.tsx",
+  "src/app/[tenant]/(protected)/database/exports/page.tsx",
+  "src/app/[tenant]/(protected)/database/personal/import/page.tsx",
+  "src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx",
+  "src/app/[tenant]/(protected)/database/personal/page.tsx",
+  "src/app/[tenant]/(protected)/database/qualifications/page.tsx",
+  "src/app/[tenant]/(protected)/database/shift-types/page.tsx",
+  "src/app/[tenant]/(protected)/database/students/class-list/import/page.tsx",
+  "src/app/[tenant]/(protected)/database/students/class-list/page.tsx",
+  "src/app/[tenant]/(protected)/database/students/ended-care/page.tsx",
+  "src/app/[tenant]/(protected)/database/students/import/page.tsx",
+  "src/app/[tenant]/(protected)/database/students/page.tsx",
+  "src/app/[tenant]/(protected)/info-displays/page.tsx",
+  "src/app/[tenant]/(protected)/lists/page.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
