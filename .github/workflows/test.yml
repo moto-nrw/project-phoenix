@@ -1142,8 +1142,7 @@ jobs:
       # profiles also compiled the coverage ratchet, so its build cache is the
       # fullest of the three scenarios.
       - name: Save seed smoke build cache
-        # MESSUNG, wird vor dem Merge entfernt: der PR speichert den neuen Cache einmal.
-        if: ${{ matrix.scenario == 'profiles' && steps.build-cache.outputs.cache-hit != 'true' }}
+        if: ${{ github.event_name != 'pull_request' && matrix.scenario == 'profiles' && steps.build-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
