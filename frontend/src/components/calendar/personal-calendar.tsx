@@ -1568,9 +1568,21 @@ export function CalendarOverviewList({
     <div className="space-y-4">
       {overview.delivery_mode === "rsvp_required" ? (
         <div className="grid grid-cols-3 gap-2">
-          <StatCard label="Zugesagt" value={accepted} tone="green" />
-          <StatCard label="Abgesagt" value={declined} tone="red" />
-          <StatCard label="Offen" value={pending} tone="neutral" />
+          {/* Dieselben Kacheln wie die Rückmeldungen im Elternportal; die
+              großen Versalien-Kacheln brachen am Handy mitten im Wort um. */}
+          <StatCard
+            variant="tile"
+            label="Zugesagt"
+            value={accepted}
+            tone="green"
+          />
+          <StatCard
+            variant="tile"
+            label="Abgesagt"
+            value={declined}
+            tone="red"
+          />
+          <StatCard variant="tile" label="Offen" value={pending} />
         </div>
       ) : null}
       <FramedList>

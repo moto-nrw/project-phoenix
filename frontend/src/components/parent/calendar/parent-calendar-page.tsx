@@ -484,8 +484,8 @@ type RespondFn = (
 function formatShortDay(dateISO: string, locale: string): string {
   return formatCalendarDate(dateISO, locale, {
     weekday: "short",
-    day: "numeric",
-    month: "numeric",
+    day: "2-digit",
+    month: "2-digit",
   });
 }
 type ApiErrorShow = ReturnType<typeof useApiErrorDisplay>["show"];
