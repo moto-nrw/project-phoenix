@@ -5,6 +5,7 @@ const CodeEnrollmentApprovalCareOfferingDayConflict = "enrollment.approval_care_
 const CodeEnrollmentApprovalCareOfferingExactlyOne = "enrollment.approval_care_offering_exactly_one"
 const CodeEnrollmentApprovalCareOfferingMissing = "enrollment.approval_care_offering_missing"
 const CodeEnrollmentApprovalDataInvalid = "enrollment.approval_data_invalid"
+const CodeEnrollmentApprovalOfferingTermsChanged = "enrollment.approval_offering_terms_changed"
 const CodeEnrollmentApprovalStaffProfileRequired = "enrollment.approval_staff_profile_required"
 const CodeEnrollmentCaptchaFailed = "enrollment.captcha_failed"
 const CodeEnrollmentCaptchaRequired = "enrollment.captcha_required"
@@ -184,6 +185,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentApprovalCareOfferingExactlyOne, "business_rejection"},
 	{CodeEnrollmentApprovalCareOfferingMissing, "business_rejection"},
 	{CodeEnrollmentApprovalDataInvalid, "input"},
+	{CodeEnrollmentApprovalOfferingTermsChanged, "business_rejection"},
 	{CodeEnrollmentApprovalStaffProfileRequired, "permission"},
 	{CodeEnrollmentCaptchaFailed, "input"},
 	{CodeEnrollmentCaptchaRequired, "input"},

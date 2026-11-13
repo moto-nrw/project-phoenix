@@ -3,6 +3,7 @@
   "approval_care_offering_day_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "approval_care_offering_exactly_one": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "approval_care_offering_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "approval_offering_terms_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "approval_data_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "approval_staff_profile_required": "Bu kayıtta alma veya getirme saatleri var. Yalnızca personel profili olan biri onaylayabilir.",
   "captcha_failed": "Güvenlik doğrulaması başarısız oldu. Lütfen tekrar deneyin.",

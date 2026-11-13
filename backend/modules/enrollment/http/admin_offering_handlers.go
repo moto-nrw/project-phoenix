@@ -252,6 +252,18 @@ func toAdminChildOffering(row ChildOfferingRow) AdminRequestChildOffering {
 		ValidFrom:             optionalDateString(row.ValidFrom),
 		ValidUntil:            optionalInclusiveEndDateString(row.ValidUntil),
 		StartsLater:           row.StartsLater,
+		SubmittedTerms:        toAdminSubmittedOfferingTerms(row.SubmittedTerms),
+		ChangedTerms:          row.ChangedTerms,
+	}
+}
+
+func toAdminSubmittedOfferingTerms(terms *capability.SubmittedOfferingTerms) *AdminSubmittedOfferingTerms {
+	if terms == nil {
+		return nil
+	}
+	return &AdminSubmittedOfferingTerms{
+		Name: terms.Name, PriceCents: terms.PriceCents,
+		DaysOfWeekMode: terms.DaysOfWeekMode, AvailableDays: terms.AvailableDays,
 	}
 }
 

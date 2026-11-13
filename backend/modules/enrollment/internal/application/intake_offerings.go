@@ -181,7 +181,14 @@ func (s *Intake) applyCapacityOverflow(ctx context.Context, phase *enrollmentNat
 // recordOfferingSubmission records a child's submitted offering choices in
 // Enrollment and the effective bookings of the phase window in Care Plan.
 // The window comes from the phase read under the recurrence gate (#6657).
-func (s *Intake) recordOfferingSubmission(ctx context.Context, childID int64, selections []selection.Selection, phase enrollmentNative.LockedPhase) error {
+// Each choice keeps the catalog terms it was submitted under (#6837).
+func (s *Intake) recordOfferingSubmission(
+	ctx context.Context,
+	childID int64,
+	selections []selection.Selection,
+	catalog map[int64]*offeringContract.CareOfferingRecord,
+	phase enrollmentNative.LockedPhase,
+) error {
 	if len(selections) == 0 {
 		return nil
 	}
@@ -199,7 +206,9 @@ func (s *Intake) recordOfferingSubmission(ctx context.Context, childID int64, se
 		if len(manual) == 0 && len(pick.AutomaticSelectedDays) == 0 {
 			manual = pick.SelectedDays
 		}
-		choices = append(choices, enrollmentNative.SubmittedOfferingChoice{CareOfferingID: pick.OfferingID, SelectedDays: manual})
+		choices = append(choices, enrollmentNative.SubmittedOfferingChoice{
+			CareOfferingID: pick.OfferingID, SelectedDays: manual, Terms: submittedOfferingTerms(catalog[pick.OfferingID]),
+		})
 		bookings = append(bookings, enrollmentNative.CareBookingInput{
 			CareOfferingID: pick.OfferingID, ManualSelectedDays: manual, AutomaticSelectedDays: pick.AutomaticSelectedDays,
 			ValidFrom: &start, ValidUntil: &until,
@@ -212,6 +221,34 @@ func (s *Intake) recordOfferingSubmission(ctx context.Context, childID int64, se
 		return fmt.Errorf("record effective care bookings: %w", err)
 	}
 	return nil
+}
+
+// submittedOfferingTerms is the snapshot of an offering's catalog terms a
+// choice keeps (#6837), nil without a catalog row.
+func submittedOfferingTerms(offering *offeringContract.CareOfferingRecord) *enrollmentNative.SubmittedOfferingTerms {
+	if offering == nil {
+		return nil
+	}
+	terms := currentOfferingTerms(offering)
+	return &terms
+}
+
+// currentOfferingTerms reads an offering's catalog row in the snapshot's
+// shape, so the two compare field by field.
+func currentOfferingTerms(offering *offeringContract.CareOfferingRecord) enrollmentNative.SubmittedOfferingTerms {
+	terms := enrollmentNative.SubmittedOfferingTerms{
+		Name: offering.Name, DaysOfWeekMode: offering.DaysOfWeekMode,
+		AvailableDays: copyDays(offering.AvailableDays),
+	}
+	if offering.PriceCents != nil {
+		price := *offering.PriceCents
+		terms.PriceCents = &price
+	}
+	if offering.ActivityGroupID != nil && *offering.ActivityGroupID > 0 {
+		groupID := *offering.ActivityGroupID
+		terms.ActivityGroupID = &groupID
+	}
+	return terms
 }
 
 // selectedOfferingNames resolves a child's picks to the lower-cased offering

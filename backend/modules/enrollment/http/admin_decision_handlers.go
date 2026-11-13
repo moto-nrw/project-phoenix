@@ -205,6 +205,21 @@ type AdminRequestChildOffering struct {
 	ValidFrom             string   `json:"valid_from,omitempty"`
 	ValidUntil            string   `json:"valid_until,omitempty"`
 	StartsLater           bool     `json:"starts_later,omitempty"`
+	// SubmittedTerms are the catalog terms the parents submitted and signed
+	// (#6837), absent for a booking without a snapshot. ChangedTerms names
+	// what the catalog changed since: price, days, activity. While it is
+	// non-empty an approval needs accept_offering_changes.
+	SubmittedTerms *AdminSubmittedOfferingTerms `json:"submitted_terms,omitempty"`
+	ChangedTerms   []string                     `json:"changed_terms,omitempty"`
+}
+
+// AdminSubmittedOfferingTerms is the snapshot of an offering's catalog terms
+// at submission (#6837). The linked activity is compared, not shown.
+type AdminSubmittedOfferingTerms struct {
+	Name           string   `json:"name"`
+	PriceCents     *int     `json:"price_cents,omitempty"`
+	DaysOfWeekMode string   `json:"days_of_week_mode"`
+	AvailableDays  []string `json:"available_days"`
 }
 
 type AdminOfferingAdjustment struct {
@@ -553,6 +568,9 @@ type AdminDecideRequest struct {
 	Reason            string `json:"reason,omitempty"`
 	ExistingStudentID string `json:"existing_student_id,omitempty"`
 	CreateNewStudent  bool   `json:"create_new_student,omitempty"`
+	// AcceptOfferingChanges confirms booking the offerings' current terms
+	// although they changed since the submission (#6837).
+	AcceptOfferingChanges bool `json:"accept_offering_changes,omitempty"`
 }
 
 func (req *AdminDecideRequest) Bind(_ *http.Request) error { return nil }
@@ -605,13 +623,14 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	// The command opens the tenant unit and owns its retry and the guardian
 	// invitation an approval owes (#6093).
 	outcome, err := rs.DecisionService.DecideAndInvite(r.Context(), DecideInput{
-		RequestID:         requestID,
-		ChildID:           childID,
-		Status:            DecisionStatus(body.Status),
-		Reason:            body.Reason,
-		ReviewedBy:        int64(claims.ID),
-		ExistingStudentID: existingStudentID,
-		CreateNewStudent:  body.CreateNewStudent,
+		RequestID:             requestID,
+		ChildID:               childID,
+		Status:                DecisionStatus(body.Status),
+		Reason:                body.Reason,
+		ReviewedBy:            int64(claims.ID),
+		ExistingStudentID:     existingStudentID,
+		CreateNewStudent:      body.CreateNewStudent,
+		AcceptOfferingChanges: body.AcceptOfferingChanges,
 	})
 	if err != nil {
 		rs.renderDecideError(w, r, err)
@@ -728,6 +747,9 @@ func (rs *Resource) decideErrorRules(r *http.Request) []common.ErrorRule {
 		}},
 		{Target: capability.ErrExistingChildChoiceInvalid, Render: func(err error) render.Renderer {
 			return common.ErrorConflictWithCode(err, common.CodeEnrollmentExistingChildChoiceInvalid)
+		}},
+		{Target: capability.ErrOfferingTermsChanged, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeEnrollmentApprovalOfferingTermsChanged)
 		}},
 		{Target: capability.ErrExistingStudentAlreadyRequested, Render: func(err error) render.Renderer {
 			return common.ErrorConflictWithCode(err, common.CodeEnrollmentChildAlreadyRequested)
