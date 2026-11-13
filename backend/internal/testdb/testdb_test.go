@@ -29,7 +29,7 @@ func TestSharedRowPredicateFollowsAccountOwnership(t *testing.T) {
 
 	assert.Equal(t,
 		fmt.Sprintf("NOT EXISTS (SELECT 1 FROM auth.account_tenants m WHERE m.account_id = t.id AND m.tenant_id >= %d)", TenantIDBase),
-		sharedRowPredicate("auth.accounts", false),
+		sharedRowPredicate("auth.accounts", false, false),
 	)
 	for _, table := range []string{
 		"audit.auth_events",
@@ -42,27 +42,45 @@ func TestSharedRowPredicateFollowsAccountOwnership(t *testing.T) {
 	} {
 		assert.Equal(t,
 			fmt.Sprintf("NOT EXISTS (SELECT 1 FROM auth.account_tenants m WHERE m.account_id = t.account_id AND m.tenant_id >= %d)", TenantIDBase),
-			sharedRowPredicate(table, false),
+			sharedRowPredicate(table, false, false),
 			table,
 		)
 	}
 	assert.Equal(t,
 		fmt.Sprintf("t.tenant_id IS NULL OR t.tenant_id < %d", TenantIDBase),
-		sharedRowPredicate("auth.account_tenants", true),
+		sharedRowPredicate("auth.account_tenants", true, false),
 		"each account mapping is owned by its own tenant",
 	)
 
-	assert.Empty(t, sharedRowPredicate("auth.password_reset_rate_limits", false),
+	assert.Empty(t, sharedRowPredicate("auth.password_reset_rate_limits", false, false),
 		"email-only rows cannot safely inherit ownership from an account")
 	assert.Equal(t,
 		fmt.Sprintf("NOT EXISTS (SELECT 1 FROM auth.roles m WHERE m.id = t.role_id AND m.tenant_id >= %d)", TenantIDBase),
-		sharedRowPredicate("auth.role_permissions", false),
+		sharedRowPredicate("auth.role_permissions", false, false),
 	)
 	assert.Equal(t,
 		fmt.Sprintf("(NOT EXISTS (SELECT 1 FROM auth.account_tenants m WHERE m.account_id = t.account_id AND m.tenant_id >= %d)) AND (t.tenant_id IS NULL OR t.tenant_id < %d)", TenantIDBase, TenantIDBase),
-		sharedRowPredicate("auth.mfa_email_challenges", true),
+		sharedRowPredicate("auth.mfa_email_challenges", true, false),
 		"either the challenge tenant or its account mapping can establish test ownership",
 	)
+}
+
+// A Träger's row without tenant_id is owned through its organization_id
+// (#6962). A school's identity column and a set tenant_id still win over it.
+func TestSharedRowPredicateFollowsOrganizationOwnership(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t,
+		fmt.Sprintf("t.organization_id IS NULL OR t.organization_id < %d", TenantIDBase),
+		sharedRowPredicate("parent_billing.cost_bearers", false, true))
+	assert.Equal(t,
+		fmt.Sprintf("COALESCE(t.tenant_id, t.organization_id) IS NULL OR COALESCE(t.tenant_id, t.organization_id) < %d", TenantIDBase),
+		sharedRowPredicate("platform.push_outbox", true, true),
+		"a set tenant_id decides before an organization_id")
+	assert.Equal(t,
+		fmt.Sprintf("t.id < %d", TenantIDBase),
+		sharedRowPredicate("platform.schools", false, true),
+		"a school is its own tenant, whatever organization it belongs to")
+	assert.Empty(t, sharedRowPredicate("platform.operators", false, false))
 }
 
 func TestParsePostgresDSNRejectsInvalidInput(t *testing.T) {
@@ -758,6 +776,67 @@ func TestLeftoversIgnoresRowsInsideTheTestTenantBand(t *testing.T) {
 	deltas, err := Leftovers(ctx, handle.DSN)
 	require.NoError(t, err)
 	assert.Empty(t, deltas, "a row in the test's own tenant is not a leftover")
+}
+
+// A Träger's rows without tenant_id belong to a test when its organization
+// lies in the test band; the gate still reports a row of an organization
+// below the band, one without organization, and a changed shared row (#6962).
+func TestLeftoversFollowsOrganizationOwnershipToTenantlessRows(t *testing.T) {
+	t.Parallel()
+	cfg := integrationConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	build := func(ctx context.Context, dsn string) error {
+		db := openSQL(dsn)
+		defer func() { _ = db.Close() }()
+		_, err := db.ExecContext(ctx, `
+			CREATE TABLE traeger_rows (id bigint PRIMARY KEY, organization_id bigint, payload text);
+			INSERT INTO traeger_rows VALUES (1, 1, 'bootstrap Träger');
+			CREATE TABLE outbox (id bigint PRIMARY KEY, tenant_id bigint, organization_id bigint)`)
+		return err
+	}
+	templateCfg, err := EnsureTemplate(ctx, cfg, WithBuild(build), WithMigrationsHash("organizationownershiphash"))
+	require.NoError(t, err)
+
+	handle, err := CreateClone(ctx, templateCfg, SanitizeRunID(""))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = handle.Close()
+		dropBareClone(t, cfg, handle.Name)
+	})
+	require.NoError(t, SnapshotSharedBaseline(ctx, handle.DSN))
+
+	clone := openSQL(handle.DSN)
+	defer func() { require.NoError(t, clone.Close()) }()
+	_, err = clone.ExecContext(ctx, `INSERT INTO traeger_rows VALUES (2, $1, 'own Träger'), (3, $2, 'own Träger');
+		INSERT INTO outbox VALUES (1, NULL, $1), (2, $1, NULL), (3, $1, 7)`,
+		TenantIDBase, TenantIDCeiling+5)
+	require.NoError(t, err)
+	deltas, err := Leftovers(ctx, handle.DSN)
+	require.NoError(t, err)
+	assert.Empty(t, deltas, "rows of an organization in the test band are the test's own")
+
+	for _, leftover := range []struct{ name, table, leave, undo string }{
+		{"a Träger below the band", "public.traeger_rows", `INSERT INTO traeger_rows VALUES (4, 7, 'foreign')`, `DELETE FROM traeger_rows WHERE id = 4`},
+		{"no Träger", "public.traeger_rows", `INSERT INTO traeger_rows VALUES (5, NULL, 'foreign')`, `DELETE FROM traeger_rows WHERE id = 5`},
+		{"a changed shared row", "public.traeger_rows", `UPDATE traeger_rows SET payload = 'changed' WHERE id = 1`, `UPDATE traeger_rows SET payload = 'bootstrap Träger' WHERE id = 1`},
+		{"a shared school's row of an own Träger", "public.outbox", `INSERT INTO outbox VALUES (4, 7, ` + fmt.Sprint(TenantIDBase) + `)`, `DELETE FROM outbox WHERE id = 4`},
+		{"a Träger row below the band", "public.outbox", `INSERT INTO outbox VALUES (5, NULL, 7)`, `DELETE FROM outbox WHERE id = 5`},
+		{"a row without scope", "public.outbox", `INSERT INTO outbox VALUES (6, NULL, NULL)`, `DELETE FROM outbox WHERE id = 6`},
+	} {
+		_, err = clone.ExecContext(ctx, leftover.leave)
+		require.NoError(t, err)
+		deltas, err = Leftovers(ctx, handle.DSN)
+		require.NoError(t, err)
+		require.Len(t, deltas, 1, leftover.name)
+		assert.Equal(t, leftover.table, deltas[0].Table, leftover.name)
+		_, err = clone.ExecContext(ctx, leftover.undo)
+		require.NoError(t, err)
+		deltas, err = Leftovers(ctx, handle.DSN)
+		require.NoError(t, err)
+		require.Empty(t, deltas, "undoing %s restores the start state", leftover.name)
+	}
 }
 
 func TestLeftoversFollowsAccountOwnershipToTenantlessRows(t *testing.T) {
