@@ -142,7 +142,7 @@ export type HolidayRegistrationMailKind =
  * One mail of a registration with what became of it, in Delivery's words
  * (#6976). A Träger keeps no address list, so no mail carries a mark.
  */
-export interface HolidayRegistrationMail {
+interface HolidayRegistrationMail {
   readonly kind: HolidayRegistrationMailKind;
   readonly outcome: MailOutcome;
   /** When the mail came about; two mails of one kind stay apart. */

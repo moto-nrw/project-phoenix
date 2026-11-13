@@ -72,7 +72,7 @@ export const HOLIDAY_MAIL_LABELS: Readonly<
 };
 
 /** The name of a mail in a list, as „Eingangsbestätigung“ (#6976). */
-export function holidayMailLabel(kind: HolidayRegistrationMailKind): string {
+function holidayMailLabel(kind: HolidayRegistrationMailKind): string {
   return HOLIDAY_MAIL_LABELS[kind] ?? "E-Mail";
 }
 
