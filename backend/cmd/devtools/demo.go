@@ -27,6 +27,12 @@ import (
 
 const standingDemoSlug = "messe-demo"
 
+// standingDemoTraegerSlug is the Träger of the standing demo school alone
+// (#6962). Under the profiles' demo-traeger-nord it would share the Träger
+// steps with every school seeded there, in CI with the four profiles seeded
+// at the same time and on the demo server with the visitors' schools.
+const standingDemoTraegerSlug = "demo-traeger-messe"
+
 var demoCmd = &cobra.Command{
 	Use:   "demo",
 	Short: "Run the standing demo school with database-backed state",
@@ -161,7 +167,7 @@ func runStandingDemo(ctx context.Context, schools *DemoRuntime, baseURL, heartbe
 		return err
 	}
 	if saved == nil {
-		options := seedapi.SeedOptions{TenantSlug: standingDemoSlug, SchoolName: "moto Demo-Schule"}
+		options := seedapi.SeedOptions{TenantSlug: standingDemoSlug, SchoolName: "moto Demo-Schule", TraegerSlug: standingDemoTraegerSlug}
 		if _, err := provisionDemoSchool(ctx, schools, adapter, options); err != nil {
 			return err
 		}

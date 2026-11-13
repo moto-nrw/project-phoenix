@@ -113,8 +113,13 @@ func FetchLatestMailLink(ctx context.Context, recipient, marker string, notBefor
 	return pollMailpit(ctx, baseURL, recipient, notBefore, "mail with a link", linkExtractor(marker))
 }
 
+// fetchLatestMFACodeAt searches the recipient's sign-in code mails, not the
+// newest mails of the whole inbox: a second seed against the same server
+// sends its mail at the same time, and twenty of it could push the code out
+// of a list of the newest messages (#6962).
 func fetchLatestMFACodeAt(ctx context.Context, baseURL, recipient string, notBefore time.Time) (string, error) {
-	return pollMailpitAt(ctx, baseURL, "/api/v1/messages?limit=20", recipient, notBefore, 30*time.Second, "MFA email", isMFAMail, extractMFACode)
+	query := `to:"` + strings.ToLower(strings.TrimSpace(recipient)) + `" subject:"` + mfaEmailSubject + `"`
+	return pollMailpitAt(ctx, baseURL, "/api/v1/search?limit=20&query="+url.QueryEscape(query), recipient, notBefore, 30*time.Second, "MFA email", isMFAMail, extractMFACode)
 }
 
 // pollMailpit searches the recipient's messages for up to a minute: a seed
