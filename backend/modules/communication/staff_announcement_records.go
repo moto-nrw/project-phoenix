@@ -84,6 +84,11 @@ type AnnouncementDraftRecords interface {
 	AnnouncementSetPublished(ctx context.Context, id int64, publishedAt *time.Time) error
 	AnnouncementClearEngagement(ctx context.Context, announcementID int64) error
 	AnnouncementPublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error)
+}
+
+// AnnouncementRecipientRecords keeps the guardian accounts a publication
+// reached (#6988), apart from the draft records it does not belong to.
+type AnnouncementRecipientRecords interface {
 	AnnouncementRecordRecipients(ctx context.Context, id int64, accountIDs []int64) error
 }
 type AnnouncementReminderRecords interface {
