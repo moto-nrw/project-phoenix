@@ -343,6 +343,7 @@ jobs:
           NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
           TENANT_DOMAIN: localhost
           TEST_PACKAGES: ${{ matrix.packages }}
+          PG_CONTAINER: ${{ job.services.postgres.id }}
           PACKAGE_WORKERS: ${{ matrix.workers || 6 }}
           FULL_SUITE: ${{ !inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '' }}
           SHARD_INDEX: ${{ matrix.shard }}
@@ -382,9 +383,51 @@ jobs:
 
           # Single pass produces junit.xml. No retries: flaky tests should fail
           # loudly, not be hidden. gotestsum propagates race/test failures.
+          head -n 1 /proc/stat > "$RUNNER_TEMP/cpu-before"
+          docker exec "$PG_CONTAINER" cat /sys/fs/cgroup/cpu.stat > "$RUNNER_TEMP/postgres-cpu-before" || true
           "${measure[@]}" go tool gotestsum --format pkgname-and-test-fails \
             --junitfile junit.xml --jsonfile go-test.json \
-            -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
+            -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" \
+            -debug-actiongraph="$RUNNER_TEMP/actiongraph.json" "${packages[@]}"
+
+      # The job keeps its cores busy, so its wall time follows CPU work. This
+      # table says whose: the compiler, vet and the linker from Go's action
+      # graph, Postgres from its cgroup, and the test binaries as the rest.
+      # Compare it before and after a change instead of the job duration,
+      # which varies by minutes between runs of one commit (#6784).
+      - name: Summarize backend CPU use
+        if: ${{ !cancelled() && !inputs.backend-race && hashFiles('backend/go-test.json') != '' }}
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          [ -s "$RUNNER_TEMP/actiongraph.json" ] && [ -s "$RUNNER_TEMP/cpu-before" ] || exit 0
+          read -r _ user nice system idle iowait irq softirq steal _ < "$RUNNER_TEMP/cpu-before"
+          busy_before=$((user + nice + system + irq + softirq + steal)); idle_before=$((idle + iowait))
+          read -r _ user nice system idle iowait irq softirq steal _ < /proc/stat
+          busy=$(((user + nice + system + irq + softirq + steal - busy_before) / $(getconf CLK_TCK)))
+          idle=$(((idle + iowait - idle_before) / $(getconf CLK_TCK)))
+          postgres_cpu() { awk '$1 == "usage_usec" { printf "%d", $2 / 1000000 }' "$@"; }
+          # Without the cgroup counter Postgres stays in the last row.
+          postgres=null
+          after=$(docker exec "$PG_CONTAINER" cat /sys/fs/cgroup/cpu.stat | postgres_cpu) || after=
+          before=$(postgres_cpu "$RUNNER_TEMP/postgres-cpu-before") || before=
+          if [ -n "$after" ] && [ -n "$before" ]; then
+            postgres=$((after - before))
+          fi
+          {
+            echo '### Backend test step: CPU seconds'
+            echo '| Work | Actions | CPU s |'
+            echo '|---|---:|---:|'
+            jq -r --argjson busy "$busy" --argjson idle "$idle" --argjson postgres "$postgres" '
+              [.[] | select(.Cmd != null and (.Mode == "build" or .Mode == "vet" or .Mode == "link"))] as $actions |
+              ($actions | map(.CmdUser + .CmdSys) | add // 0 | . / 1e9 | round) as $toolchain |
+              ($actions | group_by(.Mode) | map("| \(.[0].Mode) | \(length) | \(map(.CmdUser + .CmdSys) | add / 1e9 | round) |") | .[]),
+              (if $postgres == null then empty else "| Postgres | | \($postgres) |" end),
+              "| test binaries\(if $postgres == null then ", Postgres" else "" end) and the rest | | \($busy - $toolchain - ($postgres // 0)) |",
+              "| **busy** | | **\($busy)** |",
+              "| idle | | \($idle) |"
+            ' "$RUNNER_TEMP/actiongraph.json"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       # A package over its budget fails the pull request that made it slower,
       # not the next unrelated one that crosses Go's timeout (#6784).
