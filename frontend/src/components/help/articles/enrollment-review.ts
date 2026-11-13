@@ -29,7 +29,7 @@ export function enrollmentReviewTopic(): HelpTopic {
       // #6053, #6148 (manuelle Anmeldung)
       "Ist schon ein Kind mit diesem Namen und Geburtsdatum angemeldet, fragt moto beim `Bestätigen` nach. Wählen Sie `Bestehendes Kind verwenden`, verlängert moto nur die Anmeldung dieses Kindes. Die Eltern aus der Anmeldung bekommen dadurch keinen Zugang. Ist es ein anderes Kind, wählen Sie `Als neues Kind anlegen`. Dieselbe Frage kommt, wenn Sie ein Kind selbst mit `Kind anlegen und freigeben` anmelden.",
       // #6837
-      "Haben Sie ein Angebot nach der Anmeldung geändert, etwa Preis oder Tage? Dann steht beim Angebot `Seit der Anmeldung geändert` mit der Wahl der Eltern. Beim `Bestätigen` fragt moto nach. Mit `Neue Angaben bestätigen` gelten die neuen Angaben. Informieren Sie die Familie vorher.",
+      "Haben Sie ein Angebot nach der Anmeldung geändert, etwa Preis oder Tage? Dann steht beim Angebot `Seit der Anmeldung geändert` mit der Wahl der Eltern. Beim `Bestätigen` fragt moto nach. Mit `Neue Angaben bestätigen` gelten die neuen Angaben. Informieren Sie die Familie über die Änderung.",
       // #6041
       "Ist der Start eines bestätigten Kindes für später geplant, steht es erst ab dem Start unter `Alle Kinder`. Vorher finden Sie es unter `Datenverwaltung` und danach `Kinderdaten`.",
       // #6043: Wiederanmeldung vor dem Start der Betreuung.

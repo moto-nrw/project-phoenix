@@ -59,7 +59,7 @@ func TestApproval_RefusesOfferingTermsChangedSinceSubmission(t *testing.T) {
 	require.NotNil(t, rows[0].SubmittedTerms.PriceCents)
 	assert.Equal(t, 8000, *rows[0].SubmittedTerms.PriceCents)
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu"}, rows[0].AvailableDays, "the row still shows the current catalog")
-	assert.Equal(t, []string{enrollmentNative.OfferingTermPrice, enrollmentNative.OfferingTermDays}, rows[0].ChangedTerms)
+	assert.Equal(t, []enrollmentNative.OfferingTermChange{enrollmentNative.OfferingTermPrice, enrollmentNative.OfferingTermDays}, rows[0].ChangedTerms)
 
 	approve := enrollmentAPI.DecideInput{
 		RequestID: requestID, ChildID: childID,

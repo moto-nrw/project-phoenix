@@ -97,7 +97,7 @@ type signedEnrollmentSelections struct {
 	SelectedDays []string `json:"selected_days"`
 	// Terms are the catalog terms the parent signed for (#6837): the same
 	// snapshot the stored choice keeps.
-	Terms *enrollmentNative.SubmittedOfferingTerms `json:"terms,omitempty"`
+	Terms *enrollmentNative.OfferingTerms `json:"terms,omitempty"`
 }
 
 // newSignedEnrollmentDocument builds the signed document from the stored

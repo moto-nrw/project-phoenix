@@ -209,8 +209,8 @@ type AdminRequestChildOffering struct {
 	// (#6837), absent for a booking without a snapshot. ChangedTerms names
 	// what the catalog changed since: price, days, activity. While it is
 	// non-empty an approval needs accept_offering_changes.
-	SubmittedTerms *AdminSubmittedOfferingTerms `json:"submitted_terms,omitempty"`
-	ChangedTerms   []string                     `json:"changed_terms,omitempty"`
+	SubmittedTerms *AdminSubmittedOfferingTerms    `json:"submitted_terms,omitempty"`
+	ChangedTerms   []capability.OfferingTermChange `json:"changed_terms,omitempty"`
 }
 
 // AdminSubmittedOfferingTerms is the snapshot of an offering's catalog terms

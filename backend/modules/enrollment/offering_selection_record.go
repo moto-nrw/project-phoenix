@@ -23,7 +23,7 @@ type RequestChildOfferingRecord struct {
 	Notes                 *string   `json:"notes,omitempty"`
 	// SubmittedTerms are the catalog terms of the parents' submitted choice
 	// of this offering (#6837); nil without one.
-	SubmittedTerms *SubmittedOfferingTerms `json:"-"`
+	SubmittedTerms *OfferingTerms `json:"-"`
 	// ValidFrom / ValidUntil make an approved offering switch effective on its
 	// requested date. ValidUntil is exclusive, matching student enrollments.
 	ValidFrom  *calendar.Date `json:"valid_from,omitempty"`

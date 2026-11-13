@@ -168,8 +168,8 @@ type ChildOfferingRow struct {
 	// offering under, nil without a snapshot (#6837). ChangedTerms names the
 	// booking-relevant terms the catalog changed since (OfferingTerm*); an
 	// approval books the current terms only after the office confirms them.
-	SubmittedTerms *SubmittedOfferingTerms
-	ChangedTerms   []string
+	SubmittedTerms *OfferingTerms
+	ChangedTerms   []OfferingTermChange
 }
 
 // ChildOfferingSet separates the two questions a reader asks about a

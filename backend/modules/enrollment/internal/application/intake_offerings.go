@@ -225,7 +225,7 @@ func (s *Intake) recordOfferingSubmission(
 
 // submittedOfferingTerms is the snapshot of an offering's catalog terms a
 // choice keeps (#6837), nil without a catalog row.
-func submittedOfferingTerms(offering *offeringContract.CareOfferingRecord) *enrollmentNative.SubmittedOfferingTerms {
+func submittedOfferingTerms(offering *offeringContract.CareOfferingRecord) *enrollmentNative.OfferingTerms {
 	if offering == nil {
 		return nil
 	}
@@ -235,8 +235,8 @@ func submittedOfferingTerms(offering *offeringContract.CareOfferingRecord) *enro
 
 // currentOfferingTerms reads an offering's catalog row in the snapshot's
 // shape, so the two compare field by field.
-func currentOfferingTerms(offering *offeringContract.CareOfferingRecord) enrollmentNative.SubmittedOfferingTerms {
-	terms := enrollmentNative.SubmittedOfferingTerms{
+func currentOfferingTerms(offering *offeringContract.CareOfferingRecord) enrollmentNative.OfferingTerms {
+	terms := enrollmentNative.OfferingTerms{
 		Name: offering.Name, DaysOfWeekMode: offering.DaysOfWeekMode,
 		AvailableDays: copyDays(offering.AvailableDays),
 	}

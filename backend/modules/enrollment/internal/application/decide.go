@@ -334,11 +334,15 @@ func (d *Decisions) validateApprovalOfferingSelection(ctx context.Context, child
 		return fmt.Errorf("decision: list child offerings: %w", err)
 	}
 	// The approval books the current catalog. When it no longer matches what
-	// the parents signed, the office confirms the change first (#6837).
-	if !acceptOfferingChanges {
-		if err := checkSubmittedOfferingTerms(links, offerings); err != nil {
-			return err
+	// the parents signed, the office confirms the change first (#6837); the
+	// confirmed change is logged with the approval.
+	if changed := changedSubmittedOfferingTerms(links, offerings); len(changed) > 0 {
+		if !acceptOfferingChanges {
+			return fmt.Errorf("%w (%s)", enrollmentNative.ErrOfferingTermsChanged, strings.Join(changed, "; "))
 		}
+		d.logger().Info("decision: office confirmed offering changes since submission",
+			slog.Int64("request_child_id", child.ID),
+			slog.String("changes", strings.Join(changed, "; ")))
 	}
 	// An application submitted before a group got the per-day rule can hold
 	// two variants on one day (#4514). The approval names it; the bookings
@@ -375,11 +379,11 @@ func checkApprovalSelectionMode(phase *enrollmentNative.Phase, offerings []*offe
 	return nil
 }
 
-// checkSubmittedOfferingTerms refuses an approval while a booked offering's
-// catalog terms differ from the snapshot its submitted choice keeps (#6837).
-// A booking without a snapshot (stored before, or booked by staff) and a
-// deleted catalog row have nothing to compare.
-func checkSubmittedOfferingTerms(links []*enrollmentNative.RequestChildOfferingRecord, offerings []*offeringContract.CareOfferingRecord) error {
+// changedSubmittedOfferingTerms names, per booked offering, the catalog terms
+// that differ from the snapshot its submitted choice keeps (#6837). A booking
+// without a snapshot (stored before, or booked by staff) and a deleted
+// catalog row have nothing to compare.
+func changedSubmittedOfferingTerms(links []*enrollmentNative.RequestChildOfferingRecord, offerings []*offeringContract.CareOfferingRecord) []string {
 	catalog := make(map[int64]*offeringContract.CareOfferingRecord, len(offerings))
 	for _, offering := range offerings {
 		if offering != nil {
@@ -393,13 +397,10 @@ func checkSubmittedOfferingTerms(links []*enrollmentNative.RequestChildOfferingR
 		}
 		terms := enrollmentNative.ChangedOfferingTerms(link.SubmittedTerms, currentOfferingTerms(catalog[link.CareOfferingID]))
 		if len(terms) > 0 {
-			changed = append(changed, fmt.Sprintf("offering %d: %s", link.CareOfferingID, strings.Join(terms, ", ")))
+			changed = append(changed, fmt.Sprintf("offering %d: %v", link.CareOfferingID, terms))
 		}
 	}
-	if len(changed) == 0 {
-		return nil
-	}
-	return fmt.Errorf("%w (%s)", enrollmentNative.ErrOfferingTermsChanged, strings.Join(changed, "; "))
+	return changed
 }
 
 func checkApprovalDayRules(phaseID int64, links []*enrollmentNative.RequestChildOfferingRecord, offerings []*offeringContract.CareOfferingRecord) error {

@@ -257,7 +257,7 @@ func toAdminChildOffering(row ChildOfferingRow) AdminRequestChildOffering {
 	}
 }
 
-func toAdminSubmittedOfferingTerms(terms *capability.SubmittedOfferingTerms) *AdminSubmittedOfferingTerms {
+func toAdminSubmittedOfferingTerms(terms *capability.OfferingTerms) *AdminSubmittedOfferingTerms {
 	if terms == nil {
 		return nil
 	}
