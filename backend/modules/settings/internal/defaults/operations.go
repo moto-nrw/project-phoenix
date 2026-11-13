@@ -290,7 +290,7 @@ var operations_init_sitzungsbereinigung_4Definitions = []config.Definition{
 	{
 		Key:             config.KeySessionInactivityTimeoutMin,
 		Label:           "Standard-Sitzungstimeout (Minuten)",
-		Description:     "Zeit ohne Aktivität, die moto dem Gerät als Zeitlimit meldet, wenn die Sitzung kein eigenes Timeout hat. moto beendet die Sitzung danach nicht selbst.",
+		Description:     "Zeitlimit ohne Aktivität für Sitzungen ohne eigenes Zeitlimit. Nur ein Hinweis für das Gerät: Die Sitzung endet dadurch nicht.",
 		Type:            config.FieldNumber,
 		Default:         30,
 		ReadPermission:  "config:read",
