@@ -93,6 +93,7 @@ export const codes = [
   "students.staff_value_invalid",
   "students.staff_value_unsupported",
   "students.status_day_conflict",
+  "students.status_day_occupied",
 ] as const;
 
 export const classes = {
@@ -189,6 +190,7 @@ export const classes = {
   "students.staff_value_invalid": "input",
   "students.staff_value_unsupported": "input",
   "students.status_day_conflict": "business_rejection",
+  "students.status_day_occupied": "business_rejection",
 } as const;
 
 export const parameters = {
@@ -289,4 +291,5 @@ export const parameters = {
   "students.staff_value_invalid": [],
   "students.staff_value_unsupported": [],
   "students.status_day_conflict": [],
+  "students.status_day_occupied": [],
 } as const;

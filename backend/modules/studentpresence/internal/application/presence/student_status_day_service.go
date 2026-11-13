@@ -76,16 +76,28 @@ func (s *StudentStatusDayService) ValidateProfileStatusChange(ctx context.Contex
 	if err != nil {
 		return err
 	}
+	standing := make(map[string]bool, len(rows))
 	for _, row := range rows {
 		if (setsSick && row.Status == absencerecords.StudentStatusDayExcused && (excused == nil || *excused)) ||
 			(setsExcused && row.Status == absencerecords.StudentStatusDaySick && (sick == nil || *sick)) {
 			return absencerecords.ErrSickExcusedConflict
 		}
-		// The profile has no switch for a class trip, so reporting over one
-		// is refused like the status-day write refuses it (#6959).
-		if row.Status == absencerecords.StudentStatusDayClassTrip {
-			return absencerecords.ErrStatusDayOccupied
-		}
+		standing[row.Status] = true
+	}
+	if reportsOverClassTrip(standing, setsSick, setsExcused) {
+		return absencerecords.ErrStatusDayOccupied
 	}
 	return nil
+}
+
+// reportsOverClassTrip reports whether the profile change newly reports a
+// status on a day a class trip holds. The profile has no switch for a class
+// trip, so that is refused, as the status-day write refuses it (#6959). A
+// status that already stands beside it stays a no-op.
+func reportsOverClassTrip(standing map[string]bool, setsSick, setsExcused bool) bool {
+	if !standing[absencerecords.StudentStatusDayClassTrip] {
+		return false
+	}
+	return (setsSick && !standing[absencerecords.StudentStatusDaySick]) ||
+		(setsExcused && !standing[absencerecords.StudentStatusDayExcused])
 }

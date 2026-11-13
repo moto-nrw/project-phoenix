@@ -174,13 +174,13 @@ func TestUpdateStudent_StatusOnClassTripDayIsRejected(t *testing.T) {
 				map[string]any{status: true}), testutil.AdminTestClaims(1), []string{"admin:*"})
 
 			require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
-			assert.Contains(t, rr.Body.String(), common.CodeStudentsStatusDayConflict)
+			assert.Contains(t, rr.Body.String(), common.CodeStudentsStatusDayOccupied)
 
 			var rows []testpkg.StudentStatusDayRow
 			require.NoError(t, tc.db.NewSelect().Model(&rows).
 				ModelTableExpr(`active.student_status_days AS "student_status_day"`).
 				Where(`"student_status_day".student_id = ?`, student.ID).
-				Where(`"student_status_day".cleared_at IS NULL`).Scan(context.Background()))
+				Where(`"student_status_day".cleared_at IS NULL`).Scan(testpkg.Ctx(t)))
 			require.Len(t, rows, 1, "only the class trip stands")
 			assert.Equal(t, absencerecords.StudentStatusDayClassTrip, rows[0].Status)
 
@@ -190,6 +190,16 @@ func TestUpdateStudent_StatusOnClassTripDayIsRejected(t *testing.T) {
 			assert.False(t, state.Excused != nil && *state.Excused, "the live flag stays unset")
 		})
 	}
+
+	t.Run("standing_status_repeats_as_no_op", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "ClassTrip", "Standing", "CT2")
+		testpkg.CreateTestStudentStatusDay(t, tc.db, student.ID, today, absencerecords.StudentStatusDayClassTrip)
+		testpkg.CreateTestStudentStatusDay(t, tc.db, student.ID, today, absencerecords.StudentStatusDaySick)
+
+		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]any{"sick": true}), testutil.AdminTestClaims(1), []string{"admin:*"})
+		assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	})
 }
 
 // The live flag the PUT derives carries the request's own instant, the one its

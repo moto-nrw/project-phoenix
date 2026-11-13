@@ -76,18 +76,19 @@ func deriveProfileLiveFlags(student *peopleModule.StudentState, requestedSick, r
 	requests := []struct {
 		status    string
 		requested *bool
-		active    bool
+		standing  bool
 	}{
-		{absencerecords.StudentStatusDaySick, requestedSick, boolPtrValue(student.Sick)},
-		{absencerecords.StudentStatusDayExcused, requestedExcused, boolPtrValue(student.Excused)},
+		// A flag without its since time gets one, as the PUT always did.
+		{absencerecords.StudentStatusDaySick, requestedSick, boolPtrValue(student.Sick) && student.SickSince != nil},
+		{absencerecords.StudentStatusDayExcused, requestedExcused, boolPtrValue(student.Excused) && student.ExcusedSince != nil},
 	}
 	for _, request := range requests {
-		if request.requested != nil && !*request.requested {
+		if clearRequested(request.requested) {
 			studentpresence.ClearLiveStatusForToday(record, request.status)
 		}
 	}
 	for _, request := range requests {
-		if request.requested != nil && *request.requested && !request.active {
+		if boolPtrValue(request.requested) && !request.standing {
 			studentpresence.ApplyLiveStatusForToday(record, request.status, now)
 		}
 	}

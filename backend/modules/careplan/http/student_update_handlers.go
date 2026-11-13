@@ -516,7 +516,7 @@ func (rs *Resource) updateStudentTxErrorRenderer(err error) render.Renderer {
 			common.CodeStudentsSickExcusedConflict,
 		)
 	case errors.Is(err, absencerecords.ErrStatusDayOccupied):
-		return common.ErrorConflictWithCode(err, common.CodeStudentsStatusDayConflict)
+		return common.ErrorConflictWithCode(err, common.CodeStudentsStatusDayOccupied)
 	case errors.Is(err, errStudentReassigned):
 		return common.ErrorForbidden(errors.New("insufficient permissions to update this student's data"))
 	case errors.Is(err, errStudentNotFoundUnderLock):

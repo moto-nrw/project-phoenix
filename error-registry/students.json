@@ -503,6 +503,12 @@
       "legacy": "students.status_day_conflict"
     },
     {
+      "code": "students.status_day_occupied",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.status_day_occupied"
+    },
+    {
       "code": "students.accident_report_forbidden",
       "class": "permission",
       "parameters": [],
