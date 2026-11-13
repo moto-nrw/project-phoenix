@@ -59,6 +59,8 @@ type SickCascade interface {
 	// LockSickReportWrite takes, before Workforce writes an absence, the
 	// absence gate of its subject, the staff-shift gates the cascade will
 	// need and the day locks of every day it may stamp or release, in the
-	// canonical lock order (#6232). absenceID is 0 for a new absence.
-	LockSickReportWrite(ctx context.Context, staffID, absenceID int64, dateStart, dateEnd string) error
+	// canonical lock order (#6232). absenceID is 0 for a new absence, which
+	// names its canonical absenceType; an existing absence keeps its stored
+	// type when absenceType is empty.
+	LockSickReportWrite(ctx context.Context, staffID, absenceID int64, absenceType, dateStart, dateEnd string) error
 }

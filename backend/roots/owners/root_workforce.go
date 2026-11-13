@@ -112,10 +112,12 @@ type WorkforcePlanning struct {
 	TimeTrackingCleanup    workforceCompose.TimeTrackingCleanupService
 }
 
-// WorkforceAbsenceWrites are the absence writes that may cascade a sick
-// report, as the Workforce routes consume them; the root binds the
-// shift-plan-sync entry (#4825).
+// WorkforceAbsenceWrites are the absence writes that may cascade an absence
+// into the plans, as the Workforce routes consume them; the root binds the
+// shift-plan-sync entry (#4825, #6847).
 type WorkforceAbsenceWrites interface {
+	ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforceModule.StaffAbsenceResponse, error)
+	CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error
 	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforceModule.CreateAbsenceRequest) (*workforceModule.StaffAbsenceResponse, error)
 	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforceModule.CreateAbsenceRequest) (*workforceModule.StaffAbsenceResponse, error)
 	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforceModule.UpdateAbsenceRequest) (*workforceModule.StaffAbsenceResponse, error)

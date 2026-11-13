@@ -12897,6 +12897,14 @@
       "target_owner": "shift-plan-sync"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.WorkforceAbsenceWrites.ApproveAbsence",
+      "binding_digest": "effe3800b21ccd866d38d35fa69c4eb3",
+      "port": "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking.AdminAbsenceWrites.ApproveAbsence",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-ogs/project-phoenix/workflows/shiftplansync.SickReports.ApproveAbsence",
+      "target_owner": "shift-plan-sync"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.WorkforceAbsenceWrites.CreateAbsenceFor",
       "binding_digest": "cada49efd1c4d792ed71a8c6f5a205ed",
       "port": "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking.AdminAbsenceWrites.CreateAbsenceFor",
@@ -12943,6 +12951,14 @@
       "source_owner": "workforce",
       "target": "github.com/moto-ogs/project-phoenix/modules/exporttransfer.Capability.Transfer",
       "target_owner": "export-transfer"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.WorkforceAbsenceWrites.CancelAbsence",
+      "binding_digest": "f54c67b6d50b1c60ffa7911157a8ee92",
+      "port": "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking.OwnAbsenceWrites.CancelAbsence",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-ogs/project-phoenix/workflows/shiftplansync.SickReports.CancelAbsence",
+      "target_owner": "shift-plan-sync"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.WorkforceAbsenceWrites.CreateOwnAbsence",

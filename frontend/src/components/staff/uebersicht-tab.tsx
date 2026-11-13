@@ -27,7 +27,6 @@ import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import {
   endOfWeek,
   getDeltaStatus,
-  indexAbsenceCreditByDay,
   isHalfAbsenceBoundary,
   resolveAccountStartDate,
   startOfWeek,
@@ -46,6 +45,7 @@ import { timeTrackingService } from "~/lib/time-tracking-api";
 import {
   balanceSessionEnd,
   type BalanceAdjustment,
+  type DayProjection,
 } from "~/lib/time-tracking-helpers";
 
 import { formatSignedDuration, KpiCard } from "./staff-time-views";
@@ -53,12 +53,13 @@ import { StundenkontoPanel } from "./stundenkonto-panel";
 import { StatusDot } from "~/components/ui/status-dot";
 
 /**
- * Soll-Minuten je Kalendertag, aufgelöst gegen den Plan, der AN diesem Tag
- * galt (#1842). Ein Tag außerhalb des geladenen Fensters ist 0 wert.
+ * Die Tagesprojektion des Servers je Kalendertag: Soll nach dem Plan, der AN
+ * diesem Tag galt (#1842), Gutschrift, Ist und Saldo, gerechnet wie die
+ * Monatskarte (#2443). Ein Tag außerhalb des geladenen Fensters ist 0 wert.
  */
-type TargetsByDay = ReadonlyMap<string, number>;
+type ProjectionByDay = ReadonlyMap<string, DayProjection>;
 
-const EMPTY_TARGETS: TargetsByDay = new Map<string, number>();
+const EMPTY_PROJECTION: ProjectionByDay = new Map<string, DayProjection>();
 
 type ConcreteDateRange = {
   readonly from: Date;
@@ -158,21 +159,23 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
     `staff-absences-account-${staffId}-`,
   ]);
 
-  // Date-valid Soll for the whole account range — the same map the Monatskarte
-  // and the daily rows are priced against (#1842). The charts used to resolve
-  // every historical day against the CURRENT StaffSchedule, so after a
-  // contract change (8h -> 4h) the Saldo line re-priced months of history at
-  // today's hours and drifted away from the "Stundenkonto" headline right
-  // above it. Chunked: "Gesamt" can outrun the endpoint's 366-day window.
+  // The server's per-day projection for the whole account range — the days
+  // the Monatskarte and the daily rows sum (#1842, #2443). The charts used to
+  // price history themselves: first against the CURRENT StaffSchedule, then
+  // with their own absence credit, and either way the Saldo line could drift
+  // away from the "Stundenkonto" headline right above it (#6847). Chunked:
+  // "Gesamt" can outrun the endpoint's 366-day window. The key starts with
+  // `staff-schedule-targets-<id>-`, so a session save refreshes it with the
+  // daily table (isStaleAfterSessionSave).
   const {
-    data: accountTargets,
+    data: accountProjection,
     isLoading: targetsLoading,
     error: targetsError,
     mutate: mutateTargets,
-  } = useSWRAuth<TargetsByDay>(
-    `staff-schedule-targets-account-${staffId}-${accountStartKey}-${yearEndKey}`,
+  } = useSWRAuth<ProjectionByDay>(
+    `staff-schedule-targets-${staffId}-account-${accountStartKey}-${yearEndKey}`,
     () =>
-      staffMonthSummaryService.getScheduleTargetsRange(
+      staffMonthSummaryService.getDailyProjectionRange(
         staffId,
         accountStartKey,
         yearEndKey,
@@ -249,33 +252,22 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   const weeklyTrendData = useMemo(
     () =>
       buildWeeklyBalanceSeriesRange(
-        accountTargets ?? EMPTY_TARGETS,
-        accountSessions ?? [],
-        accountAbsences ?? [],
+        accountProjection ?? EMPTY_PROJECTION,
         accountAdjustments ?? [],
         saldoFrom,
         saldoTo,
       ),
-    [
-      accountTargets,
-      accountSessions,
-      accountAbsences,
-      accountAdjustments,
-      saldoFrom,
-      saldoTo,
-    ],
+    [accountProjection, accountAdjustments, saldoFrom, saldoTo],
   );
 
   const dailyTrendData = useMemo(
     () =>
       buildDailyIstSollSeriesRange(
-        accountTargets ?? EMPTY_TARGETS,
-        accountSessions ?? [],
-        accountAbsences ?? [],
+        accountProjection ?? EMPTY_PROJECTION,
         dailyFrom,
         dailyTo,
       ),
-    [accountTargets, accountSessions, accountAbsences, dailyFrom, dailyTo],
+    [accountProjection, dailyFrom, dailyTo],
   );
 
   const hasTimeTrendData =
@@ -703,24 +695,11 @@ interface TrendPoint {
   balance: number;
 }
 
-// Splits each block at Berlin midnight before the chart series aggregate it.
-// History rows retain their original check-in date by design, but the monthly
-// balance books their net time on every Berlin calendar day the interval
-// touches. Charts must use the same allocation or a night block shifts Ist and
-// Saldo into the wrong day/week.
-export function indexSessionNetMinutesByBerlinDate(
-  sessions: readonly StaffHistorySession[],
-): Map<string, number> {
-  const byDate = new Map<string, number>();
-  for (const session of sessions) {
-    for (const [date, minutes] of splitSessionNetMinutesByBerlinDate(session)) {
-      byDate.set(date, (byDate.get(date) ?? 0) + minutes);
-    }
-  }
-  return byDate;
-}
-
-function splitSessionNetMinutesByBerlinDate(
+// Splits each block at Berlin midnight, as the server books its net time on
+// every Berlin calendar day the interval touches. History rows retain their
+// original check-in date by design; the presence counters must use the same
+// allocation or a night block counts on the wrong day.
+export function splitSessionNetMinutesByBerlinDate(
   session: StaffHistorySession,
 ): Map<string, number> {
   const start = new Date(session.check_in_time);
@@ -829,16 +808,12 @@ function distributeNetMinutes(
 // at the first week of `from` — caller can shift the anchor by widening the
 // range. Weeks beyond `to` are skipped; the final week is clipped at `to`.
 export function buildWeeklyBalanceSeriesRange(
-  targets: TargetsByDay,
-  sessions: readonly StaffHistorySession[],
-  absences: readonly StaffAbsenceRow[],
+  projection: ProjectionByDay,
   adjustments: readonly BalanceAdjustment[],
   from: Date,
   to: Date,
 ): TrendPoint[] {
   const points: TrendPoint[] = [];
-  const istByDate = indexSessionNetMinutesByBerlinDate(sessions);
-  const creditByDate = indexAbsenceCreditByDay(targets, absences);
   // Stundenkonto-Buchungen (#1420) als Stufen am Wirksamkeitstag — gespiegelt
   // zum Server (addAdjustments): der Saldo-Verlauf muss nach einer Auszahlung
   // oder einem Reset dieselbe Kurve zeigen wie die Kachel darueber.
@@ -865,9 +840,7 @@ export function buildWeeklyBalanceSeriesRange(
     const clippedStart = weekStart < from ? from : weekStart;
     const clippedEnd = weekEnd > to ? to : weekEnd;
     const weekDelta = computeWeekDelta(
-      targets,
-      istByDate,
-      creditByDate,
+      projection,
       adjustmentByDate,
       clippedStart,
       clippedEnd,
@@ -881,32 +854,24 @@ export function buildWeeklyBalanceSeriesRange(
   return points;
 }
 
+// A week's Saldo is the sum of the server's day balances (Ist + Gutschrift −
+// Soll, nothing after today) plus the Stundenkonto bookings of those days.
 function computeWeekDelta(
-  targets: TargetsByDay,
-  istByDate: ReadonlyMap<string, number>,
-  creditByDate: ReadonlyMap<string, number>,
+  projection: ProjectionByDay,
   adjustmentByDate: ReadonlyMap<string, number>,
   weekStart: Date,
   weekEnd: Date,
 ): number {
-  let soll = 0;
-  let ist = 0;
-  let adjustment = 0;
+  let delta = 0;
   const dayCount = differenceInCalendarDays(weekEnd, weekStart) + 1;
   for (let i = 0; i < dayCount; i++) {
     const day = new Date(weekStart);
     day.setDate(day.getDate() + i);
     const key = toDateKey(day);
-    soll += targets.get(key) ?? 0;
-    const dayIst = istByDate.get(key);
-    if (dayIst !== undefined) {
-      ist += dayIst;
-    } else {
-      ist += creditByDate.get(key) ?? 0;
-    }
-    adjustment += adjustmentByDate.get(key) ?? 0;
+    delta += projection.get(key)?.balanceMinutes ?? 0;
+    delta += adjustmentByDate.get(key) ?? 0;
   }
-  return ist + adjustment - soll;
+  return delta;
 }
 
 function isoWeekNumber(d: Date): number {
@@ -928,20 +893,15 @@ interface DailyTrendPoint {
   soll: number;
 }
 
-// Per-working-day Ist vs Soll across [from, to]. Same absence-credit semantics
-// as the weekly series and the Monatskarte: reported/approved
-// Krank/Urlaub/Fortbildung credit the day's Soll (half on half-day boundaries)
-// so the Ist line stays meaningful during legitimate absences.
+// Per-working-day Ist vs Soll across [from, to], read from the server's day
+// projection: Ist is the net work plus the absence credit, the same reading as
+// the week card and the Monatskarte, so the Ist line stays meaningful during
+// legitimate absences.
 function buildDailyIstSollSeriesRange(
-  targets: TargetsByDay,
-  sessions: readonly StaffHistorySession[],
-  absences: readonly StaffAbsenceRow[],
+  projection: ProjectionByDay,
   from: Date,
   to: Date,
 ): DailyTrendPoint[] {
-  const istByDate = indexSessionNetMinutesByBerlinDate(sessions);
-  const creditByDate = indexAbsenceCreditByDay(targets, absences);
-
   const result: DailyTrendPoint[] = [];
   // Cap at 120 entries to keep the chart readable; wider ranges get truncated.
   const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
@@ -952,15 +912,10 @@ function buildDailyIstSollSeriesRange(
     day.setDate(day.getDate() + i);
     const dow = toIsoDayOfWeek(day);
     if (dow < 5) {
-      const key = toDateKey(day);
-      const soll = targets.get(key) ?? 0;
-      const dayIst = istByDate.get(key);
-      let ist = 0;
-      if (dayIst !== undefined) {
-        ist = dayIst;
-      } else {
-        ist = creditByDate.get(key) ?? 0;
-      }
+      const projected = projection.get(toDateKey(day));
+      const soll = projected?.targetMinutes ?? 0;
+      const ist =
+        (projected?.actualMinutes ?? 0) + (projected?.creditMinutes ?? 0);
       result.push({
         dayLabel: day.toLocaleDateString("de-DE", {
           timeZone: "Europe/Berlin",

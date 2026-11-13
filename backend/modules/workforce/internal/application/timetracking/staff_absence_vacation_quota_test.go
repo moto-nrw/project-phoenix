@@ -139,7 +139,7 @@ func TestAbsApproveAbsence_IgnoresOtherOpenRequests(t *testing.T) {
 func TestAbsCreateAbsenceFor_BooksVacationDirectly(t *testing.T) {
 	t.Parallel()
 
-	svc, absRepo, _ := absSetupService()
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	svc.quotaRepo = &absVacationQuotaRepoMock{getByStaffAndYearFunc: quotaOf(5)}
 	absRepo.getByStaffAndDateRangeFunc = yearRowsOnly(
 		vacationRow(7, AbsenceStatusApproved, NewDate(2027, 1, 4), NewDate(2027, 1, 5), 2),
@@ -167,6 +167,12 @@ func TestAbsCreateAbsenceFor_BooksVacationDirectly(t *testing.T) {
 	assert.Equal(t, int64(200), stored.CreatedBy)
 	require.NotNil(t, stored.WorkingDays)
 	assert.Equal(t, 3.0, *stored.WorkingDays)
+	// The booked vacation is in force at once and leaves the plans (#6847).
+	require.Len(t, syncer.markCalls, 1)
+	assert.Equal(t, SickCascadeInput{
+		SubjectStaffID: 100, AbsenceType: AbsenceTypeVacation, AbsenceID: 42,
+		DateStart: "2027-02-15", DateEnd: "2027-02-17", ActorStaffID: 200,
+	}, syncer.markCalls[0])
 }
 
 func TestAbsCreateAbsenceFor_RejectsVacationBeyondQuota(t *testing.T) {

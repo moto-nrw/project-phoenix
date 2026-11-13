@@ -23,7 +23,7 @@ import (
 // it: a planner's manual absence or restored presence stays. Every other row
 // takes the sick state of its day from sickDays (applySickReportOfDay). A row
 // without an id is created, one with an id updated.
-func writeStaffAssignment(ctx context.Context, staff timetable.InstanceStaffCommand, row *scheduleModel.InstanceStaff, day calendar.Date, sickDays map[staffDay]int64, carried bool) error {
+func writeStaffAssignment(ctx context.Context, staff timetable.InstanceStaffCommand, row *scheduleModel.InstanceStaff, day calendar.Date, sickDays map[staffDay]absenceStamp, carried bool) error {
 	if !carried {
 		applySickReportOfDay(row, sickDays[staffDay{staffID: row.StaffID, date: day}])
 	}
@@ -33,23 +33,25 @@ func writeStaffAssignment(ctx context.Context, staff timetable.InstanceStaffComm
 	return updateLegacyInstanceStaff(ctx, staff, row)
 }
 
-// applySickReportOfDay gives a row the sick state of its day: absent with the
-// report's stamp on a full sick day, released from a carried stamp otherwise.
-// A manual absence stays, as the cascade leaves an already absent row alone.
-func applySickReportOfDay(row *scheduleModel.InstanceStaff, absenceID int64) {
+// applySickReportOfDay gives a row the absence state of its day: absent with
+// the absence's stamp on a full absence day, released from a carried stamp
+// otherwise. A manual absence stays, as the cascade leaves an already absent
+// row alone.
+func applySickReportOfDay(row *scheduleModel.InstanceStaff, stamp absenceStamp) {
 	switch {
 	case row.IsAbsent && row.SickAbsenceID == nil:
-	case absenceID > 0:
-		stampSickAbsence(row, absenceID)
+	case stamp.absenceID > 0:
+		stampSickAbsence(row, stamp)
 	case row.SickAbsenceID != nil:
 		copyAbsenceState(row, &scheduleModel.InstanceStaff{})
 	}
 }
 
-// sickDaysIn reads the open sick reports over the days (I-1). It takes no
-// lock: each caller reads them inside the locks its path already holds
-// (#6292 adds no lock and no lock order). Without a reader nobody is sick.
-func sickDaysIn(ctx context.Context, reports ports.SickReportReader, days ...calendar.Date) (map[staffDay]int64, error) {
+// sickDaysIn reads the absences in force over the days (I-1): sick reports
+// and, since #6847, every other type. It takes no lock: each caller reads
+// them inside the locks its path already holds (#6292 adds no lock and no
+// lock order). Without a reader nobody is absent.
+func sickDaysIn(ctx context.Context, reports ports.SickReportReader, days ...calendar.Date) (map[staffDay]absenceStamp, error) {
 	if reports == nil || len(days) == 0 {
 		return nil, nil
 	}
@@ -93,9 +95,17 @@ func copyAbsenceState(dst, src *scheduleModel.InstanceStaff) {
 	dst.SickAbsenceID = src.SickAbsenceID
 }
 
-// stampSickAbsence marks a row absent for one sick report.
-func stampSickAbsence(row *scheduleModel.InstanceStaff, absenceID int64) {
-	reason := timetable.SickBlockAbsenceReason
+// absenceStamp names the absence behind one full absence day: its id, and
+// whether it is a sick report, which decides the label (#6847).
+type absenceStamp struct {
+	absenceID int64
+	sick      bool
+}
+
+// stampSickAbsence marks a row absent for one absence.
+func stampSickAbsence(row *scheduleModel.InstanceStaff, stamp absenceStamp) {
+	reason := timetable.BlockAbsenceReason(stamp.sick)
+	absenceID := stamp.absenceID
 	row.IsAbsent = true
 	row.AbsenceReason = &reason
 	row.SickAbsenceID = &absenceID
@@ -107,19 +117,20 @@ type staffDay struct {
 	date    calendar.Date
 }
 
-// sickDayIndex maps every full sick day in [from, to] to the report that
-// covers it. Overlapping reports of one person are merged by Workforce; should
-// two still cover a day, the lower id wins so reruns stamp the same report.
-func sickDayIndex(reports []timetable.SickReport, from, to calendar.Date) map[staffDay]int64 {
-	index := make(map[staffDay]int64)
+// sickDayIndex maps every full absence day in [from, to] to the absence that
+// covers it. Overlapping absences of one person are merged by Workforce;
+// should two still cover a day, the lower id wins so reruns stamp the same
+// absence.
+func sickDayIndex(reports []timetable.SickReport, from, to calendar.Date) map[staffDay]absenceStamp {
+	index := make(map[staffDay]absenceStamp)
 	for _, report := range reports {
 		for day := from; !day.After(to); day = day.AddDays(1) {
 			if !report.CoversFullDay(day) {
 				continue
 			}
 			key := staffDay{staffID: report.StaffID, date: day}
-			if current, taken := index[key]; !taken || report.AbsenceID < current {
-				index[key] = report.AbsenceID
+			if current, taken := index[key]; !taken || report.AbsenceID < current.absenceID {
+				index[key] = absenceStamp{absenceID: report.AbsenceID, sick: report.Sick}
 			}
 		}
 	}

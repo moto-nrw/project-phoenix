@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/moto-ogs/project-phoenix/modules/workforce"
@@ -54,8 +55,16 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 
 	// The Leitung books vacation directly, without a request (#3256). Staff
 	// never reach this branch: CreateOwnAbsence sends them to RequestVacation.
+	// The booked vacation takes plan effect at once (#6847).
 	if req.AbsenceType == AbsenceTypeVacation {
-		return s.createDirectVacation(ctx, subjectStaffID, createdByStaffID, req)
+		resp, err := s.createDirectVacation(ctx, subjectStaffID, createdByStaffID, req)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.cascadeAbsence(ctx, resp.StaffAbsence, createdByStaffID, actorAccountID); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 
 	dateStart, dateEnd, err := s.admitAbsenceRange(ctx, subjectStaffID, req)
@@ -67,7 +76,7 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 		return nil, err
 	}
 
-	if err := s.cascadeSickReport(ctx, resp.StaffAbsence, createdByStaffID, actorAccountID); err != nil {
+	if err := s.cascadeAbsence(ctx, resp.StaffAbsence, createdByStaffID, actorAccountID); err != nil {
 		return nil, err
 	}
 	s.broadcastTimeTrackingChanged(ctx)
@@ -124,17 +133,31 @@ func (s *staffAbsenceService) storeAbsence(ctx context.Context, subjectStaffID, 
 	return s.createNewAbsence(ctx, subjectStaffID, createdByStaffID, dateStart, dateEnd, req)
 }
 
-// cascadeSickReport fans a full-day sick report out into the plans (#1843).
-// Fail-closed: an error aborts the surrounding create so a sick report whose
-// plan effects half-applied never commits.
-func (s *staffAbsenceService) cascadeSickReport(ctx context.Context, absence *StaffAbsence, actorStaffID int64, actorAccountID *int64) error {
-	if absence.AbsenceType != AbsenceTypeSick || absence.HalfDay {
+// cascadeAbsence fans an absence with plan effect out into the plans: its
+// full days cancel the person's shifts and mark their care blocks absent
+// (#1843). Since #6847 that holds for every type once the absence is in
+// force, a reported entry or an approved request; a half day still never
+// cascades, the person works the other half. Fail-closed: an error aborts
+// the surrounding write so an absence whose plan effects half-applied never
+// commits.
+func (s *staffAbsenceService) cascadeAbsence(ctx context.Context, absence *StaffAbsence, actorStaffID int64, actorAccountID *int64) error {
+	if !takesPlanEffect(absence) {
 		return nil
 	}
 	if err := s.shiftPlanSyncer.MarkSickForRange(ctx, sickCascadeInput(absence, actorStaffID, actorAccountID)); err != nil {
-		return fmt.Errorf("sick report saved nothing — plan cascade failed: %w", err)
+		return fmt.Errorf("absence saved nothing — plan cascade failed: %w", err)
 	}
 	return nil
+}
+
+// takesPlanEffect reports whether the absence is in force and covers at
+// least one full day. A single half day covers none.
+func takesPlanEffect(absence *StaffAbsence) bool {
+	if !slices.Contains(workforce.PlanEffectiveAbsenceStatuses(), absence.Status) {
+		return false
+	}
+	startHalf, endHalf := effectiveBoundaryHalfDays(absence)
+	return absence.DateStart != absence.DateEnd || (!startHalf && !endHalf)
 }
 
 // parseDateRange parses start and end date strings in ISO format.
@@ -218,10 +241,10 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	return s.withLabel(ctx, toAbsenceResponse(primary)), nil
 }
 
+// reassignMergedSickStamps moves the plan stamps of every merged secondary
+// to the primary. Every type stamps plans since #6847; a secondary that never
+// cascaded owns no stamp, which makes its step a no-op.
 func (s *staffAbsenceService) reassignMergedSickStamps(ctx context.Context, primary *StaffAbsence, secondaries []*StaffAbsence) error {
-	if primary.AbsenceType != AbsenceTypeSick {
-		return nil
-	}
 	for _, secondary := range secondaries {
 		if err := s.shiftPlanSyncer.ReassignSickStamps(ctx, secondary.ID, primary.ID); err != nil {
 			return fmt.Errorf("failed to merge absence — plan stamp reassignment failed: %w", err)

@@ -18,9 +18,11 @@ import (
 )
 
 // AdminAbsenceWrites are the manager's absence writes on a staff member's
-// behalf that may cascade a sick report into the plans (#1843). The root
-// binds the shift-plan-sync workflow's entry (#4825).
+// behalf that may cascade an absence into the plans (#1843), the approval of
+// a request among them (#6847). The root binds the shift-plan-sync
+// workflow's entry (#4825).
 type AdminAbsenceWrites interface {
+	ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforce.StaffAbsenceResponse, error)
 	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
 	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
 }

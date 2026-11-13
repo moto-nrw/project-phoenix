@@ -798,28 +798,9 @@ export const OPEN_MONTH_REFRESH_MS = 60_000;
  */
 export const MAX_TARGET_RANGE_DAYS = 366;
 
-export interface BackendDailyTarget {
+interface BackendDailyTarget {
   date: string;
   target_minutes: number;
-}
-
-/**
- * Soll-Minuten je Kalendertag, aufgelöst gegen die Plan-Version, die AN
- * diesem Tag galt (#1842). Key ist der ISO-Tag (YYYY-MM-DD).
- *
- * Die Tagestabelle darf das Soll nicht aus dem AKTUELLEN Dienstplan ableiten:
- * Nach einer Vertragsänderung (z. B. 8h -> 4h) stünden sonst in jeder
- * vergangenen Zeile 4h, während die Monatskarte darüber die tatsächlich
- * gültigen 8h summiert — Karte und Tabelle widersprächen sich.
- */
-export function mapDailyTargetsResponse(
-  data: BackendDailyTarget[] | null | undefined,
-): ReadonlyMap<string, number> {
-  const targets = new Map<string, number>();
-  for (const entry of data ?? []) {
-    targets.set(entry.date.slice(0, 10), entry.target_minutes);
-  }
-  return targets;
 }
 
 export interface BackendDailyProjection extends BackendDailyTarget {
@@ -866,20 +847,6 @@ export function mapDailyProjectionResponse(
     });
   }
   return projection;
-}
-
-/**
- * Nur die Soll-Minuten aus einer Tagesprojektion — für Verbraucher, die
- * ausschließlich das Soll brauchen (Wochen-/Monats-KPIs). Sie lesen denselben
- * SWR-Key wie die Tagestabelle: ein Key trägt EINE Nutzlast, also holen beide
- * die Projektion und schneiden sich hier heraus, was sie brauchen.
- */
-export function targetsFromProjection(
-  projection: ReadonlyMap<string, DayProjection>,
-): ReadonlyMap<string, number> {
-  return new Map(
-    [...projection].map(([date, day]) => [date, day.targetMinutes]),
-  );
 }
 
 export interface BackendHoliday {
