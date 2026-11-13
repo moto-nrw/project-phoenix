@@ -7,14 +7,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const submittedOfferingTermsVersion = "1.15.964"
+const submittedOfferingTermsVersion = "20261113100029"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     submittedOfferingTermsVersion,
 		Description: "Anmeldung: Angebotsbedingungen bei der Einreichung festhalten (#6837)",
 		DependsOn: []string{
-			traegerExportRecipientsVersion,   // the newest migration on development (1.15.963)
 			requestChildStorageExpandVersion, // creates enrollment.request_child_offering_selections (1.15.375)
 		},
 	})
