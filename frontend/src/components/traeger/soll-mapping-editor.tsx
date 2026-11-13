@@ -163,6 +163,7 @@ function BookingTextField({
                 type="button"
                 variant="outline"
                 size="compact"
+                tooltip="Fügt diesen Platzhalter in den Buchungstext ein."
                 disabled={column.value.length + placeholder.token.length >= 60}
                 disabledReason="Der Text hat schon fast 60 Zeichen."
                 onClick={() => insert(placeholder.token)}
@@ -180,7 +181,9 @@ function BookingTextField({
           ))}
         </ul>
         <p className="flex min-w-0 flex-col gap-1 border-t border-gray-200 pt-3 text-sm sm:flex-row sm:items-baseline sm:gap-2">
-          <span className="shrink-0 text-gray-500">So steht es in der Datei:</span>
+          <span className="shrink-0 text-gray-500">
+            So steht es in der Datei:
+          </span>
           <span
             className="min-w-0 font-mono wrap-anywhere text-gray-900"
             aria-live="polite"
