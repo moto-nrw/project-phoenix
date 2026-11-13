@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 	"github.com/moto-ogs/project-phoenix/modules/schoolsearchview"
 )
 
@@ -107,7 +108,7 @@ func (s *Search) withAnswerHits(ctx context.Context, text string, children []sch
 	for _, child := range children {
 		found[child.ID] = true
 	}
-	byStudent := make(map[int64]schoolsearchview.StudentAnswerHit, len(hits))
+	byStudent := make(map[int64]enrollment.StudentAnswerMatch, len(hits))
 	ids := make([]int64, 0, len(hits))
 	for _, hit := range hits {
 		if found[hit.StudentID] {

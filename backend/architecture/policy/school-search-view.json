@@ -38,6 +38,28 @@
   ],
   "rules": [
     {
+      "id": "school-search-view.application.enrollment.public",
+      "description": "ADR 0227: the search joins the registration answers Enrollment matched for the school's children.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-search-view",
+      "source_role": "application",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "school-search-view.public.enrollment.public",
+      "description": "ADR 0227: the answer port names Enrollment's answer match value.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-search-view",
+      "source_role": "public",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
       "id": "school-search-view.application.public",
       "description": "ADR 0227: the search answers in the projection's public contract and reads Enrollment's answers through its consumer port.",
       "scopes": [

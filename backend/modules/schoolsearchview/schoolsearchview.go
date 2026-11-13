@@ -16,6 +16,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // Limits of one search. A result list stops at its limit; the dialog shows a
@@ -152,18 +154,10 @@ type Search interface {
 	SearchSchool(ctx context.Context, query Query) (Result, error)
 }
 
-// StudentAnswerHit is a child whose registration answer matched: the question
-// and the answer as the school reads them.
-type StudentAnswerHit struct {
-	StudentID int64
-	Label     string
-	Answer    string
-}
-
 // StudentAnswerSearch is the consumer-owned port to Enrollment's answers of
-// linked children. The root binds it.
+// the school's children (enrollment.StudentAnswers). The root binds it.
 type StudentAnswerSearch interface {
-	SearchStudentAnswers(ctx context.Context, text string, limit int) ([]StudentAnswerHit, error)
+	SearchStudentAnswers(ctx context.Context, text string, limit int) ([]enrollment.StudentAnswerMatch, error)
 }
 
 // ValidateQueryText trims the query and checks its length.

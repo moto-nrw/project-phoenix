@@ -141,6 +141,17 @@
       "source_package": "modules/presenceprojection/http"
     },
     {
+      "id": "presence-legacy-view.http.enrollment.public",
+      "description": "ADR 0227: the child list filters by a registration answer through Enrollment's public answer read (#6954).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "http",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
       "id": "presence-legacy-view.http.care-plan.public",
       "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
       "scopes": [
