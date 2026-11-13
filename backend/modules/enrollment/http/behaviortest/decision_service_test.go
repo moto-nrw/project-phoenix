@@ -2404,6 +2404,39 @@ func TestDecisionService_Decide_TargetedFieldFailureRollsBackFreshStudent(t *tes
 	assert.Nil(t, child.CreatedStudentID)
 }
 
+// A legacy request whose guardian phone fails the format check must not end
+// as a child without the phone number, nor as an opaque server error (#6839).
+func TestDecisionService_Decide_InvalidGuardianPhoneRollsBackFreshStudent(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "legacy-phone@example.com", "Anna", "Telefon", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	_, err := env.db.NewRaw("UPDATE enrollment.requests SET guardian_phone = 'keine Nummer' WHERE tenant_id = ? AND id = ?",
+		testpkg.Tenant(t), reqID).Exec(ctx)
+	require.NoError(t, err)
+
+	decideErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, decisionErr := testpkg.TenantQuery1(t, txCtx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+			RequestID:  reqID,
+			ChildID:    childID,
+			Status:     enrollmentNative.DecisionApproved,
+			ReviewedBy: reviewerAccountID,
+		})
+		return decisionErr
+	})
+	require.ErrorIs(t, decideErr, enrollmentNative.ErrDecisionInvalidData)
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	assert.Nil(t, child.CreatedStudentID, "the student must not exist without the guardian phone")
+}
+
 func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) {
 	t.Parallel()
 
@@ -2883,7 +2916,7 @@ func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffRollsBackAppro
 		})
 		return decisionErr
 	})
-	require.ErrorContains(t, decideErr, "schedule.pickup: reviewer account",
+	require.ErrorIs(t, decideErr, enrollmentNative.ErrDecisionReviewerStaffRequired,
 		"a pickup plan without a staff author must abort the approval, not vanish")
 
 	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/contact"
 	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
@@ -410,6 +411,12 @@ func (r *targetedFieldSync) finishPickupSchedule() {
 // submitted phone number and no profile to enrich.
 func (r *targetedFieldSync) applyGuardianPhone() {
 	if r.request.GuardianPhone == nil || r.guardian == nil || r.options.Scope == weeklyPlanOnly {
+		return
+	}
+	// Submit and edit validate the phone already; a legacy row that slipped
+	// through must reach the office as invalid request data, not as a 500.
+	if err := contact.ValidateOptionalPhone(*r.request.GuardianPhone); err != nil {
+		r.errs = append(r.errs, fmt.Errorf("auto guardian_phone: %w: %w", enrollment.ErrDecisionInvalidData, err))
 		return
 	}
 	if err := r.d.createGuardianPhoneNumber(r.ctx, r.guardian.ID, *r.request.GuardianPhone); err != nil {
