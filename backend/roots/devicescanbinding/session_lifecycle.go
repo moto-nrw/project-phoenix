@@ -5,12 +5,12 @@ import (
 	"errors"
 	"strconv"
 
-	scanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	scanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type nativeSupervisionQuery interface {

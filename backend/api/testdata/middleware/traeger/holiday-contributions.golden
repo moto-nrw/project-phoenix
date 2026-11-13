@@ -5,6 +5,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	DELETE /traeger/holiday-contributions/{periodId}/sibling-groups/registrations/{registrationId}
 	GET /traeger/holiday-contributions/confirmation-settings
 	GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
+	GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/family-debtor-number
 	GET /traeger/holiday-contributions/{periodId}/sibling-groups
 	POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/cancel
 	POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm

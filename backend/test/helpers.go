@@ -9,9 +9,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/testdb"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/internal/testdb"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -95,7 +95,7 @@ func SetupTestDB(t testing.TB) *bun.DB {
 		claimTenantRun(t)
 	}
 	if perTestDatabases || hasIsolatedTestDB(t) {
-		return setupIsolatedTestDB(t)
+		return setupIsolatedTestDB(t, isolatedTestDBSource(t))
 	}
 
 	// Self-heal after tests that call viper.Reset() (factory config tests):
@@ -124,7 +124,7 @@ func SetupTestDB(t testing.TB) *bun.DB {
 func SetupIsolatedTestDB(t testing.TB) *bun.DB {
 	t.Helper()
 	setupPackageTestDB(t)
-	return setupIsolatedTestDB(t)
+	return setupIsolatedTestDB(t, nil)
 }
 
 func setupPackageTestDB(t testing.TB) {

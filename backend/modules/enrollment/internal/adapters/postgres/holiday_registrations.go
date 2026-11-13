@@ -12,9 +12,9 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Public holiday registrations (#4661, ADR 0110). The link lookup runs in the
@@ -165,13 +165,13 @@ const (
 			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone,
 			form_version, custom_data, legal_acceptances, consent_version,
 			guardian_address_street, guardian_address_postal_code, guardian_address_city, retention_days,
-			parent_account_id, parent_account_requested)
+			parent_account_id, parent_account_requested, status_token)
 		VALUES (?, ?, ?, ?, ?, ?, statement_timestamp(),
 			CASE WHEN ? THEN statement_timestamp() END, CASE WHEN ? THEN statement_timestamp() END,
 			CASE WHEN ? THEN statement_timestamp() END, NULLIF(?, ''), ?,
 			NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?::jsonb,
 			(SELECT COALESCE(jsonb_object_agg(key, statement_timestamp()), '{}'::jsonb) FROM unnest(?::text[]) AS accepted(key)),
-			NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, 0), ?)
+			NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, 0), ?, NULLIF(?, ''))
 		RETURNING id, submitted_at`
 	setHolidayFamilyHealthQuery = `UPDATE enrollment.holiday_registrations SET health_data = ?
 		WHERE organization_id = ? AND id = ?`
@@ -262,7 +262,7 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 		guardian.Email, guardian.Phone, input.HealthConsent, input.BindingConfirmed, input.CustodyConfirmed, input.DeclarationName, input.BenefitsDeclared,
 		second.FirstName, second.LastName, second.Email, second.Phone, input.FormVersion, answers, pgdialect.Array(acceptedHolidayKeys(input.LegalAcceptances)),
 		input.ConsentVersion, address.Street, address.PostalCode, address.City, input.RetentionDays,
-		input.ParentAccountID, input.ParentAccountRequested).Scan(ctx, &receipt); err != nil {
+		input.ParentAccountID, input.ParentAccountRequested, input.StatusToken).Scan(ctx, &receipt); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment postgres: insert holiday registration: %w", err)
 	}
 	sealed, err := storeHolidayFamilyHealth(ctx, db, organizationID, receipt.ID, len(input.Children), seal)
@@ -279,7 +279,7 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 	if err := insertHolidayContacts(ctx, db, organizationID, receipt.ID, input); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
-	return enrollment.HolidayRegistrationReceipt{ID: receipt.ID, SubmittedAt: receipt.SubmittedAt}, nil
+	return enrollment.HolidayRegistrationReceipt{ID: receipt.ID, SubmittedAt: receipt.SubmittedAt, StatusToken: input.StatusToken}, nil
 }
 
 // storeHolidayFamilyHealth seals the health information for the new

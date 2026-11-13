@@ -6,9 +6,12 @@
 // neuer Vertrag übernimmt sie; ein bestehender behält seine.
 
 import { SectionLabel } from "~/components/ui/section-label";
-import { useMemo, useRef, useState } from "react";
+import { Check, Copy } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -17,7 +20,13 @@ import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
-import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { useClipboardCopy } from "~/lib/use-clipboard-copy";
+import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
 import { createLogger } from "~/lib/logger";
 import {
@@ -39,7 +48,7 @@ const SPECIAL_TERMINATION_HINT =
   "Der Vertrag endet dann zum 31. Januar oder 31. Juli. Es gilt dieselbe Frist in Monaten. Ein anderes Datum in diesem Text ändert den Termin nicht.";
 
 /** The suggestion for an offering without conditions: the usual OGS contract. */
-const DEFAULT_TERMS: ContractTerms = {
+export const DEFAULT_TERMS: ContractTerms = {
   termKind: "school_year",
   termMonths: null,
   noticeMonths: 1,
@@ -91,6 +100,18 @@ export function CareContractConditions({
   const [selectedKey, setSelectedKey] = useState<string>(
     focusKey ?? (firstOpen ? offeringKey(firstOpen) : ""),
   );
+  // The open form reports unsaved changes; switching the offer then asks
+  // first, because the form of another offer starts from its saved terms.
+  const [dirty, setDirty] = useState(false);
+  // While the open form saves, the offers stay put: the answer belongs to
+  // this form, and switching would drop it or its error.
+  const [formSaving, setFormSaving] = useState(false);
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const choose = (key: string) => {
+    if (key === selectedKey || formSaving) return;
+    if (dirty) setPendingKey(key);
+    else setSelectedKey(key);
+  };
   const selected = offerings.find(
     (offering) => offeringKey(offering) === selectedKey,
   );
@@ -109,7 +130,9 @@ export function CareContractConditions({
     ...new Set(offerings.map((offering) => offering.schoolName)),
   ];
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+    // Each card ends after its content: the offer list does not stretch to
+    // the height of the full legal texts beside it.
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start">
       <SectionCard
         title="Angebote"
         description="Wählen Sie ein Angebot. Seine Bedingungen gelten für jeden neuen Vertrag."
@@ -130,13 +153,14 @@ export function CareContractConditions({
                       tone="blue"
                       className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left"
                       aria-pressed={key === selectedKey}
-                      onClick={() => setSelectedKey(key)}
+                      disabled={formSaving && key !== selectedKey}
+                      onClick={() => choose(key)}
                     >
                       <span className="min-w-0">
                         <span className="block font-medium text-gray-900">
                           {offering.offeringName}
                         </span>
-                        <span className="block text-sm text-gray-500">
+                        <span className="block text-sm text-gray-600">
                           {[
                             offering.phaseName,
                             offering.priceCents === null
@@ -166,8 +190,29 @@ export function CareContractConditions({
           key={selectedKey}
           offering={selected}
           onSaved={onSaved}
+          onDirtyChange={setDirty}
+          onSavingChange={setFormSaving}
         />
       ) : null}
+      <ConfirmationModal
+        isOpen={pendingKey !== null}
+        title="Änderungen verwerfen?"
+        confirmText="Änderungen verwerfen"
+        cancelText="Weiter bearbeiten"
+        confirmVariant="danger"
+        onClose={() => setPendingKey(null)}
+        onConfirm={() => {
+          if (pendingKey !== null) setSelectedKey(pendingKey);
+          setDirty(false);
+          setPendingKey(null);
+        }}
+      >
+        <p className="text-sm text-gray-700">
+          Die Bedingungen für „{selected?.offeringName}“ sind noch nicht
+          gespeichert. Wenn Sie ein anderes Angebot öffnen, gehen die Änderungen
+          verloren.
+        </p>
+      </ConfirmationModal>
     </div>
   );
 }
@@ -175,13 +220,25 @@ export function CareContractConditions({
 function ConditionsForm({
   offering,
   onSaved,
+  onDirtyChange,
+  onSavingChange,
 }: Readonly<{
   offering: OfferingTemplate;
   onSaved: (offering: OfferingTemplate) => void;
+  onDirtyChange: (dirty: boolean) => void;
+  onSavingChange: (saving: boolean) => void;
 }>) {
   const selected = offering;
   const [draft, setDraft] = useState<ContractTerms>(() => termsOf(offering));
+  const dirty = JSON.stringify(draft) !== JSON.stringify(termsOf(offering));
+  useEffect(() => {
+    onDirtyChange(dirty);
+  }, [dirty, onDirtyChange]);
   const [saving, setSaving] = useState(false);
+  const isPhone = useMediaQuery(BELOW_SM);
+  useEffect(() => {
+    onSavingChange(saving);
+  }, [saving, onSavingChange]);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -209,7 +266,9 @@ function ConditionsForm({
       logger.error("care_contract_conditions_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "die Vertragsbedingungen" });
+      void formErrors.show(err, {
+        object: "die Änderung der Vertragsbedingungen",
+      });
     } finally {
       setSaving(false);
     }
@@ -220,6 +279,8 @@ function ConditionsForm({
       concept={careContractsConcept}
       title={selected.offeringName}
       description={`${selected.schoolName}. Gilt für neue Verträge; bestehende behalten ihre Bedingungen.`}
+      // The save stays in view while the long legal texts scroll.
+      stickyFooter
       footer={
         <EditActions
           onCancel={() => {
@@ -228,204 +289,303 @@ function ConditionsForm({
           }}
           onSave={() => formRef.current?.requestSubmit()}
           saving={saving}
+          cancelDisabled={!dirty}
+          // Unchanged conditions have nothing to save; an offering without
+          // conditions saves the shown ones as they stand.
+          disabled={Boolean(selected.template) && !dirty}
           saveLabel="Bedingungen speichern"
-          cancelLabel="Zurücksetzen"
+          // A phone keeps both buttons on one line under the legal texts.
+          cancelLabel={isPhone ? "Verwerfen" : "Änderungen verwerfen"}
         />
       }
     >
       <form
         ref={formRef}
         noValidate
-        className="space-y-6"
+        // Room under the last „Text kopieren“: the save bar sticks below it.
+        className="space-y-6 pb-4"
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
         }}
       >
         <FormErrorAlert message={formErrors.error} />
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-medium text-gray-900">
-            Laufzeit
-          </legend>
-          <CustomSelect
-            id="care-contract-term-kind"
-            name="term_kind"
-            options={TERM_ITEMS}
-            value={draft.termKind}
-            onChange={(value) => set("termKind", value as ContractTermKind)}
-            error={formErrors.fieldError("term_kind")}
-            ariaLabel="Laufzeit"
-          />
-          {draft.termKind === "fixed_months" ? (
-            <Input
-              controlSize="compact"
-              name="term_months"
-              label="Anzahl der Monate"
-              type="number"
-              min={1}
-              max={48}
-              inputMode="numeric"
-              value={draft.termMonths ?? ""}
-              error={formErrors.fieldError("term_months")}
-              onChange={(event) =>
-                set(
-                  "termMonths",
-                  event.target.value === "" ? null : Number(event.target.value),
-                )
-              }
-            />
-          ) : null}
-        </fieldset>
-
-        <fieldset className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <legend className="mb-3 text-sm font-medium text-gray-900">
-            Kündigung
-          </legend>
-          <Input
-            controlSize="compact"
-            name="notice_months"
-            label="Frist in Monaten"
-            type="number"
-            min={0}
-            max={12}
-            inputMode="numeric"
-            value={draft.noticeMonths}
-            error={formErrors.fieldError("notice_months")}
-            onChange={(event) =>
-              set("noticeMonths", Number(event.target.value || 0))
-            }
-          />
-          <CustomSelect
-            id="care-contract-notice-to"
-            name="notice_to"
-            label="Kündigung wirkt"
-            value={draft.noticeTo}
-            options={NOTICE_OPTIONS}
-            error={formErrors.fieldError("notice_to")}
-            onChange={(value) => set("noticeTo", value as ContractNoticeTo)}
-          />
-        </fieldset>
-
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-medium text-gray-900">
-            Sonderkündigung
-          </legend>
-          <label
-            htmlFor="care-contract-special-termination"
-            className="flex items-center gap-3 text-sm text-gray-800"
-          >
-            <Checkbox
-              id="care-contract-special-termination"
-              checked={draft.specialTermination}
-              onChange={() =>
-                set("specialTermination", !draft.specialTermination)
-              }
-            />
-            Eltern dürfen in besonderen Fällen zum Halbjahr kündigen
-          </label>
-          {draft.specialTermination ? (
-            <Textarea
-              name="special_termination_note"
-              label="In welchen Fällen?"
-              hint={SPECIAL_TERMINATION_HINT}
-              required
-              rows={3}
-              maxLength={1000}
-              value={draft.specialTerminationNote}
-              error={formErrors.fieldError("special_termination_note")}
-              placeholder="Zum Beispiel bei Umzug oder Schulwechsel."
-              onChange={(event) =>
-                set("specialTerminationNote", event.target.value)
-              }
-            />
-          ) : null}
-        </fieldset>
-
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-medium text-gray-900">Satzung</legend>
-          <label
-            htmlFor="care-contract-statute"
-            className="flex items-center gap-3 text-sm text-gray-800"
-          >
-            <Checkbox
-              id="care-contract-statute"
-              checked={draft.statuteRequired}
-              onChange={() => set("statuteRequired", !draft.statuteRequired)}
-            />
-            Eltern erkennen mit dem Vertrag eine Satzung an
-          </label>
-          {draft.statuteRequired ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Input
-                controlSize="compact"
-                name="statute_title"
-                label="Name der Satzung"
-                required
-                maxLength={200}
-                value={draft.statuteTitle}
-                error={formErrors.fieldError("statute_title")}
-                placeholder="Satzung über die Elternbeiträge"
-                onChange={(event) => set("statuteTitle", event.target.value)}
-              />
-              <Input
-                controlSize="compact"
-                name="statute_url"
-                label="Link zur Satzung (freiwillig)"
-                type="url"
-                maxLength={500}
-                value={draft.statuteUrl}
-                error={formErrors.fieldError("statute_url")}
-                placeholder="https://"
-                onChange={(event) => set("statuteUrl", event.target.value)}
-              />
-            </div>
-          ) : null}
-        </fieldset>
-
-        <Input
-          controlSize="compact"
-          name="contract_partner"
-          label="Vertragspartner"
-          maxLength={300}
-          value={draft.contractPartner}
-          error={formErrors.fieldError("contract_partner")}
-          placeholder="Name des Vertragspartners"
-          onChange={(event) => set("contractPartner", event.target.value)}
+        <ContractTermsFields
+          draft={draft}
+          set={set}
+          fieldError={formErrors.fieldError}
         />
-        <p className="text-sm text-gray-600">
-          Leer lassen, wenn der Name im Briefkopf steht. Sonst tragen Sie den
-          Vertragspartner hier ein. Für „Bei der Annahme“ tragen Sie ihn immer
-          ein.
-        </p>
+        {/* What all texts below share stands once (shared text once). */}
+        {selected.acceptanceText ||
+        selected.withdrawalText ||
+        selected.earlyStartText ? (
+          <p className="text-sm text-gray-600">
+            Die Texte unten sprechen die Eltern an. Die Schule übernimmt sie
+            unverändert ins Anmeldeformular.
+          </p>
+        ) : null}
         {selected.acceptanceText ? (
-          <Textarea
+          <CopyableLegalText
+            id="care-contract-acceptance-text"
             label="Gespeicherter Text für das Anmeldeformular"
-            readOnly
             rows={8}
             value={selected.acceptanceText}
-            hint="Für „Bei der Annahme“ ergänzt die Schule eine eigene Zustimmung im Anmeldeformular. Sie kopiert diesen Text unverändert in „Rechtstext / Erklärung“. Sie setzt „Muss bestätigt werden“. Bestehende Rechtstexte bleiben erhalten. Nach Änderungen speichern Sie zuerst die Bedingungen. Ersetzen Sie danach nur diesen Text im Anmeldeformular."
+            hint="So kommt er ins Anmeldeformular: 1. Sie speichern die Bedingungen. 2. Die Schule kopiert den Text unverändert in „Rechtstext / Erklärung“ und setzt „Muss bestätigt werden“. Bestehende Rechtstexte bleiben. Ändern Sie die Bedingungen später, ersetzt die Schule nur diesen Text."
           />
         ) : null}
         {selected.withdrawalText ? (
-          <Textarea
+          <CopyableLegalText
+            id="care-contract-withdrawal-text"
             label="Widerrufsbelehrung für das Anmeldeformular"
-            readOnly
             rows={6}
             value={selected.withdrawalText}
-            hint="Eltern, die online anmelden, haben 14 Tage Widerrufsrecht. Die Schule kopiert diesen Text als eigenen Rechtstext ins Anmeldeformular und setzt „Muss bestätigt werden“. Das Vertrags-PDF enthält ihn immer."
+            hint="Wer online anmeldet, hat 14 Tage Widerrufsrecht. Die Schule kopiert ihn als eigenen Rechtstext ins Anmeldeformular und setzt „Muss bestätigt werden“. Das Vertrags-PDF enthält ihn immer."
           />
         ) : null}
         {selected.earlyStartText ? (
-          <Textarea
+          <CopyableLegalText
+            id="care-contract-early-start-text"
             label="Häkchen „Betreuung vor Ende der Widerrufsfrist“"
-            readOnly
             rows={4}
             value={selected.earlyStartText}
-            hint="Die Schule kopiert diesen Text als weiteren Rechtstext ins Anmeldeformular, ohne „Muss bestätigt werden“. Setzen Eltern das Häkchen, steht es im Vertrag. Beginnt die Betreuung in der Frist, zahlen sie nach einem Widerruf die Tage bis dahin."
+            hint="Die Schule kopiert ihn als weiteren Rechtstext ins Anmeldeformular, ohne „Muss bestätigt werden“. Setzen die Eltern das Häkchen, steht es im Vertrag. Beginnt die Betreuung in der Frist, zahlen sie nach einem Widerruf die Tage bis dahin."
           />
         ) : null}
       </form>
     </SectionCard>
+  );
+}
+
+/**
+ * Laufzeit, Kündigung, Sonderkündigung, Satzung und Vertragspartner. Die
+ * Bedingungen eines Schulangebots und die Vertragsvorlage eines
+ * Trägerangebots (#4704) teilen dieselben Felder.
+ */
+export function ContractTermsFields({
+  draft,
+  set,
+  fieldError,
+}: Readonly<{
+  draft: ContractTerms;
+  set: <K extends keyof ContractTerms>(key: K, value: ContractTerms[K]) => void;
+  fieldError: (name: string) => string | undefined;
+}>) {
+  const formErrors = { fieldError };
+  return (
+    <>
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-medium text-gray-900">Laufzeit</legend>
+        <CustomSelect
+          id="care-contract-term-kind"
+          name="term_kind"
+          options={TERM_ITEMS}
+          value={draft.termKind}
+          onChange={(value) => set("termKind", value as ContractTermKind)}
+          error={formErrors.fieldError("term_kind")}
+          ariaLabel="Laufzeit"
+        />
+        {draft.termKind === "fixed_months" ? (
+          <Input
+            controlSize="touch"
+            name="term_months"
+            label="Anzahl der Monate"
+            type="number"
+            min={1}
+            max={48}
+            inputMode="numeric"
+            value={draft.termMonths ?? ""}
+            error={formErrors.fieldError("term_months")}
+            onChange={(event) =>
+              set(
+                "termMonths",
+                event.target.value === "" ? null : Number(event.target.value),
+              )
+            }
+          />
+        ) : null}
+      </fieldset>
+
+      <fieldset className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <legend className="mb-3 text-sm font-medium text-gray-900">
+          Kündigung
+        </legend>
+        <Input
+          controlSize="touch"
+          name="notice_months"
+          label="Frist in Monaten"
+          type="number"
+          min={0}
+          max={12}
+          inputMode="numeric"
+          value={draft.noticeMonths}
+          error={formErrors.fieldError("notice_months")}
+          onChange={(event) =>
+            set("noticeMonths", Number(event.target.value || 0))
+          }
+        />
+        <CustomSelect
+          id="care-contract-notice-to"
+          name="notice_to"
+          label="Kündigung wirkt"
+          value={draft.noticeTo}
+          options={NOTICE_OPTIONS}
+          error={formErrors.fieldError("notice_to")}
+          onChange={(value) => set("noticeTo", value as ContractNoticeTo)}
+        />
+      </fieldset>
+
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-medium text-gray-900">
+          Sonderkündigung
+        </legend>
+        <label
+          htmlFor="care-contract-special-termination"
+          className="flex items-center gap-3 text-sm text-gray-800"
+        >
+          <Checkbox
+            id="care-contract-special-termination"
+            checked={draft.specialTermination}
+            onChange={() =>
+              set("specialTermination", !draft.specialTermination)
+            }
+          />
+          Eltern dürfen in besonderen Fällen zum Halbjahr kündigen
+        </label>
+        {draft.specialTermination ? (
+          <Textarea
+            name="special_termination_note"
+            label="In welchen Fällen?"
+            hint={SPECIAL_TERMINATION_HINT}
+            required
+            rows={3}
+            maxLength={1000}
+            value={draft.specialTerminationNote}
+            error={formErrors.fieldError("special_termination_note")}
+            placeholder="Zum Beispiel bei Umzug oder Schulwechsel."
+            onChange={(event) =>
+              set("specialTerminationNote", event.target.value)
+            }
+          />
+        ) : null}
+      </fieldset>
+
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-medium text-gray-900">Satzung</legend>
+        <label
+          htmlFor="care-contract-statute"
+          className="flex items-center gap-3 text-sm text-gray-800"
+        >
+          <Checkbox
+            id="care-contract-statute"
+            checked={draft.statuteRequired}
+            onChange={() => set("statuteRequired", !draft.statuteRequired)}
+          />
+          Eltern erkennen mit dem Vertrag eine Satzung an
+        </label>
+        {draft.statuteRequired ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              controlSize="touch"
+              name="statute_title"
+              label="Name der Satzung"
+              required
+              maxLength={200}
+              value={draft.statuteTitle}
+              error={formErrors.fieldError("statute_title")}
+              placeholder="Satzung über die Elternbeiträge"
+              onChange={(event) => set("statuteTitle", event.target.value)}
+            />
+            <Input
+              controlSize="touch"
+              name="statute_url"
+              label="Link zur Satzung (freiwillig)"
+              type="url"
+              maxLength={500}
+              value={draft.statuteUrl}
+              error={formErrors.fieldError("statute_url")}
+              placeholder="https://"
+              onChange={(event) => set("statuteUrl", event.target.value)}
+            />
+          </div>
+        ) : null}
+      </fieldset>
+
+      <Input
+        controlSize="touch"
+        name="contract_partner"
+        label="Vertragspartner"
+        maxLength={300}
+        value={draft.contractPartner}
+        error={formErrors.fieldError("contract_partner")}
+        placeholder="Name des Vertragspartners"
+        onChange={(event) => set("contractPartner", event.target.value)}
+      />
+      <p className="text-sm text-gray-600">
+        Leer lassen, wenn der Name im Briefkopf steht. Sonst tragen Sie den
+        Vertragspartner hier ein. Für „Bei der Annahme“ tragen Sie ihn immer
+        ein.
+      </p>
+    </>
+  );
+}
+
+/**
+ * A read-only text the school copies into its enrollment form, with a button
+ * that copies it: retyping a legal text invites mistakes.
+ */
+function CopyableLegalText({
+  id,
+  label,
+  rows,
+  value,
+  hint,
+}: Readonly<{
+  id: string;
+  label: string;
+  rows: number;
+  value: string;
+  hint: string;
+}>) {
+  const { success } = useToast();
+  const { showMessage } = useApiErrorDisplay();
+  const { copied, copy } = useClipboardCopy(
+    `CareContractConditions-${id}`,
+    2000,
+  );
+  return (
+    <div className="space-y-2">
+      {/* A fixed height that scrolls: the few conditions to edit stay in
+          view, and the copy button copies the whole text at once. */}
+      <Textarea
+        id={id}
+        label={label}
+        readOnly
+        rows={rows}
+        value={value}
+        hint={hint}
+      />
+      <Button
+        type="button"
+        variant={copied ? "success" : "outline"}
+        size="compact"
+        className="gap-1.5"
+        aria-describedby={id}
+        onClick={async () => {
+          if (await copy(value)) success("Der Text ist kopiert.");
+          else
+            showMessage(
+              "Der Text ließ sich nicht kopieren. Markieren Sie ihn und kopieren Sie ihn selbst.",
+            );
+        }}
+      >
+        {copied ? (
+          <Check className="size-4" aria-hidden="true" />
+        ) : (
+          <Copy className="size-4" aria-hidden="true" />
+        )}
+        {copied ? "Kopiert" : "Text kopieren"}
+      </Button>
+    </div>
   );
 }
 

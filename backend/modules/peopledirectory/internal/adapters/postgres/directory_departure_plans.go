@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -18,13 +19,16 @@ func (s *studentDirectoryReads) ListDepartureModes(ctx context.Context, ids []in
 		return nil, directoryStats{}, errors.New("people directory: departure modes require a tenant")
 	}
 	var rows []struct {
-		ID    int64               `bun:"id"`
-		Modes map[string][]string `bun:"allowed_departure_modes,type:jsonb"`
+		ID                    int64                        `bun:"id"`
+		AllowedDepartureModes domain.AllowedDepartureModes `bun:"allowed_departure_modes"`
+		DepartureDays         domain.DepartureDays         `bun:"departure_days"`
+		BusDays               domain.BusDays               `bun:"bus_days"`
+		PickupDays            domain.PickupDays            `bun:"pickup_days"`
 	}
 	stats := directoryStats{Queries: 1}
 	started := time.Now()
 	err = s.studentRows(db, scope).
-		ColumnExpr(`"student".id, "student".allowed_departure_modes`).
+		ColumnExpr(`"student".id, "student".allowed_departure_modes, "student".departure_days, "student".bus_days, "student".pickup_days`).
 		Where(`"student".tenant_id = ?`, scope.TenantID).
 		Where(`"student".id IN (?)`, bun.List(ids)).
 		Scan(ctx, &rows)
@@ -35,7 +39,20 @@ func (s *studentDirectoryReads) ListDepartureModes(ctx context.Context, ids []in
 	stats.Rows = int64(len(rows))
 	result := make(map[int64]map[string][]string, len(rows))
 	for _, row := range rows {
-		result[row.ID] = row.Modes
+		// Resolve through the owner's read precedence, as every other plan
+		// read does: a row whose mode set is empty still answers from its
+		// legacy columns (#6990).
+		plan := domain.DeparturePlan{
+			AllowedDepartureModes: row.AllowedDepartureModes, DepartureDays: row.DepartureDays,
+			BusDays: row.BusDays, PickupDays: row.PickupDays,
+		}.Effective()
+		modes := make(map[string][]string, len(plan.AllowedDepartureModes))
+		for day, values := range plan.AllowedDepartureModes {
+			for _, mode := range values {
+				modes[day] = append(modes[day], string(mode))
+			}
+		}
+		result[row.ID] = modes
 	}
 	return result, stats, nil
 }

@@ -32,7 +32,7 @@ export default {
   ],
   "src/lib/activity-helpers.ts": [": new Date(),", ": new Date(),"],
   "src/lib/hooks/use-reminders.ts": ["const now = new Date();"],
-  "src/components/ui/date-picker.tsx": [
+  "src/components/ui/calendar-shell.tsx": [
     "const thisYear = new Date().getFullYear();",
   ],
   "src/components/home/home-card-rows.tsx": ["}).format(new Date());"],

@@ -3,7 +3,7 @@ package timetable
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // OfferingSourceSupport is what the Regeltermin editor learns from Enrollment

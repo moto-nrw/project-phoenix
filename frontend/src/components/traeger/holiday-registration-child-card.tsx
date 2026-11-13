@@ -9,18 +9,17 @@ import { School } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import {
   DataField,
   DataGrid,
   InfoSection,
-  InfoText,
 } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
-import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
+import { childrenConcept } from "~/lib/concepts/children";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import { formatDate } from "~/lib/date-helpers";
@@ -66,6 +65,7 @@ import {
   childSchoolLabel,
   formatHolidayWeek,
 } from "./holiday-registration-format";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "HolidayRegistrationChildCard" });
 
@@ -104,6 +104,15 @@ export function HolidayRegistrationChildCard({
   const [saving, setSaving] = useState(false);
   const saveErrors = useApiFormError();
   const cancelled = registration.status === "cancelled";
+  // The child's answers to the questions of the Träger (#5198); those to
+  // health questions stand in the Gesundheit box.
+  const answers = registration.childAnswers[child.id] ?? {};
+  const answered = answeredQuestions(registration.form.fields, true, answers);
+  const otherAnswers = answered.filter((field) => !field.health);
+  const healthAnswers = answered.filter((field) => field.health);
+  const healthFields = Boolean(
+    health && (health.allergies || health.medication || health.healthNotes),
+  );
 
   const save = async () => {
     if (!draft) return;
@@ -169,6 +178,7 @@ export function HolidayRegistrationChildCard({
 
   return (
     <SectionCard
+      leading={<ConceptIconTile concept={childrenConcept} />}
       title={`${child.firstName} ${child.lastName}`}
       description={`Geboren am ${formatDate(child.birthDate)}, ${childSchoolLabel(child, names)}`}
       footer={
@@ -232,20 +242,30 @@ export function HolidayRegistrationChildCard({
         {child.duplicateRegistrationIds.length > 0 ? (
           <Alert
             type="warning"
-            message="Vielleicht doppelt angemeldet. Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung."
+            message={
+              child.duplicateRegistrationIds.length === 1
+                ? "Vielleicht doppelt angemeldet. Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung."
+                : `Vielleicht doppelt angemeldet. Ein Kind mit gleichem Namen und Geburtsdatum steht auch in ${child.duplicateRegistrationIds.length} anderen Anmeldungen.`
+            }
             actionLayout="stacked"
             action={
-              <span className="flex flex-wrap gap-3">
+              // No row gap: by finger each link is 44 px high already.
+              // -ml-2.5 takes back the links' padding: their labels start
+              // with the notice's text.
+              <span className="-ml-2.5 flex flex-wrap gap-x-3">
                 {child.duplicateRegistrationIds.map((id) => (
-                  <NavigationLink
+                  // A kit link button: 44 px by finger, in the notice's colour.
+                  <ButtonLink
                     key={id}
                     href={traegerPath(
                       `/traeger/ferien/${period.id}/anmeldungen/${id}`,
                     )}
-                    className="font-medium underline"
+                    variant="link_tone"
+                    size="compact"
+                    tooltip="Öffnet die andere Anmeldung mit dem gleichen Kind."
                   >
                     Anmeldung Nr. {id} öffnen
-                  </NavigationLink>
+                  </ButtonLink>
                 ))}
               </span>
             }
@@ -293,7 +313,7 @@ export function HolidayRegistrationChildCard({
               ))}
             </ul>
             {registration.frozen && !cancelled ? (
-              <p className="mt-2 text-xs text-gray-500">
+              <p className="mt-2 text-sm text-gray-500">
                 Zum Umbuchen öffnen Sie die Anmeldung zuerst wieder.
               </p>
             ) : null}
@@ -309,55 +329,66 @@ export function HolidayRegistrationChildCard({
           onChanged={onChanged}
         />
 
-        <ChildAnswers registration={registration} childId={child.id} />
-
-        {healthHidden ? (
-          <InfoSection title="Gesundheit">
-            <InfoText>
-              Gesundheitsangaben sieht nur die Rolle Verwaltung.
-            </InfoText>
+        {otherAnswers.length > 0 ? (
+          <InfoSection title="Weitere Angaben">
+            <HolidayRegistrationAnswers
+              questions={otherAnswers}
+              answers={answers}
+            />
           </InfoSection>
         ) : null}
 
-        {health &&
-        (health.allergies || health.medication || health.healthNotes) ? (
+        {healthHidden ? (
           <InfoSection title="Gesundheit">
-            <DataGrid>
-              {health.allergies ? (
-                <DataField label="Allergien" fullWidth>
-                  <InfoText>{health.allergies}</InfoText>
-                </DataField>
+            <p className="text-sm text-gray-700">
+              Gesundheitsangaben sieht nur die Rolle Verwaltung.
+            </p>
+          </InfoSection>
+        ) : null}
+
+        {healthFields || healthAnswers.length > 0 ? (
+          <InfoSection title="Gesundheit">
+            <div className="space-y-4">
+              {health && healthFields ? (
+                <DataGrid>
+                  {health.allergies ? (
+                    <DataField label="Allergien" fullWidth>
+                      <span className="whitespace-pre-wrap">
+                        {health.allergies}
+                      </span>
+                    </DataField>
+                  ) : null}
+                  {health.medication ? (
+                    <DataField label="Medikamente" fullWidth>
+                      <span className="whitespace-pre-wrap">
+                        {health.medication}
+                      </span>
+                    </DataField>
+                  ) : null}
+                  {health.healthNotes ? (
+                    <DataField label="Weitere Hinweise" fullWidth>
+                      <span className="whitespace-pre-wrap">
+                        {health.healthNotes}
+                      </span>
+                    </DataField>
+                  ) : null}
+                </DataGrid>
               ) : null}
-              {health.medication ? (
-                <DataField label="Medikamente" fullWidth>
-                  <InfoText>{health.medication}</InfoText>
-                </DataField>
+              {/* The answers to health questions stand with the health
+                  fields: whoever reads this box before the holiday week
+                  sees an intolerance asked by the form too. */}
+              {healthAnswers.length > 0 ? (
+                <HolidayRegistrationAnswers
+                  questions={healthAnswers}
+                  answers={answers}
+                  markHealth={false}
+                />
               ) : null}
-              {health.healthNotes ? (
-                <DataField label="Weitere Hinweise" fullWidth>
-                  <InfoText>{health.healthNotes}</InfoText>
-                </DataField>
-              ) : null}
-            </DataGrid>
+            </div>
           </InfoSection>
         ) : null}
       </div>
     </SectionCard>
-  );
-}
-
-/** The child's answers to the questions of the Träger (#5198). */
-function ChildAnswers({
-  registration,
-  childId,
-}: Readonly<{ registration: HolidayRegistrationDetail; childId: string }>) {
-  const answers = registration.childAnswers[childId] ?? {};
-  const questions = answeredQuestions(registration.form.fields, true, answers);
-  if (questions.length === 0) return null;
-  return (
-    <InfoSection title="Weitere Angaben">
-      <HolidayRegistrationAnswers questions={questions} answers={answers} />
-    </InfoSection>
   );
 }
 

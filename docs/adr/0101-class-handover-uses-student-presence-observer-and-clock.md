@@ -5,7 +5,7 @@ status: accepted
 # Class handover uses Student Presence's observer and clock
 
 Decision of 2026-10-24 for
-[#4794](https://github.com/moto-nrw/project-phoenix/issues/4794). It approves
+[#4794](https://github.com/moto-ogs/project-phoenix/issues/4794). It approves
 three new command-effect diagnostics. It adds no owner, no policy rule and no
 runtime exception.
 

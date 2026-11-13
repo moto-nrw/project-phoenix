@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,6 +63,8 @@ func TestPlannedExit_BlockedClosesThisSchoolThenCompletes(t *testing.T) {
 			notices = append(notices, notice)
 			return true, nil
 		},
+		Within:         api.PlannedExitTransaction,
+		BoundLockWaits: api.BoundPlannedExitLockWaits(30 * time.Second),
 		Isolate: func(ctx context.Context, fn func(context.Context) error) (error, error) {
 			failed := tenant.WithSavepoint(ctx, fn)
 			if errors.Is(failed, tenant.ErrSavepointControl) {
@@ -77,7 +79,9 @@ func TestPlannedExit_BlockedClosesThisSchoolThenCompletes(t *testing.T) {
 		t.Helper()
 		_, err := testpkg.TenantQuery0(t, sc.ctx, sc.db, func(ctx context.Context) (struct{}, error) {
 			result, err := run.RunDue(ctx)
-			require.Empty(t, result.Failed)
+			for _, exit := range result.Exits {
+				require.NotEqual(t, staffoffboarding.ExitFailed, exit.Outcome)
+			}
 			return struct{}{}, err
 		})
 		require.NoError(t, err)

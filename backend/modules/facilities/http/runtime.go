@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	listexport "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type RoomReads interface {
@@ -101,12 +101,27 @@ func renderFailure(w http.ResponseWriter, r *http.Request, kind FailureKind, err
 }
 
 func renderConflict(w http.ResponseWriter, r *http.Request, err error, code string) {
-	// code is the module's metric label; only this conflict names itself on the wire.
-	if code == "color_already_in_use" {
+	// code is the module's metric label; these conflicts name themselves on
+	// the wire so the screen can say what the school does next (#6845).
+	var stillPlanned *facilitiesModule.RoomStillPlannedError
+	switch {
+	case errors.As(err, &stillPlanned):
+		refs := stillPlanned.References
+		apiCommon.RenderError(w, r, apiCommon.ErrorConflictWithDetails(err, apiCommon.CodeRoomsStillPlanned, map[string]any{
+			"activity_groups": refs.ActivityGroups, "upcoming_blocks": refs.UpcomingBlocks,
+			"education_groups": refs.EducationGroups, "devices": refs.Devices,
+		}))
+	case code == "color_already_in_use":
 		apiCommon.RenderError(w, r, apiCommon.ErrorConflictWithCode(err, apiCommon.CodeRoomsColorAlreadyInUse))
-		return
+	case code == "room_in_use":
+		apiCommon.RenderError(w, r, apiCommon.ErrorConflictWithCode(err, apiCommon.CodeRoomsSessionRunning))
+	case code == "room_required_by_offering":
+		apiCommon.RenderError(w, r, apiCommon.ErrorConflictWithCode(err, apiCommon.CodeRoomsRequiredByCareOffering))
+	case code == "room_archived":
+		apiCommon.RenderError(w, r, apiCommon.ErrorConflictWithCode(err, apiCommon.CodeRoomsArchived))
+	default:
+		apiCommon.RenderError(w, r, apiCommon.ErrorConflict(err))
 	}
-	apiCommon.RenderError(w, r, apiCommon.ErrorConflict(err))
 }
 
 func occupancyProjection(service RoomReads) func(context.Context, []facilitiesModule.Room) ([]RoomView, error) {

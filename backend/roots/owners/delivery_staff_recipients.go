@@ -6,13 +6,13 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // deliveryStudentGroups names the education group of each reported child

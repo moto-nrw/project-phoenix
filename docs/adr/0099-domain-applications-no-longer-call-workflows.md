@@ -5,7 +5,7 @@ status: accepted
 # Domain applications no longer call workflows
 
 Decision of 2026-10-24 for
-[#4825](https://github.com/moto-nrw/project-phoenix/issues/4825). It removes
+[#4825](https://github.com/moto-ogs/project-phoenix/issues/4825). It removes
 the domain-to-workflow runtime bindings that
 [ADR 0071's addendum for #4740](0071-principle-owner-dependencies-point-one-way.md#addendum-2026-10-23-explicit-care-resumption-entry-4740)
 records as ungranted debt. PR #4833 removed Care Plan's share visibility and

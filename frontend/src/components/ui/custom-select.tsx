@@ -1,10 +1,9 @@
 "use client";
 
-import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "~/lib/utils";
-import { FieldErrorHint } from "./field-error-hint";
-import { FieldLabel } from "./field-label";
+import { FieldShell, useFieldIds } from "./field-shell";
 import {
   ListboxDropdown,
   ListboxTriggerContent,
@@ -54,7 +53,7 @@ interface CustomSelectProps {
    */
   readonly searchable?: boolean;
   readonly searchPlaceholder?: string;
-  /** Field height: `default` 40 px, `compact` 36 px for dense rows. */
+  /** Field height: 40 px (`compact`) by default, `dense` 36 px for dense rows. */
   readonly controlSize?: ListboxDropdownSize;
   /** Layout classes for the trigger (width, flex). The look is the kit's. */
   readonly className?: string;
@@ -106,19 +105,22 @@ export function CustomSelect({
   hint,
   searchable = false,
   searchPlaceholder = "Suchen",
-  controlSize = "default",
+  controlSize,
   className = "",
   menuClassName = "",
   wrapLabels = false,
   testId,
 }: CustomSelectProps) {
-  const generatedId = useId();
-  const fieldId = id ?? (label || error || hint ? generatedId : undefined);
+  const ids = useFieldIds({
+    id,
+    hint,
+    error,
+    describedBy: ariaDescribedBy,
+  });
+  // Without label, hint and error the trigger gets no id unless the caller
+  // sets one.
+  const fieldId = id ?? (label || error || hint ? ids.id : undefined);
   const labelId = label ? `${fieldId}-label` : undefined;
-  const errorId = error ? `${fieldId}-error` : undefined;
-  const hintId = hint ? `${fieldId}-hint` : undefined;
-  const describedBy =
-    [ariaDescribedBy, hintId, errorId].filter(Boolean).join(" ") || undefined;
   const isInvalid = invalid || Boolean(error);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -168,7 +170,7 @@ export function CustomSelect({
         onChange={onChange}
         ariaLabel={ariaLabel}
         ariaLabelledBy={ariaLabelledBy ?? labelId}
-        ariaDescribedBy={describedBy}
+        ariaDescribedBy={ids.describedBy}
         required={required}
         invalid={isInvalid}
         disabled={disabled}
@@ -178,10 +180,12 @@ export function CustomSelect({
         size={controlSize}
         className={cn(
           "w-full",
+          // A wrapped choice grows with its label; by finger the 44-px
+          // height stays a minimum, not a fixed height.
           wrapLabels &&
-            (controlSize === "compact"
+            (controlSize === "dense"
               ? "h-auto min-h-9 py-2"
-              : "h-auto min-h-10 py-2"),
+              : "h-auto min-h-10 py-2 pointer-coarse:h-auto pointer-coarse:min-h-11"),
           className,
         )}
         menuClassName={menuClassName}
@@ -237,29 +241,19 @@ export function CustomSelect({
     </>
   );
 
-  if (!label && !error && !hint) return field;
-
   return (
-    <div className="min-w-0">
-      {label ? (
-        <FieldLabel
-          id={labelId}
-          htmlFor={fieldId}
-          required={required}
-          invalid={isInvalid}
-        >
-          {label}
-        </FieldLabel>
-      ) : null}
+    <FieldShell
+      ids={ids}
+      className="min-w-0"
+      label={label}
+      labelId={labelId}
+      required={required}
+      invalid={isInvalid}
+      hint={hint}
+      error={error}
+      errorLive={errorLive}
+    >
       {field}
-      {hint && hintId ? (
-        <p id={hintId} className="mt-1 text-xs text-gray-600">
-          {hint}
-        </p>
-      ) : null}
-      {errorId ? (
-        <FieldErrorHint id={errorId} message={error} live={errorLive} />
-      ) : null}
-    </div>
+    </FieldShell>
   );
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 )
 
 const studentConsentChangeTableExpr = `audit.student_consent_changes AS "student_consent_change"`

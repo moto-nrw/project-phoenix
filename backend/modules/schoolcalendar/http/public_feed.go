@@ -7,9 +7,9 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	calendarService "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // PublicFeeds is the subscription feed a calendar token opens.
@@ -35,10 +35,12 @@ func PublicFeed(feeds PublicFeeds) http.HandlerFunc {
 				common.RenderStatus(w, r, http.StatusNotFound, "")
 				return
 			}
-			slog.Error("calendar feed failed",
-				"error", err.Error(),
-			)
-			common.RenderStatus(w, r, http.StatusInternalServerError, "")
+			if !common.ClientCanceled(r, err) {
+				slog.Error("calendar feed failed",
+					"error", err.Error(),
+				)
+			}
+			common.RenderUnexpectedFailure(w, r, err)
 			return
 		}
 		w.Header().Set("Content-Type", "text/calendar; charset=utf-8")

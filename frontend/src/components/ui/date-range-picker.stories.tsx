@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
+import { expect, screen, userEvent, within } from "storybook/test";
 import type { DateRange } from "react-day-picker";
 import {
   DateRangePicker,
@@ -79,4 +80,18 @@ export const RangeCalendarInlineStandalone: StoryObj<
   typeof RangeCalendarInline
 > = {
   render: () => <RangeCalendarInlineDemo />,
+};
+
+/** Offener Zeitraum-Kalender mit Schnellwahl (#6576, Baseline des Pixel-Vergleichs). */
+export const Opened: Story = {
+  render: () => <DateRangePickerDemo />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Zeitraum wählen" }),
+    );
+    await expect(
+      await screen.findByRole("button", { name: "Letzte 7 Tage" }),
+    ).toBeVisible();
+    await expect((await screen.findAllByRole("grid"))[0]).toBeVisible();
+  },
 };

@@ -9,15 +9,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
 )
 
 func TestCountAssignedPreviewPhases(t *testing.T) {

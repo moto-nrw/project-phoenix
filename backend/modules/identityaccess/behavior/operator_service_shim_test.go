@@ -4,7 +4,7 @@ import (
 	"context"
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // The operator behaviour suites were written against the retained operator

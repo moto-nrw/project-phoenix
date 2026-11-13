@@ -86,3 +86,105 @@ func TestRateLimiterExemptPathPrefixBypassesOnlyThatPath(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, status("/api/x"))
 	assert.Equal(t, http.StatusTooManyRequests, status("/api/x"), "other paths keep the limit")
 }
+
+// A failures-only limiter lets any number of accepted requests from one
+// address through and refuses only once its refused requests used the burst
+// (#6738: parents of one school network signing in together).
+func TestRateLimiterSpendOnRefusalsSpendsTokensOnRefusals(t *testing.T) {
+	t.Parallel()
+	limiter := NewRateLimiter(1, 3)
+	limiter.SpendOnRefusals(nil)
+	handler := limiter.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Query().Get("password") {
+		case "wrong":
+			w.WriteHeader(http.StatusUnauthorized)
+		case "broken":
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}))
+	status := func(password string) int {
+		req := httptest.NewRequest(http.MethodPost, "/auth/login?password="+password, nil)
+		req.RemoteAddr = "203.0.113.7:54321"
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		return rr.Code
+	}
+
+	for range 60 {
+		assert.Equal(t, http.StatusOK, status("right"), "an accepted login spends no token")
+		assert.Equal(t, http.StatusInternalServerError, status("broken"), "a server error is no refusal")
+	}
+	for range 3 {
+		assert.Equal(t, http.StatusUnauthorized, status("wrong"))
+	}
+	assert.Equal(t, http.StatusTooManyRequests, status("right"), "the refusals used the burst")
+	assert.Equal(t, http.StatusTooManyRequests, status("wrong"))
+}
+
+// Parallel requests hold their token while they run, so a burst of parallel
+// guesses cannot pass the limiter together before the first is refused.
+func TestRateLimiterSpendOnRefusalsHoldsTokensOfRunningRequests(t *testing.T) {
+	t.Parallel()
+	limiter := NewRateLimiter(1, 2)
+	limiter.SpendOnRefusals(nil)
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	handler := limiter.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Has("hold") {
+			entered <- struct{}{}
+			<-release
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	serve := func(path string) int {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.RemoteAddr = "203.0.113.7:54321"
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		return rr.Code
+	}
+
+	results := make(chan int, 2)
+	for range 2 {
+		go func() { results <- serve("/auth/login?hold") }()
+		select {
+		case <-entered:
+		case code := <-results:
+			t.Fatalf("a held request answered %d before its handler ran", code)
+		}
+	}
+	assert.Equal(t, http.StatusTooManyRequests, serve("/auth/login"), "both tokens are held by running requests")
+	close(release)
+	for range 2 {
+		assert.Equal(t, http.StatusNoContent, <-results)
+	}
+	assert.Equal(t, http.StatusNoContent, serve("/auth/login"), "accepted requests gave their tokens back")
+}
+
+// A request alwaysSpends reports spends its token even when accepted: a mail
+// a login route sends keeps the limit of one request per token.
+func TestRateLimiterSpendOnRefusalsSpendsAlwaysOnMarkedRequests(t *testing.T) {
+	t.Parallel()
+	limiter := NewRateLimiter(1, 2)
+	limiter.SpendOnRefusals(func(r *http.Request) bool { return r.URL.Path == "/auth/password-reset" })
+	handler := limiter.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	status := func(path string) int {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.RemoteAddr = "203.0.113.7:54321"
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		return rr.Code
+	}
+
+	for range 5 {
+		assert.Equal(t, http.StatusAccepted, status("/auth/login"))
+	}
+	assert.Equal(t, http.StatusAccepted, status("/auth/password-reset"))
+	assert.Equal(t, http.StatusAccepted, status("/auth/password-reset"))
+	assert.Equal(t, http.StatusTooManyRequests, status("/auth/password-reset"))
+	assert.Equal(t, http.StatusTooManyRequests, status("/auth/login"), "the address has no token left")
+}

@@ -21,7 +21,7 @@ import { FieldLabel } from "~/components/ui/field-label";
 import type { FormError } from "~/components/ui/form-error";
 import { Input } from "~/components/ui/input";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuItem } from "~/components/ui/page-header/types";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { Textarea } from "~/components/ui/textarea";

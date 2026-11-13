@@ -5,9 +5,9 @@ package fixturetest
 import (
 	context "context"
 
-	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
-	ports "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	timetable "github.com/moto-ogs/project-phoenix/modules/timetable"
+	ports "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type LifecycleFixtureNotices interface {

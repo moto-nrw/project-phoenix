@@ -3,7 +3,7 @@ package httpadapter
 import (
 	"context"
 
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
 )
 
 // SchoolGroups is the group read port owned by this consumer.

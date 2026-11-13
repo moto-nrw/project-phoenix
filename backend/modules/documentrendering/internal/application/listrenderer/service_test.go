@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	listrecords "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 
 	"github.com/xuri/excelize/v2"
 )

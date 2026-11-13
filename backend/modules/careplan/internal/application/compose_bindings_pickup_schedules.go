@@ -1,8 +1,8 @@
 package application
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanBindingPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanBindingPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
 )
 
 func PickupScheduleRecords(r carePlanBindingPorts.PickupScheduleRecords) EffectiveRecords[careplan.PickupSchedule, *careplan.PickupSchedule] {

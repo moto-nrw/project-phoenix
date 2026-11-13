@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	kernelcalendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableAPI "github.com/moto-ogs/project-phoenix/modules/timetable/http"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	kernelcalendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The typed root's test compositions these suites build: each opens the

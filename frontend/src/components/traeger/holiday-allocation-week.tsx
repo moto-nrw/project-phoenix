@@ -12,7 +12,10 @@ import { Button } from "~/components/ui/button";
 import { IconTile } from "~/components/ui/icon-tile";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ProgressBar } from "~/components/ui/progress-bar";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatChatDateTime } from "~/lib/date-helpers";
@@ -100,7 +103,7 @@ function AllocationRow({
   const name = `${entry.childFirstName} ${entry.childLastName}`;
   const proposedPlace = entry.proposal === "placed";
   return (
-    <li className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center">
+    <ResponsiveActionRow className="gap-3">
       <div className="flex min-w-0 gap-3">
         <IconTile
           icon={
@@ -163,7 +166,7 @@ function AllocationRow({
           Auf die Warteliste
         </Button>
       </div>
-    </li>
+    </ResponsiveActionRow>
   );
 }
 

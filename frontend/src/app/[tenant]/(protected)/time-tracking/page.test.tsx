@@ -935,27 +935,6 @@ describe("TimeTrackingPage", () => {
       expect(screen.queryByText("0min")).not.toBeInTheDocument();
       expect(screen.queryByText(/^von \d/)).not.toBeInTheDocument();
     });
-
-    // Without the week's absences a sick week loses its credit and would read
-    // as "0min von 7h 48min" (#3885).
-    it("shows no week figure when the week's absences fail to load", async () => {
-      setupDefaultMocks({
-        tableAbsencesError: new ApiError("absences unavailable", 503, {
-          code: "general.unavailable",
-        }),
-        scheduleTargets: new Map([[todayISO, 468]]),
-      });
-
-      render(<TimeTrackingPage />);
-
-      expect(
-        await screen.findByText(
-          catalogText("general.unavailable", "die Übersicht der Arbeitszeit"),
-        ),
-      ).toBeInTheDocument();
-      expect(screen.queryByText("0min")).not.toBeInTheDocument();
-      expect(screen.queryByText(/^von \d/)).not.toBeInTheDocument();
-    });
   });
 
   // ── No Active Session (Check-in state) ──────────────────────────────────

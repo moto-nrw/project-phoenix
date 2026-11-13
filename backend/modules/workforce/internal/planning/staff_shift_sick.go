@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // A single shift write planned after a sick report takes the state the sick
@@ -37,16 +37,16 @@ func (s *staffShiftService) todayDate() calendar.Date {
 	return s.today()
 }
 
-// sickAbsenceOn names the sick report that makes day a full sick day of the
-// staff member, zero when there is none or the day is past. The caller holds
-// the staff member's shift lock.
-func (s *staffShiftService) sickAbsenceOn(ctx context.Context, staffID int64, day calendar.Date) (int64, error) {
+// sickAbsenceOn names the absence that makes day a full absence day of the
+// staff member, the zero stamp when there is none or the day is past. The
+// caller holds the staff member's shift lock.
+func (s *staffShiftService) sickAbsenceOn(ctx context.Context, staffID int64, day calendar.Date) (absenceStamp, error) {
 	if s.sickReports == nil || day.Before(s.todayDate()) {
-		return 0, nil
+		return absenceStamp{}, nil
 	}
 	days, err := sickDaysIn(ctx, s.sickReports, staffID, day, day)
 	if err != nil {
-		return 0, err
+		return absenceStamp{}, err
 	}
 	return days[day], nil
 }
@@ -102,7 +102,7 @@ func sameOptionalText(a, b *string) bool {
 func releaseSickState(shift *workforce.ShiftRecord) {
 	shift.Cancelled = false
 	shift.SickAbsenceID = nil
-	if shift.ChangeReason != nil && *shift.ChangeReason == workforce.SickShiftChangeReason {
+	if shift.ChangeReason != nil && workforce.IsAbsenceShiftChangeReason(*shift.ChangeReason) {
 		shift.ChangeReason = nil
 	}
 }
@@ -116,13 +116,13 @@ func (s *staffShiftService) applySickStateOfDay(ctx context.Context, shift *work
 	if shift.Cancelled && shift.OriginShiftID == nil {
 		return nil
 	}
-	absenceID, err := s.sickAbsenceOn(ctx, shift.StaffID, shift.Date)
-	if err != nil || absenceID == 0 {
+	stamp, err := s.sickAbsenceOn(ctx, shift.StaffID, shift.Date)
+	if err != nil || stamp.absenceID == 0 {
 		return err
 	}
 	if shift.OriginShiftID != nil {
 		return withReason(fmt.Errorf("%w: replacement staff member is absent on %s", ErrShiftInvalid, shift.Date), workforce.ErrReplacementStaffAbsent)
 	}
-	applySickReport(shift, absenceID)
+	applySickReport(shift, stamp)
 	return nil
 }

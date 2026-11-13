@@ -3,9 +3,9 @@ package api
 import (
 	"net/http"
 
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	studentpresenceHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	studentpresenceHTTP "github.com/moto-ogs/project-phoenix/modules/studentpresence/http"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // newDemoPresenceHistoryRoute composes Student Presence's write of past care

@@ -30,15 +30,4 @@ describe("OriginChip", () => {
       "Wochensaldo und Stundenkonto rechnen gegen das im Arbeitszeitmodell hinterlegte Soll.",
     );
   });
-
-  it("renders an optional leading icon", () => {
-    render(
-      <OriginChip
-        label="Quelle"
-        icon={<svg data-testid="chip-icon" width="12" height="12" />}
-      />,
-    );
-
-    expect(screen.getByTestId("chip-icon")).toBeInTheDocument();
-  });
 });

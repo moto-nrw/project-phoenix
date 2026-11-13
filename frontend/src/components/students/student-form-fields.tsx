@@ -30,7 +30,10 @@ import {
 } from "~/components/ui/visibility-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { ChoiceTile } from "~/components/ui/choice-tile";
-import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
+import {
+  PARENT_VISIBLE_DEFAULT_HINT,
+  PARENT_VISIBLE_HINTS,
+} from "~/lib/parent-visible-fields";
 import { CompanionPicker } from "./companion-picker";
 import type {
   CompanionExtensionConfirmation,
@@ -89,7 +92,10 @@ export function PersonalInfoSection({
         />
       }
     >
-      <ParentVisibilityLegend className="mb-3 md:mb-4" />
+      <ParentVisibilityLegend
+        hint={PARENT_VISIBLE_DEFAULT_HINT}
+        className="mb-3 md:mb-4"
+      />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
         <TextInput
           label="Vorname"

@@ -3,12 +3,12 @@ package api
 import (
 	"log/slog"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	careplanOwnerHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	careplanOwnerHTTP "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
 
-	fileCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
+	fileCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
 )
 
 // NewStudentDocumentStorage keeps backend lookup lazy, so constructing a

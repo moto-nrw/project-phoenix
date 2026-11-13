@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	portal "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
+	portal "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	calendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/compose"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )

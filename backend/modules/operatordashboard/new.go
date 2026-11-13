@@ -3,8 +3,8 @@ package projection
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/operatordashboard/contract"
-	postgres "github.com/moto-nrw/project-phoenix/modules/operatordashboard/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/operatordashboard/contract"
+	postgres "github.com/moto-ogs/project-phoenix/modules/operatordashboard/internal/adapters/postgres"
 )
 
 func New(database postgres.Database, counts func(context.Context, map[int64][]int64) (map[int64]int, error)) *postgres.Projection {

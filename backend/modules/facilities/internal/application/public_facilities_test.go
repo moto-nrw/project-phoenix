@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -82,7 +82,9 @@ func (e *recordingEngine) UpdateRoom(_ context.Context, input facilities.UpdateR
 	return room, nil
 }
 
-func (e *recordingEngine) DeleteRoom(context.Context, int64) error { return nil }
+func (e *recordingEngine) DeleteRoom(context.Context, int64) (facilities.RoomRemoval, error) {
+	return facilities.RoomRemoval{}, nil
+}
 
 func (e *recordingEngine) ObserveRejection(operation string, _ time.Duration, _ error) {
 	e.rejections = append(e.rejections, operation)

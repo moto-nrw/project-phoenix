@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	fileCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	fileCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/uptrace/bun"
 )
 

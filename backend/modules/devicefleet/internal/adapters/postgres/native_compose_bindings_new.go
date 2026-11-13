@@ -4,8 +4,8 @@ import (
 	context "context"
 	errors "errors"
 
-	devicefleet "github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	devicefleet "github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 	bun "github.com/uptrace/bun"
 )
 

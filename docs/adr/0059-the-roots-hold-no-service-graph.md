@@ -5,12 +5,12 @@ status: accepted
 # The roots hold no service graph
 
 Decision of 2026-10-15 under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580). It replaces
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580). It replaces
 the consequence of
 [ADR 0053](0053-owners-compose-themselves-and-the-roots-compose-the-owners.md)
 that "`api` grows while `services` drains" and defers splitting the root, and
-it decides [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004).
-[#4080](https://github.com/moto-nrw/project-phoenix/issues/4080) carries it
+it decides [#4004](https://github.com/moto-ogs/project-phoenix/issues/4004).
+[#4080](https://github.com/moto-ogs/project-phoenix/issues/4080) carries it
 out.
 
 ## Context
@@ -37,7 +37,7 @@ A struct that holds every service under another name is still one.
 
 1. **No root struct holds services of several owners.** The composition
    surface counts every such struct in `root-composition` packages
-   ([#4071](https://github.com/moto-nrw/project-phoenix/issues/4071)) and
+   ([#4071](https://github.com/moto-ogs/project-phoenix/issues/4071)) and
    reaches 0.
 2. **Roots build owners as local values.** Each typed root (server, worker,
    commands) constructs the owners it needs in the build order of the
@@ -52,7 +52,7 @@ A struct that holds every service under another name is still one.
    branch that tolerates a nil dependency; tests pass explicit doubles.
 5. **Each root builds what it runs.** The server builds what it mounts
    (#2745). The worker gets its own root and builds only what its jobs need
-   ([#4083](https://github.com/moto-nrw/project-phoenix/issues/4083)).
+   ([#4083](https://github.com/moto-ogs/project-phoenix/issues/4083)).
    `NewServiceGraphForTests` goes; tests build route-sized routers or the
    typed roots (ADR 0053 point 7).
 6. **Owner compositions reach no other owner's implementation or
@@ -68,4 +68,4 @@ A struct that holds every service under another name is still one.
 - The DoD line of #2580 on central factories now covers `api.serviceGraph`
   and its helper structs.
 - Decisions found in the root while it is taken apart move to their owner or
-  into a workflow first ([#4082](https://github.com/moto-nrw/project-phoenix/issues/4082)).
+  into a workflow first ([#4082](https://github.com/moto-ogs/project-phoenix/issues/4082)).

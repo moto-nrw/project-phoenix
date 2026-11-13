@@ -4,8 +4,8 @@ import (
 	strings "strings"
 	time "time"
 
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // accidentReportFacts are the school and child facts the report prints next

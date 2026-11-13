@@ -3,7 +3,7 @@ package application
 import (
 	"testing"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,9 +17,8 @@ func TestGuardianRecipientStatusRequiresBothGuardianAndVisibleStudent(t *testing
 		{ID: 12, GuardianProfileID: &guardianID, StudentIDs: []int64{52, 51}, Status: appointmentcap.ResponseStatusAccepted},
 		{ID: 13, GuardianProfileID: &guardianID, StudentIDs: []int64{51}, Status: appointmentcap.ResponseStatusPending},
 	}
-	status, recipientID := guardianRecipientStatusForStudents(recipients, []int64{guardianID}, []int64{51})
-	require.NotNil(t, recipientID)
-	assert.Equal(t, int64(12), *recipientID, "the first matching recipient keeps its RSVP")
-	require.NotNil(t, status)
-	assert.Equal(t, appointmentcap.ResponseStatusAccepted, *status)
+	recipient := guardianRecipientForStudents(recipients, []int64{guardianID}, []int64{51})
+	require.NotNil(t, recipient)
+	assert.Equal(t, int64(12), recipient.ID, "the first matching recipient keeps its RSVP")
+	assert.Equal(t, appointmentcap.ResponseStatusAccepted, recipient.Status)
 }

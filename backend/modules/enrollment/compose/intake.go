@@ -3,8 +3,8 @@ package compose
 import (
 	"database/sql"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	application "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	application "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application"
 )
 
 // Ports the composition root binds for Enrollment's intake and change requests (#3565).
@@ -64,8 +64,7 @@ func NewCareOfferingRows(catalog CareOfferingCatalogAdministration) *CareOfferin
 	return application.NewCareOfferingRows(catalog)
 }
 
-// PublicDecisions hands the decision flow directly to the HTTP adapters.
-// The flow marks refusals with Enrollment's public values at its own edge.
+// PublicDecisions hands the decision flow, which marks refusals with Enrollment's public values, to the HTTP adapters.
 func PublicDecisions(decisions *Decisions) enrollment.Decisions {
 	return decisions
 }

@@ -581,8 +581,8 @@ Pfade relativ zur Repository-Wurzel, Stand siehe Kopf:
   `backend/modules/auditlog/records/student_consent_change.go`.
 
 Rechtliche Arbeitsgrundlagen, nur gelesen, keine Rechtsfreigabe durch moto:
-[Mindestumfang vom 23.10.2026](https://github.com/moto-nrw/legal/blob/main/research/14-dsgvo-mindestumfang.md),
-[interne Checkliste](https://github.com/moto-nrw/legal/blob/main/vertragspaket/intern/checkliste.md),
-[AVV-Entwurf Ziff. 2.4, 7, 8 und Anhang 1](https://github.com/moto-nrw/legal/blob/main/vertragspaket/03-avv.md).
+[Mindestumfang vom 23.10.2026](https://github.com/moto-ogs/legal/blob/main/research/14-dsgvo-mindestumfang.md),
+[interne Checkliste](https://github.com/moto-ogs/legal/blob/main/vertragspaket/intern/checkliste.md),
+[AVV-Entwurf Ziff. 2.4, 7, 8 und Anhang 1](https://github.com/moto-ogs/legal/blob/main/vertragspaket/03-avv.md).
 Vorschläge für Elternvorlagen und AVV/TOM stehen nur im zugehörigen PR;
 das Legal-Repository bleibt unverändert.

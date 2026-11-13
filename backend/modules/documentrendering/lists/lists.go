@@ -8,8 +8,8 @@
 package lists
 
 import (
-	renderer "github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	renderer "github.com/moto-ogs/project-phoenix/modules/documentrendering/internal/application/listrenderer"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 )
 
 type (

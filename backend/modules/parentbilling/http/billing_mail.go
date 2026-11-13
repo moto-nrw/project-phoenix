@@ -3,8 +3,8 @@ package parentbillinghttp
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // The mail and the print of the confirmation letters of a released run

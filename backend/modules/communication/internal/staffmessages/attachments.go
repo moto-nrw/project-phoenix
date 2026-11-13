@@ -3,7 +3,7 @@ package staffmessaging
 import (
 	"context"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
 )
 
 // Photos and files in the team chat (#6685). Membership stays the only

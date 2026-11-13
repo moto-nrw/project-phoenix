@@ -1,6 +1,6 @@
 package authorize
 
-import "github.com/moto-nrw/project-phoenix/internal/seedtoken"
+import "github.com/moto-ogs/project-phoenix/internal/seedtoken"
 
 // SeedInvitationTokenHeader is the request header the local seeder sets to
 // receive raw invitation tokens.

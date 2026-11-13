@@ -186,7 +186,7 @@ export function HolidayPeriodForm({
       logger.error("holiday_period_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void errorPath.show(err, { object: "den Ferienzeitraum" });
+      void errorPath.show(err, { object: "die Planung des Ferienzeitraums" });
     } finally {
       setSaving(false);
     }
@@ -204,21 +204,27 @@ export function HolidayPeriodForm({
     >
       <FormErrorAlert message={errorPath.error} />
 
+      {/* The save stays in the form's card and in view while the long form
+          scrolls. */}
       <SectionCard
         title="Anmeldung und Wochen"
+        stickyFooter
         footer={
           <EditActions onCancel={onCancel} saving={saving} saveType="submit" />
         }
       >
         {/* Locked while saving: the answer replaces the draft, so an edit made
             meanwhile would be lost. */}
-        <fieldset disabled={saving} className="min-w-0 space-y-6">
+        {/* pb-4: the last control („Woche hinzufügen“) ends above the
+            sticky save bar, not under its edge. */}
+        <fieldset disabled={saving} className="min-w-0 space-y-6 pb-4">
           <div className="space-y-4">
             <Input
-              controlSize="compact"
+              controlSize="touch"
               name="name"
               label="Name des Ferienzeitraums"
-              placeholder="Osterferien 2027"
+              required
+              placeholder="z. B. Osterferien 2027"
               value={draft.name}
               maxLength={120}
               error={fieldError("name") ?? undefined}
@@ -231,6 +237,7 @@ export function HolidayPeriodForm({
                 <ISODateInput
                   id="registration_opens_on"
                   label="Anmeldebeginn"
+                  required
                   value={draft.registrationOpensOn}
                   error={fieldError("registration_opens_on")}
                   onValidityChange={opensValidity}
@@ -243,6 +250,7 @@ export function HolidayPeriodForm({
                 <ISODateInput
                   id="registration_closes_on"
                   label="Anmeldeschluss"
+                  required
                   value={draft.registrationClosesOn}
                   error={fieldError("registration_closes_on")}
                   onValidityChange={closesValidity}
@@ -333,6 +341,24 @@ export function HolidayPeriodForm({
                 Jede Woche findet an einer Schule Ihres Trägers statt. Wollen
                 Sie dieselben Tage an mehreren Schulen anbieten? Legen Sie dafür
                 je Schule eine Woche an. Eltern wählen dann eine Schule.
+              </p>
+              {/* What a booked time model allows is said only where one
+                  exists: a new period has none. */}
+              <p className="mt-2 text-sm text-gray-600">
+                Jede Woche hat Zeitmodelle, zum Beispiel „bis 13 Uhr“ und „bis
+                16 Uhr“, jedes mit eigenem Preis.
+                {draft.weeks.some((week) =>
+                  week.timeModels.some((model) => model.protected),
+                )
+                  ? " Ein gebuchtes Zeitmodell archivieren Sie: die Buchungen bleiben. Ein ungebuchtes entfernen Sie mit „×“."
+                  : ""}
+                {draft.weeks.some((week) =>
+                  week.timeModels.some(
+                    (model) => model.protected && !model.archived,
+                  ),
+                )
+                  ? " Ein neuer Preis eines gebuchten Zeitmodells gilt für Anmeldungen, die Sie danach bestätigen. Bestätigte behalten ihren Betrag."
+                  : ""}
               </p>
             </div>
             <div className="space-y-4">

@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	educationRepo "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
 )
 
 // EducationStaff serves the class assignments' staff check from the retained

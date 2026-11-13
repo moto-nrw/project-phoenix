@@ -2,6 +2,16 @@
   "sites": [
     {
       "decision": "0090",
+      "id": "workflows/shiftplansync/SickReports.ApproveAbsence",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "workflows/shiftplansync/SickReports.CancelAbsence",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
       "id": "workflows/shiftplansync/SickReports.CreateAbsenceFor",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

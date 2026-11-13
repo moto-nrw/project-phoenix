@@ -53,6 +53,7 @@ interface BackendRoomResponse {
     is_occupied: boolean;
     is_system?: boolean;
     is_open_room?: boolean;
+    archived_at?: string;
     activity_name?: string;
     group_name?: string;
     supervisor_name?: string;
@@ -72,6 +73,7 @@ interface BackendRoomResponse {
   is_occupied?: boolean;
   is_system?: boolean;
   is_open_room?: boolean;
+  archived_at?: string;
   activity_name?: string;
   group_name?: string;
   supervisor_name?: string;
@@ -111,6 +113,7 @@ export const GET = createGetHandler(
             is_occupied: roomData.is_occupied ?? false,
             is_system: roomData.is_system,
             is_open_room: roomData.is_open_room,
+            archived_at: roomData.archived_at,
             activity_name: roomData.activity_name,
             group_name: roomData.group_name,
             supervisor_names:
@@ -133,6 +136,7 @@ export const GET = createGetHandler(
             is_occupied: response.is_occupied ?? false,
             is_system: response.is_system,
             is_open_room: response.is_open_room,
+            archived_at: response.archived_at,
             activity_name: response.activity_name,
             group_name: response.group_name,
             supervisor_names:
@@ -218,11 +222,13 @@ export const DELETE = createDeleteHandler(
     const id = requireStringParam(params, "id");
 
     try {
-      // Delete the room via the API
-      await apiDelete(`/api/rooms/${encodePathSegment(id)}`, token);
-
-      // Return 204 No Content response
-      return null;
+      // Das Backend nennt, ob der Raum gelöscht oder archiviert wurde
+      // (#6845); die Seite sagt es im Hinweis.
+      const result = await apiDelete<{ data?: { outcome?: string } }>(
+        `/api/rooms/${encodePathSegment(id)}`,
+        token,
+      );
+      return result?.data ?? null;
     } catch (error) {
       logger.error("room delete failed", {
         room_id: id,

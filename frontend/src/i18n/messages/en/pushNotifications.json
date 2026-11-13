@@ -49,5 +49,6 @@
   "installTooltip": "Starts installing moto as an app on this device.",
   "checkAgainTooltip": "Checks again whether moto may notify you on this device.",
   "sendTestDescription": "Sends you a test notification right away.",
-  "restartDescription": "Takes you through the steps to turn on notifications again."
+  "restartDescription": "Takes you through the steps to turn on notifications again.",
+  "moreActionsHint": "Shows more actions."
 }

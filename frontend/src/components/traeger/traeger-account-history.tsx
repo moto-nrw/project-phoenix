@@ -1,7 +1,8 @@
 "use client";
 
 // Verlauf des Träger-Büros (#5474): wer wann eine Person eingeladen, eine
-// Einladung zurückgenommen, Rollen geändert oder eine Person entfernt hat.
+// Einladung zurückgenommen, Rollen oder einen Namen (#4693) geändert oder
+// eine Person entfernt hat.
 // Nur zum Lesen, neueste zuerst, seitenweise.
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -29,6 +30,7 @@ const ACTION_LABELS: Readonly<Record<TraegerAccountChangeAction, string>> = {
   invitation_accepted: "Einladung angenommen",
   roles_changed: "Rollen geändert",
   member_removed: "Entfernt",
+  name_changed: "Name geändert",
 };
 
 const BERLIN_TIME = new Intl.DateTimeFormat("de-DE", {
@@ -41,9 +43,11 @@ function roleNames(roles: readonly TraegerRole[]): string {
   return roles.map((role) => TRAEGER_ROLE_LABELS[role]).join(", ") || "keine";
 }
 
-/** The roles a change names, in one line. */
+/** The roles or the name a change names, in one line. */
 function historyDetail(entry: TraegerAccountHistoryEntry): string {
   switch (entry.action) {
+    case "name_changed":
+      return `Neuer Name: ${entry.targetName || "–"}.`;
     case "roles_changed":
       return `Vorher: ${roleNames(entry.rolesBefore)}. Jetzt: ${roleNames(entry.rolesAfter)}.`;
     case "member_removed":
@@ -136,7 +140,7 @@ export function TraegerAccountHistory({
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "den Verlauf",
+        object: "die Liste der Änderungen",
         retry: () => void load(),
       });
     } finally {
@@ -172,7 +176,7 @@ export function TraegerAccountHistory({
   return (
     <SectionCard
       title="Verlauf"
-      description="Wer wann Personen eingeladen, Rollen geändert oder entfernt hat. Nur zum Lesen."
+      description="Wer wann Personen eingeladen, Rollen oder Namen geändert oder entfernt hat. Nur zum Lesen."
     >
       {historyLoad.error ? (
         <LoadErrorAlert error={historyLoad.error} actionLayout="responsive" />

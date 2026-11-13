@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-const parentChildWriteModule = "github.com/moto-nrw/project-phoenix"
+const parentChildWriteModule = "github.com/moto-ogs/project-phoenix"
 
 func parentFlowsProject(t *testing.T) string {
 	t.Helper()

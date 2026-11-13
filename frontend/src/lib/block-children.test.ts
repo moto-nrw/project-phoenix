@@ -26,7 +26,7 @@ describe("blockChildrenLabel (#3921)", () => {
     ).toBe("12 von 18 da");
   });
 
-  it("nennt Kinder, die gegangen sind, getrennt", () => {
+  it("nennt Kinder, die nicht mehr im Raum sind, getrennt", () => {
     expect(
       blockChildrenLabel({
         ...counts,
@@ -34,7 +34,7 @@ describe("blockChildrenLabel (#3921)", () => {
         currentStudentsCount: 12,
         plannedStudentsCount: 18,
       }),
-    ).toBe("12 von 18 da · 3 gegangen");
+    ).toBe("12 von 18 da · 3 nicht mehr im Raum");
   });
 
   it("zeigt bei einem Block ohne eigene Kinder nie „von 0“", () => {
@@ -43,7 +43,7 @@ describe("blockChildrenLabel (#3921)", () => {
       presentStudentsCount: 41,
       currentStudentsCount: 9,
     });
-    expect(label).toBe("9 da · 32 gegangen");
+    expect(label).toBe("9 da · 32 nicht mehr im Raum");
     expect(label).not.toContain("von 0");
   });
 
@@ -55,7 +55,7 @@ describe("blockChildrenLabel (#3921)", () => {
         currentStudentsCount: 10,
         plannedStudentsCount: 6,
       }),
-    ).toBe("10 da · 1 gegangen");
+    ).toBe("10 da · 1 nicht mehr im Raum");
   });
 
   it("nimmt ohne neue Felder die bisherigen Zählungen", () => {

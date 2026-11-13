@@ -6,7 +6,7 @@ import (
 	"maps"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/domain"
 )
 
 // orderView returns the school's orders of [from, to] (#3873). A read

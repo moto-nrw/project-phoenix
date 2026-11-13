@@ -17,6 +17,7 @@ type PickupExceptionFilter struct {
 	StudentIDs []int64
 	Date       string
 	From       string
+	To         string
 }
 
 type StudentStatusDayProjection struct {
@@ -31,6 +32,7 @@ type StudentStatusDayFilter struct {
 	StudentIDs []int64
 	Date       string
 	From       string
+	To         string
 	ActiveOnly bool
 	LatestOnly bool
 }

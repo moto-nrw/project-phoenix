@@ -466,6 +466,72 @@ describe("AdminEnrollmentDetail approval without an offering", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("names offering changes since submission and approves only after confirmation (#6837)", async () => {
+    mocks.getAdminRequest.mockResolvedValue({
+      id: "request-1",
+      phase_id: "phase-1",
+      phase_name: "2026/27",
+      care_offering_selection_mode: "optional",
+      guardian_first_name: "Mara",
+      guardian_last_name: "Beispiel",
+      guardian_email: "mara@example.test",
+      submitted_at: "2026-08-05T10:00:00Z",
+      status_token: "status-token",
+      children: [
+        adjustmentChild({
+          status: "submitted",
+          offerings: [
+            {
+              offering_id: "7",
+              offering_name: "Ganztag",
+              days_of_week_mode: "fixed",
+              available_days: ["mon", "tue", "wed", "thu"],
+              price_cents: 9500,
+              submitted_terms: {
+                name: "Ganztag",
+                price_cents: 8000,
+                days_of_week_mode: "fixed",
+                available_days: ["mon", "tue", "wed", "thu", "fri"],
+              },
+              changed_terms: ["price", "days"],
+            },
+          ],
+        }),
+      ],
+    });
+    mocks.decideAdminChild.mockResolvedValue({
+      id: "child-1",
+      status: "approved",
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    const submittedTerms =
+      "Seit der Anmeldung geändert. Die Eltern haben gewählt: 80,00 € pro Monat, Tage: Mo, Di, Mi, Do, Fr.";
+    expect(await screen.findByText(submittedTerms)).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+    expect(mocks.decideAdminChild).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        "Ein Angebot hat sich nach der Anmeldung geändert. Beim Bestätigen gelten die neuen Angaben. Bitte informieren Sie die Familie.",
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neue Angaben bestätigen" }),
+    );
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+        undefined,
+        true,
+      );
+    });
+  });
+
   it.each([
     {
       name: "the phase requires an offering",

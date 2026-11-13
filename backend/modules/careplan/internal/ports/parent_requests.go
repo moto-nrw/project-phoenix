@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
 )
 
 // ParentRequestRights is what the caller may decide across the request
@@ -94,6 +94,17 @@ type ExcusedBulkPort interface {
 	ApproveExcusedBulk(ctx context.Context, requestID int64, reason string, reviewerID int64, expectedVersion string) error
 }
 
+// MasterDataClassChanges follows an approved Klasse into the Regeltermine
+// (#6951). Lock takes the shared class-writes gate and then the recurrence
+// gate, before any child row lock. Follow re-reconciles the offering-sourced
+// Regeltermine and moves each child between the planned occurrences of the
+// Regeltermine with a Klasse or Jahrgang target, from the given day on; the
+// map holds each child's Klasse before the write.
+type MasterDataClassChanges struct {
+	Lock   func(ctx context.Context) error
+	Follow func(ctx context.Context, previousClasses map[int64]string, from careplan.Date) error
+}
+
 // MasterDataBulkPort is the Stammdaten queue's side of the bulk approval. It
 // also holds the one student-lock frontier every cross-kind command takes
 // after its request rows.
@@ -103,6 +114,12 @@ type MasterDataBulkPort interface {
 	// absent from the result.
 	GetBulkCandidate(ctx context.Context, requestIDs []int64) (map[int64]*careplan.MasterDataReviewItem, error)
 	LockBulkRequest(ctx context.Context, requestID int64) error
+	// LockBulkClassChanges takes the gates a class approval among the
+	// candidates needs, before LockBulkStudents takes any child.
+	LockBulkClassChanges(ctx context.Context, candidates map[int64]*careplan.MasterDataReviewItem) error
 	LockBulkStudents(ctx context.Context, studentIDs []int64) error
+	// FollowBulkClassChanges runs apply and follows every Klasse its
+	// decisions changed in one call afterwards.
+	FollowBulkClassChanges(ctx context.Context, apply func(context.Context) error) error
 	Decide(ctx context.Context, input masterdatarequests.DecideInput) (*careplan.MasterDataReviewItem, error)
 }

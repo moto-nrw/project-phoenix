@@ -64,6 +64,13 @@ type StudentEnrollmentQuery interface {
 	ListStudentEnrollments(context.Context, StudentEnrollmentFilter) ([]StudentEnrollment, error)
 }
 
+// SourcedRosterChanges is a validated offering-roster diff in the caller's tenant transaction.
+type SourcedRosterChanges struct {
+	Create []StudentEnrollmentInput
+	Delete []int64
+	Ends   map[int64]string
+}
+
 type StudentEnrollmentCommand interface {
 	CreateStudentEnrollment(context.Context, StudentEnrollmentInput) (StudentEnrollment, error)
 	UpdateStudentEnrollment(context.Context, int64, StudentEnrollmentInput) (StudentEnrollment, error)

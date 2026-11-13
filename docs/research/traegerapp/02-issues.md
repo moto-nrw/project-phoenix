@@ -1,4 +1,4 @@
-# Träger-Ebene im Issue-Tracker (moto-nrw/project-phoenix), Stand 2026-08-29
+# Träger-Ebene im Issue-Tracker (moto-ogs/project-phoenix), Stand 2026-08-29
 
 Recherchebasis: `gh issue list` mit den Suchbegriffen Träger, Traeger, Trägerapp, Träger-Portal,
 organization, org-scope, Organisation, Karriereportal, Karriere, Bewerber, Recruiting,
@@ -10,43 +10,43 @@ plus alle offenen Epics. Bodies und Kommentare der relevanten Issues wurden gele
 
 | Nr | Titel | Status | Labels | Worum es geht |
 |---|---|---|---|---|
-| [674](https://github.com/moto-nrw/project-phoenix/issues/674) | feature: Trägerapp | OPEN | epic, ogs demanded feature, priority: medium | Dach-Epic der Trägerapp: Mehr-Standort-Übersicht, Dokumentenupload, Abrechnung, Zeiterfassungs-Aggregat |
-| [935](https://github.com/moto-nrw/project-phoenix/issues/935) | Träger-Admin Rolle: Zugriff auf alle OGS eines Trägers | OPEN | feature, priority: medium | Rolle `organization_admin` mit automatischem Zugang zu allen OGS eines Trägers |
-| [936](https://github.com/moto-nrw/project-phoenix/issues/936) | Onboarding: Neue OGS anlegen und initialisieren | OPEN | feature, priority: medium | Wizard für neue OGS inkl. Räume, Gruppen, Admin-Einladung, Subdomain-Prüfung |
-| [934](https://github.com/moto-nrw/project-phoenix/issues/934) | Admin-UI: Träger und OGS verwalten | CLOSED | feature, priority: medium | Operator-CRUD für Träger und Schulen, umgesetzt bis auf Träger-Branding |
-| [1322](https://github.com/moto-nrw/project-phoenix/issues/1322) | Epic: Schnittstellen-Integrationen (Schulsysteme, Träger, Reporting) | OPEN | epic, ogs demanded feature, feature | Drei Tracks: Schulsysteme, Träger-Systeme (BuT, Abrechnung), Reporting-Export |
-| [2639](https://github.com/moto-nrw/project-phoenix/issues/2639) | Epic: Elternabrechnung, Grundlage, Rechnungen, SEPA und Träger-Export | OPEN | epic, priority: medium, SH | Klammer-Epic Elternabrechnung inkl. Datenexport an Träger oder Kommune |
-| [2791](https://github.com/moto-nrw/project-phoenix/issues/2791) | Operator: Abrechnungsreport aktiv verwaltete Kinder je Stichtag | OPEN | feature, priority: medium | Stichtagsreport je Schule als Beleg für Rechnungen an Träger |
-| [1459](https://github.com/moto-nrw/project-phoenix/issues/1459) | Add tenant/org subscription tiers and paywall gated features | OPEN | (keine) | Tarife und Kinderkontingent pro Tenant, offene Frage: Vertrag je Schule oder je Organisation |
-| [704](https://github.com/moto-nrw/project-phoenix/issues/704) | feature: Ferienbetreuung in allen Apps implementieren | OPEN | epic, ogs demanded feature, priority: high | Ferien-Pooling über OGS-Grenzen hinweg innerhalb eines Trägers |
-| [1021](https://github.com/moto-nrw/project-phoenix/issues/1021) | Accounts zusätzlichen Tenants zuweisen (admin/operator UI) | CLOSED | (keine) | API und UI, um bestehende Konten weiteren Schulen zuzuordnen |
-| [1139](https://github.com/moto-nrw/project-phoenix/issues/1139) | Announcements org- und tenant-spezifisch adressieren | CLOSED | feature, priority: medium | `target_org_ids` und `target_tenant_ids` für Ankündigungen |
-| [1017](https://github.com/moto-nrw/project-phoenix/issues/1017) | tenant deletion / deactivation | CLOSED | feature, priority: medium | Träger und Tenants löschbar bzw. deaktivierbar |
-| [1435](https://github.com/moto-nrw/project-phoenix/issues/1435) | Operator-Dashboard zeigt gelöschte Träger in Tabellen und Dropdowns | CLOSED | bug | Gelöschte Träger tauchten in Tabellen und Dropdowns auf |
-| [1975](https://github.com/moto-nrw/project-phoenix/issues/1975) | Tenant-Umschalter wechselt nicht bei slug != subdomain (stiller 404) | CLOSED | bug, priority: high | Stiller 404 beim Schulwechsel, Kundenmeldung Träger Gemeinde Burbach |
-| [861](https://github.com/moto-nrw/project-phoenix/issues/861) | Export historische Anwesenheit für Berichterstattung | CLOSED | ogs demanded feature | Caritas-Anfrage: Nachweis gegenüber Behörden |
-| [2606](https://github.com/moto-nrw/project-phoenix/issues/2606) | Statistik: Anwesenheits-/Fehlzeitenquoten und Raumauslastung | CLOSED | feature, priority: medium | Auswertungsseite mit Export, Grundlage für Trägerberichte |
-| [2223](https://github.com/moto-nrw/project-phoenix/issues/2223) | Export-Landschaft konsolidieren | OPEN | maintenance, priority: medium | Doppelte Exporte und Layouts vereinheitlichen |
-| [2635](https://github.com/moto-nrw/project-phoenix/issues/2635) | Fehlende Schnittstellen: CalDAV, SFTP-Dateiaustausch und RSS | OPEN | feature, priority: medium, SH | SFTP-Dateiaustausch als möglicher Träger-Übergabeweg |
-| [1446](https://github.com/moto-nrw/project-phoenix/issues/1446) | iServ Export -> moto Import | OPEN | ogs demanded feature, feature, priority: medium | Stammdatenimport aus Schulsystem |
-| [1417](https://github.com/moto-nrw/project-phoenix/issues/1417) | Zeiterfassung Admin-Übersicht Soll/Ist/Saldo + DATEV Export | CLOSED | feature, priority: medium | DATEV/XLSX-Export, ausdrücklich kein Total über mehrere Schulen |
-| [1583](https://github.com/moto-nrw/project-phoenix/issues/1583) | Enrollment legal texts, consent model, AVV readiness | OPEN | priority: high | Verantwortlicher (Schule/Träger/UG) als Produktmodell fehlt |
-| [2789](https://github.com/moto-nrw/project-phoenix/issues/2789) | Rechtstext-Links in den Portal-Footern | OPEN | feature, priority: medium | Datenschutzinfo des Trägers verlinken, nicht die von moto |
-| [2180](https://github.com/moto-nrw/project-phoenix/issues/2180) | Startseite /home: rollenspezifischer Einstieg | OPEN | ogs demanded feature, priority: high | Rechte- statt rollennamenbasierter Aufbau, relevant für Trägerrollen |
-| [1918](https://github.com/moto-nrw/project-phoenix/issues/1918) | System-wide domain and data-lifecycle audit | OPEN | maintenance, priority: low | Organization/School-Lifecycle, Slug-Duplikate, Tenant-Löschung |
-| [2580](https://github.com/moto-nrw/project-phoenix/issues/2580) | Backend-Zielarchitektur und blockers-first Migration | OPEN | ready-for-agent | Modul „Organisation & Tenancy" als eigenes Fachmodul |
-| [2659](https://github.com/moto-nrw/project-phoenix/issues/2659) | Expose Organization lookup and lifecycle capabilities | OPEN | ready-for-agent | Facade über `platform.organizations` |
-| [2660](https://github.com/moto-nrw/project-phoenix/issues/2660) | Expose School lookup and lifecycle capabilities | OPEN | ready-for-agent | Facade über `platform.schools`, Slug-Auflösung erhalten |
-| [2721](https://github.com/moto-nrw/project-phoenix/issues/2721) | Migrate roles, permissions, account tenants, operator access | OPEN | ready-for-agent | `auth.account_tenants`, Rollen und Scopes hinter eine Facade |
-| [2708](https://github.com/moto-nrw/project-phoenix/issues/2708) | Cut Data Import over to owner Commands | OPEN | ready-for-agent | Import schreibt künftig über Owner-Commands, betrifft organizations/schools |
-| [1179](https://github.com/moto-nrw/project-phoenix/issues/1179) | Epic: Architecture Refactor Roadmap | OPEN | epic | Dach-Epic des Architekturumbaus |
-| [1944](https://github.com/moto-nrw/project-phoenix/issues/1944) | Web-Sessions und API-Grenze schrittweise vereinfachen | OPEN | maintenance, priority: low | Backend-owned Sessions, Portal-Isolation, Tenant-Wechsel |
-| [1675](https://github.com/moto-nrw/project-phoenix/issues/1675) | Research and design parent billing and invoices | CLOSED | (keine) | Vorarbeit zu #2639, bewusst zurückgestellt |
-| [1479](https://github.com/moto-nrw/project-phoenix/issues/1479) | Settings IA überarbeiten und Settings-Fläche reduzieren | OPEN | maintenance | Setup-Profile der Kundschaft, Organisationseinheit teils Angebot statt Gruppe |
-| [1523](https://github.com/moto-nrw/project-phoenix/issues/1523) | Settings IA Folgearbeit: Gruppenmodus und Care-Konzept | OPEN | maintenance | Setting als Setup-/Organisationsentscheidung, viele offene Fragen |
-| [1445](https://github.com/moto-nrw/project-phoenix/issues/1445) | epic: Intelligenter Dienstplan | OPEN | epic | Personalbedarf je Raum, Aktivität, Standort |
-| [2314](https://github.com/moto-nrw/project-phoenix/issues/2314) | Support multi-school, MFA, and operator Gerätekopplung | OPEN | ready-for-agent | Gerätekopplung bei Konten mit mehreren Schulen |
-| [924](https://github.com/moto-nrw/project-phoenix/issues/924) | fix: Multi-Tenant Review | CLOSED | (keine) | Vollständigkeitsprüfung der Tenant-Isolation über alle Layer |
+| [674](https://github.com/moto-ogs/project-phoenix/issues/674) | feature: Trägerapp | OPEN | epic, ogs demanded feature, priority: medium | Dach-Epic der Trägerapp: Mehr-Standort-Übersicht, Dokumentenupload, Abrechnung, Zeiterfassungs-Aggregat |
+| [935](https://github.com/moto-ogs/project-phoenix/issues/935) | Träger-Admin Rolle: Zugriff auf alle OGS eines Trägers | OPEN | feature, priority: medium | Rolle `organization_admin` mit automatischem Zugang zu allen OGS eines Trägers |
+| [936](https://github.com/moto-ogs/project-phoenix/issues/936) | Onboarding: Neue OGS anlegen und initialisieren | OPEN | feature, priority: medium | Wizard für neue OGS inkl. Räume, Gruppen, Admin-Einladung, Subdomain-Prüfung |
+| [934](https://github.com/moto-ogs/project-phoenix/issues/934) | Admin-UI: Träger und OGS verwalten | CLOSED | feature, priority: medium | Operator-CRUD für Träger und Schulen, umgesetzt bis auf Träger-Branding |
+| [1322](https://github.com/moto-ogs/project-phoenix/issues/1322) | Epic: Schnittstellen-Integrationen (Schulsysteme, Träger, Reporting) | OPEN | epic, ogs demanded feature, feature | Drei Tracks: Schulsysteme, Träger-Systeme (BuT, Abrechnung), Reporting-Export |
+| [2639](https://github.com/moto-ogs/project-phoenix/issues/2639) | Epic: Elternabrechnung, Grundlage, Rechnungen, SEPA und Träger-Export | OPEN | epic, priority: medium, SH | Klammer-Epic Elternabrechnung inkl. Datenexport an Träger oder Kommune |
+| [2791](https://github.com/moto-ogs/project-phoenix/issues/2791) | Operator: Abrechnungsreport aktiv verwaltete Kinder je Stichtag | OPEN | feature, priority: medium | Stichtagsreport je Schule als Beleg für Rechnungen an Träger |
+| [1459](https://github.com/moto-ogs/project-phoenix/issues/1459) | Add tenant/org subscription tiers and paywall gated features | OPEN | (keine) | Tarife und Kinderkontingent pro Tenant, offene Frage: Vertrag je Schule oder je Organisation |
+| [704](https://github.com/moto-ogs/project-phoenix/issues/704) | feature: Ferienbetreuung in allen Apps implementieren | OPEN | epic, ogs demanded feature, priority: high | Ferien-Pooling über OGS-Grenzen hinweg innerhalb eines Trägers |
+| [1021](https://github.com/moto-ogs/project-phoenix/issues/1021) | Accounts zusätzlichen Tenants zuweisen (admin/operator UI) | CLOSED | (keine) | API und UI, um bestehende Konten weiteren Schulen zuzuordnen |
+| [1139](https://github.com/moto-ogs/project-phoenix/issues/1139) | Announcements org- und tenant-spezifisch adressieren | CLOSED | feature, priority: medium | `target_org_ids` und `target_tenant_ids` für Ankündigungen |
+| [1017](https://github.com/moto-ogs/project-phoenix/issues/1017) | tenant deletion / deactivation | CLOSED | feature, priority: medium | Träger und Tenants löschbar bzw. deaktivierbar |
+| [1435](https://github.com/moto-ogs/project-phoenix/issues/1435) | Operator-Dashboard zeigt gelöschte Träger in Tabellen und Dropdowns | CLOSED | bug | Gelöschte Träger tauchten in Tabellen und Dropdowns auf |
+| [1975](https://github.com/moto-ogs/project-phoenix/issues/1975) | Tenant-Umschalter wechselt nicht bei slug != subdomain (stiller 404) | CLOSED | bug, priority: high | Stiller 404 beim Schulwechsel, Kundenmeldung Träger Gemeinde Burbach |
+| [861](https://github.com/moto-ogs/project-phoenix/issues/861) | Export historische Anwesenheit für Berichterstattung | CLOSED | ogs demanded feature | Caritas-Anfrage: Nachweis gegenüber Behörden |
+| [2606](https://github.com/moto-ogs/project-phoenix/issues/2606) | Statistik: Anwesenheits-/Fehlzeitenquoten und Raumauslastung | CLOSED | feature, priority: medium | Auswertungsseite mit Export, Grundlage für Trägerberichte |
+| [2223](https://github.com/moto-ogs/project-phoenix/issues/2223) | Export-Landschaft konsolidieren | OPEN | maintenance, priority: medium | Doppelte Exporte und Layouts vereinheitlichen |
+| [2635](https://github.com/moto-ogs/project-phoenix/issues/2635) | Fehlende Schnittstellen: CalDAV, SFTP-Dateiaustausch und RSS | OPEN | feature, priority: medium, SH | SFTP-Dateiaustausch als möglicher Träger-Übergabeweg |
+| [1446](https://github.com/moto-ogs/project-phoenix/issues/1446) | iServ Export -> moto Import | OPEN | ogs demanded feature, feature, priority: medium | Stammdatenimport aus Schulsystem |
+| [1417](https://github.com/moto-ogs/project-phoenix/issues/1417) | Zeiterfassung Admin-Übersicht Soll/Ist/Saldo + DATEV Export | CLOSED | feature, priority: medium | DATEV/XLSX-Export, ausdrücklich kein Total über mehrere Schulen |
+| [1583](https://github.com/moto-ogs/project-phoenix/issues/1583) | Enrollment legal texts, consent model, AVV readiness | OPEN | priority: high | Verantwortlicher (Schule/Träger/UG) als Produktmodell fehlt |
+| [2789](https://github.com/moto-ogs/project-phoenix/issues/2789) | Rechtstext-Links in den Portal-Footern | OPEN | feature, priority: medium | Datenschutzinfo des Trägers verlinken, nicht die von moto |
+| [2180](https://github.com/moto-ogs/project-phoenix/issues/2180) | Startseite /home: rollenspezifischer Einstieg | OPEN | ogs demanded feature, priority: high | Rechte- statt rollennamenbasierter Aufbau, relevant für Trägerrollen |
+| [1918](https://github.com/moto-ogs/project-phoenix/issues/1918) | System-wide domain and data-lifecycle audit | OPEN | maintenance, priority: low | Organization/School-Lifecycle, Slug-Duplikate, Tenant-Löschung |
+| [2580](https://github.com/moto-ogs/project-phoenix/issues/2580) | Backend-Zielarchitektur und blockers-first Migration | OPEN | ready-for-agent | Modul „Organisation & Tenancy" als eigenes Fachmodul |
+| [2659](https://github.com/moto-ogs/project-phoenix/issues/2659) | Expose Organization lookup and lifecycle capabilities | OPEN | ready-for-agent | Facade über `platform.organizations` |
+| [2660](https://github.com/moto-ogs/project-phoenix/issues/2660) | Expose School lookup and lifecycle capabilities | OPEN | ready-for-agent | Facade über `platform.schools`, Slug-Auflösung erhalten |
+| [2721](https://github.com/moto-ogs/project-phoenix/issues/2721) | Migrate roles, permissions, account tenants, operator access | OPEN | ready-for-agent | `auth.account_tenants`, Rollen und Scopes hinter eine Facade |
+| [2708](https://github.com/moto-ogs/project-phoenix/issues/2708) | Cut Data Import over to owner Commands | OPEN | ready-for-agent | Import schreibt künftig über Owner-Commands, betrifft organizations/schools |
+| [1179](https://github.com/moto-ogs/project-phoenix/issues/1179) | Epic: Architecture Refactor Roadmap | OPEN | epic | Dach-Epic des Architekturumbaus |
+| [1944](https://github.com/moto-ogs/project-phoenix/issues/1944) | Web-Sessions und API-Grenze schrittweise vereinfachen | OPEN | maintenance, priority: low | Backend-owned Sessions, Portal-Isolation, Tenant-Wechsel |
+| [1675](https://github.com/moto-ogs/project-phoenix/issues/1675) | Research and design parent billing and invoices | CLOSED | (keine) | Vorarbeit zu #2639, bewusst zurückgestellt |
+| [1479](https://github.com/moto-ogs/project-phoenix/issues/1479) | Settings IA überarbeiten und Settings-Fläche reduzieren | OPEN | maintenance | Setup-Profile der Kundschaft, Organisationseinheit teils Angebot statt Gruppe |
+| [1523](https://github.com/moto-ogs/project-phoenix/issues/1523) | Settings IA Folgearbeit: Gruppenmodus und Care-Konzept | OPEN | maintenance | Setting als Setup-/Organisationsentscheidung, viele offene Fragen |
+| [1445](https://github.com/moto-ogs/project-phoenix/issues/1445) | epic: Intelligenter Dienstplan | OPEN | epic | Personalbedarf je Raum, Aktivität, Standort |
+| [2314](https://github.com/moto-ogs/project-phoenix/issues/2314) | Support multi-school, MFA, and operator Gerätekopplung | OPEN | ready-for-agent | Gerätekopplung bei Konten mit mehreren Schulen |
+| [924](https://github.com/moto-ogs/project-phoenix/issues/924) | fix: Multi-Tenant Review | CLOSED | (keine) | Vollständigkeitsprüfung der Tenant-Isolation über alle Layer |
 
 ## 2. Themen und konkrete Anforderungen
 

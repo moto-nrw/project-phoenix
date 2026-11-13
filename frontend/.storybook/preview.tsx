@@ -9,6 +9,7 @@ import type { TenantInfo } from "~/lib/tenant-api";
 import deMessages from "~/i18n/messages/de.generated";
 
 import "~/styles/globals.css";
+import "./fonts.css";
 
 // Fake tenant metadata satisfying TenantInfo (see ~/lib/tenant-api) so
 // components reading tenant context (LOCATION_COLORS-driven badges, feature
@@ -28,6 +29,19 @@ const storybookTenant: TenantInfo = {
 };
 
 const preview: Preview = {
+  // Schriften vor jedem Render laden, wie next/font es in der App vorab tut.
+  // Sonst misst ein Baustein beim Mounten mit der Ersatzschrift und misst
+  // nicht neu: der Unterstrich der damaligen NavigationTabs saß im Pixel-Vergleich
+  // (#6562) in etwa jedem fünften Lauf 18 px zu weit links.
+  loaders: [
+    async () => {
+      await Promise.all([
+        document.fonts.load('1em "Inter Storybook"'),
+        document.fonts.load('700 1em "Kalam Storybook"'),
+      ]);
+      return {};
+    },
+  ],
   parameters: {
     a11y: {
       test: "todo",

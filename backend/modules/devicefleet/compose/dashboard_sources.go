@@ -1,9 +1,9 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // DashboardDependencies are the legacy readers the dashboard aggregate needs.

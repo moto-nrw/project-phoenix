@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 func (m *Service) PhaseExpirySnapshots(ctx context.Context, input enrollment.PhaseExpiryInput) ([]*enrollment.PhaseExpirySnapshot, error) {

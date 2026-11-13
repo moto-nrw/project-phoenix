@@ -1,0 +1,34 @@
+package messaging_test
+
+import (
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
+
+	"log/slog"
+	"testing"
+
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/application/parentmessaging"
+	messaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/uptrace/bun"
+)
+
+func newMockEmitter(
+	t testing.TB,
+	db *bun.DB,
+	threadRepo messaging.ParentMessageThreadRepository,
+	messageRepo messaging.ParentMessageRepository,
+	settings eventContract.TenantSettingsResolver,
+	broadcaster realtime.Broadcaster,
+	logger *slog.Logger,
+	decisions ...eventContract.DecisionNotifier,
+) eventContract.Emitter {
+	t.Helper()
+	var notifier eventContract.DecisionNotifier
+	if len(decisions) > 0 {
+		notifier = decisions[0]
+	}
+	return parentmessaging.NewEmitterWithDecisions(messaging.NewEventEmitter(api.NewCommunicationEventRuntime(db != nil, testpkg.TenantRuntime(t, db)), threadRepo, messageRepo, settingsValues.NewParentEventValues(settings), broadcaster, logger), notifier)
+}

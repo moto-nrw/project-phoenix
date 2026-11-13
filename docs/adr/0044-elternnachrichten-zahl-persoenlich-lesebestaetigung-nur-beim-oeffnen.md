@@ -1,10 +1,10 @@
 # Elternnachrichten: Zahl pro Person, Lesebestätigung nur beim Öffnen
 
 Status: accepted. Gilt für den Posteingang `Nachrichten` im OGS-Portal aus
-[#3673](https://github.com/moto-nrw/project-phoenix/issues/3673). Baut auf
-[#3654](https://github.com/moto-nrw/project-phoenix/issues/3654) (Team-Markierung
+[#3673](https://github.com/moto-ogs/project-phoenix/issues/3673). Baut auf
+[#3654](https://github.com/moto-ogs/project-phoenix/issues/3654) (Team-Markierung
 „ungelesen“) und
-[#3663](https://github.com/moto-nrw/project-phoenix/issues/3663) („Alle als
+[#3663](https://github.com/moto-ogs/project-phoenix/issues/3663) („Alle als
 gelesen markieren“) auf. Recherche:
 [team-inbox-lesestatus-2026-09-30.md](../research/team-inbox-lesestatus-2026-09-30.md).
 

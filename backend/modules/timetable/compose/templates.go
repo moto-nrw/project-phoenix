@@ -4,11 +4,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // The template, materialization, series conversion, roster and conflict
@@ -53,4 +53,9 @@ func NewInstanceAutoEnd(instances ports.LegacyInstanceReads, completion timetabl
 // NewStudentTemplateDays composes the hand planning of #5102 (ADR 0128).
 func NewStudentTemplateDays(deps ports.StudentTemplateDaysDependencies) (timetable.StudentTemplateDays, error) {
 	return application.NewStudentTemplateDays(deps)
+}
+
+// NewCohortRosters composes the Klasse/Gruppe roster follow-up (#6841).
+func NewCohortRosters(deps ports.CohortRosterDependencies) (timetable.CohortRosters, error) {
+	return application.NewCohortRosters(deps)
 }

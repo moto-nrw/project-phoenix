@@ -1,8 +1,8 @@
 package compose
 
 import (
-	postgresNative "github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	postgresNative "github.com/moto-ogs/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 	"github.com/uptrace/bun"
 )
 

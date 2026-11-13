@@ -10,9 +10,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/observability"
+	customMiddleware "github.com/moto-ogs/project-phoenix/middleware"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/observability"
 	slogchi "github.com/samber/slog-chi"
 	"github.com/spf13/viper"
 )
@@ -218,6 +219,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 	generalRateLimiter.ExemptPathPrefix(emailWebhookPath + "/")
 	generalRateLimiter.ExemptPathPrefix(holidayRegistrationPath + "/")
 	generalRateLimiter.ExemptPathPrefix(holidayQuoteMount + "/")
+	generalRateLimiter.ExemptRequest(isPublicEnrollmentRequest)
 	generalRateLimiter.SetBucketFunc(func(r *http.Request) string {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
@@ -234,7 +236,38 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 	if securityLogger != nil {
 		generalRateLimiter.SetLogger(securityLogger)
 	}
+	router.Use(limitOnly(isPublicEnrollmentRequest, publicLinkRateLimit("enrollment-link", exemptLoopback)))
 	router.Use(generalRateLimiter.Middleware())
+}
+
+// limitOnly applies limit to the requests match selects and passes every
+// other request through untouched.
+func limitOnly(match func(*http.Request) bool, limit func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		limited := limit(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if match(r) {
+				limited.ServeHTTP(w, r)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// enrollmentPublicRoutes are the parent-facing routes of the school's online
+// enrollment below /api/enrollment.
+var enrollmentPublicRoutes = enrollmentAPI.PublicRoutes()
+
+// isPublicEnrollmentRequest reports whether r reaches a parent-facing route
+// of the school's online enrollment. The rate limiters run before routing,
+// so they match the path against the enrollment's own route table.
+func isPublicEnrollmentRequest(r *http.Request) bool {
+	path, ok := strings.CutPrefix(r.URL.Path, "/api"+enrollmentMount)
+	if !ok || !strings.HasPrefix(path, "/") {
+		return false
+	}
+	return enrollmentPublicRoutes.Match(chi.NewRouteContext(), r.Method, path)
 }
 
 // generalRateLimitFromEnv is the configured budget of one caller of the
@@ -270,6 +303,10 @@ type authRateLimiters struct {
 // buildAuthRateLimiters constructs the stricter auth-endpoint rate limiters
 // from RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE (default 5), wiring the security
 // logger when present. exemptLoopback lets loopback peers through (demo only).
+//
+// The login limiter spends its tokens on refused attempts and on mails only
+// (#6738, docs/agents/contracts.md "Client IP and rate limits"), so the many
+// accepted logins behind one school address do not use them up.
 func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, configuredLimit string, exemptLoopback bool) authRateLimiters {
 	authLimit := 5 // default: 5 requests per minute for auth
 	if limit := configuredLimit; limit != "" {
@@ -286,6 +323,7 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, conf
 		emailConfirm: customMiddleware.NewRateLimiter(authLimit, burst),
 		invitation:   customMiddleware.NewRateLimiter(authLimit, burst),
 	}
+	limiters.auth.SpendOnRefusals(sendsAuthMail)
 	for bucket, limiter := range map[string]*customMiddleware.RateLimiter{
 		"auth": limiters.auth, "email-confirm": limiters.emailConfirm, "invitation": limiters.invitation,
 	} {
@@ -301,6 +339,22 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, conf
 	return limiters
 }
 
+// authMailPathSuffixes end the auth-limited routes that mail a password-reset
+// link or a code under every portal: the reset request, the resend of a
+// sign-in code, and the caterer's start of a second factor or a passkey
+// enrollment. The confirmation of a reset sends none.
+var authMailPathSuffixes = []string{"/password-reset", "/mfa/resend", "/account/mfa/start", "/passkeys/enrollment/challenge"}
+
+// sendsAuthMail reports whether an auth-limited request asks for a mail.
+func sendsAuthMail(r *http.Request) bool {
+	for _, suffix := range authMailPathSuffixes {
+		if strings.HasSuffix(r.URL.Path, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
 // authRateLimitersFromEnv builds the auth-endpoint limiters from the root
 // configuration snapshot. Disabled limiters carry nil fields.
 func authRateLimitersFromEnv(enabled bool) authRateLimiters {
@@ -314,7 +368,8 @@ func authRateLimitersFromEnv(enabled bool) authRateLimiters {
 func (limiters authRateLimiters) enabled() bool { return limiters.auth != nil }
 
 // authMiddleware is the auth limiter's middleware, nil while rate limiting is
-// disabled. Tenant, operator, parent and school login share its budget.
+// disabled. Tenant, operator, parent and school login share its budget of
+// refused attempts per address.
 func (limiters authRateLimiters) authMiddleware() func(http.Handler) http.Handler {
 	if limiters.auth == nil {
 		return nil
@@ -337,40 +392,39 @@ const (
 	dataReturnBurst             = 10
 )
 
-// The public holiday registration is opened by many families from one
-// address at once: the school network, a parents' evening, a mobile carrier
-// (#6726). One family needs an offer, a quote, its proofs and the
+// A public link of a school or a Träger, the holiday registration (#6726)
+// and the school's online enrollment (#6739), is opened by many families
+// from one address at once: the school network, a parents' evening, a mobile
+// carrier. One family needs a form, its texts, its proofs and the
 // registration; the limit of one person would refuse the families behind it.
-// The link has its own limit for that, per address and split into reads and
+// Each link has its own limit for that, per address and split into reads and
 // writes like the general one. Turnstile and the stored-registration limits
 // of Enrollment stay in front of every write.
 //
-// These values are a floor. The link is exempt from the general limiter, so
-// its own limit must never be tighter than the general one an environment
-// configures: holidayRegistrationLimits takes the larger of both.
+// These values are a floor. The links are exempt from the general limiter,
+// so their own limit must never be tighter than the general one an
+// environment configures: publicLinkLimits takes the larger of both.
 const (
-	holidayRegistrationRequestsPerMinute = 1200
-	holidayRegistrationBurst             = 300
+	publicLinkRequestsPerMinute = 1200
+	publicLinkBurst             = 300
 )
 
-// holidayRegistrationLimits is the budget of the public holiday link beside
-// a general limiter of generalLimit and generalBurst.
-func holidayRegistrationLimits(generalLimit, generalBurst int) (requestsPerMinute, burst int) {
-	return max(holidayRegistrationRequestsPerMinute, generalLimit), max(holidayRegistrationBurst, generalBurst)
+// publicLinkLimits is the budget of a public link beside a general limiter
+// of generalLimit and generalBurst.
+func publicLinkLimits(generalLimit, generalBurst int) (requestsPerMinute, burst int) {
+	return max(publicLinkRequestsPerMinute, generalLimit), max(publicLinkBurst, generalBurst)
 }
 
-// holidayRegistrationRateLimit is nil when rate limiting is disabled.
-func holidayRegistrationRateLimit(enabled, exemptLoopback bool) func(http.Handler) http.Handler {
-	if !enabled {
-		return nil
-	}
-	limiter := customMiddleware.NewRateLimiter(holidayRegistrationLimits(generalRateLimitFromEnv()))
+// publicLinkRateLimit is the limiter of one public link; link names its
+// buckets in the rejection metric.
+func publicLinkRateLimit(link string, exemptLoopback bool) func(http.Handler) http.Handler {
+	limiter := customMiddleware.NewRateLimiter(publicLinkLimits(generalRateLimitFromEnv()))
 	limiter.SetBucketFunc(func(r *http.Request) string {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
-			return "holiday-link-read"
+			return link + "-read"
 		default:
-			return "holiday-link-write"
+			return link + "-write"
 		}
 	})
 	limiter.SetRejectObserver(observability.RecordRateLimitRejection)
@@ -381,6 +435,14 @@ func holidayRegistrationRateLimit(enabled, exemptLoopback bool) func(http.Handle
 		limiter.SetLogger(securityLogger)
 	}
 	return limiter.Middleware()
+}
+
+// holidayRegistrationRateLimit is nil when rate limiting is disabled.
+func holidayRegistrationRateLimit(enabled, exemptLoopback bool) func(http.Handler) http.Handler {
+	if !enabled {
+		return nil
+	}
+	return publicLinkRateLimit("holiday-link", exemptLoopback)
 }
 
 // dataReturnRateLimit is nil when rate limiting is disabled.

@@ -4,11 +4,11 @@ import (
 	context "context"
 	time "time"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleBirthday "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
+	models "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type rawCRUDRepository[T any] interface {

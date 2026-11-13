@@ -193,7 +193,7 @@ function PersonFields({
     props: Readonly<{ type?: string; required: boolean; maxLength: number }>,
   ) => (
     <Input
-      controlSize="compact"
+      controlSize="touch"
       name={`${prefix}.${path}`}
       label={label}
       type={props.type}
@@ -440,7 +440,7 @@ function ContactFields({
             className="grid grid-cols-1 gap-3 sm:grid-cols-3"
           >
             <Input
-              controlSize="compact"
+              controlSize="touch"
               name={`${path}.name`}
               label="Name"
               required
@@ -450,7 +450,7 @@ function ContactFields({
               onChange={(event) => set(index, { name: event.target.value })}
             />
             <Input
-              controlSize="compact"
+              controlSize="touch"
               name={`${path}.phone`}
               type="tel"
               label={phoneRequired ? "Telefon" : "Telefon (freiwillig)"}
@@ -461,7 +461,7 @@ function ContactFields({
               onChange={(event) => set(index, { phone: event.target.value })}
             />
             <Input
-              controlSize="compact"
+              controlSize="touch"
               name={`${path}.relationship`}
               label="Beziehung (freiwillig)"
               maxLength={60}
@@ -616,7 +616,7 @@ function Questions({
               <LazyDatePicker
                 id={control.id}
                 name={control.name}
-                controlSize="md"
+                controlSize="compact"
                 value={control.value}
                 onChange={control.onChange}
                 invalid={control.invalid}
@@ -715,7 +715,7 @@ export function ChildEditor(
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
-              controlSize="compact"
+              controlSize="touch"
               name={`${prefix}.first_name`}
               label="Vorname"
               required
@@ -725,7 +725,7 @@ export function ChildEditor(
               onChange={(event) => set({ firstName: event.target.value })}
             />
             <Input
-              controlSize="compact"
+              controlSize="touch"
               name={`${prefix}.last_name`}
               label="Nachname"
               required
@@ -783,7 +783,7 @@ export function ChildEditor(
             />
             {guest ? (
               <Input
-                controlSize="compact"
+                controlSize="touch"
                 name={`${prefix}.guest_school_name`}
                 label="Name der eigenen Schule (freiwillig)"
                 maxLength={120}

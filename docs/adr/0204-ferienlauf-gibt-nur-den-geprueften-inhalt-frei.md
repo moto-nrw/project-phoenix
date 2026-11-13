@@ -5,9 +5,9 @@ status: proposed
 # Ferienlauf gibt nur den geprüften Inhalt frei
 
 **Status: Vorgeschlagen.** Vorschlag vom 10.11.2026 zu
-[#6506](https://github.com/moto-nrw/project-phoenix/issues/6506) (EC-2, EC-9,
+[#6506](https://github.com/moto-ogs/project-phoenix/issues/6506) (EC-2, EC-9,
 EC-10, EC-11). Grundlage ist die
-[Recherche mit Optionen A bis C](https://github.com/moto-nrw/project-phoenix/issues/6506#issuecomment-6774486298)
+[Recherche mit Optionen A bis C](https://github.com/moto-ogs/project-phoenix/issues/6506#issuecomment-6774486298)
 und Yannicks Entscheidung vom 10.11.2026 für A: die Freigabe an einen
 Fingerabdruck des geprüften Inhalts binden, wie bei der Monatsabrechnung.
 Ändert Punkt 6 und die verworfene Option „Entwürfe beim Start speichern“ von

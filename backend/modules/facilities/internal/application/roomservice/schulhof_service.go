@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 type SchulhofService interface {

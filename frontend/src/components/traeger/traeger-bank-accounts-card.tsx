@@ -1,6 +1,6 @@
 "use client";
 
-import { Landmark, Plus } from "lucide-react";
+import { Landmark, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -102,7 +102,10 @@ export function TraegerBankAccountsCard({
           <span className="min-w-0 wrap-anywhere">{account.label}</span>
           {account.isDefault ? (
             <StatusBadge label="Standard" tone="green" compact />
-          ) : null}
+          ) : (
+            // Only the standard account is printed: say so at the others.
+            <StatusBadge label="Auf keinem Brief" tone="gray" compact />
+          )}
         </span>
       ),
       stacked: "title",
@@ -119,7 +122,9 @@ export function TraegerBankAccountsCard({
       key: "iban",
       header: "IBAN",
       render: (account) => (
-        <span className="wrap-anywhere tabular-nums sm:whitespace-nowrap">
+        // One unit on every width: an IBAN split in its last group is
+        // misread (it fits a phone row).
+        <span className="whitespace-nowrap tabular-nums">
           {formatIBAN(account.iban)}
         </span>
       ),
@@ -143,11 +148,11 @@ export function TraegerBankAccountsCard({
       render: (account) => (
         <OverflowMenu
           ariaLabel={`Aktionen für die Bankverbindung ${account.label}`}
-          triggerSize="sm"
           items={[
             {
               label: "Ändern",
               description: "Öffnet die Bankverbindung zum Bearbeiten.",
+              icon: <Pencil className="size-4" aria-hidden />,
               onClick: () => setEdit({ kind: "change", account }),
             },
             ...(account.isDefault
@@ -156,12 +161,14 @@ export function TraegerBankAccountsCard({
                   {
                     label: "Als Standard festlegen",
                     description: "Gilt sofort für Briefe und Rechnungen.",
+                    icon: <Star className="size-4" aria-hidden />,
                     onClick: () => void makeDefault(account),
                   },
                 ]),
             {
               label: "Löschen",
               description: "Löscht die Bankverbindung. moto fragt vorher nach.",
+              icon: <Trash2 className="size-4" aria-hidden />,
               destructive: true,
               onClick: () => setDeleting(account),
             },
@@ -176,7 +183,7 @@ export function TraegerBankAccountsCard({
   return (
     <SectionCard
       title="Bankverbindungen"
-      description="Auf Briefen und Rechnungen steht die Standard-Bankverbindung."
+      description="Auf Briefen und Rechnungen steht nur die Standard-Bankverbindung. Die anderen Konten stehen auf keinem Brief."
       actions={
         canEdit ? (
           <Button
@@ -201,6 +208,8 @@ export function TraegerBankAccountsCard({
         getRowKey={(account) => account.id}
         rowHasInteractiveControls={canEdit}
         stackedOnMobile
+        // Label above value on a phone: the whole IBAN gets the full row.
+        stackedLayout="form"
         emptyState={
           <EmptyState
             icon={<Landmark className="h-12 w-12" aria-hidden="true" />}

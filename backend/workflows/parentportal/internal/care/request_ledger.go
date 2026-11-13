@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
 )
 
 // errRequestEventIncomplete refuses a ledger entry that cannot name its

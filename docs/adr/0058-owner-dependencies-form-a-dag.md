@@ -5,9 +5,9 @@ status: accepted
 # Owner dependencies form a DAG
 
 Decision of 2026-10-15 under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580). It supersedes
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580). It supersedes
 [ADR 0032](0032-the-target-may-keep-two-cyclic-components-and-they-only-shrink.md).
-[#3417](https://github.com/moto-nrw/project-phoenix/issues/3417) carries it
+[#3417](https://github.com/moto-ogs/project-phoenix/issues/3417) carries it
 out.
 
 ## Context
@@ -57,7 +57,7 @@ domain `http` roles leaves three pairs (`people-directory` with
    may stay cyclic until the keys are gone.
 6. The platform triangle edge `organization-tenancy -> delivery-platform`
    (ADR 0032) is cut as decided there, under
-   [#4072](https://github.com/moto-nrw/project-phoenix/issues/4072).
+   [#4072](https://github.com/moto-ogs/project-phoenix/issues/4072).
 
 ## Consequences
 
@@ -82,10 +82,10 @@ rules that point 2 already excludes, six domains still formed one component:
 
 Not target, therefore, and cut: People Directory's HTTP reach into Care
 Plan, Enrollment and Student Presence (it moves into the root,
-[#4079](https://github.com/moto-nrw/project-phoenix/issues/4079)),
+[#4079](https://github.com/moto-ogs/project-phoenix/issues/4079)),
 `care-plan → enrollment` and `student-presence → workforce` (consumer-owned
 ports the root binds,
-[#4076](https://github.com/moto-nrw/project-phoenix/issues/4076)). The
+[#4076](https://github.com/moto-ogs/project-phoenix/issues/4076)). The
 remaining edges among the six (Care Plan → People Directory, Enrollment →
 Care Plan, People Directory and Timetable & Activities, Student Presence →
 Care Plan, Timetable & Activities → Care Plan and Student Presence,
@@ -158,7 +158,7 @@ and test scopes stay under the ordinary loosening guards.
 
 ## Addendum (#4314): owners of the cross-owner HTTP aggregates
 
-Decision of 2026-10-18 for [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079).
+Decision of 2026-10-18 for [#4079](https://github.com/moto-ogs/project-phoenix/issues/4079).
 The existing projections own the cross-domain reads; no new owner is created.
 
 - `presenceprojection` (`presence-legacy-view`) owns the student

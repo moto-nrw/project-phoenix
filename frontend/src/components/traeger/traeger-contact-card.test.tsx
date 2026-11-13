@@ -99,7 +99,7 @@ describe("TraegerContactCard", () => {
 
     expect(
       await screen.findByText(
-        `${catalogText("general.unavailable", "die Anzeige des Ansprechpartners")} ${SAVED_BUT_STALE_SUFFIX}`,
+        `${catalogText("general.unavailable", "die Anzeige der Ansprechperson")} ${SAVED_BUT_STALE_SUFFIX}`,
       ),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));

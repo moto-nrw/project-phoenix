@@ -1,8 +1,8 @@
 package securityruntime
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
-	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime/internal/application/authorize"
+	securitycontract "github.com/moto-ogs/project-phoenix/modules/securityruntime/ports"
 )
 
 // securitycontract.StudentNoteReader is the caller as the note audience needs them: their

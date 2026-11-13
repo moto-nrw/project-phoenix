@@ -4,7 +4,7 @@ status: accepted
 
 # Restored care plan is re-planned in the care-exit workflow
 
-Issue [#5235](https://github.com/moto-nrw/project-phoenix/issues/5235):
+Issue [#5235](https://github.com/moto-ogs/project-phoenix/issues/5235):
 cancelling a planned care end, and confirming a changed one, put the removed
 offering-sourced roster rows back verbatim, with the planning period recorded
 when they were removed. When the template's schedules had moved to another

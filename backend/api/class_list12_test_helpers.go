@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // ClassList12Router builds the production class-list route over its existing

@@ -3,11 +3,11 @@ package compose
 import (
 	"context"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	applicationBindings "github.com/moto-nrw/project-phoenix/modules/delivery/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	applicationBindings "github.com/moto-ogs/project-phoenix/modules/delivery/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/emailoutbox"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
 )
 
 // Worker transports render mail and re-check push subscriptions (#4013).

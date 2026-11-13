@@ -7,12 +7,12 @@ import (
 	"slices"
 	"sort"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	scheduleModel "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // instanceStaffReconciliation is the state one staff alignment pass works
@@ -23,7 +23,7 @@ type instanceStaffReconciliation struct {
 	byStaff      map[int64][]*activityContract.SupervisorPlanned
 	priorByStaff map[int64][]*activityContract.SupervisorPlanned
 	existing     map[instanceStudentPair]*scheduleModel.InstanceStaff
-	sickDays     map[staffDay]int64
+	sickDays     map[staffDay]absenceStamp
 	created      int
 	removed      int
 	repointed    int

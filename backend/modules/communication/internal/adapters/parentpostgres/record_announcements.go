@@ -6,10 +6,10 @@ import (
 	"sort"
 	"time"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -454,6 +454,7 @@ func (r *announcementRepository) Stats(ctx context.Context, tenantID, announceme
 	}
 	return &communication.PortalAnnouncementStats{
 		TargetCount: value.TargetCount, ReadCount: value.ReadCount, AcknowledgedCount: value.AcknowledgedCount,
+		Recorded: value.Recorded,
 	}, nil
 }
 

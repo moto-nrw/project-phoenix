@@ -8,8 +8,8 @@ package parentportal
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
 type (
@@ -91,6 +91,8 @@ type (
 	HolidayOfferChild                = care.HolidayOfferChild
 	HolidayRegistrationFamily        = care.HolidayRegistrationFamily
 	HolidayRegistrationGuardian      = care.HolidayRegistrationGuardian
+	HolidayRegistrationAddress       = care.HolidayRegistrationAddress
+	HolidayRegistrationContact       = care.HolidayRegistrationContact
 	HolidayRegistrationScope         = care.HolidayRegistrationScope
 	HolidayWishClaim                 = care.HolidayWishClaim
 	HolidayParentRegistrations       = care.HolidayParentRegistrations
@@ -231,6 +233,7 @@ var (
 	ErrLeadershipMessagesUnavailable    = messaging.ErrLeadershipUnavailable
 	ErrPastCareDate                     = care.ErrPastCareDate
 	ErrPhotoConsentNotWithdrawn         = care.ErrPhotoConsentNotWithdrawn
+	ErrPickupChangeCareDayEnded         = care.ErrPickupChangeCareDayEnded
 	ErrPickupChangeCutoffPassed         = care.ErrPickupChangeCutoffPassed
 	ErrPickupChangeDisabled             = care.ErrPickupChangeDisabled
 	ErrCareExceptionNotCareDay          = care.ErrCareExceptionNotCareDay
@@ -294,6 +297,7 @@ const (
 	KeyParentNotesEnabled              = care.KeyParentNotesEnabled
 	KeyParentPickupChangeCutoffTime    = care.KeyParentPickupChangeCutoffTime
 	KeyParentPickupChangeEnabled       = care.KeyParentPickupChangeEnabled
+	KeySessionEndTime                  = care.KeySessionEndTime
 	KeyParentRequestReasonPolicy       = care.KeyParentRequestReasonPolicy
 	KeyParentSickNoteEnabled           = care.KeyParentSickNoteEnabled
 	KeyParentSickReportsEnabled        = care.KeyParentSickReportsEnabled

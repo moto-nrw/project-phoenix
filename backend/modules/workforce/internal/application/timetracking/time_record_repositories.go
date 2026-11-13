@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // WorkSessionRecords is the native work-block capability used by the clock.
@@ -22,7 +22,7 @@ type WorkSessionRecords interface {
 	UpdateWorkSession(context.Context, workforce.WorkSession) (workforce.WorkSession, error)
 	LockStaffBalanceWrites(context.Context, int64) error
 	WorkPresenceMap(context.Context) (map[int64]string, error)
-	CloseWorkSession(context.Context, int64, time.Time, bool) (bool, error)
+	CloseWorkSession(context.Context, int64, time.Time, bool, workforce.WorkSessionCreditRule) (bool, error)
 	SetWorkSessionBreakMinutes(context.Context, int64, int) (int64, error)
 	CountWorkSessions(context.Context, workforce.WorkSessionFilter) (int, error)
 	OldestWorkSessionDate(context.Context, string, string) (string, error)

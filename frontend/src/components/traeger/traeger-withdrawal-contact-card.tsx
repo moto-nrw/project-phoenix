@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -10,7 +11,6 @@ import {
 } from "~/components/ui/form-error-alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { Input } from "~/components/ui/input";
-import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { SectionLabel } from "~/components/ui/section-label";
 import {
@@ -40,7 +40,7 @@ const SOURCE_BADGES: Record<
   { readonly label: string; readonly tone: StatusBadgeTone }
 > = {
   own: { label: "Eigene Angabe", tone: "green" },
-  contact: { label: "Vom Ansprechpartner", tone: "gray" },
+  contact: { label: "Von der Ansprechperson", tone: "gray" },
   missing: { label: "Fehlt", tone: "warning" },
 };
 
@@ -53,8 +53,8 @@ function sameReach(
 
 function fallbackHint(contactValue: string, what: string): string {
   return contactValue === ""
-    ? `Beim Ansprechpartner steht keine ${what}.`
-    : `Leer lassen: Dann steht hier ${contactValue} vom Ansprechpartner.`;
+    ? `Bei der Ansprechperson steht keine ${what}.`
+    : `Leer lassen: Dann steht hier ${contactValue} von der Ansprechperson.`;
 }
 
 function ReachField({
@@ -167,7 +167,7 @@ export function TraegerWithdrawalContactCard({
         <FormErrorAlert message={formErrors.error} />
         <div className="grid gap-4 md:grid-cols-2">
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id="traeger-withdrawal-phone"
             label="Telefon für Widerrufe"
             name="phone"
@@ -181,7 +181,7 @@ export function TraegerWithdrawalContactCard({
             disabled={!canEdit}
           />
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id="traeger-withdrawal-email"
             label="E-Mail für Widerrufe"
             name="email"
@@ -199,7 +199,7 @@ export function TraegerWithdrawalContactCard({
         {missing.length > 0 ? (
           <Alert
             type="warning"
-            message={`Die Widerrufsbelehrung braucht Telefon und E-Mail. Es fehlt: ${missing.join(" und ")}. Bitte tragen Sie sie hier oder beim Ansprechpartner ein.`}
+            message={`Die Widerrufsbelehrung braucht Telefon und E-Mail. Es fehlt: ${missing.join(" und ")}. Bitte tragen Sie sie hier oder bei der Ansprechperson ein.`}
           />
         ) : null}
 
@@ -219,14 +219,19 @@ export function TraegerWithdrawalContactCard({
               <ReachField label="Telefon" reach={reach.phone} />
               <ReachField label="E-Mail" reach={reach.email} />
             </DataGrid>
-            <p className="text-xs text-gray-600">
+            <p className="text-sm text-gray-600">
               Name und Anschrift kommen aus dem{" "}
-              <NavigationLink
+              {/* A new tab keeps what is typed in the contact form beside
+                  this text; leaving the page would drop it. */}
+              <Link
                 href={traegerPath("/traeger/einstellungen/briefkopf")}
+                target="_blank"
+                rel="noopener"
                 className="font-medium underline"
               >
                 Briefkopf
-              </NavigationLink>
+                <span className="sr-only"> (öffnet in einem neuen Tab)</span>
+              </Link>
               . Nennen die Vertragsbedingungen einen anderen Vertragspartner,
               steht er davor. Nach einer Änderung kopiert die Schule die
               Belehrung neu ins Anmeldeformular.

@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.LifecycleTable) (organizationtenancy.ExportModelTable, error) {

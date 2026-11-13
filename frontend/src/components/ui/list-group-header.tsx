@@ -79,6 +79,7 @@ export function ListGroupHeader({
               size="compact"
               className="-ml-2 w-full min-w-0 justify-start"
               aria-expanded={collapsible.expanded}
+              noTooltip="Der Gruppenname klappt nur ihre Zeilen auf und zu; aria-expanded nennt den Zustand."
               aria-describedby={addon === undefined ? undefined : addonId}
               onClick={collapsible.onToggle}
             >

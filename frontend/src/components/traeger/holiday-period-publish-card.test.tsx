@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -110,9 +116,7 @@ describe("HolidayPeriodPublishCard", () => {
     expect(mockPublish).not.toHaveBeenCalled();
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(
-      Array.from(dialog.querySelectorAll("button")).find(
-        (button) => button.textContent === "Veröffentlichen",
-      )!,
+      within(dialog).getByRole("button", { name: "Veröffentlichen" }),
     );
 
     await waitFor(() => expect(mockPublish).toHaveBeenCalledWith("5"));
@@ -162,9 +166,7 @@ describe("HolidayPeriodPublishCard", () => {
     expect(
       screen.getByText("http://parents.localhost:3000/ferienanmeldung/abc123"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("Bisher sind 3 Anmeldungen eingegangen."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Bisher 3 Anmeldungen.")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Anmeldungen prüfen" }),
     ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen");

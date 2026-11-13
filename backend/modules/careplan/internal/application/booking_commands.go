@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // MaterializeApprovedBookings writes one roster row per booked offering whose
@@ -189,10 +189,12 @@ func (m *bookingCommands) TemplateRosterMaintenanceFeeds(ctx context.Context, te
 }
 
 type bookingCommands struct {
+	traegerBatchEffects
+	traegerBatchPickup
 	careplan.BookingMaterializationCapability
 	commands *BookingMaterialization
 }
 
 func NewBookingCommands(records *BookingMaterialization) careplan.BookingMaterializationCapability {
-	return &bookingCommands{records, records}
+	return &bookingCommands{traegerBatchEffects: records, traegerBatchPickup: records, BookingMaterializationCapability: records, commands: records}
 }

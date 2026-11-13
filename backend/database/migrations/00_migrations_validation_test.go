@@ -57,3 +57,11 @@ func TestValidateMigrationsPreservesDependencyValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestTimestampMigrationRegistersItsFilePrefixAsVersion(t *testing.T) {
+	t.Parallel()
+	require.NoError(t, checkTimestampVersion("20261113142530", "20261113142530"))
+	require.NoError(t, checkTimestampVersion("001015963", "1.15.963"), "the older migrations keep their packed version")
+	require.ErrorContains(t, checkTimestampVersion("20261113142530", "1.15.964"), "MIGRATION VERSION MISMATCH")
+	require.ErrorContains(t, checkTimestampVersion("20261113142530", "20261113142531"), "the file prefix is 20261113142530")
+}

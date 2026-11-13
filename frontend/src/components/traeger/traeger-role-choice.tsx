@@ -17,7 +17,7 @@ const ROLE_DESCRIPTIONS: Readonly<Record<TraegerRole, string>> = {
     "Darf Dokumente für Eltern und Schulen hochladen, freigeben und löschen.",
   school_access:
     "Darf jede Schule des Trägers öffnen und dort alles verwalten.",
-  billing: "Darf Beiträge abrechnen und Finanz-Daten exportieren.",
+  billing: "Darf Beiträge abrechnen und Finanzdaten exportieren.",
   personnel: "Darf das Personal aller Schulen verwalten.",
   read_only: "Darf die Übersicht und die Berichte ansehen.",
 };
@@ -57,16 +57,23 @@ export function TraegerRoleChoice({
       <legend className="mb-2 text-sm font-medium text-gray-700">
         Rolle (mindestens eine)
       </legend>
-      {TRAEGER_ROLES.map((role) => (
-        <CheckboxCard
-          key={role}
-          checked={value.includes(role)}
-          disabled={disabled || locked[role] !== undefined}
-          onChange={() => toggle(role)}
-          label={TRAEGER_ROLE_LABELS[role]}
-          hint={locked[role] ?? ROLE_DESCRIPTIONS[role]}
-        />
-      ))}
+      {/* Two columns from sm on: all seven roles stay in view of the
+          dialog on a laptop or tablet. A phone lists them one below the
+          other, a little tighter, so the last role still shows above the
+          dialog's buttons. */}
+      <div className="grid gap-1.5 sm:grid-cols-2 sm:gap-2">
+        {TRAEGER_ROLES.map((role) => (
+          <CheckboxCard
+            key={role}
+            checked={value.includes(role)}
+            disabled={disabled || locked[role] !== undefined}
+            onChange={() => toggle(role)}
+            label={TRAEGER_ROLE_LABELS[role]}
+            hint={locked[role] ?? ROLE_DESCRIPTIONS[role]}
+            className="max-sm:py-2"
+          />
+        ))}
+      </div>
       <FieldErrorHint id="traeger-roles-error" message={error} />
     </fieldset>
   );

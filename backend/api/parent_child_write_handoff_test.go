@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	portalCompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	portalCompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -534,8 +534,8 @@ func TestParentChildWritesKeepTheirAnswerWhenTheRollbackFails(t *testing.T) {
 }
 
 // TestParentChildWritesPersistNothingWhenCancelledUnderTheLock cancels the
-// request right after the child's row lock: the write answers 500 and
-// persists nothing.
+// request right after the child's row lock: the write answers 499 (the client
+// went away, no server error) and persists nothing.
 func TestParentChildWritesPersistNothingWhenCancelledUnderTheLock(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
@@ -553,7 +553,7 @@ func TestParentChildWritesPersistNothingWhenCancelledUnderTheLock(t *testing.T) 
 		rec := rig.serveWrite(t, ctx, w.write, f.token)
 		cancel()
 		require.False(t, fault.Pending(), "%s: the lock statement ran", w.name)
-		require.Equal(t, http.StatusInternalServerError, rec.Code, "%s: %s", w.name, rec.Body.String())
+		require.Equal(t, 499, rec.Code, "%s: %s", w.name, rec.Body.String())
 		rig.unchanged(t, f, before, w.name)
 		ok := rig.serveWrite(t, context.Background(), w.write, f.token)
 		require.Equal(t, http.StatusOK, ok.Code, "%s: %s", w.name, ok.Body.String())

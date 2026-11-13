@@ -3,7 +3,7 @@ package schoolmembership_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // The Kontingentzahl rule for one membership (#3571) matches the SQL count:

@@ -120,7 +120,7 @@ describe("TraegerDocumentKindsPage", () => {
     renderPage();
     expect(
       await screen.findByText(
-        "Ohne Belehrung können Sie keinen Gebührenbescheid freigeben. Bitten Sie eine Person mit dem Recht „Einstellungen“, sie einzutragen.",
+        "Ohne Belehrung können Sie keinen Gebührenbescheid freigeben. Bitten Sie eine Person mit der Rolle „Verwaltung“, sie einzutragen.",
       ),
     ).toBeVisible();
     expect(

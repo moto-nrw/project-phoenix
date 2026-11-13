@@ -9,8 +9,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	parentModels "github.com/moto-ogs/project-phoenix/modules/careplan/internal/rows"
 )
 
 // ChildRepository implements parentModels.ChildRepository.

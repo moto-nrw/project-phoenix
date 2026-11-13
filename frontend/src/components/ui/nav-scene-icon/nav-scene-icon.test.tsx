@@ -1,7 +1,7 @@
 import { HouseLineIcon, AcornIcon } from "@phosphor-icons/react/ssr";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MOTO_DUOTONE_TONES } from "~/components/ui/moto-duotone-icon";
+import { MOTO_DUOTONE_PALETTE as MOTO_DUOTONE_TONES } from "~/lib/kit-palette";
 import { NAV_SCENE_PLAY_MS, NavSceneIcon } from "./nav-scene-icon";
 
 function renderInRow(ui: React.ReactNode) {

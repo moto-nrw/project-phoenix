@@ -139,9 +139,9 @@ Nur gelesen, kein Dispatch/Push, keine bezahlten Experimente. Folgende unterschi
 
 | Main-Lauf | Workflow s | Anfangsqueue s | Runner-s | geschätzte USD | Letzter Job vor ci-gate |
 | --- | ---: | ---: | ---: | ---: | --- |
-| [41357123478](https://github.com/moto-nrw/project-phoenix/actions/runs/41357123478) | 140 | 3 | 560 | 0.112 | Lint / Frontend build |
-| [41354571342](https://github.com/moto-nrw/project-phoenix/actions/runs/41354571342) | 294 | 4 | 2755 | 0.376 | Test / Seed and simulate smoke (isolation) |
-| [41355306371](https://github.com/moto-nrw/project-phoenix/actions/runs/41355306371) | 315 | 4 | 2186 | 0.288 | Test / Seed and simulate smoke (profiles) |
+| [41357123478](https://github.com/moto-ogs/project-phoenix/actions/runs/41357123478) | 140 | 3 | 560 | 0.112 | Lint / Frontend build |
+| [41354571342](https://github.com/moto-ogs/project-phoenix/actions/runs/41354571342) | 294 | 4 | 2755 | 0.376 | Test / Seed and simulate smoke (isolation) |
+| [41355306371](https://github.com/moto-ogs/project-phoenix/actions/runs/41355306371) | 315 | 4 | 2186 | 0.288 | Test / Seed and simulate smoke (profiles) |
 
 Im UI-Lauf: DOM-Testschritte 66/72 s, Node-Vitest 59 s, Browser-Installation 9 s, Layout 8 s, Installationen 1–4 s. Frontend-Build (116 s Jobzeit) bestimmte das Ende. In den beiden anderen Läufen bestimmten Backend-Seed-Smokes das Ende. Job-Dispatch/Queue nach Abhängigkeiten lässt sich aus diesen API-Daten nicht sauber trennen. Ein zusätzlicher roter Lauf scheiterte an `TestWorkerRollbackNeverPublishes`, nicht an diesen Änderungen; keine Fehlerbehebung oder Flake-Aussage daraus abgeleitet. Die betrachteten Detail-Läufe haben attempt 1.
 

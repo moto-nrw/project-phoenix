@@ -18,6 +18,10 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import {
+  MissingTargetDialogNotice,
+  type MissingTargetHint,
+} from "~/components/staff/missing-target-notice";
 import { staffAbsenceService, type StaffAbsenceRow } from "~/lib/staff-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 
@@ -41,6 +45,9 @@ interface SickReportModalProps {
   readonly onCreated: (absence: StaffAbsenceRow) => void;
   /** Vorbelegter Tag, z. B. ein vergangener Tag ohne Eintrag (#3258). */
   readonly initialDate?: string;
+  /** Warnt, wenn die Person kein Soll hat (#6887); nur mit
+   *  `time_tracking:manage`. */
+  readonly targetHint?: MissingTargetHint;
 }
 
 // Krank melden. Freizeitausgleich und alle anderen Arten trägt die Leitung
@@ -52,6 +59,7 @@ export function SickReportModal({
   onClose,
   onCreated,
   initialDate,
+  targetHint,
 }: SickReportModalProps) {
   const router = useTenantRouter();
   const [dateStart, setDateStart] = useState(
@@ -215,6 +223,16 @@ export function SickReportModal({
             abwesend. Bereits eingetragene Vertretungsschichten müssen manuell
             geprüft werden.
           </p>
+
+          {targetHint ? (
+            <MissingTargetDialogNotice
+              staffId={staff.id}
+              staffName={staffName}
+              date={dateStart}
+              entryLabel="Die Krankmeldung"
+              canSetTarget={targetHint.canSetTarget}
+            />
+          ) : null}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className={halfDay ? "sm:col-span-2" : undefined}>

@@ -129,6 +129,47 @@ func TestBootstrapTenant_DemoSchoolJoinsExistingOrganization(t *testing.T) {
 	assert.Equal(t, "OGS Nord", bootstrap.SchoolName)
 }
 
+// The standing demo school keeps a Träger of its own under the profile's
+// name (#6962), so it never shares the Träger steps with demo-traeger-nord.
+func TestBootstrapTenant_TraegerSlugCreatesOwnTraeger(t *testing.T) {
+	t.Parallel()
+
+	requests := make(map[string]map[string]any)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		var body map[string]any
+		if r.Body != nil && r.Method == seedHTTPMethodPost {
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			requests[r.URL.Path] = body
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/operator/organizations":
+			_, _ = fmt.Fprint(w, `{"data":{"id":4209}}`)
+		case "/operator/schools":
+			_, _ = fmt.Fprint(w, `{"data":{"id":2,"subdomain":"messe-demo"}}`)
+		case "/operator/schools/2/invite-admin":
+			_, _ = fmt.Fprint(w, `{"data":{"token":"invite-token"}}`)
+		case "/auth/invitations/invite-token/accept":
+			_, _ = fmt.Fprint(w, `{"status":"success"}`)
+		default:
+			w.WriteHeader(seedHTTPStatusNotFound)
+		}
+	})
+	defer srv.Close()
+
+	seeder := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{
+		TenantSlug: "messe-demo", SchoolName: "moto Demo-Schule", OnlyProfile: DefaultProfileKey, TraegerSlug: "demo-traeger-messe",
+	})
+	seeder.client.BindAuth(AuthRef{Kind: AuthBearer, Token: "operator"})
+	bootstrap, err := seeder.bootstrapTenant(context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, "demo-traeger-messe", requests["/operator/organizations"]["slug"])
+	assert.Equal(t, "Ganztag Nord e. V.", requests["/operator/organizations"]["name"])
+	assert.Equal(t, int64(4209), bootstrap.OrganizationID)
+	assert.Equal(t, "demo-traeger-messe", bootstrap.OrganizationSlug)
+}
+
 func TestFixedSeeder_SeedStaffAccounts_CarriesAccountScope(t *testing.T) {
 	t.Parallel()
 

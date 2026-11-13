@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"context"
@@ -7,18 +7,21 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 	"github.com/stretchr/testify/assert"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 func TestCompanionPlanErrorRenderer(t *testing.T) {
 	t.Parallel()
 
 	t.Run("stranded companion is a client-fixable 400", func(t *testing.T) {
-		resp := rendererStatus(t, companionPlanErrorRenderer(careplan.ErrCompanionWouldLoseDeparture))
+		resp := rendererStatus(t, careplanhttp.CompanionPlanErrorRendererForTest(careplan.ErrCompanionWouldLoseDeparture))
 
 		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
 		// The German sentinel text is the whole instruction the user gets.
@@ -26,7 +29,7 @@ func TestCompanionPlanErrorRenderer(t *testing.T) {
 	})
 
 	t.Run("busy companion lock is a retriable 409 with its code", func(t *testing.T) {
-		resp := rendererStatus(t, companionPlanErrorRenderer(careplan.ErrCompanionLockBusy))
+		resp := rendererStatus(t, careplanhttp.CompanionPlanErrorRendererForTest(careplan.ErrCompanionLockBusy))
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 		assert.Equal(t, common.CodeStudentsCompanionLockBusy, resp.Code)
@@ -35,7 +38,7 @@ func TestCompanionPlanErrorRenderer(t *testing.T) {
 	t.Run("classifies through wrapping", func(t *testing.T) {
 		// Both review services wrap the repository error with fmt.Errorf("%w"),
 		// so equality checks would miss it.
-		resp := rendererStatus(t, companionPlanErrorRenderer(
+		resp := rendererStatus(t, careplanhttp.CompanionPlanErrorRendererForTest(
 			errors.Join(errors.New("review: update student departure"), departure.ErrCompanionWouldLoseDeparture),
 		))
 
@@ -43,7 +46,7 @@ func TestCompanionPlanErrorRenderer(t *testing.T) {
 	})
 
 	t.Run("leaves unrelated errors to the caller", func(t *testing.T) {
-		assert.Nil(t, companionPlanErrorRenderer(errors.New("boom")))
+		assert.Nil(t, careplanhttp.CompanionPlanErrorRendererForTest(errors.New("boom")))
 	})
 }
 
@@ -63,12 +66,12 @@ func TestDecideMasterDataChangeRequest_MapsCompanionErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rs := testResource(ResourceConfig{
+			rs := testResource(careplanhttp.ResourceConfig{
 				MasterDataReviewService: &fakeMasterDataReviewService{decideErr: tt.err}})
-			req := staffRequest(http.MethodPost, "/students/master-data-change-requests/100/decide", `{"approve":true}`, "100")
+			req := staffRequest(http.MethodPost, "/students/master-data-change-requests/100/decide", `{"approve":true}`)
 			w := httptest.NewRecorder()
 
-			rs.decideMasterDataChangeRequest(w, req)
+			serveRoute(t, rs, w, req, permissions.UsersUpdate)
 
 			assert.Equal(t, tt.want, w.Code)
 			assert.Contains(t, w.Body.String(), "verknüpftes Kind")
@@ -114,12 +117,12 @@ func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rs := testResource(ResourceConfig{
+			rs := testResource(careplanhttp.ResourceConfig{
 				CareRequestService: &companionErrCareRequestService{decideErr: tt.err}})
-			req := staffRequest(http.MethodPost, "/students/care-schedule-change-requests/100/decide", `{"approve":true}`, "100")
+			req := staffRequest(http.MethodPost, "/students/care-schedule-change-requests/100/decide", `{"approve":true}`)
 			w := httptest.NewRecorder()
 
-			rs.decideCareScheduleChangeRequest(w, req)
+			serveRoute(t, rs, w, req, permissions.UsersUpdate)
 
 			assert.Equal(t, tt.want, w.Code)
 			if tt.wantCode != "" {

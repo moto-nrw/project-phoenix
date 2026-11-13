@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // timeTrackingAccountStartDate resolves the tenant's time-account start day

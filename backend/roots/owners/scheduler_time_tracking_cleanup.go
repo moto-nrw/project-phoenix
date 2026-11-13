@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
 )
 
 // schedulerTimeTrackingCleanupPort binds the retained time-tracking cleanup to the

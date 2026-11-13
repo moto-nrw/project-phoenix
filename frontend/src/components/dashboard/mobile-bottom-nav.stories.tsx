@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { SessionProvider } from "next-auth/react";
 import { ProfileProvider } from "~/lib/profile-context";
 import {
@@ -71,4 +72,27 @@ export const OperatorMode: Story = {
       </SessionProvider>
     ),
   ],
+};
+
+/** Das geöffnete „Mehr“-Menü mit den Gruppen der Seitenleiste. */
+export const StaffModeMoreOpened: Story = {
+  decorators: StaffMode.decorators,
+  play: async ({ canvasElement }) => {
+    // Ab 1024 px blendet CSS die Leiste aus; dort gibt es nichts zu öffnen.
+    const more = within(canvasElement).queryByRole("button", { name: "Mehr" });
+    if (!more) return;
+    await userEvent.click(more);
+    await expect(await screen.findByRole("dialog")).toBeVisible();
+  },
+};
+
+/** Eine Seite hinter „Mehr“ ist offen: die Fläche liegt unter „Mehr“. */
+export const StaffModeActiveBehindMore: Story = {
+  decorators: StaffMode.decorators,
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+      navigation: { pathname: "/calendar", query: {} },
+    },
+  },
 };

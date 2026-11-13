@@ -1,6 +1,6 @@
 package authorize
 
-import "github.com/moto-nrw/project-phoenix/internal/randstr"
+import "github.com/moto-ogs/project-phoenix/internal/randstr"
 
 // DeviceAPIKey returns a fresh device API key: 32 random bytes hex-encoded
 // with the "dev_" prefix.

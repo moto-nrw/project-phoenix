@@ -2,7 +2,7 @@
 name: ui-before-after
 description: Use when a UI change needs before/after screenshot pairs for a PR or review. Triggers on "vorher/nachher", "before/after screenshots", visual comparison of a frontend refactor, or verifying that a migration did not change the look.
 metadata:
-  author: moto-nrw
+  author: moto-ogs
   version: "1.2.0"
 ---
 

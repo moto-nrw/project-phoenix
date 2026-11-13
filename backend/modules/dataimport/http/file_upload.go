@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-chi/render"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // FileUploadResult contains the parsed CSV data and file metadata

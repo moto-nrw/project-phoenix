@@ -3,7 +3,7 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/appointments/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/appointments/internal/adapters/postgres"
 	"github.com/uptrace/bun"
 )
 

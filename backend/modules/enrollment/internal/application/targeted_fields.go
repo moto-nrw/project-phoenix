@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/contact"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // targetedFieldSyncOptions tune one targeted-field dispatch.
@@ -51,7 +52,7 @@ type targetedFieldSync struct {
 	reviewedBy int64
 	options    targetedFieldSyncOptions
 
-	errs         []string
+	errs         []error
 	studentDirty bool
 	// A unified departure target wins by replacing both legacy maps after the
 	// loop; the legacy Buskind/Abholregelung targets mutate their own map
@@ -186,7 +187,7 @@ func (r *targetedFieldSync) dispatchField(field enrollment.FormField, raw any) {
 }
 
 func (r *targetedFieldSync) fieldError(target string, err error) {
-	r.errs = append(r.errs, fmt.Sprintf("%s: %v", target, err))
+	r.errs = append(r.errs, fmt.Errorf("%s: %w", target, err))
 }
 
 func (r *targetedFieldSync) applyTextField(target **string, raw any) {
@@ -289,7 +290,7 @@ func (r *targetedFieldSync) applyPickupScheduleField(target string, raw any) {
 	if r.replaceSchedules() && schedules != nil && !r.pickup.deleted {
 		r.pickup.deleted = true
 		if err := schedules.DeletePickupSchedules(r.ctx, r.student.ID); err != nil {
-			r.errs = append(r.errs, fmt.Sprintf("%s: delete existing: %v", target, err))
+			r.errs = append(r.errs, fmt.Errorf("%s: delete existing: %w", target, err))
 			return
 		}
 		r.pickup.changed = true
@@ -320,7 +321,7 @@ func (r *targetedFieldSync) preparePickupSchedule(target string) bool {
 	r.pickup.snapshotTaken = true
 	before, err := r.d.snapshotPickupWeekdayChanges(r.ctx, r.student.ID, r.d.todayDate())
 	if err != nil {
-		r.errs = append(r.errs, fmt.Sprintf("%s: snapshot existing: %v", target, err))
+		r.errs = append(r.errs, fmt.Errorf("%s: snapshot existing: %w", target, err))
 		r.pickup.snapshotFailed = true
 		return false
 	}
@@ -333,7 +334,7 @@ func (r *targetedFieldSync) applyArrivalScheduleField(target string, raw any) {
 	if r.replaceSchedules() && schedules != nil && !r.arrivalDeleted {
 		r.arrivalDeleted = true
 		if err := schedules.DeleteArrivalSchedules(r.ctx, r.student.ID); err != nil {
-			r.errs = append(r.errs, fmt.Sprintf("%s: delete existing: %v", target, err))
+			r.errs = append(r.errs, fmt.Errorf("%s: delete existing: %w", target, err))
 			return
 		}
 	}
@@ -353,7 +354,7 @@ func (r *targetedFieldSync) applyContactsField(field enrollment.FormField, raw a
 		var err error
 		oldContactIDs, err = r.d.contactProfileIDsFromPreviousSnapshot(r.ctx, r.options.PreviousSnapshot, r.child, r.student.ID, field.Key)
 		if err != nil {
-			r.errs = append(r.errs, fmt.Sprintf("%s: resolve previous contacts: %v", field.Target, err))
+			r.errs = append(r.errs, fmt.Errorf("%s: resolve previous contacts: %w", field.Target, err))
 			return
 		}
 	}
@@ -371,7 +372,7 @@ func (r *targetedFieldSync) applyContactsField(field enrollment.FormField, raw a
 	}
 	keep := mergeGuardianProfileKeepSets(newContactIDs, r.options.KeepGuardianProfileIDs)
 	if err := r.d.deleteRemovedStudentGuardianLinks(r.ctx, r.student.ID, oldContactIDs, keep, r.reviewedBy); err != nil {
-		r.errs = append(r.errs, fmt.Sprintf("%s: remove stale links: %v", field.Target, err))
+		r.errs = append(r.errs, fmt.Errorf("%s: remove stale links: %w", field.Target, err))
 	}
 }
 
@@ -397,10 +398,10 @@ func (r *targetedFieldSync) finishPickupSchedule() {
 		return
 	}
 	if err := r.d.resyncPickupAutoExcusals(r.ctx, []int64{r.student.ID}); err != nil {
-		r.errs = append(r.errs, err.Error())
+		r.errs = append(r.errs, err)
 	}
 	if err := r.d.recordPickupWeekdayChanges(r.ctx, r.student.ID, r.d.todayDate(), r.pickup.before); err != nil {
-		r.errs = append(r.errs, err.Error())
+		r.errs = append(r.errs, err)
 	}
 }
 
@@ -412,8 +413,14 @@ func (r *targetedFieldSync) applyGuardianPhone() {
 	if r.request.GuardianPhone == nil || r.guardian == nil || r.options.Scope == weeklyPlanOnly {
 		return
 	}
+	// Submit and edit validate the phone already; a legacy row that slipped
+	// through must reach the office as invalid request data, not as a 500.
+	if err := contact.ValidateOptionalPhone(*r.request.GuardianPhone); err != nil {
+		r.errs = append(r.errs, fmt.Errorf("auto guardian_phone: %w: %w", enrollment.ErrDecisionInvalidData, err))
+		return
+	}
 	if err := r.d.createGuardianPhoneNumber(r.ctx, r.guardian.ID, *r.request.GuardianPhone); err != nil {
-		r.errs = append(r.errs, fmt.Sprintf("auto guardian_phone: %v", err))
+		r.errs = append(r.errs, fmt.Errorf("auto guardian_phone: %w", err))
 	}
 }
 

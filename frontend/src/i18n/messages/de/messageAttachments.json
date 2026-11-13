@@ -19,5 +19,7 @@
   "openInNewTab": "In neuem Tab öffnen",
   "notViewable": "Diese Datei lässt sich hier nicht anzeigen. Laden Sie sie herunter, um sie zu öffnen.",
   "notViewableOnDevice": "Auf diesem Gerät lässt sich die Datei hier nicht anzeigen. Öffnen Sie sie in einem neuen Tab oder laden Sie sie herunter.",
-  "position": "{current} von {total}"
+  "position": "{current} von {total}",
+  "downloadHint": "Speichert die Datei auf Ihrem Gerät.",
+  "openInNewTabHint": "Öffnet die Datei in einem neuen Tab."
 }

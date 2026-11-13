@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
+	classdayCompose "github.com/moto-ogs/project-phoenix/modules/classday/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ClassDayHomework binds Class Day View's homework port to Timetable's

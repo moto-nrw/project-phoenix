@@ -19,8 +19,8 @@
    seed the targets or introduce compatibility views, routing triggers, or
    dual writes. PostgreSQL's internal FK triggers are not routing triggers.
 4. Record staging evidence below before accepting the rollout. Backfill is
-   [#2761](https://github.com/moto-nrw/project-phoenix/issues/2761); caller and
-   status cutover is [#2762](https://github.com/moto-nrw/project-phoenix/issues/2762).
+   [#2761](https://github.com/moto-ogs/project-phoenix/issues/2761); caller and
+   status cutover is [#2762](https://github.com/moto-ogs/project-phoenix/issues/2762).
 
 The prerequisite is an approved exception to the original ticket's restriction
 on old-table changes: PostgreSQL rejected the required tenant-composite

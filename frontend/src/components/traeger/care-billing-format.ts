@@ -66,7 +66,8 @@ export const CARE_RUN_STATUS_TONES: Record<
 };
 
 export const MONTH_RULE_LABELS: Record<CareMonthRule, string> = {
-  version_on_first: "Voller Monat nach dem Vertrag am 1.",
+  // „am 1.“ stays together on one line.
+  version_on_first: "Voller Monat nach dem Vertrag am\u00a01.",
   pro_rata: "Anteilig nach Kalendertagen",
 };
 
@@ -345,6 +346,20 @@ export function contractCountLabel(count: number): string {
 /** "1 Rechnung" / "12 Rechnungen". */
 export function invoiceCountLabel(count: number): string {
   return count === 1 ? "1 Rechnung" : `${count} Rechnungen`;
+}
+
+/**
+ * Short facts joined by „ · “ that wrap only between facts, after the dot:
+ * a date, a count or an amount never breaks inside, and no line starts with
+ * „·“. For short facts only; a name may need to wrap.
+ */
+export function factLine(
+  facts: readonly (string | null | undefined | false)[],
+): string {
+  return facts
+    .filter((fact): fact is string => Boolean(fact))
+    .map((fact) => fact.replaceAll(" ", "\u00A0"))
+    .join("\u00A0· ");
 }
 
 /**

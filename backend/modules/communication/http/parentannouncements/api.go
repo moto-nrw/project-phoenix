@@ -14,10 +14,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	announcementService "github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	announcementService "github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Resource is the staff parent-announcement HTTP resource.
@@ -176,6 +176,9 @@ type statsResponse struct {
 	TargetCount       int `json:"target_count"`
 	ReadCount         int `json:"read_count"`
 	AcknowledgedCount int `json:"acknowledged_count"`
+	// Recorded tells the counts refer to the recipients of the publication
+	// (#6988); false for a draft and an announcement published before.
+	Recorded bool `json:"recorded"`
 }
 
 func announcementStatus(a *announcementService.ParentAnnouncement) string {
@@ -458,6 +461,7 @@ func (rs *Resource) stats(w http.ResponseWriter, r *http.Request) {
 		TargetCount:       s.TargetCount,
 		ReadCount:         s.ReadCount,
 		AcknowledgedCount: s.AcknowledgedCount,
+		Recorded:          s.Recorded,
 	}, "Stats retrieved")
 }
 

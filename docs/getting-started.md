@@ -14,7 +14,7 @@ Install these before cloning:
 ## Setup
 
 ```bash
-git clone git@github.com:moto-nrw/project-phoenix.git
+git clone git@github.com:moto-ogs/project-phoenix.git
 cd project-phoenix
 direnv allow
 devbox run bootstrap

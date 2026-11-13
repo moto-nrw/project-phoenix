@@ -3,7 +3,7 @@ package parentportal
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
 type DeclarationPolicy interface{ messaging.DeclarationPolicy }

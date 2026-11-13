@@ -1,6 +1,6 @@
 package userpasstest
 
-import "github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher"
+import "github.com/moto-ogs/project-phoenix/modules/securityruntime/internal/domain/fieldcipher"
 
 // FieldCipher seals and opens single database values, each bound to its
 // context: the cipher the roots build from HEALTH_DATA_KEYS (#4722, #5472).

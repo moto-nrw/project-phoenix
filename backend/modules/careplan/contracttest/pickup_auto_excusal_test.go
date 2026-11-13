@@ -6,21 +6,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/careplantest"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -564,7 +564,7 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 	// Clearing the sick day (production path: MarkClearedByID sets cleared_at,
 	// then releases the slots) restores its rows — and must replay the still
 	// active pickup cutoff instead of leaving the late blocks expected.
-	err = repos.StudentStatusDay.MarkClearedByID(h.ctx, statusDay.ID, time.Now(), absencerecords.StudentStatusSourceManual)
+	err = repos.StudentStatusDay.MarkClearedByID(h.ctx, statusDay.ID, time.Now(), absencerecords.StudentStatusSourceManual, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, studentpresence.SessionAttendanceExpected, h.attendance(t, h.beforeRow).Status)

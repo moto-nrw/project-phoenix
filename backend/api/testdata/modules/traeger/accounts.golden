@@ -3,4 +3,5 @@ DELETE /traeger/accounts/{accountId} -> basis
 GET /traeger/accounts/ -> basis
 GET /traeger/accounts/history -> basis
 POST /traeger/accounts/invitations -> basis
+PUT /traeger/accounts/{accountId}/name -> basis
 PUT /traeger/accounts/{accountId}/roles -> basis

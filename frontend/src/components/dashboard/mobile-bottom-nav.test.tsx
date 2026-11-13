@@ -120,6 +120,15 @@ vi.mock("~/lib/hooks/use-enrollments-unread", () => ({
   useEnrollmentsUnread: () => ({ unreadCount: enrollmentsUnread.count }),
 }));
 
+const teamNotes = vi.hoisted(() => ({ notices: [] as unknown[] }));
+vi.mock("~/lib/hooks/use-student-note-team-notices", () => ({
+  useStudentNoteTeamNotices: () => ({ notices: teamNotes.notices }),
+}));
+const pickupChanges = vi.hoisted(() => ({ notices: [] as unknown[] }));
+vi.mock("~/lib/hooks/use-pickup-change-notices", () => ({
+  usePickupChangeNotices: () => ({ notices: pickupChanges.notices }),
+}));
+
 vi.mock("~/lib/operator-url", () => ({
   operatorPath: (path: string) => path,
 }));
@@ -380,6 +389,53 @@ describe("MobileBottomNav", () => {
         ).toBeInTheDocument();
       } finally {
         enrollmentsUnread.count = 0;
+      }
+    });
+
+    // Unter 1024 px fehlt die Kopfzeile: „Mehr“ trägt den roten Zähler der
+    // geteilten Notizen und geänderten Abholzeiten, das Menü ihre Liste
+    // (#6854, #6855).
+    it("zeigt Neues für die Person am Mehr-Knopf und im Menü", () => {
+      teamNotes.notices = [
+        {
+          noteId: "11",
+          studentId: "7",
+          studentFirstName: "Mia",
+          studentLastName: "Muster",
+          authorName: "Sara Betreuerin",
+          informedAt: "2026-09-09T10:00:00Z",
+        },
+      ];
+      pickupChanges.notices = [
+        {
+          requestId: "21",
+          studentId: "8",
+          studentFirstName: "Noa",
+          date: "2026-09-10",
+          pickupTime: "15:00",
+          withdrawn: false,
+          informedAt: "2026-09-09T11:00:00Z",
+        },
+      ];
+      mockUseSession.mockReturnValue(createMockSession(false));
+      try {
+        render(<MobileBottomNav />);
+        expect(screen.getByLabelText("2 neu für Sie")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+        expect(screen.getByText("Neu für Sie")).toBeInTheDocument();
+        expect(
+          screen.getByRole("link", { name: /Mia Muster/ }),
+        ).toHaveAttribute(
+          "href",
+          expect.stringContaining("/students/7?tab=notizen"),
+        );
+        expect(screen.getByRole("link", { name: /Noa/ })).toHaveAttribute(
+          "href",
+          expect.stringMatching(/\/students\/8$/),
+        );
+      } finally {
+        teamNotes.notices = [];
+        pickupChanges.notices = [];
       }
     });
 

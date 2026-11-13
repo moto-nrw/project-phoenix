@@ -6,10 +6,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 // revalidates the caller's source/target access against the locked move state
 // before any current visit is ended or recreated.
 func (s *service) MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error) {
-	return s.moveStudentsToActiveGroup(ctx, studentIDs, activeGroupID, &auth, false)
+	return s.moveStudentsToActiveGroup(ctx, studentIDs, activeGroupID, &auth, moveOptions{})
 }
 
 // MoveStudentsToOpenRoomSessionAuthorized moves children into the room session
@@ -30,14 +30,35 @@ func (s *service) MoveStudentsToActiveGroupAuthorized(ctx context.Context, stude
 // place; only the destination no longer has to be supervised, because a
 // released room is a shared destination rather than someone's supervision.
 func (s *service) MoveStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error) {
-	return s.moveStudentsToActiveGroup(ctx, studentIDs, roomSessionID, &auth, true)
+	return s.moveStudentsToActiveGroup(ctx, studentIDs, roomSessionID, &auth, moveOptions{openRoomTarget: true})
 }
 
-func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization, openRoomTarget bool) (*StudentMoveResult, error) {
+// moveOptions carries what differs between the move entry points.
+type moveOptions struct {
+	// openRoomTarget marks the room session of a released room (#3066).
+	openRoomTarget bool
+	// keepPresent leaves the children already present where they are; only
+	// the children the check-in opens move (#6953).
+	keepPresent bool
+	// checkInBy is the staff member a check-in into the session names
+	// (#6953). When set, the unit checks the absent children in to the
+	// school before it moves them.
+	checkInBy int64
+	// arrivals are the children the same unit just checked in to the school
+	// (#6953). They have no current place whose rights a move would need:
+	// the check-in right covers them, and only the target rules apply.
+	arrivals map[int64]struct{}
+}
+
+func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization, opts moveOptions) (*StudentMoveResult, error) {
 	var result *StudentMoveResult
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		var moveErr error
-		result, moveErr = s.moveStudentsToActiveGroupLocked(txCtx, studentIDs, activeGroupID, auth, openRoomTarget)
+		if opts.checkInBy > 0 {
+			result, moveErr = s.checkInStudentsToSessionLocked(txCtx, studentIDs, activeGroupID, *auth, opts)
+		} else {
+			result, moveErr = s.moveStudentsToActiveGroupLocked(txCtx, studentIDs, activeGroupID, auth, opts)
+		}
 		return moveErr
 	})
 	if err != nil {
@@ -59,7 +80,7 @@ type studentMovePlan struct {
 	guard          moveVisitGuard
 }
 
-func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization, openRoomTarget bool) (*StudentMoveResult, error) {
+func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization, opts moveOptions) (*StudentMoveResult, error) {
 	if activeGroupID <= 0 {
 		return nil, &ActiveError{Op: opMoveStudents, Err: ErrInvalidData}
 	}
@@ -78,11 +99,14 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 		return nil, err
 	}
 	plan.guard.students = lockedStudents
+	if err := s.requireArrivalSupervision(ctx, plan, opts); err != nil {
+		return nil, err
+	}
 	if restricted {
 		if len(plan.studentIDs) == 0 {
 			return plan.staleResult(), nil
 		}
-		if err := s.authorizeStudentMove(ctx, *auth, plan.target, plan.studentIDs, plan.openAttendance, plan.currentVisits, opMoveStudents, openRoomTarget); err != nil {
+		if err := s.authorizeStudentMove(ctx, *auth, plan, opMoveStudents, opts); err != nil {
 			return nil, err
 		}
 	}
