@@ -424,8 +424,9 @@ func (t *TraegerAccounts) RevokeTraegerInvitation(ctx context.Context, actor ide
 }
 
 // ChangeTraegerRoles replaces the role set of an active member and mails the
-// person (#5474). The session of that person picks the new rights up at its
-// next refresh.
+// person (#5474). An added role reaches the person's session at its next
+// refresh; a withdrawn role ends the person's Träger sessions at once, since
+// the access token still carries its rights (#6850).
 func (t *TraegerAccounts) ChangeTraegerRoles(ctx context.Context, actor identityaccess.TraegerActor, accountID int64, roles []string) (identityaccess.TraegerMember, error) {
 	roles, err := normalizeTraegerRoles(roles)
 	if err != nil {
@@ -444,7 +445,7 @@ func (t *TraegerAccounts) ChangeTraegerRoles(ctx context.Context, actor identity
 		if err := unit.checkLeadershipChange(accountID, before, roles); err != nil {
 			return err
 		}
-		if _, err := t.store.ReplaceTraegerRoles(txCtx, actor.OrganizationID, accountID, roles); err != nil {
+		if err := t.replaceTraegerRoles(txCtx, actor.OrganizationID, accountID, before, roles); err != nil {
 			return err
 		}
 		accounts, _, err := t.store.ListTraegerAccounts(txCtx, actor.OrganizationID, []int64{accountID})
@@ -458,6 +459,20 @@ func (t *TraegerAccounts) ChangeTraegerRoles(ctx context.Context, actor identity
 		return t.notifyAndRecord(txCtx, actor, unit, identityaccess.TraegerAccountRolesChanged, accounts[0], before, roles)
 	})
 	return result, err
+}
+
+// replaceTraegerRoles grants the member the roles after in place of before.
+// A role of before that after lacks ends the member's Träger sessions, so
+// its right leaves the issued access tokens at once (#6850).
+func (t *TraegerAccounts) replaceTraegerRoles(ctx context.Context, organizationID, accountID int64, before, after []string) error {
+	if _, err := t.store.ReplaceTraegerRoles(ctx, organizationID, accountID, after); err != nil {
+		return err
+	}
+	if !slices.ContainsFunc(before, func(role string) bool { return !slices.Contains(after, role) }) {
+		return nil
+	}
+	_, err := t.store.DeleteTraegerAccountSessions(ctx, organizationID, accountID)
+	return err
 }
 
 // RemoveTraegerMember ends the membership of an active member, withdraws its
