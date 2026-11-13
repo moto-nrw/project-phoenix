@@ -182,7 +182,7 @@ func (s *TemplateService) updateTemplateLocked(
 	// Predecessor reconciliation and the re-plan wait on days. Take them
 	// before roster writes lock staff or participant rows that a
 	// cancellation also needs.
-	if err := s.lockSeriesPredecessorDays(ctx, in, state.validFrom, replan.days()); err != nil {
+	if err := s.lockUpdateDays(ctx, in, state.validFrom, replan.days()); err != nil {
 		return err
 	}
 	replanStaff, err := s.replanStaff(ctx, replan)

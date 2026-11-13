@@ -2909,9 +2909,10 @@ export function useEventForm({
         materialize_from: effectiveDate,
         materialize_to: chunks[0]?.to ?? effectiveDate,
       });
-      // Beyond the first 56-day window the split leaves the old
-      // template's stale planned rows in place; a scoped re-plan per
-      // chunk clears them and materializes the successor template.
+      // The split deletes the old template's planned rows from the
+      // effective date on; beyond the first 56-day window a scoped re-plan
+      // per chunk materializes the successor template. A failed chunk only
+      // leaves gaps the scheduler fills later.
       // Chunk failures are follow-up only — the split already
       // succeeded, so warn and close instead of re-opening the form.
       let followUpOk = true;

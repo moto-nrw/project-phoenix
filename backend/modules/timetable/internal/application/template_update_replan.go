@@ -101,16 +101,19 @@ func (r *templateReplan) days() []calendar.Date {
 	return days
 }
 
+// replanChunk is one materialization run of the re-plan.
+type replanChunk struct{ from, to calendar.Date }
+
 // chunks splits the window into materialization runs of at most
 // MaxMaterializationWindowDays days.
-func (r *templateReplan) chunks() [][2]calendar.Date {
-	var chunks [][2]calendar.Date
+func (r *templateReplan) chunks() []replanChunk {
+	var chunks []replanChunk
 	for from := r.from; !from.After(r.to); {
 		to := from.AddDays(timetable.MaxMaterializationWindowDays - 1)
 		if to.After(r.to) {
 			to = r.to
 		}
-		chunks = append(chunks, [2]calendar.Date{from, to})
+		chunks = append(chunks, replanChunk{from: from, to: to})
 		from = to.AddDays(1)
 	}
 	return chunks
@@ -132,13 +135,15 @@ func (s *TemplateService) replanStaff(ctx context.Context, replan *templateRepla
 	for _, row := range rows {
 		staff = append(staff, row.StaffID)
 	}
+	// Without the roster the materialization would lock its people after
+	// the update's writes, against the lock order; refuse like ReplanWeek.
 	roster, ok := s.deps.Materialization.(materializationStaffRoster)
 	if !ok {
-		return staff, nil
+		return nil, &ports.ScheduleError{Op: replanTemplateOp, Err: errors.New("materialization provides no staff roster")}
 	}
 	var candidates []int64
 	for _, chunk := range replan.chunks() {
-		ids, err := roster.staffForMaterialization(ctx, chunk[0], chunk[1])
+		ids, err := roster.staffForMaterialization(ctx, chunk.from, chunk.to)
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +179,7 @@ func (s *TemplateService) replanTemplateOccurrences(ctx context.Context, in Temp
 	}
 	created := 0
 	for _, chunk := range replan.chunks() {
-		mat, err := s.deps.Materialization.MaterializeForTenant(ctx, chunk[0], chunk[1], timetable.MaterializationSourceManual)
+		mat, err := s.deps.Materialization.MaterializeForTenant(ctx, chunk.from, chunk.to, timetable.MaterializationSourceManual)
 		if err != nil {
 			return &ports.ScheduleError{Op: replanTemplateOp + ": materialize", Err: err}
 		}

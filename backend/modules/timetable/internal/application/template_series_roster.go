@@ -117,7 +117,7 @@ func (s *TemplateService) reconcileSeriesPredecessorRoster(
 // Lock all segments together before either participant or staff rows change.
 // A cancellation takes the day first and then locks those participant rows.
 // The re-plan's days join the same ascending batch (#6838).
-func (s *TemplateService) lockSeriesPredecessorDays(ctx context.Context, in TemplateUpdateInput, livingValidFrom *calendar.Date, replanDays []calendar.Date) error {
+func (s *TemplateService) lockUpdateDays(ctx context.Context, in TemplateUpdateInput, livingValidFrom *calendar.Date, replanDays []calendar.Date) error {
 	occurrences, err := s.seriesPredecessorOccurrences(ctx, in, livingValidFrom)
 	if err != nil {
 		return err
