@@ -160,6 +160,8 @@ type AppointmentOverview = portal.AppointmentOverview
 
 type AppointmentAttendee = portal.AppointmentAttendee
 
+type AppointmentResponseCounts = portal.AppointmentResponseCounts
+
 type RecurrenceRequest = portal.RecurrenceRequest
 
 type AppointmentTarget = portal.AppointmentTarget
@@ -330,7 +332,8 @@ func (s *service) parentTenantAppointmentOverview(ctx context.Context, appointme
 	if !canParentViewOverview(appointment, true) {
 		return nil, true, nil
 	}
-	overview, err := s.buildAppointmentOverview(ctx, appointment, recipients)
+	listed := parentListedRecipients(recipients, distinctGuardianProfileIDs(tenantChildren), distinctChildStudentIDs(tenantChildren))
+	overview, err := s.buildAppointmentOverview(ctx, appointment, recipients, listed)
 	return overview, false, err
 }
 

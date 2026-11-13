@@ -30,5 +30,15 @@
   "moreEvents": "+ {count} daha",
   "responseRequired": "Yanıt gerekli",
   "errorObjectList": "randevu listesi",
-  "errorObjectResponse": "yanıt"
+  "errorObjectResponse": "yanıt",
+  "responseRequiredSeries": "Serideki tüm tarihler için yanıt",
+  "seriesAnswer": "Yanıtınız bu serideki tüm tarihler için geçerlidir.",
+  "errorObjectOverview": "yanıtlar",
+  "responses": {
+    "title": "Yanıtlar",
+    "accepted": "Kabul",
+    "declined": "Ret",
+    "pending": "Açık",
+    "privacy": "Diğer velilerin adlarını göremezsiniz."
+  }
 }

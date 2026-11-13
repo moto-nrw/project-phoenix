@@ -30,5 +30,15 @@
   "moreEvents": "+ {count} të tjera",
   "responseRequired": "Kërkohet përgjigje",
   "errorObjectList": "lista e takimeve",
-  "errorObjectResponse": "përgjigjja"
+  "errorObjectResponse": "përgjigjja",
+  "responseRequiredSeries": "Përgjigje për të gjitha datat e serisë",
+  "seriesAnswer": "Përgjigjja juaj vlen për të gjitha datat e kësaj serie.",
+  "errorObjectOverview": "përgjigjet",
+  "responses": {
+    "title": "Përgjigjet",
+    "accepted": "Pranuan",
+    "declined": "Refuzuan",
+    "pending": "Pa përgjigje",
+    "privacy": "Emrat e prindërve të tjerë nuk i shihni."
+  }
 }
