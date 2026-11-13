@@ -122,22 +122,33 @@ func requireAdditiveBuildTags(production, tagged []byte) error {
 }
 
 func fixedBuildEnvironment(build Build) []string {
-	environment := make([]string, 0, len(os.Environ())+3)
-	for _, entry := range os.Environ() {
+	return buildEnvironment(os.Environ(), build)
+}
+
+// buildEnvironment fixes build on inherited, a process environment.
+func buildEnvironment(inherited []string, build Build) []string {
+	environment := make([]string, 0, len(inherited)+3)
+	for _, entry := range inherited {
 		if strings.HasPrefix(entry, "GOOS=") || strings.HasPrefix(entry, "GOARCH=") || strings.HasPrefix(entry, "CGO_ENABLED=") {
 			continue
 		}
 		environment = append(environment, entry)
 	}
+	inheritedFlags := ""
 	for index, entry := range environment {
-		if strings.HasPrefix(entry, "GOFLAGS=") {
+		if value, found := strings.CutPrefix(entry, "GOFLAGS="); found {
+			inheritedFlags = value
 			environment = append(environment[:index], environment[index+1:]...)
 			break
 		}
 	}
 	// Policy tags are fixed just like GOOS/GOARCH; inherited test-runner flags
 	// must not change the graph of a historical base or an isolated fixture.
-	environment = append(environment, "GOFLAGS="+os.Getenv("GOFLAGS")+" -tags="+strings.Join(build.Tags, ","))
+	// -trimpath keeps the directory out of every compile action: the base is
+	// extracted into a new temporary directory per run, and without it no
+	// export data of the base could come from the build cache. Diagnostics take
+	// their positions from parsed source, never from export data.
+	environment = append(environment, "GOFLAGS="+inheritedFlags+" -trimpath -tags="+strings.Join(build.Tags, ","))
 	return append(environment, "GOOS="+build.GOOS, "GOARCH="+build.GOARCH, "CGO_ENABLED=0")
 }
 
