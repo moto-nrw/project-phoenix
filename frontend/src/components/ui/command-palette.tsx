@@ -100,6 +100,7 @@ export function CommandPalette({
   const baseId = useId();
   const listId = `${baseId}-list`;
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const visibleGroups = useMemo(
     () => groups.filter((group) => group.items.length > 0),
     [groups],
@@ -156,6 +157,8 @@ export function CommandPalette({
       ariaLabel={label}
       size="lg"
       mobileSheet
+      // The dialog opens to type: the field takes the focus, not the X.
+      initialFocusRef={inputRef}
     >
       {/* What a person types and finds here names children and families: a
           session recording never holds it (data-analytics-block). */}
@@ -171,9 +174,7 @@ export function CommandPalette({
             <Search />
           </span>
           <Input
-            // The dialog opens to type: the field takes the focus, not the X.
-            // oxlint-disable-next-line jsx-a11y/no-autofocus -- a search dialog opened on purpose starts in its field
-            autoFocus
+            ref={inputRef}
             type="text"
             inputMode="search"
             aria-label={label}

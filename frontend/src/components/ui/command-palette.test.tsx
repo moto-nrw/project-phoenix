@@ -51,7 +51,45 @@ function groupsWith(select: (id: string) => void): CommandPaletteGroup[] {
   ];
 }
 
+function OpenedByButton() {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setIsOpen(true)}>
+        Suche öffnen
+      </button>
+      {isOpen ? (
+        <CommandPalette
+          isOpen
+          onClose={() => setIsOpen(false)}
+          label="Suchen"
+          query=""
+          onQueryChange={() => undefined}
+          placeholder="Name, Telefonnummer …"
+          groups={[]}
+        />
+      ) : null}
+    </>
+  );
+}
+
 describe("CommandPalette", () => {
+  it("opens in its field and gives the focus back to what opened it", async () => {
+    const user = userEvent.setup();
+    render(<OpenedByButton />);
+    const opener = screen.getByRole("button", { name: "Suche öffnen" });
+
+    await user.click(opener);
+    const field = await screen.findByRole("combobox", { name: "Suchen" });
+    await vi.waitFor(() => expect(field).toHaveFocus());
+
+    await user.keyboard("{Escape}");
+    await vi.waitFor(() => expect(opener).toHaveFocus());
+    expect(
+      screen.queryByRole("combobox", { name: "Suchen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps the focus in the field and walks every entry across the groups", async () => {
     const user = userEvent.setup();
     const select = vi.fn();
