@@ -189,12 +189,7 @@ func countListedAnswers(filters []EnrollmentAnswerFilterResponse, listed map[int
 		options := make([]EnrollmentAnswerOptionResponse, 0, len(filter.Options))
 		total := 0
 		for _, option := range filter.Options {
-			option.Count = 0
-			for _, id := range option.StudentIDs {
-				if listed[id] {
-					option.Count++
-				}
-			}
+			option.Count = countListed(option.StudentIDs, listed)
 			total += option.Count
 			if option.Count > 0 || filter.Type == "boolean" {
 				options = append(options, option)
@@ -206,4 +201,15 @@ func countListedAnswers(filters []EnrollmentAnswerFilterResponse, listed map[int
 		}
 	}
 	return out
+}
+
+// countListed is the number of ids the list shows.
+func countListed(ids []int64, listed map[int64]bool) int {
+	count := 0
+	for _, id := range ids {
+		if listed[id] {
+			count++
+		}
+	}
+	return count
 }

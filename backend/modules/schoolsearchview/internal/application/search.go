@@ -71,11 +71,7 @@ func (s *Search) searchPeople(ctx context.Context, text, phoneKey string, scope 
 		if err != nil {
 			return fmt.Errorf("school search: children: %w", err)
 		}
-		for i := range children {
-			if children[i].Match.Field == schoolsearchview.MatchParentNote {
-				children[i].Match.Text = matchSnippet(children[i].Match.Text, text)
-			}
-		}
+		withNoteSnippets(children, text)
 		if scope.ChildDetails {
 			children, err = s.withAnswerHits(ctx, text, children)
 			if err != nil {
@@ -164,4 +160,14 @@ func (s *Search) searchDirectory(ctx context.Context, text string, scope schools
 		result.Groups = groups
 	}
 	return nil
+}
+
+// withNoteSnippets cuts the parent note of a note hit to the part around the
+// match.
+func withNoteSnippets(children []schoolsearchview.Child, text string) {
+	for i := range children {
+		if children[i].Match.Field == schoolsearchview.MatchParentNote {
+			children[i].Match.Text = matchSnippet(children[i].Match.Text, text)
+		}
+	}
 }
