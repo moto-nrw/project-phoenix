@@ -248,11 +248,13 @@ export default function TraegerAccountsPage() {
             {
               icon: <UserPen className="size-4" aria-hidden />,
               label: member.name ? "Namen ändern" : "Namen eintragen",
+              description: "Öffnet den Namen der Person zum Bearbeiten.",
               onClick: () => setNaming(member),
             },
             {
               icon: <Pencil className="size-4" aria-hidden />,
               label: "Rollen ändern",
+              description: "Öffnet die Rollen der Person zum Bearbeiten.",
               onClick: () => setEditing(member),
             },
             ...(isLastLeader(member)
@@ -260,6 +262,8 @@ export default function TraegerAccountsPage() {
               : [
                   {
                     label: "Aus dem Träger-Büro entfernen",
+                    description:
+                      "moto fragt vorher nach, dann endet der Zugang zum Träger-Portal.",
                     icon: <Trash2 className="size-4" aria-hidden />,
                     destructive: true,
                     onClick: () => setPending({ kind: "remove", member }),
@@ -307,6 +311,8 @@ export default function TraegerAccountsPage() {
           items={[
             {
               label: "Einladung zurücknehmen",
+              description:
+                "moto fragt vorher nach, dann funktioniert der Einladungslink nicht mehr.",
               icon: <Undo2 className="size-4" aria-hidden />,
               destructive: true,
               onClick: () => setPending({ kind: "revoke", invitation }),

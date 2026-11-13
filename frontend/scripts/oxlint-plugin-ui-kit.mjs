@@ -6297,6 +6297,128 @@ const buttonNeedsTooltip = {
   },
 };
 
+// ui-kit/menu-item-needs-description (#6745, Epic #6643)
+//
+// Jeder Eintrag eines Kebab- oder Überlaufmenüs sagt in einer sichtbaren
+// Zeile, was er tut. Im Menü gibt es kein Hover, die Zeile `description` ist
+// also auch auf Handy und Tablet lesbar. Ein Menüeintrag ist wie bei
+// `bauart/no-disabled-menu-item` ein Objektliteral mit `label` und `onClick`
+// oder `href`. Ausgenommen sind Einträge mit `kind` (Auswahl, Schalter,
+// Überschrift: sie sagen, was sie sind) und rein navigierende Einträge mit
+// `selected`, etwa die „Mehr“-Leiste der Navigation; ein statisch falscher
+// Wert wie `false` oder `undefined` ist keine Navigation und befreit nicht.
+// Ein unbekannter Wert bleibt als Navigation ausgenommen. Objekte mit
+// `tooltip` oder `noTooltip` sind Knöpfe, etwa `moreAction` der DataTable;
+// sie erklärt `ui-kit/button-needs-tooltip`, ein Menüeintrag hat kein
+// `tooltip`. Verlangt wird
+// `description` oder ein begründetes `noDescription: "<Grund>"`; ein leerer
+// oder `undefined` gesetzter Wert ist ein Fehler. Wie bei
+// `ui-kit/button-needs-tooltip` gilt ein unbekannter Spread ohne Erklärung als
+// erfüllt, ein Spread hinter der Erklärung wird gemeldet: Er kann sie
+// überschreiben. Die Regel gilt in TOOLTIP_SCOPE.
+
+function staticObjectProperty(node, name) {
+  // Bei doppelten Schlüsseln gilt zur Laufzeit der letzte.
+  return node.properties.findLast(
+    (property) =>
+      property.type === "Property" &&
+      !property.computed &&
+      propertyName(property) === name,
+  );
+}
+
+function isStaticallyFalsy(expression) {
+  if (expression?.type === "Literal") return !expression.value;
+  return (
+    (expression?.type === "Identifier" && expression.name === "undefined") ||
+    (expression?.type === "UnaryExpression" && expression.operator === "void")
+  );
+}
+
+const menuItemNeedsDescription = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Every menu entry says in a visible line what it does: description, or noDescription with a reason.",
+    },
+    messages: {
+      missing:
+        'Menüeintrag ohne Erklärung: `description` mit einer kurzen Zeile zur Folge setzen oder `noDescription: "<Grund>"`, wenn das Wort schon alles sagt (#6643, Schreibregel in .claude/rules/frontend-ui-kit.md).',
+      emptyDescription:
+        'Leere `description`: eine kurze Zeile zur Folge schreiben oder `noDescription: "<Grund>"` setzen (#6643).',
+      emptyReason:
+        "`noDescription` braucht einen Grund, warum das Wort im Menü reicht (#6643).",
+      conflictingExplanation:
+        "`description` und `noDescription` dürfen nicht zusammen gesetzt sein (#6643).",
+      spreadAfterExplanation:
+        "Gespreizte Werte hinter `description`/`noDescription` können die Erklärung überschreiben: den Spread vor die Erklärung stellen (#6643).",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (!inTooltipScope(fileKey(context))) return {};
+    return {
+      ObjectExpression(node) {
+        if (!staticObjectProperty(node, "label")) return;
+        if (
+          !staticObjectProperty(node, "onClick") &&
+          !staticObjectProperty(node, "href")
+        ) {
+          return;
+        }
+        const selected = staticObjectProperty(node, "selected");
+        if (
+          staticObjectProperty(node, "kind") ||
+          staticObjectProperty(node, "tooltip") ||
+          staticObjectProperty(node, "noTooltip") ||
+          (selected && !isStaticallyFalsy(selected.value))
+        ) {
+          return;
+        }
+        const description = staticObjectProperty(node, "description");
+        const noDescription = staticObjectProperty(node, "noDescription");
+        if (description && noDescription) {
+          context.report({
+            node: noDescription,
+            messageId: "conflictingExplanation",
+          });
+          return;
+        }
+        const explanation = description ?? noDescription;
+        const unknownSpread = (property) =>
+          property.type === "SpreadElement" || property.computed;
+        if (
+          explanation &&
+          node.properties
+            .slice(node.properties.indexOf(explanation) + 1)
+            .some(unknownSpread)
+        ) {
+          context.report({ node, messageId: "spreadAfterExplanation" });
+          return;
+        }
+        if (description) {
+          if (isBlankExpression(description.value)) {
+            context.report({
+              node: description,
+              messageId: "emptyDescription",
+            });
+          }
+          return;
+        }
+        if (noDescription) {
+          if (isBlankExpression(noDescription.value)) {
+            context.report({ node: noDescription, messageId: "emptyReason" });
+          }
+          return;
+        }
+        if (node.properties.some(unknownSpread)) return;
+        context.report({ node, messageId: "missing" });
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
@@ -6306,6 +6428,7 @@ export default {
     "confirmation-dismiss-lock": confirmationDismissLock,
     "confirmation-loading-text": confirmationLoadingText,
     "green-fill-white-text": greenFillWhiteText,
+    "menu-item-needs-description": menuItemNeedsDescription,
     "no-button-override": noButtonOverride,
     "no-dead-surface-utility": noDeadSurfaceUtility,
     "no-dynamic-color-class": noDynamicColorClass,
