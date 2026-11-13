@@ -150,6 +150,46 @@ describe("CareRequestReviewItem", () => {
     );
   });
 
+  it("zeigt, was die Eltern gesehen haben, wenn der Plan sich seit der Anfrage geändert hat", () => {
+    const changed = row({
+      diff: [
+        {
+          label: "Mittwoch · Abholzeit",
+          old: "16:30",
+          new: "16:00",
+          weekday: 3,
+          care_kind: "pickup",
+          submitted_old: "15:00",
+        },
+        {
+          label: "Mittwoch · Abholart",
+          old: "Fährt Bus",
+          new: "Wird abgeholt",
+          weekday: 3,
+          care_kind: "departure_mode",
+        },
+      ],
+    });
+    const { rerender } = render(
+      <CareRequestReviewItem row={changed} onDecided={vi.fn()} />,
+    );
+    expand();
+
+    expect(
+      screen.getByText(/Der Plan wurde nach der Anfrage geändert/),
+    ).toBeInTheDocument();
+    // Nur die geänderte Zeile trägt die Marke.
+    expect(screen.getAllByText(/^Eltern sahen /)).toHaveLength(1);
+    expect(screen.getByText("Eltern sahen 15:00")).toBeInTheDocument();
+
+    rerender(<CareRequestReviewItem row={row()} onDecided={vi.fn()} />);
+    expect(screen.getByText("Montag · Abholzeit:")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Der Plan wurde nach der Anfrage geändert/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Eltern sahen /)).not.toBeInTheDocument();
+  });
+
   it("preserves the request kind in an empty collapsed summary", () => {
     const { rerender } = render(
       <CareRequestReviewItem row={row({ diff: [] })} onDecided={vi.fn()} />,

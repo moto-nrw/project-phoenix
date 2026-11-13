@@ -182,7 +182,8 @@ func (s *ScheduleReviews) careRequestDiff(ctx context.Context, row *careplan.Car
 	if err != nil {
 		return err
 	}
-	item.Diff = careplan.WeeklyCareDiff(payload.Weekdays, current)
+	// Mark the fields the plan changed in since the family submitted (#6990).
+	item.Diff = carerequests.MarkSubmittedBaseline(careplan.WeeklyCareDiff(payload.Weekdays, current), row.Payload)
 	return nil
 }
 

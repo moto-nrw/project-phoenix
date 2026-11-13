@@ -27,6 +27,8 @@ func ToCareRequestDiffResponses(entries []careplan.CareRequestDiffEntry) []CareR
 			CareKind: e.CareKind,
 			OldModes: e.OldModes,
 			NewMode:  e.NewMode,
+			// The family saw this value when it submitted (#6990).
+			SubmittedOld: e.SubmittedOld,
 		})
 	}
 	return out
