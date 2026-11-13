@@ -331,6 +331,7 @@ export function getHelpTopics(
     articles.loginTopic(presenceMode, groupMode),
     articles.installAppTopic(),
     articles.appOverviewTopic(),
+    articles.schoolSearchTopic(),
     articles.caregiverFirstStepsTopic(),
     ...caregiverTopics(presenceMode, groupMode, nfcEnabled),
     ...leadTopics(presenceMode, groupMode, nfcEnabled),

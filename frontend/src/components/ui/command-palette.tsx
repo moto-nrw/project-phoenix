@@ -171,6 +171,9 @@ export function CommandPalette({
             <Search />
           </span>
           <Input
+            // The dialog opens to type: the field takes the focus, not the X.
+            // oxlint-disable-next-line jsx-a11y/no-autofocus -- a search dialog opened on purpose starts in its field
+            autoFocus
             type="search"
             aria-label={label}
             placeholder={placeholder}
