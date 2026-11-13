@@ -28,7 +28,7 @@ func TestAbsenceTypesListProtectedFailures(t *testing.T) {
 		statements int
 	}{
 		{name: "permission before transaction", status: http.StatusForbidden, detail: "Forbidden", statements: 0},
-		{name: "cancel before transaction", permission: "time_tracking:own", cancel: true, status: http.StatusInternalServerError, detail: "Internal Server Error", statements: 0},
+		{name: "cancel before transaction", permission: "time_tracking:own", cancel: true, status: 499, detail: "unit of work: start transaction: context canceled", statements: 0},
 		{name: "catalog read error rolls back", permission: "time_tracking:own", breakRead: true, status: http.StatusInternalServerError,
 			detail: `database error during list all staff absence types: workforce postgres: list staff absence types: `, statements: 4},
 	} {
@@ -76,12 +76,15 @@ func TestAbsenceTypesListProtectedFailures(t *testing.T) {
 				t.Logf("absence_types_failure=%s flag=%s statements=%d body=%s queries_json=%s", test.name, suffix, counter.Total(), response.Body.String(), encoded)
 				require.Equal(t, test.status, response.Code, response.Body.String())
 				require.Equal(t, "application/json", response.Header().Get("Content-Type"))
-				code, anchor := "general.server", "anleitung-unerwarteter-fehler"
-				if test.status == http.StatusForbidden {
+				code, anchor, title := "general.server", "anleitung-unerwarteter-fehler", http.StatusText(test.status)
+				switch test.status {
+				case http.StatusForbidden:
 					code, anchor = "general.permission", "anleitung-zugriff-pruefen"
+				case 499: // the client went away: no server error
+					code, anchor, title = "general.unavailable", "anleitung-gerade-nicht-erreichbar", "Client Closed Request"
 				}
 				want, encodeErr := json.Marshal(map[string]any{
-					"type": "https://moto-app.de/help/fehlermeldungen#" + anchor, "title": http.StatusText(test.status),
+					"type": "https://moto-app.de/help/fehlermeldungen#" + anchor, "title": title,
 					"status": test.status, "detail": detail, "instance": "", "code": code,
 				})
 				require.NoError(t, encodeErr)

@@ -720,6 +720,44 @@ describe("StaffCalendarPage", () => {
     },
   );
 
+  // #6846: Eltern sehen in der Übersicht nur Zahlen; das Formular sagt das,
+  // und bei einer Reihe, dass eine Antwort für alle Termine gilt.
+  it("explains who sees the overview and that a series answer covers every date", async () => {
+    render(<StaffCalendarPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+    fireEvent.change(screen.getByLabelText("Titel"), {
+      target: { value: "Elternabend" },
+    });
+    fireEvent.click(screen.getByLabelText("Anna Mitarbeiterin"));
+
+    const picker = screen.getByRole("group", {
+      name: "Wer sieht die Teilnehmerübersicht?",
+    });
+    expect(within(picker).getByLabelText(/Nur ich/)).toBeChecked();
+    expect(
+      within(picker).getByText(
+        "Mitarbeitende sehen alle Namen. Eltern sehen nur, wie viele zugesagt und abgesagt haben.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(picker).getByLabelText(/Alle Eingeladenen/));
+
+    const seriesHint =
+      "Eine Zusage oder Absage gilt für alle Termine der Reihe.";
+    expect(screen.queryByText(seriesHint)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Wiederholung"));
+    fireEvent.click(screen.getByRole("option", { name: "Wöchentlich" }));
+    expect(screen.getByText(seriesHint)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+    await waitFor(() =>
+      expect(mockCreateStaffAppointment).toHaveBeenCalledWith(
+        expect.objectContaining({ overview_visibility: "all" }),
+      ),
+    );
+  });
+
   // Die Lehrkräfte erreicht ein Termin in moto schule (#4798).
   it("invites all teachers as one target", async () => {
     render(<StaffCalendarPage />);

@@ -230,6 +230,25 @@ type ShiftStore interface {
 	CreateShiftTypeIfAbsent(context.Context, domain.ShiftType) (domain.ShiftType, bool, domain.OperationStats, error)
 	UpdateShiftType(context.Context, domain.ShiftType) (domain.ShiftType, bool, domain.OperationStats, error)
 	DeleteShiftType(context.Context, int64) (domain.OperationStats, error)
+	ShiftTypeRetirementStore
+}
+
+// ShiftTypeRetirementStore archives shift types that planned rows still
+// carry and counts those rows (#6845).
+type ShiftTypeRetirementStore interface {
+	// LockShiftType holds the type row until the transaction ends; a
+	// concurrent shift or series write naming the type waits on its FK
+	// check. A missing type reports found=false.
+	LockShiftType(context.Context, int64) (bool, domain.OperationStats, error)
+	// ArchiveShiftType stamps archived_at once; a missing type reports
+	// found=false.
+	ArchiveShiftType(context.Context, int64) (domain.ShiftType, bool, domain.OperationStats, error)
+	// CountShiftTypeReferences counts the shifts and series carrying one
+	// type in one statement.
+	CountShiftTypeReferences(ctx context.Context, shiftTypeID int64) (domain.ShiftTypeReferences, domain.OperationStats, error)
+	// CountShiftPlanReferences counts the shifts and series per type and the
+	// series per calendar period in one statement.
+	CountShiftPlanReferences(context.Context) (domain.ShiftPlanReferences, domain.OperationStats, error)
 }
 
 // AbsenceStore is the persistence port over active.staff_absences,

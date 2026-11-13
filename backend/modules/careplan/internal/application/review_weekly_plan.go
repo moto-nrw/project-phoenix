@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
 )
 
 // reviewPlanFacts is bounded to one child and the dates used by their request.
@@ -38,6 +39,9 @@ func (f reviewPlanFacts) weekly(today careplan.Date) (careplan.CareWeeklyPlan, e
 		stored[row.Weekday] = row
 	}
 	start := today.StartOfISOWeek()
+	// The class clock comes from the same reading the baseline projection
+	// uses, so the review and the family's view agree on it (#6990).
+	classClocks := domain.ClassArrivalBaselineFromTimes("", f.classTimes)
 	for i, key := range reviewWeekdays {
 		weekday := i + 1
 		row, hasStored := stored[weekday]
@@ -51,8 +55,8 @@ func (f reviewPlanFacts) weekly(today careplan.Date) (careplan.CareWeeklyPlan, e
 		plan.ArrivalDays[weekday] = true
 		if hasStored && !row.ExpectedArrival.IsZero() {
 			plan.ArrivalTimes[weekday] = row.ExpectedArrival.Format("15:04")
-		} else if parsed, err := time.Parse("15:04", f.classTimes[key]); err == nil {
-			plan.ArrivalTimes[weekday] = parsed.Format("15:04")
+		} else if clock, ok := classClocks.TimeForWeekday(weekday); ok {
+			plan.ArrivalTimes[weekday] = clock.Format("15:04")
 		}
 	}
 	var err error

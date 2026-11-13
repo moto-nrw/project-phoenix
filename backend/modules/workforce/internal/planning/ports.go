@@ -42,7 +42,10 @@ type shiftTypeOperations interface {
 	CreateShiftType(context.Context, workforce.ShiftType) (workforce.ShiftType, error)
 	FindShiftType(context.Context, int64) (workforce.ShiftType, error)
 	UpdateShiftType(context.Context, workforce.ShiftType) (workforce.ShiftType, error)
-	DeleteShiftType(context.Context, int64) error
+	// RemoveShiftType deletes an unreferenced type and archives a type that
+	// planned shifts or series still carry (#6845).
+	RemoveShiftType(context.Context, int64) (workforce.ShiftTypeRemoval, error)
+	ShiftPlanReferences(context.Context) (workforce.ShiftPlanReferences, error)
 	ListShiftTypes(context.Context) ([]workforce.ShiftType, error)
 	CreateShiftTypeIfAbsent(context.Context, workforce.ShiftType) (workforce.ShiftType, bool, error)
 }

@@ -83,7 +83,7 @@ both actual source owners without flattening it into an invented edge.
 | 36 | Organisation school creation → Device Fleet | Covered and qualified: `ProvisioningDevices.CreateDevice` serves both school creation (this leaf operation) and E5 device transfer. The shared exact port surface is conservatively E5; this is no new transfer exception. |
 | 37 | Organisation device transfer → Device Fleet | Covered: provisioning-device locked read/archive/create/history command surface, E5. No independent Device Fleet commit is invented. |
 | 38 | Organisation person retirement → People | Covered: `ProvisioningPeople` anonymize/unlink/account/tag retirement commands, E5; tolerated supervision/account failures remain as documented. |
-| 39 | Organisation provisioning/retirement → Identity | Covered: `ProvisioningIdentity` account/invitation/role/session effects plus explicit WithinAdmin/WithTenantID scope sites, E5. Split tenant/admin units and best-effort audit remain visible, not one atomic operation. |
+| 39 | Organisation provisioning/retirement → Identity | Covered: `ProvisioningIdentity` account/invitation/role/session effects plus explicit WithinAdmin/WithTenantID scope sites, E5. Split tenant/admin units remain visible; the account audit commits before the tenant unit and fails it (#6984), not one atomic operation. |
 | 40 | Organisation school creation → Timetable categories | Covered: `ProvisioningCategories.SeedCategories` → Timetable CreateCategory, leaf in the school-creation admin unit. |
 
 ## Counts by policy source owner

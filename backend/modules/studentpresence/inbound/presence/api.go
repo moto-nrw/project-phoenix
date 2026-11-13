@@ -148,6 +148,9 @@ func (rs *Resource) registerVisitRoutes(r chi.Router, withTx common.Middleware) 
 		r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/move-to-group", rs.moveStudentsToActiveGroup)
 
 		r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/move-to-transit", rs.moveStudentsToTransit)
+		// Check children in and place them in a running session in one step
+		// (#6953): needs the check-in and the move right.
+		r.With(common.RequireSchoolCheckin(), common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/check-in-to-group", rs.checkInStudentsToSession)
 	})
 
 }

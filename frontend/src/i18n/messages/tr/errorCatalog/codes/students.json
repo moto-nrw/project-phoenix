@@ -75,6 +75,7 @@
   "pickup_change_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "pickup_change_expired": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "pickup_change_impact_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "care_request_plan_changed": "Bakım planı az önce değişti. Lütfen sayfayı yenileyin. Ardından talebi tekrar kontrol edin.",
   "pickup_permission_contact_gone": "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
   "pickup_proof_not_found": "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
   "pickup_reset_requires_offering": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

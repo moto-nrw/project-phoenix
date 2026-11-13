@@ -21,9 +21,11 @@ import {
   CheckCircleIcon,
   ClockIcon,
   MapPinIcon,
+  RepeatIcon,
   XIcon,
 } from "@phosphor-icons/react/ssr";
 import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
+import { ParentResponseSummary } from "~/components/parent/calendar/parent-response-summary";
 import {
   ParentPage,
   ParentPageHeader,
@@ -290,8 +292,11 @@ export function ParentCalendarPage() {
     setRespondingId(event.id);
     try {
       await respondParentCalendar(event.recipient_id, status);
+      // One answer covers every date of the invitation, also in a series
+      // (#6846), so every occurrence of the same recipient takes it.
+      const recipientId = event.recipient_id;
       const update = (candidate: CalendarEvent) =>
-        candidate.id === event.id
+        candidate.recipient_id === recipientId
           ? { ...candidate, response_status: status }
           : candidate;
       setEvents((current) => current.map(update));
@@ -557,7 +562,9 @@ function CalendarListEvent({
       {pending ? (
         <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
           <span className="text-moto-orange-strong text-xs leading-5 font-medium">
-            {t("responseRequired")}
+            {event.recurring
+              ? t("responseRequiredSeries")
+              : t("responseRequired")}
           </span>
           <div className="ms-auto flex items-center gap-2">
             <Button
@@ -892,6 +899,17 @@ function CalendarEventPopover({
       preferredWidth={380}
       className="overflow-hidden p-0"
       renderTrigger={renderTrigger}
+      // Zusagen und Absagen bleiben unter dem scrollenden Inhalt stehen, auch
+      // wenn Beschreibung und Rückmeldungen die Höhe füllen (#6846).
+      footer={
+        state === "needsResponse" ? (
+          <CalendarEventRespond
+            event={event}
+            responding={responding}
+            onRespond={onRespond}
+          />
+        ) : undefined
+      }
     >
       {({ close }) => (
         <CalendarEventDetails
@@ -900,6 +918,7 @@ function CalendarEventPopover({
           responding={responding}
           status={status}
           state={state}
+          withRespond={false}
           onClose={close}
           onRespond={onRespond}
         />
@@ -915,6 +934,7 @@ function CalendarEventDetails({
   status,
   state,
   mobile = false,
+  withRespond = true,
   onClose,
   onRespond,
 }: Readonly<{
@@ -924,21 +944,12 @@ function CalendarEventDetails({
   status: { label: string; tone: StatusBadgeTone } | null;
   state: EventState;
   mobile?: boolean;
+  /** False when the host shows the answer in its own fixed footer. */
+  withRespond?: boolean;
   onClose: () => void;
   onRespond: (status: "accepted" | "declined") => Promise<void>;
 }>) {
   const t = useCareTermTranslations("parentCalendar");
-  // The details are an open popover or drawer, so the error stays inside.
-  const {
-    error: respondError,
-    show: showRespondError,
-    clear: clearRespondError,
-  } = useApiFormError();
-  const respondHere = useRespondWithError(
-    onRespond,
-    showRespondError,
-    clearRespondError,
-  );
 
   return (
     <>
@@ -999,35 +1010,77 @@ function CalendarEventDetails({
             {event.description}
           </p>
         ) : null}
+        <ParentResponseSummary event={event} />
       </div>
-      {state === "needsResponse" ? (
+      {withRespond && state === "needsResponse" ? (
         <div
-          className={`border-t border-gray-100 px-4 py-3 ${mobile ? "pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : ""}`}
+          className={`border-t border-gray-100 ${mobile ? "pb-[env(safe-area-inset-bottom)]" : ""}`}
         >
-          <FormErrorAlert message={respondError} className="mb-3" />
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              isLoading={responding}
-              onClick={() => void respondHere("accepted")}
-            >
-              {t("accept")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline_danger"
-              size="md"
-              disabled={responding}
-              onClick={() => void respondHere("declined")}
-            >
-              {t("decline")}
-            </Button>
-          </div>
+          <CalendarEventRespond
+            event={event}
+            responding={responding}
+            onRespond={onRespond}
+          />
         </div>
       ) : null}
     </>
+  );
+}
+
+/**
+ * Zusagen und Absagen einer offenen Einladung, mit dem Hinweis, dass die
+ * Antwort für die ganze Reihe gilt. Der Fehler bleibt in den offenen Details.
+ */
+function CalendarEventRespond({
+  event,
+  responding,
+  onRespond,
+}: Readonly<{
+  event: CalendarEvent;
+  responding: boolean;
+  onRespond: (status: "accepted" | "declined") => Promise<void>;
+}>) {
+  const t = useCareTermTranslations("parentCalendar");
+  const {
+    error: respondError,
+    show: showRespondError,
+    clear: clearRespondError,
+  } = useApiFormError();
+  const respondHere = useRespondWithError(
+    onRespond,
+    showRespondError,
+    clearRespondError,
+  );
+  return (
+    <div className="px-4 py-3">
+      <FormErrorAlert message={respondError} className="mb-3" />
+      {event.recurring ? (
+        <p className="mb-3 flex items-center gap-1.5 text-xs leading-5 text-gray-500">
+          <RepeatIcon size={14} className="shrink-0" aria-hidden="true" />
+          {t("seriesAnswer")}
+        </p>
+      ) : null}
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          isLoading={responding}
+          onClick={() => void respondHere("accepted")}
+        >
+          {t("accept")}
+        </Button>
+        <Button
+          type="button"
+          variant="outline_danger"
+          size="md"
+          disabled={responding}
+          onClick={() => void respondHere("declined")}
+        >
+          {t("decline")}
+        </Button>
+      </div>
+    </div>
   );
 }
 

@@ -150,8 +150,36 @@ func (s *RequestDecisions) apply(ctx context.Context, request *carerequests.Requ
 	if request.RequestKind == carerequests.KindPickupPermission {
 		return false, none, s.Plans.ApplyPickupPermission(ctx, request)
 	}
+	if err := verifyWeeklyImpact(ctx, request, input); err != nil {
+		return false, none, err
+	}
 	changed, err := s.Plans.ApplyWeekly(ctx, request, input.ReviewedBy)
 	return changed, none, err
+}
+
+// verifyWeeklyImpact refuses a weekly approval whose reviewer saw a diff the
+// live plan no longer yields (#6843). It runs after the child lock, so the
+// approval writes onto exactly the plan the token names. The decide route
+// requires the token like a pickup approval; bulk and conflict resolutions
+// lock and version-check their group instead.
+func verifyWeeklyImpact(ctx context.Context, request *carerequests.Request, input carerequests.DecideInput) error {
+	if input.ExpectedImpactToken == nil {
+		if input.RequireImpactToken {
+			return carerequests.ErrWeeklyPlanImpactRequired
+		}
+		return nil
+	}
+	if input.WeeklyImpact == nil {
+		return fmt.Errorf("schedule: weekly impact check not configured")
+	}
+	token, err := input.WeeklyImpact.WeeklyImpactToken(ctx, *request)
+	if err != nil {
+		return fmt.Errorf("schedule: verify weekly request impact: %w", err)
+	}
+	if token != *input.ExpectedImpactToken {
+		return carerequests.ErrWeeklyPlanChanged
+	}
+	return nil
 }
 
 // guardianStillHoldsChild refuses to apply a request whose guardian lost the

@@ -517,10 +517,7 @@ func (s *staffShiftSeriesService) ensureShiftTypeActive(ctx context.Context, id 
 	if err != nil {
 		return err
 	}
-	if !shiftType.IsActive {
-		return ErrShiftTypeInactive
-	}
-	return nil
+	return shiftTypeOfferable(shiftType)
 }
 
 func (s *staffShiftSeriesService) loadSeries(ctx context.Context, id int64) (*StaffShiftSeries, error) {

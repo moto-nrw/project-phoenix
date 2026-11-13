@@ -64,6 +64,7 @@ const CodeWorkforceShiftOverlap = "workforce.shift_overlap"
 const CodeWorkforceShiftSeriesNoOccurrences = "workforce.shift_series_no_occurrences"
 const CodeWorkforceShiftSeriesOutsidePeriod = "workforce.shift_series_outside_period"
 const CodeWorkforceShiftSeriesWeekCycleMissing = "workforce.shift_series_week_cycle_missing"
+const CodeWorkforceShiftTypeArchived = "workforce.shift_type_archived"
 const CodeWorkforceShiftTypeInactive = "workforce.shift_type_inactive"
 const CodeWorkforceStaffProfileMissing = "workforce.staff_profile_missing"
 const CodeWorkforceStammdatenInvalid = "workforce.stammdaten_invalid"
@@ -144,6 +145,7 @@ var errorCodeClassesWorkforce = []errorCodeClass{
 	{CodeWorkforceShiftSeriesNoOccurrences, "input"},
 	{CodeWorkforceShiftSeriesOutsidePeriod, "input"},
 	{CodeWorkforceShiftSeriesWeekCycleMissing, "input"},
+	{CodeWorkforceShiftTypeArchived, "business_rejection"},
 	{CodeWorkforceShiftTypeInactive, "business_rejection"},
 	{CodeWorkforceStaffProfileMissing, "business_rejection"},
 	{CodeWorkforceStammdatenInvalid, "input"},

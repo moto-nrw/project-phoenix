@@ -21,6 +21,10 @@ type DiffEntry struct {
 	CareKind string
 	OldModes []string
 	NewMode  string
+	// SubmittedOld is the value the family saw when it submitted or last
+	// edited a weekly request, set only when the plan has changed since
+	// (#6990). Empty means Old is still what the family saw.
+	SubmittedOld string
 }
 
 type WeekdayChange struct {
@@ -57,6 +61,28 @@ func WeeklyDiff(changes []WeekdayChange, current WeeklyPlan) []DiffEntry {
 // themselves with a live baseline that has changed since the decision.
 func WeeklySummary(changes []WeekdayChange) []DiffEntry {
 	return weeklyEntries(changes, nil)
+}
+
+// WeeklyImpactContent canonically encodes the ordered weekly diff displayed to
+// the reviewer. The composition root supplies the SHA-256 fingerprint primitive.
+func WeeklyImpactContent(entries []DiffEntry) []byte {
+	var content strings.Builder
+	for _, entry := range entries {
+		content.WriteString(entry.Label)
+		content.WriteByte(0)
+		content.WriteString(entry.Old)
+		content.WriteByte(0)
+		content.WriteString(entry.New)
+		content.WriteByte(0)
+		// The hint is part of what the reviewer decides on (#6990). Its own
+		// terminator keeps the content of entries without a hint, and so the
+		// tokens issued before #6990, byte for byte unchanged.
+		if entry.SubmittedOld != "" {
+			content.WriteString(entry.SubmittedOld)
+			content.WriteByte(1)
+		}
+	}
+	return []byte(content.String())
 }
 
 func weeklyEntries(changes []WeekdayChange, current *WeeklyPlan) []DiffEntry {

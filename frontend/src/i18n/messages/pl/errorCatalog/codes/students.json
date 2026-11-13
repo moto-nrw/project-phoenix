@@ -75,6 +75,7 @@
   "pickup_change_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "pickup_change_expired": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "pickup_change_impact_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "care_request_plan_changed": "Plan opieki właśnie się zmienił. Odśwież stronę. Następnie sprawdź wniosek jeszcze raz.",
   "pickup_permission_contact_gone": "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
   "pickup_proof_not_found": "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
   "pickup_reset_requires_offering": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

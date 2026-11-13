@@ -8,7 +8,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import type { Session } from "next-auth";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { FormRow } from "~/components/ui/form-row";
@@ -24,6 +23,7 @@ import {
   activeService,
   summarizeStudentMoveResult,
 } from "~/lib/active-service";
+import { canUseAllMoveTargets } from "~/lib/move-targets";
 import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
 import { fetchStudents } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
@@ -85,16 +85,6 @@ function buildSessionLabel(group: ActiveGroup): string {
   const roomName = group.room?.name ?? `Raum ${group.roomId}`;
   const activityName = group.actualGroup?.name;
   return activityName ? `${roomName} · ${activityName}` : roomName;
-}
-
-function canUseAllMoveTargets(session: Session | null): boolean {
-  const permissions = session?.user?.permissions ?? [];
-  return (
-    session?.user?.isAdmin === true ||
-    session?.user?.roles?.includes("admin") === true ||
-    permissions.includes("admin:*") ||
-    permissions.includes("*:*")
-  );
 }
 
 interface TransitStudentsSectionProps {

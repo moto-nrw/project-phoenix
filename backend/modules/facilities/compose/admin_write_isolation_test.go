@@ -29,11 +29,13 @@ func TestRoomCommandsScopeWritesInAdminTransaction(t *testing.T) {
 		ctx = tenant.WithTenantID(ctx, testpkg.Tenant(t))
 		_, err := module.UpdateRoom(ctx, facilities.UpdateRoom{ID: foreign.ID, Name: "Changed"})
 		require.ErrorIs(t, err, facilities.ErrRoomNotFound)
-		require.ErrorIs(t, module.DeleteRoom(ctx, foreign.ID), facilities.ErrRoomNotFound)
+		_, err = module.DeleteRoom(ctx, foreign.ID)
+		require.ErrorIs(t, err, facilities.ErrRoomNotFound)
 		updated, err := module.UpdateRoom(ctx, facilities.UpdateRoom{ID: own.ID, Name: "Updated own room"})
 		require.NoError(t, err)
 		assert.Equal(t, "Updated own room", updated.Name)
-		return module.DeleteRoom(ctx, own.ID)
+		_, err = module.DeleteRoom(ctx, own.ID)
+		return err
 	}))
 	var unchangedName string
 	require.NoError(t, db.NewSelect().TableExpr("facilities.rooms").Column("name").Where("id = ?", foreign.ID).Scan(context.Background(), &unchangedName))

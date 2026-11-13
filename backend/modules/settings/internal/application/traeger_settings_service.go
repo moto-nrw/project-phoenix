@@ -22,18 +22,15 @@ type TraegerSettingsRuntime interface {
 // TraegerSettingsDependencies are the collaborators of the Träger level,
 // fixed at construction. Rights maps each Träger write right of a
 // definition to the right name the session carries; it must name all three.
-// AuditRetentionYears is the retention of a change, the one of the school's
-// setting changes (settings.SettingAuditRetentionYears, #4044).
 type TraegerSettingsDependencies struct {
-	AuditRetentionYears int
-	Values              config.TraegerSettingRepository
-	Runtime             TraegerSettingsRuntime
-	Schools             func(ctx context.Context, organizationID int64) ([]int64, error)
-	Notify              config.SettingsChangedNotifier
-	Rights              map[config.TraegerRight]string
-	Logger              *slog.Logger
-	Now                 func() time.Time
-	Registry            *config.Registry
+	Values   config.TraegerSettingRepository
+	Runtime  TraegerSettingsRuntime
+	Schools  func(ctx context.Context, organizationID int64) ([]int64, error)
+	Notify   config.SettingsChangedNotifier
+	Rights   map[config.TraegerRight]string
+	Logger   *slog.Logger
+	Now      func() time.Time
+	Registry *config.Registry
 }
 
 // TraegerSettings is the Träger-Büro's side of the settings system: the
@@ -46,8 +43,7 @@ type TraegerSettings struct {
 // NewTraegerSettings builds the Träger level. A missing collaborator or an
 // unmapped Träger right is a construction error.
 func NewTraegerSettings(deps TraegerSettingsDependencies) (*TraegerSettings, error) {
-	if deps.Values == nil || deps.Runtime == nil || deps.Schools == nil || deps.Notify == nil || deps.Logger == nil || deps.Now == nil ||
-		deps.AuditRetentionYears <= 0 {
+	if deps.Values == nil || deps.Runtime == nil || deps.Schools == nil || deps.Notify == nil || deps.Logger == nil || deps.Now == nil {
 		return nil, errors.New("traeger settings: all dependencies are required")
 	}
 	for _, right := range []config.TraegerRight{config.TraegerRightSettings, config.TraegerRightStaff, config.TraegerRightBilling} {
@@ -370,8 +366,8 @@ func (t *TraegerSettings) writeChange(txCtx context.Context, organizationID int6
 		Action: action, ChangedBy: actor.account, ChangedByOperator: actor.operator, ChangedAt: now,
 	}
 	// Retention: changes are kept as long as the school's setting
-	// changes; each change of the Träger drops older ones.
-	if err := t.deps.Values.RecordChange(txCtx, entry, now.AddDate(-t.deps.AuditRetentionYears, 0, 0)); err != nil {
+	// changes (three years); each change of the Träger drops older ones.
+	if err := t.deps.Values.RecordChange(txCtx, entry); err != nil {
 		return err
 	}
 	return nil

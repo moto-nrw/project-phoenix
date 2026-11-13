@@ -13,6 +13,7 @@
   "calendar_period_not_found": "Den Zeitraum gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "calendar_period_overlap_conflict": "{object} überschneidet sich mit anderen Zeiträumen. Bitte prüfen Sie die Termine.",
   "calendar_period_roster_conflict": "Der Zeitraum lässt sich nicht löschen. Sonst wären Kinder oder Personal doppelt eingeteilt. Bitte passen Sie zuerst die Regeltermine an.",
+  "calendar_period_shift_series_conflict": "Der Zeitraum lässt sich nicht löschen. Schichtserien im Dienstplan nutzen ihn noch. Bitte beenden Sie diese Serien zuerst.",
   "calendar_period_week_cycle_anchor_missing": "Bitte wählen Sie das Startdatum der Wiederholung.",
   "closing_day_end_before_start": "Das Enddatum darf nicht vor dem Startdatum liegen. Bitte prüfen Sie die Daten.",
   "closing_day_invalid": "Bitte prüfen Sie die markierten Angaben zum Schließtag.",

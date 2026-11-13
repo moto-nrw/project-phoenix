@@ -32,7 +32,8 @@ func TestCareScheduleCountRetainsVisibleRows(t *testing.T) {
 			require.Equal(t, cursor, countCursor)
 			for _, item := range full {
 				require.NotEmpty(t, item.Diff)
-				item.Diff = nil
+				// The impact token is that of the diff (#6843).
+				item.Diff, item.ImpactToken = nil, ""
 			}
 			require.Equal(t, full, counted, "counting must retain the same requests, identity and visibility")
 		})

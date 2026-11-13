@@ -19136,6 +19136,61 @@
       "target_owner": ""
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "reason": "Platform protocol participation (scope): student-presence reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). #6953: check-in into a session through the promoted service method; same unit and guards as the move.",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "reason": "Read-only target already reviewed as query: student-presence reaches modules/devicefleet/deviceauth.AttendanceContext (device-fleet) through modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). #6953: check-in into a session through the promoted service method; same unit and guards as the move.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth.AttendanceContext",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). #6953: check-in into a session through the promoted service method; same unit and guards as the move.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0226",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "reason": "ADR 0138 approves this exact observation callback boundary for PrepareVisitWrites. The existing owner observation function remains unresolved by binding-flow analysis; this is not a query or approved cross-owner mutation. Target: studentpresence/internal/application.Service.observe. A changed closure requires fresh evidence. Reached through modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); a changed value or closure needs a fresh approval ADR. #6953: check-in into a session through the promoted service method; same unit and guards as the move.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0226",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.ServiceDependencies.Now. Reached through modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); a changed value or closure needs a fresh approval ADR. #6953: check-in into a session through the promoted service method; same unit and guards as the move.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.ServiceDependencies.Now",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckOutStudent",
       "classification": "query",
       "effect": "query",
@@ -21742,6 +21797,116 @@
       "effect": "unresolved",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudent",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.ServiceDependencies.Now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.ServiceDependencies.Now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "reason": "Platform protocol participation (scope): student-presence reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through *modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). #6953: check-in into a session; same unit and guards as the move it extends.",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/devicefleet/deviceauth.AttendanceContext (device-fleet) through modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #6953: check-in into a session; same unit and guards as the move it extends.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth.AttendanceContext",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). #6953: check-in into a session; same unit and guards as the move it extends.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0226",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "reason": "ADR 0138 approves this exact observation callback boundary for PrepareVisitWrites. The existing owner observation function remains unresolved by binding-flow analysis; this is not a query or approved cross-owner mutation. Target: studentpresence/internal/application.Service.observe. A changed closure requires fresh evidence. Reached through *modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); a changed value or closure needs a fresh approval ADR. #6953: check-in into a session; same unit and guards as the move it extends.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0226",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.ServiceDependencies.Now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. #6953: check-in into a session; same unit and guards as the move it extends.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.ServiceDependencies.Now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToSessionAuthorized",
+      "reason": "Platform protocol participation (scope): student-presence reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through *modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). #6953: check-in into a session; same unit and guards as the move it extends.",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToSessionAuthorized",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/devicefleet/deviceauth.AttendanceContext (device-fleet) through modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #6953: check-in into a session; same unit and guards as the move it extends.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth.AttendanceContext",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToSessionAuthorized",
+      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). #6953: check-in into a session; same unit and guards as the move it extends.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0226",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToSessionAuthorized",
+      "reason": "ADR 0138 approves this exact observation callback boundary for PrepareVisitWrites. The existing owner observation function remains unresolved by binding-flow analysis; this is not a query or approved cross-owner mutation. Target: studentpresence/internal/application.Service.observe. A changed closure requires fresh evidence. Reached through *modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); a changed value or closure needs a fresh approval ADR. #6953: check-in into a session; same unit and guards as the move it extends.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0226",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToSessionAuthorized",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.ServiceDependencies.Now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. #6953: check-in into a session; same unit and guards as the move it extends.",
       "source_owner": "student-presence",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.ServiceDependencies.Now",
       "target_owner": ""

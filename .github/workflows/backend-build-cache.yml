@@ -200,10 +200,11 @@ jobs:
   # tools binaries" took 23-27 s right after a save and 78-86 s in the median
   # of 36 jobs (12.11.2026), up to 132 s after a Go update.
   #
-  # The key, the cached path, GOFLAGS and the runner image must match
+  # The key, the cached paths, GOFLAGS and the runner image must match
   # "Restore seed smoke build cache" in test.yml. That job runs on a hosted
   # runner, so this entry lives in the repository's 10 GB GitHub cache: the
-  # sweep keeps it to one build and the last step deletes its predecessors.
+  # sweep keeps the build cache to one build, go.sum in the key bounds the
+  # module cache, and the last step deletes its predecessors.
   warm-seed-smoke:
     name: Warm seed smoke build cache
     runs-on: ubuntu-24.04
@@ -219,28 +220,30 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      # The seed smoke cache carries the module cache too, as in test.yml.
       - name: Setup Go
         id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
-          cache: true
-          cache-dependency-path: backend/go.sum
+          cache: false
 
       - name: Compute seed smoke build cache key
         id: build-cache-key
         env:
           SEED_CACHE_PREFIX: seed-smoke-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum') }}-
-          SEED_SOURCE_HASH: ${{ hashFiles('backend/**/*.go') }}
         run: |
+          source_hash=$(git ls-files --stage -- 'backend/*.go' | sha256sum | cut -d' ' -f1)
           echo "prefix=$SEED_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
-          echo "key=$SEED_CACHE_PREFIX$SEED_SOURCE_HASH" >> "$GITHUB_OUTPUT"
+          echo "key=$SEED_CACHE_PREFIX$source_hash" >> "$GITHUB_OUTPUT"
 
       - name: Restore seed smoke build cache
         id: build-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/go-build
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
           key: ${{ steps.build-cache-key.outputs.key }}
           restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
 
@@ -266,7 +269,9 @@ jobs:
         if: steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/go-build
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
           key: ${{ steps.build-cache-key.outputs.key }}
 
       # Pull requests restore the newest entry by prefix; an older one only

@@ -13,6 +13,7 @@
   "calendar_period_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "calendar_period_overlap_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "calendar_period_roster_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "calendar_period_shift_series_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "calendar_period_week_cycle_anchor_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "closing_day_end_before_start": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "closing_day_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

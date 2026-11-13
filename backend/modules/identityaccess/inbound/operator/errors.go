@@ -47,6 +47,8 @@ func (rs *Resource) accessError(err error) render.Renderer {
 		return common.OperatorRejection(http.StatusNotFound, common.CodeProvisioningSchoolNotFound, "School not found")
 	case errors.Is(err, identityaccess.ErrSchoolDeleted):
 		return common.OperatorRejection(http.StatusConflict, common.CodeProvisioningSchoolAlreadyDeleted, "School is already deleted")
+	case errors.Is(err, identityaccess.ErrOperatorAuditUnavailable):
+		return common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable")
 	case errors.Is(err, identityaccess.ErrEmailAlreadyExists):
 		// A caterer account joins no school (ADR 0077).
 		return common.OperatorRejection(http.StatusConflict, common.CodeIdentityEmailAlreadyExists, "account cannot join a school")

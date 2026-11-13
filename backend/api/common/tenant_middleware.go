@@ -267,7 +267,9 @@ func runRequestTransaction(
 	requestRollback := errors.As(err, &rollback) && errors.Is(rollback, err)
 	if err != nil && !requestRollback {
 		sw.reset()
-		RenderStatus(sw, r, http.StatusInternalServerError, "")
+		// A begin or commit that the client's cancellation ended answers
+		// 499, not a server error.
+		RenderUnexpectedFailure(sw, r, err)
 	}
 	if writeErr := sw.commitResponse(); writeErr != nil {
 		observeTenantRuntime(r.Context(), TenantRuntimeEvent{Kind: TenantRuntimeResponseWrite, Err: writeErr})

@@ -30,5 +30,15 @@
   "moreEvents": "+ {count} more",
   "responseRequired": "Response required",
   "errorObjectList": "the list of appointments",
-  "errorObjectResponse": "the reply"
+  "errorObjectResponse": "the reply",
+  "responseRequiredSeries": "Reply for every date in the series",
+  "seriesAnswer": "Your reply applies to every date in this series.",
+  "errorObjectOverview": "the replies",
+  "responses": {
+    "title": "Replies",
+    "accepted": "Accepted",
+    "declined": "Declined",
+    "pending": "Open",
+    "privacy": "You do not see other parents' names."
+  }
 }

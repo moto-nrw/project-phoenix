@@ -25,7 +25,7 @@ const {
   useRoomDetailMock: vi.fn(),
   presenceModeState: { mode: "detailed" as string },
   serviceUpdateMock: vi.fn(() => Promise.resolve({})),
-  serviceDeleteMock: vi.fn(() => Promise.resolve(null)),
+  serviceDeleteMock: vi.fn(() => Promise.resolve("delete" as const)),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
   exportPlanMock: vi.fn(() => Promise.resolve()),
@@ -87,6 +87,25 @@ vi.mock("~/lib/database/service-factory", () => ({
 
 // Löschen geht direkt an den Raum-Client: dessen ApiError trägt Code und
 // Vorgangskennung in den Löschdialog (#2517).
+vi.mock("~/lib/room-removal-api", () => ({
+  fetchRoomRemovalImpact: () =>
+    Promise.resolve({
+      outcome: "delete",
+      active_session: false,
+      care_offering: false,
+      references: {
+        activity_groups: 0,
+        upcoming_blocks: 0,
+        education_groups: 0,
+        devices: 0,
+        past_blocks: 0,
+        archived_activity_groups: 0,
+        has_session_history: false,
+      },
+    }),
+  removeRoom: serviceDeleteMock,
+}));
+
 vi.mock("~/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/api")>()),
   roomService: { deleteRoom: serviceDeleteMock },
@@ -401,14 +420,34 @@ describe("RoomDetailPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
-    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
-
+    // Die Vorschau lädt, bevor die Rückfrage den Raum entfernt (#6845).
     await waitFor(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
       expect(serviceDeleteMock).toHaveBeenCalledWith("7");
     });
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith("/database/rooms?groupBy=floor");
     });
+  });
+
+  it("marks an archived room and offers neither editing nor removal", () => {
+    mockSession(["rooms:delete", "rooms:update"]);
+    useRoomDetailMock.mockReturnValue({
+      room: { ...room, archivedAt: "2026-11-13T10:00:00Z" },
+      history: [],
+      loading: false,
+      error: null,
+      historyDisabled: false,
+    });
+    render(<RoomDetailPage />);
+
+    expect(screen.getByText("Archivierter Raum")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "Stammdaten" }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not offer deleting a system room", () => {

@@ -70,3 +70,16 @@ func TestReviewWeeklyPlanRespectsSelectionsAndLatestOfferingTime(t *testing.T) {
 	_, err = facts.weekly("2026-09-09")
 	require.ErrorContains(t, err, "invalid pickup time")
 }
+
+// #6990: the review must read a class clock exactly as the baseline
+// projection does, or an unchanged plan shows a false "Eltern sahen" hint.
+func TestReviewWeeklyPlanReadsClassClocksLikeTheProjection(t *testing.T) {
+	t.Parallel()
+	facts := reviewPlanFacts{
+		arrivals:   []careplan.ArrivalSchedule{{Weekday: 1}, {Weekday: 2}},
+		classTimes: map[string]string{" Mon ": "12:00", "TUE": "13:00"},
+	}
+	plan, err := facts.weekly("2026-09-09")
+	require.NoError(t, err)
+	require.Equal(t, map[int]string{1: "12:00", 2: "13:00"}, plan.ArrivalTimes)
+}
