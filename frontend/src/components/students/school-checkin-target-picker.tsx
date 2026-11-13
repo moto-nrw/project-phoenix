@@ -91,7 +91,6 @@ export function SchoolCheckinTargetPicker({
             placeholder={state.loading ? "Räume werden geladen …" : undefined}
             searchable={options.length > SEARCH_FROM}
             searchPlaceholder="Raum oder Aktivität suchen"
-            controlSize="compact"
             testId="checkin-target-select"
           />
         </div>
@@ -121,7 +120,6 @@ export function SchoolCheckinTargetPicker({
       {state.lostTargetName ? (
         <Alert
           type="warning"
-          size="compact"
           className="mt-2"
           announce="polite"
           onDismiss={state.dismissLost}

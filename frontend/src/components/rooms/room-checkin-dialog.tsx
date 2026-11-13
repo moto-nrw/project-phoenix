@@ -25,14 +25,10 @@ import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import type { StudentMoveResult } from "~/lib/active-service";
 import { deriveCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import {
-  countedDayStatus,
-  isTransitLocation,
-  parseLocation,
-} from "~/lib/location-helper";
+import { isTransitLocation, parseLocation } from "~/lib/location-helper";
+import { countedDayStatus, dayStatusLabel } from "~/lib/presence-status";
 import { createLogger } from "~/lib/logger";
 import { checkInToTarget, type TargetRoomOption } from "~/lib/move-targets";
-import { statusLabel } from "~/components/class-day/status-labels";
 import { fetchStudents } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
@@ -44,7 +40,7 @@ const logger = createLogger({ component: "RoomCheckinDialog" });
 // too and not „Zuhause“.
 function dayStatus(student: Student): string | null {
   const status = countedDayStatus(student);
-  return status ? statusLabel(status) : null;
+  return status ? dayStatusLabel(status) : null;
 }
 
 /** One child the dialog offers, with where it is now. */
