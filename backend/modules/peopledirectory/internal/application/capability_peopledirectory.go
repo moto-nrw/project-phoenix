@@ -65,9 +65,9 @@ func (s *Service) DeletePerson(ctx context.Context, id int64) error {
 var errLiveStaffUnbound = errors.New("people directory: live staff lookup is not configured")
 
 // requireNoLiveProfile refuses to retire a person that a child or a live
-// staff membership still names (#6840). It runs under the person's row lock:
-// a staff creation locks the person before it commits, so none can slip in
-// behind the check.
+// staff membership still names (#6840). It runs under the person's row lock,
+// so it sees every profile committed before the deletion; a staff creation
+// through the People Directory also locks the person and then finds it gone.
 func (s *Service) requireNoLiveProfile(ctx context.Context, personID int64) error {
 	if s.students == nil || s.liveStaff == nil {
 		return errLiveStaffUnbound

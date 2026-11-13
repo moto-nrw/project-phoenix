@@ -110,20 +110,27 @@ export function PersonsTable({
         key: "actions",
         header: "Aktionen",
         align: "right",
-        render: (row) => (
-          <OverflowMenu
-            items={[
-              {
-                label: "Löschen",
-                icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
-                destructive: true,
-                onClick: () => onDelete(row),
-              },
-            ]}
-            triggerSize="sm"
-            ariaLabel={`Aktionen für ${row.firstName} ${row.lastName}`}
-          />
-        ),
+        // A child or a live staff member leaves through the school's student
+        // deletion or Personalaustritt; the person deletion refuses it (#6840).
+        render: (row) =>
+          row.isStaff || row.isStudent ? (
+            <span className="text-xs text-gray-500">
+              Löschen über die Schule
+            </span>
+          ) : (
+            <OverflowMenu
+              items={[
+                {
+                  label: "Löschen",
+                  icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+                  destructive: true,
+                  onClick: () => onDelete(row),
+                },
+              ]}
+              triggerSize="sm"
+              ariaLabel={`Aktionen für ${row.firstName} ${row.lastName}`}
+            />
+          ),
       });
     }
     return cols;

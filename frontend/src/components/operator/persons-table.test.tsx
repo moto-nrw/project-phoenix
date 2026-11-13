@@ -112,7 +112,7 @@ describe("PersonsTable", () => {
 
   it("calls onDelete with the row when the delete button is clicked", () => {
     const onDelete = vi.fn();
-    const person = makePerson();
+    const person = makePerson({ isStaff: false });
 
     render(<PersonsTable persons={[person]} onDelete={onDelete} />);
 
@@ -121,6 +121,30 @@ describe("PersonsTable", () => {
 
     expect(onDelete).toHaveBeenCalledTimes(1);
     expect(onDelete).toHaveBeenCalledWith(person);
+  });
+
+  it("offers no deletion for a child or a live staff member (#6840)", () => {
+    const onDelete = vi.fn();
+
+    render(
+      <PersonsTable
+        persons={[
+          makePerson({ id: "1", isStaff: true, isStudent: false }),
+          makePerson({
+            id: "2",
+            firstName: "Kim",
+            isStaff: false,
+            isStudent: true,
+          }),
+        ]}
+        onDelete={onDelete}
+      />,
+    );
+
+    expect(screen.getAllByText("Löschen über die Schule")).toHaveLength(2);
+    expect(
+      screen.queryByRole("button", { name: /^Aktionen für/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("sorts by tag column when the Merkmale header is clicked (covers getPersonTagSortValue)", () => {

@@ -289,7 +289,7 @@ func ErrorCode(err error) string {
 	case errors.Is(err, ErrAccountConflict):
 		return "account_conflict"
 	case errors.Is(err, ErrPersonHasActiveProfile):
-		return "profile_active"
+		return "person_has_active_profile"
 	default:
 		return "internal_error"
 	}
