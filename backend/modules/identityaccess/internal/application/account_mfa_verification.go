@@ -148,7 +148,7 @@ func (f *AccountMFAFlows) VerifyEnrollmentCode(ctx context.Context, accountID, t
 		)
 		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFAStatusUnavailable
 	}
-	f.recordAuthEvent(ctx, domain.AuthEvent{
+	f.observeAuthEvent(ctx, domain.AuthEvent{
 		AccountID: accountID, Type: domain.AuthEventMFAVerified, Success: true,
 		IPAddress: domain.MFAAuditFallbackIP,
 	})
@@ -184,7 +184,7 @@ func (f *AccountMFAFlows) handleFailedAttempt(ctx context.Context, account domai
 	// only this caller sees it. Later attempts push the window forward
 	// without re-emitting.
 	if result.Attempts == threshold {
-		f.recordAuthEvent(ctx, domain.AuthEvent{
+		f.observeAuthEvent(ctx, domain.AuthEvent{
 			AccountID: account.ID, TenantID: tenantID, Type: domain.AuthEventMFALocked,
 			IPAddress: domain.MFAAuditFallbackIP, MFA: &domain.MFAEvidence{LockedUntil: result.LockedUntil},
 		})

@@ -75,6 +75,7 @@
   "pickup_change_conflict": "{object} could not be changed. Please check its current status.",
   "pickup_change_expired": "{object} could not be changed. Please check its current status.",
   "pickup_change_impact_changed": "{object} could not be changed. Please check its current status.",
+  "care_request_plan_changed": "The care plan has just changed. Please reload the page. Then check the request again.",
   "pickup_permission_contact_gone": "{object} could not be changed. Please check the current state.",
   "pickup_proof_not_found": "{object} could not be changed. Please check the current state.",
   "pickup_reset_requires_offering": "{object} could not be changed. Please check its current status.",

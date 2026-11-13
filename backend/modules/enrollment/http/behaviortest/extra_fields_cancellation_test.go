@@ -33,7 +33,8 @@ func (s *cancelAfterExtraFieldSchema) StudentExtraFieldSchemas(ctx context.Conte
 }
 
 // Cancellation after the real schema batch must fail the tenant transaction,
-// never release its buffered success. Internal 500 details may change.
+// never release its buffered success. The client went away, so it answers
+// 499, no server error. The detail may change.
 func TestStudentExtraFieldsKeepsCanceledSchemaFailure(t *testing.T) {
 	t.Parallel()
 	f := newEnrollmentGrowthFixture(t)
@@ -55,12 +56,12 @@ func TestStudentExtraFieldsKeepsCanceledSchemaFailure(t *testing.T) {
 	rr := testutil.ExecuteWithAuthPermissions(t, router, req.WithContext(ctx), testutil.AdminTestClaims(int(f.env.creatorID)), []string{"admin:*"})
 	t.Logf("wire status=%d headers=%v body=%s schema_log=%s", rr.Code, rr.Header(), rr.Body.String(), logs.String())
 	require.True(t, forms.fired)
-	require.Equal(t, http.StatusInternalServerError, rr.Code, rr.Body.String())
+	require.Equal(t, 499, rr.Code, rr.Body.String())
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	require.NotEmpty(t, body["detail"])
-	require.Equal(t, "general.server", body["code"])
+	require.Equal(t, "general.unavailable", body["code"])
 	delete(body, "detail")
-	require.Equal(t, map[string]any{"type": "https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler", "title": "Internal Server Error", "status": float64(500), "instance": "", "code": "general.server"}, body)
+	require.Equal(t, map[string]any{"type": "https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar", "title": "Client Closed Request", "status": float64(499), "instance": "", "code": "general.unavailable"}, body)
 	require.Equal(t, "application/json", rr.Header().Get("Content-Type"))
 }

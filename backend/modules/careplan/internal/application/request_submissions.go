@@ -18,12 +18,17 @@ type RequestSubmissions struct {
 	Records ports.RequestSubmissionRecords
 	Pickup  ports.RequestSubmissionPickup
 	Effects ports.RequestSubmissionEffects
-	Today   func() calendar.Date
+	// Baseline reads the plan the family sees (#6990).
+	Baseline ports.RequestWeeklyBaseline
+	Today    func() calendar.Date
 }
 
 func (s *RequestSubmissions) CreateRequest(ctx context.Context, studentID, guardianID int64, payload json.RawMessage) (*carerequests.Request, error) {
 	canonical, err := carerequests.CanonicalizeWeekly(payload)
 	if err != nil {
+		return nil, err
+	}
+	if canonical, err = withWeeklyBaseline(ctx, s.Baseline, studentID, canonical); err != nil {
 		return nil, err
 	}
 	// The flow that stored a signature for the plan (#4780) passes its
@@ -32,6 +37,16 @@ func (s *RequestSubmissions) CreateRequest(ctx context.Context, studentID, guard
 		return nil, err
 	}
 	return s.create(ctx, studentID, guardianID, "weekly_schedule", "care request", canonical)
+}
+
+// withWeeklyBaseline stores the plan the family saw for each requested field,
+// so the review can show what changed since (#6990).
+func withWeeklyBaseline(ctx context.Context, baseline ports.RequestWeeklyBaseline, studentID int64, canonical json.RawMessage) (json.RawMessage, error) {
+	seen, err := baseline.Weekly(ctx, studentID, canonical)
+	if err != nil {
+		return nil, fmt.Errorf("schedule: read weekly plan baseline: %w", err)
+	}
+	return carerequests.WithBaseline(canonical, seen)
 }
 
 func (s *RequestSubmissions) CreatePickupChange(ctx context.Context, input carerequests.PickupChangeCreateInput) (*carerequests.Request, error) {

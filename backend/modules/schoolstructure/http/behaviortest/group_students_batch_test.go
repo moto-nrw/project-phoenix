@@ -95,6 +95,14 @@ func TestGetGroupStudents_BatchedPersons(t *testing.T) {
 			}
 			rr := testutil.ExecuteRequest(router, newReq(t, http.MethodGet,
 				fmt.Sprintf("/groups/%d/students", group.ID), nil, claims, permissions...))
+			if variant == "batch_error" {
+				// A failed batch is a failed read, not a reason to read each
+				// child alone and drop the ones that fail too (#6849).
+				testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+				require.Equal(t, 1, bulkCalls)
+				require.Zero(t, singleCalls)
+				return
+			}
 			require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 			var envelope struct {
 				Data    []schoolHTTP.GroupStudentResponse `json:"data"`
@@ -105,9 +113,6 @@ func TestGetGroupStudents_BatchedPersons(t *testing.T) {
 			require.Equal(t, fmt.Sprintf("Found %d students in group", len(expected)), envelope.Message)
 			require.Equal(t, 1, bulkCalls)
 			wantSingles := 0
-			if variant == "batch_error" {
-				wantSingles = len(personIDs)
-			}
 			if variant == "linked_account_error" {
 				wantSingles = 1
 			}

@@ -142,7 +142,12 @@ one mode keep working in the other: each one remembers its school.
 The standing school seeds the `vollbetrieb` profile once under the slug
 `messe-demo`, stores its credentials and entity IDs in
 `platform.demo_school_states`, and runs the existing live simulation every
-5–8 seconds. It does not write `.seed-state.json`.
+5–8 seconds. It does not write `.seed-state.json`. Its Träger is its own,
+`demo-traeger-messe`, named `Ganztag Nord e. V.` like the profile's
+(#6962): the Träger-Portal of the standing school lists only that school,
+also in a database with the four profiles or with visitors' demo schools,
+whose Träger steps would otherwise act on it. A school seeded before
+#6962 keeps its Träger.
 
 The school has NFC and web attendance on, detailed presence and a 23:59 daily
 close. The simulator uses the kiosk routes, which require the NFC attendance

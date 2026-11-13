@@ -140,6 +140,9 @@ type ParentAnnouncementStats struct {
 	TargetCount       int
 	ReadCount         int
 	AcknowledgedCount int
+	// Recorded is true when the counts refer to the recipients the
+	// publication recorded (#6988), false for the audience of today.
+	Recorded bool
 }
 
 type ParentAnnouncementRecipient struct {

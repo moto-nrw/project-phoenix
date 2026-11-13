@@ -87,6 +87,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/active/visits/"}:                                                               notCaptured,
 	{http.MethodPost, "/api/active/visits/move-to-group"}:                                                  notCaptured,
 	{http.MethodPost, "/api/active/visits/move-to-room"}:                                                   notCaptured,
+	{http.MethodPost, "/api/active/visits/check-in-to-group"}:                                              notCaptured,
+	{http.MethodPost, "/api/active/visits/check-in-to-room"}:                                               notCaptured,
 	{http.MethodPost, "/api/active/visits/move-to-transit"}:                                                notCaptured,
 	{http.MethodPost, "/api/active/visits/student/{studentId}/checkout"}:                                   notCaptured,
 	{http.MethodPost, "/api/active/visits/transit/assign"}:                                                 notCaptured,

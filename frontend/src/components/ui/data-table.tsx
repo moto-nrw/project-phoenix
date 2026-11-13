@@ -20,12 +20,16 @@ import {
 } from "~/lib/hooks/use-media-query";
 import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { Button } from "~/components/ui/button";
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 type SortDirection = "asc" | "desc";
+
+/** „Mehr laden“ zeigt weitere Zeilen, die die Tabelle schon geladen hat. */
+const LOAD_MORE_TOOLTIP = "Zeigt die nächsten Einträge unter den bisherigen.";
 
 /** The footer button of a list the server pages (`moreAction`). */
 interface DataTableMoreAction {
@@ -173,6 +177,8 @@ interface DataTableProps<T> {
   // another N per click. Use on tables whose row count is unbounded
   // (persons, accounts) — leave undefined on bounded views (orgs, devices).
   pageSize?: number;
+  /** What „Mehr laden“ does (#6744); defaults to `LOAD_MORE_TOOLTIP`. */
+  loadMoreTooltip?: string;
   // What `pageSize`'s button loads, in the plural („Kinder“): the button
   // then reads „Weitere Kinder laden (25 von 114)“ instead of „Mehr laden“.
   pageNoun?: string;
@@ -610,6 +616,7 @@ function StackedRows<T>({
   emptyState,
   hasMore,
   loadMore,
+  loadMoreTooltip,
   totalCount,
   pageNoun,
   moreAction,
@@ -632,6 +639,7 @@ function StackedRows<T>({
   emptyState?: ReactNode;
   hasMore: boolean;
   loadMore: () => void;
+  loadMoreTooltip: string | undefined;
   totalCount: number;
   pageNoun?: string;
   moreAction?: DataTableMoreAction;
@@ -837,6 +845,7 @@ function StackedRows<T>({
           variant="surface"
           size="md"
           onClick={loadMore}
+          tooltip={loadMoreTooltip}
           className="w-full"
         >
           {loadMoreLabel(rows.length, totalCount, pageNoun)}
@@ -914,6 +923,7 @@ export function DataTable<T>({
   defaultSortKey,
   defaultSortDirection = "asc",
   pageSize,
+  loadMoreTooltip,
   pageNoun,
   paginationResetKey,
   moreAction,
@@ -931,6 +941,8 @@ export function DataTable<T>({
   rowTone,
   dense = false,
 }: Readonly<DataTableProps<T>>) {
+  const kitDefault = useKitDefault();
+  const loadMoreHint = loadMoreTooltip ?? kitDefault(LOAD_MORE_TOOLTIP);
   const clickable = Boolean(onRowClick);
   const headCell = dense ? denseHeadCellClass : headCellClass;
   const bodyCell = dense ? denseBodyCellClass : bodyCellClass;
@@ -1103,6 +1115,7 @@ export function DataTable<T>({
             emptyState={emptyState}
             hasMore={hasMore}
             loadMore={loadMore}
+            loadMoreTooltip={loadMoreHint}
             totalCount={sortedRows.length}
             pageNoun={pageNoun}
             moreAction={moreAction}
@@ -1447,6 +1460,7 @@ export function DataTable<T>({
                 variant="surface"
                 size="md"
                 onClick={loadMore}
+                tooltip={loadMoreHint}
               >
                 {loadMoreLabel(visibleRows.length, sortedRows.length, pageNoun)}
               </Button>

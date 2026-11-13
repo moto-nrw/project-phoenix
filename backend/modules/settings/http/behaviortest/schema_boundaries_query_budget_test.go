@@ -168,11 +168,16 @@ func TestSettingsGETCancellationPreservesReadOnlyFailure(t *testing.T) {
 		req := testutil.NewRequest(http.MethodGet, path, nil, testutil.WithJWTBearer(requestToken)).WithContext(ctx)
 		f.counter.Reset()
 		rec := testutil.ExecuteRequestForTest(t, f.router, req)
-		require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
 		if path == "/traeger/settings/schema" {
-			assertSettingsProblem(t, rec.Body.Bytes(), http.StatusInternalServerError, "general.server", "settings service error in traeger_schema: unit of work: start transaction: context canceled")
+			// The service carries the cancellation: the client went away,
+			// so 499 instead of a server error.
+			require.Equal(t, 499, rec.Code, rec.Body.String())
+			require.JSONEq(t, `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar","title":"Client Closed Request","status":499,"detail":"settings service error in traeger_schema: unit of work: start transaction: context canceled","instance":"","code":"general.unavailable"}`, rec.Body.String())
 		} else {
-			assertSettingsProblem(t, rec.Body.Bytes(), http.StatusInternalServerError, "general.server")
+			// The request transaction cannot begin for a client that went
+			// away: 499 instead of a server error.
+			require.Equal(t, 499, rec.Code, rec.Body.String())
+			require.JSONEq(t, `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar","title":"Client Closed Request","status":499,"detail":"unit of work: start transaction: context canceled","instance":"","code":"general.unavailable"}`, rec.Body.String())
 		}
 		f.noSettingsDML(t, false)
 		t.Logf("canceled path=%s SQL=%q", path, f.counter.Queries())

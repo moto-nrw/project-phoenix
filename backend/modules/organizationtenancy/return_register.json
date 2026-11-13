@@ -8405,6 +8405,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "occurrence_responses",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -24846,6 +24852,12 @@
           "type": "boolean",
           "udt": "bool",
           "nullable": false
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -30060,6 +30072,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -32860,6 +32878,12 @@
           "name": "sender_school_class",
           "type": "text",
           "udt": "text",
+          "nullable": true
+        },
+        {
+          "name": "recipient_student_ids",
+          "type": "ARRAY",
+          "udt": "_int8",
           "nullable": true
         }
       ],

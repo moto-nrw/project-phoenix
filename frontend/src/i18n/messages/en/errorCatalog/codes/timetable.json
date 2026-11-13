@@ -13,6 +13,7 @@
   "calendar_period_not_found": "{object} could not be changed. Please check its current status.",
   "calendar_period_overlap_conflict": "{object} could not be changed. Please check its current status.",
   "calendar_period_roster_conflict": "{object} could not be changed. Please check its current status.",
+  "calendar_period_shift_series_conflict": "{object} could not be changed. Please check its current status.",
   "calendar_period_week_cycle_anchor_missing": "{object} could not be saved. Please check your entries.",
   "closing_day_end_before_start": "{object} could not be saved. Please check your entries.",
   "closing_day_invalid": "{object} could not be saved. Please check your entries.",

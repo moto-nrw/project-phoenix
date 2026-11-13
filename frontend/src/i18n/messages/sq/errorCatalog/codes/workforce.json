@@ -55,6 +55,7 @@
   "shift_series_no_occurrences": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "shift_series_outside_period": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "shift_series_week_cycle_missing": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "shift_type_archived": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "shift_type_inactive": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "staff_profile_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "stammdaten_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

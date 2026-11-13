@@ -154,7 +154,13 @@ func (rs *SchoolAccountMFAResource) ResetSchoolAccountMFA(w http.ResponseWriter,
 	ctx := identityaccess.WithOperatorAuditClientIP(r.Context(), common.ParseClientIP(r))
 	if err := rs.TenantMFAService.OperatorDisableMFA(ctx, operatorID, schoolID, accountID, req.Reason); err != nil {
 		if errors.Is(err, identityaccess.ErrOperatorAuditUnavailable) {
-			common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable"))
+			common.RenderError(w, r, operatorAuditUnavailable())
+			return
+		}
+		if errors.Is(err, identityaccess.ErrMFAStatusUnavailable) {
+			// The school's ledger or the target's MFA state could not be
+			// read or written; the change rolled back and may be retried.
+			common.RenderError(w, r, mfaStatusUnavailable())
 			return
 		}
 		if errors.Is(err, identityaccess.ErrMFAPermissionDenied) {
@@ -191,7 +197,13 @@ func (rs *SchoolAccountMFAResource) SetSchoolAccountMFAOverride(w http.ResponseW
 	ctx := identityaccess.WithOperatorAuditClientIP(r.Context(), common.ParseClientIP(r))
 	if err := rs.TenantMFAService.OperatorSetMFAOverride(ctx, operatorID, schoolID, accountID, req.Override, req.Reason); err != nil {
 		if errors.Is(err, identityaccess.ErrOperatorAuditUnavailable) {
-			common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable"))
+			common.RenderError(w, r, operatorAuditUnavailable())
+			return
+		}
+		if errors.Is(err, identityaccess.ErrMFAStatusUnavailable) {
+			// The school's ledger or the target's MFA state could not be
+			// read or written; the change rolled back and may be retried.
+			common.RenderError(w, r, mfaStatusUnavailable())
 			return
 		}
 		if errors.Is(err, identityaccess.ErrMFAInvalidOverride) {
@@ -287,7 +299,13 @@ func (rs *SchoolAccountMFAResource) SetAccountMFAGlobalOverride(w http.ResponseW
 	ctx := identityaccess.WithOperatorAuditClientIP(r.Context(), common.ParseClientIP(r))
 	if err := rs.TenantMFAService.OperatorSetGlobalMFAOverride(ctx, operatorID, accountID, req.Override, req.Reason); err != nil {
 		if errors.Is(err, identityaccess.ErrOperatorAuditUnavailable) {
-			common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable"))
+			common.RenderError(w, r, operatorAuditUnavailable())
+			return
+		}
+		if errors.Is(err, identityaccess.ErrMFAStatusUnavailable) {
+			// The school's ledger or the target's MFA state could not be
+			// read or written; the change rolled back and may be retried.
+			common.RenderError(w, r, mfaStatusUnavailable())
 			return
 		}
 		if errors.Is(err, identityaccess.ErrMFAInvalidOverride) {

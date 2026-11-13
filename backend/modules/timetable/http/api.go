@@ -271,6 +271,9 @@ type CalendarPeriodResponse struct {
 	StudentEnrollmentCount int `json:"student_enrollment_count"`
 	SupervisorCount        int `json:"supervisor_count"`
 	ActivityInstanceCount  int `json:"activity_instance_count"`
+	// StaffShiftSeriesCount counts the Dienstplan series planned in the
+	// period. Unlike the other references they block the deletion (#6845).
+	StaffShiftSeriesCount int `json:"staff_shift_series_count"`
 }
 
 func mapPeriodToResponse(p schoolcalendar.CalendarPeriod) CalendarPeriodResponse {
@@ -400,6 +403,7 @@ func applyPeriodUsage(resp *CalendarPeriodResponse, usage map[int64]CalendarPeri
 		resp.StudentEnrollmentCount = u.StudentEnrollments
 		resp.SupervisorCount = u.Supervisors
 		resp.ActivityInstanceCount = u.ActivityInstances
+		resp.StaffShiftSeriesCount = u.StaffShiftSeries
 	}
 }
 
@@ -576,25 +580,63 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Dienstplan series hold their period through an FK without an ON
+	// DELETE action (#6845). Refuse before the write; the FK stays the
+	// backstop for a series planned in between.
+	seriesCount, err := rs.periodShiftSeriesCount(r.Context(), id)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodUsageErrorMessage, err))
+		return
+	}
+	if seriesCount > 0 {
+		common.RenderError(w, r, calendarPeriodShiftSeriesConflict(seriesCount))
+		return
+	}
+
 	if err := rs.CalendarPeriods.RemoveCalendarPeriod(r.Context(), id); err != nil {
-		if errors.Is(err, schoolcalendar.ErrCalendarPeriodRequiredByCareOffering) {
-			tenant.MarkRollback(r.Context())
-			common.RenderError(w, r, common.ErrorConflictWithCode(
-				errCalendarPeriodCareOfferingConflict,
-				common.CodeTimetableCalendarPeriodCareOfferingConflict,
-			))
-			return
-		}
-		if isCalendarPeriodRosterDeleteConflict(err) {
-			tenant.MarkRollback(r.Context())
-			common.RenderError(w, r, common.ErrorConflictMessageWithCode(calendarPeriodRosterDeleteConflictMessage, common.CodeTimetableCalendarPeriodRosterConflict))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht gelöscht werden", err))
+		common.RenderError(w, r, calendarPeriodRemovalErrorRenderer(r, err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Calendar period deleted successfully")
+}
+
+// periodShiftSeriesCount reads the Dienstplan series planned in one period.
+func (rs *Resource) periodShiftSeriesCount(ctx context.Context, id int64) (int, error) {
+	usage, err := rs.periodUsageCounts(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return usage[id].StaffShiftSeries, nil
+}
+
+// calendarPeriodShiftSeriesConflict refuses deleting a period that
+// Dienstplan series still use; the count travels in details.
+func calendarPeriodShiftSeriesConflict(seriesCount int) render.Renderer {
+	return common.ErrorConflictWithDetails(
+		schoolcalendar.ErrCalendarPeriodUsedByShiftSeries,
+		common.CodeTimetableCalendarPeriodShiftSeriesConflict,
+		map[string]any{"staff_shift_series_count": seriesCount},
+	)
+}
+
+// calendarPeriodRemovalErrorRenderer classifies a refused removal. Every
+// refusal may follow partial writes or an aborted statement, so it rolls the
+// request back.
+func calendarPeriodRemovalErrorRenderer(r *http.Request, err error) render.Renderer {
+	switch {
+	case errors.Is(err, schoolcalendar.ErrCalendarPeriodRequiredByCareOffering):
+		tenant.MarkRollback(r.Context())
+		return common.ErrorConflictWithCode(errCalendarPeriodCareOfferingConflict, common.CodeTimetableCalendarPeriodCareOfferingConflict)
+	case isCalendarPeriodRosterDeleteConflict(err):
+		tenant.MarkRollback(r.Context())
+		return common.ErrorConflictMessageWithCode(calendarPeriodRosterDeleteConflictMessage, common.CodeTimetableCalendarPeriodRosterConflict)
+	case errors.Is(err, schoolcalendar.ErrCalendarPeriodUsedByShiftSeries):
+		tenant.MarkRollback(r.Context())
+		return common.ErrorConflictWithCode(schoolcalendar.ErrCalendarPeriodUsedByShiftSeries, common.CodeTimetableCalendarPeriodShiftSeriesConflict)
+	default:
+		return common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht gelöscht werden", err)
+	}
 }
 
 // calendarPeriodNotFound answers a period that is gone (#2516).

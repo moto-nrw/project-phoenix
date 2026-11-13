@@ -196,6 +196,7 @@ jobs:
             seed-smoke-infra:
               - '.github/workflows/main.yml'
               - '.github/workflows/test.yml'
+              - 'scripts/seed-smoke-clock.mjs'
             frontend:
               - 'frontend/**'
               - '!frontend/**/*.md'
@@ -347,6 +348,7 @@ jobs:
               - 'scripts/check-test-runners*'
               - 'scripts/check-pr-body*'
               - 'scripts/check-caddyfile*'
+              - 'scripts/seed-smoke-clock*'
               - 'deploy/caddy/**'
               - '**/*.test.{js,cjs,mjs,ts,cts,mts}'
               - '**/*_test.py'
@@ -496,7 +498,7 @@ jobs:
         if: matrix.suite == 'unit'
         run: |
           node scripts/check-agent-context.mjs
-          node --test scripts/check-migration-versions.test.mjs scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs scripts/test-perf.test.mjs scripts/ci-failures.test.mjs scripts/check-changed.test.mjs scripts/backend-package-budgets.test.mjs scripts/query-budget-scoreboard.test.mjs scripts/capture-query-budget-routes.test.mjs .github/actions/ci-cost/ci-cost.test.mjs .agents/skills/security-audit/validate-coverage-ledger.test.cjs .agents/skills/security-audit/validate-findings.test.cjs
+          node --test scripts/check-migration-versions.test.mjs scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/seed-smoke-clock.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs scripts/test-perf.test.mjs scripts/ci-failures.test.mjs scripts/check-changed.test.mjs scripts/backend-package-budgets.test.mjs scripts/query-budget-scoreboard.test.mjs scripts/capture-query-budget-routes.test.mjs .github/actions/ci-cost/ci-cost.test.mjs .agents/skills/security-audit/validate-coverage-ledger.test.cjs .agents/skills/security-audit/validate-findings.test.cjs
           node scripts/check-caddyfile.mjs deploy/caddy/Caddyfile
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py scripts/check_runtime_env_test.py scripts/normalize_ci_needs_test.py
 

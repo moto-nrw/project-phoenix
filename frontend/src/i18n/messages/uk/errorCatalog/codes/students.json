@@ -75,6 +75,7 @@
   "pickup_change_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "pickup_change_expired": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "pickup_change_impact_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "care_request_plan_changed": "План догляду щойно змінився. Оновіть сторінку. Потім ще раз перевірте запит.",
   "pickup_permission_contact_gone": "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
   "pickup_proof_not_found": "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
   "pickup_reset_requires_offering": "Не вдалося змінити: {object}. Перевірте поточний стан.",

@@ -80,6 +80,11 @@ func (s *RequestDiffs) Snapshot(ctx context.Context, request *carerequests.Reque
 		)
 		return nil
 	}
+	if request.RequestKind != "pickup_change" && request.RequestKind != carerequests.KindPickupPermission {
+		// The baseline came from this same plan read, so a hint names a
+		// real change since the family submitted (#6990).
+		diff = carerequests.MarkSubmittedBaseline(diff, request.Payload)
+	}
 	return carerequests.FreezeDecision(diff)
 }
 

@@ -17,6 +17,7 @@ import (
 // Pure boundary probes use synthetic snapshot IDs, not database fixtures.
 type nativeAnnouncementProbe struct {
 	communication.StaffAnnouncementRecords
+	communication.AnnouncementRecipientRecords
 	create        func(context.Context, *communication.PortalParentAnnouncement) error
 	list          func(context.Context, bool) ([]*communication.PortalParentAnnouncement, error)
 	insertVersion func(context.Context, *communication.PortalDeclarationVersion) error

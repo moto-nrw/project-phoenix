@@ -82,10 +82,58 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
+      "binding_digest": "258ae7ef2fb8a75be26f43826780ddec",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet.Capability.ListDevices",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
+      "binding_digest": "dff4de67a3d894b48c879dc4988d1292",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
+      "binding_digest": "3072d7e788f5e71591e995ab7b602f6f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
+      "binding_digest": "f3a6dc90803b2fb1c4f7c80994b71c2f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
+      "binding_digest": "bbd79ca6d09d21228a4b5177e3e2d9c6",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence.Owner.QueryLiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
       "binding_digest": "c50174aefc85124aedcbb4e4a9cc89f7",
       "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
       "source_owner": "facilities",
       "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
+      "binding_digest": "5850b08879d6c89437e24f740f69e63f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RoomReferenceQuery.CountRoomReferences",
       "target_owner": "timetable-activities"
     },
     {
@@ -140,6 +188,62 @@
       "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.ListRoomsPage",
       "binding_digest": "af68292ba2ffea03dd10ccc591ae6324",
       "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.ListRoomsPage",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "binding_digest": "258ae7ef2fb8a75be26f43826780ddec",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet.Capability.ListDevices",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "binding_digest": "dff4de67a3d894b48c879dc4988d1292",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "binding_digest": "3072d7e788f5e71591e995ab7b602f6f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "binding_digest": "f3a6dc90803b2fb1c4f7c80994b71c2f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "binding_digest": "bbd79ca6d09d21228a4b5177e3e2d9c6",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence.Owner.QueryLiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "binding_digest": "5850b08879d6c89437e24f740f69e63f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RoomReferenceQuery.CountRoomReferences",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "binding_digest": "af68292ba2ffea03dd10ccc591ae6324",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
       "source_owner": "facilities",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"
@@ -338,6 +442,46 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "binding_digest": "258ae7ef2fb8a75be26f43826780ddec",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet.Capability.ListDevices",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "binding_digest": "dff4de67a3d894b48c879dc4988d1292",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "binding_digest": "3072d7e788f5e71591e995ab7b602f6f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "binding_digest": "f3a6dc90803b2fb1c4f7c80994b71c2f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "binding_digest": "bbd79ca6d09d21228a4b5177e3e2d9c6",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence.Owner.QueryLiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
       "binding_digest": "c50174aefc85124aedcbb4e4a9cc89f7",
       "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
       "source_owner": "facilities",
@@ -346,8 +490,72 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "binding_digest": "5850b08879d6c89437e24f740f69e63f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RoomReferenceQuery.CountRoomReferences",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
       "binding_digest": "af68292ba2ffea03dd10ccc591ae6324",
       "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "binding_digest": "258ae7ef2fb8a75be26f43826780ddec",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet.Capability.ListDevices",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "binding_digest": "dff4de67a3d894b48c879dc4988d1292",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "binding_digest": "3072d7e788f5e71591e995ab7b602f6f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "binding_digest": "f3a6dc90803b2fb1c4f7c80994b71c2f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "binding_digest": "bbd79ca6d09d21228a4b5177e3e2d9c6",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence.Owner.QueryLiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "binding_digest": "5850b08879d6c89437e24f740f69e63f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RoomReferenceQuery.CountRoomReferences",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "binding_digest": "af68292ba2ffea03dd10ccc591ae6324",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
       "source_owner": "facilities",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"

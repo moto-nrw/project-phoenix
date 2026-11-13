@@ -75,6 +75,7 @@
   "pickup_change_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "pickup_change_expired": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "pickup_change_impact_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "care_request_plan_changed": "Plani i kujdesit sapo ndryshoi. Ju lutemi rifreskoni faqen. Pastaj kontrolloni sërish kërkesën.",
   "pickup_permission_contact_gone": "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
   "pickup_proof_not_found": "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
   "pickup_reset_requires_offering": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

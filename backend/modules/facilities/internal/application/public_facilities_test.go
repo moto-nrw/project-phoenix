@@ -82,7 +82,9 @@ func (e *recordingEngine) UpdateRoom(_ context.Context, input facilities.UpdateR
 	return room, nil
 }
 
-func (e *recordingEngine) DeleteRoom(context.Context, int64) error { return nil }
+func (e *recordingEngine) DeleteRoom(context.Context, int64) (facilities.RoomRemoval, error) {
+	return facilities.RoomRemoval{}, nil
+}
 
 func (e *recordingEngine) ObserveRejection(operation string, _ time.Duration, _ error) {
 	e.rejections = append(e.rejections, operation)

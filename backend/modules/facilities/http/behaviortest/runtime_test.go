@@ -17,6 +17,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
 	httpadapter "github.com/moto-ogs/project-phoenix/modules/facilities/http"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
@@ -44,6 +45,7 @@ type RoomsComposition struct {
 	Dependencies httpadapter.Dependencies
 	Settings     testpkg.SettingsWriter
 	Usage        facilitiesCompose.RoomUsage
+	References   func(context.Context, int64) (facilities.RoomReferences, error)
 }
 
 // setupRoomsRoute initializes the test environment. The router serves the
@@ -69,6 +71,7 @@ func setupRoomsRouteWith(t *testing.T, adjust func(*httpadapter.Dependencies)) *
 		DB:           db,
 		DeletionLock: func(context.Context) error { return nil },
 		Usage:        svc.Usage,
+		References:   svc.References,
 		Observe:      func(facilitiesCompose.Observation) {},
 	})
 	require.NoError(t, err)
@@ -339,7 +342,9 @@ func TestDeleteRoom(t *testing.T) {
 
 		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Expected 204 No Content. Body: %s", rr.Body.String())
+		// The answer names the outcome: an unused room is deleted (#6845).
+		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"outcome":"delete"`)
 	})
 
 	t.Run("error_for_nonexistent_room", func(t *testing.T) {

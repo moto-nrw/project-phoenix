@@ -1146,7 +1146,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.EducationRooms.FindRoom",
-      "binding_digest": "8cb83e356ab994d438dd559f385c377d",
+      "binding_digest": "82024332f735fb52ca532a6036ae8362",
       "port": "github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/application/groups.RoomDirectory.FindRoom",
       "source_owner": "school-structure",
       "target": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.FindRoom",
@@ -1154,7 +1154,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.EducationRooms.FindRoom",
-      "binding_digest": "00f8a3b52ae07dbd43cd4669fd69bfe2",
+      "binding_digest": "ccc914e81947f06dc6aeb8d9de6d3e63",
       "port": "github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/application/groups.RoomDirectory.FindRoom",
       "source_owner": "school-structure",
       "target": "github.com/moto-ogs/project-phoenix/modules/facilities.Catalog.FindRoom",
@@ -1162,7 +1162,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.EducationRooms.FindRoom",
-      "binding_digest": "534c1b89656c62c6ea8e856f2c309461",
+      "binding_digest": "331d1ebfc277f0883c7781a6b1a85b6e",
       "port": "github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/application/groups.RoomDirectory.FindRoom",
       "source_owner": "school-structure",
       "target": "github.com/moto-ogs/project-phoenix/modules/facilities.Query.FindRoom",

@@ -23,7 +23,8 @@ func TestRoomCommandsRejectAnotherTenantsRoomID(t *testing.T) {
 
 	_, err = module.UpdateRoom(callerCtx, facilities.UpdateRoom{ID: foreign.ID, Name: "Renamed"})
 	require.ErrorIs(t, err, facilities.ErrRoomNotFound)
-	require.ErrorIs(t, module.DeleteRoom(callerCtx, foreign.ID), facilities.ErrRoomNotFound)
+	_, err = module.DeleteRoom(callerCtx, foreign.ID)
+	require.ErrorIs(t, err, facilities.ErrRoomNotFound)
 
 	unchanged, err := module.FindRoom(otherCtx, foreign.ID)
 	require.NoError(t, err)

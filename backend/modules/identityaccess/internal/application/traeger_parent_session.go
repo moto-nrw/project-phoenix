@@ -132,11 +132,12 @@ func (s *AccountAuthentication) hasTraegerParentAccess(ctx context.Context, acco
 // account's default school; the authentication ledger is school-scoped, and
 // an account set up for a holiday registration may have none.
 func (s *AccountAuthentication) schoollessAudit(ctx context.Context, accountID int64, event, ipAddress, userAgent string) *mintAudit {
-	if _, _, err := s.resolveAccountTenantDefault(ctx, accountID); err != nil {
+	schoolID, _, err := s.resolveAccountTenantDefault(ctx, accountID)
+	if err != nil {
 		s.logger.Info("parent session at a Träger without a school ledger",
 			slog.Int64("account_id", accountID),
 			slog.String("event_type", event))
 		return nil
 	}
-	return &mintAudit{event: event, ipAddress: ipAddress, userAgent: userAgent}
+	return &mintAudit{event: event, ipAddress: ipAddress, userAgent: userAgent, schoolID: schoolID}
 }

@@ -137,15 +137,42 @@ func TestStaffRecipientStatus(t *testing.T) {
 		{ID: 101, RecipientType: appointmentcap.RecipientTypeStaff, StaffID: &staffID, Status: appointmentcap.ResponseStatusAccepted},
 	}
 
-	status, recipientID := staffRecipientStatus(recipients, staffID)
-	require.NotNil(t, status)
-	require.NotNil(t, recipientID)
-	assert.Equal(t, appointmentcap.ResponseStatusAccepted, *status)
-	assert.Equal(t, int64(101), *recipientID)
+	recipient := staffRecipient(recipients, staffID)
+	require.NotNil(t, recipient)
+	assert.Equal(t, appointmentcap.ResponseStatusAccepted, recipient.Status)
+	assert.Equal(t, int64(101), recipient.ID)
 
-	status, recipientID = staffRecipientStatus(recipients, 99)
-	assert.Nil(t, status)
-	assert.Nil(t, recipientID)
+	assert.Nil(t, staffRecipient(recipients, 99))
+}
+
+// An occurrence of a series shows the answer for its date; the other dates
+// keep the series answer (#6987).
+func TestAnsweredAppointmentEventTakesTheAnswerOfItsDate(t *testing.T) {
+	t.Parallel()
+
+	staffID := int64(10)
+	appointment := &appointmentcap.Appointment{ID: 7, OrganizerStaffID: 1, Title: "Elterncafé", StartDate: appointmentcap.NewDate(2026, 11, 18), EndDate: appointmentcap.NewDate(2026, 11, 18), DeliveryMode: appointmentcap.DeliveryModeRSVPRequired}
+	declinedDate := appointmentcap.NewDate(2026, 11, 25)
+	recipient := &appointmentcap.AppointmentRecipient{
+		ID: 101, RecipientType: appointmentcap.RecipientTypeStaff, StaffID: &staffID, Status: appointmentcap.ResponseStatusAccepted,
+		OccurrenceResponses: map[appointmentcap.Date]string{declinedDate: appointmentcap.ResponseStatusDeclined},
+	}
+
+	declined := answeredAppointmentEvent(appointment, declinedDate, recipient, staffID)
+	require.NotNil(t, declined.ResponseStatus)
+	require.NotNil(t, declined.SeriesResponseStatus)
+	assert.Equal(t, appointmentcap.ResponseStatusDeclined, *declined.ResponseStatus)
+	assert.Equal(t, appointmentcap.ResponseStatusAccepted, *declined.SeriesResponseStatus)
+	assert.True(t, declined.CanRespond)
+
+	accepted := answeredAppointmentEvent(appointment, appointmentcap.NewDate(2026, 11, 18), recipient, staffID)
+	require.NotNil(t, accepted.ResponseStatus)
+	assert.Equal(t, appointmentcap.ResponseStatusAccepted, *accepted.ResponseStatus)
+
+	outsider := answeredAppointmentEvent(appointment, declinedDate, nil, 99)
+	assert.Nil(t, outsider.ResponseStatus)
+	assert.Nil(t, outsider.SeriesResponseStatus)
+	assert.False(t, outsider.CanRespond)
 }
 
 func TestAppointmentICSEventUIDIncludesTenant(t *testing.T) {
@@ -282,13 +309,13 @@ func TestCalendarServiceValidatesInputsBeforeDependencies(t *testing.T) {
 	_, err = svc.ListMyParentEvents(ctx, 0, start, start)
 	assert.True(t, errors.Is(err, ErrForbidden))
 
-	_, err = svc.GetStaffAppointmentOverview(ctx, 0)
+	_, err = svc.GetStaffAppointmentOverview(ctx, 0, "")
 	assert.True(t, errors.Is(err, ErrInvalidRequest))
 
-	_, err = svc.GetParentAppointmentOverview(ctx, 0, 1)
+	_, err = svc.GetParentAppointmentOverview(ctx, 0, 1, "")
 	assert.True(t, errors.Is(err, ErrForbidden))
 
-	_, err = svc.GetParentAppointmentOverview(ctx, 1, 0)
+	_, err = svc.GetParentAppointmentOverview(ctx, 1, 0, "")
 	assert.True(t, errors.Is(err, ErrInvalidRequest))
 }
 
@@ -339,4 +366,34 @@ func TestParentRecipientSearchSendsTheTypedQuery(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{strings.TrimSpace(typed)}, guardians.queries)
 	}
+}
+
+func TestParentOverviewListsStaffAndOwnEntriesButCountsEveryone(t *testing.T) {
+	t.Parallel()
+
+	ownProfile, otherProfile := int64(11), int64(12)
+	recipients := []*appointmentcap.AppointmentRecipient{
+		{ID: 1, RecipientType: appointmentcap.RecipientTypeStaff, StaffID: ptrtest.Ptr(int64(5)), Status: appointmentcap.ResponseStatusAccepted},
+		{ID: 2, RecipientType: appointmentcap.RecipientTypeGuardianProfile, GuardianProfileID: &ownProfile, StudentIDs: []int64{100}, Status: appointmentcap.ResponseStatusPending},
+		{ID: 3, RecipientType: appointmentcap.RecipientTypeGuardianProfile, GuardianProfileID: &otherProfile, StudentIDs: []int64{200}, Status: appointmentcap.ResponseStatusDeclined},
+		// Own profile, but through a child this parent cannot see here.
+		{ID: 4, RecipientType: appointmentcap.RecipientTypeGuardianProfile, GuardianProfileID: &ownProfile, StudentIDs: []int64{300}, Status: appointmentcap.ResponseStatusAccepted},
+		{ID: 5, RecipientType: appointmentcap.RecipientTypeGuardianProfile, GuardianProfileID: &otherProfile, StudentIDs: []int64{200}, Status: appointmentcap.ResponseStatusInfo},
+	}
+
+	listed := parentListedRecipients(recipients, []int64{ownProfile}, []int64{100})
+	ids := make([]int64, 0, len(listed))
+	for _, recipient := range listed {
+		ids = append(ids, recipient.ID)
+	}
+	assert.Equal(t, []int64{1, 2}, ids)
+
+	assert.Equal(t, AppointmentResponseCounts{Accepted: 2, Declined: 1, Pending: 1}, countResponses(recipients, ""))
+
+	// One date of the series counts the answers given for it (#6987).
+	date := appointmentcap.NewDate(2026, 11, 25)
+	recipients[0].OccurrenceResponses = map[appointmentcap.Date]string{date: appointmentcap.ResponseStatusDeclined}
+	recipients[1].OccurrenceResponses = map[appointmentcap.Date]string{date: appointmentcap.ResponseStatusAccepted}
+	assert.Equal(t, AppointmentResponseCounts{Accepted: 2, Declined: 2, Pending: 0}, countResponses(recipients, date))
+	assert.Equal(t, AppointmentResponseCounts{Accepted: 2, Declined: 1, Pending: 1}, countResponses(recipients, date.AddDays(7)), "a date without own answers counts the series answers")
 }

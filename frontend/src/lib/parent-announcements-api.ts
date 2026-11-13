@@ -165,6 +165,12 @@ export interface AnnouncementStats {
   target_count: number;
   read_count: number;
   acknowledged_count: number;
+  /**
+   * The counts refer to the parents the publication reached (#6988). False
+   * for a draft and for announcements published before recording, which
+   * count whoever the targets reach today.
+   */
+  recorded?: boolean;
 }
 
 type AnnouncementRecipientStatus = "pending" | "read" | "acknowledged";

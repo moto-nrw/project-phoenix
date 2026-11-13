@@ -19,7 +19,6 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 	mealplanCompose "github.com/moto-ogs/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
-	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
@@ -187,10 +186,9 @@ func BuildTraegerSettings(db transactionruntime.Database, unit rootUnitOfWork, l
 		notify = func(context.Context, int64, string) {}
 	}
 	return settingsCompose.NewTraegerSettings(settingsCompose.TraegerSettingsDependencies{
-		AuditRetentionYears: settingsModule.SettingAuditRetentionYears,
-		Values:              settingsCompose.NewTraegerSettingRepository(settingsCompose.NewTenantSettingsRuntime(db.Pool(), nil)),
-		Runtime:             settingsCompose.NewTenantSettingsRuntime(db.Pool(), &unit),
-		Schools:             organizations.ListTraegerSchoolIDs, Notify: notify, Logger: logger, Now: time.Now,
+		Values:  settingsCompose.NewTraegerSettingRepository(settingsCompose.NewTenantSettingsRuntime(db.Pool(), nil)),
+		Runtime: settingsCompose.NewTenantSettingsRuntime(db.Pool(), &unit),
+		Schools: organizations.ListTraegerSchoolIDs, Notify: notify, Logger: logger, Now: time.Now,
 		Rights: map[configModels.TraegerRight]string{
 			configModels.TraegerRightSettings: identityaccess.TraegerRightSettingsManage,
 			configModels.TraegerRightStaff:    identityaccess.TraegerRightStaffManage,
