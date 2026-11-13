@@ -238,7 +238,7 @@ export function ReachSummary({
   readonly publishedAt?: string;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 pb-2">
       <div
         className={
           requiresAcknowledgement ? "grid gap-4 sm:grid-cols-2" : undefined
