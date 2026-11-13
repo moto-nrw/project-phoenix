@@ -147,7 +147,7 @@ describe("PlannedNowSection", () => {
         />,
       );
       const button = screen.getByRole("button", { name: "Starten ab 13:45" });
-      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("aria-disabled", "true");
       expect(screen.getAllByText("Hausaufgaben").length).toBeGreaterThan(0);
     } finally {
       releaseFakeTimers();

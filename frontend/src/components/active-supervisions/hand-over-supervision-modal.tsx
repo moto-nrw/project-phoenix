@@ -214,6 +214,7 @@ function ModalFooter(props: {
   onClose: () => void;
   onSubmit: () => void;
   disabled: boolean;
+  disabledReason: string | undefined;
   isSaving: boolean;
 }) {
   return (
@@ -224,6 +225,7 @@ function ModalFooter(props: {
         variant="outline"
         onClick={props.onClose}
         disabled={props.isSaving}
+        noTooltip="Schließt nur das Fenster."
       >
         Abbrechen
       </Button>
@@ -232,6 +234,12 @@ function ModalFooter(props: {
         size="md"
         onClick={props.onSubmit}
         disabled={props.disabled}
+        disabledReason={props.disabledReason}
+        tooltip={
+          props.mode === "hand-over"
+            ? "Übergibt die Aufsicht sofort an die gewählte Person."
+            : "Beendet sofort nur Ihre Aufsicht, die Aktivität läuft weiter."
+        }
         isLoading={props.isSaving}
         loadingText={
           props.mode === "hand-over" ? "Wird übergeben..." : "Wird abgegeben..."
@@ -264,11 +272,33 @@ export function HandOverSupervisionButton({
       size="md"
       className={className}
       onClick={() => onHandOver(activeGroupId)}
+      tooltip="Öffnet ein Fenster, um die Aufsicht abzugeben oder zu übergeben."
     >
       <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
       Aufsicht übergeben
     </Button>
   );
+}
+
+/** Why „Übergeben“/„Abgeben“ is blocked once the supervision is loaded. */
+function submitBlockedReason(input: {
+  overview: RunningSupervision | null;
+  mode: Mode;
+  selectedStaffId: string;
+  others: readonly string[];
+}): string | undefined {
+  const { overview, mode, selectedStaffId, others } = input;
+  if (!overview) return undefined;
+  if (!overview.isCurrentUserSupervising)
+    return "Sie beaufsichtigen diese Aktivität nicht mehr.";
+  if (mode === "release")
+    return others.length === 0
+      ? "Als einzige Aufsicht können Sie nur an eine Person übergeben."
+      : undefined;
+  if (overview.availableTargets.length === 0)
+    return "Gerade kann niemand die Aufsicht übernehmen.";
+  if (!selectedStaffId) return "Wählen Sie zuerst eine Person aus.";
+  return undefined;
 }
 
 /**
@@ -310,6 +340,12 @@ export function HandOverSupervisionModal(props: HandOverSupervisionModalProps) {
           onClose={props.onClose}
           onSubmit={() => void action.submit()}
           disabled={disabled}
+          disabledReason={submitBlockedReason({
+            overview: state.overview,
+            mode,
+            selectedStaffId,
+            others,
+          })}
           isSaving={action.isSaving}
         />
       }

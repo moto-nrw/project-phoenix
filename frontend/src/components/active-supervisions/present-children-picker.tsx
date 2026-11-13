@@ -357,6 +357,7 @@ export function PresentChildrenPicker({
             size="md"
             onClick={handleClose}
             disabled={isAdding}
+            noTooltip="Schließt nur das Fenster."
           >
             Abbrechen
           </Button>
@@ -364,6 +365,12 @@ export function PresentChildrenPicker({
             type="submit"
             form={formId}
             disabled={isAdding || selectedIds.length === 0}
+            disabledReason={
+              load.kind === "loaded" && !isAdding
+                ? "Wählen Sie zuerst mindestens ein Kind aus."
+                : undefined
+            }
+            tooltip="Trägt die gewählten Kinder sofort als anwesend in diese Aktivität ein."
             variant="success"
             size="md"
           >
@@ -482,6 +489,11 @@ function PresentChildrenList({
           size="compact"
           onClick={onToggleAll}
           disabled={isAdding}
+          tooltip={
+            allVisibleSelected
+              ? "Nimmt den Haken bei allen angezeigten Kindern weg."
+              : "Setzt den Haken bei allen angezeigten Kindern."
+          }
         >
           {allVisibleSelected ? "Auswahl aufheben" : "Alle auswählen"}
         </Button>
