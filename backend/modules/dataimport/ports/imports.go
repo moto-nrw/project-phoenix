@@ -164,6 +164,24 @@ type ChunkWriter[T any] interface {
 	CreateChunk(ctx context.Context, rows []T, bounded BatchStatement) error
 }
 
+// RowWriteFollowUp is an import config whose row writes owe a follow-up in
+// the attempt's transaction. BeginRowWrites runs before the attempt's first
+// row write and returns the context the rows write with; finish runs after
+// the last row, before the checkpoint.
+type RowWriteFollowUp interface {
+	BeginRowWrites(ctx context.Context) (rowCtx context.Context, finish func(context.Context) error, err error)
+}
+
+// CohortChange is one child whose Klasse or Gruppe an update row changed,
+// with the values before the write (#6951).
+type CohortChange struct {
+	StudentID           int64
+	SchoolClassChanged  bool
+	PreviousSchoolClass string
+	GroupChanged        bool
+	PreviousGroupID     *int64
+}
+
 // ConsentTransition is one consent-history transition of a batch.
 type ConsentTransition = consents.ConsentTransition
 
@@ -210,6 +228,14 @@ type StudentImportDeps struct {
 	// one membership (#3571); the preview counts the children a row adds
 	// with it. Required for a dry run.
 	CountsTowardChildQuota func(status, enrolledFrom, enrolledUntil, day string) bool
+	// LockCohortWrites takes the shared class-writes gate and then the
+	// recurrence gate before an update attempt locks any child, and
+	// FollowCohortChanges moves the children whose Klasse or Gruppe the
+	// attempt changed between the Regeltermine from the given day on: the
+	// offering-sourced ones and those with a Klasse, Jahrgang or Gruppe
+	// target (#6951). Either nil skips the follow-up.
+	LockCohortWrites    func(context.Context) error
+	FollowCohortChanges func(context.Context, []CohortChange, calendar.Date) error
 }
 
 // ClassListImportDeps are the owner ports of the class-list entry import

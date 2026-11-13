@@ -298,7 +298,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // adds exactly 13 LOC.
 // ADR 0224: the cohort rosters constructor (+5) and the grade transition's
 // class follow-up port (+2).
-const moduleComposeBudgetTotal = 13436
+// ADR 0225: the Stammdaten decision's class follow-up port of
+// modules/careplan/compose (+3).
+const moduleComposeBudgetTotal = 13439
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC (ADR 0220 adds 13 to modules/careplan/compose), raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -324,7 +326,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0154: the booked care offering constructor (+13).
 	// #4704 (ADR 0215): the Träger offering constructors fit in shortened
 	// comments (±0).
-	"modules/careplan/compose":             1688, // ADR 0220: +13, the pickup change team constructor
+	// ADR 0225: the Stammdaten decision's class follow-up port (+3).
+	"modules/careplan/compose":             1691, // ADR 0220: +13, the pickup change team constructor
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,

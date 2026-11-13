@@ -65,7 +65,7 @@ func newStudentImport(
 	runtime importPorts.ImportRuntime, identity importIdentity, groups schoolstructure.GroupListing, rooms facilities.Query,
 	persons peopledirectory.Capability, personBatches importPorts.PersonBatches, guardians importPorts.GuardianDirectory,
 	carePlan careplan.Capability, presence studentpresence.Capability, consentHistory consents.ConsentTransitions,
-	today func() timezone.Date,
+	today func() timezone.Date, cohorts importCohorts,
 ) importModels.RowImporter[importModels.StudentImportRow] {
 	references := owners.NewReferences(groups, rooms)
 	resolver := dataImportRetained.NewRelationshipResolver(references.Groups, references.Rooms)
@@ -91,6 +91,8 @@ func newStudentImport(
 			// The owner's Kontingentzahl rule, so the preview counts what
 			// the membership write will count (#3571).
 			CountsTowardChildQuota: ImportChildQuotaRule(),
+			LockCohortWrites:       cohorts.Lock,
+			FollowCohortChanges:    cohorts.Follow,
 		},
 	), runtime)
 }
@@ -240,12 +242,13 @@ func newServeImports(
 	audit owners.AuditOwner, identity identityaccess.Owner, groups schoolstructure.GroupListing, rooms facilities.Query,
 	persons peopledirectory.Capability, carePlan careplan.Capability, presence owners.PresenceOwner, organizations organizationtenancy.Capability,
 	membership schoolmembership.Capability, workTime workforceModule.Capability, workforce owners.WorkforcePlanning,
+	cohorts importCohorts,
 ) imports {
 	runtime := newImportRuntime(audit.Command, observeDataImport)
 	return imports{
 		Student: newStudentImport(
 			runtime, identity, groups, rooms, persons, personBatches(persons), persons, carePlan, presence.Presence,
-			auditCompose.NewConsentRecorder(audit.Command), nil,
+			auditCompose.NewConsentRecorder(audit.Command), nil, cohorts,
 		),
 		Staff:     newStaffImport(runtime, identity, identity, organizations, persons, membership, workTime),
 		ClassList: newClassListImport(runtime, membership, persons, classListBatches(membership)),
