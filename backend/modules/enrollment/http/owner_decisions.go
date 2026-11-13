@@ -3,7 +3,7 @@ package enrollmenthttp
 import (
 	"context"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // The decision flow as these routes speak it: the owner's decisions and

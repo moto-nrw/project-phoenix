@@ -5,7 +5,7 @@ status: proposed
 # Kinderfoto endet mit der Betreuung
 
 Entscheidung zu #6650 (Option A + C, Entscheidung vom 11.11.2026 im Issue).
-Grundlage: [Recherche im Issue](https://github.com/moto-nrw/project-phoenix/issues/6650#issuecomment-6791647906)
+Grundlage: [Recherche im Issue](https://github.com/moto-ogs/project-phoenix/issues/6650#issuecomment-6791647906)
 und [Recherche Aufbewahrungsfristen](../research/aufbewahrungsfristen-2026-10-12.md).
 
 ## Zweck, Fristbeginn und Frist

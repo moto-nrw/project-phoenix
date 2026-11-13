@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/domain"
 )
 
 // Store is the persistence port over config.work_time_models,
@@ -27,6 +27,8 @@ type Store interface {
 	// A missing template reports found=false.
 	UpdateWorkTimeModel(context.Context, int64, domain.WorkTimeModelFields) (domain.WorkTimeModel, bool, domain.OperationStats, error)
 	DeleteWorkTimeModel(context.Context, int64) (bool, domain.OperationStats, error)
+	// SetWorkTimeModelArchived archives a template or offers it again.
+	SetWorkTimeModelArchived(ctx context.Context, id int64, archived bool) (domain.WorkTimeModel, bool, domain.OperationStats, error)
 	// StaffOnWorkTimeModel lists every membership bound to the template, live
 	// or retired; ReleaseWorkTimeModel detaches the given ones from it.
 	StaffOnWorkTimeModel(ctx context.Context, workTimeModelID int64) ([]int64, error)
@@ -86,7 +88,7 @@ type WorkSessionStore interface {
 	SetWorkSessionBreakMinutes(ctx context.Context, id int64, minutes int) (int64, domain.OperationStats, error)
 	// CloseWorkSession stamps the check-out on a still open block; closed
 	// reports whether a row was actually closed.
-	CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool) (bool, domain.OperationStats, error)
+	CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool, credit workforce.WorkSessionCreditRule) (bool, domain.OperationStats, error)
 
 	FindWorkSessionBreak(context.Context, int64) (workforce.WorkSessionBreak, bool, domain.OperationStats, error)
 	ListWorkSessionBreaks(context.Context, workforce.WorkSessionBreakFilter) ([]workforce.WorkSessionBreak, domain.OperationStats, error)
@@ -228,6 +230,25 @@ type ShiftStore interface {
 	CreateShiftTypeIfAbsent(context.Context, domain.ShiftType) (domain.ShiftType, bool, domain.OperationStats, error)
 	UpdateShiftType(context.Context, domain.ShiftType) (domain.ShiftType, bool, domain.OperationStats, error)
 	DeleteShiftType(context.Context, int64) (domain.OperationStats, error)
+	ShiftTypeRetirementStore
+}
+
+// ShiftTypeRetirementStore archives shift types that planned rows still
+// carry and counts those rows (#6845).
+type ShiftTypeRetirementStore interface {
+	// LockShiftType holds the type row until the transaction ends; a
+	// concurrent shift or series write naming the type waits on its FK
+	// check. A missing type reports found=false.
+	LockShiftType(context.Context, int64) (bool, domain.OperationStats, error)
+	// ArchiveShiftType stamps archived_at once; a missing type reports
+	// found=false.
+	ArchiveShiftType(context.Context, int64) (domain.ShiftType, bool, domain.OperationStats, error)
+	// CountShiftTypeReferences counts the shifts and series carrying one
+	// type in one statement.
+	CountShiftTypeReferences(ctx context.Context, shiftTypeID int64) (domain.ShiftTypeReferences, domain.OperationStats, error)
+	// CountShiftPlanReferences counts the shifts and series per type and the
+	// series per calendar period in one statement.
+	CountShiftPlanReferences(context.Context) (domain.ShiftPlanReferences, domain.OperationStats, error)
 }
 
 // AbsenceStore is the persistence port over active.staff_absences,
@@ -279,6 +300,9 @@ type SubstitutionStore interface {
 type StaffAssignments interface {
 	// AssignedStaffIDs returns the live staff members assigned to a template.
 	AssignedStaffIDs(ctx context.Context, workTimeModelID int64) ([]int64, error)
+	// AssignedStaffByModel returns the live assignees of every template of
+	// the caller's school in one read; unused templates are absent.
+	AssignedStaffByModel(ctx context.Context) (map[int64][]int64, error)
 	// RebaseAnchor stamps the template's rotation anchor onto the given
 	// assignees, which the caller has already resolved.
 	RebaseAnchor(ctx context.Context, staffIDs []int64, anchorDate string) error

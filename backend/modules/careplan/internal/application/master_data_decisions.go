@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
 )
 
 // MasterDataDecisionDependencies wires the Stammdaten decision (#3354).
@@ -28,6 +28,9 @@ type MasterDataDecisionDependencies struct {
 	Broadcaster ports.MasterDataBroadcaster
 	Ledger      ports.RequestLedger
 	Shares      ports.ShareVisibility
+	// ClassChanges follows an approved Klasse into the Regeltermine; with
+	// nil functions the decision skips it.
+	ClassChanges ports.MasterDataClassChanges
 }
 
 // MasterDataDecisions is the staff side of a parent Stammdaten request: the
@@ -36,17 +39,18 @@ type MasterDataDecisionDependencies struct {
 // record it writes stays with People Directory behind MasterDataRecords.
 // Every method runs inside the ambient tenant transaction the caller opened.
 type MasterDataDecisions struct {
-	requests    ports.MasterDataRequestRows
-	people      careplan.MasterDataFieldReviews
-	records     ports.MasterDataRecords
-	scope       careplan.ReviewScopeResolver
-	hooks       ports.TransactionHooks
-	today       func() careplan.Date
-	logger      *slog.Logger
-	messenger   ports.RequestMessenger
-	broadcaster ports.MasterDataBroadcaster
-	ledger      ports.RequestLedger
-	shares      ports.ShareVisibility
+	requests      ports.MasterDataRequestRows
+	people        careplan.MasterDataFieldReviews
+	records       ports.MasterDataRecords
+	scope         careplan.ReviewScopeResolver
+	hooks         ports.TransactionHooks
+	today         func() careplan.Date
+	logger        *slog.Logger
+	messenger     ports.RequestMessenger
+	broadcaster   ports.MasterDataBroadcaster
+	ledger        ports.RequestLedger
+	shares        ports.ShareVisibility
+	classFollowUp ports.MasterDataClassChanges
 }
 
 var _ masterdatarequests.Decisions = (*MasterDataDecisions)(nil)
@@ -62,6 +66,7 @@ func NewMasterDataDecisions(deps MasterDataDecisionDependencies) (*MasterDataDec
 		requests: deps.Requests, people: deps.People, records: deps.Records, scope: deps.Scope,
 		hooks: deps.Hooks, today: deps.Today, logger: deps.Logger, messenger: deps.Messenger,
 		broadcaster: deps.Broadcaster, ledger: deps.Ledger, shares: deps.Shares,
+		classFollowUp: deps.ClassChanges,
 	}, nil
 }
 
@@ -256,7 +261,9 @@ func (s *MasterDataDecisions) record(ctx context.Context, entry ports.RequestLed
 }
 
 // lockRequestStudent locates the immutable child ID without a lock, then takes
-// class(shared) -> child -> request. All status/version checks use the re-read.
+// class(shared) -> child -> request. A Klasse request takes the class-writes
+// and recurrence gates first: its approval re-plans Regeltermine (#6951).
+// All status/version checks use the re-read.
 func (s *MasterDataDecisions) lockRequestStudent(ctx context.Context, id int64) (*careplan.StudentDataChangeRequest, error) {
 	snapshot, err := s.requests.FindStudentDataRequest(ctx, id, false)
 	if errors.Is(err, careplan.ErrStudentDataRequestNotFound) {
@@ -264,6 +271,11 @@ func (s *MasterDataDecisions) lockRequestStudent(ctx context.Context, id int64) 
 	}
 	if err != nil {
 		return nil, err
+	}
+	if isClassRequest(snapshot.Target, snapshot.FieldKey) {
+		if err := s.lockClassChanges(ctx); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.lockStudent(ctx, snapshot.StudentID); err != nil {
 		return nil, err
@@ -276,4 +288,64 @@ func (s *MasterDataDecisions) lockRequestStudent(ctx context.Context, id int64) 
 		return nil, err
 	}
 	return &row, nil
+}
+
+// isClassRequest reports whether a request writes the child's Klasse. Target
+// and field never change after filing, so an unlocked read may decide it.
+func isClassRequest(target, field string) bool {
+	return target == masterdatarequests.TargetStudent && field == masterDataFieldSchoolClass
+}
+
+// lockClassChanges takes the class-writes and recurrence gates in the
+// project-wide order, before any child row lock. Both are transaction-scoped
+// and re-entrant.
+func (s *MasterDataDecisions) lockClassChanges(ctx context.Context) error {
+	if s.classFollowUp.Lock == nil {
+		return nil
+	}
+	if err := s.classFollowUp.Lock(ctx); err != nil {
+		return fmt.Errorf("review: lock class change gates: %w", err)
+	}
+	return nil
+}
+
+// followClassChange moves the child onto the Regeltermine of the new Klasse
+// and Jahrgang and off the old ones, in the decision's transaction, once the
+// write actually changed the Klasse. The gates are held since the request
+// was locked. Inside FollowBulkClassChanges the child is only collected.
+func (s *MasterDataDecisions) followClassChange(ctx context.Context, studentID int64, previous, current string) error {
+	if previous == current || s.classFollowUp.Follow == nil {
+		return nil
+	}
+	if bulk, ok := ctx.Value(bulkClassChangesKey{}).(map[int64]string); ok {
+		if _, seen := bulk[studentID]; !seen {
+			bulk[studentID] = previous
+		}
+		return nil
+	}
+	return s.followClassChanges(ctx, map[int64]string{studentID: previous})
+}
+
+func (s *MasterDataDecisions) followClassChanges(ctx context.Context, previousClasses map[int64]string) error {
+	if err := s.classFollowUp.Follow(ctx, previousClasses, s.today()); err != nil {
+		return fmt.Errorf("review: follow class change: %w", err)
+	}
+	return nil
+}
+
+type bulkClassChangesKey struct{}
+
+// FollowBulkClassChanges runs the decisions of a bulk approval and follows
+// every Klasse they changed in one call afterwards, so the offering resync
+// runs once per bulk rather than once per request. A child keeps the Klasse
+// it had before its first write.
+func (s *MasterDataDecisions) FollowBulkClassChanges(ctx context.Context, apply func(context.Context) error) error {
+	previous := map[int64]string{}
+	if err := apply(context.WithValue(ctx, bulkClassChangesKey{}, previous)); err != nil {
+		return err
+	}
+	if len(previous) == 0 {
+		return nil
+	}
+	return s.followClassChanges(ctx, previous)
 }

@@ -7,7 +7,7 @@ status: historical
 > Historical record of a completed cutover. The rules that still hold
 > are in [ADR 0068](0068-principle-owners-compose-themselves-and-the-roots-only-wire.md).
 
-Accepted for [#3562](https://github.com/moto-nrw/project-phoenix/issues/3562)
+Accepted for [#3562](https://github.com/moto-ogs/project-phoenix/issues/3562)
 in the implementing change, following the precedent of ADR 0030 and ADR 0035
 to ADR 0038. The pull request review is where it can still be rejected; the
 exception activates only in the policy epoch that review merges.

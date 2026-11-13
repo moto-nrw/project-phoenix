@@ -26,3 +26,7 @@ export const CustomLabels: Story = {
     inactiveLabel: "Gesperrt",
   },
 };
+
+export const Unknown: Story = {
+  args: { active: false, unknown: true },
+};

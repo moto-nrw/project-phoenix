@@ -19,5 +19,7 @@
   "openInNewTab": "Yeni sekmede aç",
   "notViewable": "Bu dosya burada gösterilemiyor. Açmak için indirin.",
   "notViewableOnDevice": "Bu dosya bu cihazda burada gösterilemiyor. Yeni bir sekmede açın veya indirin.",
-  "position": "{current} / {total}"
+  "position": "{current} / {total}",
+  "downloadHint": "Dosyayı cihazınıza kaydeder.",
+  "openInNewTabHint": "Dosyayı yeni bir sekmede açar."
 }

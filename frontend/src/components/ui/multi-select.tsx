@@ -37,7 +37,7 @@ interface MultiSelectProps {
   readonly menuClassName?: string;
   /** Opens the menu from the trigger's right edge, e.g. near the window's. */
   readonly menuAlign?: "start" | "end";
-  /** Field height: `default` 40 px, `compact` 36 px for dense rows. */
+  /** Field height: 40 px (`compact`) by default, `dense` 36 px for dense rows. */
   readonly controlSize?: ListboxDropdownSize;
   /**
    * Trigger text for an empty selection — say what "nothing selected" means in
@@ -105,7 +105,7 @@ export function MultiSelect({
   className = "",
   menuClassName = "",
   menuAlign = "start",
-  controlSize = "default",
+  controlSize,
   placeholder = "Alle",
   unavailableLabel,
   summaryLabel,
@@ -206,7 +206,10 @@ export function MultiSelect({
       invalid={invalid}
       disabled={disabled || unavailable}
       placeholder={placeholder}
-      triggerRole="button"
+      // A select-only combobox (ARIA APG): named by its label, its text is
+      // the value, and the highlighted option is aria-activedescendant also
+      // while a dialog's focus trap keeps focus on the trigger.
+      triggerRole="combobox"
       testId={testId}
       size={controlSize}
       className={cn("w-full", className)}

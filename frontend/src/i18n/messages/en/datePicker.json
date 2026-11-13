@@ -9,6 +9,10 @@
     "selectTime": "Select time",
     "hour": "Hour",
     "minute": "Minutes",
-    "minimum": "Earliest {time}"
-  }
+    "minimum": "Earliest {time}",
+    "selectTimeHint": "Opens the time selection."
+  },
+  "clearHint": "Clears the field, so no day is selected.",
+  "previousMonthHint": "Goes back one month in the calendar.",
+  "nextMonthHint": "Goes forward one month in the calendar."
 }

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/schoolportal"
 )
 
 // The second factor reaches the school portal as the runtime the composition

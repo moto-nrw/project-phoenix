@@ -15,7 +15,7 @@ import { SpinnerIcon } from "~/components/ui/icons";
 import { Textarea } from "~/components/ui/textarea";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { formatBytes } from "~/lib/files-api";
+import { formatBytes } from "~/lib/file-format";
 import { cn } from "~/lib/utils";
 import {
   checkAttachmentFiles,

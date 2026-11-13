@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // EnqueueCareLetterMail puts the mail of a letter of a monthly run on

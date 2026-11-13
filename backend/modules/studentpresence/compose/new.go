@@ -8,11 +8,11 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres"
-	application "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/adapters/postgres"
+	application "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type Observation = ports.Observation

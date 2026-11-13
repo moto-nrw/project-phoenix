@@ -37,8 +37,8 @@ vi.mock("~/components/admin/guardian-approval-queue", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: ({ title }: { title: string }) => <h1>{title}</h1>,
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
 
 import GuardianApprovalsPage from "./page";

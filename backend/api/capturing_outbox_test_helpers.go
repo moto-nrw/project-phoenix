@@ -6,7 +6,7 @@ import (
 	"context"
 	"sync"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
 )
 
 // CapturingOutbox records what a flow enqueues on Delivery's mail outbox, so

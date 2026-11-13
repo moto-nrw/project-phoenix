@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
 // Dependencies requires Runtime; only optional notifiers may be nil.

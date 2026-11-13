@@ -1,7 +1,7 @@
 # Inhalte der Schule folgen der Frist ihrer Datenart, Inhalte ohne Ende löscht die Schule selbst
 
-Status: accepted. Gilt für [#4045](https://github.com/moto-nrw/project-phoenix/issues/4045),
-Teil der Spec [#3949](https://github.com/moto-nrw/project-phoenix/issues/3949).
+Status: accepted. Gilt für [#4045](https://github.com/moto-ogs/project-phoenix/issues/4045),
+Teil der Spec [#3949](https://github.com/moto-ogs/project-phoenix/issues/3949).
 Baut auf [ADR 0048](0048-loeschfristen-traegt-das-moto-team-je-schule-ein.md) auf.
 
 ## Kontext

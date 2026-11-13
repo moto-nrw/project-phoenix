@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
 )
 
 func toModel(device devicefleet.Device) *devicefleet.Device                { return &device }

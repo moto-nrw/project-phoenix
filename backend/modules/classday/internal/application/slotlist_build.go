@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
 )
 
 func (s *service) BuildList(ctx context.Context, params classday.Params) (*classday.Result, error) {

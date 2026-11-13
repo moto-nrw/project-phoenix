@@ -117,6 +117,16 @@ const routes: Array<[string, () => Promise<Route>]> = [
       (await import("~/lib/traeger/route-wrapper.server")).proxyGet("/api/x"),
   ],
   [
+    // A removal that answers its result (export recipient, ADR 0218).
+    "traeger removal with an answer (traeger.del)",
+    async () => {
+      const { traeger } = await import("~/lib/traeger/route-wrapper.server");
+      return traeger.del(async (request, token) =>
+        traeger.api("DELETE", "/api/x", token, undefined, { request }),
+      ) as Route;
+    },
+  ],
+  [
     "public pass-through (token routes)",
     async () =>
       (await import("~/lib/backend-proxy-route.server")).createPublicJsonProxy({

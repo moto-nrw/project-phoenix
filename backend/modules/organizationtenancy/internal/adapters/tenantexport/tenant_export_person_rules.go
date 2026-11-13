@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 func personRelationships(model organizationtenancy.ExportModelTable, catalog organizationtenancy.DataLifecycleCatalog) []organizationtenancy.ExportRelationship {

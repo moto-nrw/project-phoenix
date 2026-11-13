@@ -349,6 +349,8 @@ func ErrorCode(err error) string {
 		return "calendar_period_overlap_conflict"
 	case errors.Is(err, ErrCalendarPeriodRequiredByCareOffering):
 		return "calendar_period_care_offering_conflict"
+	case errors.Is(err, ErrCalendarPeriodUsedByShiftSeries):
+		return "calendar_period_shift_series_conflict"
 	case errors.Is(err, ErrFederalStateUnavailable):
 		return "federal_state_unavailable"
 	default:

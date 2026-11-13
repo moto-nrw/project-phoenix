@@ -319,6 +319,9 @@ type AppointmentRecipient struct {
 	GuardianProfileID *int64     `json:"guardian_profile_id,omitempty"`
 	Status            string     `json:"status"`
 	RespondedAt       *time.Time `json:"responded_at,omitempty"`
+	// OccurrenceResponses holds the answers for single dates of a series that
+	// differ from Status, keyed by occurrence date (#6987).
+	OccurrenceResponses map[Date]string `json:"occurrence_responses,omitempty"`
 	// StudentIDs accompanies batch recipient reads for relationship-scoped
 	// visibility. It is not part of the recipient's HTTP representation.
 	StudentIDs []int64 `json:"-"`
@@ -335,6 +338,25 @@ func (r *AppointmentRecipient) Validate() error {
 		RecipientType: r.RecipientType, StaffID: r.StaffID,
 		GuardianProfileID: r.GuardianProfileID, Status: r.Status,
 	})
+}
+
+// StatusOn is the recipient's answer for one occurrence date: the answer for
+// that date when there is one, else the answer for the whole series.
+func (r *AppointmentRecipient) StatusOn(occurrenceDate Date) string {
+	if status, ok := r.OccurrenceResponses[occurrenceDate]; ok {
+		return status
+	}
+	return r.Status
+}
+
+// RecipientResponse is one answer of a recipient. Without OccurrenceDate it
+// answers the appointment or the whole series and drops the answers for
+// single dates; with OccurrenceDate it answers that date of a series only,
+// which takes accepted or declined (#6987).
+type RecipientResponse struct {
+	RecipientID    int64
+	OccurrenceDate Date
+	Status         string
 }
 
 type AppointmentRecipientStudent struct {
@@ -452,7 +474,7 @@ type RecipientCommand interface {
 	// CreateAppointmentRecipients writes recipients and their student links in
 	// one UnitOfWork. A failed link insert rolls back every recipient insert.
 	CreateAppointmentRecipients(context.Context, int64, []AppointmentRecipientFields) ([]*AppointmentRecipient, []*AppointmentRecipientStudent, error)
-	UpdateAppointmentRecipientResponse(context.Context, int64, string) error
+	UpdateAppointmentRecipientResponse(context.Context, RecipientResponse) error
 	ClaimReminderPushDelivery(context.Context, int64, int, Date, int64) (bool, error)
 	ReleaseReminderPushDelivery(context.Context, int64, int, Date, int64) error
 }

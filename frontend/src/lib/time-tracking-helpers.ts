@@ -52,6 +52,8 @@ export interface BackendWorkSessionHistory extends BackendWorkSession {
   breaks: BackendWorkSessionBreak[] | null;
   edit_count: number;
   audit_count?: number;
+  pack_up_minutes?: number;
+  rounding_minutes?: number;
 }
 
 export interface BackendWeeklySummary {
@@ -258,6 +260,10 @@ export interface WorkSessionHistory extends WorkSession {
   breaks: WorkSessionBreak[];
   editCount: number;
   auditCount?: number;
+  /** Pack-up minutes credited for a regular checkout (#6852). */
+  packUpMinutes?: number;
+  /** Signed change the rounding made to the block's duration (#6851). */
+  roundingMinutes?: number;
 }
 
 export interface WorkSessionDayMinutes {
@@ -403,14 +409,25 @@ export function indexWorkSessionMinutesByBerlinDate(
     // The server's live net_minutes already deducts a currently running
     // break. Recomputing it from the ended-break cache would make the chart
     // continue to count work during that break.
-    const netTotal = session.netMinutes;
+    const credit =
+      checkOut !== null && end.getTime() === checkOut.getTime()
+        ? (session.packUpMinutes ?? 0) + (session.roundingMinutes ?? 0)
+        : 0;
+    // Split stamped net minutes first. Credit is a checkout booking, not a
+    // proportional increase or decrease of every day in a night block.
+    const netTotal = Math.max(0, session.netMinutes - credit);
     const grossTotal = [...grossByDate.values()].reduce(
       (sum, value) => sum + value,
       0,
     );
     let allocated = 0;
     const portions = [...grossByDate.entries()]
-      .filter(([, gross]) => gross > 0)
+      .filter(
+        ([date, gross]) =>
+          gross > 0 ||
+          (credit !== 0 &&
+            date === berlinTodayISO(new Date(end.getTime() - 1))),
+      )
       .map(([date, gross]) => {
         const net = Math.floor(
           (netTotal * Math.max(0, gross - (breakByDate.get(date) ?? 0))) /
@@ -429,6 +446,17 @@ export function indexWorkSessionMinutesByBerlinDate(
     // Keep integer totals exact; the final minute belongs to the latest segment.
     if (portions.length > 0)
       portions[portions.length - 1]!.net += netTotal - allocated;
+
+    // The final floor may have consumed some credit through excess breaks.
+    // Reconcile to the authoritative total only after all deductions, carrying
+    // rounding deductions backwards rather than discarding them at midnight.
+    let adjustment = session.netMinutes - netTotal;
+    for (let i = portions.length - 1; i >= 0 && adjustment !== 0; i--) {
+      const portion = portions[i]!;
+      const applied = Math.max(-portion.net, adjustment);
+      portion.net += applied;
+      adjustment -= applied;
+    }
 
     for (const { date, net } of portions) {
       const existing = result.get(date) ?? { netMinutes: 0, breakMinutes: 0 };
@@ -538,6 +566,8 @@ export function mapWorkSessionHistoryResponse(
     breaks: (data.breaks ?? []).map(mapWorkSessionBreakResponse),
     editCount: data.edit_count ?? 0,
     auditCount: data.audit_count ?? 0,
+    packUpMinutes: data.pack_up_minutes ?? 0,
+    roundingMinutes: data.rounding_minutes ?? 0,
   };
 }
 
@@ -768,28 +798,9 @@ export const OPEN_MONTH_REFRESH_MS = 60_000;
  */
 export const MAX_TARGET_RANGE_DAYS = 366;
 
-export interface BackendDailyTarget {
+interface BackendDailyTarget {
   date: string;
   target_minutes: number;
-}
-
-/**
- * Soll-Minuten je Kalendertag, aufgelöst gegen die Plan-Version, die AN
- * diesem Tag galt (#1842). Key ist der ISO-Tag (YYYY-MM-DD).
- *
- * Die Tagestabelle darf das Soll nicht aus dem AKTUELLEN Dienstplan ableiten:
- * Nach einer Vertragsänderung (z. B. 8h -> 4h) stünden sonst in jeder
- * vergangenen Zeile 4h, während die Monatskarte darüber die tatsächlich
- * gültigen 8h summiert — Karte und Tabelle widersprächen sich.
- */
-export function mapDailyTargetsResponse(
-  data: BackendDailyTarget[] | null | undefined,
-): ReadonlyMap<string, number> {
-  const targets = new Map<string, number>();
-  for (const entry of data ?? []) {
-    targets.set(entry.date.slice(0, 10), entry.target_minutes);
-  }
-  return targets;
 }
 
 export interface BackendDailyProjection extends BackendDailyTarget {
@@ -836,20 +847,6 @@ export function mapDailyProjectionResponse(
     });
   }
   return projection;
-}
-
-/**
- * Nur die Soll-Minuten aus einer Tagesprojektion — für Verbraucher, die
- * ausschließlich das Soll brauchen (Wochen-/Monats-KPIs). Sie lesen denselben
- * SWR-Key wie die Tagestabelle: ein Key trägt EINE Nutzlast, also holen beide
- * die Projektion und schneiden sich hier heraus, was sie brauchen.
- */
-export function targetsFromProjection(
-  projection: ReadonlyMap<string, DayProjection>,
-): ReadonlyMap<string, number> {
-  return new Map(
-    [...projection].map(([date, day]) => [date, day.targetMinutes]),
-  );
 }
 
 export interface BackendHoliday {
@@ -908,6 +905,8 @@ export interface BackendMonthSummary {
   carry_in_minutes: number;
   target_minutes: number;
   target_minutes_to_date: number;
+  /** False when no Soll is maintained for the month (#6887). */
+  has_target: boolean;
   actual_minutes: number;
   credited_sick_minutes: number;
   credited_vacation_minutes: number;
@@ -916,6 +915,11 @@ export interface BackendMonthSummary {
   sick_days: number;
   vacation_days: number;
   training_days: number;
+  /** Absence workdays no maintained Soll governs; they credit nothing (#6889). */
+  sick_days_without_target: number;
+  vacation_days_without_target: number;
+  training_days_without_target: number;
+  other_days_without_target: number;
   planned_shift_minutes?: number | null;
   adjustment_minutes: number;
   adjustments?: BackendBalanceAdjustment[] | null;
@@ -999,6 +1003,10 @@ export interface MonthSummary {
   carryInMinutes: number;
   targetMinutes: number;
   targetMinutesToDate: number;
+  /** False when no Soll is maintained for any day of the month: no work
+   *  schedule, no work-time model, no Sonderarbeitszeit (#6887). Sick and
+   *  vacation days then count 0 hours. */
+  hasTarget: boolean;
   actualMinutes: number;
   creditedSickMinutes: number;
   creditedVacationMinutes: number;
@@ -1007,6 +1015,14 @@ export interface MonthSummary {
   sickDays: number;
   vacationDays: number;
   trainingDays: number;
+  /** Absence workdays (Mo–Fr, no holiday or closing day) that no maintained
+   *  Soll governs: no Sonderarbeitszeit, work schedule or work-time model on
+   *  that day. They credit 0 hours and stay out of the credited day counters
+   *  above, which the payroll exports book (#6889). */
+  sickDaysWithoutTarget: number;
+  vacationDaysWithoutTarget: number;
+  trainingDaysWithoutTarget: number;
+  otherDaysWithoutTarget: number;
   plannedShiftMinutes: number | null;
   adjustmentMinutes: number;
   adjustments: BalanceAdjustment[];
@@ -1114,6 +1130,7 @@ export function mapMonthSummaryResponse(
     carryInMinutes: data.carry_in_minutes,
     targetMinutes: data.target_minutes,
     targetMinutesToDate: data.target_minutes_to_date,
+    hasTarget: data.has_target,
     actualMinutes: data.actual_minutes,
     creditedSickMinutes: data.credited_sick_minutes,
     creditedVacationMinutes: data.credited_vacation_minutes,
@@ -1122,6 +1139,10 @@ export function mapMonthSummaryResponse(
     sickDays: data.sick_days,
     vacationDays: data.vacation_days,
     trainingDays: data.training_days,
+    sickDaysWithoutTarget: data.sick_days_without_target,
+    vacationDaysWithoutTarget: data.vacation_days_without_target,
+    trainingDaysWithoutTarget: data.training_days_without_target,
+    otherDaysWithoutTarget: data.other_days_without_target,
     plannedShiftMinutes: data.planned_shift_minutes ?? null,
     adjustmentMinutes: data.adjustment_minutes ?? 0,
     adjustments: (data.adjustments ?? []).map(mapBalanceAdjustmentResponse),

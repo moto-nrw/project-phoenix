@@ -38,7 +38,7 @@
     {
       "title": "Runbook",
       "type": "link",
-      "url": "https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/booking-consistency.md",
+      "url": "https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/booking-consistency.md",
       "targetBlank": true
     }
   ],

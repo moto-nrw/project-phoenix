@@ -4,13 +4,13 @@ import (
 	"context"
 	"testing"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The booking consistency audit over the owners the root binds it to:

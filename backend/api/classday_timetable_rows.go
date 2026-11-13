@@ -3,10 +3,10 @@ package api
 import (
 	"context"
 
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	classdayCompose "github.com/moto-ogs/project-phoenix/modules/classday/compose"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // NewClassDayTimetableRows binds the slot lists' block and roster reads to

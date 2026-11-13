@@ -52,6 +52,7 @@
   "account_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "tenant_access_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "account_not_in_school": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "account_shared_across_schools": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
   "lehrkraft_role_immutable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "access_name_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "caterer_address_taken": "Kjo adresë email i përket tashmë një llogarie tjetër moto. Ju lutemi përdorni një adresë tjetër.",

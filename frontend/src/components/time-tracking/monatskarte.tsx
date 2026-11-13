@@ -6,6 +6,7 @@
 // Saldo. Everything is computed live by the backend — the Übertrag updates
 // automatically when past months are corrected.
 
+import type { ReactNode } from "react";
 import { Lock } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
@@ -15,6 +16,10 @@ import { Button } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  MISSING_TARGET_OWNER,
+  SetTargetAction,
+} from "~/components/staff/missing-target-notice";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
 import {
@@ -61,12 +66,15 @@ function SummaryRow({
   label,
   value,
   hint,
+  badge,
   valueClass,
   emphasis,
 }: {
   readonly label: string;
   readonly value: string;
   readonly hint?: string;
+  /** Status next to the label, e.g. the missing Soll (#6889). */
+  readonly badge?: ReactNode;
   readonly valueClass?: string;
   readonly emphasis?: boolean;
 }) {
@@ -80,6 +88,9 @@ function SummaryRow({
         }
       >
         {label}
+        {badge && (
+          <span className="ml-2 inline-flex align-middle">{badge}</span>
+        )}
         {hint && (
           <span className="ml-2 text-xs font-normal text-gray-400">{hint}</span>
         )}
@@ -91,6 +102,54 @@ function SummaryRow({
       </span>
     </div>
   );
+}
+
+interface AbsenceRow {
+  readonly label: string;
+  readonly minutes: number;
+  /** Credited days; Sonstiges has no credited day counter. */
+  readonly days?: number;
+  /** Days no maintained Soll governs, credited with 0 hours (#6889). */
+  readonly daysWithoutTarget: number;
+}
+
+function absenceRows(summary: MonthSummary): AbsenceRow[] {
+  return [
+    {
+      label: "Gutschrift Krankheit",
+      minutes: summary.creditedSickMinutes,
+      days: summary.sickDays,
+      daysWithoutTarget: summary.sickDaysWithoutTarget,
+    },
+    {
+      label: "Gutschrift Urlaub",
+      minutes: summary.creditedVacationMinutes,
+      days: summary.vacationDays,
+      daysWithoutTarget: summary.vacationDaysWithoutTarget,
+    },
+    {
+      label: "Gutschrift Fortbildung",
+      minutes: summary.creditedTrainingMinutes,
+      days: summary.trainingDays,
+      daysWithoutTarget: summary.trainingDaysWithoutTarget,
+    },
+    {
+      label: "Gutschrift Sonstiges",
+      minutes: summary.creditedOtherMinutes,
+      daysWithoutTarget: summary.otherDaysWithoutTarget,
+    },
+  ].filter((row) => row.minutes > 0 || row.daysWithoutTarget > 0);
+}
+
+/** "1 Tag", or "2 Tage ohne Soll" for days that credit nothing. */
+function absenceRowHint(row: AbsenceRow): string | undefined {
+  const parts: string[] = [];
+  if (row.minutes > 0 && row.days !== undefined)
+    parts.push(formatDays(row.days));
+  if (row.daysWithoutTarget > 0) {
+    parts.push(`${formatDays(row.daysWithoutTarget)} ohne Soll`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
 export interface MonatskarteProps {
@@ -125,6 +184,13 @@ export interface MonatskarteProps {
    * month. The MA-facing own view passes nothing and stays read-only.
    */
   readonly onReopen?: () => void;
+  /**
+   * Opens the Arbeitszeitmodell of this person; only for those who may set
+   * the Soll. Without it the missing-Soll note names who sets it (#6889).
+   */
+  readonly onSetTarget?: () => void;
+  /** Same as `onSetTarget`, as a link (own time-tracking page). */
+  readonly setTargetHref?: string;
 }
 
 function formatIsoDateGerman(iso: string): string {
@@ -141,6 +207,8 @@ export function Monatskarte({
   accountStartsInFuture = false,
   accountStartDate,
   onReopen,
+  onSetTarget,
+  setTargetHref,
 }: MonatskarteProps) {
   if (isLoading) {
     // Mirrors the loaded card below: title row, then SummaryRow-shaped
@@ -180,11 +248,10 @@ export function Monatskarte({
   }
   if (!summary) return null;
 
-  const creditedTotal =
-    summary.creditedSickMinutes +
-    summary.creditedVacationMinutes +
-    summary.creditedTrainingMinutes +
-    summary.creditedOtherMinutes;
+  const absences = absenceRows(summary);
+  const hasDaysWithoutTarget = absences.some(
+    (row) => row.daysWithoutTarget > 0,
+  );
 
   const planCoverage = (() => {
     if (summary.plannedShiftMinutes === null) {
@@ -239,8 +306,17 @@ export function Monatskarte({
         )}
         <SummaryRow
           label="Summe Soll"
+          badge={
+            summary.hasTarget ? undefined : (
+              <StatusBadge
+                tone="warning"
+                compact
+                label="Kein Soll hinterlegt"
+              />
+            )
+          }
           hint={
-            isCurrentMonth
+            isCurrentMonth && summary.hasTarget
               ? `davon bis heute ${formatDuration(summary.targetMinutesToDate)}`
               : undefined
           }
@@ -250,37 +326,18 @@ export function Monatskarte({
           label="Summe Ist"
           value={formatDuration(summary.actualMinutes)}
         />
-        {creditedTotal > 0 && (
-          <>
-            {summary.creditedSickMinutes > 0 && (
-              <SummaryRow
-                label="Gutschrift Krankheit"
-                hint={formatDays(summary.sickDays)}
-                value={formatDuration(summary.creditedSickMinutes)}
-              />
-            )}
-            {summary.creditedVacationMinutes > 0 && (
-              <SummaryRow
-                label="Gutschrift Urlaub"
-                hint={formatDays(summary.vacationDays)}
-                value={formatDuration(summary.creditedVacationMinutes)}
-              />
-            )}
-            {summary.creditedTrainingMinutes > 0 && (
-              <SummaryRow
-                label="Gutschrift Fortbildung"
-                hint={formatDays(summary.trainingDays)}
-                value={formatDuration(summary.creditedTrainingMinutes)}
-              />
-            )}
-            {summary.creditedOtherMinutes > 0 && (
-              <SummaryRow
-                label="Gutschrift Sonstiges"
-                value={formatDuration(summary.creditedOtherMinutes)}
-              />
-            )}
-          </>
-        )}
+        {/* Gutschriften; ohne Soll zählt ein Abwesenheitstag 0 Stunden, die
+            Zeile bleibt trotzdem stehen, damit keine Krankmeldung aus dem
+            Monat verschwindet (#6889). */}
+        {absences.map((row) => (
+          <SummaryRow
+            key={row.label}
+            label={row.label}
+            hint={absenceRowHint(row)}
+            value={formatDuration(row.minutes)}
+            valueClass={row.minutes > 0 ? undefined : "text-gray-500"}
+          />
+        ))}
         {/* Stundenkonto-Buchungen (#1420): Auszahlung, Freizeitausgleich,
             Reset — eine Zeile pro Buchung, damit die Kette Soll → Ist →
             Anpassungen → Saldo von oben nach unten nachrechenbar bleibt. */}
@@ -339,6 +396,27 @@ export function Monatskarte({
             />
           ))}
       </div>
+
+      {hasDaysWithoutTarget && (
+        <Alert
+          type="warning"
+          size="compact"
+          announce="off"
+          className="mt-3"
+          message={`Ohne Soll zählen Abwesenheiten 0 Stunden. Gilt später ein Soll für diese Tage, rechnet moto die Stunden nach.${
+            onSetTarget || setTargetHref ? "" : ` ${MISSING_TARGET_OWNER}`
+          }`}
+          action={
+            onSetTarget || setTargetHref ? (
+              <SetTargetAction
+                href={setTargetHref}
+                onClick={onSetTarget}
+                variant="outline"
+              />
+            ) : undefined
+          }
+        />
+      )}
 
       {summary.isClosed && summary.driftMinutes !== 0 && (
         <Alert

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // LockExceptionDay serializes status-day writes against Care Plan's
@@ -36,7 +36,10 @@ type presenceFacade struct {
 	attendance StudentPresence
 }
 
-var _ studentpresence.Presence = (*presenceFacade)(nil)
+var (
+	_ studentpresence.Presence        = (*presenceFacade)(nil)
+	_ studentpresence.SessionCheckIns = (*presenceFacade)(nil)
+)
 
 func NewPresenceFacade(service Service, deps ServiceDependencies) *presenceFacade {
 	engine, ok := service.(presenceEngine)

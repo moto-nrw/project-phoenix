@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	transactionruntimeCompose "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	transactionruntimeCompose "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // CommunicationRequestRuntime binds ambient school identity and commit hooks.

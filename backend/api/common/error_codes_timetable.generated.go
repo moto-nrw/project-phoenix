@@ -15,6 +15,7 @@ const CodeTimetableCalendarPeriodNameTaken = "timetable.calendar_period_name_tak
 const CodeTimetableCalendarPeriodNotFound = "timetable.calendar_period_not_found"
 const CodeTimetableCalendarPeriodOverlapConflict = "timetable.calendar_period_overlap_conflict"
 const CodeTimetableCalendarPeriodRosterConflict = "timetable.calendar_period_roster_conflict"
+const CodeTimetableCalendarPeriodShiftSeriesConflict = "timetable.calendar_period_shift_series_conflict"
 const CodeTimetableCalendarPeriodWeekCycleAnchorMissing = "timetable.calendar_period_week_cycle_anchor_missing"
 const CodeTimetableClosingDayEndBeforeStart = "timetable.closing_day_end_before_start"
 const CodeTimetableClosingDayInvalid = "timetable.closing_day_invalid"
@@ -163,6 +164,7 @@ var errorCodeClassesTimetable = []errorCodeClass{
 	{CodeTimetableCalendarPeriodNotFound, "business_rejection"},
 	{CodeTimetableCalendarPeriodOverlapConflict, "business_rejection"},
 	{CodeTimetableCalendarPeriodRosterConflict, "business_rejection"},
+	{CodeTimetableCalendarPeriodShiftSeriesConflict, "business_rejection"},
 	{CodeTimetableCalendarPeriodWeekCycleAnchorMissing, "input"},
 	{CodeTimetableClosingDayEndBeforeStart, "input"},
 	{CodeTimetableClosingDayInvalid, "input"},

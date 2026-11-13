@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/moto-nrw/project-phoenix/api"
-	appmiddleware "github.com/moto-nrw/project-phoenix/middleware"
-	observabilityCompose "github.com/moto-nrw/project-phoenix/observability/compose"
+	"github.com/moto-ogs/project-phoenix/api"
+	appmiddleware "github.com/moto-ogs/project-phoenix/middleware"
+	observabilityCompose "github.com/moto-ogs/project-phoenix/observability/compose"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

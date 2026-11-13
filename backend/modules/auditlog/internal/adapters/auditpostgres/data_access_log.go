@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	audit "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 )
 
 // dataAccessLogRepository is an insert-only repository for audit.data_access_log.

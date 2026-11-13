@@ -141,7 +141,7 @@
   --color-moto-stone-strong: #44403c;
   --color-moto-stone-soft: #f5f5f4;
 
-  /* Aus moto-nrw/website src/app/globals.css. Die Website ist die einzige
+  /* Aus moto-ogs/website src/app/globals.css. Die Website ist die einzige
      Designquelle; diese Werte fehlten der App bisher. */
   --color-moto-gray-150: #eef0f3;
   --color-moto-ink: #030712;
@@ -389,13 +389,17 @@
   }
 }
 
-/* Utility classes for Tailwind animations */
+/* Utility classes for Tailwind animations. The modal durations come from
+   `MODAL_MOTION_STYLE` (components/ui/motion.ts), which Modal sets on its
+   root, so its close timer and the animation share one value (#6575). */
 .animate-modalEnter {
-  animation: modalEnter 250ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  animation: modalEnter var(--moto-modal-enter) cubic-bezier(0.32, 0.72, 0, 1)
+    forwards;
 }
 
 .animate-modalExit {
-  animation: modalExit 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: modalExit var(--moto-modal-exit) cubic-bezier(0.4, 0, 0.2, 1)
+    forwards;
 }
 
 .animate-bounceIn {
@@ -555,7 +559,12 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
-.moto-content-surface:has([aria-expanded="true"]) {
+/* An open dropdown or popover lifts its surface above the next one. A card's
+   own disclosure toggle (`SectionCollapseToggle`) opens no layer: it must not
+   lift the card above a sticky save bar. */
+.moto-content-surface:has(
+    [aria-expanded="true"]:not([data-section-collapse-toggle])
+  ) {
   position: relative;
   z-index: 60;
 }

@@ -6,9 +6,10 @@
 // frühere Datei wiederholt.
 
 import { Download, RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { DATEV_READINESS_ID } from "~/components/traeger/finance-export-datev";
 import { formatEuro } from "~/components/traeger/contribution-format";
+import { HandoverBadge } from "~/components/traeger/finance-export-handover";
 import {
   FINANCE_FILE_KINDS,
   byLabel,
@@ -72,8 +73,12 @@ function LastFile({
           {exportedAtLabel(entry.exportedAt)}
         </span>
       </span>
-      <span className="block text-sm text-gray-500">
-        {byLabel(entry.exportedByYou, entry.exportedByAccount)}
+      <span className="block text-sm wrap-anywhere text-gray-500">
+        {byLabel(
+          entry.exportedByYou,
+          entry.exportedByAccount,
+          entry.exportedByName,
+        )}
       </span>
     </span>
   );
@@ -199,6 +204,8 @@ interface RunTableActions {
   readonly datev: DatevRunStates & { readonly settingsReady: boolean };
   readonly onDownload: (format: RunFileFormat, run: ExportRun) => void;
   readonly onRepeat: (run: ExportRun) => void;
+  /** Further actions of a run, such as its handover (ADR 0218). */
+  readonly renderRunActions?: (run: ExportRun) => ReactNode;
 }
 
 function runColumns({
@@ -206,6 +213,7 @@ function runColumns({
   datev,
   onDownload,
   onRepeat,
+  renderRunActions,
 }: RunTableActions): DataTableColumn<ExportRun>[] {
   const datevReady = datev.settingsReady;
   const stateOf = (run: ExportRun) =>
@@ -261,7 +269,7 @@ function runColumns({
       align: "right",
       stackedLabel: false,
       render: (run) => (
-        <span className="flex justify-end gap-2 whitespace-nowrap max-sm:flex-wrap max-sm:justify-start">
+        <span className="flex flex-wrap justify-end gap-2 whitespace-nowrap max-sm:justify-start">
           <Button
             type="button"
             variant="surface"
@@ -283,6 +291,7 @@ function runColumns({
             onDownload={onDownload}
             onRepeat={onRepeat}
           />
+          {renderRunActions?.(run)}
         </span>
       ),
     },
@@ -348,6 +357,9 @@ function entryNotes(entry: ExportProtocolEntry) {
         tone="gray"
       />,
     );
+  }
+  if (entry.handover) {
+    notes.push(<HandoverBadge key="handover" handover={entry.handover} />);
   }
   if (entry.submittedAt) {
     notes.push(
@@ -487,8 +499,12 @@ const PROTOCOL_COLUMNS: DataTableColumn<ExportProtocolEntry>[] = [
         <span className="block whitespace-nowrap tabular-nums">
           {exportedAtLabel(entry.exportedAt)}
         </span>
-        <span className="block text-sm text-gray-500">
-          {byLabel(entry.exportedByYou, entry.exportedByAccount)}
+        <span className="block text-sm wrap-anywhere text-gray-500">
+          {byLabel(
+            entry.exportedByYou,
+            entry.exportedByAccount,
+            entry.exportedByName,
+          )}
         </span>
       </span>
     ),

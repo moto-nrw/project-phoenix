@@ -16,8 +16,10 @@ export type SettingsAudience = "admin" | "operator" | "traeger";
  */
 
 function changedOn(setting: ResolvedSetting): string {
+  // „geändert am 09.11.2026“ stays one piece: a narrow field never leaves the
+  // date alone on a line.
   return setting.traeger_changed_at
-    ? ` · geändert am ${formatDate(setting.traeger_changed_at)}`
+    ? ` · geändert\u00A0am\u00A0${formatDate(setting.traeger_changed_at)}`
     : "";
 }
 

@@ -1,6 +1,6 @@
 package postgres
 
-import deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+import deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
 // emailClaimSQL claims system mail, of no school and no Träger, before the
 // rest: a demo link, a password reset or a sign-in code is awaited by one

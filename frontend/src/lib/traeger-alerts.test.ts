@@ -65,10 +65,10 @@ describe("alertSentence", () => {
 
   it("counts the waiting children", () => {
     expect(alertSentence("open_enrollments", school({}, 1))).toBe(
-      "1 Kind wartet auf eine Entscheidung.",
+      "1 Kind wartet auf eine Entscheidung der Schule.",
     );
     expect(alertSentence("open_enrollments", school({}, 6))).toBe(
-      "6 Kinder warten auf eine Entscheidung.",
+      "6 Kinder warten auf eine Entscheidung der Schule.",
     );
   });
 });

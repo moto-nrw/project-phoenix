@@ -6,8 +6,8 @@ status: proposed
 
 **Status: Vorgeschlagen.**
 
-Entscheidung zu [#4687](https://github.com/moto-nrw/project-phoenix/issues/4687),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung zu [#4687](https://github.com/moto-ogs/project-phoenix/issues/4687),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 66 bis 69. Sie ist ein Bau-Schnitt des Owners Elternabrechnung
 aus [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)
 §4 und baut auf den Kostenträgern der Ferien

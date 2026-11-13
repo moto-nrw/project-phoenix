@@ -4,7 +4,7 @@ status: accepted
 
 # Soll und Ist je Kind is a statistics read over a swappable Soll port
 
-Issue [#4774](https://github.com/moto-nrw/project-phoenix/issues/4774): the
+Issue [#4774](https://github.com/moto-ogs/project-phoenix/issues/4774): the
 school sees per child and day whether the actual attendance (Ist) stayed
 within the booked care time (Soll), and the school management sees every
 child with overruns in a window, as a list and as PDF and Excel export.

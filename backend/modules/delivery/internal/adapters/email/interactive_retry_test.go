@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	mailcontract "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 
 	"github.com/stretchr/testify/assert"
 )

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
 )
 
 // NewDisplayHTTPRouter composes the display routes over the owner capability.

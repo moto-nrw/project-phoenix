@@ -6,21 +6,21 @@ import (
 	"context"
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	importPorts "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	importPorts "github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // ImportTestModule is the Data Import a suite drives; the owners it imports
@@ -59,6 +59,10 @@ type ImportTestOptions struct {
 	// Today is the calendar day a new child's status is taken against
 	// (#5552 step 7); nil is the real day.
 	Today func() timezone.Date
+	// FollowCohorts binds the update follow-up of Klasse and Gruppe (#6951)
+	// over the recurrence gate and Timetable's cohort rosters; the offering
+	// resync needs the booking materialization and stays out.
+	FollowCohorts bool
 }
 
 // NewImportTestRuntime is the import runtime NewImportTestModule composes,
@@ -178,7 +182,7 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 	dataImports := imports{
 		Student: newStudentImport(
 			runtime, rfid, groups, rooms, persons, wrapPersonBatches(personBatches(persons), options.WrapPersonBatches),
-			studentGuardians, students.CarePlan, NewStudentPresenceForTests(db), auditCompose.NewConsentRecorder(command), options.Today,
+			studentGuardians, students.CarePlan, NewStudentPresenceForTests(db), auditCompose.NewConsentRecorder(command), options.Today, importTestCohorts(db, options),
 		),
 		Staff:     newStaffImport(runtime, rfid, auth.Invitation, organizations, persons, membership, workTime),
 		ClassList: newClassListImport(runtime, membership, persons, wrapClassListBatches(classListBatches(membership), options.WrapClassListBatches)),

@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // CoursesResponse is the parents-portal Kurse section (#3075). It is empty and

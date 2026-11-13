@@ -421,7 +421,7 @@ describe("TagesplanView", () => {
     render(<TagesplanView />);
 
     expect(
-      screen.getByText(/Kreativraum · 13 da · 28 gegangen/),
+      screen.getByText(/Kreativraum · 13 da · 28 nicht mehr im Raum/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/von 0 da/)).not.toBeInTheDocument();
     expect(screen.getByText("Ende offen")).toBeInTheDocument();

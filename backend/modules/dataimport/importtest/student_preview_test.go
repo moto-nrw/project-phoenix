@@ -9,12 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	dataimport "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-	imports "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/imports"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	dataimport "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	importCompose "github.com/moto-ogs/project-phoenix/modules/dataimport/compose"
+	imports "github.com/moto-ogs/project-phoenix/modules/dataimport/compose/imports"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Hiding only the preview capability keeps the original scalar path available

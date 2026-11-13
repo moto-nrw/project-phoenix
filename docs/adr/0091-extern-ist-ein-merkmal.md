@@ -5,8 +5,8 @@ status: accepted
 # Extern ist ein Merkmal, der Zugang eine eigene Wahl
 
 Entscheidung vom 23.10.2026 zu
-[#4573](https://github.com/moto-nrw/project-phoenix/issues/4573), aufbauend auf
-[#3823](https://github.com/moto-nrw/project-phoenix/issues/3823).
+[#4573](https://github.com/moto-ogs/project-phoenix/issues/4573), aufbauend auf
+[#3823](https://github.com/moto-ogs/project-phoenix/issues/3823).
 
 ## Ausgangslage
 

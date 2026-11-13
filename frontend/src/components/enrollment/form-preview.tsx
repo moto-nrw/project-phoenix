@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import { ChevronDown, Eye, HelpCircle } from "lucide-react";
 import { FilePreviewInput } from "~/components/enrollment/file-field-editor";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { buttonClassName } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { RequiredMark } from "~/components/ui/field-label";
 import { InsetPanel } from "~/components/ui/inset-panel";
@@ -39,18 +39,17 @@ export function PreviewSection({
     <section>
       <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
       {description ? (
-        <p className="mt-1 text-xs leading-5 text-gray-500">{description}</p>
+        <p className="mt-1 text-sm leading-5 text-gray-500">{description}</p>
       ) : null}
       <div className="mt-3 grid gap-2">
         {fields.map((entry) => {
           const field = typeof entry === "string" ? { label: entry } : entry;
           return (
             <InsetPanel key={field.label} tone="white" padding="compact">
-              <span className="block text-sm font-medium text-gray-500">
+              <span className="block text-sm font-medium text-gray-600">
                 {field.label}
                 {field.required && <RequiredMark />}
               </span>
-              <span className="mt-1 block h-2 w-2/3 rounded-full bg-gray-100" />
             </InsetPanel>
           );
         })}
@@ -121,7 +120,7 @@ function PreviewCustomField({
         </div>
       </div>
       {field.help_text ? (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
+        <p className="mt-1 text-sm leading-5 text-gray-500">
           {field.help_text}
         </p>
       ) : null}
@@ -145,11 +144,11 @@ function PreviewInput({ field }: Readonly<{ field: FormField }>) {
   }
 
   if (field.type === "select") {
-    const firstOption = field.options?.[0]?.label ?? "Bitte wählen";
+    // Like the parents' form: a choice starts empty, nothing is preselected.
     return (
       // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- Nachbildung eines Auswahlfelds in der Formularvorschau, keine Fläche; trägt den Radius der Bedienelemente (#6137)
       <div className="mt-3 flex h-10 items-center justify-between rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-500 shadow-sm">
-        <span className="min-w-0 truncate">{firstOption}</span>
+        <span className="min-w-0 truncate">Bitte wählen</span>
         <ChevronDown
           className="h-4 w-4 shrink-0 text-gray-400"
           aria-hidden="true"
@@ -183,6 +182,7 @@ export function FormPreviewFrame({
   intro = "Bitte füllen Sie das Formular vollständig aus.",
   submitLabel = "Anmeldung absenden",
   sticky = true,
+  headerInside = false,
   children,
 }: Readonly<{
   header: ReactNode;
@@ -190,12 +190,20 @@ export function FormPreviewFrame({
   intro?: string;
   submitLabel?: string;
   sticky?: boolean;
+  /**
+   * The heading of the preview inside its card instead of above it, where
+   * the page background would carry it.
+   */
+  headerInside?: boolean;
   children: ReactNode;
 }>) {
   return (
     <div className={sticky ? "sticky top-6 space-y-4" : "space-y-4"}>
-      {header}
+      {headerInside ? null : header}
       <SectionCard padding="none">
+        {headerInside ? (
+          <div className="border-b border-gray-100 px-4 py-4">{header}</div>
+        ) : null}
         <div className="border-b border-gray-100 px-4 py-4">
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
           <p className="mt-1 text-sm leading-6 text-gray-500">{intro}</p>
@@ -203,9 +211,19 @@ export function FormPreviewFrame({
 
         <div className="space-y-5 p-4">
           {children}
-          <Button type="button" variant="primary" size="md" className="w-full">
+          {/* Only a picture of the parents' send button: the preview sends
+              nothing, so it is neither focusable nor clickable, and it is
+              drawn quiet so it does not read as the page's own action. */}
+          <p
+            aria-hidden="true"
+            className={buttonClassName({
+              variant: "outline",
+              size: "md",
+              className: "pointer-events-none w-full select-none",
+            })}
+          >
             {submitLabel}
-          </Button>
+          </p>
         </div>
       </SectionCard>
     </div>
@@ -225,11 +243,13 @@ export function FormPreviewHeading({
           <h2 className="text-base font-semibold text-gray-900">{title}</h2>
           {status}
         </div>
-        <p className="mt-1 max-w-sm text-xs leading-5 text-gray-500">{hint}</p>
+        <p className="mt-1 max-w-sm text-sm leading-5 text-gray-500">{hint}</p>
       </div>
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
-        <Eye className="h-4 w-4" aria-hidden="true" />
-      </span>
+      {/* A plain mark, not a button: the heading has nothing to press. */}
+      <Eye
+        className="mt-0.5 h-5 w-5 shrink-0 text-gray-500"
+        aria-hidden="true"
+      />
     </div>
   );
 }

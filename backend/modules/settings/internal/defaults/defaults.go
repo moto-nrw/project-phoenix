@@ -2,5 +2,5 @@
 // init() functions. Import this package with a blank import to ensure all
 // definitions are registered before the settings service is used:
 //
-//	_ "github.com/moto-nrw/project-phoenix/modules/settings/internal/defaults"
+//	_ "github.com/moto-ogs/project-phoenix/modules/settings/internal/defaults"
 package defaults

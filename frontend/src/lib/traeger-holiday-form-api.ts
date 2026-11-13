@@ -10,8 +10,10 @@ import { apiErrorFromResponse, transportFetch } from "./api-error";
 import type { FormLegalBlock } from "./enrollment-form-schema-api";
 import {
   holidayAddressRequirement,
+  holidayHealthRequirement,
   holidayLegalBlocks,
   type HolidayAddressRequirement,
+  type HolidayHealthRequirement,
   type HolidayLegalBlockWire,
   type HolidayFormField,
 } from "./holiday-form-field";
@@ -21,6 +23,7 @@ export {
   HOLIDAY_FORM_FIELD_TYPES,
   type HolidayAddressRequirement,
   type HolidayFormField,
+  type HolidayHealthRequirement,
 } from "./holiday-form-field";
 
 /** One version of the form of a holiday period. */
@@ -30,6 +33,8 @@ export interface HolidayForm {
   readonly fields: readonly HolidayFormField[];
   /** The building block „Anschrift“ of this version (#5625). */
   readonly addressRequirement: HolidayAddressRequirement;
+  /** The building block „Gesundheit“ of this version (#6686). */
+  readonly healthRequirement: HolidayHealthRequirement;
   readonly createdAt: string;
   /** The standard template (B7); „Standardvorlage einfügen“ adds from it. */
   readonly template: readonly HolidayFormField[];
@@ -40,6 +45,7 @@ interface BackendHolidayForm {
   version: number;
   fields?: HolidayFormField[] | null;
   address_requirement?: string | null;
+  health_requirement?: string | null;
   created_at: string;
   template?: HolidayFormField[] | null;
 }
@@ -50,6 +56,7 @@ function formFromBackend(form: BackendHolidayForm): HolidayForm {
     version: form.version,
     fields: form.fields ?? [],
     addressRequirement: holidayAddressRequirement(form.address_requirement),
+    healthRequirement: holidayHealthRequirement(form.health_requirement),
     createdAt: form.created_at,
     template: form.template ?? [],
   };
@@ -72,6 +79,7 @@ export async function saveHolidayForm(
   fields: readonly HolidayFormField[],
   legalBlocks: readonly FormLegalBlock[] = [],
   addressRequirement: HolidayAddressRequirement = "off",
+  healthRequirement: HolidayHealthRequirement = "optional",
 ): Promise<HolidayForm> {
   return formFromBackend(
     await traegerRequest<BackendHolidayForm>(formPath(periodId), {
@@ -79,6 +87,7 @@ export async function saveHolidayForm(
       body: {
         fields,
         address_requirement: addressRequirement,
+        health_requirement: healthRequirement,
         legal_blocks: legalBlocks.map((block) => ({
           ...block,
           attachments: block.attachments?.map((a) => ({

@@ -8,7 +8,7 @@ status: accepted
 
 The product-screenshot pipeline (ADR 0042) produces every shot of the shot
 list per release. Three places should show them: the website
-(`moto-nrw/website`, static Next.js export), the downloadable PDFs on the
+(`moto-ogs/website`, static Next.js export), the downloadable PDFs on the
 website (parent info, installing the parent app, push notifications), and
 the help pages in this repository. Today the website and the PDFs carry
 hand-made copies, and help articles set no image.

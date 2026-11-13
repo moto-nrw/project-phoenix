@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	mailcontract "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

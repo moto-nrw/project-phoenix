@@ -11,9 +11,9 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/sepa"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/sepa"
 )
 
 // The SEPA mandates of the families and the creditor of the Träger (#4695,
@@ -80,17 +80,21 @@ type SEPAMandates struct {
 	store     MandateStore
 	contracts parentbilling.CareContracts
 	cipher    parentbilling.BankDataCipher
+	formats   parentbilling.DebtorNumberFormats
 	today     func() calendar.Date
 }
 
 var _ parentbilling.SEPAMandates = (*SEPAMandates)(nil)
 
-// NewSEPAMandates builds the mandates.
-func NewSEPAMandates(store MandateStore, contracts parentbilling.CareContracts, cipher parentbilling.BankDataCipher, today func() calendar.Date) *SEPAMandates {
-	if store == nil || contracts == nil || cipher == nil || today == nil {
-		panic("parent billing: the store, the care contracts, the cipher and the clock are required")
+// NewSEPAMandates builds the mandates; their import checks a debtor number
+// in the format of the Träger (#6675).
+func NewSEPAMandates(store MandateStore, contracts parentbilling.CareContracts, cipher parentbilling.BankDataCipher,
+	formats parentbilling.DebtorNumberFormats, today func() calendar.Date,
+) *SEPAMandates {
+	if store == nil || contracts == nil || cipher == nil || formats == nil || today == nil {
+		panic("parent billing: the store, the care contracts, the cipher, the debtor number format and the clock are required")
 	}
-	return &SEPAMandates{store: store, contracts: contracts, cipher: cipher, today: today}
+	return &SEPAMandates{store: store, contracts: contracts, cipher: cipher, formats: formats, today: today}
 }
 
 // ibanContext binds a sealed IBAN to its Träger and mandate reference, so a

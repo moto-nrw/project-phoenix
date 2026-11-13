@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.27.3-alpine3.24 AS builder
+FROM golang:1.27.4-alpine3.24 AS builder
 
 ENV GOTOOLCHAIN=local
 
@@ -21,7 +21,7 @@ ARG SENTRY_RELEASE
 RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
     --mount=type=cache,mode=0755,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build \
-    -ldflags="-s -w -X github.com/moto-nrw/project-phoenix/cmd.release=${SENTRY_RELEASE}" \
+    -ldflags="-s -w -X github.com/moto-ogs/project-phoenix/cmd.release=${SENTRY_RELEASE}" \
     -o main .
 
 # The dev tools (seed, simulate, demo) are a binary of their own (ADR 0060).

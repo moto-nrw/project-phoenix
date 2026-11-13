@@ -5,8 +5,8 @@ import (
 	http "net/http"
 	strings "strings"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	settingsFacts "github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // schoolPeriodResponse is one lesson the school has an end time for (#3372).

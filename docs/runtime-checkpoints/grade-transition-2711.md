@@ -1,10 +1,10 @@
 # Grade transition migration evidence
 
-Issue: [#2711](https://github.com/moto-nrw/project-phoenix/issues/2711).
+Issue: [#2711](https://github.com/moto-ogs/project-phoenix/issues/2711).
 Implementation baseline: `082fb9ac61487c56c2fe30ebc1b9a62a3d87854c`.
 Measured locally on 2026-09-16, Go 1.27.0, macOS arm64, PostgreSQL 17.11.
 This flow-specific evidence supplements the accepted checkpoint
-[#3020](https://github.com/moto-nrw/project-phoenix/issues/3020#issuecomment-5591674205).
+[#3020](https://github.com/moto-ogs/project-phoenix/issues/3020#issuecomment-5591674205).
 It is not a staging or production observation window.
 
 ## Cutover and ownership

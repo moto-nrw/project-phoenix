@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityoperator "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/operator"
 )
 
 // operatorLiveness answers the owner's verdict on the operator's session.

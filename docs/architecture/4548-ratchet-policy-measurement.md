@@ -188,9 +188,9 @@ not total workflow duration or queue time:
 
 | Run | Immutable head | Deterministic check step | Full architecture job |
 |---|---|---:|---:|
-| [39919914475](https://github.com/moto-nrw/project-phoenix/actions/runs/39919914475) | `3293b99d29aef2a99bd1ee15420e543bf2a3e93d` | 168 s | 228 s |
-| [39919696431](https://github.com/moto-nrw/project-phoenix/actions/runs/39919696431) | `ead9911632456b861150f6cf1be19603b664a2e6` | 122 s | 166 s |
-| [39918661491](https://github.com/moto-nrw/project-phoenix/actions/runs/39918661491) | `e0956d8a6972096f750ed0bd99fa353c7f915d1a` | 197 s | 254 s |
+| [39919914475](https://github.com/moto-ogs/project-phoenix/actions/runs/39919914475) | `3293b99d29aef2a99bd1ee15420e543bf2a3e93d` | 168 s | 228 s |
+| [39919696431](https://github.com/moto-ogs/project-phoenix/actions/runs/39919696431) | `ead9911632456b861150f6cf1be19603b664a2e6` | 122 s | 166 s |
+| [39918661491](https://github.com/moto-ogs/project-phoenix/actions/runs/39918661491) | `e0956d8a6972096f750ed0bd99fa353c7f915d1a` | 197 s | 254 s |
 
 All three architecture jobs succeeded. Full jobs also fetch history, restore
 caches, generate projections and audit issue references. These runs have

@@ -6,7 +6,7 @@ import (
 	"context"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // NewAbsenceTypesRouterForBudgetTest exposes the retained root wiring to the

@@ -7,12 +7,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/http/messageattachments"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	fileCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	communicationModule "github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication/http/messageattachments"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	fileCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // newMessageAttachmentRoutes builds the upload and read routes of one chat

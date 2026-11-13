@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 // DefaultBatchStatementLimit bounds the bundled statements of a batch attempt

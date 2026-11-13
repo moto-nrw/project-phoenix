@@ -1,7 +1,7 @@
 package application
 
 import (
-	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	identityBindingPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // OperatorLoginGate is the gate the operator login consults: the composed

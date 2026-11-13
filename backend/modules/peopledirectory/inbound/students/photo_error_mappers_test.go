@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 func mapperReq() *http.Request {

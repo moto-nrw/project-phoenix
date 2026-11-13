@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/ports"
 )
 
 // Service answers room reads inside the caller's ambient transaction:
@@ -19,15 +19,16 @@ type Service struct {
 	tx           ports.Transaction
 	lockDeletion ports.DeletionLock
 	usage        ports.RoomUsage
+	references   ports.RoomReferences
 	observe      ports.Observer
 }
 
-func New(store ports.Store, tx ports.Transaction, lockDeletion ports.DeletionLock, usage ports.RoomUsage, observe ports.Observer) *Service {
-	if lockDeletion == nil || usage == nil {
+func New(store ports.Store, tx ports.Transaction, lockDeletion ports.DeletionLock, usage ports.RoomUsage, references ports.RoomReferences, observe ports.Observer) *Service {
+	if lockDeletion == nil || usage == nil || references == nil {
 		panic("facilities application: all dependencies are required")
 	}
 	service := NewRooms(store, tx, observe)
-	service.lockDeletion, service.usage = lockDeletion, usage
+	service.lockDeletion, service.usage, service.references = lockDeletion, usage, references
 	return service
 }
 
@@ -46,7 +47,10 @@ func roomNameLock(name string) string {
 }
 
 func validateRoomUpdate(existing facilities.Room, input *facilities.UpdateRoom) error {
-	if isSystemRoomName(existing.Name) && input.Name != existing.Name {
+	if existing.ArchivedAt != nil {
+		return facilities.ErrRoomArchived
+	}
+	if existing.IsSystem && input.Name != existing.Name {
 		return facilities.ErrSystemRoomProtected
 	}
 	if existing.Name != input.Name && strings.EqualFold(input.Name, domain.SchulhofRoomName) {
@@ -107,10 +111,6 @@ func (s *Service) refuseUsedRoom(ctx context.Context, id int64) error {
 		return facilities.ErrRoomRequiredByOffering
 	}
 	return nil
-}
-
-func isSystemRoomName(name string) bool {
-	return name == domain.SchulhofRoomName || name == domain.WCRoomName || name == domain.WCRoomAliasName
 }
 
 func isWCRoomName(name string) bool {

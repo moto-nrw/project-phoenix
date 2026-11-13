@@ -4,7 +4,7 @@ status: accepted
 
 # Ankunftsplan-Signale erhalten die Schule des Aufrufs
 
-Für [#5492](https://github.com/moto-nrw/project-phoenix/issues/5492) wird der
+Für [#5492](https://github.com/moto-ogs/project-phoenix/issues/5492) wird der
 bisher parameterlose Ankunftsplan-Vertrag schulgebunden. ADR 0145 ließ ihn
 absichtlich lokal; eine globale Verteilung über alle APIs wäre falsch.
 
@@ -51,7 +51,7 @@ Die Zahl der Notices bleibt gleich. Positive und negative Fixtures prüfen
 alle 13 Paare. Sobald die Basis diese Migration enthält, ist die
 Normalisierung wirkungslos. Nach dem Produktions-Deploy von #5541 (v1.3.0)
 wurden Hook und Fixtures mit
-[#5545](https://github.com/moto-nrw/project-phoenix/issues/5545) entfernt;
+[#5545](https://github.com/moto-ogs/project-phoenix/issues/5545) entfernt;
 `sideEffectRegisterOnlyShrinks` vergleicht wieder direkt mit der Basis.
 Typed-Effects- und Pass-through-Inventare müssen die neue schulgebundene
 Bindung abbilden. Policy-Regeln, Owner, Datenobjekte und Transaktionen

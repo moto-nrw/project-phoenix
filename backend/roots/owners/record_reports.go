@@ -3,7 +3,7 @@ package owners
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
 )
 
 // The report documents of several owners (the Erklärung proofs #3430, Care

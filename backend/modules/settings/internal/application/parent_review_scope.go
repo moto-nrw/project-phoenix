@@ -1,7 +1,7 @@
 package config
 
 import (
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // Project the compatibility values to the effective three-choice UI. The

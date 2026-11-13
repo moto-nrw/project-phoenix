@@ -6,8 +6,8 @@ import (
 	context "context"
 	time "time"
 
-	records "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	ports "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	records "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	ports "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 type ActivityRecoveryRecords interface {

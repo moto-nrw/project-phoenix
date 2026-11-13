@@ -4,8 +4,8 @@ status: accepted
 
 # The session token adapter leaves legacy/ now
 
-Decision for [#3487](https://github.com/moto-nrw/project-phoenix/issues/3487)
-under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580). It
+Decision for [#3487](https://github.com/moto-ogs/project-phoenix/issues/3487)
+under [#2580](https://github.com/moto-ogs/project-phoenix/issues/2580). It
 keeps the substance of
 [ADR 0031](0031-the-session-token-adapter-stays-and-moves-last.md) and replaces
 its timing.
@@ -38,7 +38,7 @@ Measured on `6343f9082d`, policy epoch 40:
   session middleware or claims, and the package does not grow a dependency on
   process configuration, the tenant runtime or persistence.
 - The timing changes. #3487 runs now, after the policy epoch of ADR 0053
-  ([#4001](https://github.com/moto-nrw/project-phoenix/issues/4001)), because
+  ([#4001](https://github.com/moto-ogs/project-phoenix/issues/4001)), because
   both raise the epoch and #4001 removes three of the five entries. One
   relocation declaration (ADR 0020) moves the package to
   `modules/identityaccess/sessiontoken`, with the package clause

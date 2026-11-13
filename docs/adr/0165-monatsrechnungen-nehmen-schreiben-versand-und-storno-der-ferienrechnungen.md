@@ -6,8 +6,8 @@ status: proposed
 
 **Status: Vorgeschlagen.**
 
-Vorschlag vom 08.11.2026 zu [#4684](https://github.com/moto-nrw/project-phoenix/issues/4684),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611).
+Vorschlag vom 08.11.2026 zu [#4684](https://github.com/moto-ogs/project-phoenix/issues/4684),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611).
 Er löst den offenen Punkt 11 aus
 [ADR 0158](0158-monatsbeitrag-entsteht-aus-der-wirksamen-vertragsfassung-und-den-tarifen-des-traegers.md)
 („Senden und Druck der Schreiben“) und die Zusammenführung für Versand und

@@ -170,9 +170,9 @@ waren erfolgreich; das ist allein noch kein Beleg für einen exakten Cache-Hit.
 
 | Lauf | compose | Schritt „Run Go tests“ | ganzer Backend-Testjob | übriger Job | gerundete vCPU-min | geschätzte USD |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [42726466027](https://github.com/moto-nrw/project-phoenix/actions/runs/42726466027) | 76,672 | 322 | 476 | 154 | 64 | 0,128 |
-| [42720201238](https://github.com/moto-nrw/project-phoenix/actions/runs/42720201238) | 90,704 | 375 | 661 | 286 | 96 | 0,192 |
-| [42565910481](https://github.com/moto-nrw/project-phoenix/actions/runs/42565910481) | 46,256 | 213 | 325 | 112 | 48 | 0,096 |
+| [42726466027](https://github.com/moto-ogs/project-phoenix/actions/runs/42726466027) | 76,672 | 322 | 476 | 154 | 64 | 0,128 |
+| [42720201238](https://github.com/moto-ogs/project-phoenix/actions/runs/42720201238) | 90,704 | 375 | 661 | 286 | 96 | 0,192 |
+| [42565910481](https://github.com/moto-ogs/project-phoenix/actions/runs/42565910481) | 46,256 | 213 | 325 | 112 | 48 | 0,096 |
 
 Kosten nur für diesen Job: `ceil(Jobsekunden / 60) × 8 vCPU`, dann
 0,002 USD/vCPU-min gemäß `.github/actions/ci-cost/ci-cost.mjs` (Preisstand
@@ -370,7 +370,7 @@ geändert.
 ### Per-Test-Datenbanken in der CI
 
 Der erste CI-Lauf mit Per-Test-Datenbanken
-([Run 43010242879](https://github.com/moto-nrw/project-phoenix/actions/runs/43010242879))
+([Run 43010242879](https://github.com/moto-ogs/project-phoenix/actions/runs/43010242879))
 war rot: `ERROR: out of shared memory (SQLSTATE=53200)` in zwei Export-Tests
 dieses Pakets und in `modules/identityaccess/behavior`, einem fremden Paket.
 Der CI-Server läuft mit `max_connections=100` und

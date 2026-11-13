@@ -3,7 +3,7 @@ package staffdirectoryview
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // BirthdaysOn lists the live staff members whose stored birthday recurs on

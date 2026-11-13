@@ -31,7 +31,7 @@ describe("ParentTargetPicker", () => {
     );
 
     for (const name of ["Klassen", "Gruppen", "AGs / Betreuung"]) {
-      const selector = screen.getByRole("button", { name });
+      const selector = screen.getByRole("combobox", { name });
       expect(selector).toHaveAttribute("aria-labelledby");
       expect(selector).not.toHaveAttribute("aria-label");
     }

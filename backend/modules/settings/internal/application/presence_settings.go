@@ -2,8 +2,10 @@ package config
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // PresenceSettingsSource is the tenant-settings surface the presence adapters read
@@ -61,6 +63,30 @@ func (s PresenceSettings) RequireDeviationReason(ctx context.Context) (bool, err
 // DeviationToleranceMinutes is the grace window before a deviation counts.
 func (s PresenceSettings) DeviationToleranceMinutes(ctx context.Context) (int, error) {
 	return s.source.ResolveInt(ctx, configModels.KeyTimeTrackingDeviationToleranceMinutes)
+}
+
+// WorkTimeCredit is the school's credit rule for completed work blocks
+// (#6851, #6852): the pack-up minutes a regular checkout earns (0 for none),
+// the rounding interval in minutes (0 for none) and its direction (nearest,
+// up or down; empty while rounding is off).
+func (s PresenceSettings) WorkTimeCredit(ctx context.Context) (packUpMinutes, roundingMinutes int, roundingMode string, err error) {
+	if packUpMinutes, err = s.source.ResolveInt(ctx, configModels.KeyTrackingPackUpMinutes); err != nil {
+		return 0, 0, "", err
+	}
+	interval, err := s.source.ResolveString(ctx, configModels.KeyTrackingRoundingIntervalMinutes)
+	if err != nil {
+		return 0, 0, "", err
+	}
+	if roundingMinutes, err = strconv.Atoi(interval); err != nil {
+		return 0, 0, "", fmt.Errorf("rounding interval %q: %w", interval, err)
+	}
+	if roundingMinutes == 0 {
+		return packUpMinutes, 0, "", nil
+	}
+	if roundingMode, err = s.source.ResolveString(ctx, configModels.KeyTrackingRoundingMode); err != nil {
+		return 0, 0, "", err
+	}
+	return packUpMinutes, roundingMinutes, roundingMode, nil
 }
 
 // TimeTrackingRetentionDays is how long the time-tracking audit feed keeps its

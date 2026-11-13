@@ -1,7 +1,6 @@
 const TONE_CLASS = {
   green: "bg-moto-green",
   orange: "bg-moto-orange",
-  gray: "bg-gray-400",
   dark: "bg-gray-900",
 } as const;
 

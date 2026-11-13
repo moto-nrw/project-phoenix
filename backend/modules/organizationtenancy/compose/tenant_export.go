@@ -4,9 +4,9 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/tenantexport"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/adapters/tenantexport"
 	"github.com/uptrace/bun"
 )
 

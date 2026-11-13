@@ -1,10 +1,10 @@
 # Staff offboarding migration evidence
 
-Issue: [#2709](https://github.com/moto-nrw/project-phoenix/issues/2709).
+Issue: [#2709](https://github.com/moto-ogs/project-phoenix/issues/2709).
 Implementation baseline: `a45d4fe3dc29141762709dd48eef82683b4a3210`.
 Measured locally on 2026-09-09, Go 1.27.0, macOS arm64, PostgreSQL 17.11.
 This flow-specific evidence supplements accepted checkpoint
-[#3020](https://github.com/moto-nrw/project-phoenix/issues/3020#issuecomment-5591674205).
+[#3020](https://github.com/moto-ogs/project-phoenix/issues/3020#issuecomment-5591674205).
 It is not a staging or production observation window.
 
 ## Cutover and ownership
@@ -26,7 +26,7 @@ locks before mutation.
 
 Existing table ownership is unchanged. Migration 1.15.374 adds the Workforce-owned
 `users.staff_offboarding_cleanup` outbox. Workflow registration uses the reviewed
-[#3130](https://github.com/moto-nrw/project-phoenix/issues/3130) prerequisite and
+[#3130](https://github.com/moto-ogs/project-phoenix/issues/3130) prerequisite and
 [ADR 0013](../adr/0013-staff-offboarding-is-an-application-workflow.md).
 The existing domain/platform owner counts stay 18/10.
 

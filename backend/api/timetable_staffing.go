@@ -1,9 +1,9 @@
 package api
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableAPI "github.com/moto-ogs/project-phoenix/modules/timetable/http"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // The timetable routes announce their staffing saves (#1844) through the

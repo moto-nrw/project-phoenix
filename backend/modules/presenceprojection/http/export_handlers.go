@@ -11,11 +11,11 @@ import (
 	time "time"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	lists "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	lists "github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // studentExportPageSize caps how many child rows a single export document may

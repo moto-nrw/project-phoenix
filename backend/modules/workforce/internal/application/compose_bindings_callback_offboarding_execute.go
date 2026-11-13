@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 func NewOffboardingExecute(service *Service, appendDeletion func(context.Context, workforce.StaffAbsence, int64) error) func(ctx context.Context, staffID int64, actorID int64, from string, revision string) (workforce.OffboardingCounts, error) {

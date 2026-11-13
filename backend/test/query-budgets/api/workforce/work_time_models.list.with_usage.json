@@ -1,0 +1,7 @@
+{
+  "scenario": "api.workforce.work_time_models.list.with_usage",
+  "max": 7,
+  "exact": true,
+  "description": "GET /api/work-time-models/?with_usage=true (#6891): real Workforce capability and protected tenant router. Complete request capture: BEGIN, combined tenant role/config, one tenant-scoped model SELECT, one batched entry SELECT, one tenant-scoped SELECT of every template binding on the employment profiles, one batched School Membership liveness SELECT over the bound memberships, and COMMIT. Exact for 1 and 4 live assignees beside a retired one and an unused template; counts only live assignees, reports zero for an unused template, excludes foreign tenants and writes nothing.",
+  "route": "GET /api/work-time-models/"
+}

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
 )
 
 func (s *Service) FindCareOffering(ctx context.Context, id int64) (result careplan.CareOffering, err error) {
@@ -311,4 +311,33 @@ func (s *Service) ClosePendingOfferingChanges(ctx context.Context, studentIDs []
 		})
 	})
 	return rows, err
+}
+
+// SaveTraegerOfferingRows normalizes every row before one set-based mutation.
+// The catalog already validated the complete final selection-group state.
+func (s *Service) SaveTraegerOfferingRows(ctx context.Context, rows []careplan.TraegerOfferingWrite, deleteIDs []int64) (result []careplan.CareOffering, err error) {
+	for index, row := range rows {
+		fields, normalizeErr := normalizeCareOfferingFields(offeringFields(row.Offering))
+		if normalizeErr != nil {
+			return nil, normalizeErr
+		}
+		encoded, encodeErr := json.Marshal(fields)
+		if encodeErr != nil {
+			return nil, encodeErr
+		}
+		normalized := row.Offering
+		if decodeErr := json.Unmarshal(encoded, &normalized); decodeErr != nil {
+			return nil, decodeErr
+		}
+		normalized.AutoAddTriggerOfferingIDs = normalizedTriggers(normalized.ID, fields.AutoAddTriggerOfferingIDs)
+		rows[index].Offering = normalized
+	}
+	err = s.run(ctx, "save_traeger_offering_batch", func(ctx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		var saveErr error
+		result, queryStats, saveErr = s.store.SaveTraegerOfferingRows(ctx, rows, deleteIDs)
+		stats.Add(queryStats)
+		return saveErr
+	})
+	return result, err
 }

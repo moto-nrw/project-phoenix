@@ -32,4 +32,4 @@
     student_owner_contract_scale_test.go:54: Contract synthetic workload: schools=12 profiles=1448 status_days=2830 sick=16 duration=78.379ms owner_and_history_snapshots_equal=true
 --- PASS: TestStudentOwnerContractObservedProductionCardinalities (9.55s)
 PASS
-ok  	github.com/moto-nrw/project-phoenix/database/migrations	10.184s
+ok  	github.com/moto-ogs/project-phoenix/database/migrations	10.184s

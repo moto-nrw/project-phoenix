@@ -113,7 +113,7 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/001015192_staff_shift_flexible_changes.go:init": 18,
 	// ADR 0087.
-	"database/migrations/00_migrations.go:DetectVersionCollisions": 23,
+	"database/migrations/00_migrations.go:DetectVersionCollisions": 21,
 	// ADR 0087.
 	// ADR 0087.
 	"database/migrations/form_schema_validation_166.go:validateConvertedDepartureSchema": 21,
@@ -131,8 +131,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"database/migrations/guardian_owner_backfill.go:runGuardianOwnerTenant": 17,
 	// ADR 0087.
 	"database/migrations/guardian_owner_contract.go:contractGuardianOwnerStorageChecked": 19,
-	// ADR 0087.
-	"database/migrations/presence_backfill_metrics.go:monitorBackfillLocks": 19,
 	// ADR 0087.
 	"database/migrations/presence_contract.go:contractPresenceStorageChecked": 18,
 	// ADR 0087.

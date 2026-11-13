@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 type careExitOfferingSchool struct {

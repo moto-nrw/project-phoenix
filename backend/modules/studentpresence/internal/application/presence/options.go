@@ -1,6 +1,6 @@
 package presence
 
-import "github.com/moto-nrw/project-phoenix/tenant"
+import "github.com/moto-ogs/project-phoenix/tenant"
 
 // The retained presence service takes its optional collaborators at
 // construction (#3214). Every option below replaces a former post-construction

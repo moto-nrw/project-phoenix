@@ -4,12 +4,12 @@ status: accepted
 
 # Die Raumfreigabe ist eine Entscheidung der Schule, kein Namensmerkmal
 
-Migration 1.15.372 ([#3064](https://github.com/moto-nrw/project-phoenix/issues/3064))
+Migration 1.15.372 ([#3064](https://github.com/moto-ogs/project-phoenix/issues/3064))
 hat jeden System-Raum „Schulhof“ pauschal als offenen Raum freigegeben. Am
 16.09.2026 verlor die OGS am Berg damit die Blockliste auf der Aufsichtsseite:
 alle GT-Blöcke laufen dort parallel im Schulhof, und die geteilte Raumansicht
-aus [#3065](https://github.com/moto-nrw/project-phoenix/issues/3065) kennt
-keine Blockaktionen. Vorfall und Fakten: [#3276](https://github.com/moto-nrw/project-phoenix/issues/3276).
+aus [#3065](https://github.com/moto-ogs/project-phoenix/issues/3065) kennt
+keine Blockaktionen. Vorfall und Fakten: [#3276](https://github.com/moto-ogs/project-phoenix/issues/3276).
 
 Wir entscheiden: Ob ein Raum offen ist, legt die Schule fest. Der Name
 „Schulhof“ begründet keine Freigabe. Ein offener Raum kann gleichzeitig Ort
@@ -48,7 +48,7 @@ trifft die eine Hälfte falsch, gleich in welche Richtung.
    wählen, und gibt den neu angelegten Hof deshalb frei. Ein Hof ohne Freigabe
    hinter einem sichtbaren Geräte-Knopf würde jeden Scan ins Leere laufen
    lassen. Damit gilt „per Default aus“ aus
-   [#2183](https://github.com/moto-nrw/project-phoenix/issues/2183) ohne
+   [#2183](https://github.com/moto-ogs/project-phoenix/issues/2183) ohne
    zusätzlichen Einrichtungsschritt. Ein bereits vorhandener Schulhof behält
    beim Einschalten seine Freigabe-Entscheidung.
 
@@ -60,7 +60,7 @@ trifft die eine Hälfte falsch, gleich in welche Richtung.
    Kopfaktionen „Beaufsichtigen“ und „Aufsicht abgeben“ gelten weiter für die
    Freispiel-Session des Kiosks. Die Weiche „Raum- oder Blockansicht“ im
    Aufsichts-View-Model und die Heuristiken aus
-   [#3272](https://github.com/moto-nrw/project-phoenix/pull/3272) entfallen.
+   [#3272](https://github.com/moto-ogs/project-phoenix/pull/3272) entfallen.
 
 4. **Kiosk bei laufenden Blöcken.** Wählt ein Kind am Gerät den Schulhof,
    während dort Blöcke laufen, bucht das Gerät es in den laufenden Block, in
@@ -108,7 +108,7 @@ trifft die eine Hälfte falsch, gleich in welche Richtung.
 ## Folgen
 
 - Das Häkchen „Offener Raum“ muss die Freigabe tatsächlich schreiben. Der
-  Raum-Proxy hat es bis [#3277](https://github.com/moto-nrw/project-phoenix/pull/3277)
+  Raum-Proxy hat es bis [#3277](https://github.com/moto-ogs/project-phoenix/pull/3277)
   verworfen, weshalb die Sofortmaßnahme aus #3272 in Produktion wirkungslos war.
 - Der Kiosk-Freispiel-Weg hängt an `Name == Schulhof AND is_open_room`. Ohne
   Freigabe legt das Gerät keine Freispiel-Session an; Scans in laufende Blöcke

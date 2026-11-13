@@ -105,6 +105,8 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "proxyDelete",
     "proxyFile",
     "proxyUpload",
+    // The builder under proxyDelete, for a removal that answers its result.
+    "traeger.del",
   ],
   "~/lib/backend-proxy-route.server": ["createPublicJsonProxy"],
   "~/lib/auth-proxy.server": ["authStepProxy"],

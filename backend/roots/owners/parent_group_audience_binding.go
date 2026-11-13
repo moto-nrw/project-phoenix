@@ -3,12 +3,12 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
-	parentAudience "github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience"
-	audienceRows "github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	guardianLinkView "github.com/moto-ogs/project-phoenix/modules/guardianlinkview/compose"
+	parentAudience "github.com/moto-ogs/project-phoenix/modules/parentannouncementaudience"
+	audienceRows "github.com/moto-ogs/project-phoenix/modules/parentannouncementaudience/contract"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewParentGroupAudience binds the parent audience projection to the group

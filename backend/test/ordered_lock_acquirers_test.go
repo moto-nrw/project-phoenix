@@ -22,7 +22,7 @@ import (
 //
 // The order itself is enforced at run time: tenant.OrderLock refuses a lock
 // against the order before it waits (tenant/lock_order_test.go), and the
-// concurrent tests in workflows/shiftplansync/compose/sick_report_races_test.go,
+// concurrent tests in workflows/shiftplansync/compose/behaviortest/sick_report_races_test.go,
 // modules/timetable/compose/pickup_extension_failure_points_test.go and
 // modules/peopledirectory/contracttest/staff_offboarding_day_writer_race_test.go run
 // the real writers against each other.

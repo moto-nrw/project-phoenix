@@ -2,14 +2,7 @@
 
 import { roomKeys } from "~/lib/swr/rooms-keys";
 
-import {
-  Suspense,
-  useCallback,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import {
   useParams,
   usePathname,
@@ -19,11 +12,12 @@ import {
 import { useSession } from "next-auth/react";
 import { FileDown, Trash2 } from "lucide-react";
 import { ButtonLink } from "~/components/ui/button";
-import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { Alert } from "~/components/ui/alert";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuItem } from "~/components/ui/page-header/types";
 import { TenantPage, type TenantPageTab } from "~/components/ui/tenant-page";
+import { RoomRemovalModal } from "~/components/rooms/room-removal-modal";
 import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
 import {
   RoomDetailContent,
@@ -46,7 +40,6 @@ import {
   useApiFormError,
   useToast,
 } from "~/contexts/ToastContext";
-import { roomService } from "~/lib/api";
 import { canReadSupervisionData, hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useOptionalSupervision } from "~/lib/supervision-context";
@@ -129,10 +122,6 @@ function RoomDetailPageContent() {
   const { success: toastSuccess } = useToast();
   // Stammdaten speichern: Fehler im Formular, Feldfehler am Feld (#2517).
   const saveErrors = useApiFormError();
-  // Löschen: der Fehler bleibt im offenen Löschdialog.
-  const deleteErrors = useApiFormError();
-  const { clear: clearDeleteErrors, show: showDeleteError } = deleteErrors;
-  const retryDeleteRef = useRef<() => void>(() => undefined);
   const tenantMutate = useTenantMutate();
   const refreshRoomFamily = useTenantMutateMatching([roomKeys.family]);
   const refreshRoomConsumers = useTenantMutateMatching(
@@ -157,8 +146,11 @@ function RoomDetailPageContent() {
   );
 
   // Spiegel der Backend-Gates auf PUT/DELETE /api/rooms/{id}.
-  const canUpdate = hasPermission(session, "rooms:update");
-  const canDelete = hasPermission(session, "rooms:delete");
+  // Ein archivierter Raum (#6845) steht nur noch für seinen Verlauf; er
+  // lässt sich weder bearbeiten noch noch einmal entfernen.
+  const isArchived = Boolean(room?.archivedAt);
+  const canUpdate = hasPermission(session, "rooms:update") && !isArchived;
+  const canDelete = hasPermission(session, "rooms:delete") && !isArchived;
   // Plan des Raums (#4768): dasselbe Recht wie die Leseansicht des
   // Betreuungsplans; der Druck braucht dazu die Namen (wie dort).
   const canReadPlan = hasPermission(session, "schedules:read");
@@ -275,7 +267,6 @@ function RoomDetailPageContent() {
   }, [planExportDayISO, roomId, showExportError]);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   useSetBreadcrumb({ roomName: room?.name, referrerPage: referrer });
 
@@ -324,47 +315,20 @@ function RoomDetailPageContent() {
     [roomAfterWrite, room, service, toastSuccess],
   );
 
-  const handleDeleteRoom = useCallback(async () => {
-    if (!room) return;
-    setDeleting(true);
-    clearDeleteErrors();
-    try {
-      await roomService.deleteRoom(room.id);
-    } catch (deleteError) {
-      logger.warn("failed to delete room", {
-        room_id: room.id,
-        error:
-          deleteError instanceof Error
-            ? deleteError.message
-            : String(deleteError),
-      });
-      void showDeleteError(deleteError, {
-        object: "das Löschen des Raums",
-        retry: () => retryDeleteRef.current(),
-      });
-      setDeleting(false);
-      return;
-    }
-    try {
-      toastSuccess(`Der Raum „${room.name}“ ist gelöscht.`);
-      await refreshRoomFamily();
+  const handleRoomRemoved = useCallback(
+    async (outcome: "delete" | "archive") => {
+      if (!room) return;
+      toastSuccess(
+        outcome === "archive"
+          ? `Der Raum „${room.name}“ ist archiviert. Der Verlauf bleibt erhalten.`
+          : `Der Raum „${room.name}“ ist gelöscht.`,
+      );
       setShowDeleteModal(false);
+      await refreshRoomFamily();
       router.push(referrer);
-    } finally {
-      setDeleting(false);
-    }
-  }, [
-    clearDeleteErrors,
-    showDeleteError,
-    referrer,
-    room,
-    router,
-    refreshRoomFamily,
-    toastSuccess,
-  ]);
-  useLayoutEffect(() => {
-    retryDeleteRef.current = () => void handleDeleteRoom();
-  });
+    },
+    [referrer, room, router, refreshRoomFamily, toastSuccess],
+  );
 
   if (loading && !room) {
     return (
@@ -441,7 +405,7 @@ function RoomDetailPageContent() {
       }
       actions={
         <>
-          {hasOccupancy ? (
+          {hasOccupancy && !isArchived ? (
             // Am Telefon streckt der Kopf seine Aktionen auf volle Breite; die
             // Pille behält ihre eigene.
             <span className="inline-flex">
@@ -489,29 +453,24 @@ function RoomDetailPageContent() {
       }
       overlays={
         <>
-          <ConfirmDeleteModal
+          <RoomRemovalModal
             isOpen={showDeleteModal}
-            onClose={() => {
-              clearDeleteErrors();
-              setShowDeleteModal(false);
-            }}
-            onConfirm={() => void handleDeleteRoom()}
-            title="Raum löschen?"
-            description={
-              <>
-                Möchten Sie den Raum{" "}
-                <span className="font-medium">{room.name}</span> wirklich
-                löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-              </>
-            }
-            gate={{ mode: "twoStep" }}
-            loading={deleting}
-            error={deleteErrors.error}
+            roomId={room.id}
+            roomName={room.name}
+            onClose={() => setShowDeleteModal(false)}
+            onRemoved={handleRoomRemoved}
           />
         </>
       }
     >
       <LoadErrorAlert error={roomAfterWrite.error} />
+      {isArchived ? (
+        <Alert
+          type="info"
+          title="Archivierter Raum"
+          message="Dieser Raum steht in keiner Liste mehr. Er bleibt nur, damit vergangene Termine und Anwesenheiten ihren Raum behalten."
+        />
+      ) : null}
       {/* Ohne Übersicht und Stammdaten bleiben die Rauminformationen stehen;
           ein Plan steht dann darunter, ohne Reiterleiste. */}
       {!hasOccupancy && !canUpdate ? (

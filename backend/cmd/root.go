@@ -28,7 +28,10 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	// Load the process configuration only for the real command tree. A global
+	// cobra.OnInitialize hook would also run for every standalone command a
+	// parallel test executes and race on the shared Viper instance.
+	RootCmd.PersistentPreRun = func(*cobra.Command, []string) { initConfig() }
 
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,

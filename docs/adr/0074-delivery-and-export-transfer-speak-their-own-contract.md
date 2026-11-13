@@ -5,9 +5,9 @@ status: accepted
 # Delivery and Export Transfer speak their own contract
 
 Decision of 2026-10-20 under
-[#4461](https://github.com/moto-nrw/project-phoenix/issues/4461), part of the
+[#4461](https://github.com/moto-ogs/project-phoenix/issues/4461), part of the
 facade-collapse rollout
-[#4403](https://github.com/moto-nrw/project-phoenix/issues/4403). It adds
+[#4403](https://github.com/moto-ogs/project-phoenix/issues/4403). It adds
 three rules under [ADR 0057](0057-only-the-target-is-a-rule.md) and
 [ADR 0070](0070-principle-only-the-target-is-a-rule-and-debt-leaves-with-evidence.md)
 point 7.
