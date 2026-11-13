@@ -7,19 +7,32 @@ import (
 	strings "strings"
 
 	common "github.com/moto-ogs/project-phoenix/api/common"
-	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // EnrollmentAnswerFilters is the consumer-owned port to Enrollment's answers
-// of the school's own registration questions (enrollment.StudentAnswers,
-// #6954). The root binds it.
+// of the school's own registration questions (#6954). The root binds it.
 type EnrollmentAnswerFilters interface {
-	// StudentAnswerFilters lists the yes/no and choice questions with
-	// answers.
-	StudentAnswerFilters(ctx context.Context) ([]enrollment.StudentAnswerFilter, error)
+	// AnswerFilters lists the yes/no and choice questions with answers.
+	AnswerFilters(ctx context.Context) ([]EnrollmentAnswerFilterResponse, error)
 	// StudentsWithAnswer returns the children whose newest answer to key is
 	// value.
 	StudentsWithAnswer(ctx context.Context, key, value string) ([]int64, error)
+}
+
+// EnrollmentAnswerFilterResponse is one question of the filter: what the form
+// asked and the answers given, with how many children gave them.
+type EnrollmentAnswerFilterResponse struct {
+	Key     string                           `json:"key"`
+	Label   string                           `json:"label"`
+	Type    string                           `json:"type"`
+	Options []EnrollmentAnswerOptionResponse `json:"options"`
+}
+
+// EnrollmentAnswerOptionResponse is one answer of a filter question.
+type EnrollmentAnswerOptionResponse struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+	Count int    `json:"count"`
 }
 
 // errEnrollmentAnswerFilter refuses an enrollment_answer value that is not
@@ -92,13 +105,13 @@ func (rs *Resource) listEnrollmentAnswerOptions(w http.ResponseWriter, r *http.R
 		renderError(w, r, common.ErrorInternalServer(errors.New("enrollment answer filters are not configured")))
 		return
 	}
-	filters, err := rs.EnrollmentAnswers.StudentAnswerFilters(r.Context())
+	filters, err := rs.EnrollmentAnswers.AnswerFilters(r.Context())
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to load registration answer filters", err))
 		return
 	}
 	if filters == nil {
-		filters = []enrollment.StudentAnswerFilter{}
+		filters = []EnrollmentAnswerFilterResponse{}
 	}
 	common.Respond(w, r, http.StatusOK, filters, "Registration answer filters retrieved successfully")
 }

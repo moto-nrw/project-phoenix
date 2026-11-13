@@ -18,7 +18,6 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth"
 	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
 	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	"github.com/moto-ogs/project-phoenix/modules/grouplive"
 	groupLiveHTTP "github.com/moto-ogs/project-phoenix/modules/grouplive/http"
@@ -242,7 +241,7 @@ func mountStudentRoutes(
 			WeekdayPickupNotes:     carePlan,
 		},
 		projectionStudentsHTTP.ResourceConfig{
-			EnrollmentAnswers:      enrollmentCompose.NewStudentAnswers(),
+			EnrollmentAnswers:      newStudentEnrollmentAnswerFilters(),
 			PrivacyConsents:        presence,
 			AbsenceOverview:        reports.AbsenceOverview,
 			ActiveEnrollments:      studentActiveEnrollments{enrollments: activities},

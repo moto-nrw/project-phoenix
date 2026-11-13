@@ -1,9 +1,13 @@
 package api
 
 import (
+	"context"
+
 	"github.com/go-chi/chi/v5"
 
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	projectionStudentsHTTP "github.com/moto-ogs/project-phoenix/modules/presenceprojection/http"
 	schoolSearchCompose "github.com/moto-ogs/project-phoenix/modules/schoolsearchview/compose"
 	schoolSearchHTTP "github.com/moto-ogs/project-phoenix/modules/schoolsearchview/http"
 )
@@ -17,4 +21,32 @@ func mountSchoolSearch(tenant chi.Router, staff schoolSearchHTTP.StaffCheck) err
 	}
 	tenant.Mount("/search", schoolSearchHTTP.NewResource(search, staff).Router(ProtectedTenantRoutes))
 	return nil
+}
+
+// studentEnrollmentAnswerFilters binds the child list's registration answer
+// filter (#6954) to Enrollment. StudentsWithAnswer is Enrollment's own.
+type studentEnrollmentAnswerFilters struct{ enrollmentOwner.StudentAnswers }
+
+func newStudentEnrollmentAnswerFilters() studentEnrollmentAnswerFilters {
+	return studentEnrollmentAnswerFilters{StudentAnswers: enrollmentCompose.NewStudentAnswers()}
+}
+
+// AnswerFilters translates Enrollment's filter questions into the list's
+// response shape.
+func (f studentEnrollmentAnswerFilters) AnswerFilters(ctx context.Context) ([]projectionStudentsHTTP.EnrollmentAnswerFilterResponse, error) {
+	filters, err := f.StudentAnswerFilters(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]projectionStudentsHTTP.EnrollmentAnswerFilterResponse, 0, len(filters))
+	for _, filter := range filters {
+		options := make([]projectionStudentsHTTP.EnrollmentAnswerOptionResponse, 0, len(filter.Options))
+		for _, option := range filter.Options {
+			options = append(options, projectionStudentsHTTP.EnrollmentAnswerOptionResponse(option))
+		}
+		out = append(out, projectionStudentsHTTP.EnrollmentAnswerFilterResponse{
+			Key: filter.Key, Label: filter.Label, Type: string(filter.Type), Options: options,
+		})
+	}
+	return out, nil
 }
