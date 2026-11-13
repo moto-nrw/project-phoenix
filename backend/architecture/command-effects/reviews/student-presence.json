@@ -19168,7 +19168,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0223",
+      "approval_adr": "0226",
       "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -19180,7 +19180,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0223",
+      "approval_adr": "0226",
       "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -21834,7 +21834,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0223",
+      "approval_adr": "0226",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -21846,7 +21846,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0223",
+      "approval_adr": "0226",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -21889,7 +21889,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0223",
+      "approval_adr": "0226",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -21901,7 +21901,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0223",
+      "approval_adr": "0226",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized",
       "classification": "unresolved",
       "effect": "unresolved",
