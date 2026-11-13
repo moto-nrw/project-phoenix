@@ -55,7 +55,7 @@ func TestOperatorAuditFailureRollsBackSchoolAccount(t *testing.T) {
 
 	input := schoolScopedInput(service.CreateSchoolAccount)
 	input.Email = "audit-account@example.test"
-	input.Password = "Provisioning-Test-9!"
+	input.Password = testpkg.NewTestPassword()
 	input.FirstName = "Erika"
 	input.LastName = "Audit"
 	input.CaregiverEnabled = true
