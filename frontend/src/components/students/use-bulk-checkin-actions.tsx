@@ -7,6 +7,7 @@ import { Modal } from "~/components/ui/modal";
 import type { Student } from "~/lib/student-helpers";
 import {
   checkoutConfirmationRoom,
+  deriveCheckinState,
   type useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import type {
@@ -24,6 +25,8 @@ import type {
 interface BulkStudentRef {
   id: string;
   name: string;
+  /** Present when the run started; a check-in into a room keeps their place. */
+  present: boolean;
 }
 
 function toBulkStudentRef(student: Student): BulkStudentRef {
@@ -32,6 +35,7 @@ function toBulkStudentRef(student: Student): BulkStudentRef {
     name:
       `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
       student.name,
+    present: deriveCheckinState(student.current_location) !== "abwesend",
   };
 }
 
@@ -103,9 +107,16 @@ export function useBulkCheckinActions(
       setRunningBulkAction(action);
       try {
         const ids = targets.map((target) => target.id);
+        const presentIds = new Set(
+          targets.filter((target) => target.present).map((target) => target.id),
+        );
+        // A check-in into a room leaves present children where they are
+        // (#6953); a checkout has nothing to keep.
         const outcome = await (reason
           ? schoolCheckin.runBulk(action, ids, reason)
-          : schoolCheckin.runBulk(action, ids));
+          : action === "in"
+            ? schoolCheckin.runBulk(action, ids, undefined, presentIds)
+            : schoolCheckin.runBulk(action, ids));
         // null: nothing selected or whole request failed (hook toasted the
         // error). failed === 0: the hook toasted the success summary.
         if (!outcome) return;
@@ -125,6 +136,7 @@ export function useBulkCheckinActions(
               id: result.studentId,
               name:
                 nameById.get(result.studentId) ?? `Kind #${result.studentId}`,
+              present: false,
             })),
         });
       } finally {

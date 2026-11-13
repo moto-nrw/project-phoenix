@@ -153,7 +153,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "ownSupervisionKeys",
   ],
   "parent-keys": ["parentKeys"],
-  "rooms-keys": ["roomKeys"],
+  "rooms-keys": ["checkinTargetKeys", "roomKeys"],
   "groups-keys": ["groupKeys"],
   "staff-keys": [
     "staffKeys",

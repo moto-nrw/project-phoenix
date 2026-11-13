@@ -26,10 +26,9 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, UserPlus } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import type { Session } from "next-auth";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
@@ -61,23 +60,21 @@ import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
-import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import { useAttendanceWebEnabled, usePresenceMode } from "~/lib/tenant-context";
+import { canCheckInToRooms } from "~/lib/student-access";
+import { RoomCheckinDialog } from "~/components/rooms/room-checkin-dialog";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Checkbox } from "~/components/ui/checkbox";
 import { SectionCard } from "~/components/ui/section-card";
+import {
+  buildTargetRoomOptions,
+  canUseAllMoveTargets,
+  type TargetRoomOption,
+  type TargetScope,
+} from "~/lib/move-targets";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
-
-function canUseAllMoveTargets(session: Session | null): boolean {
-  const permissions = session?.user?.permissions ?? [];
-  return (
-    session?.user?.isAdmin === true ||
-    session?.user?.roles?.includes("admin") === true ||
-    permissions.includes("admin:*") ||
-    permissions.includes("*:*")
-  );
-}
 
 interface StudentsInRoomSectionProps {
   readonly roomId: string;
@@ -237,6 +234,34 @@ export function StudentsInRoomSection({
       );
     },
   );
+  // „Kinder anmelden“ (#6953): this room as the fixed target of a check-in.
+  // A released room takes the independent stay, otherwise the room's one
+  // session with supervision; the rules are those of every other target.
+  const presenceMode = usePresenceMode();
+  const showRoomCheckin =
+    attendanceWebEnabled &&
+    presenceMode === "detailed" &&
+    canCheckInToRooms(session);
+  const roomCheckinTarget = useMemo((): TargetRoomOption | null => {
+    const here = buildTargetRoomOptions(
+      activeGroups,
+      rooms,
+      "",
+      showAllTargets ? "all" : "supervised",
+      supervisedTargetGroupIds,
+    ).filter((option) => option.roomId === roomId);
+    return (
+      here.find((option) => option.kind === "openRoom") ??
+      (here.length === 1 ? (here[0] ?? null) : null)
+    );
+  }, [activeGroups, rooms, roomId, showAllTargets, supervisedTargetGroupIds]);
+  // Pulling present children out of their rooms needs the move rights over
+  // them: an administrator, or the supervisor of this room's session.
+  const canPullIntoRoom =
+    showAllTargets ||
+    (roomCheckinTarget?.kind === "session" &&
+      supervisedTargetGroupIds.has(roomCheckinTarget.activeGroupId));
+  const [roomCheckinOpen, setRoomCheckinOpen] = useState(false);
   const supervisesSourceRoom = sourceGroups.some((group) =>
     supervisedTargetGroupIds.has(group.id),
   );
@@ -481,24 +506,53 @@ export function StudentsInRoomSection({
     // (Rauminformationen / Belegungshistorie). Section element +
     // aria-label keep the named landmark the tests and a11y tooling expect.
     <section aria-label="Kinder im Raum">
+      {showRoomCheckin && roomCheckinTarget ? (
+        <RoomCheckinDialog
+          isOpen={roomCheckinOpen}
+          onClose={() => setRoomCheckinOpen(false)}
+          roomName={roomName}
+          target={roomCheckinTarget}
+          canPullPresent={canPullIntoRoom}
+          onDone={moveAfterWrite.refresh}
+        />
+      ) : null}
       <SectionCard
         overflow="visible"
         title="Kinder im Raum"
         inlineActions
         action={
-          totalCount > 0 ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="compact"
-              onClick={openInSearch}
-              aria-label="Alle Kinder öffnen"
-              title="Alle Kinder öffnen"
-              className="shrink-0"
-            >
-              Alle Kinder
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-            </Button>
+          showRoomCheckin || totalCount > 0 ? (
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+              {totalCount > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  onClick={openInSearch}
+                  aria-label="Alle Kinder öffnen"
+                  title="Alle Kinder öffnen"
+                  className="shrink-0"
+                >
+                  Alle Kinder
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+              ) : null}
+              {showRoomCheckin ? (
+                <Button
+                  type="button"
+                  variant="success"
+                  size="compact"
+                  onClick={() => setRoomCheckinOpen(true)}
+                  disabled={roomCheckinTarget === null}
+                  disabledReason={`In ${roomName} läuft gerade keine Aufsicht und der Raum ist nicht freigegeben. Kinder melden Sie hier an, sobald eine Aufsicht läuft.`}
+                  tooltip={`Meldet Kinder an und setzt sie sofort in ${roomName}.`}
+                  className="shrink-0"
+                >
+                  <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
+                  Kinder anmelden
+                </Button>
+              ) : null}
+            </div>
           ) : undefined
         }
       >
@@ -558,126 +612,6 @@ export function StudentsInRoomSection({
         </div>
       </SectionCard>
     </section>
-  );
-}
-
-/**
- * One entry of the target select. A `session` target moves children into a
- * running session; an `openRoom` target records an independent stay in a
- * released room (#3066), whatever runs there.
- */
-type TargetRoomOption =
-  | {
-      readonly kind: "session";
-      readonly value: string;
-      readonly activeGroupId: string;
-      readonly roomId: string;
-      readonly roomName: string;
-      /** Text in the target select; `roomName` names the room in messages. */
-      readonly label: string;
-    }
-  | {
-      readonly kind: "openRoom";
-      readonly value: string;
-      readonly roomId: string;
-      readonly roomName: string;
-      readonly label: string;
-    };
-
-/**
- * Which rooms may be offered as move targets (#2969):
- * - `all`: admins see every room with exactly one running session.
- * - `supervised`: a supervisor of THIS room may push into every room whose
- *   single running session has at least one supervisor (colleagues count),
- *   or pull into their own running session.
- * - `own`: everyone else may only pull into rooms they supervise themselves.
- */
-type TargetScope = "all" | "supervised" | "own";
-
-function buildTargetRoomOptions(
-  activeGroups: readonly ActiveGroup[],
-  rooms: readonly Room[],
-  currentRoomId: string,
-  scope: TargetScope,
-  ownActiveGroupIds: ReadonlySet<string>,
-): TargetRoomOption[] {
-  const roomsById = new Map(rooms.map((room) => [room.id, room]));
-  const groupsByRoomId = new Map<string, ActiveGroup[]>();
-
-  // Group BEFORE filtering by eligibility: a room with one supervised and
-  // one unsupervised session is still ambiguous and must not be offered.
-  // Session targets skip the current room; the independent stay of this
-  // released room is offered separately below.
-  activeGroups.forEach((group) => {
-    if (!group.isActive || group.roomId === currentRoomId) return;
-    const groupsInRoom = groupsByRoomId.get(group.roomId) ?? [];
-    groupsInRoom.push(group);
-    groupsByRoomId.set(group.roomId, groupsInRoom);
-  });
-
-  // A released room is a shared destination (#3066): choosing it records an
-  // independent stay, so it is offered as the room itself. That includes the
-  // current room, so children in an activity there can stay without the
-  // offering. Moving there needs rights over the children's current place,
-  // which pull-only staff ("own") do not have.
-  const openRoomOptions: TargetRoomOption[] =
-    scope === "own"
-      ? []
-      : rooms
-          .filter((room) => room.isOpenRoom)
-          .map((room) => ({
-            kind: "openRoom",
-            value: `room:${room.id}`,
-            roomId: room.id,
-            roomName: room.name,
-            label: `${room.name} (offener Raum)`,
-          }));
-
-  const sessionOptions = [...groupsByRoomId.entries()].flatMap(
-    ([targetRoomId, groups]) => {
-      const room = roomsById.get(targetRoomId);
-      // Independent stays in a released room are the open-room target, not a
-      // session. Supervised activities in that room stay pull/push targets.
-      const sessionGroups =
-        room?.isOpenRoom === true
-          ? groups.filter((group) => (group.supervisorCount ?? 0) > 0)
-          : groups;
-      const ownGroups = sessionGroups.filter((group) =>
-        ownActiveGroupIds.has(group.id),
-      );
-      const unambiguousGroup =
-        sessionGroups.length === 1 ? sessionGroups[0] : undefined;
-
-      const eligibleGroups =
-        scope === "all"
-          ? unambiguousGroup
-            ? [unambiguousGroup]
-            : []
-          : scope === "own"
-            ? ownGroups
-            : [
-                ...ownGroups,
-                ...(unambiguousGroup &&
-                !ownActiveGroupIds.has(unambiguousGroup.id) &&
-                (unambiguousGroup.supervisorCount ?? 0) > 0
-                  ? [unambiguousGroup]
-                  : []),
-              ];
-
-      const roomName = room?.name ?? `Raum ${targetRoomId}`;
-      return eligibleGroups.map((activeGroup): TargetRoomOption => ({
-        kind: "session",
-        value: activeGroup.id,
-        activeGroupId: activeGroup.id,
-        roomId: targetRoomId,
-        roomName,
-        label: roomName,
-      }));
-    },
-  );
-
-  return [...sessionOptions, ...openRoomOptions].sort((a, b) =>
-    a.label.localeCompare(b.label, "de"),
   );
 }
 

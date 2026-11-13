@@ -188,6 +188,8 @@ interface SearchStudentCardProps {
   readonly checkinSelectMode: boolean;
   readonly isCheckinSelected: boolean;
   readonly isCheckinPending: boolean;
+  /** The room a tap checks the child into (#6953), if one is chosen. */
+  readonly checkinTargetName?: string | null;
   readonly userGroups: string[];
   readonly groupRooms: string[];
   readonly supervisedRooms: string[];
@@ -209,6 +211,7 @@ function SearchStudentCardImpl({
   checkinSelectMode,
   isCheckinSelected,
   isCheckinPending,
+  checkinTargetName = null,
   userGroups,
   groupRooms,
   supervisedRooms,
@@ -235,6 +238,7 @@ function SearchStudentCardImpl({
       checkinSelectMode={checkinSelectMode}
       isCheckinSelected={isCheckinSelected}
       isCheckinPending={isCheckinPending}
+      checkinTargetName={checkinTargetName}
       onCheckinClick={() => onCheckinClick(student)}
       // The strip says "heute": another planning day keeps the plain card.
       dayHomeChange={

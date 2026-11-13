@@ -134,7 +134,11 @@ import { useBulkCheckinActions } from "~/components/students/use-bulk-checkin-ac
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
-import { canCheckInChildren, canExportStudents } from "~/lib/student-access";
+import {
+  canCheckInChildren,
+  canCheckInToRooms,
+  canExportStudents,
+} from "~/lib/student-access";
 import { useParentAnnouncementsAvailable } from "~/lib/hooks/use-parent-announcements-available";
 import {
   announcementPrefillPath,
@@ -146,6 +150,8 @@ import {
 } from "~/lib/personal-storage";
 import { KIND_PARAM } from "~/components/announcements/announcement-meta";
 import { SchoolCheckinSelectionBar } from "~/components/students/school-checkin-selection-bar";
+import { SchoolCheckinTargetPicker } from "~/components/students/school-checkin-target-picker";
+import { useCheckinTarget } from "~/lib/hooks/use-checkin-target";
 import type { SchoolCheckinAction } from "~/lib/student-api";
 import {
   SchoolCheckinMissingHint,
@@ -1488,7 +1494,16 @@ function SearchPageContent() {
   // Ohne users:checkin (etwa als Gast, ADR 0091) scheiterte jeder Tipp.
   const checkinModeAvailable =
     isToday && attendanceWebEnabled && canCheckInChildren(session);
-  const schoolCheckin = useSchoolCheckinMode();
+  // „Anmelden in“ (#6953): binary schools and sessions without the move
+  // right see no target; a check-in then stays „Anwesend (ohne Raum)“.
+  const checkinTarget = useCheckinTarget(
+    checkinModeAvailable && canCheckInToRooms(session),
+  );
+  const refreshCheckinTargets = checkinTarget.refresh;
+  const schoolCheckin = useSchoolCheckinMode({
+    target: checkinTarget.target,
+    onTargetRefused: () => void refreshCheckinTargets(),
+  });
   // A checkout well before today's pickup time asks for an optional reason
   // (#3324); every other checkout keeps its current behaviour.
   const earlyCheckout = useEarlyCheckoutDialog((studentId, note, reason) => {
@@ -3135,6 +3150,7 @@ function SearchPageContent() {
         checkinSelectMode={schoolCheckin.selectionActive}
         isCheckinSelected={schoolCheckin.selectedIds.has(studentIdStr)}
         isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
+        checkinTargetName={checkinTarget.target?.roomName ?? null}
         userGroups={myGroups}
         groupRooms={myGroupRooms}
         supervisedRooms={mySupervisedRooms}
@@ -3492,6 +3508,15 @@ function SearchPageContent() {
                 runningAction={runningBulkAction}
                 selectAll={checkinSelectAll}
                 disabled={schoolCheckin.isBulkRunning}
+                targetPicker={
+                  checkinTarget.available ? (
+                    <SchoolCheckinTargetPicker
+                      state={checkinTarget}
+                      layout="sheet"
+                      disabled={schoolCheckin.isBulkRunning}
+                    />
+                  ) : undefined
+                }
               />
             </div>
           )}
@@ -3510,6 +3535,15 @@ function SearchPageContent() {
               isRunning={schoolCheckin.isBulkRunning}
               runningAction={runningBulkAction}
               selectAll={checkinSelectAll}
+              targetRoomName={checkinTarget.target?.roomName ?? null}
+              targetPicker={
+                checkinTarget.available ? (
+                  <SchoolCheckinTargetPicker
+                    state={checkinTarget}
+                    disabled={schoolCheckin.isBulkRunning}
+                  />
+                ) : undefined
+              }
             />
           )}
 
@@ -3621,6 +3655,7 @@ function SearchPageContent() {
                       isCheckinPending={schoolCheckin.pendingIds.has(
                         studentIdStr,
                       )}
+                      checkinTargetName={checkinTarget.target?.roomName ?? null}
                       onCheckinClick={() => {
                         // Selection sub-mode (#2359): a tap only marks the child;
                         // nothing is written until the bar's bulk action runs.
