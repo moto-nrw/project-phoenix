@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   mutateSchedule: vi.fn(),
   mutate: vi.fn(),
   toastError: vi.fn(),
+  templates: [] as unknown[],
 }));
 
 const schedule: StaffSchedule = {
@@ -33,6 +34,9 @@ vi.mock("~/lib/swr", () => ({
     // The four-week preview's daily Soll stays pending in these editor tests.
     if (key?.startsWith("staff-schedule-targets-preview-")) {
       return { data: undefined, isLoading: true, mutate: vi.fn() };
+    }
+    if (key === "work-time-models") {
+      return { data: mocks.templates, isLoading: false, mutate: vi.fn() };
     }
     return { data: [], isLoading: false, mutate: vi.fn() };
   },
@@ -82,6 +86,7 @@ describe("Arbeitszeitmodell decimal-hours editor", () => {
     mocks.mutateSchedule.mockReset();
     mocks.mutate.mockReset();
     mocks.toastError.mockReset();
+    mocks.templates = [];
   });
 
   function openEditor() {
@@ -135,6 +140,39 @@ describe("Arbeitszeitmodell decimal-hours editor", () => {
       "Bitte wählen Sie eine Vorlage.",
     );
     expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  // Eine archivierte Vorlage wird nicht neu zugewiesen (#6891).
+  it("offers only templates the school still offers and links to the catalog", () => {
+    const template = {
+      rotationLength: 1,
+      rotationAnchorDate: "2026-08-10",
+      entries: [],
+      weeklyTotals: [0],
+    };
+    mocks.templates = [
+      { ...template, id: "1", name: "Vollzeit", archivedAt: null },
+      {
+        ...template,
+        id: "2",
+        name: "Altvertrag",
+        archivedAt: "2026-09-01T08:00:00Z",
+      },
+    ];
+    openEditor();
+    fireEvent.click(screen.getByRole("radio", { name: /Vorlage zuweisen/ }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Vorlage" }));
+
+    expect(screen.getByRole("option", { name: "Vollzeit" })).toBeVisible();
+    expect(
+      screen.queryByRole("option", { name: /Altvertrag/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Arbeitszeitmodelle verwalten/ }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringContaining("/database/work-time-models"),
+    );
   });
 
   it("returns to the read view after a successful save", async () => {

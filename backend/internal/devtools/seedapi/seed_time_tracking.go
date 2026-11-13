@@ -66,7 +66,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 
 	todayDate := todaySeedDate()
-	scheduleCount, err := seedSchedulesViaAPI(rt, staffOrder, staffIDByEmail, historyStart(todayDate.UTCMidnight()))
+	scheduleCount, err := seedSollTargets(rt, staffOrder, staffIDByEmail, historyStart(todayDate.UTCMidnight()))
 	if err != nil {
 		return err
 	}

@@ -127,7 +127,7 @@ const moduleLegacyBudgetTotal = 0
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
 // ADR 0082: retained Workforce translation renamed into the legacy register.
-const moduleLegacyFileBudgetTotal = 246
+const moduleLegacyFileBudgetTotal = 243
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -142,7 +142,7 @@ const moduleLegacyFileBudgetTotal = 246
 // counting, and their sum stays below the old entry.
 // ADR 0082: newly covered sources, measured at 722c5aa147; no headroom.
 var moduleLegacyFileBudgets = map[string]int{
-	"roots/owners/legacy_workforce_schedule_adapter.go": 246,
+	"roots/owners/legacy_workforce_schedule_adapter.go": 243,
 }
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,

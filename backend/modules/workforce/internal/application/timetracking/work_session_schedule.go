@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
@@ -15,6 +16,12 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 	model, err := s.workModelRepo.FindByID(ctx, modelID)
 	if err != nil {
 		return fmt.Errorf("template not found: %w", err)
+	}
+	// An archived template is no longer offered (#6891). A staff member
+	// already bound to it may keep it, so saving the unchanged choice works.
+	alreadyBound := staff.WorkTimeModelID != nil && *staff.WorkTimeModelID == model.ID
+	if model.Archived && !alreadyBound {
+		return fmt.Errorf("%w: work time model %d cannot be newly assigned", workforce.ErrWorkTimeModelArchived, model.ID)
 	}
 
 	entries := modelEntriesToScheduleRows(model.Entries, model.RotationLength)

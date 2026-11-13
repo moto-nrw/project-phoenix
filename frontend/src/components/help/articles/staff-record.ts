@@ -34,7 +34,7 @@ export function staffRecordTopic(): HelpTopic {
         steps: [
           "Wählen Sie oben `Arbeitszeitmodell`.",
           "Wählen Sie rechts `Bearbeiten`.",
-          "Wählen Sie `Vorlage zuweisen` für ein Modell, das mehrere Personen teilen.",
+          "Wählen Sie `Vorlage zuweisen` für ein Modell, das mehrere Personen teilen. Vorlagen legen Sie unter `Datenverwaltung` › `Arbeitszeitmodelle` an.",
           "Oder wählen Sie `Eigenes Modell` nur für diese Person.",
           "Wählen Sie bei `Rotation` zum Beispiel `Standard (1 Woche)` oder `A/B-Wochen (2 Wochen)`.",
           "Tragen Sie je Wochentag die Stunden ein, zum Beispiel `4,45`.",
@@ -73,6 +73,7 @@ export function staffRecordTopic(): HelpTopic {
       "Ein Bereich fehlt Ihnen? Dann fehlt Ihrer Rolle das Recht dafür.",
     ],
     related: [
+      HELP_TOPICS.leadWorkTimeTemplates,
       HELP_TOPICS.leadTargetOverride,
       HELP_TOPICS.leadWorkTimeReview,
       HELP_TOPICS.leadInviteStaff,
