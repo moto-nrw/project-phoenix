@@ -33,7 +33,11 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
 - **Every top-level test is parallel (#2851)**: start it with `t.Parallel()`.
   The `tests_run_in_parallel` gate has an empty baseline and rejects every
   exception. Inject process configuration and output; use per-test database
-  clones for schema changes, sweeps, query measurements, and lock tests.
+  clones for schema changes, sweeps, query measurements, and lock tests. When
+  every such test first builds the same expensive schema or fixture, declare it
+  once with `testpkg.NewIsolatedTemplate` and open
+  `testpkg.SetupIsolatedTestDBFrom`: the build runs once per binary, each test
+  still gets its own clone of the result (#6962).
 - **Runtime measurements are opt-in (#4426)**: a test that repeats a flow
   for latency, plans or lock samples calls `testpkg.RequireRuntimeEvidence(t)`
   right after `t.Parallel()` and runs only with `PHX_TEST_RUNTIME_EVIDENCE=1`.
@@ -74,9 +78,13 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
   wrapper and CI test invocation remain unchanged; CI runs the cache adapter's
   real-toolchain invalidation and diagnostic tests.
 - **Leftovers are a gate, not a report (#2419)**: every test binary compares its
-  clone against the start state it recorded for itself and fails the PACKAGE
-  when rows are left in SHARED state — rows outside the tenants its own tests
-  created. Rows in a test's own tenant are not leftovers. The gate runs from
+  clone against the start state the template recorded after its bootstrap
+  (taken again in the clone when the gate's rules changed, #6962) and fails the
+  PACKAGE when rows are left in SHARED state — rows outside the tenants its own
+  tests created. Rows in a test's own tenant are not leftovers, nor are rows
+  without `tenant_id` whose `organization_id` lies in the test band: a test's
+  Träger dies with the clone, so `CreateTestOrganization` registers no cleanup.
+  The gate runs from
   `TestMain` via `testpkg.Run(m)` (gate: `db_packages_run_the_leftover_gate`),
   so `../scripts/run-go-toolchain.sh go test -tags=testhooks ./...` is gated exactly like a
   full wrapper run; it costs the package one query at exit (~30-70ms measured).

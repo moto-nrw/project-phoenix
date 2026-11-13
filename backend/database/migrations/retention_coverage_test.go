@@ -526,13 +526,16 @@ func TestEveryTableHasARetentionPath(t *testing.T) {
 	ctx := context.Background()
 
 	var tables []string
+	// phx_test holds the test harness's leftover-gate start state
+	// (internal/testdb), which every clone inherits from the template; no
+	// migration creates it.
 	require.NoError(t, db.NewRaw(`
 		SELECT n.nspname || '.' || c.relname
 		FROM pg_class AS c
 		JOIN pg_namespace AS n ON n.oid = c.relnamespace
 		WHERE c.relkind IN ('r', 'p')
 		  AND NOT c.relispartition
-		  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+		  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast', 'phx_test')
 		ORDER BY 1`).Scan(ctx, &tables))
 
 	var problems []string
