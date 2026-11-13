@@ -290,6 +290,7 @@ export function StudentPaymentCard({
             variant="surface"
             onClick={() => void handleStartEdit()}
             disabled={isRevealing || isLoading}
+            tooltip="Öffnet das Zahlungskonto zum Ändern und protokolliert das Anzeigen der IBAN."
           >
             Bearbeiten
           </Button>
@@ -437,6 +438,7 @@ export function StudentPaymentCard({
                   size="md"
                   variant="outline"
                   onClick={() => void handleReveal()}
+                  tooltip="Zeigt die ganze IBAN und protokolliert, wer sie angesehen hat."
                   isLoading={isRevealing}
                   loadingText="Wird geladen…"
                 >

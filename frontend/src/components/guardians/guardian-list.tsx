@@ -78,8 +78,27 @@ const INVITE_ACTION_LABEL: Record<
   none: "Einladen",
 };
 
+// Was der Einladen-Eintrag je Kontostand tut (#6764). Kein „sofort“: Hat die
+// Person bei diesem Kind eine eingeschränkte Rolle, fragt moto vor der
+// Hochstufung nach; das entscheidet die Rolle, nicht der Kontostand.
+const INVITE_ACTION_DESCRIPTION: Record<
+  Exclude<GuardianAccountStatus, "active">,
+  string
+> = {
+  active_no_access: "Gibt dem Elternkonto App-Zugang zu diesem Kind.",
+  pending: "Sendet die Einladung zur Eltern-App noch einmal.",
+  link_invalid: "Sendet einen neuen Einladungslink zur Eltern-App.",
+  none: "Sendet eine Mail mit dem Zugang zur Eltern-App für dieses Kind.",
+};
+
+function inviteStatusKey(
+  status?: GuardianAccountStatus,
+): Exclude<GuardianAccountStatus, "active"> {
+  return status === "active" ? "none" : (status ?? "none");
+}
+
 function getInviteActionLabel(status?: GuardianAccountStatus) {
-  return INVITE_ACTION_LABEL[status === "active" ? "none" : (status ?? "none")];
+  return INVITE_ACTION_LABEL[inviteStatusKey(status)];
 }
 
 function AccountStatusBadge({
@@ -169,6 +188,8 @@ export default function GuardianList({
         label: isInviting
           ? "Wird eingeladen"
           : getInviteActionLabel(guardian.accountStatus),
+        description:
+          INVITE_ACTION_DESCRIPTION[inviteStatusKey(guardian.accountStatus)],
         icon: <Send className="h-4 w-4" aria-hidden />,
         disabled: isInviting,
         onClick: () => onInvite?.(guardian),
@@ -177,6 +198,7 @@ export default function GuardianList({
     if (onEdit) {
       items.push({
         label: "Bearbeiten",
+        description: "Öffnet Angaben, Rolle und Telefonnummern zum Ändern.",
         icon: <Pencil className="h-4 w-4" aria-hidden />,
         onClick: () => onEdit(guardian),
       });
@@ -185,6 +207,8 @@ export default function GuardianList({
     if (guardian.email && mark === "failed" && onLiftEmailBlock) {
       items.push({
         label: "Sperre aufheben",
+        description:
+          "Erlaubt wieder Mails an diese Adresse, moto fragt vorher nach.",
         icon: <MailCheck className="h-4 w-4" aria-hidden />,
         onClick: () => onLiftEmailBlock(guardian),
       });
@@ -193,6 +217,8 @@ export default function GuardianList({
     if (stopped && onResumeEmails) {
       items.push({
         label: "Mails wieder senden",
+        description:
+          "Sendet der Person wieder Mails der Schule, moto fragt vorher nach.",
         icon: <MailCheck className="h-4 w-4" aria-hidden />,
         onClick: () => onResumeEmails(guardian),
       });
@@ -200,6 +226,8 @@ export default function GuardianList({
     if (guardian.email && !stopped && emailStates && onStopEmails) {
       items.push({
         label: "Mails stoppen",
+        description:
+          "Stoppt die Mails der Schule an diese Person, moto fragt vorher nach.",
         icon: <MailX className="h-4 w-4" aria-hidden />,
         onClick: () => onStopEmails(guardian),
       });
