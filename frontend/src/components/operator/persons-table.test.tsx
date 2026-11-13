@@ -141,7 +141,9 @@ describe("PersonsTable", () => {
       />,
     );
 
-    expect(screen.getAllByText("Löschen über die Schule")).toHaveLength(2);
+    expect(
+      screen.getByText(/Kinder löscht die Schule beim Kind/),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /^Aktionen für/ }),
     ).not.toBeInTheDocument();

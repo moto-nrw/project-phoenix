@@ -1196,7 +1196,7 @@ export const ERROR_CATALOG = {
       "provisioning.organization_slug_taken":
         "Diesen Slug hat schon ein anderer Träger. Bitte wählen Sie einen anderen.",
       "provisioning.person_has_active_profile":
-        "Diese Person ist noch als Kind oder Fachkraft an der Schule angelegt. Die Schule muss zuerst das Kind löschen oder den Personalaustritt eintragen.",
+        "Diese Person ist noch als Kind oder Mitarbeitende an der Schule angelegt. Das Kind löscht die Schule beim Kind. Mitarbeitende lassen sich erst nach ihrem Austritt löschen.",
       "provisioning.person_has_supervisions":
         "Diese Person führt gerade eine Aufsicht. Bitte beenden Sie die Aufsicht zuerst.",
       "provisioning.person_not_found":
@@ -1418,7 +1418,7 @@ export const ERROR_CATALOG = {
       "students.partial_absence_conflict":
         "Das Kind ist an einem gewählten Tag schon ab einer Uhrzeit entschuldigt. Entfernen Sie zuerst die Teilentschuldigung unter „Entschuldigen“ und „Ab Uhrzeit“.",
       "students.person_has_active_profile":
-        "Diese Person ist noch als Kind oder Fachkraft angelegt. Bitte löschen Sie zuerst das Kind oder tragen Sie den Personalaustritt ein.",
+        "Diese Person ist noch als Kind oder Mitarbeitende angelegt. Löschen Sie das Kind direkt beim Kind. Mitarbeitende lassen sich erst nach ihrem Austritt löschen.",
       "students.photo_consent_required":
         "Für ein Foto fehlt die Einwilligung der Eltern. Bitte bestätigen Sie zuerst die Einwilligung.",
       "students.photo_consent_withdrawn":
