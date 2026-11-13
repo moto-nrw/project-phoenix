@@ -1,14 +1,14 @@
 # Schutz gespeicherter Daten
 
-Stand: 23.10.2026, Slices 3840-a und 3840-f, Teil von [#3840](https://github.com/moto-nrw/project-phoenix/issues/3840)
-und [#3846](https://github.com/moto-nrw/project-phoenix/issues/3846).
+Stand: 23.10.2026, Slices 3840-a und 3840-f, Teil von [#3840](https://github.com/moto-ogs/project-phoenix/issues/3840)
+und [#3846](https://github.com/moto-ogs/project-phoenix/issues/3846).
 Geprüfte Codebasis: `origin/development` bei
 `d780efb392ef4d085a5731e615533eead3ee652b`.
 Nachprüfung der Dateischreibpfade in Runde 2 nach Merge von `origin/development`
 bei `c66191b29879360e1eb6085ce46d716080a3b3be`.
 Rollen-/Gesundheitshistorie gegen `origin/development` bei
 `caca213bdb1bf4ef8ff9a5713875f88d3ebe5981` geprüft, ergänzt um Migration `1.15.488`.
-Foto-/Avatar-Abhilfe aus [#4852](https://github.com/moto-nrw/project-phoenix/pull/4852)
+Foto-/Avatar-Abhilfe aus [#4852](https://github.com/moto-ogs/project-phoenix/pull/4852)
 (Slice 3840-h) nach Merge von `origin/development` bei
 `6a8e863cf73047493a602a1abd058aa424761d2a` ergänzt.
 
@@ -201,8 +201,8 @@ allein mit Verweis auf Option 1 entfallen.
 
 Rechtlicher Bewertungsrahmen, nur gelesen: Legal-Repo bei
 `7a21f6742782bcf6141470a47333ae5be6c3182f`,
-[Pflichtumfang](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/research/14-dsgvo-mindestumfang.md),
-[Checkliste](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/intern/checkliste.md),
-[AVV-Entwurf, Anhang 1 Ziff. 3/7](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/03-avv.md).
+[Pflichtumfang](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/research/14-dsgvo-mindestumfang.md),
+[Checkliste](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/intern/checkliste.md),
+[AVV-Entwurf, Anhang 1 Ziff. 3/7](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/03-avv.md).
 Maßstab ist die dort erläuterte risikobasierte Bewertung nach Art. 32 DSGVO,
 keine allein aus einer älteren TOM abgeleitete Technologiepflicht.

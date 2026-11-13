@@ -5,13 +5,13 @@ import (
 	"errors"
 	"log/slog"
 
-	identitycompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	staffoffboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
+	identitycompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	staffoffboardingcompose "github.com/moto-ogs/project-phoenix/workflows/staffoffboarding/compose"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
 )
 
 // Authorize applies the tenant-portal permission boundary before the workflow

@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	api "github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The operator credential generation (#6308): every artifact an operator's

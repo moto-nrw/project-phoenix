@@ -40,7 +40,7 @@ describe("ProgressBar", () => {
         value={1}
         max={4}
         label="Belegung"
-        tone="gray"
+        tone="dark"
         color="#5080D8"
       />,
     );

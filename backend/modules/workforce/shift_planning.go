@@ -286,11 +286,16 @@ type ShiftTypeInput struct {
 // mapping in the same unit of work; unknown category ids yield
 // ErrShiftTypeCategoryUnknown and the caller must roll the request back.
 type ShiftTypeAdministration interface {
+	// ListShiftTypes returns every type of the school, archived ones
+	// included; each carries ArchivedAt so callers can tell them apart.
 	ListShiftTypes(context.Context) ([]ShiftType, error)
 	CreateShiftType(context.Context, ShiftTypeInput) (ShiftType, error)
 	// CreateDefaultShiftTypes seeds the example types a school starts with,
 	// skipping names that already exist, and returns the full list.
 	CreateDefaultShiftTypes(context.Context) ([]ShiftType, error)
 	UpdateShiftType(context.Context, ShiftTypeInput) (ShiftType, error)
-	DeleteShiftType(context.Context, int64) error
+	// DeleteShiftType removes a type. A type that planned shifts or series
+	// still carry is archived instead, so they keep their classification
+	// (#6845); the result names what happened.
+	DeleteShiftType(context.Context, int64) (ShiftTypeRemoval, error)
 }

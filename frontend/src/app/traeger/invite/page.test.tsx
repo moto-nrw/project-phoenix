@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   acceptTraegerInvitation: vi.fn(),
   traegerLogin: vi.fn(),
   signIn: vi.fn(),
+  query: { value: "token=abc" },
 }));
 
 vi.mock("~/lib/traeger-api", () => ({
@@ -19,7 +20,7 @@ vi.mock("~/lib/traeger-api", () => ({
 }));
 vi.mock("next-auth/react", () => ({ signIn: mocks.signIn }));
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams("token=abc"),
+  useSearchParams: () => new URLSearchParams(mocks.query.value),
 }));
 
 import TraegerInvitePage from "./page";
@@ -44,7 +45,11 @@ describe("TraegerInvitePage", () => {
   let assign: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    for (const fn of Object.values(mocks)) fn.mockReset();
+    mocks.fetchTraegerInvitation.mockReset();
+    mocks.acceptTraegerInvitation.mockReset();
+    mocks.traegerLogin.mockReset();
+    mocks.signIn.mockReset();
+    mocks.query.value = "token=abc";
     vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", window.location.host);
     _resetTraegerHostCache();
     assign = vi
@@ -58,6 +63,21 @@ describe("TraegerInvitePage", () => {
     _resetTraegerHostCache();
   });
 
+  // A link without its token: waiting does not repair it, so the page asks
+  // no server and names the way forward.
+  it("names an incomplete link without asking the server", async () => {
+    mocks.query.value = "";
+    renderPage();
+
+    expect(
+      await screen.findByText(/Der Link ist unvollständig\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Zur Anmeldung" }),
+    ).toBeInTheDocument();
+    expect(mocks.fetchTraegerInvitation).not.toHaveBeenCalled();
+  });
+
   it("creates the account with a new password and signs the person in", async () => {
     mocks.fetchTraegerInvitation.mockResolvedValue(PREVIEW);
     mocks.acceptTraegerInvitation.mockResolvedValue("neu@traeger.example");
@@ -69,6 +89,12 @@ describe("TraegerInvitePage", () => {
 
     expect(await screen.findByText("Träger Bissendorf")).toBeInTheDocument();
     expect(screen.getByText("Abrechnung")).toBeInTheDocument();
+    // #4693: says who sees the name.
+    expect(
+      screen.getByText(
+        "Personen im Träger-Büro sehen ihn im Exportprotokoll und im Verlauf jeder Rechnung.",
+      ),
+    ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Neues Passwort"), {
       target: { value: "Sicher1234%" },
     });
@@ -79,8 +105,15 @@ describe("TraegerInvitePage", () => {
     expect(
       await screen.findByText("Die Passwörter stimmen nicht überein."),
     ).toBeInTheDocument();
+    // #4693: the name is required.
+    expect(
+      screen.getByText("Bitte geben Sie Ihren Namen ein."),
+    ).toBeInTheDocument();
     expect(mocks.acceptTraegerInvitation).not.toHaveBeenCalled();
 
+    fireEvent.change(screen.getByLabelText(/Ihr Name/), {
+      target: { value: "  Eva Müller " },
+    });
     fireEvent.change(screen.getByLabelText("Passwort wiederholen"), {
       target: { value: "Sicher1234%" },
     });
@@ -88,6 +121,7 @@ describe("TraegerInvitePage", () => {
 
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
     expect(mocks.acceptTraegerInvitation).toHaveBeenCalledWith("abc", {
+      name: "Eva Müller",
       password: "Sicher1234%",
       confirmPassword: "Sicher1234%",
     });
@@ -116,6 +150,9 @@ describe("TraegerInvitePage", () => {
         target: { value: "Falsch1234%" },
       },
     );
+    fireEvent.change(screen.getByLabelText(/Ihr Name/), {
+      target: { value: "Eva Müller" },
+    });
     // Anker: das Feld für das bestehende Konto ist da, eine Wiederholung nicht.
     expect(screen.queryAllByLabelText("Passwort wiederholen")).toEqual([]);
     fireEvent.click(screen.getByRole("button", { name: "Einladung annehmen" }));
@@ -126,6 +163,7 @@ describe("TraegerInvitePage", () => {
       ),
     ).toBeInTheDocument();
     expect(mocks.acceptTraegerInvitation).toHaveBeenCalledWith("abc", {
+      name: "Eva Müller",
       password: "Falsch1234%",
       confirmPassword: undefined,
     });
@@ -162,9 +200,42 @@ describe("TraegerInvitePage", () => {
     fireEvent.change(screen.getByLabelText("Passwort wiederholen"), {
       target: { value: "Sicher1234%" },
     });
+    fireEvent.change(screen.getByLabelText(/Ihr Name/), {
+      target: { value: "Eva Müller" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Einladung annehmen" }));
 
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/login"));
     expect(mocks.acceptTraegerInvitation).toHaveBeenCalledTimes(1);
+  });
+
+  // #4693: a name the backend refuses shows at the field.
+  it("shows the backend's refusal of the name at the field", async () => {
+    mocks.fetchTraegerInvitation.mockResolvedValue({
+      ...PREVIEW,
+      requiresExistingPassword: true,
+    });
+    mocks.acceptTraegerInvitation.mockRejectedValue(
+      new ApiError("Bad Request", 400, {
+        code: "general.input",
+        errors: [{ field: "name", reason: "too_long" }],
+      }),
+    );
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText(/Ihr Name/), {
+      target: { value: "Eva Müller" },
+    });
+    fireEvent.change(screen.getByLabelText("Passwort Ihres moto-Kontos"), {
+      target: { value: "Sicher1234%" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Einladung annehmen" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Ihr Name/)).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
+    );
   });
 });

@@ -1,6 +1,6 @@
 package peopledirectory
 
-import "github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+import "github.com/moto-ogs/project-phoenix/modules/peopledirectory/contact"
 
 // Person gender values are shared by the directory and import contracts.
 const (

@@ -182,7 +182,7 @@ describe("TraegerOccupancyPage", () => {
 
     expect(screen.getByText("4 von 18")).toBeInTheDocument();
     expect(
-      screen.getByText("In 2 Angeboten mit Platzgrenze. Ein Angebot ist voll."),
+      screen.getByText("1 von 2 Betreuungsformen mit Platzgrenze ist voll."),
     ).toBeInTheDocument();
 
     const table = screen.getByRole("table");
@@ -270,12 +270,12 @@ describe("TraegerOccupancyPage", () => {
     renderPage();
     await screen.findAllByText("0 von 0");
     expect(
-      screen.getByText("Kein Angebot hat eine Platzgrenze."),
+      screen.getByText("Keine Betreuungsform hat eine Platzgrenze."),
     ).toBeInTheDocument();
 
     openTab("Betreuungsformen");
     expect(
-      (await screen.findAllByText("Heute läuft kein Betreuungsangebot")).length,
+      (await screen.findAllByText("Heute läuft keine Betreuungsform")).length,
     ).toBeGreaterThan(0);
   });
 

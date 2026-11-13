@@ -5,7 +5,7 @@ package parentmessaging
 import (
 	"testing"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
 	"github.com/stretchr/testify/assert"
 )

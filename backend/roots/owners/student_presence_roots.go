@@ -1,22 +1,23 @@
 package owners
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewStudentPresence composes the Student Presence owner with its attendance
@@ -40,7 +41,11 @@ func NewStudentPresence(db transactionruntime.Database, observe func(presenceCom
 	if err != nil {
 		return nil, err
 	}
-	locks, err := carePlanCompose.NewDayLocks(pool, students.LockStudent, peopledirectory.ErrStudentNotFound)
+	batch, ok := students.Owner.(peopledirectory.StudentRowLocks)
+	if !ok {
+		return nil, errors.New("student presence: student row batch locks are required")
+	}
+	locks, err := carePlanCompose.NewDayLocks(pool, students.LockStudent, peopledirectory.ErrStudentNotFound, batch.LockStudentRows)
 	if err != nil {
 		return nil, err
 	}

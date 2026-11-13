@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Import of existing SEPA mandates from a CSV file (#6198, ADR 0171 point
@@ -228,11 +228,12 @@ type SEPAMandateImportCounts struct {
 	DebtorConflicts int `json:"debtor_conflicts"`
 }
 
-// FamilyDebtorNumber is a debtor number the import sets for a family.
+// FamilyDebtorNumber is a debtor number the import sets for a family, and
+// the number of a family after a change from its list (#6692).
 type FamilyDebtorNumber struct {
-	FamilyEmail  string
-	ContractID   int64
-	DebtorNumber string
+	FamilyEmail  string `json:"family_email"`
+	ContractID   int64  `json:"-"`
+	DebtorNumber string `json:"debtor_number"`
 }
 
 // SEPAMandateImport is the answer to a look at a file: how it was read, the

@@ -112,7 +112,8 @@ func firstUpcomingInterval(history []*RequestChildOffering, date Date) []*Reques
 	return result
 }
 
-// selectionsWithNotes adds the parents' submitted notes to the selections.
+// selectionsWithNotes adds the parents' submitted notes and the catalog terms
+// they submitted under (#6837) to the selections.
 func (p *BookingProjection) selectionsWithNotes(ctx context.Context, childIDs []int64, bookings []OfferingBooking) ([]*RequestChildOffering, error) {
 	if len(bookings) == 0 {
 		return nil, nil
@@ -121,13 +122,14 @@ func (p *BookingProjection) selectionsWithNotes(ctx context.Context, childIDs []
 	if err != nil {
 		return nil, err
 	}
-	notes := make(map[[2]int64]*string, len(choices))
+	submitted := make(map[[2]int64]SubmittedOfferingChoice, len(choices))
 	for _, choice := range choices {
-		notes[[2]int64{choice.RequestChildID, choice.CareOfferingID}] = choice.Notes
+		submitted[[2]int64{choice.RequestChildID, choice.CareOfferingID}] = choice
 	}
 	rows := effectiveSelections(bookings)
 	for _, row := range rows {
-		row.Notes = notes[[2]int64{row.RequestChildID, row.CareOfferingID}]
+		choice := submitted[[2]int64{row.RequestChildID, row.CareOfferingID}]
+		row.Notes, row.SubmittedTerms = choice.Notes, choice.Terms
 	}
 	return rows, nil
 }

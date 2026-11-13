@@ -8,9 +8,13 @@
 import { SepaMandateStatusCard } from "~/components/traeger/sepa-mandate-status-card";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { findFamilyBilling } from "~/components/traeger/billing-payment-format";
+import {
+  findFamilyBilling,
+  runDueDatesText,
+} from "~/components/traeger/billing-payment-format";
 import { formatMonth } from "~/components/traeger/care-billing-format";
 import { FamilyBillingForm } from "~/components/traeger/family-billing-form";
+import { useDebtorNumberFormat } from "~/components/traeger/use-debtor-number-format";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -42,6 +46,7 @@ export default function TraegerFamilyBillingPage() {
   const contractId = params?.contractId ?? "";
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const pageLoad = useApiLoadError();
+  const debtorNumberFormat = useDebtorNumberFormat();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const runHref = traegerPath(`/traeger/abrechnung/monatsbeitraege/${runId}`);
 
@@ -73,7 +78,7 @@ export default function TraegerFamilyBillingPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "Empfänger und Zahlung",
+        object: "die Angabe zu Empfänger und Zahlung",
         retry: () => void load(),
       });
     }
@@ -107,7 +112,7 @@ export default function TraegerFamilyBillingPage() {
       loading={!pageLoad.error && !loaded}
     >
       {loaded ? (
-        <SectionCard title="Rechnung an und Zahlung">
+        <SectionCard title="Empfänger und Zahlung">
           <FamilyBillingForm
             target={{
               contractId,
@@ -118,7 +123,9 @@ export default function TraegerFamilyBillingPage() {
               childName,
               issued: loaded.invoice.number !== "",
             }}
+            format={debtorNumberFormat}
             existing={loaded.existing}
+            runDueText={runDueDatesText(loaded.run.dueDates ?? [])}
             onCancel={() => router.push(runHref)}
             onSaved={() => router.push(runHref)}
           />

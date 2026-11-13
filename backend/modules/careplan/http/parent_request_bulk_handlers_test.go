@@ -1,6 +1,8 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+
 	"context"
 	"errors"
 	"net/http"
@@ -8,11 +10,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 type bulkServiceStub struct {
@@ -28,7 +32,7 @@ func (s *bulkServiceStub) BulkApprove(_ context.Context, input parentrequests.Bu
 func TestBulkApproveParentRequestsForwardsCompleteSelection(t *testing.T) {
 	t.Parallel()
 	svc := &bulkServiceStub{}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		ParentRequestBulkService: svc})
 	req := httptest.NewRequest(http.MethodPost, "/students/change-requests/bulk-approve", strings.NewReader(`{"requests":[{"kind":"master_data","id":"12","expected_version":"v1"},{"kind":"excused","id":"13","expected_version":"v2"}],"reason":"Geprüft"}`))
 	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55})
@@ -36,7 +40,7 @@ func TestBulkApproveParentRequestsForwardsCompleteSelection(t *testing.T) {
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
-	rs.bulkApproveParentRequests(w, req)
+	serveRoute(t, rs, w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(55), svc.input.ReviewerID)
@@ -50,14 +54,14 @@ func TestBulkApproveParentRequestsForwardsCompleteSelection(t *testing.T) {
 func TestBulkApproveParentRequestsReturnsConflictAndMarksRollback(t *testing.T) {
 	t.Parallel()
 	svc := &bulkServiceStub{err: parentrequests.ErrStale}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		ParentRequestBulkService: svc})
 	ctx := tenant.WithRollbackMarker(context.WithValue(t.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55}))
 	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"users:update"})
 	req := httptest.NewRequest(http.MethodPost, "/students/change-requests/bulk-approve", strings.NewReader(`{"requests":[{"kind":"master_data","id":"12","expected_version":"v1"},{"kind":"excused","id":"13","expected_version":"v2"}],"reason":"Geprüft"}`)).WithContext(ctx)
 	w := httptest.NewRecorder()
 
-	rs.bulkApproveParentRequests(w, req)
+	serveRoute(t, rs, w, req)
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.True(t, tenant.RollbackRequested(ctx))
@@ -66,12 +70,12 @@ func TestBulkApproveParentRequestsReturnsConflictAndMarksRollback(t *testing.T) 
 func TestBulkApproveParentRequestsRejectsMalformedID(t *testing.T) {
 	t.Parallel()
 	svc := &bulkServiceStub{err: errors.New("must not be called")}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		ParentRequestBulkService: svc})
 	req := httptest.NewRequest(http.MethodPost, "/students/change-requests/bulk-approve", strings.NewReader(`{"requests":[{"kind":"master_data","id":"no","expected_version":"v1"}],"reason":"Geprüft"}`))
 	w := httptest.NewRecorder()
 
-	rs.bulkApproveParentRequests(w, req)
+	serveRoute(t, rs, w, req, permissions.UsersUpdate)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Empty(t, svc.input.Requests)

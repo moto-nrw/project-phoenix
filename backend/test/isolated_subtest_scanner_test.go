@@ -186,7 +186,7 @@ func isolatedCallName(call *ast.CallExpr) string {
 
 func TestIsolatedParallelSubtestScanner(t *testing.T) {
 	t.Parallel()
-	const header = "package fixture\nimport (\"testing\"; testpkg \"github.com/moto-nrw/project-phoenix/test\")\n"
+	const header = "package fixture\nimport (\"testing\"; testpkg \"github.com/moto-ogs/project-phoenix/test\")\n"
 	for _, tc := range []struct {
 		name, source, helper string
 		findings             int

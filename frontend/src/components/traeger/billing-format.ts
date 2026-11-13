@@ -73,3 +73,20 @@ export function billingReferenceText(document: BillingDocument): string {
     ? `Ersetzt ${document.referenceNumber}`
     : `Zu ${document.referenceNumber}`;
 }
+
+/**
+ * An example of the invoice numbers a run will get, before the release gives
+ * the real ones: the year filled in and the running number at the pattern's
+ * width („FE-2026-0001“), so its digits show. Callers name it an example.
+ * The pattern's tokens are the backend's: {JJJJ} or {JJ}, and {N} to
+ * {NNNNNNNN}.
+ */
+export function numberPatternPreview(pattern: string, issueOn: string): string {
+  const year = issueOn.slice(0, 4);
+  return pattern
+    .replaceAll("{JJJJ}", year)
+    .replaceAll("{JJ}", year.slice(2))
+    .replace(/\{(N{1,8})\}/g, (_token, digits: string) =>
+      "1".padStart(digits.length, "0"),
+    );
+}

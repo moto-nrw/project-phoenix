@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	"github.com/moto-ogs/project-phoenix/internal/testdb"
 	"github.com/subosito/gotenv"
 )
 
@@ -40,7 +40,7 @@ func main() {
 	}
 	// Resolve the migration-scoped template of THIS worktree so the template
 	// GC spares it.
-	if hash, err := testdb.MigrationsHash(); err == nil {
+	if hash, err := testdb.TemplateHash(); err == nil {
 		cfg = cfg.ForMigrations(hash)
 	}
 

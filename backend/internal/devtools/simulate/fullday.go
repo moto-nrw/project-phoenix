@@ -9,7 +9,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Registered error codes (error-registry/) the simulation expects from
@@ -623,6 +623,7 @@ func (printSummaryAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Printf("  Early care children: %d\n", rt.Counts.EarlyCareChildren)
 	fmt.Printf("  Early pickups:       %d\n", rt.Counts.EarlyPickups)
 	fmt.Printf("  Staff clocked in:    %d (%d on leave)\n", rt.Counts.StaffClockedIn, rt.Counts.StaffAbsent)
+	fmt.Printf("  App check-ins:      %d\n", rt.Counts.AppCheckIns)
 	fmt.Printf("  Independent stays:  %d\n", rt.Counts.IndependentStays)
 	fmt.Printf("  Open-room block:    %d children\n", rt.Counts.OpenRoomBlockChildren)
 	fmt.Printf("  Messages written:   %d\n", rt.Counts.Messages)

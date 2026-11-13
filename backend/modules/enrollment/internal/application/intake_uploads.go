@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // IntakeUploads stores the files parents attach to a request (#4783).

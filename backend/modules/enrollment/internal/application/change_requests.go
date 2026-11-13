@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // Change requests (#3565): a family's proposed correction of its enrollment

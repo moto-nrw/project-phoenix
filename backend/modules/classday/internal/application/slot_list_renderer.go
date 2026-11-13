@@ -1,6 +1,6 @@
 package application
 
-import "github.com/moto-nrw/project-phoenix/modules/classday"
+import "github.com/moto-ogs/project-phoenix/modules/classday"
 
 // ListRenderer renders a slot list export into a file. The root binds it to
 // Document Rendering; rendering neither stores the file nor decides who may

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	announcementService "github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	announcementService "github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 // The staff proof report of an Erklärung (#3430) in the moto PDF design. The

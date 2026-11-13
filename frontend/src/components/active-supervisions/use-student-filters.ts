@@ -85,7 +85,7 @@ export interface StudentFilters {
 
 /**
  * Search / group / year filter state of the visitor list and the block list,
- * with the PageHeaderWithSearch configs derived from the children, its own
+ * with the TenantPage search-row configs derived from the children, its own
  * roster and every loaded roster in an open room.
  */
 export function useStudentFilters(

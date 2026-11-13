@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/imports"
 )
 
 // ListImportCheckpoints is Audit's tenant-scoped resume query. The workflow

@@ -6,12 +6,12 @@ status: accepted
 
 Freigegeben von Yannick Wenger am 07.11.2026
 
-Vorschlag vom 07.11.2026 zu [#4682](https://github.com/moto-nrw/project-phoenix/issues/4682),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Vorschlag vom 07.11.2026 zu [#4682](https://github.com/moto-ogs/project-phoenix/issues/4682),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 53, 54 und 55. Er baut auf
 [ADR 0153](0153-betreuungsvertrag-entsteht-im-traeger-buero-aus-der-angenommenen-anmeldung.md)
 (Betreuungsvertrag) auf und führt keinen neuen Owner ein. Rechtsgrundlage:
-[Recherche und Entscheidung in #4679](https://github.com/moto-nrw/project-phoenix/issues/4679#issuecomment-6678923573),
+[Recherche und Entscheidung in #4679](https://github.com/moto-ogs/project-phoenix/issues/4679#issuecomment-6678923573),
 Ergänzung in #4682. Keine Rechtsberatung.
 
 ## Kontext

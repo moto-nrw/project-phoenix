@@ -1,7 +1,7 @@
 package realtimeevents
 
 import (
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // Publisher is the realtime fan-out the producers in this package write to.

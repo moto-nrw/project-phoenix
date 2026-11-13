@@ -7,9 +7,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // getAccount returns the current user's account details
@@ -167,6 +168,7 @@ func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 var accountManagementErrorRenderer = common.UnwrapRenderer[*identityaccess.AuthenticationError](
 	[]common.ErrorRule{
 		{Target: identityaccess.ErrAccountNotFound, Render: common.ErrorNotFound},
+		{Target: identityaccess.ErrAccountSharedAcrossSchools, Render: portalauth.AccountSharedAcrossSchools},
 	},
 	common.ErrorInternalServer,
 )

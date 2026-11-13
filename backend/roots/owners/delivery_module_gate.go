@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"slices"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryModels "github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // deliveryModuleGate decides per claimed intent whether the school still

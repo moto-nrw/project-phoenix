@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/ports"
 )
 
 const defaultLeaseDuration = 2 * time.Minute
@@ -195,7 +195,11 @@ func (w *Worker) finalizeCancelled(ctx context.Context, intent domain.Intent, to
 }
 
 func (w *Worker) finalizeDeferred(ctx context.Context, intent domain.Intent, token string, reason error, stats *deliveryContract.WorkerStats) {
-	finalized, err := w.store.FinalizeDeferred(ctx, intent.Transport, intent.ID, token, reason.Error(), time.Now().Add(retryBackoff[0]))
+	delay := retryBackoff[0]
+	if errors.Is(reason, domain.ErrThrottled) {
+		delay = throttleDelay(time.Since(intent.CreatedAt))
+	}
+	finalized, err := w.store.FinalizeDeferred(ctx, intent.Transport, intent.ID, token, reason.Error(), time.Now().Add(delay))
 	if err != nil {
 		w.observe(domain.Observation{Operation: "finalize_error", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: err})
 		return
@@ -206,6 +210,10 @@ func (w *Worker) finalizeDeferred(ctx context.Context, intent domain.Intent, tok
 		return
 	}
 	stats.Retried++
+	if errors.Is(reason, domain.ErrThrottled) {
+		w.observe(domain.Observation{Operation: "throttled", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: reason})
+		return
+	}
 	w.observe(domain.Observation{Operation: "deferred", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: reason})
 }
 
@@ -256,4 +264,11 @@ func backoff(attempts int) time.Duration {
 		index = len(retryBackoff) - 1
 	}
 	return retryBackoff[index]
+}
+
+// throttleDelay postpones a throttled mail by its age, from one minute up to
+// one hour: a short burst limit lets the mail out again soon, while an
+// exhausted daily quota does not draw a send every minute for a whole day.
+func throttleDelay(age time.Duration) time.Duration {
+	return min(max(age, time.Minute), time.Hour)
 }

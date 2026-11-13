@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 type parentAnnouncementDeliveryAdapter struct {
@@ -112,6 +112,7 @@ func (p *parentAnnouncements) ParentAnnouncementStats(ctx context.Context, id in
 	}
 	return &communication.ParentAnnouncementStats{
 		TargetCount: stats.TargetCount, ReadCount: stats.ReadCount, AcknowledgedCount: stats.AcknowledgedCount,
+		Recorded: stats.Recorded,
 	}, mapParentAnnouncementError(err)
 }
 

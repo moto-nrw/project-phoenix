@@ -5,7 +5,7 @@ package api
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // NewOwnerHTTPTestRouter uses the host's production tenant chain at an owner's mount.

@@ -144,6 +144,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "./slide-over";
+import { Modal } from "./modal";
 import {
   useFormModalPending,
   type FormModalOperation,
@@ -183,7 +184,9 @@ describe("SlideOver", () => {
               <div data-date-picker-panel>Calendar</div>
             )}
             {overlay === "modal" && (
-              <div data-modal-focus-scope="true">Confirmation</div>
+              <Modal isOpen onClose={() => {}} title="Confirmation">
+                Confirmation
+              </Modal>
             )}
           </SlideOverContent>
         </SlideOver>,
@@ -467,6 +470,37 @@ describe("SlideOver", () => {
     expect(
       screen.getByRole("button", { name: "Schließen" }),
     ).toBeInTheDocument();
+  });
+
+  it("explains the close X and takes another sentence (#6744)", () => {
+    const { unmount } = render(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverHeader>
+            <SlideOverTitle>Titel</SlideOverTitle>
+          </SlideOverHeader>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Schließen" }),
+    ).toHaveAccessibleDescription("Schließt das Seitenfenster.");
+    unmount();
+
+    render(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverHeader
+            close={<SlideOverCloseButton tooltip="Schließt den Entwurf." />}
+          >
+            <SlideOverTitle>Titel</SlideOverTitle>
+          </SlideOverHeader>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Schließen" }),
+    ).toHaveAccessibleDescription("Schließt den Entwurf.");
   });
 
   describe("pending (#6593)", () => {
@@ -802,5 +836,18 @@ describe("SlideOver", () => {
       screen.queryByRole("button", { name: /schließen/i }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Titel")).toBeInTheDocument();
+  });
+
+  // #6567: a slide-over footer spaces its actions like the Modal and
+  // FormModal footers (gap-3), not tighter.
+  it("spaces footer actions with gap-3, like Modal and FormModal", () => {
+    render(
+      <SlideOverFooter data-testid="footer">
+        <button type="button">Abbrechen</button>
+        <button type="button">Speichern</button>
+      </SlideOverFooter>,
+    );
+    const footer = screen.getByTestId("footer");
+    expect(footer).toHaveClass("gap-3");
   });
 });

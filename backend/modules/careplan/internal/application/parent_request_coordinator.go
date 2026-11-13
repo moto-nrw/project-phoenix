@@ -7,11 +7,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
 )
 
 // maxBulkParentRequests bounds one bulk approval.
@@ -106,6 +106,9 @@ func (c *ParentRequestCoordinator) BulkApprove(ctx context.Context, input parent
 	// Request-kind order is not child order; locking a child per request here
 	// would invert two multi-child approvals (and care end).
 	ordered := sortedBulkRefsByStudent(input.Requests, masters, excused)
+	if err := c.masterData.LockBulkClassChanges(ctx, masters); err != nil {
+		return c.failed(ctx, fmt.Errorf("parent requests: lock bulk class changes: %w", err))
+	}
 	if err := c.masterData.LockBulkStudents(ctx, bulkStudentIDs(ordered, masters, excused)); err != nil {
 		// A cascading child deletion now reaches this frontier before the
 		// request re-read. Keep the request-race outcome of the old pre-lock.
@@ -118,7 +121,9 @@ func (c *ParentRequestCoordinator) BulkApprove(ctx context.Context, input parent
 		return c.failed(ctx, err)
 	}
 	input.Requests = ordered
-	if err := c.applyBulkParentRequests(ctx, input); err != nil {
+	if err := c.masterData.FollowBulkClassChanges(ctx, func(ctx context.Context) error {
+		return c.applyBulkParentRequests(ctx, input)
+	}); err != nil {
 		return c.failed(ctx, err)
 	}
 	return nil

@@ -12,7 +12,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import Link from "~/components/ui/navigation-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";

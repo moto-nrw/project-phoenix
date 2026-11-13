@@ -3,7 +3,7 @@ package compose
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // NewAuditRetention composes the setting protocol retention of the nightly

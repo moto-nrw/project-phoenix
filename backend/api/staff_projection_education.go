@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
 
-	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	educationRepo "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The owner reads behind School Structure's rule of who supervises a group

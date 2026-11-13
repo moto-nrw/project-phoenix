@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/careplantest"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The excused-absence request workflow (#3093) over the real Care Plan
@@ -609,8 +609,8 @@ func (f *failingCarePlan) UpdatePendingExcusedAbsenceRequest(ctx context.Context
 	return f.after(f.Capability.UpdatePendingExcusedAbsenceRequest(ctx, id, dates, note, status), f.failAfterUpdate)
 }
 
-func (f *failingCarePlan) ClearStudentStatusDays(ctx context.Context, studentID int64, status string, dates []careplan.Date, at time.Time, source string) error {
-	return f.after(f.Capability.ClearStudentStatusDays(ctx, studentID, status, dates, at, source), f.failAfterClear)
+func (f *failingCarePlan) ClearStudentStatusDays(ctx context.Context, studentID int64, status string, dates []careplan.Date, at time.Time, source string, accountID *int64) error {
+	return f.after(f.Capability.ClearStudentStatusDays(ctx, studentID, status, dates, at, source, accountID), f.failAfterClear)
 }
 
 func (f *failingCarePlan) UpsertStudentStatusDay(ctx context.Context, value careplan.StudentStatusDay) (careplan.StudentStatusDay, error) {

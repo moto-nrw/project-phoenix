@@ -5,8 +5,8 @@ status: accepted
 # Kiosk count revision comes from append-only change events
 
 Decision of 2026-10-28 for
-[#5128](https://github.com/moto-nrw/project-phoenix/issues/5128), option A of
-the [decision comment](https://github.com/moto-nrw/project-phoenix/issues/5128#issuecomment-6464477975).
+[#5128](https://github.com/moto-ogs/project-phoenix/issues/5128), option A of
+the [decision comment](https://github.com/moto-ogs/project-phoenix/issues/5128#issuecomment-6464477975).
 It records how the revision of the kiosk student count is stored, approves
 two new command-effect diagnostics and one pass-through of the wrapper form
 ADR 0075 keeps. It adds no owner, no policy rule and no runtime exception.

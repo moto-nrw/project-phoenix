@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog"
 	"github.com/uptrace/bun"
 )
 

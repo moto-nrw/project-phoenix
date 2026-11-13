@@ -9,7 +9,7 @@ package operator
 import (
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // Capability is the public Identity & Access capability the operator

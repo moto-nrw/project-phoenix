@@ -3,7 +3,7 @@ package compose
 import (
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +15,8 @@ func TestDefaultFacilitiesDeletesRoomWithoutGuard(t *testing.T) {
 	rooms, err := NewUnobserved(db)
 	require.NoError(t, err)
 
-	require.NoError(t, rooms.DeleteRoom(testpkg.Ctx(t), room.ID))
+	_, err = rooms.DeleteRoom(testpkg.Ctx(t), room.ID)
+	require.NoError(t, err)
 	_, err = rooms.FindRoom(testpkg.Ctx(t), room.ID)
 	require.Error(t, err)
 }

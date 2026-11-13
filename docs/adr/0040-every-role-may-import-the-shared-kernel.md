@@ -8,8 +8,8 @@ status: accepted
 > wait for their callers. #4081 replaces the imports with
 > `sharedkernel/calendar` and deletes the wrapper.
 
-Accepted for [#3447](https://github.com/moto-nrw/project-phoenix/issues/3447)
-and [#3448](https://github.com/moto-nrw/project-phoenix/issues/3448) in the
+Accepted for [#3447](https://github.com/moto-ogs/project-phoenix/issues/3447)
+and [#3448](https://github.com/moto-ogs/project-phoenix/issues/3448) in the
 policy epoch that registers the rule, following ADR 0014 and ADR 0039. The pull
 request review is where it can still be rejected; the exception activates only
 in the epoch that review merges.

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 const staffScheduleOverviewLoadErrorMessage = "staff schedule overview could not be loaded"

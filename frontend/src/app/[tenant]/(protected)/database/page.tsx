@@ -238,6 +238,14 @@ const baseDataSections: DataSection[] = [
     badge: "Stammdaten",
   },
   {
+    id: "workTimeModels",
+    title: "Arbeitszeitmodelle",
+    description: "Vorlagen für die Soll-Stunden vieler Mitarbeitender",
+    href: "/database/work-time-models",
+    concept: timeTrackingConcept,
+    badge: "Stammdaten",
+  },
+  {
     id: "gradeTransitions",
     title: "Schuljahreswechsel",
     description:

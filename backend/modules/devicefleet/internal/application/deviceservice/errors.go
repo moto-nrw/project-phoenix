@@ -1,6 +1,6 @@
 package iot
 
-import "github.com/moto-nrw/project-phoenix/modules/devicefleet"
+import "github.com/moto-ogs/project-phoenix/modules/devicefleet"
 
 var (
 	ErrDeviceNotFound    = devicefleet.ErrAdministrationDeviceNotFound

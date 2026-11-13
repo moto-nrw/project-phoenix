@@ -3,12 +3,12 @@ package owners
 import (
 	"context"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	guardianLinkView "github.com/moto-ogs/project-phoenix/modules/guardianlinkview/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 func NewParentGuardianLister(db transactionruntime.Database, memberships func(context.Context, []int64, []int64) (map[int64][]int64, error)) recordports.GuardianLister {

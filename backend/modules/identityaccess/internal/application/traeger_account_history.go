@@ -4,9 +4,9 @@ import (
 	"context"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // The history of the Träger-Büro and the notice to the person concerned
@@ -69,6 +69,9 @@ func historyEntry(change identityPorts.TraegerAccountLedgerEntry, actorEmail str
 	}
 	if change.TargetEmail != nil {
 		entry.TargetEmail = *change.TargetEmail
+	}
+	if change.TargetName != nil {
+		entry.TargetName = *change.TargetName
 	}
 	return entry
 }

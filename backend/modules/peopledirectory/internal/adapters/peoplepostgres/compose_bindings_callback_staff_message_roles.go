@@ -3,7 +3,7 @@ package users
 import (
 	"context"
 
-	peopleBindingPorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	peopleBindingPorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 func NewStaffMessageRoles(roles func(context.Context, int64, []int64) ([]peopleBindingPorts.StaffMessageRole, error)) func(ctx context.Context, tenantID int64, accountIDs []int64) ([]SchoolRoleClass, error) {

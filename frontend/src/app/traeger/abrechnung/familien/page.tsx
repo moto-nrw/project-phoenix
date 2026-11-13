@@ -7,32 +7,47 @@
 // (#6348): offen ist, was die Rechnungen nach Storno und Gutschrift noch
 // verlangen, nie ein geprüfter Zahlungsrückstand. Nur die Rolle
 // mit dem Recht „Abrechnung“ sieht die Seite. Ein Klick öffnet die Familie.
+// Seit #6692 stehen hier auch Familien, die nur zur Ferienbetreuung
+// angemeldet sind, schon vor der ersten Rechnung. Jede Familie hat ihre
+// Debitorennummer; das Büro ändert sie über das Menü in ihrer Zelle. Die
+// Nummer prüft das Format des Trägers (#6675).
 
+import { Pencil, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { MouseEvent } from "react";
 import {
   BillingAmountCards,
   sumAmounts,
 } from "~/components/traeger/billing-amount-cards";
 import {
-  PAYMENT_TONES,
+  billingAreaTitle,
   billingTabs,
   familyMatches,
   familyName,
   familySortName,
+  PAYMENT_TONES,
   paymentLabel,
 } from "~/components/traeger/billing-family-format";
 import { paymentMethodsText } from "~/components/traeger/billing-payment-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
+import { emptySearchText } from "~/components/traeger/empty-search";
+import { EmailText } from "~/components/traeger/email-text";
+import { DEBTOR_NUMBER_TEXT_CLASS } from "~/components/traeger/family-debtor-number";
+import { FamilyDebtorNumberModal } from "~/components/traeger/family-debtor-number-modal";
+import { useDebtorNumberFormat } from "~/components/traeger/use-debtor-number-format";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import NavigationLink from "~/components/ui/navigation-link";
 import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
+import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { parentsConcept } from "~/lib/concepts/parents";
@@ -52,115 +67,240 @@ const OPEN_FILTER_LABELS: Record<Exclude<OpenFilter, "">, string> = {
   ausgeglichen: "Ohne offene Forderung",
 };
 
+type NumberFilter = "" | "ohne" | "mit";
+
+const NUMBER_FILTER_LABELS: Record<Exclude<NumberFilter, "">, string> = {
+  ohne: "Ohne Debitorennummer",
+  mit: "Mit Debitorennummer",
+};
+
 function euroCell(cents: number) {
   return cents === 0 ? (
-    <span className="text-gray-400 tabular-nums">{formatEuro(0)}</span>
+    <span className="text-gray-500 tabular-nums">{formatEuro(0)}</span>
   ) : (
     <span className="tabular-nums">{formatEuro(cents)}</span>
   );
 }
 
-const COLUMNS: DataTableColumn<BillingFamily>[] = [
-  {
-    key: "family",
-    header: "Familie",
-    sortValue: familySortName,
-    render: (family) => (
-      <span className="flex min-w-0 items-center gap-3">
-        <MotoConceptIcon
-          concept={parentsConcept}
-          size={18}
-          className="hidden shrink-0 sm:block"
-        />
-        <span className="min-w-0">
-          <span className="block font-medium text-gray-900">
-            {familyName(family)}
+/** The page of a family with documents. */
+function familyHref(family: BillingFamily): string {
+  return traegerPath(
+    `/traeger/abrechnung/familien/${encodeURIComponent(family.id)}`,
+  );
+}
+
+/** The numbers the family's invoices copied besides the family's own. */
+function otherInvoiceNumbers(family: BillingFamily): string[] {
+  return family.debtorNumbers.filter(
+    (number) => number !== family.familyDebtorNumber,
+  );
+}
+
+/**
+ * The family's number and its row menu (#6692). Historical invoice numbers
+ * stand below it; an absent family number shows „–“.
+ */
+function DebtorCell({
+  family,
+  onChange,
+}: Readonly<{
+  family: BillingFamily;
+  onChange: (family: BillingFamily) => void;
+}>) {
+  const others = otherInvoiceNumbers(family);
+  const name = familyName(family) || family.familyEmail;
+  const number = family.familyDebtorNumber;
+  return (
+    <span className="block min-w-0 sm:w-40">
+      <span className="flex min-w-0 items-center justify-between gap-3">
+        {number ? (
+          <span
+            className={`block min-w-0 text-sm break-all ${DEBTOR_NUMBER_TEXT_CLASS}`}
+          >
+            {number}
           </span>
-          <span className="block truncate text-sm text-gray-500">
-            {family.recipientEmail}
-          </span>
+        ) : (
+          <span className="block text-sm text-gray-400">–</span>
+        )}
+        <span
+          data-row-control
+          role="presentation"
+          className="shrink-0"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <OverflowMenu
+            ariaLabel={`Aktionen für ${name}`}
+            items={[
+              {
+                label: number
+                  ? "Debitorennummer ändern"
+                  : "Debitorennummer eintragen",
+                icon: number ? (
+                  <Pencil aria-hidden="true" className="h-4 w-4" />
+                ) : (
+                  <Plus aria-hidden="true" className="h-4 w-4" />
+                ),
+                onClick: () => onChange(family),
+              },
+            ]}
+          />
         </span>
       </span>
-    ),
-    stacked: "title",
-  },
-  {
-    key: "debtor",
-    header: "Debitorennummer",
-    sortValue: (family) => family.debtorNumbers[0] ?? null,
-    render: (family) =>
-      family.debtorNumbers.length > 0 ? (
-        <span className="font-mono text-sm">
-          {family.debtorNumbers.join(", ")}
+      {others.length > 0 ? (
+        // Historical numbers wrap within the available width on phones.
+        <span className="block text-xs wrap-anywhere text-gray-500 max-sm:w-0 max-sm:min-w-full">
+          Auf Rechnungen:{" "}
+          <span className="font-medium text-gray-700 tabular-nums">
+            {others.join(", ")}
+          </span>
         </span>
-      ) : (
-        "–"
-      ),
-  },
-  {
-    key: "payment",
-    header: "Wer zahlt",
-    render: (family) =>
-      family.payments.length > 0 ? (
-        <span className="flex max-w-52 min-w-0 flex-wrap gap-1.5">
-          {family.payments.map((payment) => (
-            <StatusBadge
-              key={`${payment.kind}-${payment.costBearerName}`}
-              label={paymentLabel(payment)}
-              tone={PAYMENT_TONES[payment.kind]}
-              truncate
-            />
-          ))}
+      ) : null}
+    </span>
+  );
+}
+
+function familyColumns(
+  onChangeNumber: (family: BillingFamily) => void,
+): DataTableColumn<BillingFamily>[] {
+  return [
+    {
+      key: "family",
+      header: "Familie",
+      sortValue: familySortName,
+      render: (family) => (
+        <span className="flex min-w-0 items-center gap-3">
+          <MotoConceptIcon
+            concept={parentsConcept}
+            size={18}
+            className="hidden shrink-0 sm:block"
+          />
+          <span className="min-w-0">
+            <span className="flex min-w-0 items-center gap-2">
+              {family.hasDocuments ? (
+                <NavigationLink
+                  href={familyHref(family)}
+                  className="truncate font-medium text-gray-900 hover:underline"
+                  onClick={(event: MouseEvent<HTMLAnchorElement>) =>
+                    event.stopPropagation()
+                  }
+                >
+                  {familyName(family) || family.familyEmail}
+                </NavigationLink>
+              ) : (
+                <span className="truncate font-medium text-gray-900">
+                  {familyName(family) || family.familyEmail}
+                </span>
+              )}
+              {family.holidayOnly ? (
+                <span className="shrink-0">
+                  <StatusBadge label="Nur Ferien" tone="outline" />
+                </span>
+              ) : null}
+            </span>
+            {/* The address gives way first: on a tablet all four sums stay
+                in view beside it. There it wraps after its „@“ instead of
+                being cut, so the whole address stays readable. */}
+            <span className="block max-w-56 truncate text-sm text-gray-500 md:max-xl:max-w-36 md:max-xl:whitespace-normal">
+              <EmailText email={family.recipientEmail} />
+            </span>
+          </span>
         </span>
-      ) : (
-        "–"
       ),
-  },
-  {
-    key: "method",
-    header: "Zahlungsweg",
-    render: (family) => paymentMethodsText(family.paymentMethods) ?? "–",
-  },
-  {
-    key: "issued",
-    header: "Ausgestellt",
-    align: "right",
-    sortValue: (family) => family.issuedCents,
-    render: (family) => euroCell(family.issuedCents),
-    stacked: "hidden",
-  },
-  {
-    key: "cancelled",
-    header: "Storniert",
-    align: "right",
-    sortValue: (family) => family.cancelledCents,
-    render: (family) => euroCell(family.cancelledCents),
-    stacked: "hidden",
-  },
-  {
-    key: "credited",
-    header: "Gutgeschrieben",
-    align: "right",
-    sortValue: (family) => family.creditedCents,
-    render: (family) => euroCell(family.creditedCents),
-    stacked: "hidden",
-  },
-  {
-    key: "open",
-    header: "Offene Forderung",
-    align: "right",
-    sortValue: (family) => family.openCents,
-    render: (family) =>
-      family.openCents > 0 ? (
-        <span className="font-semibold text-gray-900 tabular-nums">
-          {formatEuro(family.openCents)}
+      stacked: "title",
+    },
+    {
+      key: "debtor",
+      header: "Debitorennummer",
+      stackedLabel: false,
+      stackedRender: (family) => (
+        <span className="block min-w-0">
+          <span className="block text-xs wrap-anywhere text-gray-500">
+            Debitorennummer
+          </span>
+          <DebtorCell family={family} onChange={onChangeNumber} />
         </span>
-      ) : (
-        <span className="text-gray-400 tabular-nums">{formatEuro(0)}</span>
       ),
-    stacked: "meta",
-  },
-];
+      sortValue: (family) => family.familyDebtorNumber || null,
+      render: (family) => (
+        <DebtorCell family={family} onChange={onChangeNumber} />
+      ),
+    },
+    {
+      key: "payment",
+      header: "Zahlung",
+      render: (family) => {
+        const method = paymentMethodsText(family.paymentMethods);
+        if (family.payments.length === 0 && !method) return "–";
+        // Who pays and how, in one column so the amounts stay in view.
+        return (
+          <span className="block max-w-48 min-w-0 space-y-1">
+            {family.payments.length > 0 ? (
+              <span className="flex min-w-0 flex-wrap gap-1.5">
+                {family.payments.map((payment) => (
+                  <StatusBadge
+                    key={`${payment.kind}-${payment.costBearerName}`}
+                    label={paymentLabel(payment)}
+                    tone={PAYMENT_TONES[payment.kind]}
+                    truncate
+                  />
+                ))}
+              </span>
+            ) : null}
+            {method ? (
+              <span className="block text-sm text-gray-600">{method}</span>
+            ) : null}
+          </span>
+        );
+      },
+    },
+    {
+      key: "issued",
+      header: "Ausgestellt",
+      align: "right",
+      sortValue: (family) => family.issuedCents,
+      render: (family) => euroCell(family.issuedCents),
+      stacked: "hidden",
+    },
+    {
+      key: "cancelled",
+      header: "Storniert",
+      align: "right",
+      sortValue: (family) => family.cancelledCents,
+      render: (family) => euroCell(family.cancelledCents),
+      stacked: "hidden",
+    },
+    {
+      key: "credited",
+      header: "Gutgeschrieben",
+      align: "right",
+      sortValue: (family) => family.creditedCents,
+      render: (family) => euroCell(family.creditedCents),
+      stacked: "hidden",
+    },
+    {
+      key: "open",
+      header: "Offene Forderung",
+      align: "right",
+      sortValue: (family) => family.openCents,
+      render: (family) =>
+        family.openCents > 0 ? (
+          <span className="font-semibold text-gray-900 tabular-nums">
+            {formatEuro(family.openCents)}
+          </span>
+        ) : (
+          <span className="text-gray-500 tabular-nums">{formatEuro(0)}</span>
+        ),
+      stacked: "meta",
+    },
+  ];
+}
+
+function matchesNumberFilter(family: BillingFamily, filter: NumberFilter) {
+  if (filter === "ohne") return !family.familyDebtorNumber;
+  if (filter === "mit") return Boolean(family.familyDebtorNumber);
+  return true;
+}
 
 function matchesOpenFilter(family: BillingFamily, filter: OpenFilter) {
   if (filter === "offen") return family.openCents > 0;
@@ -173,6 +313,9 @@ export default function TraegerBillingFamiliesPage() {
   const [families, setFamilies] = useState<BillingFamily[] | null>(null);
   const [search, setSearch] = useState("");
   const [openFilter, setOpenFilter] = useState<OpenFilter>("");
+  const [numberFilter, setNumberFilter] = useState<NumberFilter>("");
+  const [changing, setChanging] = useState<BillingFamily | null>(null);
+  const format = useDebtorNumberFormat();
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
 
@@ -185,7 +328,7 @@ export default function TraegerBillingFamiliesPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Familien",
+        object: "die Liste der Familien",
         retry: () => void load(),
       });
     }
@@ -195,13 +338,24 @@ export default function TraegerBillingFamiliesPage() {
     void load();
   }, [load]);
 
+  const open = useCallback(
+    (family: BillingFamily) => router.push(familyHref(family)),
+    [router],
+  );
+  const columns = useMemo(() => familyColumns(setChanging), []);
   const shown =
     families?.filter(
       (family) =>
-        familyMatches(family, search) && matchesOpenFilter(family, openFilter),
+        familyMatches(family, search) &&
+        matchesOpenFilter(family, openFilter) &&
+        matchesNumberFilter(family, numberFilter),
     ) ?? [];
   const withOpen = families?.filter((family) => family.openCents > 0).length;
-  const filtered = search.trim() !== "" || openFilter !== "";
+  const withoutNumber = families?.filter(
+    (family) => !family.familyDebtorNumber,
+  ).length;
+  const filtered =
+    search.trim() !== "" || openFilter !== "" || numberFilter !== "";
 
   const filters: FilterConfig[] = [
     {
@@ -216,25 +370,53 @@ export default function TraegerBillingFamiliesPage() {
         { value: "ausgeglichen", label: OPEN_FILTER_LABELS.ausgeglichen },
       ],
     },
+    {
+      id: "number",
+      label: "Debitorennummer",
+      type: "dropdown",
+      value: numberFilter,
+      onChange: (value) => setNumberFilter(value as NumberFilter),
+      options: [
+        { value: "", label: "Alle Nummern" },
+        { value: "ohne", label: NUMBER_FILTER_LABELS.ohne },
+        { value: "mit", label: NUMBER_FILTER_LABELS.mit },
+      ],
+    },
   ];
-  const activeFilters: ActiveFilter[] = openFilter
-    ? [
-        {
-          id: "open",
-          label: OPEN_FILTER_LABELS[openFilter],
-          onRemove: () => setOpenFilter(""),
-        },
-      ]
-    : [];
+  const activeFilters: ActiveFilter[] = [
+    ...(openFilter
+      ? [
+          {
+            id: "open",
+            label: OPEN_FILTER_LABELS[openFilter],
+            onRemove: () => setOpenFilter(""),
+          },
+        ]
+      : []),
+    ...(numberFilter
+      ? [
+          {
+            id: "number",
+            label: NUMBER_FILTER_LABELS[numberFilter],
+            onRemove: () => setNumberFilter(""),
+          },
+        ]
+      : []),
+  ];
   const resetFilters = () => {
     setSearch("");
     setOpenFilter("");
+    setNumberFilter("");
   };
+  const emptySearch = emptySearchText(
+    search,
+    activeFilters.map((filter) => filter.label),
+  );
 
   return (
     <TenantPage
-      title="Abrechnung"
-      info="Hier sehen Sie je Familie alle Rechnungen, Stornos und Gutschriften. Eine Familie sind alle Schreiben an dieselbe E-Mail-Adresse. Die offene Forderung ist, was die Rechnungen nach Storno und Gutschrift noch verlangen. Zahlungen sieht moto nicht. Ob eine Familie schon gezahlt hat, prüfen Sie in Ihrer Buchhaltung."
+      title={billingAreaTitle("familien")}
+      info="Hier sehen Sie je Familie alle Rechnungen, Stornos und Gutschriften und ihre Debitorennummer. Eine Familie ist eine E-Mail-Adresse. Familien aus der Ferienbetreuung stehen hier schon nach dem Bestätigen der Anmeldung. Die offene Forderung ist, was die Rechnungen nach Storno und Gutschrift noch verlangen. Zahlungen sieht moto nicht. Ob eine Familie schon gezahlt hat, prüfen Sie in Ihrer Buchhaltung."
       tabs={billingTabs("familien")}
       stats={
         families && families.length > 0 ? (
@@ -245,6 +427,17 @@ export default function TraegerBillingFamiliesPage() {
                 label: families.length === 1 ? "Familie" : "Familien",
               },
               { value: withOpen ?? 0, label: "mit offener Forderung" },
+              {
+                value: withoutNumber ?? 0,
+                label: "ohne Debitorennummer",
+                // Ein Klick zeigt genau diese Familien (#6675).
+                ...(withoutNumber && numberFilter !== "ohne"
+                  ? {
+                      onSelect: () => setNumberFilter("ohne"),
+                      selectLabel: "Familien ohne Debitorennummer zeigen",
+                    }
+                  : {}),
+              },
             ]}
           />
         ) : null
@@ -253,36 +446,65 @@ export default function TraegerBillingFamiliesPage() {
       search={{
         value: search,
         onChange: setSearch,
-        placeholder: "Name, E-Mail oder Debitorennummer",
+        placeholder: "Name, E-Mail, Debitorennummer",
       }}
       filters={filters}
       activeFilters={activeFilters}
-      onClearAllFilters={() => setOpenFilter("")}
+      onClearAllFilters={() => {
+        setOpenFilter("");
+        setNumberFilter("");
+      }}
       error={pageLoad.error}
-      loading={!pageLoad.error && !families}
+      // A list loads in the shape of its rows.
+      loading={
+        !pageLoad.error && !families ? (
+          <ListSkeleton rows={6} avatar={false} />
+        ) : (
+          false
+        )
+      }
+      overlays={
+        <FamilyDebtorNumberModal
+          family={changing}
+          format={format}
+          onClose={() => setChanging(null)}
+          onSaved={load}
+        />
+      }
     >
       {families ? (
         <>
-          <BillingAmountCards amounts={sumAmounts(shown)} />
+          {/* Die Summen folgen Suche und Filter; die erste Kachel sagt, für
+              wen. Ohne Treffer steht die Meldung direkt unter der Suche. */}
+          {filtered && shown.length === 0 ? null : (
+            <BillingAmountCards
+              amounts={sumAmounts(shown)}
+              scope={
+                filtered
+                  ? `Rechnungen der ${shown.length} gefundenen ${shown.length === 1 ? "Familie" : "Familien"}.`
+                  : undefined
+              }
+            />
+          )}
           <DataTable
-            columns={COLUMNS}
+            columns={columns}
             rows={shown}
-            getRowKey={(family) => family.id}
+            getRowKey={(family) => family.familyEmail || family.id}
             defaultSortKey="family"
+            // Seven columns with four sums: narrower cells keep the open
+            // claim in view beside the family on a laptop and a tablet.
+            dense
             stackedOnMobile
             stackedLayout="row"
-            onRowClick={(family) =>
-              router.push(
-                traegerPath(
-                  `/traeger/abrechnung/familien/${encodeURIComponent(family.id)}`,
-                ),
-              )
-            }
+            stackedDetailKey="debtor"
+            rowHasInteractiveControls
+            onRowClick={open}
+            canClickRow={(family) => family.hasDocuments}
             emptyState={
               filtered ? (
                 <EmptyState
                   title="Keine Familie passt zur Suche."
-                  description="Ändern Sie die Suche oder den Filter."
+                  description={emptySearch.description}
                   action={
                     <Button
                       type="button"
@@ -290,15 +512,15 @@ export default function TraegerBillingFamiliesPage() {
                       size="md"
                       onClick={resetFilters}
                     >
-                      Filter zurücksetzen
+                      {emptySearch.actionLabel}
                     </Button>
                   }
                 />
               ) : (
                 <EmptyState
                   icon={<MotoConceptIcon concept={parentsConcept} size={48} />}
-                  title="Noch keine Rechnung."
-                  description="Familien stehen hier, sobald ein Abrechnungslauf freigegeben ist."
+                  title="Noch keine Familie."
+                  description="Eine Familie steht hier, sobald Sie eine Ferienanmeldung bestätigen oder eine Rechnung freigeben."
                 />
               )
             }

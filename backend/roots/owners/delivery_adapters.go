@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
-	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	announcement "github.com/moto-ogs/project-phoenix/modules/communication"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // GuardianDisplayResolver names the guardians of the Delivery recipients.

@@ -3,11 +3,12 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Booking materialization is Care Plan's (#3560): the rosters an approval
@@ -33,6 +34,36 @@ func (d *Decisions) resyncOfferingSourcedTemplates(ctx context.Context, effectiv
 		return nil
 	}
 	return d.deps.Bookings.ResyncOfferingSourcedTemplates(ctx, effectiveFrom)
+}
+
+// followClassChanges moves the children whose class this decision rewrote
+// between the materialized occurrences of Regeltermine with a Klasse or
+// Jahrgang target (#6841), under the recurrence gate the caller holds.
+func (d *Decisions) followClassChanges(ctx context.Context, previousClasses map[int64]string, from calendar.Date) error {
+	if len(previousClasses) == 0 {
+		return nil
+	}
+	if d.deps.FollowClassChanges == nil {
+		d.logger().Warn("class follow-up: timetable cohort rosters not configured; skipping targeted-template follow-up")
+		return nil
+	}
+	return d.deps.FollowClassChanges(ctx, previousClasses, from)
+}
+
+// followRewrittenClass keeps the class-filtered rosters in step once a
+// decision rewrote one child's class: the offering-sourced templates (#2147)
+// and the Regeltermine with a Klasse or Jahrgang target (#6841).
+func (d *Decisions) followRewrittenClass(ctx context.Context, studentID int64, previous, current string) error {
+	if previous == current {
+		return nil
+	}
+	if err := d.resyncOfferingSourcedTemplates(ctx, d.todayDate()); err != nil {
+		return fmt.Errorf("resync sourced templates after class change: %w", err)
+	}
+	if err := d.followClassChanges(ctx, map[int64]string{studentID: previous}, d.todayDate()); err != nil {
+		return fmt.Errorf("follow class change on targeted templates: %w", err)
+	}
+	return nil
 }
 
 // materializeEnrollmentsForApproval writes the roster rows of the child's

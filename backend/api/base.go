@@ -7,24 +7,24 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 
 	"github.com/go-chi/chi/v5"
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
-	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
-	feedbackAPI "github.com/moto-nrw/project-phoenix/modules/feedback/http"
-	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
-	"github.com/moto-nrw/project-phoenix/observability"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	customMiddleware "github.com/moto-ogs/project-phoenix/middleware"
+	communicationModule "github.com/moto-ogs/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	feedbackModule "github.com/moto-ogs/project-phoenix/modules/feedback"
+	feedbackAPI "github.com/moto-ogs/project-phoenix/modules/feedback/http"
+	filestorageModule "github.com/moto-ogs/project-phoenix/modules/filestorage"
+	filestorageCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
+	mealplanModule "github.com/moto-ogs/project-phoenix/modules/mealplan"
+	mealplanAPI "github.com/moto-ogs/project-phoenix/modules/mealplan/http"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	usersAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/http"
+	"github.com/moto-ogs/project-phoenix/observability"
 )
 
 // recordHTTPRuntimeEvent turns one runtime event into a metric and, for
@@ -158,7 +158,6 @@ func NewUsersResource(module peopleModule.Capability, accountEmails func(context
 		SuccessPaginated: func(w http.ResponseWriter, r *http.Request, status int, data any, pagination usersAPI.Pagination, message string) {
 			apiCommon.RespondPaginated(w, r, status, data, apiCommon.PaginationParams{Page: pagination.Page, PageSize: pagination.PageSize, Total: pagination.Total}, message)
 		},
-		NoContent: apiCommon.RespondNoContent,
 		Failure: func(w http.ResponseWriter, r *http.Request, kind usersAPI.FailureKind, err error) {
 			switch kind {
 			case usersAPI.FailureInvalidRequest:

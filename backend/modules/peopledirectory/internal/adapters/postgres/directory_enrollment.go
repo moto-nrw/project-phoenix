@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // This row is private to the adapter. The public snapshot has no ORM tags.

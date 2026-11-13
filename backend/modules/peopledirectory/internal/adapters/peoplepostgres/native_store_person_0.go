@@ -3,9 +3,9 @@ package users
 import (
 	context "context"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	models "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 type nativePersonRepository struct{ rawPersonRepository }

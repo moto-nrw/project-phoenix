@@ -90,3 +90,71 @@ export const WithFormError: Story = {
     </SlideOver>
   ),
 };
+
+/** Footer with two actions: shows the spacing between them (#6567). */
+export const WithFooterActions: Story = {
+  render: () => (
+    <SlideOver defaultOpen>
+      <DrawerPrimitive.Trigger asChild>
+        <Button type="button">Formular öffnen</Button>
+      </DrawerPrimitive.Trigger>
+      <SlideOverContent>
+        <SlideOverHeader>
+          <SlideOverTitle>Termin bearbeiten</SlideOverTitle>
+        </SlideOverHeader>
+        <SlideOverBody className="text-sm text-slate-600">
+          Inhalt des Panels.
+        </SlideOverBody>
+        <SlideOverFooter>
+          <DrawerPrimitive.Close asChild>
+            <Button type="button" variant="outline">
+              Abbrechen
+            </Button>
+          </DrawerPrimitive.Close>
+          <Button type="button">Speichern</Button>
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
+  ),
+};
+
+/** Save running (`pending`): X, swipe, backdrop and footer are locked. */
+export const Pending: Story = {
+  render: () => (
+    <SlideOver
+      defaultOpen
+      pending={{ pending: true, run: async () => undefined }}
+    >
+      <SlideOverContent>
+        <SlideOverHeader>
+          <SlideOverTitle>Termin bearbeiten</SlideOverTitle>
+        </SlideOverHeader>
+        <SlideOverBody className="text-sm text-slate-600">
+          Inhalt des Panels.
+        </SlideOverBody>
+        <SlideOverFooter>
+          <Button type="button" variant="outline">
+            Abbrechen
+          </Button>
+          <Button type="button">Speichern</Button>
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
+  ),
+};
+
+/** Closing locked without a running save (X disabled). */
+export const DismissDisabled: Story = {
+  render: () => (
+    <SlideOver defaultOpen isDismissDisabled>
+      <SlideOverContent>
+        <SlideOverHeader>
+          <SlideOverTitle>Personalpool</SlideOverTitle>
+        </SlideOverHeader>
+        <SlideOverBody className="text-sm text-slate-600">
+          Eine Verschiebung wartet auf Bestätigung.
+        </SlideOverBody>
+      </SlideOverContent>
+    </SlideOver>
+  ),
+};

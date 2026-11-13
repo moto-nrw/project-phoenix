@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 // MapError maps the owner errors onto the People Directory contract.
@@ -36,6 +36,8 @@ func MapError(err error) error {
 		return peopledirectory.ErrStudentNoteDeleteForbidden
 	case errors.Is(err, domain.ErrStudentNoteInvalid):
 		return peopledirectory.ErrStudentNoteInvalid
+	case errors.Is(err, domain.ErrStudentNoteTeamAudience):
+		return peopledirectory.ErrStudentNoteTeamAudience
 	default:
 		return err
 	}

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 )
 
 // Copy of the notice about children missing without a report (#4791). It

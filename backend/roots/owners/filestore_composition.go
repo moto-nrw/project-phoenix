@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	filestorageCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // FileStorageSettings resolves the tenant's file storage settings.

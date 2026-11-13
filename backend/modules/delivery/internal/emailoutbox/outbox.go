@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"time"
 
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Intent is the claimed Delivery e-mail intent a renderer turns into a
@@ -32,6 +32,9 @@ type Intent struct {
 	// PayloadJSON retains integer precision for renderers of typed snapshots.
 	PayloadJSON json.RawMessage
 	Attempts    int
+	// CreatedAt is when the mail was queued. It bounds how long a throttling
+	// mail server can postpone the mail without using up attempts.
+	CreatedAt time.Time
 }
 
 // GetTenantID reports the school the intent was queued for.
@@ -60,6 +63,17 @@ var ErrRenderCancelled = errors.New("render cancelled")
 // on a preceding intent that has not reached a final state yet. Delivery
 // reschedules it without consuming a send attempt.
 var ErrRenderDeferred = errors.New("render deferred")
+
+// ErrSendThrottled marks a send the mail server asked to repeat later (SMTP
+// 4xx) while the mail is younger than ThrottleWindow: the attempt does not
+// count, and Delivery postpones the mail (#6737). An older mail counts each
+// throttled send as an attempt again, so it still ends after its attempts.
+var ErrSendThrottled = email.ErrSendPostponed
+
+// ThrottleWindow is how long throttling postpones a mail without using up
+// its attempts. It covers a provider's daily quota running out right after
+// a reset.
+const ThrottleWindow = 48 * time.Hour
 
 // RendererFunc adapts a plain function to the Renderer interface for
 // brevity at registration sites.

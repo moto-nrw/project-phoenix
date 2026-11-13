@@ -32,7 +32,7 @@ function StaffCardSkeleton() {
 
 /**
  * Data-region skeleton: just the staff-card grid. The real header
- * (PageHeaderWithSearch) renders immediately regardless of loading state,
+ * (TenantPage search row) renders immediately regardless of loading state,
  * only this data-bound region skeletonizes while staff data loads.
  */
 export function StaffCardsSkeleton() {

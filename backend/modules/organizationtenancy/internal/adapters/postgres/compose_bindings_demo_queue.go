@@ -7,7 +7,7 @@ import (
 	io "io"
 	time "time"
 
-	organizationtenancy "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationtenancy "github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 type DemoQueueEngine struct{ Store *DemoStateStore }

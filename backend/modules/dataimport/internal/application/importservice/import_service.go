@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	audit "github.com/moto-ogs/project-phoenix/modules/auditlog/imports"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 // importerUserIDKey is a context key for the importing user's ID

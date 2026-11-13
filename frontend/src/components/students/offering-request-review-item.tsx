@@ -469,7 +469,7 @@ export function OfferingRequestReviewItem({
                 max={row.latest_effective_from}
                 required
                 hideClearButton
-                controlSize="md"
+                controlSize="compact"
                 disabled={busy}
                 invalid={blocked !== null}
                 className="w-full"

@@ -10,13 +10,13 @@ import (
 
 	chi "github.com/go-chi/chi/v5"
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	securityruntime "github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // classArrivalExceptionListDays is how far ahead the list looks by default.

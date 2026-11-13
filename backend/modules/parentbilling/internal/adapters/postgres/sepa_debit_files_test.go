@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The stored PAIN.008 files (#6314, ADR 0187) against member deletions in

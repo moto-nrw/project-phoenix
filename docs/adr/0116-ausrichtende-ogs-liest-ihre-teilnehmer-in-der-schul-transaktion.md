@@ -4,8 +4,8 @@ status: accepted
 
 # Ausrichtende OGS liest ihre Teilnehmer in der Schul-Transaktion
 
-Entscheidung vom 25.10.2026 zu [#4665](https://github.com/moto-nrw/project-phoenix/issues/4665),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 25.10.2026 zu [#4665](https://github.com/moto-ogs/project-phoenix/issues/4665),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 41 und 42. Sie setzt
 [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md)
 Abschnitt 6 für die Teilnehmerliste um und löst die Folge aus
@@ -127,7 +127,7 @@ Trägers und Feriengäste ohne Schule. Ihr Token trägt nur ihre eigene
 ## Nachtrag 2026-10-28: Freigegebene Antworten und zweite sorgeberechtigte Person (#5202)
 
 Der Nutzer hat am 28.10.2026 Option B „Ohne Gesundheit“ gewählt
-([#5202](https://github.com/moto-nrw/project-phoenix/issues/5202), Spec #4611
+([#5202](https://github.com/moto-ogs/project-phoenix/issues/5202), Spec #4611
 B7). Punkt 3 gilt mit dieser Erweiterung:
 
 - **Mehr als die Mindestfelder.** Zu den Mindestfeldern kommen je Kind Name
@@ -138,7 +138,7 @@ B7). Punkt 3 gilt mit dieser Erweiterung:
   Formularversionen von vorher geben nichts frei. Eine Freigabe wirkt ab der
   Version, die sie setzt: Es zählt die Version, mit der die Anmeldung kam.
 - **Keine Gesundheitsangaben.** Gesundheitsangaben bleiben beim Träger, bis
-  [#4722](https://github.com/moto-nrw/project-phoenix/issues/4722) umgesetzt
+  [#4722](https://github.com/moto-ogs/project-phoenix/issues/4722) umgesetzt
   ist; das gilt für Allergien, Medikamente und Gesundheitshinweise und für
   jede Frage mit Gesundheitskennzeichen. Der Baukasten lehnt eine Freigabe
   an einer Gesundheitsfrage ab (`enrollment.holiday_form_field_not_allowed`,
@@ -171,7 +171,7 @@ Informationssperre für die tatsächlich betreuende OGS. Es gilt die
 [Regel zum Informationsfluss](../../.claude/rules/information-flow.md).
 
 Die Umsetzung und ihre Nachweise gehören zu
-[#4722](https://github.com/moto-nrw/project-phoenix/issues/4722), das die
+[#4722](https://github.com/moto-ogs/project-phoenix/issues/4722), das die
 Weitergabe bereits umfasst. Der Zugriff muss den berechtigten Beteiligten
 für die bestätigte Betreuung und deren Zeitraum dienen, mit passender
 Rechtsgrundlage, erforderlichen Einwilligungen, Zugriffsschutz und
@@ -189,7 +189,7 @@ noch pauschale Gesundheitsexporte oder eine Ausweitung bestehender Fristen.
 ## Nachtrag 2026-11-01: Standard ist freigegeben (#5470)
 
 Neue Fragen im Ferien-Baukasten starten mit `share_with_host: true`
-([#5470](https://github.com/moto-nrw/project-phoenix/issues/5470)). Die
+([#5470](https://github.com/moto-ogs/project-phoenix/issues/5470)). Die
 ausrichtende OGS braucht die Antworten für die Betreuung; das Träger-Büro
 kann die Freigabe je Frage ausschalten. In der Standardvorlage sind alle
 Fragen ohne Gesundheitskennzeichen freigegeben. Die Online-Anmeldung der
@@ -203,8 +203,8 @@ Die Empfänger, Berechtigungen, Zugriffsprotokolle und Fristen ändern sich nich
 ## Nachtrag 2026-11-01: Gesundheitsangaben für die ausrichtende OGS (#4722)
 
 Der Nutzer hat am 01.11.2026 entschieden: keine Datensilos, Option C aus
-[#5202](https://github.com/moto-nrw/project-phoenix/issues/5202) sofort mit
-[#4722](https://github.com/moto-nrw/project-phoenix/issues/4722). Eine
+[#5202](https://github.com/moto-ogs/project-phoenix/issues/5202) sofort mit
+[#4722](https://github.com/moto-ogs/project-phoenix/issues/4722). Eine
 Gesundheitsangabe für die Ferienbetreuung kommt dort an, wo das Kind betreut
 wird, geschützt und befristet. Punkt 3 und der Nachtrag vom 28.10.2026
 („Keine Gesundheitsangaben“) gelten mit dieser Änderung:
@@ -253,7 +253,7 @@ wird, geschützt und befristet. Punkt 3 und der Nachtrag vom 28.10.2026
 ## Nachtrag 2026-11-07: Ferienbuchungen eigener Kinder für Soll und Ist (#5994)
 
 **Status: Akzeptiert.** Freigegeben von Yannick Wenger am 07.11.2026
-([Entscheidung in #5994](https://github.com/moto-nrw/project-phoenix/issues/5994)).
+([Entscheidung in #5994](https://github.com/moto-ogs/project-phoenix/issues/5994)).
 
 Soll und Ist (ADR 0139, ADR 0156) nimmt an einem Tag mit bestätigter
 Ferienbuchung deren Zeitmodell als Soll. Ein Kind der ausrichtenden Schule
@@ -304,3 +304,47 @@ Tag der Woche) gilt dafür mit dieser Erweiterung:
   Zugriffsprotokoll der Schule steht: Soll und Ist je Kind (`view_student`),
   Überschreitungsliste und Export, Statistikbericht mit der Belegung nach
   Uhrzeit, und die Auswertung des Trägers je Schule (ADR 0156 Punkt 5).
+
+## Nachtrag 2026-11-12: Heimatschule sieht die Ferienbuchungen ihrer Kinder an anderen OGS (#6679)
+
+**Status: Akzeptiert.** Entschieden im Termin mit der Gemeinde Bissendorf am
+11.11.2026 ([#6679](https://github.com/moto-ogs/project-phoenix/issues/6679)):
+Die Heimatschule sieht die Ferienbuchungen ihrer Kinder an anderen OGS.
+
+Punkt 2 („Eine andere Schule des Trägers … sieht nichts“) gilt mit dieser
+Ausnahme: Die Heimatschule eines Kindes plant ihre eigene Betreuung und
+informiert ihre Familien. Dafür muss sie wissen, welche ihrer Kinder in den
+Ferien an einer anderen OGS betreut werden und wann
+([Regel zum Informationsfluss](../../.claude/rules/information-flow.md)).
+
+- **Was die Heimatschule liest.** `enrollment.holiday_home_school_bookings()`
+  (Migration `1.15.957`, `SECURITY DEFINER`) liefert in der Tenant-Transaktion
+  der Heimatschule je Buchung Vor- und Nachname und Geburtsdatum des Kindes,
+  Woche und Zeitraum, die ausrichtende Schule, das Zeitmodell mit Zeiten und
+  die gebuchten Tage. Keine Gesundheitsangaben, keine Kontakte, keine
+  Antworten, keine Eltern. Das Geburtsdatum dient der Zuordnung zur Kinderakte
+  wie bei den eigenen Kindern (#6678); die Schule kennt es aus ihren
+  Stammdaten.
+- **Nur bestätigt, nur mit Platz, nur derselbe Träger.** Es zählt eine
+  Buchung mit Platz (`placement = 'placed'`) einer bestätigten Anmeldung in
+  einem veröffentlichten Zeitraum, deren Kind die Schule als Heimatschule
+  nennt. Heimatschule, ausrichtende Schule und Anmeldung gehören demselben
+  Träger. Eine Woche, die die Heimatschule selbst ausrichtet, fehlt: Dort
+  stehen die Kinder in ihrer Teilnehmerliste. Storniert oder bucht das
+  Träger-Büro um, ist der Eintrag sofort weg.
+- **Dauer.** Wie Punkt 4: bis zum letzten Tag der Woche, im Code nach der
+  Uhr von Enrollment, in der Datenbank zusätzlich nach dem Berliner
+  Kalendertag.
+- **Route und Recht.** `GET /api/holiday-weeks/home-school-children` im
+  Schul-Router hinter `config:read` wie die Ferienwochen. Die Namen der
+  ausrichtenden Schulen liest die Route wie die Teilnehmerliste vor der
+  Tenant-Transaktion (Punkt 7). Die Seite „Ferienwochen“ zeigt die Kinder im
+  Reiter „Kinder bei anderen OGS“.
+- **Zugriffsprotokoll.** Jedes Lesen mit mindestens einem Kind schreibt in
+  derselben Transaktion `holiday_home_school_bookings` in
+  `audit.data_access_log` der Heimatschule, mit Wochen und Zahl der Kinder.
+  Eine leere Antwort ist kein Lesen.
+- **Register.** Query-Budget `api.holiday_weeks.home_school_children`
+  (5, exact). Keine neue Tabelle, kein neuer `data_objects`-Eintrag, keine
+  neue Regel in `policy.json`. Die Bindung des Zugriffsprotokolls
+  (`holidayGuestAccessLog`) nennt die neue Art des Eintrags.

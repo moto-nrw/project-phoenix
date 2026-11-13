@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Small enrollment fixtures the offering suites share (moved from
@@ -113,6 +113,11 @@ type recordingSourcedTemplateResyncer struct {
 	err                 error
 }
 
+func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOfferings(_ context.Context, offeringIDs []int64, _ calendar.Date) error {
+	r.offeringIDs = append(r.offeringIDs, offeringIDs...)
+	return r.err
+}
+
 func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOffering(_ context.Context, offeringID int64, _ calendar.Date) error {
 	r.offeringIDs = append(r.offeringIDs, offeringID)
 	return r.err
@@ -169,4 +174,17 @@ func fixtureEnrollmentQuery[T any](ctx context.Context, call func(context.Contex
 		return err
 	})
 	return value, err
+}
+
+func (o phaseOfferings) HasTraegerCopiesForPhase(ctx context.Context, id int64) (bool, error) {
+	rows, err := o.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{id}})
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if row.Traeger != nil {
+			return true, nil
+		}
+	}
+	return false, nil
 }

@@ -5,13 +5,13 @@ package api
 import (
 	"context"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/contact"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // StudentDataRequestTestRows are the student data change requests the

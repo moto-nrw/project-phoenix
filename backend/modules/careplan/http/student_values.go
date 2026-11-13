@@ -3,8 +3,8 @@ package careplanhttp
 import (
 	context "context"
 
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // WeekdayPickupNoteReplacer owns the one atomic write that replaces the

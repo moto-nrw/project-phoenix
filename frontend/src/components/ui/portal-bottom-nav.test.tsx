@@ -12,6 +12,7 @@ import {
   PortalNavSheetButton,
   PortalNavSheetLink,
   usePortalBottomNavIndicator,
+  accessibleBottomNavName,
 } from "./portal-bottom-nav";
 
 const ITEM = { paddingClassName: "px-3", labelClassName: "text-sm" };
@@ -198,5 +199,23 @@ describe("Zeilen im „Mehr“-Blatt (#5603)", () => {
     );
     screen.getByRole("button", { name: "Abmelden" }).click();
     expect(onClick).toHaveBeenCalledOnce();
+  });
+});
+
+// WCAG 2.5.3: the name of the active field starts with the word it shows.
+describe("accessibleBottomNavName", () => {
+  it("keeps the full name when the short word is part of it", () => {
+    expect(
+      accessibleBottomNavName("Familien und Zahlung", "Familien", true),
+    ).toBe("Familien und Zahlung");
+    expect(accessibleBottomNavName("Ferienbetreuung", "Ferien", false)).toBe(
+      "Ferienbetreuung",
+    );
+  });
+
+  it("starts with the shown word when it is no word of the name", () => {
+    expect(accessibleBottomNavName("Ferienbetreuung", "Ferien", true)).toBe(
+      "Ferien, Ferienbetreuung",
+    );
   });
 });

@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	careplanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	careplanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
 )
 
 // Runtime is what the service needs from the tenant runtime and the

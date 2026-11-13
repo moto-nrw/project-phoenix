@@ -127,6 +127,10 @@ const mockPerson = {
   createdAt: "2026-01-01T00:00:00Z",
 };
 
+// A person without a child or live staff profile: only such a person offers
+// the operator deletion (#6840).
+const deletablePerson = { ...mockPerson, isStaff: false };
+
 type SWROverrides = Partial<Omit<Parameters<typeof setupSWR>[0], "useSWRMock">>;
 function withDefaultSWR(overrides: SWROverrides = {}) {
   setupSWR({
@@ -353,11 +357,32 @@ describe("OperatorPersonsPage", () => {
 
   // --- Triple-confirm delete ---
 
+  it("offers no deletion for a child or a live staff member (#6840)", () => {
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "schoolId" ? "10" : null,
+    );
+    withDefaultSWR({
+      schoolPersons: [
+        mockPerson,
+        { ...mockPerson, id: "301", isStaff: false, isStudent: true },
+      ],
+    });
+
+    render(<OperatorPersonsPage />);
+
+    expect(
+      screen.getByText(/Kinder löscht die Schule beim Kind/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^Aktionen für/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("opens delete modal when trash button is clicked", async () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "schoolId" ? "10" : null,
     );
-    withDefaultSWR({ schoolPersons: [mockPerson] });
+    withDefaultSWR({ schoolPersons: [deletablePerson] });
 
     render(<OperatorPersonsPage />);
 
@@ -372,7 +397,7 @@ describe("OperatorPersonsPage", () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "schoolId" ? "10" : null,
     );
-    withDefaultSWR({ schoolPersons: [mockPerson] });
+    withDefaultSWR({ schoolPersons: [deletablePerson] });
 
     render(<OperatorPersonsPage />);
 
@@ -390,7 +415,7 @@ describe("OperatorPersonsPage", () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "schoolId" ? "10" : null,
     );
-    withDefaultSWR({ schoolPersons: [mockPerson] });
+    withDefaultSWR({ schoolPersons: [deletablePerson] });
 
     render(<OperatorPersonsPage />);
 
@@ -416,7 +441,7 @@ describe("OperatorPersonsPage", () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "schoolId" ? "10" : null,
     );
-    withDefaultSWR({ schoolPersons: [mockPerson] });
+    withDefaultSWR({ schoolPersons: [deletablePerson] });
 
     render(<OperatorPersonsPage />);
 
@@ -440,7 +465,7 @@ describe("OperatorPersonsPage", () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "schoolId" ? "10" : null,
     );
-    withDefaultSWR({ schoolPersons: [mockPerson] });
+    withDefaultSWR({ schoolPersons: [deletablePerson] });
 
     render(<OperatorPersonsPage />);
 
@@ -462,7 +487,7 @@ describe("OperatorPersonsPage", () => {
       key === "schoolId" ? "10" : null,
     );
     mockSoftDeletePerson.mockReturnValue(new Promise(() => {}));
-    withDefaultSWR({ schoolPersons: [mockPerson] });
+    withDefaultSWR({ schoolPersons: [deletablePerson] });
 
     render(<OperatorPersonsPage />);
 
@@ -495,7 +520,7 @@ describe("OperatorPersonsPage", () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});
-    withDefaultSWR({ schoolPersons: [mockPerson] });
+    withDefaultSWR({ schoolPersons: [deletablePerson] });
 
     render(<OperatorPersonsPage />);
 
@@ -532,7 +557,7 @@ describe("OperatorPersonsPage", () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "schoolId" ? "10" : null,
     );
-    withDefaultSWR({ schoolPersons: [mockPerson] });
+    withDefaultSWR({ schoolPersons: [deletablePerson] });
 
     render(<OperatorPersonsPage />);
 
@@ -554,7 +579,7 @@ describe("OperatorPersonsPage", () => {
       key === "schoolId" ? "10" : null,
     );
     mockSoftDeletePerson.mockResolvedValue(undefined);
-    withDefaultSWR({ schoolPersons: [mockPerson] });
+    withDefaultSWR({ schoolPersons: [deletablePerson] });
 
     render(<OperatorPersonsPage />);
 
@@ -580,13 +605,13 @@ describe("OperatorPersonsPage", () => {
       key === "schoolId" ? "10" : null,
     );
     const person2 = {
-      ...mockPerson,
+      ...deletablePerson,
       id: "301",
       firstName: "Anna",
       lastName: "Schmidt",
       fullName: "Anna Schmidt",
     };
-    withDefaultSWR({ schoolPersons: [mockPerson, person2] });
+    withDefaultSWR({ schoolPersons: [deletablePerson, person2] });
 
     render(<OperatorPersonsPage />);
 

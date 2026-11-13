@@ -15,14 +15,25 @@ const OPEN_AMOUNT_HINT =
 export function BillingAmountCards({
   amounts,
   loading = false,
-}: Readonly<{ amounts: BillingAmounts | null; loading?: boolean }>) {
+  scope,
+}: Readonly<{
+  amounts: BillingAmounts | null;
+  loading?: boolean;
+  /**
+   * Whom the sums cover when a search or filter narrows the list
+   * („Rechnungen der 2 gefundenen Familien.“); without it: all invoices.
+   */
+  scope?: string;
+}>) {
   const value = (cents: number | undefined) => formatEuro(cents ?? 0);
   return (
+    // Four in a row from xl on; a tablet keeps two per row, so every hint
+    // stays short beside its figure.
     <div className="grid grid-cols-1 gap-3 min-[375px]:grid-cols-2 sm:gap-4 xl:grid-cols-4">
       <StatCard
         label="Ausgestellt"
         value={value(amounts?.issuedCents)}
-        hint="Alle Rechnungen."
+        hint={scope ?? "Alle Rechnungen."}
         tone="neutral"
         compactValue
         loading={loading}

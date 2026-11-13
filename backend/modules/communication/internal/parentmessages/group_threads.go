@@ -9,8 +9,8 @@ import (
 
 	"reflect"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 const (

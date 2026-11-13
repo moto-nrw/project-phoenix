@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	userModels "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The lock is what makes the attachment upload safe (#2890): the upload checks

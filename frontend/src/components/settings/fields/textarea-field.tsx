@@ -14,6 +14,11 @@ interface TextareaFieldProps {
   readonly rows?: number;
   /** id of the hint that explains why the value is refused. */
   readonly errorId?: string;
+  /**
+   * Plain text that prints as it is (a letter's sender or footer): the
+   * field shows it in the letter's font instead of the Markdown font.
+   */
+  readonly plainText?: boolean;
 }
 
 /**
@@ -34,6 +39,7 @@ export function TextareaField({
   placeholder,
   rows = 10,
   errorId,
+  plainText = false,
 }: TextareaFieldProps) {
   return (
     <div className="w-full min-w-0 sm:w-96">
@@ -47,7 +53,11 @@ export function TextareaField({
         onBlur={onBlur}
         disabled={disabled}
         rows={rows}
-        className="resize-y py-2.5 font-mono leading-6"
+        className={
+          plainText
+            ? "resize-y py-2.5 leading-6"
+            : "resize-y py-2.5 font-mono leading-6"
+        }
       />
     </div>
   );

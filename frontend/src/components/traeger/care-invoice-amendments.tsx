@@ -5,10 +5,15 @@
 // stehen; eine Änderung des Betrags oder der Positionen ist eine eigene
 // Zeile mit Grund. Nur die Seite einer Rechnung lädt diese Datei.
 
+import { Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatBerlinDate, formatBerlinTime } from "~/lib/date-helpers";
@@ -27,10 +32,10 @@ import { formatEuro } from "./contribution-format";
 import type { CareAmendmentDraft } from "./care-invoice-amendment-modal";
 import { InvoiceLine } from "./invoice-line";
 
-/** "08.11.2026, 16:20" in Berlin time. */
+/** "08.11.2026, 16:20" in Berlin time; date and time never part at a line end. */
 function formatInstant(value: string): string {
   if (!value) return "";
-  return `${formatBerlinDate(value)}, ${formatBerlinTime(value)}`;
+  return `${formatBerlinDate(value)},\u00A0${formatBerlinTime(value)}`;
 }
 
 /** The positions an applied change took off. */
@@ -52,6 +57,26 @@ function changed(invoice: CareInvoice, kind: "recipient" | "address"): boolean {
 }
 
 /** The recipient the invoice goes to, marked when the review changed it. */
+/** The place of a line's row menu, kept where the line has none: with menus
+ * on the card, every amount ends at the same edge as the sum. */
+function MenuSlot() {
+  return <span aria-hidden="true" className="w-9 shrink-0" />;
+}
+
+/** A line without a menu of its own, beside the empty menu place. */
+function SlotLine({
+  reserve,
+  children,
+}: Readonly<{ reserve: boolean; children: ReactNode }>) {
+  if (!reserve) return <>{children}</>;
+  return (
+    <li className="flex items-center gap-2">
+      <ul className="min-w-0 flex-1">{children}</ul>
+      <MenuSlot />
+    </li>
+  );
+}
+
 function RecipientPanel({ invoice }: Readonly<{ invoice: CareInvoice }>) {
   const { recipient } = invoice;
   const name = [
@@ -118,7 +143,7 @@ export function CareAmendedInvoiceCard({
       description={
         issued
           ? "Ausgestellt. Die Rechnung ändert sich nicht mehr."
-          : "Vorschau mit allen Änderungen. Die Nummer gibt erst die Freigabe."
+          : "Vorschau mit allen Änderungen. Die Rechnungsnummer kommt mit der Freigabe."
       }
       overflow="visible"
     >
@@ -149,10 +174,10 @@ export function CareAmendedInvoiceCard({
                 {editable && !gone && position.key ? (
                   <OverflowMenu
                     ariaLabel={`Aktionen für ${position.moduleName}`}
-                    triggerSize="sm"
                     items={[
                       {
                         label: "Position entfernen",
+                        icon: <Trash2 className="size-4" aria-hidden />,
                         description: "Mit Grund, die Zeile bleibt sichtbar",
                         onClick: () =>
                           onDraft({
@@ -165,18 +190,21 @@ export function CareAmendedInvoiceCard({
                       },
                     ]}
                   />
+                ) : editable ? (
+                  <MenuSlot />
                 ) : null}
               </li>
             );
           })}
           {invoice.reductions.map((reduction, index) => (
-            <InvoiceLine
-              key={`${reduction.kind}-${index}`}
-              title={reduction.name}
-              detail="Ermäßigung"
-              amount={formatEuro(reduction.amountCents)}
-              amountClassName="text-moto-green-strong"
-            />
+            <SlotLine key={`${reduction.kind}-${index}`} reserve={editable}>
+              <InvoiceLine
+                title={reduction.name}
+                detail="Ermäßigung"
+                amount={formatEuro(reduction.amountCents)}
+                amountClassName="text-moto-green-strong"
+              />
+            </SlotLine>
           ))}
           {invoice.mealPositions.map((position) => {
             const key = position.key;
@@ -202,10 +230,10 @@ export function CareAmendedInvoiceCard({
                 {editable && !gone && key ? (
                   <OverflowMenu
                     ariaLabel={`Aktionen für ${label}`}
-                    triggerSize="sm"
                     items={[
                       {
                         label: "Position entfernen",
+                        icon: <Trash2 className="size-4" aria-hidden />,
                         description: "Mit Grund, die Zeile bleibt sichtbar",
                         onClick: () =>
                           onDraft({
@@ -217,42 +245,53 @@ export function CareAmendedInvoiceCard({
                       },
                     ]}
                   />
+                ) : editable ? (
+                  <MenuSlot />
                 ) : null}
               </li>
             );
           })}
           {invoice.costShares.length > 0 ? (
-            <InvoiceLine
-              title="Monatsbeitrag"
-              detail="vor den Kostenträgern"
-              amount={formatEuro(careContributionCents(invoice))}
-            />
+            <SlotLine reserve={editable}>
+              <InvoiceLine
+                title="Monatsbeitrag"
+                detail="vor den Kostenträgern"
+                amount={formatEuro(careContributionCents(invoice))}
+              />
+            </SlotLine>
           ) : null}
           {invoice.costShares.map((share) => (
-            <InvoiceLine
+            <SlotLine
               key={`${share.kind}-${share.costBearerId}`}
-              title={share.costBearerName}
-              detail={`übernimmt · ${COST_SHARE_KIND_LABELS[share.kind]}`}
-              amount={formatEuro(-share.amountCents)}
-              amountClassName="text-moto-blue-strong"
-            />
+              reserve={editable}
+            >
+              <InvoiceLine
+                title={share.costBearerName}
+                detail={`übernimmt · ${COST_SHARE_KIND_LABELS[share.kind]}`}
+                amount={formatEuro(-share.amountCents)}
+                amountClassName="text-moto-blue-strong"
+              />
+            </SlotLine>
           ))}
           {corrections.map((line) => (
-            <InvoiceLine
-              key={`correction-${line.id}`}
-              title={
-                <span className="inline-flex flex-wrap items-center gap-1.5">
-                  {line.kind === "amount" ? "Korrektur" : line.label}
-                  <StatusBadge tone="blue" size="xs" label="Änderung" />
-                </span>
-              }
-              detail={`Grund: ${line.reason}`}
-              amount={formatEuro(line.amountCents)}
-              amountClassName="font-medium text-gray-900"
-            />
+            <SlotLine key={`correction-${line.id}`} reserve={editable}>
+              <InvoiceLine
+                title={
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
+                    {line.kind === "amount" ? "Korrektur" : line.label}
+                    <StatusBadge tone="blue" size="xs" label="Änderung" />
+                  </span>
+                }
+                detail={`Grund: ${line.reason}`}
+                amount={formatEuro(line.amountCents)}
+                amountClassName="font-medium text-gray-900"
+              />
+            </SlotLine>
           ))}
         </ul>
-        <div className="flex items-baseline justify-between border-t border-gray-200 pt-3">
+        <div
+          className={`flex items-baseline justify-between border-t border-gray-200 pt-3 ${editable ? "pr-11" : ""}`}
+        >
           <p className="text-sm font-semibold text-gray-900">
             {invoice.costShares.length > 0 ? "Anteil der Familie" : "Summe"}
           </p>
@@ -342,9 +381,8 @@ export function CareAmendmentHistoryCard({
           {entries.map((amendment) => {
             const active = amendment.revocation === null;
             return (
-              <li
+              <ResponsiveActionRow
                 key={`${amendment.carriedFromNumber === null ? "run" : "carried"}-${amendment.id}`}
-                className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
               >
                 <div className="min-w-0 space-y-1">
                   <p className="flex flex-wrap items-center gap-1.5 text-sm">
@@ -380,17 +418,17 @@ export function CareAmendmentHistoryCard({
                   >
                     {changeText(amendment)}
                   </p>
-                  <p className="text-xs break-words text-gray-600">
+                  <p className="text-sm break-words text-gray-600">
                     Grund: {amendment.reason} ·{" "}
                     {formatInstant(amendment.amendedAt)}
                   </p>
                   {active && amendment.conflict ? (
-                    <p className="text-moto-orange-strong text-xs font-medium">
+                    <p className="text-moto-orange-strong text-sm font-medium">
                       {CONFLICT_TEXTS[amendment.conflict]}
                     </p>
                   ) : null}
                   {amendment.revocation ? (
-                    <p className="text-xs break-words text-gray-600">
+                    <p className="text-sm break-words text-gray-600">
                       Zurückgenommen: {amendment.revocation.reason} ·{" "}
                       {formatInstant(amendment.revocation.revokedAt)}
                     </p>
@@ -409,7 +447,7 @@ export function CareAmendmentHistoryCard({
                     </Button>
                   </div>
                 ) : null}
-              </li>
+              </ResponsiveActionRow>
             );
           })}
         </ResponsiveActionList>

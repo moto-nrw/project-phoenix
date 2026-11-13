@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/adapters/postgres"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // placesWeek is a published period of organization with one week of capacity

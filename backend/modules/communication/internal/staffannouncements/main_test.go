@@ -3,7 +3,7 @@ package announcement_test
 import (
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestMain gives every DB-backed test in this binary its own tenant (#2419).

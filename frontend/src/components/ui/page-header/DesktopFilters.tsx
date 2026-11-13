@@ -186,6 +186,9 @@ function DropdownFilter({
       // A single-select chip names itself by its current value, as before
       // ("Alle Status"); the multi chip shows the filter's label anyway.
       ariaLabel={isMulti ? filter.label : undefined}
+      // The single chip names itself by its value; its list takes the
+      // filter's name.
+      listboxAriaLabel={isMulti ? undefined : filter.label}
       menuClassName="min-w-48"
       unstyledTrigger
       className={cn(

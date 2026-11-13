@@ -61,6 +61,9 @@ export interface RequestDiffEntry {
   // and for legacy payloads → fall back to `old`/`new`.
   readonly old_modes?: string[];
   readonly new_mode?: string;
+  // Staff side only: what the family saw when it filed a weekly request,
+  // present only when the plan changed since (#6990).
+  readonly submitted_old?: string;
 }
 
 /**

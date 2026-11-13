@@ -3,8 +3,8 @@ package postgres
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/appointments/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/appointments/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -90,6 +90,9 @@ type appointmentRecipientRow struct {
 	GuardianProfileID *int64     `bun:"guardian_profile_id"`
 	Status            string     `bun:"status,notnull"`
 	RespondedAt       *time.Time `bun:"responded_at"`
+	// OccurrenceResponses holds the answers for single dates of a series,
+	// keyed by occurrence date (#6987). Nil inserts the column default.
+	OccurrenceResponses map[string]string `bun:"occurrence_responses,type:jsonb,nullzero,notnull,default:'{}'"`
 }
 
 type appointmentRecipientStudentRow struct {
@@ -204,7 +207,19 @@ func appointmentRecipientToPublic(row appointmentRecipientRow) *appointments.App
 		AppointmentID: row.AppointmentID, RecipientType: row.RecipientType,
 		StaffID: row.StaffID, GuardianProfileID: row.GuardianProfileID,
 		Status: row.Status, RespondedAt: row.RespondedAt,
+		OccurrenceResponses: occurrenceResponsesToPublic(row.OccurrenceResponses),
 	}
+}
+
+func occurrenceResponsesToPublic(values map[string]string) map[appointments.Date]string {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make(map[appointments.Date]string, len(values))
+	for date, status := range values {
+		result[appointments.Date(date)] = status
+	}
+	return result
 }
 
 func appointmentRecipientsToPublic(rows []appointmentRecipientRow) []*appointments.AppointmentRecipient {

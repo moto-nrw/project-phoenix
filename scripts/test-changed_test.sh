@@ -118,7 +118,7 @@ case "$*" in
       echo 'noise from a logger in the failed package'
       echo '--- FAIL: TestProbe (0.01s)'
       echo '    probe_test.go:12: probe assertion message'
-      echo 'FAIL github.com/moto-nrw/project-phoenix/probe'
+      echo 'FAIL github.com/moto-ogs/project-phoenix/probe'
       exit "$PHX_FIXTURE_TEST_STATUS"
     fi
     ;;
@@ -244,8 +244,11 @@ guards=(
   src/lib/personal-storage.test.ts
   src/lib/browser-token-ratchet.test.ts
   src/components/ui/tenant-page-scaffold.test.ts
+  "src/app/[tenant]/(protected)/bauart.test.ts"
   src/components/ui/nav-scene-icon/nav-scene-coverage.test.ts
   src/components/ui/planning/plan-design-guards.test.ts
+  src/components/timetable/timetable-design-guards.test.ts
+  src/components/staff/dienstplan-design-guards.test.ts
   src/components/settings/settings-filter.test.ts
   src/components/school-setup/setup-tour-targets.test.ts
   src/components/auth/session-end-barrier.test.tsx
@@ -379,7 +382,7 @@ for wrapper in test-backend.sh test-changed.sh; do
   assert_calls $'bootstrap\n'"$(go_test_call "$wrapper" 2 ./probe)"$'\nsweep'
   if [ "$wrapper" = test-changed.sh ]; then
     grep -q 'go test failure summary' "$output_log"
-    grep -q '^FAIL github.com/moto-nrw/project-phoenix/probe$' "$output_log"
+    grep -q '^FAIL github.com/moto-ogs/project-phoenix/probe$' "$output_log"
     grep -q '^    probe_test.go:12: probe assertion message$' "$output_log"
     # Live output and summary stay bounded; the full output is kept compressed.
     if grep -q 'noise from a logger' "$output_log"; then

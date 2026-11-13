@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The monthly contribution of the care contract (#4684, spec #4611 user
@@ -488,6 +488,25 @@ type CareBillingSettings interface {
 // the month.
 type CareRunDiscard interface {
 	DiscardCareRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (CareRunDetail, error)
+}
+
+// CareModulePriceList holds the prices of one module of a school from the
+// first day of a month on, as a Träger care offering hands them to the
+// school's copy (ADR 0195).
+type CareModulePriceList struct {
+	SchoolID       int64
+	CareOfferingID int64
+	ModuleName     string
+	ValidFrom      calendar.Date
+	Prices         []CarePrice
+}
+
+// CareModulePrices replaces a batch of modules in one school's price lists
+// from their respective months on and leaves the other modules, with
+// the same lock and the same refusal of a billed month as SaveCarePriceList.
+// It runs in the Träger transaction the caller opens.
+type CareModulePrices interface {
+	SaveCareModulePrices(ctx context.Context, reviewer HolidayReviewer, lists []CareModulePriceList) error
 }
 
 // CareBilling lets the Abrechnung of a Träger keep the monthly prices of

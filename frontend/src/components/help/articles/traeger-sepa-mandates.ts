@@ -73,7 +73,7 @@ export function traegerSepaMandatesTopic(): HelpTopic {
       {
         title: "Mandat widerrufen",
         steps: [
-          "Öffnen Sie unter `Abrechnung` im Reiter `Lastschrift` die Familie. Oder wählen Sie beim Vertrag `Mandat ansehen`.",
+          "Öffnen Sie unter `Familien und Zahlung` im Reiter `Lastschrift` die Familie. Oder wählen Sie beim Vertrag `Mandat ansehen`.",
           "Wählen Sie beim Mandat das Menü mit den drei Punkten und dann `Widerrufen`.",
           "Wählen Sie bei `Widerruf erhalten am` den Tag, an dem der Widerruf kam.",
           "Wählen Sie `Widerrufen`.",
@@ -83,7 +83,7 @@ export function traegerSepaMandatesTopic(): HelpTopic {
     result:
       "Im nächsten Monatslauf steht auf jeder Rechnung mit Lastschrift die Vorabankündigung: Betrag, Tag der Abbuchung, Konto (verdeckt), Gläubiger-ID und Mandatsreferenz. Der Betrag ist das, was die Familie zahlt, also ohne den Anteil eines Kostenträgers.",
     notes: [
-      "Alle Mandate sehen Sie unter `Abrechnung` im Reiter `Lastschrift`.",
+      "Die Mandate sehen Sie unter `Familien und Zahlung` im Reiter `Lastschrift`. Die Liste zeigt zuerst die gültigen; mit `Alle` sehen Sie auch die widerrufenen.",
       "Ein Mandat aus der Eltern-App hat die Herkunft `von den Eltern`. moto speichert dazu den bestätigten Text mit Prüfsumme, das Konto der Eltern und die Uhrzeit. Widerrufen die Eltern in der App, gilt das ab dem nächsten Monatslauf.",
       "Ob die App Mandate annimmt, sehen Sie unter `Abrechnungsvorgaben` in der Karte `Lastschrift` bei `Mandat in der Eltern-App`. Ohne Gläubiger-ID oder ohne Absender im Briefkopf nimmt die App kein Mandat an.",
       "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",

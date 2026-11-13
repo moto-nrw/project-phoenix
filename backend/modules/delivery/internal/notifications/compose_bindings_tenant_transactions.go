@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // DurablePushOutbox serves the notification channels' durable push outbox

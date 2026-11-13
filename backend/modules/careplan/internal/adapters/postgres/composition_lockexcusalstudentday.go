@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/careplanning"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/internal/careplanning"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/uptrace/bun"
 )
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 )
 
 type Store interface {
@@ -55,6 +55,8 @@ type TraegerMembershipStore interface {
 	ListTraegerMemberships(ctx context.Context, organizationID int64) ([]organizationtenancy.TraegerMembership, domain.OperationStats, error)
 	UpsertActiveTraegerMembership(ctx context.Context, organizationID, accountID int64) (organizationtenancy.TraegerMembership, domain.OperationStats, error)
 	DeactivateTraegerMembership(ctx context.Context, organizationID, accountID int64) (bool, domain.OperationStats, error)
+	ListTraegerMemberNames(ctx context.Context, organizationID int64, accountIDs []int64) ([]organizationtenancy.TraegerMemberName, domain.OperationStats, error)
+	SetTraegerMemberName(ctx context.Context, organizationID, accountID int64, name string) (bool, domain.OperationStats, error)
 }
 
 type Transaction interface {
@@ -62,6 +64,10 @@ type Transaction interface {
 	// RunAdminRetry runs a retry-safe administrative command and replays the
 	// whole transaction after a deadlock or serialization failure.
 	RunAdminRetry(context.Context, func(context.Context) error) error
+	// RunAdminDetached runs fn in an administrative transaction of its own
+	// that commits on return, even when called inside a school transaction.
+	// The school transaction stays open and commits only afterwards.
+	RunAdminDetached(context.Context, func(context.Context) error) error
 	RunRead(context.Context, func(context.Context) error) error
 	// RunTenant runs fn in one transaction scoped to the school tenantID.
 	RunTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error

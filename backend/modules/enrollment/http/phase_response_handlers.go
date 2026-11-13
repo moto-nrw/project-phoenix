@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strconv"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // PhaseResponseRowResponse is one expected child of the response overview

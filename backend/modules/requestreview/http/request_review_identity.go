@@ -3,10 +3,10 @@ package requestreviewhttp
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	reviewidentity "github.com/moto-ogs/project-phoenix/modules/identityaccess/requestreview"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // RequestReviewPrincipal resolves effective permissions at the HTTP identity

@@ -8,8 +8,8 @@ import {
   handoverLine,
 } from "~/lib/class-handover";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
-import { EmptyStudentResults } from "~/components/ui/empty-student-results";
+import { StudentPresenceBadge } from "@/components/students/presence/student-presence-badge";
+import { EmptyStudentResults } from "~/components/students/empty-student-results";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import {

@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 func newCSVReader(reader io.Reader) (*csv.Reader, error) {

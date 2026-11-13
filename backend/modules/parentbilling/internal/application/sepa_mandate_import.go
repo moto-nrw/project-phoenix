@@ -10,9 +10,9 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/sepa"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/sepa"
 )
 
 // The import of existing SEPA mandates (#6198). A look at a file reads it,
@@ -216,7 +216,11 @@ func (m *SEPAMandates) evaluateImport(ctx context.Context, reviewer parentbillin
 		if err != nil {
 			return nil, err
 		}
-		assignDebtorNumbers(candidates, table, columns, known)
+		format, err := debtorNumberFormatOf(ctx, m.formats, reviewer.OrganizationID)
+		if err != nil {
+			return nil, err
+		}
+		assignDebtorNumbers(candidates, table, columns, known, format)
 	}
 	return candidates, nil
 }

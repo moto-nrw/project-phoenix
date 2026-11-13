@@ -36,6 +36,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/studentpresence/inbound/presence/behaviortest",
+      "owner": "student-presence",
+      "role": "test-support",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/studentpresence/internal/application",
       "owner": "student-presence",
       "role": "application",
@@ -46,6 +53,13 @@
       "path": "modules/studentpresence/internal/application/presence",
       "owner": "student-presence",
       "role": "application",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/studentpresence/internal/application/presence/behaviortest",
+      "owner": "student-presence",
+      "role": "test-support",
       "internal_test_role": "adapter-test",
       "external_test_role": "e2e-test"
     },
@@ -81,6 +95,13 @@
       "path": "modules/studentpresence/http",
       "owner": "student-presence",
       "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/studentpresence/http/behaviortest",
+      "owner": "student-presence",
+      "role": "test-support",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     }

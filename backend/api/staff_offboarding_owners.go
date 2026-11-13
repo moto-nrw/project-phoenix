@@ -3,14 +3,14 @@ package api
 import (
 	"log/slog"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
-	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
+	schoolMembershipCompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
+	offboardingcompose "github.com/moto-ogs/project-phoenix/workflows/staffoffboarding/compose"
 )
 
 // NewStaffOffboardingOwners binds the owners the staff offboarding workflow

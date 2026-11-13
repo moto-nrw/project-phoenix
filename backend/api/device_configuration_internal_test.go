@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

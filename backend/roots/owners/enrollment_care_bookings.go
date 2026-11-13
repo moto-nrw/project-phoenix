@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // EnrollmentCareBookingsBinding records and replaces an approved child's bookings

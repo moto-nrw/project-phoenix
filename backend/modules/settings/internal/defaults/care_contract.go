@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // How the contracts of a school come about (#4680, ADR 0088 section 6). The

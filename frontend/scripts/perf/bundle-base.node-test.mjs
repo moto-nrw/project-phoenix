@@ -136,6 +136,45 @@ test("base build uses committed source, frozen dependencies, same env and parser
     }
   }));
 
+test("base build reports in log and job summary whether it built or reused the measurement", () =>
+  fixture(({ directory, frontend, env, revision }) => {
+    const summary = join(directory, "summary.md");
+    const run = () =>
+      spawnSync(
+        process.execPath,
+        [join(scripts, "bundle-measurement.mjs"), "--build-base"],
+        {
+          cwd: frontend,
+          env: { ...env, GITHUB_STEP_SUMMARY: summary },
+          encoding: "utf8",
+        },
+      );
+    const cold = run();
+    assert.equal(cold.status, 0, cold.stdout + cold.stderr);
+    assert.match(
+      cold.stdout,
+      new RegExp(
+        `^base measurement: measured \\(cold build of ${revision},`,
+        "m",
+      ),
+    );
+    const reused = run();
+    assert.equal(reused.status, 0, reused.stdout + reused.stderr);
+    assert.match(
+      reused.stdout,
+      new RegExp(
+        `^base measurement: cache hit \\(.* at ${revision} in run `,
+        "m",
+      ),
+    );
+    const lines = readFileSync(summary, "utf8")
+      .split("\n")
+      .filter((line) => line.startsWith("`base measurement: "));
+    assert.equal(lines.length, 2);
+    assert.match(lines[0], /^`base measurement: measured /);
+    assert.match(lines[1], /^`base measurement: cache hit /);
+  }));
+
 test("base build failure is red, publishes no measurement and cleans its temporary sources", () =>
   fixture(({ frontend, env, log }) => {
     const result = spawnSync(

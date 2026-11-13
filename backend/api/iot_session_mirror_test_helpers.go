@@ -6,11 +6,11 @@ import (
 	"context"
 	"time"
 
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	deviceScan "github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	devicescanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
+	deviceScan "github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // KioskSessionMirror binds the kiosk session mirror to the

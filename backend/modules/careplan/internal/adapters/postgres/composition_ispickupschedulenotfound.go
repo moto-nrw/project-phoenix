@@ -3,7 +3,7 @@ package postgres
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 func IsPickupScheduleNotFound(err error, isNotFound func(error) bool) bool {
