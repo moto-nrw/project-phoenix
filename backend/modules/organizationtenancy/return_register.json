@@ -23742,6 +23742,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "offering_terms",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": true
         }
       ],
       "relationships": [
