@@ -1,4 +1,4 @@
-package studentpresencehttp
+package studentpresencehttp_test
 
 import (
 	"encoding/json"
@@ -8,32 +8,29 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/moto-ogs/project-phoenix/api/testutil"
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
+	studentsAPI "github.com/moto-ogs/project-phoenix/modules/studentpresence/http"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-func newStaffNotesResource(db *bun.DB) *Resource {
-	rows := ComposeStudentRows(db)
-	return NewResource(ResourceConfig{
+func newStaffNotesResource(db *bun.DB) *studentsAPI.Resource {
+	rows := composeStudentRows(db)
+	return studentsAPI.NewResource(studentsAPI.ResourceConfig{
 
 		PeopleDirectory: rows.PeopleDirectory,
 
 		StudentStatusDayService: presenceservice.NewStatusDays(rows.StudentStatusDay, nil, nil, rows.LockExceptionDay),
+		SettingsService:         &settingsDouble{},
 		Logger:                  slog.Default(),
 	})
 }
 
-func staffNotesRouter(rs *Resource) chi.Router {
-	r := chi.NewRouter()
-	r.Use(render.SetContentType(render.ContentTypeJSON))
-	r.Get("/{id}/status-days", ComposeStatusDayReader(rs))
-	r.Post("/{id}/status-days", rs.createStudentStatusDays)
-	return r
+func staffNotesRouter(rs *studentsAPI.Resource) chi.Router {
+	return statusDayTestRouter(rs)
 }
 
 func TestStaffStatusDay_ReasonStoredAndReturned(t *testing.T) {

@@ -7,30 +7,38 @@ import (
 
 	reviewbindings "github.com/moto-ogs/project-phoenix/roots/requestreviewbinding"
 
-	reviewidentity "github.com/moto-ogs/project-phoenix/modules/identityaccess/requestreview"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 
 	requestreviewhttp "github.com/moto-ogs/project-phoenix/modules/requestreview/http"
 	"github.com/stretchr/testify/require"
 )
 
+// principalFacts mirrors Identity & Access's request-review principal field
+// for field; the conversion stops compiling when the principal changes shape.
+type principalFacts struct {
+	Admin        bool
+	UsersUpdate  bool
+	UsersRead    bool
+	UsersAbsence bool
+}
+
 func TestRequestReviewIdentityPreservesEffectivePermissions(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name   string
 		grants []string
-		want   reviewidentity.Principal
+		want   principalFacts
 	}{
-		{"none", nil, reviewidentity.Principal{}},
-		{"write", []string{"users:update"}, reviewidentity.Principal{UsersUpdate: true}},
-		{"absence", []string{"users:absence", "users:read"}, reviewidentity.Principal{UsersRead: true, UsersAbsence: true}},
-		{"resource wildcard", []string{"users:*"}, reviewidentity.Principal{UsersRead: true, UsersUpdate: true, UsersAbsence: true}},
-		{"admin wildcard", []string{"*:*"}, reviewidentity.Principal{Admin: true, UsersRead: true, UsersUpdate: true, UsersAbsence: true}},
-		{"malformed wildcard", []string{"*"}, reviewidentity.Principal{}},
+		{"none", nil, principalFacts{}},
+		{"write", []string{"users:update"}, principalFacts{UsersUpdate: true}},
+		{"absence", []string{"users:absence", "users:read"}, principalFacts{UsersRead: true, UsersAbsence: true}},
+		{"resource wildcard", []string{"users:*"}, principalFacts{UsersRead: true, UsersUpdate: true, UsersAbsence: true}},
+		{"admin wildcard", []string{"*:*"}, principalFacts{Admin: true, UsersRead: true, UsersUpdate: true, UsersAbsence: true}},
+		{"malformed wildcard", []string{"*"}, principalFacts{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.WithValue(context.Background(), sessiontoken.CtxPermissions, tc.grants)
-			require.Equal(t, tc.want, requestreviewhttp.RequestReviewPrincipal(ctx))
+			require.Equal(t, tc.want, principalFacts(requestreviewhttp.RequestReviewPrincipal(ctx)))
 			access, err := reviewbindings.NewAccess(requestreviewhttp.RequestReviewPrincipal, nil)
 			require.NoError(t, err)
 			caller, err := access.Caller(ctx)

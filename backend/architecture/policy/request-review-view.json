@@ -281,18 +281,6 @@
       "target_owner": "identity-access",
       "target_role": "http",
       "target_package": "modules/identityaccess/sessiontoken"
-    },
-    {
-      "id": "request-review-view.adapter-test.identity-access.contract.http",
-      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "adapter-test",
-      "source_package": "modules/requestreview/http",
-      "target_owner": "identity-access",
-      "target_role": "contract"
     }
   ]
 }

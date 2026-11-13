@@ -97,6 +97,13 @@
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/studentpresence/http/behaviortest",
+      "owner": "student-presence",
+      "role": "test-support",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     }
   ],
   "data_objects": [

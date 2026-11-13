@@ -15,7 +15,6 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
-	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
@@ -97,7 +96,7 @@ func firstClock(clocks []func() time.Time) func() time.Time {
 const studentsTestToday calendar.Date = "2026-08-24"
 
 func fixedCalendarClock() time.Time { return studentsTestToday.BerlinMidnight().Add(12 * time.Hour) }
-func authExec(t *testing.T, tc *testContext, req *http.Request, claims sessiontoken.AppClaims, perms []string) *httptest.ResponseRecorder {
+func authExec(t *testing.T, tc *testContext, req *http.Request, claims testpkg.Claims, perms []string) *httptest.ResponseRecorder {
 	t.Helper()
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
@@ -113,19 +112,17 @@ func deviceAuthenticator(t testing.TB, db *bun.DB, live api.DeviceTestModule, li
 	return testutil.NewDeviceAuthenticators(live.IoT.Fleet(), schools, liveSettings.Settings).Device()
 }
 
-func init() {
-	studentsAPI.ComposeStudentRows = func(db *bun.DB) studentsAPI.StudentRows {
-		rows, enrollment, err := api.NewStudentHTTPTestRows(testpkg.MustDatabase(db), nil)
-		if err != nil {
-			panic(err)
-		}
-		enrollmentCare := api.NewEnrollmentCarePlanRows(testpkg.MustDatabase(db))
-		return studentsAPI.StudentRows{
-			PeopleDirectory:  api.NewStudentHTTPTestPeople(testpkg.MustDatabase(db)),
-			Companions:       api.NewStudentHTTPTestCompanions(rows, enrollment.Student, api.NewStudentHTTPTestPeople(testpkg.MustDatabase(db)), nil),
-			StudentStatusDay: enrollmentCare.StudentStatusDay,
-			LockExceptionDay: rows.CarePlan.LockExceptionDay,
-		}
+// composeStudentRows composes the root's student graph over db.
+func composeStudentRows(db *bun.DB) StudentRows {
+	rows, enrollment, err := api.NewStudentHTTPTestRows(testpkg.MustDatabase(db), nil)
+	if err != nil {
+		panic(err)
 	}
-	studentsAPI.ComposeStatusDayReader = api.NewStudentStatusDayReadHTTPForTests
+	enrollmentCare := api.NewEnrollmentCarePlanRows(testpkg.MustDatabase(db))
+	return StudentRows{
+		PeopleDirectory:  api.NewStudentHTTPTestPeople(testpkg.MustDatabase(db)),
+		Companions:       api.NewStudentHTTPTestCompanions(rows, enrollment.Student, api.NewStudentHTTPTestPeople(testpkg.MustDatabase(db)), nil),
+		StudentStatusDay: enrollmentCare.StudentStatusDay,
+		LockExceptionDay: rows.CarePlan.LockExceptionDay,
+	}
 }
