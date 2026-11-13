@@ -55,9 +55,7 @@ func NewStudentTemplateDays(deps ports.StudentTemplateDaysDependencies) (timetab
 	return application.NewStudentTemplateDays(deps)
 }
 
-// NewCohortRosters composes the follow-up that moves children who changed
-// Klasse or Gruppe between the materialized occurrences of dynamically
-// targeted Regeltermine (#6841).
+// NewCohortRosters composes the Klasse/Gruppe roster follow-up (#6841).
 func NewCohortRosters(deps ports.CohortRosterDependencies) (timetable.CohortRosters, error) {
 	return application.NewCohortRosters(deps)
 }

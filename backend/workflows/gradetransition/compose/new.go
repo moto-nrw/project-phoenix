@@ -14,8 +14,9 @@ import (
 
 // Dependencies name the owner capabilities the root binds: School Structure,
 // Student Presence, the bound People Directory and School Membership of the
-// running graph, the Timetable roster reconciliation, the recurrence gate and
-// the offering-roster resync, plus the runtime hooks. The composition builds
+// running graph, the Timetable roster reconciliation, the recurrence gate,
+// the offering-roster resync and the class follow-up on targeted Regeltermine
+// (#6841), plus the runtime hooks. The composition builds
 // no other owner (#4004, ADR 0059 point 6).
 type Dependencies struct {
 	DB         *bun.DB
@@ -30,11 +31,8 @@ type Dependencies struct {
 	// ResyncOfferingRosters re-reconciles the offering-sourced timetable
 	// templates from the given calendar day after the class rewrite.
 	ResyncOfferingRosters func(context.Context, calendar.Date) error
-	// FollowClassChanges moves the children whose class the transition
-	// rewrote between the materialized occurrences of Regeltermine with a
-	// Klasse or Jahrgang target, from the given calendar day (#6841).
-	FollowClassChanges func(context.Context, []gradetransition.ClassChange, calendar.Date) error
-	Logger             *slog.Logger
+	FollowClassChanges    func(context.Context, []gradetransition.ClassChange, calendar.Date) error
+	Logger                *slog.Logger
 	// Audit appends the class-list rewrites in the caller's transaction, as
 	// the records ClassListEntryRecord builds; the root binds both.
 	Audit                AuditLog

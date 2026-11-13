@@ -1,6 +1,7 @@
 package owners
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -101,6 +102,18 @@ func NewTimetableCohortRosters(
 		Groups: repos.Timetable, Students: timetableStudents(students), Enrollments: repos.StudentEnrollment, Directories: repos.Directories,
 		CareBounds: careBounds, Instances: repos.ActivityInstance, Participants: repos.InstanceStudent, Logger: logger,
 	})
+}
+
+// FollowClassChanges binds a class-only follow-up of the cohort rosters: the
+// writer names each child's class before the write; the group is unchanged.
+func FollowClassChanges(rosters timetable.CohortRosters) func(context.Context, map[int64]string, timezone.Date) error {
+	return func(ctx context.Context, previousClasses map[int64]string, from timezone.Date) error {
+		changes := make([]timetable.CohortChange, 0, len(previousClasses))
+		for studentID, previous := range previousClasses {
+			changes = append(changes, timetable.CohortChange{StudentID: studentID, SchoolClassChanged: true, PreviousSchoolClass: previous})
+		}
+		return rosters.FollowCohortChanges(ctx, changes, from)
+	}
 }
 
 // NewTimetableStudentTemplateDays binds the student template days over the
