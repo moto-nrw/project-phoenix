@@ -264,10 +264,81 @@ describe("PersonalCalendar", () => {
     // RSVP lives in the detail sheet; it closes after each response.
     openEvent("Staff meeting");
     fireEvent.click(screen.getByRole("button", { name: "Zusagen" }));
-    expect(onRespond).toHaveBeenCalledWith("42", "accepted");
+    expect(onRespond).toHaveBeenCalledWith("42", "accepted", undefined);
     openEvent("Staff meeting");
     fireEvent.click(screen.getByRole("button", { name: "Absagen" }));
-    expect(onRespond).toHaveBeenCalledWith("42", "declined");
+    expect(onRespond).toHaveBeenCalledWith("42", "declined", undefined);
+  });
+
+  // #6987: in einer Reihe gilt eine Antwort für einen Termin oder für alle.
+  it("answers one date of a series or the whole series", () => {
+    const onRespond = vi.fn();
+    const onShowOverview = vi.fn();
+    const series: CalendarEvent = {
+      ...appointment,
+      recurring: true,
+      response_status: "accepted",
+      series_response_status: "accepted",
+      can_view_overview: true,
+    };
+    render(
+      <PersonalCalendar
+        events={[series]}
+        weekStart={new Date(2026, 0, 5)}
+        onRespond={onRespond}
+        onShowOverview={onShowOverview}
+      />,
+    );
+
+    openEvent("Staff meeting");
+    const scope = screen.getByRole("group", { name: "Ihre Antwort gilt für" });
+    // Answered series: the next answer changes only this date.
+    expect(
+      within(scope).getByRole("button", { name: "Nur am Mo., 05.01." }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByText("Für die anderen Termine gilt weiter: Zugesagt."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Absagen" }));
+    expect(onRespond).toHaveBeenLastCalledWith("42", "declined", "2026-01-05");
+
+    openEvent("Staff meeting");
+    fireEvent.click(screen.getByRole("button", { name: "Alle Termine" }));
+    expect(
+      screen.getByText(
+        "Gilt für jeden Termin der Reihe, auch für schon beantwortete.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Zusagen" }));
+    expect(onRespond).toHaveBeenLastCalledWith("42", "accepted", undefined);
+
+    // The overview counts the answers of the opened date.
+    openEvent("Staff meeting");
+    fireEvent.click(screen.getByRole("button", { name: "Teilnehmer" }));
+    expect(onShowOverview).toHaveBeenCalledWith("1", "2026-01-05");
+  });
+
+  it("marks a date answered apart from its series", () => {
+    render(
+      <PersonalCalendar
+        events={[
+          {
+            ...appointment,
+            recurring: true,
+            response_status: "declined",
+            series_response_status: "accepted",
+          },
+        ]}
+        weekStart={new Date(2026, 0, 5)}
+        onRespond={vi.fn()}
+      />,
+    );
+
+    openEvent("Staff meeting");
+    expect(screen.getByText("Nur dieser Termin")).toBeInTheDocument();
+    expect(
+      screen.getByText("Die anderen Termine der Reihe behalten ihre Antwort."),
+    ).toBeInTheDocument();
   });
 
   it("keeps an open detail sheet on the current data of its event", () => {

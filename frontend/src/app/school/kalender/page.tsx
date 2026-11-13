@@ -66,6 +66,7 @@ import {
   type SchoolCalendarResponse,
   type SchoolEventType,
 } from "~/lib/personal-calendar-api";
+import { answerSavedMessage } from "~/lib/calendar-answers";
 import {
   emptySchoolAppointmentDraft,
   schoolAppointmentDraftFromEvent,
@@ -150,7 +151,11 @@ export default function SchoolCalendarPage() {
   const latestSubmitRef = useRef<() => void>(() => undefined);
   const latestDeleteRef = useRef<() => void>(() => undefined);
   const latestRespondRef = useRef<
-    (recipientId: string, status: "accepted" | "declined") => void
+    (
+      recipientId: string,
+      status: "accepted" | "declined",
+      occurrenceDate?: string,
+    ) => void
   >(() => undefined);
 
   const update = (patch: Partial<SchoolAppointmentDraft>) =>
@@ -249,20 +254,18 @@ export default function SchoolCalendarPage() {
   const handleRespond = async (
     recipientId: string,
     status: "accepted" | "declined",
+    occurrenceDate?: string,
   ) => {
     setRespondingRecipientId(recipientId);
     try {
-      await respondSchoolCalendar(recipientId, status);
-      toast.success(
-        status === "accepted"
-          ? "Ihre Zusage ist gespeichert."
-          : "Ihre Absage ist gespeichert.",
-      );
+      await respondSchoolCalendar(recipientId, status, occurrenceDate);
+      toast.success(answerSavedMessage(status, occurrenceDate));
     } catch (err) {
       logFailure("school_calendar_response_failed", err);
       void showActionError(err, {
         object: "das Speichern Ihrer Antwort",
-        retry: () => latestRespondRef.current(recipientId, status),
+        retry: () =>
+          latestRespondRef.current(recipientId, status, occurrenceDate),
       });
       return;
     } finally {
@@ -274,8 +277,8 @@ export default function SchoolCalendarPage() {
   useLayoutEffect(() => {
     latestSubmitRef.current = () => void submit();
     latestDeleteRef.current = () => void confirmDelete();
-    latestRespondRef.current = (recipientId, status) =>
-      void handleRespond(recipientId, status);
+    latestRespondRef.current = (recipientId, status, occurrenceDate) =>
+      void handleRespond(recipientId, status, occurrenceDate);
   });
 
   const eventCount = visibleCalendarEvents(
@@ -622,8 +625,8 @@ export default function SchoolCalendarPage() {
           viewMode={viewMode}
           showWeekend={showWeekend}
           loading={isLoading}
-          onRespond={(recipientId, status) =>
-            void handleRespond(recipientId, status)
+          onRespond={(recipientId, status, occurrenceDate) =>
+            void handleRespond(recipientId, status, occurrenceDate)
           }
           respondingRecipientId={respondingRecipientId}
           onEdit={openEdit}

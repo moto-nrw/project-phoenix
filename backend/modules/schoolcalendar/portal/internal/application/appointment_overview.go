@@ -11,7 +11,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
-func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID int64) (*AppointmentOverview, error) {
+func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID int64, occurrenceDate appointmentcap.Date) (*AppointmentOverview, error) {
 	if appointmentID <= 0 {
 		return nil, fmt.Errorf("%w: appointment id is required", ErrInvalidRequest)
 	}
@@ -32,19 +32,21 @@ func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID
 	if err != nil {
 		return nil, err
 	}
-	_, recipientID := staffRecipientStatus(recipients, staff.ID)
-	if appointment.OrganizerStaffID != staff.ID && recipientID == nil {
+	isRecipient := staffRecipient(recipients, staff.ID) != nil
+	if appointment.OrganizerStaffID != staff.ID && !isRecipient {
 		return nil, ErrNotFound
 	}
-	if !canStaffViewOverview(appointment, staff.ID, recipientID != nil) {
+	if !canStaffViewOverview(appointment, staff.ID, isRecipient) {
 		return nil, ErrForbidden
 	}
-	return s.buildAppointmentOverview(ctx, appointment, recipients, recipients)
+	return s.buildAppointmentOverview(ctx, appointment, occurrenceDate, recipients, recipients)
 }
 
 // buildAppointmentOverview counts the answers of all recipients and names only
-// the listed ones, so names of unlisted recipients are never loaded.
-func (s *service) buildAppointmentOverview(ctx context.Context, appointment *appointmentcap.Appointment, recipients, listed []*appointmentcap.AppointmentRecipient) (*AppointmentOverview, error) {
+// the listed ones, so names of unlisted recipients are never loaded. With an
+// occurrence date it shows the answers for that date of a series (#6987),
+// without one the answers for the whole series.
+func (s *service) buildAppointmentOverview(ctx context.Context, appointment *appointmentcap.Appointment, occurrenceDate appointmentcap.Date, recipients, listed []*appointmentcap.AppointmentRecipient) (*AppointmentOverview, error) {
 	staffIDs, guardianIDs := recipientPersonIDs(listed)
 	staffByID, err := s.cfg.StaffRepo.FindWithPersonByIDs(ctx, staffIDs)
 	if err != nil {
@@ -61,7 +63,7 @@ func (s *service) buildAppointmentOverview(ctx context.Context, appointment *app
 			RecipientID:   formatID(recipient.ID),
 			RecipientType: recipient.RecipientType,
 			Name:          attendeeName(recipient, staffByID, guardiansByID),
-			Status:        recipient.Status,
+			Status:        answerOn(recipient, occurrenceDate),
 			RespondedAt:   recipient.RespondedAt,
 		})
 	}
@@ -76,15 +78,25 @@ func (s *service) buildAppointmentOverview(ctx context.Context, appointment *app
 		AppointmentID:      formatID(appointment.ID),
 		DeliveryMode:       appointment.DeliveryMode,
 		OverviewVisibility: appointment.OverviewVisibility,
-		Counts:             countResponses(recipients),
+		OccurrenceDate:     occurrenceDate,
+		Counts:             countResponses(recipients, occurrenceDate),
 		Attendees:          attendees,
 	}, nil
 }
 
-func countResponses(recipients []*appointmentcap.AppointmentRecipient) AppointmentResponseCounts {
+// answerOn is the recipient's answer for the occurrence date, or for the
+// whole series without one.
+func answerOn(recipient *appointmentcap.AppointmentRecipient, occurrenceDate appointmentcap.Date) string {
+	if occurrenceDate.IsZero() {
+		return recipient.Status
+	}
+	return recipient.StatusOn(occurrenceDate)
+}
+
+func countResponses(recipients []*appointmentcap.AppointmentRecipient, occurrenceDate appointmentcap.Date) AppointmentResponseCounts {
 	var counts AppointmentResponseCounts
 	for _, recipient := range recipients {
-		switch recipient.Status {
+		switch answerOn(recipient, occurrenceDate) {
 		case appointmentcap.ResponseStatusAccepted:
 			counts.Accepted++
 		case appointmentcap.ResponseStatusDeclined:

@@ -32,7 +32,20 @@
   "errorObjectList": "randevu listesi",
   "errorObjectResponse": "yanıt",
   "responseRequiredSeries": "Serideki tüm tarihler için yanıt",
-  "seriesAnswer": "Yanıtınız bu serideki tüm tarihler için geçerlidir.",
+  "answerScope": {
+    "legend": "Yanıtınız şunun için geçerli",
+    "occurrence": "Sadece {date}",
+    "series": "Tüm tarihler",
+    "occurrenceHintOthers": "Serideki diğer tarihler yanıtlarını korur.",
+    "occurrenceHintOpen": "Serideki diğer tarihler yanıtsız kalır.",
+    "occurrenceHintKeeps": "Diğer tarihler için geçerli olan: {answer}.",
+    "seriesHint": "Yanıtınız bu serideki tüm tarihler için geçerlidir.",
+    "seriesHintReplaces": "Serideki her tarih için geçerlidir, yanıtlanmış olanlar dahil."
+  },
+  "onlyThisDate": "Sadece bu tarih",
+  "changeAnswer": "Yanıtı değiştir",
+  "acceptedOn": "{date} için katılım onaylandı.",
+  "declinedOn": "{date} için katılım reddedildi.",
   "errorObjectOverview": "yanıtlar",
   "responses": {
     "title": "Yanıtlar",

@@ -520,7 +520,11 @@ describe("StaffCalendarPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zusagen" }));
 
     await waitFor(() =>
-      expect(mockRespondStaffCalendar).toHaveBeenCalledWith("42", "accepted"),
+      expect(mockRespondStaffCalendar).toHaveBeenCalledWith(
+        "42",
+        "accepted",
+        undefined,
+      ),
     );
     // Erst übernimmt der Cache die Antwort ohne Neuladen, dann lädt der
     // Kalender einmal neu.
@@ -609,7 +613,11 @@ describe("StaffCalendarPage", () => {
     await waitFor(() =>
       expect(mockRespondStaffCalendar).toHaveBeenCalledTimes(2),
     );
-    expect(mockRespondStaffCalendar).toHaveBeenLastCalledWith("42", "accepted");
+    expect(mockRespondStaffCalendar).toHaveBeenLastCalledWith(
+      "42",
+      "accepted",
+      undefined,
+    );
     await waitFor(() =>
       expect(mockToastSuccess).toHaveBeenCalledWith(
         "Ihre Zusage ist gespeichert.",

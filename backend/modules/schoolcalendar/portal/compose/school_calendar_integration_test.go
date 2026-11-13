@@ -234,7 +234,7 @@ func TestSchoolCalendarIntegration_OGSChoosesLehrkraefte(t *testing.T) {
 	assert.False(t, invited.CanEdit)
 	assert.Nil(t, findAppointmentEvent(view.Events, staffOnly.Appointment.ID), "all_staff does not reach the Lehrkräfte")
 
-	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, lehrkraftAccount.ID), db, service.RespondToSchoolInvitation, recipientID, appointments.ResponseStatusAccepted))
+	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, lehrkraftAccount.ID), db, service.RespondToSchoolInvitation, recipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusAccepted}))
 
 	colleagueEvents, err := testpkg.TenantQuery2(t, calendarContext(t, colleagueAccount.ID), db, service.ListMyStaffEvents, portalDate(2026, 3, 2), portalDate(2026, 3, 8))
 	require.NoError(t, err)

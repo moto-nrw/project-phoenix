@@ -139,8 +139,20 @@ func serviceTargets(targets []appointmentTargetRequest) []calendarService.Appoin
 	return out
 }
 
-type responseRequest struct {
-	Status string `json:"status"`
+// occurrenceDateQuery reads the optional occurrence_date query parameter:
+// the date of a series whose answers are asked for (#6987). It reports
+// false after rendering the error of an invalid date.
+func occurrenceDateQuery(w http.ResponseWriter, r *http.Request) (calendarService.Date, bool) {
+	raw := r.URL.Query().Get("occurrence_date")
+	if raw == "" {
+		return "", true
+	}
+	date, err := timezone.ParseDate(raw)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid occurrence date")))
+		return "", false
+	}
+	return calendarService.Date(date), true
 }
 
 func (rs *Resource) listMy(w http.ResponseWriter, r *http.Request) {
@@ -335,7 +347,11 @@ func (rs *Resource) appointmentOverview(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	overview, err := rs.service.GetStaffAppointmentOverview(r.Context(), appointmentID)
+	occurrenceDate, ok := occurrenceDateQuery(w, r)
+	if !ok {
+		return
+	}
+	overview, err := rs.service.GetStaffAppointmentOverview(r.Context(), appointmentID, occurrenceDate)
 	if err != nil {
 		renderCalendarError(w, r, err)
 		return
@@ -369,12 +385,12 @@ func (rs *Resource) respond(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var req responseRequest
+	var req calendarService.InvitationAnswer
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.service.RespondToStaffInvitation(r.Context(), recipientID, req.Status); err != nil {
+	if err := rs.service.RespondToStaffInvitation(r.Context(), recipientID, req); err != nil {
 		renderCalendarError(w, r, err)
 		return
 	}

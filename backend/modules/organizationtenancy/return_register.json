@@ -8405,6 +8405,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "occurrence_responses",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": false
         }
       ],
       "relationships": [

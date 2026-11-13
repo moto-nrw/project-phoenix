@@ -60,9 +60,11 @@ type StaffCalendar interface {
 	CancelStaffAppointment(ctx context.Context, appointmentID int64) (*AppointmentDetail, error)
 	DeleteStaffAppointment(ctx context.Context, appointmentID int64) error
 	CancelStaffAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate Date) error
-	GetStaffAppointmentOverview(ctx context.Context, appointmentID int64) (*AppointmentOverview, error)
+	// GetStaffAppointmentOverview shows the answers for occurrenceDate of a
+	// series, or for the whole appointment when it is zero (#6987).
+	GetStaffAppointmentOverview(ctx context.Context, appointmentID int64, occurrenceDate Date) (*AppointmentOverview, error)
 	StaffAppointmentICS(ctx context.Context, appointmentID int64) (filename, content string, err error)
-	RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error
+	RespondToStaffInvitation(ctx context.Context, recipientID int64, answer InvitationAnswer) error
 	RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error)
 }
 
@@ -77,11 +79,11 @@ type StaffCalendarFeeds interface {
 // to the parent's children, their RSVPs and the parent's feed URLs.
 type ParentCalendar interface {
 	ListMyParentEvents(ctx context.Context, accountID int64, from, to Date) ([]Event, error)
-	GetParentAppointmentOverview(ctx context.Context, accountID, appointmentID int64) (*AppointmentOverview, error)
+	GetParentAppointmentOverview(ctx context.Context, accountID, appointmentID int64, occurrenceDate Date) (*AppointmentOverview, error)
 	ParentAppointmentICS(ctx context.Context, accountID, appointmentID int64) (filename, content string, err error)
 	ParentCalendarFeedURL(ctx context.Context, accountID int64) (httpsURL, webcalURL string, err error)
 	RotateParentCalendarFeed(ctx context.Context, accountID int64) (httpsURL, webcalURL string, err error)
-	RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error
+	RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, answer InvitationAnswer) error
 }
 
 // PublicCalendarFeeds renders the subscription feeds whose only credential is
@@ -123,7 +125,7 @@ type SchoolCalendar interface {
 	CreateSchoolAppointment(ctx context.Context, req SchoolAppointmentRequest) (*AppointmentDetail, error)
 	UpdateSchoolAppointment(ctx context.Context, appointmentID int64, req SchoolAppointmentRequest) (*AppointmentDetail, error)
 	DeleteSchoolAppointment(ctx context.Context, appointmentID int64) error
-	RespondToSchoolInvitation(ctx context.Context, recipientID int64, status string) error
+	RespondToSchoolInvitation(ctx context.Context, recipientID int64, answer InvitationAnswer) error
 	SchoolCalendarFeedURL(ctx context.Context) (httpsURL, webcalURL string, err error)
 	RotateSchoolCalendarFeed(ctx context.Context) (httpsURL, webcalURL string, err error)
 }
@@ -243,28 +245,32 @@ type Event struct {
 	TimetableID    *string `json:"timetable_id,omitempty"`
 	// ActivityType is the block type of a timetable event; "duty" lets the
 	// calendar label a duty apart from Betreuung (#3822).
-	ActivityType     string  `json:"activity_type,omitempty"`
-	StudentID        *string `json:"student_id,omitempty"`
-	StudentName      *string `json:"student_name,omitempty"`
-	TenantID         *string `json:"tenant_id,omitempty"`
-	SchoolName       *string `json:"school_name,omitempty"`
-	Title            string  `json:"title"`
-	Description      *string `json:"description,omitempty"`
-	Location         *string `json:"location,omitempty"`
-	StartDate        string  `json:"start_date"`
-	EndDate          string  `json:"end_date"`
-	StartTime        string  `json:"start_time"`
-	EndTime          string  `json:"end_time"`
-	AllDay           bool    `json:"all_day"`
-	Cancelled        bool    `json:"cancelled"`
-	Recurring        bool    `json:"recurring"`
-	DeliveryMode     *string `json:"delivery_mode,omitempty"`
-	ResponseStatus   *string `json:"response_status,omitempty"`
-	RecipientID      *string `json:"recipient_id,omitempty"`
-	OrganizerStaffID *string `json:"organizer_staff_id,omitempty"`
-	CanRespond       bool    `json:"can_respond"`
-	CanEdit          bool    `json:"can_edit"`
-	CanViewOverview  bool    `json:"can_view_overview"`
+	ActivityType string  `json:"activity_type,omitempty"`
+	StudentID    *string `json:"student_id,omitempty"`
+	StudentName  *string `json:"student_name,omitempty"`
+	TenantID     *string `json:"tenant_id,omitempty"`
+	SchoolName   *string `json:"school_name,omitempty"`
+	Title        string  `json:"title"`
+	Description  *string `json:"description,omitempty"`
+	Location     *string `json:"location,omitempty"`
+	StartDate    string  `json:"start_date"`
+	EndDate      string  `json:"end_date"`
+	StartTime    string  `json:"start_time"`
+	EndTime      string  `json:"end_time"`
+	AllDay       bool    `json:"all_day"`
+	Cancelled    bool    `json:"cancelled"`
+	Recurring    bool    `json:"recurring"`
+	DeliveryMode *string `json:"delivery_mode,omitempty"`
+	// ResponseStatus is the answer for this date. SeriesResponseStatus is the
+	// answer for the whole series; it differs when the recipient answered
+	// this date on its own (#6987).
+	ResponseStatus       *string `json:"response_status,omitempty"`
+	SeriesResponseStatus *string `json:"series_response_status,omitempty"`
+	RecipientID          *string `json:"recipient_id,omitempty"`
+	OrganizerStaffID     *string `json:"organizer_staff_id,omitempty"`
+	CanRespond           bool    `json:"can_respond"`
+	CanEdit              bool    `json:"can_edit"`
+	CanViewOverview      bool    `json:"can_view_overview"`
 	// SchoolEventType marks a Schultermin from moto schule (#4798).
 	SchoolEventType *string   `json:"school_event_type,omitempty"`
 	ModifiedAt      time.Time `json:"-"`
@@ -316,11 +322,23 @@ type UpdateAppointmentRequest struct {
 // because other parents' names and answers are not theirs to see (#6846).
 // Counts always cover every recipient, listed or not.
 type AppointmentOverview struct {
-	AppointmentID      string                    `json:"appointment_id"`
+	AppointmentID string `json:"appointment_id"`
+	// OccurrenceDate names the date of a series whose answers the overview
+	// shows; it is empty for the answers to the whole appointment (#6987).
+	OccurrenceDate     Date                      `json:"occurrence_date,omitempty"`
 	DeliveryMode       string                    `json:"delivery_mode"`
 	OverviewVisibility string                    `json:"overview_visibility"`
 	Counts             AppointmentResponseCounts `json:"counts"`
 	Attendees          []AppointmentAttendee     `json:"attendees"`
+}
+
+// InvitationAnswer is a recipient's answer to an invitation. Without
+// OccurrenceDate it holds for the appointment or every date of the series
+// and replaces the answers given for single dates; with OccurrenceDate it
+// holds for that date of the series only (#6987).
+type InvitationAnswer struct {
+	Status         string `json:"status"`
+	OccurrenceDate Date   `json:"occurrence_date,omitempty"`
 }
 
 // AppointmentResponseCounts sums the answers of all recipients.

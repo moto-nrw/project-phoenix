@@ -11,10 +11,6 @@ import (
 	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
-type parentCalendarResponseRequest struct {
-	Status string `json:"status"`
-}
-
 func (rs *Resource) listMyCalendar(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := rs.parentAccountID(w, r)
 	if !ok {
@@ -53,12 +49,12 @@ func (rs *Resource) respondToCalendarInvitation(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	var req parentCalendarResponseRequest
+	var req calendarService.InvitationAnswer
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
-	if err := rs.CalendarService.RespondToParentInvitation(r.Context(), accountID, recipientID, req.Status); err != nil {
+	if err := rs.CalendarService.RespondToParentInvitation(r.Context(), accountID, recipientID, req); err != nil {
 		renderParentCalendarError(w, r, err)
 		return
 	}
@@ -78,7 +74,17 @@ func (rs *Resource) calendarAppointmentOverview(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	overview, err := rs.CalendarService.GetParentAppointmentOverview(r.Context(), accountID, appointmentID)
+	// occurrence_date asks for the answers of one date of a series (#6987).
+	var occurrenceDate calendarService.Date
+	if raw := r.URL.Query().Get("occurrence_date"); raw != "" {
+		parsed, err := timezone.ParseDate(raw)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid occurrence date")))
+			return
+		}
+		occurrenceDate = calendarService.Date(parsed)
+	}
+	overview, err := rs.CalendarService.GetParentAppointmentOverview(r.Context(), accountID, appointmentID, occurrenceDate)
 	if err != nil {
 		renderParentCalendarError(w, r, err)
 		return

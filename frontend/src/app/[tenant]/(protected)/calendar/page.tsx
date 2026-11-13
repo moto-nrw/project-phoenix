@@ -97,6 +97,11 @@ import { useCalDAVEnabled } from "~/lib/tenant-context";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { OverviewVisibilityPicker } from "~/components/calendar/overview-visibility-picker";
+import {
+  answerSavedMessage,
+  applyAnswer,
+  formatOccurrenceDay,
+} from "~/lib/calendar-answers";
 
 type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
@@ -492,11 +497,15 @@ function StaffCalendarPageInner() {
       scope: "occurrence" | "series",
     ) => void
   >(() => undefined);
-  const latestOverviewRef = useRef<(appointmentId: string) => void>(
-    () => undefined,
-  );
+  const latestOverviewRef = useRef<
+    (appointmentId: string, occurrenceDate?: string) => void
+  >(() => undefined);
   const latestRespondRef = useRef<
-    (recipientId: string, status: "accepted" | "declined") => void
+    (
+      recipientId: string,
+      status: "accepted" | "declined",
+      occurrenceDate?: string,
+    ) => void
   >(() => undefined);
   const [respondingRecipientId, setRespondingRecipientId] = useState<
     string | null
@@ -709,7 +718,10 @@ function StaffCalendarPageInner() {
     setDeleteTarget(event);
   };
 
-  const handleShowOverview = async (appointmentId: string) => {
+  const handleShowOverview = async (
+    appointmentId: string,
+    occurrenceDate?: string,
+  ) => {
     // Clear any previous appointment's attendees so a failed/slow request
     // can't leave the old overview visible under a different appointment.
     setOverview(null);
@@ -717,14 +729,16 @@ function StaffCalendarPageInner() {
     setOverviewFailed(false);
     setOverviewLoading(true);
     try {
-      setOverview(await getStaffAppointmentOverview(appointmentId));
+      setOverview(
+        await getStaffAppointmentOverview(appointmentId, occurrenceDate),
+      );
     } catch (err) {
       setOverview(null);
       setOverviewFailed(true);
       logFailure("calendar_appointment_overview_failed", err);
       void overviewLoadError.show(err, {
         object: "die Teilnehmerübersicht",
-        retry: () => latestOverviewRef.current(appointmentId),
+        retry: () => latestOverviewRef.current(appointmentId, occurrenceDate),
       });
     } finally {
       setOverviewLoading(false);
@@ -734,34 +748,33 @@ function StaffCalendarPageInner() {
   const handleRespond = async (
     recipientId: string,
     status: "accepted" | "declined",
+    occurrenceDate?: string,
   ) => {
     setRespondingRecipientId(recipientId);
     try {
-      await respondStaffCalendar(recipientId, status);
-      // Die gespeicherte Antwort gilt sofort im Raster. Wer den Termin vor dem
+      await respondStaffCalendar(recipientId, status, occurrenceDate);
+      // Die gespeicherte Antwort gilt sofort im Raster: für den einen Termin
+      // oder für alle Termine der Reihe (#6987). Wer den Termin vor dem
       // Neuladen wieder öffnet, sähe sonst noch die alte Antwort.
       void mutate(
         (current) =>
           current && {
             ...current,
-            events: current.events.map((event) =>
-              event.recipient_id === recipientId
-                ? { ...event, response_status: status }
-                : event,
-            ),
+            events: applyAnswer(current.events, {
+              recipientId,
+              occurrenceDate,
+              status,
+            }),
           },
         { revalidate: false },
       );
-      toast.success(
-        status === "accepted"
-          ? "Ihre Zusage ist gespeichert."
-          : "Ihre Absage ist gespeichert.",
-      );
+      toast.success(answerSavedMessage(status, occurrenceDate));
     } catch (err) {
       logFailure("calendar_response_failed", err);
       void showActionError(err, {
         object: "das Speichern Ihrer Antwort",
-        retry: () => latestRespondRef.current(recipientId, status),
+        retry: () =>
+          latestRespondRef.current(recipientId, status, occurrenceDate),
       });
       return;
     } finally {
@@ -882,10 +895,10 @@ function StaffCalendarPageInner() {
     latestEditRef.current = (event) => void handleEdit(event);
     latestRunScopeRef.current = (event, mode, scope) =>
       void runScope(event, mode, scope);
-    latestOverviewRef.current = (appointmentId) =>
-      void handleShowOverview(appointmentId);
-    latestRespondRef.current = (recipientId, status) =>
-      void handleRespond(recipientId, status);
+    latestOverviewRef.current = (appointmentId, occurrenceDate) =>
+      void handleShowOverview(appointmentId, occurrenceDate);
+    latestRespondRef.current = (recipientId, status, occurrenceDate) =>
+      void handleRespond(recipientId, status, occurrenceDate);
   });
 
   const appointmentEvents = useMemo(
@@ -1419,7 +1432,11 @@ function StaffCalendarPageInner() {
               setOverviewFailed(false);
               clearOverviewError();
             }}
-            title="Teilnehmer"
+            title={
+              overview?.occurrence_date
+                ? `Teilnehmer am ${formatOccurrenceDay(overview.occurrence_date)}`
+                : "Teilnehmer"
+            }
             size="md-wide"
           >
             {overviewLoading ? (

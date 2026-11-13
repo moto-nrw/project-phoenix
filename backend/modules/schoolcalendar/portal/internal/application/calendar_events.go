@@ -84,9 +84,9 @@ func (s *service) expandAppointmentEvents(ctx context.Context, appointments []*a
 	}
 	events := make([]Event, 0, len(appointments))
 	for _, appointment := range appointments {
-		status, recipientID := staffRecipientStatus(expansion.recipientsByAppointment[appointment.ID], staffID)
+		recipient := staffRecipient(expansion.recipientsByAppointment[appointment.ID], staffID)
 		events = append(events, expansion.events(appointment, from, to, func(occurrence appointmentcap.Date) Event {
-			return appointmentEvent(appointment, occurrence, status, recipientID, staffID)
+			return answeredAppointmentEvent(appointment, occurrence, recipient, staffID)
 		})...)
 	}
 	return events, nil
@@ -99,10 +99,10 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 	}
 	events := make([]Event, 0, len(appointments))
 	for _, appointment := range appointments {
-		status, recipientID := guardianRecipientStatusForStudents(expansion.recipientsByAppointment[appointment.ID], guardianProfileIDs, studentIDs)
+		recipient := guardianRecipientForStudents(expansion.recipientsByAppointment[appointment.ID], guardianProfileIDs, studentIDs)
 		events = append(events, expansion.events(appointment, from, to, func(occurrence appointmentcap.Date) Event {
-			event := appointmentEvent(appointment, occurrence, status, recipientID, 0)
-			event.CanViewOverview = canParentViewOverview(appointment, recipientID != nil)
+			event := answeredAppointmentEvent(appointment, occurrence, recipient, 0)
+			event.CanViewOverview = canParentViewOverview(appointment, recipient != nil)
 			return event
 		})...)
 	}
@@ -194,6 +194,21 @@ func (s *service) recurrenceRulesByAppointment(ctx context.Context, ids []int64)
 		byAppointment[recurrence.AppointmentID] = recurrence
 	}
 	return byAppointment, nil
+}
+
+// answeredAppointmentEvent builds the event of one occurrence with the
+// recipient's answer for that date; SeriesResponseStatus keeps the answer
+// for the whole series (#6987).
+func answeredAppointmentEvent(appointment *appointmentcap.Appointment, occurrenceDate appointmentcap.Date, recipient *appointmentcap.AppointmentRecipient, staffID int64) Event {
+	if recipient == nil {
+		return appointmentEvent(appointment, occurrenceDate, nil, nil, staffID)
+	}
+	status := recipient.StatusOn(toCalendarDate(occurrenceDate))
+	recipientID := recipient.ID
+	event := appointmentEvent(appointment, occurrenceDate, &status, &recipientID, staffID)
+	seriesStatus := recipient.Status
+	event.SeriesResponseStatus = &seriesStatus
+	return event
 }
 
 func appointmentEvent(appointment *appointmentcap.Appointment, occurrenceDate appointmentcap.Date, responseStatus *string, recipientID *int64, staffID int64) Event {
