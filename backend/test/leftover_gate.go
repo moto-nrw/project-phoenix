@@ -102,7 +102,7 @@ func packageLeftovers() string {
 // therefore not worth failing a green run over — it is one database the next
 // GC pass collects.
 func dropPackageClone() {
-	if packageClone == nil || packageCloneCfg == nil {
+	if packageClone == nil || packageMaintenance == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -115,7 +115,7 @@ func dropPackageClone() {
 		_ = sharedTestDB.Close()
 	}
 	_ = packageClone.Close()
-	if err := testdb.DropClone(ctx, packageCloneCfg, packageClone.Name); err != nil {
+	if err := testdb.ReleaseMaintenance(ctx, packageMaintenance, packageClone.Name); err != nil {
 		fmt.Fprintf(os.Stderr, "testdb: could not drop package clone %s: %v\n", packageClone.Name, err)
 	}
 }

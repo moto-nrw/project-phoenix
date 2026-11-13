@@ -123,7 +123,7 @@ func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) 
 	ctx, cancel := context.WithTimeout(context.Background(), isolatedTestDatabaseOpenTimeout)
 	defer cancel()
 
-	entry.clone, err = testdb.CreateClone(ctx, packageCloneCfg, testdb.RunID()+"-"+name)
+	entry.clone, err = packageMaintenance.CreateClone(ctx, packageCloneCfg, testdb.RunID()+"-"+name)
 	if err != nil {
 		return errors.Join(err, entry.drop())
 	}
@@ -133,17 +133,11 @@ func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) 
 		}
 	}()
 
-	if err = setCloneSearchPath(ctx, entry.clone); err != nil {
-		return err
-	}
 	entry.db, err = openTestPool(ctx, entry.clone.DSN)
 	if err != nil {
 		return err
 	}
 	attachTestQueryHooks(entry.db)
-	if err = initCloneBootstrap(ctx, entry.db); err != nil {
-		return err
-	}
 	entry.runtime, err = transactionruntime.NewTenantRuntime(entry.db)
 	if err != nil {
 		return err
@@ -165,18 +159,6 @@ func (entry *isolatedTestDatabase) acquireSlot(tb testing.TB, name string) error
 	}
 	var err error
 	entry.releaseSlot, err = isolatedTestDatabaseSlots.acquireForTest(tb, name)
-	return err
-}
-
-func setCloneSearchPath(ctx context.Context, clone *testdb.CloneHandle) error {
-	db, err := openTestPool(ctx, clone.DSN)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = db.Close() }()
-	_, err = db.ExecContext(ctx, fmt.Sprintf(
-		`ALTER DATABASE %q SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, feedback, config, meta, audit`,
-		clone.Name))
 	return err
 }
 
@@ -205,7 +187,7 @@ func (entry *isolatedTestDatabase) drop() error {
 			entry.dropErr = errors.Join(entry.dropErr, entry.clone.Close())
 			ctx, cancel := context.WithTimeout(context.Background(), isolatedTestDatabaseDropTimeout)
 			defer cancel()
-			entry.dropErr = errors.Join(entry.dropErr, testdb.DropClone(ctx, packageCloneCfg, entry.clone.Name))
+			entry.dropErr = errors.Join(entry.dropErr, packageMaintenance.DropClone(ctx, entry.clone.Name))
 		}
 		if entry.releaseSlot != nil {
 			entry.releaseSlot()

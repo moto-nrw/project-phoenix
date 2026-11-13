@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -382,6 +383,25 @@ func TestMigrationsHashIsStableAndSourceSensitive(t *testing.T) {
 	assert.Len(t, h1, 32)
 }
 
+// The template carries the bootstrap rows (#6962), so its name must change
+// with them: a template prepared with older bootstrap text is never reused.
+func TestTemplateHashCoversMigrationsAndBootstrap(t *testing.T) {
+	t.Parallel()
+	migrations, err := MigrationsHash()
+	require.NoError(t, err)
+	current, err := TemplateHash()
+	require.NoError(t, err)
+	assert.Equal(t, templateHash(migrations, templateBootstrapStatements), current)
+	assert.Len(t, current, 32)
+	assert.NotEqual(t, migrations, current)
+
+	edited := slices.Clone(templateBootstrapStatements)
+	edited[0] += " "
+	assert.NotEqual(t, current, templateHash(migrations, edited), "an edited bootstrap statement names a new template")
+	assert.NotEqual(t, current, templateHash(migrations, edited[1:]), "a removed bootstrap statement names a new template")
+	assert.NotEqual(t, current, templateHash(migrations+"0", templateBootstrapStatements), "a migration change names a new template")
+}
+
 func TestMigrationSetsMatchRequiresExactSet(t *testing.T) {
 	t.Parallel()
 	wanted := []string{"0.0.0", "1.15.301"}
@@ -591,6 +611,14 @@ func TestCreateCloneAndSweepLifecycle(t *testing.T) {
 
 	require.True(t, strings.HasPrefix(handle.Name, ClonePrefix+runID+"_"))
 	require.True(t, databaseExists(t, ctx, cfg, handle.Name))
+
+	// The maintenance session set the clone's search_path before anyone
+	// connected to it; a fresh connection inherits it (#6962).
+	clone := openSQL(handle.DSN)
+	var searchPath string
+	require.NoError(t, clone.QueryRowContext(ctx, `SHOW search_path`).Scan(&searchPath))
+	require.NoError(t, clone.Close())
+	assert.Equal(t, CloneSearchPath, searchPath)
 
 	// The keeper connection pins the clone: a GC pass from a foreign run must
 	// not collect it. The ambient run IS spared — this test runs inside the
