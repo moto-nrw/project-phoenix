@@ -395,7 +395,7 @@ func changedSubmittedOfferingTerms(links []*enrollmentNative.RequestChildOfferin
 		if link == nil || catalog[link.CareOfferingID] == nil {
 			continue
 		}
-		terms := enrollmentNative.ChangedOfferingTerms(link.SubmittedTerms, currentOfferingTerms(catalog[link.CareOfferingID]))
+		terms := enrollmentNative.ChangedOfferingTerms(link.SubmittedTerms, currentOfferingTerms(catalog[link.CareOfferingID]), link.SelectedDays)
 		if len(terms) > 0 {
 			changed = append(changed, fmt.Sprintf("offering %d: %v", link.CareOfferingID, terms))
 		}

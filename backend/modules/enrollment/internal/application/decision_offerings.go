@@ -192,7 +192,7 @@ func childOfferingRow(
 		row.IncludesLunch = offering.IncludesLunch
 		row.IncludesHolidayCare = offering.IncludesHolidayCare
 		row.PriceCents = offering.PriceCents
-		row.ChangedTerms = enrollmentNative.ChangedOfferingTerms(link.SubmittedTerms, currentOfferingTerms(offering))
+		row.ChangedTerms = enrollmentNative.ChangedOfferingTerms(link.SubmittedTerms, currentOfferingTerms(offering), link.SelectedDays)
 	}
 	row.SubmittedTerms = link.SubmittedTerms
 	return row

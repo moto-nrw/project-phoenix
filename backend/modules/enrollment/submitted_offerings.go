@@ -47,10 +47,12 @@ const (
 )
 
 // ChangedOfferingTerms names the booking-relevant terms in which current
-// differs from the submitted snapshot: price, day mode or offered days, and
-// the linked activity. A renamed offering books the same; the name is shown,
-// not compared. Without a snapshot nothing can be compared.
-func ChangedOfferingTerms(submitted *OfferingTerms, current OfferingTerms) []OfferingTermChange {
+// differs from the submitted snapshot: price, booked days, and the linked
+// activity. Fixed offerings book their offered days, so any change of them
+// counts; a parent-choice offering books the picked days, so only a picked day
+// no longer offered counts. A renamed offering books the same; the name is
+// shown, not compared. Without a snapshot nothing can be compared.
+func ChangedOfferingTerms(submitted *OfferingTerms, current OfferingTerms, pickedDays []string) []OfferingTermChange {
 	if submitted == nil {
 		return nil
 	}
@@ -58,7 +60,7 @@ func ChangedOfferingTerms(submitted *OfferingTerms, current OfferingTerms) []Off
 	if !sameOptionalValue(submitted.PriceCents, current.PriceCents) {
 		changed = append(changed, OfferingTermPrice)
 	}
-	if submitted.DaysOfWeekMode != current.DaysOfWeekMode || !slices.Equal(sortedDays(submitted.AvailableDays), sortedDays(current.AvailableDays)) {
+	if bookedDaysChanged(*submitted, current, pickedDays) {
 		changed = append(changed, OfferingTermDays)
 	}
 	if !sameOptionalValue(submitted.ActivityGroupID, current.ActivityGroupID) {
@@ -72,6 +74,21 @@ func sameOptionalValue[T comparable](left, right *T) bool {
 		return left == nil && right == nil
 	}
 	return *left == *right
+}
+
+func bookedDaysChanged(submitted, current OfferingTerms, pickedDays []string) bool {
+	if submitted.DaysOfWeekMode != current.DaysOfWeekMode {
+		return true
+	}
+	if len(pickedDays) == 0 {
+		return !slices.Equal(sortedDays(submitted.AvailableDays), sortedDays(current.AvailableDays))
+	}
+	for _, day := range pickedDays {
+		if !slices.Contains(current.AvailableDays, day) {
+			return true
+		}
+	}
+	return false
 }
 
 func sortedDays(days []string) []string {
