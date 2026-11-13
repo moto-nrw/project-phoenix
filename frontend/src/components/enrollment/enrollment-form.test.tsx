@@ -626,9 +626,17 @@ describe("EnrollmentForm", () => {
       ),
     ).toBeInTheDocument();
 
-    // The failed attempt used up the captcha response; the retry waits for
-    // a new one instead of sending without it.
-    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    // The failed attempt used up the captcha response; the retry shows the
+    // captcha and waits for a new response instead of sending without it.
+    const scrolls = recordScrolls();
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(scrolls.scrolled).toEqual([
+        screen.getByTestId("turnstile").closest("section"),
+      ]);
+    } finally {
+      scrolls.restore();
+    }
     fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
     await waitFor(() => expect(onSubmitted).toHaveBeenCalled());
     expect(mockSubmitEnrollment).toHaveBeenCalledTimes(2);
