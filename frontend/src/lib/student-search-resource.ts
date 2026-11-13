@@ -38,11 +38,13 @@ export function buildStudentSearchFilters(
       params.photoConsent === "all" ? undefined : params.photoConsent,
     pickupStatus:
       params.pickupStatus === "all" ? undefined : params.pickupStatus,
-    enrollmentAnswer: params.enrollmentAnswer || undefined,
     includePickupTimes: true,
     includeArrivalTimes: true,
     includeCompanions: params.companions,
     view: "slim",
+    ...(params.enrollmentAnswer
+      ? { enrollmentAnswer: params.enrollmentAnswer }
+      : {}),
   };
 }
 

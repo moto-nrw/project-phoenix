@@ -84,7 +84,9 @@ function useSchoolSearch(query: string, enabled: boolean) {
   useEffect(() => {
     clearLoadError();
     if (!searchable) {
-      setState({ kind: "idle" });
+      setState((current) =>
+        current.kind === "idle" ? current : { kind: "idle" },
+      );
       setLastResult(null);
       return;
     }

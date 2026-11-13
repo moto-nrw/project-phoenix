@@ -208,6 +208,15 @@ vi.mock("~/lib/student-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/student-api")>()),
   fetchStudents: (...args: unknown[]) => mockGetStudents(...args),
   fetchSchoolClasses: vi.fn(() => Promise.resolve([])),
+  fetchEnrollmentAnswerFilters: vi.fn(() =>
+    Promise.resolve([
+      {
+        key: "seepferdchen",
+        label: "Seepferdchen vorhanden?",
+        options: [{ value: "true", label: "Ja", count: 3 }],
+      },
+    ]),
+  ),
 }));
 
 vi.mock("~/lib/api", () => ({
@@ -399,6 +408,50 @@ describe("StudentSearchPage — room_id deep-link (#1323)", () => {
     const filteredCall = calls.find((c) => c.roomId === "42");
     expect(filteredCall).toBeDefined();
     expect(filteredCall?.roomId).toBe("42");
+  });
+
+  it("forwards a registration answer from the URL with users:read (#6954)", async () => {
+    mockUseSession.mockImplementation(() => ({
+      data: { user: { token: "t", permissions: ["users:read"] } },
+      status: "authenticated",
+    }));
+    currentSearch = new URLSearchParams({
+      enrollment_answer: "seepferdchen=true",
+    });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(
+        mockGetStudents.mock.calls.some(
+          (call) =>
+            (call[0] as Record<string, unknown>).enrollmentAnswer ===
+            "seepferdchen=true",
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("drops a registration answer the account may not read (#6954)", async () => {
+    mockUseSession.mockImplementation(() => ({
+      data: { user: { token: "t", permissions: ["students:read"] } },
+      status: "authenticated",
+    }));
+    currentSearch = new URLSearchParams({
+      enrollment_answer: "seepferdchen=true",
+    });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(mockGetStudents).toHaveBeenCalled();
+    });
+    expect(
+      mockGetStudents.mock.calls.every(
+        (call) =>
+          (call[0] as Record<string, unknown>).enrollmentAnswer === undefined,
+      ),
+    ).toBe(true);
   });
 
   it("does not forward roomId when no room_id query param is present", async () => {
