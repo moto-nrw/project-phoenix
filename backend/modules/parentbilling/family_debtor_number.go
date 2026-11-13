@@ -113,10 +113,12 @@ func (e *DebtorNumberFormatError) Error() string {
 }
 
 // DebtorNumberFormats reads the format of a Träger's debtor numbers: its
-// values of the parent_billing.debtor_number_* settings or their defaults.
-// It joins the caller's Träger transaction.
+// values of the parent_billing.debtor_number_* settings or their defaults,
+// and whom the numbers name (#7007). It joins the caller's Träger
+// transaction.
 type DebtorNumberFormats interface {
 	DebtorNumberFormat(ctx context.Context, organizationID int64) (DebtorNumberFormat, error)
+	DebtorNumberScopes
 }
 
 // Which number applies when the number entered at a holiday registration

@@ -987,6 +987,8 @@ export const ERROR_CATALOG = {
         "Ein Vertrag hat an einem Tag zwei gültige Fassungen. Bitte melden Sie das dem Support. Der Lauf rechnet diesen Monat nicht ab.",
       "parent_billing.carried_correction_not_found":
         "Diese Korrektur wird in diesem Lauf nicht mehr vorgeschlagen. Bitte laden Sie die Seite neu.",
+      "parent_billing.child_not_found":
+        "Dieses Kind gehört nicht zu dieser Familie. Bitte laden Sie die Liste „Familien“ neu.",
       "parent_billing.contribution_rule_invalid":
         "Bitte prüfen Sie die markierten Felder.",
       "parent_billing.contribution_rule_not_found":

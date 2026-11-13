@@ -73,7 +73,8 @@ func mountParentBillingRoutes(root, publicLink chi.Router, organizations Holiday
 	root.Mount("/traeger/billing-document-kinds", documentKinds.Router(ProtectedTraegerRoutes))
 	billingFamilies, financeExports, bookingAccounts := parentBillingCompose.NewBillingFamilies(parentBillingLetterPost{delivery: delivery},
 		parentBillingActorNames{names: owners.NewTraegerMemberNames()},
-		parentBillingSettings{settings: settings}, parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings}, careContractCompose.NewContractVersions())
+		parentBillingSettings{settings: settings}, parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings}, careContractCompose.NewContractVersions(),
+		parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()})
 	families := parentBillingHTTP.NewBillingFamilyResource(billingFamilies, common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 	root.Mount("/traeger/billing-families", families.Router(ProtectedTraegerRoutes))
 	care, reductions, meals, familyChildren := NewCareBillingHTTP(organizations, settings, schoolSettings, marks, delivery, outcomes)
@@ -634,7 +635,8 @@ func (b parentBillingBillingRegistrations) ConfirmedHolidayRegistrations(ctx con
 	for i, registration := range confirmed {
 		children := make([]parentbilling.HolidayBillingChild, len(registration.Children))
 		for j, child := range registration.Children {
-			children[j] = parentbilling.HolidayBillingChild{ID: child.ID, FirstName: child.FirstName, LastName: child.LastName}
+			children[j] = parentbilling.HolidayBillingChild{ID: child.ID, FirstName: child.FirstName, LastName: child.LastName,
+				BirthDate: child.BirthDate}
 		}
 		registrations[i] = parentbilling.HolidayBillingRegistration{
 			ID: registration.ID, GuardianFirstName: registration.GuardianFirstName, GuardianLastName: registration.GuardianLastName,

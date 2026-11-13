@@ -9,6 +9,12 @@ package records
 // with. Only the Träger sets it (LevelTraeger).
 const KeyParentBillingDebtorNumberOnConfirm = "parent_billing.debtor_number_on_confirm"
 
+// KeyParentBillingDebtorNumberScope says whom a debtor number of a Träger
+// names (#7007): the payer, the recipient of the invoices (the default,
+// siblings share it), or each child. Only the Träger sets it
+// (LevelTraeger); the stored numbers of both stay when it changes.
+const KeyParentBillingDebtorNumberScope = "parent_billing.debtor_number_scope"
+
 // KeyParentBillingPaymentText is the payment sentence of the confirmation
 // letter of a Träger (#5622): its own text with the placeholders {Betrag},
 // {Zahlungsfrist}, {Rechnungsnummer} and {Debitorennummer}. Empty keeps the

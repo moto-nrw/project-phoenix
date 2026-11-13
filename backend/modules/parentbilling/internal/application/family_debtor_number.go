@@ -35,6 +35,9 @@ type FamilyMemoryStore interface {
 	// FamilyBillingOf reads the row of a family, nil without one.
 	FamilyBillingOf(ctx context.Context, organizationID int64, familyEmail string) (*parentbilling.FamilyBilling, error)
 	InsertFamilyBillingEvents(ctx context.Context, organizationID, accountID int64, action string, families []parentbilling.FamilyBilling) error
+	// ChildNumberStore keeps the numbers of the children when the Träger
+	// keeps one per child (#7007).
+	ChildNumberStore
 }
 
 // debtorNumberOf checks a debtor number the office entered through the one
@@ -93,6 +96,13 @@ func (h *HolidayContributions) HolidayFamilyDebtorNumber(ctx context.Context, re
 	if key == "" {
 		return parentbilling.HolidayFamilyDebtorNumber{}, nil
 	}
+	perChild, err := h.perChild(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.HolidayFamilyDebtorNumber{}, err
+	}
+	if perChild {
+		return h.holidayChildDebtorNumber(ctx, reviewer, registration)
+	}
 	family, err := h.store.FamilyBillingOf(ctx, reviewer.OrganizationID, key)
 	if err != nil || family == nil || family.DebtorNumber == "" {
 		return parentbilling.HolidayFamilyDebtorNumber{}, err
@@ -118,7 +128,25 @@ func (h *HolidayContributions) HolidayFamilyDebtorNumber(ctx context.Context, re
 // corrects an existing number; one that has it from another
 // registration, a sibling's too, or from the list of families does not. The rows are held first, so two
 // confirmations of a family decide one after the other.
+//
+// When the Träger keeps a number per child (#7007), the children learn it
+// instead (rememberChildren).
 func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer parentbilling.HolidayReviewer, registrations []parentbilling.HolidayRegistration,
+	number *string, choice string, correctingID int64,
+) error {
+	perChild, err := h.perChild(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return err
+	}
+	if perChild {
+		return h.rememberChildren(ctx, reviewer, registrations, number)
+	}
+	return h.rememberPayers(ctx, reviewer, registrations, number, choice, correctingID)
+}
+
+// rememberPayers tells the families of the registrations the number, as
+// rememberFamilies describes it, when the Träger keeps it per payer.
+func (h *HolidayContributions) rememberPayers(ctx context.Context, reviewer parentbilling.HolidayReviewer, registrations []parentbilling.HolidayRegistration,
 	number *string, choice string, correctingID int64,
 ) error {
 	if number == nil || *number == "" {
@@ -292,4 +320,81 @@ func validFamilyChoice(choice string) error {
 		return nil
 	}
 	return validation.Errors{"family_debtor_number": errFamilyChoice}
+}
+
+// The debtor number of a child at a holiday registration (#7007). When the
+// Träger keeps a number per child, the confirmation proposes the number of
+// the first child of the registration, the number its invoice falls back
+// to, and a confirmation or change with a number gives it to the only child
+// of a registration that has none yet. A registration of several children
+// teaches no child a number: one number cannot name several children. A
+// child that has a number keeps it; the office changes it in the list of
+// families.
+
+// perChild tells whether the Träger keeps a number per child.
+func (h *HolidayContributions) perChild(ctx context.Context, organizationID int64) (bool, error) {
+	scope, err := debtorNumberScopeOf(ctx, h.settings, organizationID)
+	return scope == parentbilling.DebtorNumberScopeChild, err
+}
+
+// holidayChildDebtorNumber is the number of the first child of the
+// registration, recorded in the trail of the number it shows.
+func (h *HolidayContributions) holidayChildDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer,
+	registration parentbilling.HolidayRegistration,
+) (parentbilling.HolidayFamilyDebtorNumber, error) {
+	if len(registration.Children) == 0 {
+		return parentbilling.HolidayFamilyDebtorNumber{}, nil
+	}
+	child := registration.Children[0]
+	wanted := parentbilling.ChildDebtorNumberKey(registration.GuardianEmail, parentbilling.ChildKey(child.FirstName, child.LastName, &child.BirthDate))
+	numbers, err := h.store.ChildDebtorNumbers(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.HolidayFamilyDebtorNumber{}, err
+	}
+	for _, number := range numbers {
+		if number.Key() != wanted {
+			continue
+		}
+		if err := h.store.InsertChildDebtorNumberEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingRead,
+			[]parentbilling.ChildDebtorNumber{number}); err != nil {
+			return parentbilling.HolidayFamilyDebtorNumber{}, fmt.Errorf("parent billing: record the read of the child's number: %w", err)
+		}
+		return parentbilling.HolidayFamilyDebtorNumber{DebtorNumber: number.DebtorNumber}, nil
+	}
+	return parentbilling.HolidayFamilyDebtorNumber{}, nil
+}
+
+// rememberChildren gives the number to the only child of each registration
+// that has none yet, and records it in the trail of the number.
+func (h *HolidayContributions) rememberChildren(ctx context.Context, reviewer parentbilling.HolidayReviewer,
+	registrations []parentbilling.HolidayRegistration, number *string,
+) error {
+	if number == nil || *number == "" {
+		return nil
+	}
+	var numbers []parentbilling.ChildDebtorNumber
+	for _, registration := range registrations {
+		if len(registration.Children) != 1 || parentbilling.FamilyKey(registration.GuardianEmail) == "" {
+			continue
+		}
+		child := registration.Children[0]
+		birth := child.BirthDate
+		if parentbilling.ChildKey(child.FirstName, child.LastName, &birth) == "" {
+			continue
+		}
+		numbers = append(numbers, parentbilling.ChildDebtorNumber{FamilyEmail: registration.GuardianEmail,
+			ChildFirstName: truncateName(child.FirstName), ChildLastName: truncateName(child.LastName), ChildBirthDate: &birth,
+			DebtorNumber: *number})
+	}
+	if len(numbers) == 0 {
+		return nil
+	}
+	saved, err := h.store.SaveChildDebtorNumbers(ctx, reviewer.OrganizationID, reviewer.AccountID, numbers, h.today(), true)
+	if err != nil {
+		return err
+	}
+	if err := h.store.InsertChildDebtorNumberEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingSave, saved); err != nil {
+		return fmt.Errorf("parent billing: record the child's number: %w", err)
+	}
+	return nil
 }

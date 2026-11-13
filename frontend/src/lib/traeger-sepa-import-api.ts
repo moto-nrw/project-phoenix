@@ -73,7 +73,15 @@ export interface ImportRow {
 
 /** What the import does with the debtor number of a row (#4693). */
 type DebtorNumberStatus =
-  "new" | "same" | "siblings_differ" | "differs" | "invalid" | "no_family";
+  | "new"
+  | "same"
+  | "siblings_differ"
+  | "differs"
+  | "invalid"
+  | "no_family"
+  // Only when the Träger keeps the number per child (#7007).
+  | "no_child"
+  | "rows_differ";
 
 type ImportCounts = Readonly<
   Record<ImportRowStatus, number> & {

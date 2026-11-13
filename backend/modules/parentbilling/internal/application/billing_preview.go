@@ -119,7 +119,7 @@ func draftDocument(run parentbilling.BillingRun, registration parentbilling.Holi
 			continue
 		}
 		billed := parentbilling.BillingChild{
-			ChildID: child.ID, FirstName: child.FirstName, LastName: child.LastName,
+			ChildID: child.ID, FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate,
 			Positions: make([]parentbilling.BillingPosition, 0, len(lines.Lines)), Corrections: corrections[child.ID],
 			TotalCents: lines.TotalCents,
 		}

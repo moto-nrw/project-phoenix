@@ -171,7 +171,8 @@ func (s *Store) SetFamilyDebtorNumber(ctx context.Context, organizationID, accou
 // Träger (parent_billing.lock_beleg_retention). The count per Träger goes
 // into the deletion log (BelegFamilyDebtorNumber); audit.data_deletions
 // belongs to a school and cannot hold it. Then it deletes the trail entries
-// without a contract whose row is gone and which are as old.
+// without a contract whose row is gone and which are as old, and the
+// numbers of children under the same rule (#7007).
 func (s *Store) DeleteExpiredFamilies(ctx context.Context, today calendar.Date) (int, error) {
 	db, err := adminDB(ctx)
 	if err != nil {
@@ -179,8 +180,10 @@ func (s *Store) DeleteExpiredFamilies(ctx context.Context, today calendar.Date) 
 	}
 	cutoff := calendar.NewDate(today.Year()-parentbilling.FamilyDebtorNumberRetentionYears, time.January, 1)
 	var traeger []int64
-	if err := db.NewRaw(`SELECT DISTINCT organization_id FROM parent_billing.family_billing
-		WHERE care_contract_id IS NULL AND last_used_on < ?::date ORDER BY organization_id`, cutoff).Scan(ctx, &traeger); err != nil {
+	if err := db.NewRaw(`SELECT organization_id FROM parent_billing.family_billing
+			WHERE care_contract_id IS NULL AND last_used_on < ?0::date
+		UNION SELECT organization_id FROM parent_billing.child_debtor_numbers WHERE last_used_on < ?0::date
+		ORDER BY organization_id`, cutoff).Scan(ctx, &traeger); err != nil {
 		return 0, fmt.Errorf("parent billing postgres: list the Träger of expired family debtor numbers: %w", err)
 	}
 	if err := lockTraeger(ctx, db, traeger...); err != nil {
@@ -221,7 +224,11 @@ func (s *Store) DeleteExpiredFamilies(ctx context.Context, today calendar.Date) 
 	if err != nil {
 		return 0, err
 	}
-	return families + int(events), nil
+	children, err := deleteExpiredChildNumbers(ctx, db, cutoff, today)
+	if err != nil {
+		return 0, err
+	}
+	return families + int(events) + children, nil
 }
 
 func familiesOfRows(rows []familyBillingRow) []parentbilling.FamilyBilling {

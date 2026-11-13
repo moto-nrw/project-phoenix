@@ -130,6 +130,16 @@ function paymentTextWarning(run: BillingRunDetail): string {
   return `${invoicesWithoutDebtorNumber(run.paymentTextMissingDebtorNumbers)} Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext. ${where}`;
 }
 
+/**
+ * Invoices of several children while the Träger keeps the number per child
+ * (#7007): each names one number, so the office knows before the release.
+ */
+function sharedChildNumbersText(count: number): string {
+  const invoices =
+    count === 1 ? "1 Rechnung gilt" : `${count} Rechnungen gelten`;
+  return `${invoices} für mehrere Kinder. Ihr Träger führt die Debitorennummer je Kind, die Rechnung nennt aber nur eine: die Nummer der Anmeldung oder, ohne sie, die des ersten Kindes.`;
+}
+
 export default function TraegerBillingRunPage() {
   const params = useParams<{ id: string }>();
   const runId = params?.id ?? "";
@@ -298,6 +308,10 @@ export default function TraegerBillingRunPage() {
       ) : undefined,
     })),
     ...mandatePoints.map((text) => ({ text })),
+    // With a number per child (#7007) an invoice of siblings names one.
+    ...(preview && run.sharedChildDebtorNumbers > 0
+      ? [{ text: sharedChildNumbersText(run.sharedChildDebtorNumbers) }]
+      : []),
   ];
   // Belongs to the invoice sum it is part of, not to the cost bearers'.
   const carriedNote =

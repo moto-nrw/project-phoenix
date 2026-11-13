@@ -37,6 +37,13 @@ type paymentTermsReader interface {
 	InvoiceDebitTerms(ctx context.Context, organizationID int64) (*parentbilling.SEPACreditor, []parentbilling.SEPAMandate, error)
 	InsertSEPAMandateEvents(ctx context.Context, organizationID, accountID int64, action, source string, fields []string,
 		mandates []parentbilling.SEPAMandate) error
+	// ChildDebtorNumbers reads every number of a child of the Träger
+	// (#7007).
+	ChildDebtorNumbers(ctx context.Context, organizationID int64) ([]parentbilling.ChildDebtorNumber, error)
+	// InsertChildDebtorNumberEvents records one action for each number of
+	// a child in one statement.
+	InsertChildDebtorNumberEvents(ctx context.Context, organizationID, accountID int64, action string,
+		numbers []parentbilling.ChildDebtorNumber) error
 }
 
 // TermsStore persists the terms, the deviations and the due dates.
@@ -412,6 +419,64 @@ type invoicePayments struct {
 	creditor     parentbilling.SEPACreditor
 	mandates     map[string]*parentbilling.SEPAMandate
 	usedMandates map[int64]parentbilling.SEPAMandate
+	// children are the numbers of the children by ChildDebtorNumberKey when
+	// the Träger keeps one per child (#7007), nil when it keeps one per
+	// payer; usedChildren are the ones the invoices took, by ID, for the
+	// trail. contractChildren is the ChildKey of the child of each contract
+	// the monthly invoices bill.
+	children         map[string]*parentbilling.ChildDebtorNumber
+	usedChildren     map[int64]parentbilling.ChildDebtorNumber
+	contractChildren map[int64]string
+}
+
+// perChild tells whether the invoices take the number of the child.
+func (p invoicePayments) perChild() bool { return p.children != nil }
+
+// childNumber answers the number of a child of a family and notes its
+// read; empty without one.
+func (p invoicePayments) childNumber(familyEmail, childKey string) string {
+	if childKey == "" {
+		return ""
+	}
+	number := p.children[parentbilling.ChildDebtorNumberKey(familyEmail, childKey)]
+	if number == nil {
+		return ""
+	}
+	p.usedChildren[number.ID] = *number
+	return number.DebtorNumber
+}
+
+// childNumbersRead are the numbers of children the invoices took.
+func (p invoicePayments) childNumbersRead() []parentbilling.ChildDebtorNumber {
+	read := make([]parentbilling.ChildDebtorNumber, 0, len(p.usedChildren))
+	for _, number := range p.usedChildren {
+		read = append(read, number)
+	}
+	slices.SortFunc(read, func(a, b parentbilling.ChildDebtorNumber) int { return compareOrdered(a.ID, b.ID) })
+	return read
+}
+
+// recordChildNumberReads records in the trail of each number of a child
+// that a run showed it to the account (#7007).
+func recordChildNumberReads(ctx context.Context, store paymentTermsReader, reviewer parentbilling.HolidayReviewer,
+	numbers []parentbilling.ChildDebtorNumber,
+) error {
+	if err := store.InsertChildDebtorNumberEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingRead, numbers); err != nil {
+		return fmt.Errorf("parent billing: record the read of the children's debtor numbers: %w", err)
+	}
+	return nil
+}
+
+// contractChildKeys is the ChildKey of the child of each contract of the
+// versions, from its first version.
+func contractChildKeys(versions []parentbilling.CareContractVersion) map[int64]string {
+	keys := make(map[int64]string, len(versions))
+	for _, version := range versions {
+		if _, seen := keys[version.ContractID]; !seen {
+			keys[version.ContractID] = parentbilling.ChildKey(version.ChildFirstName, version.ChildLastName, version.ChildBirthDate)
+		}
+	}
+	return keys
 }
 
 // mandatesRead are the mandates the invoices took.
@@ -483,8 +548,19 @@ func recordDeviationReads(ctx context.Context, store paymentTermsReader, reviewe
 	return nil
 }
 
-// readInvoicePayments reads the terms, the deviations and the dates of a run.
-func readInvoicePayments(ctx context.Context, store paymentTermsReader, organizationID, careRunID, holidayRunID int64) (invoicePayments, error) {
+// debtorNumberScopeOf reads whom the Träger's debtor numbers name (#7007).
+func debtorNumberScopeOf(ctx context.Context, scopes parentbilling.DebtorNumberScopes, organizationID int64) (string, error) {
+	scope, err := scopes.DebtorNumberScope(ctx, organizationID)
+	if err != nil {
+		return "", fmt.Errorf("parent billing: read whom the debtor numbers name: %w", err)
+	}
+	return scope, nil
+}
+
+// readInvoicePayments reads the terms, the deviations and the dates of a
+// run, and the numbers of the children when the Träger keeps the number
+// per child (scope, #7007).
+func readInvoicePayments(ctx context.Context, store paymentTermsReader, organizationID, careRunID, holidayRunID int64, scope string) (invoicePayments, error) {
 	stored, families, dates, err := store.InvoicePaymentTerms(ctx, organizationID, careRunID, holidayRunID)
 	if err != nil {
 		return invoicePayments{}, fmt.Errorf("parent billing: read the payment terms: %w", err)
@@ -509,6 +585,17 @@ func readInvoicePayments(ctx context.Context, store paymentTermsReader, organiza
 	for i := range mandates {
 		payments.mandates[mandates[i].FamilyEmail] = &mandates[i]
 	}
+	if scope == parentbilling.DebtorNumberScopeChild {
+		children, err := store.ChildDebtorNumbers(ctx, organizationID)
+		if err != nil {
+			return invoicePayments{}, err
+		}
+		payments.children = make(map[string]*parentbilling.ChildDebtorNumber, len(children))
+		payments.usedChildren = map[int64]parentbilling.ChildDebtorNumber{}
+		for i := range children {
+			payments.children[children[i].Key()] = &children[i]
+		}
+	}
 	return payments, nil
 }
 
@@ -521,7 +608,10 @@ func (p invoicePayments) careInvoice(invoice *parentbilling.CareInvoice, issuedO
 		LastName: invoice.Recipient.LastName, Email: invoice.Recipient.Email}, family)
 	invoice.Recipient = parentbilling.CareRecipient{FirstName: recipient.FirstName, LastName: recipient.LastName,
 		Email: recipient.Email, Kind: recipient.Kind, SecondName: recipient.SecondName, Address: recipient.Address}
-	if family != nil {
+	switch {
+	case p.perChild():
+		invoice.DebtorNumber = p.childNumber(invoice.FamilyEmail, p.contractChildren[invoice.ContractID])
+	case family != nil:
 		invoice.DebtorNumber = family.DebtorNumber
 	}
 	service := invoice.Service
@@ -536,13 +626,21 @@ func (p invoicePayments) careInvoice(invoice *parentbilling.CareInvoice, issuedO
 // holidayDocument sets the recipient, the debtor number and the payment of
 // a holiday invoice; the registration's address stays for both parents.
 // The registration's debtor number wins; without one the invoice takes the
-// family's, as the monthly invoice does (#6677). Every later reader (letter,
-// overview for the Kämmerei, Sollstellung, DATEV) reads the copy the release
-// stores, so this is the one place that falls back.
+// family's, as the monthly invoice does (#6677), or, when the Träger keeps
+// the number per child (#7007), the number of its first child. Every later
+// reader (letter, overview for the Kämmerei, Sollstellung, DATEV) reads the
+// copy the release stores, so this is the one place that falls back.
 func (p invoicePayments) holidayDocument(document *parentbilling.BillingDocument, issuedOn calendar.Date) {
 	document.FamilyEmail = parentbilling.FamilyKey(document.RecipientEmail)
 	family := p.family(document.FamilyEmail)
-	if document.DebtorNumber == "" && family != nil {
+	switch {
+	case document.DebtorNumber != "":
+	case p.perChild():
+		if len(document.Children) > 0 {
+			child := document.Children[0]
+			document.DebtorNumber = p.childNumber(document.FamilyEmail, parentbilling.ChildKey(child.FirstName, child.LastName, &child.BirthDate))
+		}
+	case family != nil:
 		document.DebtorNumber = family.DebtorNumber
 	}
 	recipient := parentbilling.ResolveRecipient(parentbilling.BillingRecipient{FirstName: document.RecipientFirstName,

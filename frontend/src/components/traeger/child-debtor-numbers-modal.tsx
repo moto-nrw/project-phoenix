@@ -1,0 +1,185 @@
+"use client";
+
+// Debitorennummern der Kinder einer Familie in der Liste „Familien“ ändern
+// (#7007), wenn der Träger die Nummer je Kind führt. Jedes Kind eines
+// Betreuungsvertrags der Familie hat ein Feld; Geschwister haben eigene
+// Nummern. Die nächste Monatsrechnung eines Kindes nimmt seine Nummer.
+
+import { useEffect, useRef, useState } from "react";
+import { EditActions } from "~/components/ui/edit-actions";
+import { FormModal } from "~/components/ui/form-modal";
+import { Input } from "~/components/ui/input";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { formatDate } from "~/lib/date-helpers";
+import {
+  DEBTOR_NUMBER_MAX_LENGTH,
+  type DebtorNumberFormat,
+  NO_DEBTOR_NUMBER_FORMAT,
+  debtorNumberFormatError,
+  debtorNumberFormatHint,
+} from "~/lib/debtor-number-format";
+import { createLogger } from "~/lib/logger";
+import {
+  type BillingFamily,
+  type FamilyChild,
+  setChildDebtorNumber,
+} from "~/lib/traeger-billing-families-api";
+import { familyName } from "./billing-family-format";
+
+const logger = createLogger({ component: "ChildDebtorNumbersModal" });
+
+/** The field name of a child, unique within the family. */
+function fieldName(index: number): string {
+  return `child_debtor_number_${index}`;
+}
+
+/** Name of the child as the field labels it, with its date of birth. */
+export function childLabel(child: FamilyChild): string {
+  const name = `${child.firstName} ${child.lastName}`.trim();
+  return child.birthDate
+    ? `${name}, geb. ${formatDate(child.birthDate)}`
+    : name;
+}
+
+export function ChildDebtorNumbersModal({
+  family,
+  format = NO_DEBTOR_NUMBER_FORMAT,
+  onClose,
+  onSaved,
+}: Readonly<{
+  /** The family whose children to change; null keeps the dialog closed. */
+  family: BillingFamily | null;
+  /** The format of the Träger's numbers (#6675). */
+  format?: DebtorNumberFormat;
+  onClose: () => void;
+  /** After a save; the page reads the families again. */
+  onSaved: () => Promise<unknown>;
+}>) {
+  const isOpen = family !== null;
+  const children = family?.children ?? [];
+  const [values, setValues] = useState<string[]>([]);
+  const formRef = useRef<HTMLFormElement>(null);
+  const pending = useFormModalPending(isOpen);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearErrors } = formErrors;
+  const { success } = useToast();
+
+  useEffect(() => {
+    if (!family) return;
+    setValues((family.children ?? []).map((child) => child.debtorNumber));
+    clearErrors();
+  }, [family, clearErrors]);
+
+  const submit = async () => {
+    if (!family) return;
+    formErrors.clear();
+    const invalid: Record<string, string> = {};
+    values.forEach((value, index) => {
+      const error = debtorNumberFormatError(value, format);
+      if (error) invalid[fieldName(index)] = error;
+    });
+    if (Object.keys(invalid).length > 0) {
+      formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", invalid);
+      return;
+    }
+    const changed = children.flatMap((child, index) => {
+      const value = (values[index] ?? "").trim();
+      return value === child.debtorNumber ? [] : [{ child, value }];
+    });
+    const result = await pending.run(async (op) => {
+      try {
+        for (const { child, value } of changed) {
+          await setChildDebtorNumber(family.familyEmail, child, value);
+        }
+        if (changed.length > 0) {
+          success(
+            changed.length === 1
+              ? "Die Debitorennummer ist gespeichert."
+              : "Die Debitorennummern sind gespeichert.",
+          );
+        }
+        return op.isCurrent() ? "saved" : "late";
+      } catch (err) {
+        logger.error("child_debtor_number_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (op.isCurrent()) {
+          void formErrors.show(err, { object: "die Debitorennummer" });
+        }
+        return "failed";
+      }
+    });
+    if (result === undefined) return;
+    if (result === "saved") onClose();
+    // A failed save may have kept the numbers before it: read them again.
+    await onSaved();
+  };
+
+  const name = family ? familyName(family) : "";
+  return (
+    <FormModal
+      isOpen={isOpen}
+      onClose={onClose}
+      pending={pending}
+      isBackdropDismissDisabled
+      title="Debitorennummern der Kinder"
+      size="md"
+      error={formErrors.error}
+      footer={
+        <EditActions
+          onCancel={onClose}
+          onSave={() => formRef.current?.requestSubmit()}
+          saving={pending.pending}
+        />
+      }
+    >
+      <form
+        ref={formRef}
+        noValidate
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        {family ? (
+          <p className="text-sm text-gray-700">
+            {name ? (
+              <span className="font-medium text-gray-900">{name}</span>
+            ) : null}
+            {name ? " · " : null}
+            <span className="break-all">{family.familyEmail}</span>
+          </p>
+        ) : null}
+        <p className="text-sm text-gray-600">
+          Jedes Kind hat eine eigene Nummer, auch Geschwister. Die nächste
+          Rechnung eines Kindes nimmt seine Nummer. Ausgestellte Rechnungen
+          behalten ihre Nummer.
+        </p>
+        {children.map((child, index) => (
+          <Input
+            key={`${child.firstName}-${child.lastName}-${child.birthDate ?? ""}`}
+            id={`child-debtor-number-${index}`}
+            name={fieldName(index)}
+            label={childLabel(child)}
+            autoComplete="off"
+            controlSize="compact"
+            inputMode={format.digitsOnly ? "numeric" : undefined}
+            maxLength={DEBTOR_NUMBER_MAX_LENGTH}
+            value={values[index] ?? ""}
+            hint={debtorNumberFormatHint(format) || undefined}
+            error={formErrors.fieldError(fieldName(index)) ?? undefined}
+            onChange={(event) =>
+              setValues((current) =>
+                current.map((value, at) =>
+                  at === index ? event.target.value : value,
+                ),
+              )
+            }
+          />
+        ))}
+      </form>
+    </FormModal>
+  );
+}

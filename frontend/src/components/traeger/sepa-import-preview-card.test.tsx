@@ -119,7 +119,10 @@ describe("SepaImportPreviewCard", () => {
   it("counts the rows without a mandate once, not as errors (#7009)", () => {
     render(
       <SepaImportPreviewCard
-        result={{ ...result, counts: { ...result.counts, withoutMandate: 517 } }}
+        result={{
+          ...result,
+          counts: { ...result.counts, withoutMandate: 517 },
+        }}
         answers={{}}
         applying={false}
         onAnswer={vi.fn()}
@@ -129,7 +132,9 @@ describe("SepaImportPreviewCard", () => {
     expect(
       screen.getByText(/^517 Zeilen ohne Mandat: .* Das ist kein Fehler\.$/),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Fehler 1" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Fehler 1" }),
+    ).toBeInTheDocument();
   });
 
   it("names the debtor number siblings disagree on (#4693)", () => {
@@ -155,9 +160,7 @@ describe("SepaImportPreviewCard", () => {
       screen.getAllByText(/Geschwister haben verschiedene Nummern/).length,
     ).toBeGreaterThan(0);
     expect(
-      screen.getAllByText(
-        "Debitorennummer 10 0001 wird bei der Familie eingetragen.",
-      ).length,
+      screen.getAllByText("Debitorennummer 10 0001 wird eingetragen.").length,
     ).toBeGreaterThan(0);
   });
 
