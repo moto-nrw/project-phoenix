@@ -1,7 +1,14 @@
 "use client";
 import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { StatCard } from "~/components/ui/stat-card";
 import { Alert } from "~/components/ui/alert";
@@ -475,7 +482,11 @@ function ArbeitszeitmodellEditor({
   );
   // Eine nebenan auf der Katalogseite angelegte Vorlage steht ohne Neuladen
   // zur Wahl.
-  useCatalogRefreshOnFocus(() => void reloadTemplates(), mode === "template");
+  const refreshTemplates = useCallback(
+    () => void reloadTemplates(),
+    [reloadTemplates],
+  );
+  useCatalogRefreshOnFocus(refreshTemplates, mode === "template");
 
   const handleSave = async () => {
     setSaving(true);
