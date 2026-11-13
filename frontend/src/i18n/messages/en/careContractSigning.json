@@ -51,5 +51,6 @@
     "fri": "Friday",
     "sat": "Saturday",
     "sun": "Sunday"
-  }
+  },
+  "submitTooltip": "Concludes the binding contract with the provider right away."
 }

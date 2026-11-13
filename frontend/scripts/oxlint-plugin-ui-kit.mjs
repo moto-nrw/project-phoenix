@@ -6169,6 +6169,25 @@ const TOOLTIP_SCOPE = [
   "src/components/active-supervisions/states.tsx",
   "src/components/active-supervisions/timetable-roster.tsx",
   "src/components/active/unclaimed-rooms.tsx",
+  // Elternportal: Kind, Kalender, Buchungen, Kurse, Vertrag, Ferienanmeldung,
+  // Einstellungen (#6756).
+  "src/app/parents/children/[id]/elternsprechtag/page.tsx",
+  "src/app/parents/error.tsx",
+  "src/app/parents/ferienanmeldung/[token]/page.tsx",
+  "src/app/parents/settings/page.tsx",
+  "src/components/parent/calendar/parent-calendar-page.tsx",
+  "src/components/parent/care-contract-signing-view.tsx",
+  "src/components/parent/care-schedule-request-modal.tsx",
+  "src/components/parent/child-care.tsx",
+  "src/components/parent/child-master-data-request-modal.tsx",
+  "src/components/parent/child-master-data.tsx",
+  "src/components/parent/child/booked-care-section.tsx",
+  "src/components/parent/child/child-consents-section.tsx",
+  "src/components/parent/child/child-day-card.tsx",
+  "src/components/parent/child/child-page.tsx",
+  "src/components/parent/child/courses-section.tsx",
+  "src/components/parent/child/weekly-schedule-section.tsx",
+  "src/components/parent/parent-holiday-registrations-page.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

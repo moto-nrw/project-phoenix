@@ -203,5 +203,6 @@
     "parent": "Elternteil",
     "guardian": "Vormund",
     "relative": "Verwandte"
-  }
+  },
+  "accountHintLoginTooltip": "Öffnet die Anmeldung, danach kommen Sie hierher zurück."
 }

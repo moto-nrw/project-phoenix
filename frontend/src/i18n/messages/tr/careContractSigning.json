@@ -51,5 +51,6 @@
     "fri": "Cuma",
     "sat": "Cumartesi",
     "sun": "Pazar"
-  }
+  },
+  "submitTooltip": "Bağlayıcı sözleşmeyi kurumla hemen yapar."
 }

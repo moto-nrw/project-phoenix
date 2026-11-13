@@ -33,6 +33,11 @@
     "messageHint": "Contact the {careTerm} about {name}",
     "pickupWithMode": "Change pick-up for {name}",
     "pickupCompactWithMode": "Change pick-up",
-    "pickupHintWithMode": "Change the pick-up time or way home for one day"
+    "pickupHintWithMode": "Change the pick-up time or way home for one day",
+    "profileTooltip": "Opens your child's page with all details.",
+    "sickTooltip": "Opens the form to report your child absent.",
+    "pickupTooltip": "Opens the form to request a different pickup time.",
+    "pickupWithModeTooltip": "Opens the form to request a pickup change.",
+    "messageTooltip": "Opens the messages with the {careTerm} about your child."
   }
 }

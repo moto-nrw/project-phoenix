@@ -553,6 +553,7 @@ function IdentitySection({
             variant="surface"
             size="md"
             className="gap-2"
+            tooltip={t("identityRequestButtonTooltip")}
             onClick={() => setModalOpen(true)}
           >
             <PencilSimpleIcon size={20} weight="bold" aria-hidden="true" />
@@ -670,6 +671,7 @@ function IdentityFact({
                     type="button"
                     variant="outline"
                     size="md"
+                    tooltip={t("requestEditTooltip")}
                     onClick={() => setEditing(true)}
                   >
                     {t("requestEdit")}
@@ -890,6 +892,7 @@ function DepartureSection({
             variant="surface"
             size="md"
             className="gap-2"
+            tooltip={t("departureEditTooltip")}
             onClick={startEditing}
           >
             <PencilSimpleIcon size={20} weight="bold" aria-hidden="true" />
@@ -1497,6 +1500,7 @@ function SaveIndicator({
             type="button"
             variant="ghost_tone"
             size="compact"
+            tooltip={t("unsaved.retryTooltip")}
             onClick={onRetry}
           >
             {t("unsaved.retry")}
