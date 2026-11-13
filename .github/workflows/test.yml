@@ -758,16 +758,14 @@ jobs:
           key: ${{ steps.build-cache-key.outputs.key }}
           restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
 
-      # The migrations need only the server binary. The dev tools build in
-      # the background until the first seed; "Wait for the dev tools build"
-      # fails the job if it did not succeed. go list downloads every module
-      # first, before "Move the runner clock" moves the clock.
-      - name: Build the backend binary, the dev tools in the background
+      # Building the dev tools in the background beside the migrations gained
+      # nothing measurable (three runs per scenario, 13.11.2026), and with a
+      # stale cache both builds compiled the same packages at once.
+      - name: Build backend and dev tools binaries
         working-directory: backend
         run: |
-          go list -deps . ./cmd/devtools > /dev/null
-          "${RUNNER_TEMP}/bg-start" devtools-build go build -o "${RUNNER_TEMP}/devtools" ./cmd/devtools
           go build -o "${RUNNER_TEMP}/phoenix" .
+          go build -o "${RUNNER_TEMP}/devtools" ./cmd/devtools
 
       # Downloading the test modules and compiling the coverage ratchet took
       # 12 s after the seed, for a test that runs 0.1 s. It compiles now while
@@ -907,9 +905,6 @@ jobs:
           done
           echo "server did not become healthy in 60s"
           exit 1
-
-      - name: Wait for the dev tools build
-        run: '"${RUNNER_TEMP}/bg-wait" devtools-build 300'
 
       - name: Seed all four profiles and verify enrollment, withdrawal, web and NFC flows
         if: ${{ matrix.scenario == 'profiles' }}
