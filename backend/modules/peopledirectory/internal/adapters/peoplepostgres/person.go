@@ -183,10 +183,12 @@ func (r *personRepository) FindByAccountIDs(ctx context.Context, accountIDs []in
 	return result, nil
 }
 
-// FindByIDForUpdate fetches and locks a person row for the current tenant
-// transaction. Staff approval uses this before applying reviewed name/birthday
-// changes so concurrent approvals of different person fields cannot overwrite
-// each other with stale full-row snapshots.
+// FindByIDForUpdate fetches and locks a person row for the current
+// transaction: a tenant transaction, or an administrative one across schools.
+// Staff approval uses this before applying reviewed name/birthday changes so
+// concurrent approvals of different person fields cannot overwrite each other
+// with stale full-row snapshots; the operator person deletion locks the person
+// before it checks for profiles (#6949).
 func (r *personRepository) FindByIDForUpdate(ctx context.Context, id int64) (*users.Person, error) {
 	person := new(users.Person)
 	ambientDB5, databaseErr5 := r.runtime.DB(ctx)

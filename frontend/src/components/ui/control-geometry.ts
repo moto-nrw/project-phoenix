@@ -56,10 +56,11 @@ export const HEAD_CONTROL_HEIGHT_SELF = "h-10 max-sm:h-11";
  * volle Zeile, ein reines Symbol-Bedienelement (`ICON_ONLY`) behält sein Maß
  * und bleibt in der Titel- und Statuszeile. Ein Symbol-Element, dessen Wurzel
  * ein `div` ist, wird `inline-flex`, damit die Text-Grundlinie keinen Abstand
- * unter den Knopf legt.
+ * unter den Knopf legt. Ein Menü hinter einem Textknopf („Herunterladen ⌄“)
+ * steht in einer Hülle: Die Zeile ist voll, also füllt sein Knopf sie auch.
  */
 export const HEAD_ACTIONS_LAYOUT =
-  "[&>div[data-icon-only]]:inline-flex max-sm:contents max-sm:[&>*:not([data-icon-only])]:order-last max-sm:[&>*:not([data-icon-only])]:basis-full";
+  "[&>div[data-icon-only]]:inline-flex max-sm:contents max-sm:[&>*:not([data-icon-only])]:order-last max-sm:[&>*:not([data-icon-only])]:basis-full max-sm:[&>div:not([data-icon-only])>button]:w-full";
 
 // --- Marker -------------------------------------------------------------------
 
@@ -90,7 +91,8 @@ export const CONTROL_PART = { "data-control-part": "" } as const;
  *
  * - `dense`:   36 px, Auswahl in dichten Zeilen
  * - `compact`: 40 px, wie `Button size="field"` und die Bedienhöhe im Kopf
- * - `touch`:   44 px unter `lg` (Fingerhöhe), ab `lg` 40 px
+ * - `touch`:   per Finger 44 px, mit der Maus 40 px: der Zeiger
+ *              entscheidet, nicht die Fensterbreite
  * - `large`:   Höhe aus Polster und 16-px-Schrift, das große Formularfeld
  * - `natural`: Höhe aus Polster und 14-px-Schrift, der ursprüngliche
  *              Auslöser der Datumsauswahl in Filterleisten
@@ -101,5 +103,5 @@ export type ControlSize = "dense" | "compact" | "touch" | "large" | "natural";
 export const CONTROL_HEIGHT_CLASS = {
   dense: "h-9",
   compact: "h-10",
-  touch: "h-11 lg:h-10",
+  touch: "h-10 pointer-coarse:h-11",
 } as const satisfies Partial<Record<ControlSize, string>>;

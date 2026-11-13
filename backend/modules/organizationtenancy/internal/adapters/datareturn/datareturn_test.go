@@ -76,6 +76,21 @@ func newFixture(t *testing.T) *fixture {
 	return newFixtureOn(t, testpkg.SetupTestDB(t))
 }
 
+// severalConnections lets one test at a time hold connections beyond the
+// one of its fixture. Every fixture keeps a connection of the package pool
+// for its whole test, and the pool is -parallel plus four: two tests that
+// each hold further sessions or open transactions take every connection,
+// and then all tests wait for the next one (#6807).
+var severalConnections sync.Mutex
+
+// holdSeveralConnections is called before the test takes its first
+// connection; the test and its subtests then run alone among such tests.
+func holdSeveralConnections(t *testing.T) {
+	t.Helper()
+	severalConnections.Lock()
+	t.Cleanup(severalConnections.Unlock)
+}
+
 func newFixtureOn(t *testing.T, db *bun.DB) *fixture {
 	t.Helper()
 	operator := testpkg.CreateTestOperator(t, db)
@@ -419,6 +434,7 @@ func TestExpiryIsClampedToTheRetrievalPeriod(t *testing.T) {
 
 func TestRolesHoldExactlyTheirRights(t *testing.T) {
 	t.Parallel()
+	holdSeveralConnections(t)
 	db := testpkg.SetupTestDB(t)
 	conn := roleSession(t, db, "phoenix_data_return")
 	_, err := conn.ExecContext(t.Context(), `SELECT 1 FROM platform.data_return_grants LIMIT 1`)
@@ -459,6 +475,7 @@ func issueRelease(ctx context.Context, db bun.IDB, operator, school int64, archi
 // gone gets no release.
 func TestReleaseAndErasureOfTheSameSchoolAreSerialized(t *testing.T) {
 	t.Parallel()
+	holdSeveralConnections(t)
 	f := newFixture(t)
 	school := f.school(t)
 	keep := time.Now().Add(30 * 24 * time.Hour)
@@ -590,6 +607,7 @@ func lockedOut(t *testing.T, db *bun.DB, tx, holder bun.Tx, statement string, ar
 // retrievable package, and a started erasure never gets one.
 func TestReleaseAndStartOfTheTraegerErasureAreSerialized(t *testing.T) {
 	t.Parallel()
+	holdSeveralConnections(t)
 	f := newFixture(t)
 	const begin = `SELECT platform.begin_organization_erasure(?, ?, 'ORDER-6665')`
 	const release = `SELECT platform.data_return_issue(?, 'release', 'organization', ?, ?, 10, ?, ?, 1, ?, 'customer', 'Träger', ?, '\x01'::bytea, ?, ?, 1)`

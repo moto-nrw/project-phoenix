@@ -33,9 +33,11 @@ GET /api/students/ended-care
 GET /api/students/offering-change-requests/course-waitlists
 GET /api/students/ogs-group-live
 GET /api/students/ogs-group-navigation
+GET /api/students/pickup-change-notices
 GET /api/students/privacy-consent/defaults
 GET /api/students/school-classes
 GET /api/students/status-days
+GET /api/students/team-notices
 GET /api/students/{id}
 GET /api/students/{id}/accident-reports/{documentId}/pdf
 GET /api/students/{id}/arrival-schedules
@@ -92,8 +94,10 @@ POST /api/students/{id}/arrival-notes
 POST /api/students/{id}/care-end/resume
 POST /api/students/{id}/documents
 POST /api/students/{id}/notes
+POST /api/students/{id}/notes/{noteId}/team-notices
 POST /api/students/{id}/partial-absences
 POST /api/students/{id}/photo
+POST /api/students/{id}/pickup-change-notices/read
 POST /api/students/{id}/pickup-exceptions
 POST /api/students/{id}/pickup-notes
 POST /api/students/{id}/pickup-schedules/apply
@@ -102,6 +106,7 @@ POST /api/students/{id}/pickup-schedules/reset-offering
 POST /api/students/{id}/rfid
 POST /api/students/{id}/school-checkin
 POST /api/students/{id}/status-days
+POST /api/students/{id}/team-notices/read
 PUT /api/students/class-arrival-exceptions/{schoolClass}/{date}
 PUT /api/students/{id}
 PUT /api/students/{id}/accident-reports/{documentId}

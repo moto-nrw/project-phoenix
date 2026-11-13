@@ -26,7 +26,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.ArrivalScheduleService.BulkUpsertArrivalSchedules",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.arrivalScheduleService.BulkUpsertArrivalSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.arrivalScheduleService.BulkUpsertArrivalSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -37,7 +37,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.ArrivalScheduleService.BulkUpsertArrivalSchedules",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.arrivalScheduleService.BulkUpsertArrivalSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.arrivalScheduleService.BulkUpsertArrivalSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -47,7 +47,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.ArrivalScheduleService.BulkUpsertArrivalSchedules",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.arrivalScheduleService.BulkUpsertArrivalSchedules. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.arrivalScheduleService.BulkUpsertArrivalSchedules. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -4230,7 +4230,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.CareOfferingCapability.ApplyBulkExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.CareOfferings.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.CareOfferings.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -4241,7 +4241,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.CareOfferingCapability.ApplyBulkExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.CareOfferings.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.CareOfferings.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -4251,7 +4251,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.CareOfferingCapability.ApplyBulkExceptions",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.CareOfferings.ApplyBulkExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.CareOfferings.ApplyBulkExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -11674,7 +11674,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupAdjustments.ApplyBulkExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.PickupAdjustments.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.PickupAdjustments.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -11685,7 +11685,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupAdjustments.ApplyBulkExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.PickupAdjustments.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.PickupAdjustments.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -11695,7 +11695,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupAdjustments.ApplyBulkExceptions",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.PickupAdjustments.ApplyBulkExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.PickupAdjustments.ApplyBulkExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -11821,7 +11821,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupAdjustments.ApplyBulkExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.CareOfferingCapability.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.CareOfferingCapability.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -11832,7 +11832,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupAdjustments.ApplyBulkExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.CareOfferingCapability.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.CareOfferingCapability.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -11842,7 +11842,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupAdjustments.ApplyBulkExceptions",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.CareOfferingCapability.ApplyBulkExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.CareOfferingCapability.ApplyBulkExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -12580,6 +12580,37 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.pickupChangeTeamReach.NotifyPickupChanged",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamReach.NotifyPickupChanged",
+      "reason": "Platform protocol participation (durable): care-plan reaches modules/delivery/internal/notifications.Notifier.Notify (delivery-platform) through roots/owners.pickupChangeTeamReach.NotifyPickupChanged and the shared owners.StaffPushNotifier (#6855). The push outbox entry joins the care request decision's unit with the team markers; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications.Notifier.Notify",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.pickupChangeTeamReach.NotifyPickupChanged",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamReach.NotifyPickupChanged",
+      "reason": "Read-only target: care-plan reaches modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut (delivery-platform) through roots/owners.pickupChangeTeamReach.NotifyPickupChanged (#6855). No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.pickupChangeTeamReach.ResponsibleAccountIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamReach.ResponsibleAccountIDs",
+      "reason": "Reviewed responsibility read (#6855): care-plan reaches Delivery's staff responsibility rule (group supervisors and admins of the caller's school, narrowed to users:read) through roots/owners.pickupChangeTeamReach.ResponsibleAccountIDs. The target only SELECTs group, staff, account and permission facts, with no row mutation or locking read.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/contract.ResponsibleStaff.ResponsibleStaffAccountIDs",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/api.PickupReviewBlocks.PreviewPickupBlocks",
       "classification": "query",
       "effect": "query",
@@ -12605,7 +12636,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupScheduleService.BulkUpsertPickupSchedules",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.pickupScheduleService.BulkUpsertPickupSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.pickupScheduleService.BulkUpsertPickupSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -12616,7 +12647,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupScheduleService.BulkUpsertPickupSchedules",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.pickupScheduleService.BulkUpsertPickupSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.pickupScheduleService.BulkUpsertPickupSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -12626,7 +12657,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupScheduleService.BulkUpsertPickupSchedules",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.pickupScheduleService.BulkUpsertPickupSchedules. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.pickupScheduleService.BulkUpsertPickupSchedules. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -14689,6 +14720,17 @@
       "target_owner": ""
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.Decide",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.MasterDataDecisions.Decide. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.Decide",
       "classification": "query",
       "effect": "query",
@@ -14707,6 +14749,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.Decide",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.Decide",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.MasterDataDecisions.Decide. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -14745,6 +14811,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.Decide",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.Decide",
       "classification": "unresolved",
@@ -14754,6 +14832,17 @@
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.DecideConflictRequest",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.MasterDataDecisions.DecideConflictRequest. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.DecideConflictRequest",
@@ -14774,6 +14863,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.DecideConflictRequest",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.DecideConflictRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.MasterDataDecisions.DecideConflictRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -14812,6 +14925,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.DecideConflictRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.DecideConflictRequest",
       "classification": "unresolved",
@@ -14820,6 +14945,53 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.MasterDataDecisions.scope. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.MasterDataDecisions.FollowBulkClassChanges. The offering resync of a bulk approval's Klassen joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "reason": "E4 named Care master-data approval surface: the Klassen a bulk approval wrote let Regeltermine with a Klasse or Jahrgang target follow in one call after its last decision, right after the offering resync, under the class-writes and recurrence gates the bulk took before its child frontier; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now. The bulk approval's class follow-up reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:roots/owners.today. The bulk approval's class follow-up reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
       "target_owner": ""
     },
     {
@@ -14876,6 +15048,125 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.MasterDataDecisions.scope. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.LockBulkClassChanges",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkClassChanges",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.MasterDataDecisions.LockBulkClassChanges. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.LockBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.LockBulkRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.MasterDataDecisions.LockBulkRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.LockBulkRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.LockConflictRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockConflictRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.MasterDataDecisions.LockConflictRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.LockConflictRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockConflictRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.WriteStaffValue",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.MasterDataDecisions.WriteStaffValue. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.WriteStaffValue",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.WriteStaffValue",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now. The staff-written Klasse of a conflict resolution now reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.WriteStaffValue",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:roots/owners.today. The staff-written Klasse of a conflict resolution now reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
       "target_owner": ""
     },
     {
@@ -17534,7 +17825,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.Create",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -17545,7 +17836,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.Create",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -17555,7 +17846,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.Create",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Create. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Create. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -17577,7 +17868,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.Delete",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -17588,7 +17879,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.Delete",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -17598,7 +17889,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.Delete",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Delete. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Delete. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -17620,7 +17911,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.DeleteByStudentID",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -17631,7 +17922,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.DeleteByStudentID",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -17641,7 +17932,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.DeleteByStudentID",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].DeleteByStudentID. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].DeleteByStudentID. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -17663,7 +17954,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.UpsertSchedule",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -17674,7 +17965,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.UpsertSchedule",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -17684,7 +17975,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.UpsertSchedule",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].UpsertSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].UpsertSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -20193,6 +20484,17 @@
       "target_owner": ""
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest",
       "classification": "query",
       "effect": "query",
@@ -20211,6 +20513,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -20249,6 +20575,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest",
       "classification": "unresolved",
@@ -20258,6 +20596,17 @@
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
@@ -20278,6 +20627,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -20312,6 +20685,18 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:roots/owners.today. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
       "target_owner": ""
     },
     {
@@ -20397,6 +20782,101 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.LockConflictRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.LockConflictRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.LockConflictRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.LockConflictRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.LockConflictRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockConflictRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.LockConflictRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.ParentRequestMasterData.LockConflictRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockConflictRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.LockConflictRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.WriteStaffValue",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.MasterDataDecisions.WriteStaffValue. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.WriteStaffValue",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.WriteStaffValue",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now. The staff-written Klasse of a conflict resolution now reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.WriteStaffValue",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:roots/owners.today. The staff-written Klasse of a conflict resolution now reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.CareScheduleRequestService.WriteStaffValue",
       "classification": "unresolved",
@@ -20405,6 +20885,53 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.ParentRequestMasterData.WriteStaffValue. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now. The staff-written Klasse of a conflict resolution now reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:roots/owners.today. The staff-written Klasse of a conflict resolution now reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
       "target_owner": ""
     },
     {
@@ -20854,6 +21381,17 @@
       "target_owner": "delivery-platform"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.MasterDataDecisions.Decide. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
       "classification": "query",
       "effect": "query",
@@ -20872,6 +21410,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.Decide. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -20910,6 +21472,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
       "classification": "unresolved",
@@ -20919,6 +21493,17 @@
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.ParentRequestMasterData.Decide. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
@@ -20939,6 +21524,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.ParentRequestMasterData.Decide. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -20977,6 +21586,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
       "classification": "unresolved",
@@ -20985,6 +21606,100 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.MasterDataDecisions.scope. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.MasterDataDecisions.FollowBulkClassChanges. The offering resync of a bulk approval's Klassen joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "E4 named Care master-data approval surface: the Klassen a bulk approval wrote let Regeltermine with a Klasse or Jahrgang target follow in one call after its last decision, right after the offering resync, under the class-writes and recurrence gates the bulk took before its child frontier; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now. The bulk approval's class follow-up reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:roots/owners.today. The bulk approval's class follow-up reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges. The offering resync of a bulk approval's Klassen joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "E4 named Care master-data approval surface: the Klassen a bulk approval wrote let Regeltermine with a Klasse or Jahrgang target follow in one call after its last decision, right after the offering resync, under the class-writes and recurrence gates the bulk took before its child frontier; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now. The bulk approval's class follow-up reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:roots/owners.today. The bulk approval's class follow-up reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
       "target_owner": ""
     },
     {
@@ -21097,6 +21812,102 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.MasterDataDecisions.scope. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.LockBulkClassChanges",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkClassChanges",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.LockBulkClassChanges. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.LockBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkClassChanges",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkClassChanges",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.ParentRequestMasterData.LockBulkClassChanges. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.LockBulkRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.LockBulkRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.LockBulkRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.ParentRequestMasterData.LockBulkRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
       "target_owner": ""
     },
     {
@@ -23135,7 +23946,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.Create",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -23146,7 +23957,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.Create",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -23156,7 +23967,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.Create",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Create. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Create. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -23178,7 +23989,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.Delete",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -23189,7 +24000,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.Delete",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -23199,7 +24010,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.Delete",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Delete. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Delete. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -23221,7 +24032,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.DeleteByStudentID",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -23232,7 +24043,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.DeleteByStudentID",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -23242,7 +24053,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.DeleteByStudentID",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].DeleteByStudentID. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].DeleteByStudentID. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -23264,7 +24075,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.UpsertSchedule",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -23275,7 +24086,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.UpsertSchedule",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -23285,7 +24096,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.UpsertSchedule",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].UpsertSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].UpsertSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged. Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -25030,6 +25841,17 @@
       "target_owner": "identity-access"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Correct",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Correct",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.MasterDataDecisions.Correct. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Correct",
       "classification": "query",
       "effect": "query",
@@ -25048,6 +25870,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Correct",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Correct",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Correct",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Correct",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.Correct. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -25086,6 +25932,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Correct",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Correct",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Correct",
       "classification": "unresolved",
@@ -25095,6 +25953,17 @@
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Decide",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.MasterDataDecisions.Decide. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
@@ -25115,6 +25984,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Decide",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Decide",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.Decide. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -25149,6 +26042,18 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:roots/owners.today. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Decide",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
       "target_owner": ""
     },
     {

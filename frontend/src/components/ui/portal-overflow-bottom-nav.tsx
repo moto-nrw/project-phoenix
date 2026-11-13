@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { useState } from "react";
 import {
   PortalBottomNav,
@@ -10,8 +12,9 @@ import { PortalMoreBottomNav } from "~/components/ui/portal-more-bottom-nav";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
 const PADDING = "px-4";
-const LABEL =
-  "hidden text-sm font-semibold whitespace-nowrap min-[480px]:inline";
+// Das aktive Ziel trägt seinen Namen auf jeder Breite, wie in der Leiste des
+// Personal-Portals: es darf schrumpfen, der Name wird notfalls gekürzt.
+const LABEL = "truncate text-sm font-semibold whitespace-nowrap";
 
 /**
  * So viele Felder hat die Leiste höchstens. Fünf Icons passen auch auf ein
@@ -26,6 +29,11 @@ export interface PortalOverflowNavItem {
   /** Die fertige Adresse des Ziels. */
   readonly href: string;
   readonly label: string;
+  /**
+   * A shorter name for the bar, where the active target's name has about
+   * 80 px; the „Mehr“ sheet keeps `label`.
+   */
+  readonly shortLabel?: string;
   readonly concept: MotoConcept;
   readonly active: boolean;
   /** Ziele außerhalb des Portals (die Hilfe) öffnen in einem neuen Tab. */
@@ -47,6 +55,8 @@ export function PortalOverflowBottomNav({
   moreConcept,
   moreLabel = "Mehr",
   moreDescription = "Weitere Bereiche",
+  activeInMore = false,
+  moreIcon,
 }: {
   readonly items: readonly PortalOverflowNavItem[];
   /** Das Attribut, das jeden Eintrag für Touren und Tests benennt. */
@@ -55,6 +65,18 @@ export function PortalOverflowBottomNav({
   readonly moreConcept: MotoConcept;
   readonly moreLabel?: string;
   readonly moreDescription?: string;
+  /**
+   * Opt-in: ist eine Seite hinter „Mehr“ offen, zeigt das Feld „Mehr“ neben
+   * seinen Punkten ihren Namen; der zugängliche Name lautet „Mehr: …“. Sonst
+   * stünde auf jeder dieser Seiten nur ein graues „Mehr“ markiert, und ohne
+   * die Punkte sähe das Feld nicht mehr nach den übrigen Bereichen aus.
+   */
+  readonly activeInMore?: boolean;
+  /**
+   * Opt-in: ein eigenes Symbol für „Mehr“ statt der Punkte, etwa das
+   * Listen-Symbol des OGS-Portals. Ohne Angabe bleiben die Punkte.
+   */
+  readonly moreIcon?: ReactNode;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -75,8 +97,10 @@ export function PortalOverflowBottomNav({
     <PortalBottomNavLink
       key={item.key}
       {...linkProps(item)}
+      shortLabel={item.shortLabel}
       paddingClassName={PADDING}
       labelClassName={LABEL}
+      shrinkActive
     />
   ));
 
@@ -88,6 +112,10 @@ export function PortalOverflowBottomNav({
     return <PortalBottomNav listClassName="gap-0">{barLinks}</PortalBottomNav>;
   }
 
+  const shownInMore = activeInMore
+    ? moreItems.find((item) => item.active)
+    : undefined;
+
   return (
     <PortalMoreBottomNav
       listClassName="gap-0"
@@ -96,10 +124,16 @@ export function PortalOverflowBottomNav({
       moreItemActive={moreItems.some((item) => item.active)}
       more={{
         ...moreAttribute,
-        label: moreLabel,
-        concept: moreConcept,
+        label: shownInMore ? `${moreLabel}: ${shownInMore.label}` : moreLabel,
+        shortLabel: shownInMore
+          ? (shownInMore.shortLabel ?? shownInMore.label)
+          : undefined,
+        // The dots stay: beside the open page's name they keep saying that
+        // this field opens the other areas.
+        ...(moreIcon ? { icon: moreIcon } : { concept: moreConcept }),
         paddingClassName: PADDING,
         labelClassName: LABEL,
+        shrinkActive: true,
       }}
       sheetTitle={moreLabel}
       sheetDescription={moreDescription}

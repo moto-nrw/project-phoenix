@@ -151,6 +151,9 @@ var tableRetentions = map[string]tableRetention{
 	"audit.enrollment_deletions":                            own("nightly retention step enrollment_deletion_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
 	"audit.enrollment_offering_adjustments":                 parent("users.student_profiles"),
 	"audit.enrollment_restorations":                         own("nightly retention step enrollment_restoration_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
+	"audit.traeger_export_transfers":                        own("the journal of the handovers of a Träger stays with the export protocol whose files it documents (ADR 0218 section 8); it goes with platform.organizations when the Träger is erased (#4657); actor_account_id SET NULL on account delete"),
+	"config.traeger_export_recipients":                      own("a recipient of a Träger is removed by the Träger itself (DELETE /traeger/export-recipient/{id}, ADR 0218, ADR 0222) and goes with platform.organizations when the Träger is erased (#4657); updated_by_account_id SET NULL on account delete"),
+	"config.traeger_export_recipient_formats":               own("the format of a Träger goes with its recipient (ON DELETE CASCADE) or back to the download when the Träger reassigns it (PUT /traeger/export-recipient/formats, ADR 0222), and with platform.organizations when the Träger is erased (#4657); updated_by_account_id SET NULL on account delete"),
 	"audit.export_transfers":                                own("nightly retention step export_transfer_retention, JournalRetention.DeleteExpiredTransfers -> SQL audit.delete_expired_export_transfers (end of the following year)"),
 	"audit.file_events":                                     own("nightly retention step file_event_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (end of the following year)"),
 	"audit.guardian_changes":                                parent("users.student_profiles"),
@@ -320,6 +323,7 @@ var tableRetentions = map[string]tableRetention{
 	"active.attendance_retention_marks":                     notPersonal("a school's day before which the attendance retention may have deleted (#4686, ADR 0168); a date only, removed with a demo school"),
 	"schedule.meal_billing_months":                          own("the Mensa-Monatsfreigabe of a school is the record of what the Träger bills (#4686, ADR 0168); it never changes, goes with platform.organizations when the Träger is erased (#4657) and with a retired demo school (1.15.811); the period follows with #4720"),
 	"schedule.meal_billing_month_children":                  parent("schedule.meal_billing_months"),
+	"schedule.pickup_change_team_notices":                   parent("schedule.care_schedule_change_requests"),
 	"schedule.traeger_closing_days":                         notPersonal("closing day of a Träger (#4702): dates, a reason and school IDs, no person; goes with platform.organizations"),
 	"parent_billing.care_invoices":                          own("an issued monthly invoice never changes and stays when its contract goes (§ 147 AO, ADR 0088 section 9, ADR 0119); it goes with platform.organizations when the Träger is erased after its export (#4657); the hourly Beleg retention deletes it after the period its Träger instructed and only then (SQL parent_billing.delete_due_belege, 1.15.862, #4720, ADR 0184); without an instruction it waits on the clarification list"),
 	"parent_billing.care_run_amendments":                    own("the changes of the review stay with the run whose release they document (ADR 0119 addendum 2026-11-08, #6197); a released run copies them onto its invoices, which keep them; they go with platform.organizations when the Träger is erased (#4657) and, in the demo erasure, with their contract; account_id SET NULL on account delete"),
@@ -343,6 +347,7 @@ var tableRetentions = map[string]tableRetention{
 	"parent_billing.document_positions":                     parent("parent_billing.documents"),
 	"parent_billing.documents":                              own("an issued invoice never changes and stays when its registration goes (§ 147 AO, ADR 0088 section 9, ADR 0119); it goes with platform.organizations when the Träger is erased after its export (#4657); the invoice of a holiday registration of a retired demo school goes with its visitor, the demo Träger keeps no books (SQL platform.erase_closed_demo_visitors, 1.15.797, #6015); the hourly Beleg retention deletes it after the period its Träger instructed and only then (SQL parent_billing.delete_due_belege, 1.15.862, #4720, ADR 0184); without an instruction it waits on the clarification list"),
 	"parent_billing.datev_booked_documents":                 parent("parent_billing.export_files"),
+	"parent_billing.export_file_transfers":                  parent("parent_billing.export_files"),
 	"parent_billing.export_file_invoices":                   parent("parent_billing.export_files"),
 	"parent_billing.export_files":                           own("the export protocol stays with the issued invoices whose files it documents (#4693, ADR 0119); it goes with platform.organizations when the Träger is erased (#4657); its invoice links go with their invoice (export_file_invoices, also in the demo erasure and the Beleg retention of 1.15.862); exported_by_account_id and submitted_by_account_id SET NULL on account delete"),
 	"parent_billing.export_mappings":                        notPersonal("field mapping of the Sollstellung of a Träger (#4693): columns, separators, date format and file name, no person"),
@@ -502,6 +507,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.student_family_protection_events":                parent("users.student_profiles"),
 	"users.student_guardian_pickup_permissions":             parent("users.student_guardian_relationships"),
 	"users.student_guardian_relationships":                  parent("users.student_profiles"),
+	"users.student_note_team_notices":                       parent("users.student_notes"),
 	"users.student_notes":                                   parent("users.student_profiles"),
 	"users.student_profiles":                                own("nightly retention step student_retention, Retention.DeleteExpiredStudents -> student deletion workflow (school window after the last care day, #3962)"),
 	"users.student_school_memberships":                      parent("users.student_profiles"),
@@ -520,13 +526,16 @@ func TestEveryTableHasARetentionPath(t *testing.T) {
 	ctx := context.Background()
 
 	var tables []string
+	// phx_test holds the test harness's leftover-gate start state
+	// (internal/testdb), which every clone inherits from the template; no
+	// migration creates it.
 	require.NoError(t, db.NewRaw(`
 		SELECT n.nspname || '.' || c.relname
 		FROM pg_class AS c
 		JOIN pg_namespace AS n ON n.oid = c.relnamespace
 		WHERE c.relkind IN ('r', 'p')
 		  AND NOT c.relispartition
-		  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+		  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast', 'phx_test')
 		ORDER BY 1`).Scan(ctx, &tables))
 
 	var problems []string

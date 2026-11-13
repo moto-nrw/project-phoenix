@@ -7,5 +7,11 @@
     "DELETE tenant /api/work-time-models/id%2F1",
     "GET tenant /api/work-time-models/id%2F1",
     "PUT tenant /api/work-time-models/id%2F1"
+  ],
+  "api/work-time-models/[id]/archive": [
+    "POST tenant /api/work-time-models/id%2F1/archive"
+  ],
+  "api/work-time-models/[id]/restore": [
+    "POST tenant /api/work-time-models/id%2F1/restore"
   ]
 }

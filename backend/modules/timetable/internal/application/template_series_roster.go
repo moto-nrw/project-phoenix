@@ -116,9 +116,24 @@ func (s *TemplateService) reconcileSeriesPredecessorRoster(
 
 // Lock all segments together before either participant or staff rows change.
 // A cancellation takes the day first and then locks those participant rows.
-func (s *TemplateService) lockSeriesPredecessorDays(ctx context.Context, in TemplateUpdateInput, livingValidFrom *calendar.Date) error {
-	if in.SeriesRosterFrom == nil || (len(in.SeriesRosterScopeStudentIDs) == 0 && len(in.SeriesRosterScopeStaffIDs) == 0) || noInstanceRows(s.deps.ActivityInstanceRepo) {
+// The re-plan's days join the same ascending batch (#6838).
+func (s *TemplateService) lockUpdateDays(ctx context.Context, in TemplateUpdateInput, livingValidFrom *calendar.Date, replanDays []calendar.Date) error {
+	occurrences, err := s.seriesPredecessorOccurrences(ctx, in, livingValidFrom)
+	if err != nil {
+		return err
+	}
+	days := append(occurrenceDays(occurrences), replanDays...)
+	if len(days) == 0 {
 		return nil
+	}
+	return lockTemplateDays(ctx, s.deps.Deviations, "update template: lock days", days)
+}
+
+// seriesPredecessorOccurrences lists the planned predecessor occurrences the
+// series roster reconciliation may write.
+func (s *TemplateService) seriesPredecessorOccurrences(ctx context.Context, in TemplateUpdateInput, livingValidFrom *calendar.Date) ([]*scheduleModel.ActivityInstance, error) {
+	if in.SeriesRosterFrom == nil || (len(in.SeriesRosterScopeStudentIDs) == 0 && len(in.SeriesRosterScopeStaffIDs) == 0) || noInstanceRows(s.deps.ActivityInstanceRepo) {
+		return nil, nil
 	}
 	anchor := *in.SeriesRosterFrom
 	if today := s.deps.Today(); anchor.Before(today) {
@@ -126,7 +141,7 @@ func (s *TemplateService) lockSeriesPredecessorDays(ctx context.Context, in Temp
 	}
 	segments, err := loadTemplateSeriesSegments(ctx, s.deps.ActivityGroupRepo, s.deps.ActivityScheduleRepo, s.getLogger(), in.TemplateID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var occurrences []*scheduleModel.ActivityInstance
 	for i := range segments {
@@ -140,11 +155,11 @@ func (s *TemplateService) lockSeriesPredecessorDays(ctx context.Context, in Temp
 		}
 		instances, _, err := loadPlannedTemplateInstances(ctx, s.deps.ActivityInstanceRepo.Reads, seg.Group.ID, window.from, "lock predecessor occurrences")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		occurrences = append(occurrences, instances...)
 	}
-	return s.lockOccurrenceDays(ctx, occurrences)
+	return occurrences, nil
 }
 
 // segmentIsReconcilablePredecessor filters the lineage down to the bounded

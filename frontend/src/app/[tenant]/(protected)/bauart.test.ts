@@ -43,6 +43,7 @@ const BAUART: Readonly<Record<string, Bauart>> = {
   "calendar-periods/page.tsx": "sammlung",
   "care-offerings/page.tsx": "sammlung",
   "database/absence-types/page.tsx": "sammlung",
+  "database/work-time-models/page.tsx": "sammlung",
   "database/activities/page.tsx": "sammlung",
   "database/categories/page.tsx": "sammlung",
   "database/devices/page.tsx": "sammlung",

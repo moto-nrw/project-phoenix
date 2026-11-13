@@ -20,6 +20,10 @@ var (
 	// student/person validators. Mapped to 400, not 500 — submit/edit now
 	// validate up front, so this is defense-in-depth for legacy rows.
 	ErrDecisionInvalidData = errors.New("enrollment request data is invalid")
+	// ErrDecisionReviewerStaffRequired marks an approval whose weekly pickup
+	// or arrival rows need a staff author, while the reviewing account has no
+	// staff profile. Another staff member has to approve (#6839).
+	ErrDecisionReviewerStaffRequired = errors.New("approving weekly schedules requires a staff profile")
 	// ErrGuardianAccountMismatch marks an approval whose authenticated
 	// submitter account (request.guardian_account_id) conflicts with the
 	// guardian profile the request's email resolves to: the email already
@@ -73,6 +77,11 @@ type DecideInput struct {
 	// and only for an approval.
 	ExistingStudentID *int64
 	CreateNewStudent  bool
+	// AcceptOfferingChanges is the office's confirmation that the approval
+	// books the offerings' current catalog terms although price, days or
+	// activity changed since the parents submitted (#6837). Without it such
+	// an approval is refused with ErrOfferingTermsChanged.
+	AcceptOfferingChanges bool
 }
 
 // DecideOutcome is what Decide returns: the refreshed child plus the
@@ -155,6 +164,12 @@ type ChildOfferingRow struct {
 	// approved change scheduled for a future date. Those rows are
 	// informational: they describe what will be booked, not what is.
 	StartsLater bool
+	// SubmittedTerms are the catalog terms the parents submitted this
+	// offering under, nil without a snapshot (#6837). ChangedTerms names the
+	// booking-relevant terms the catalog changed since (OfferingTerm*); an
+	// approval books the current terms only after the office confirms them.
+	SubmittedTerms *OfferingTerms
+	ChangedTerms   []OfferingTermChange
 }
 
 // ChildOfferingSet separates the two questions a reader asks about a

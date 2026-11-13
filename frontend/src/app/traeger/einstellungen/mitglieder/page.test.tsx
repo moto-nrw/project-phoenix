@@ -294,7 +294,31 @@ describe("TraegerAccountsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not offer removing the only Leitung and says why", async () => {
+    renderPage();
+
+    expect(
+      (await screen.findAllByText("Einzige Leitung, bleibt im Träger-Büro"))[0],
+    ).toBeInTheDocument();
+    await openMenu("leitung@traeger.example");
+    expect(
+      await screen.findByRole("menuitem", { name: "Rollen ändern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Aus dem Träger-Büro entfernen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows why the last person with Leitung cannot leave", async () => {
+    // The list on screen still shows a second Leitung, who lost the role
+    // meanwhile: the server refuses and the dialog says why.
+    api.fetchTraegerBuero.mockResolvedValue({
+      ...BUERO,
+      members: [
+        BUERO.members[0]!,
+        { ...BUERO.members[1]!, roles: ["leadership", "billing"] },
+      ],
+    });
     api.removeTraegerMember.mockRejectedValue(
       new ApiError("conflict", 409, { code: "traeger.last_administrator" }),
     );
@@ -468,7 +492,7 @@ describe("TraegerAccountsPage", () => {
     // Anker: die Seite zeigt den Ladefehler statt der Personen.
     expect(
       await screen.findByText(
-        catalogText("traeger.no_membership", "die Personen des Träger-Büros"),
+        catalogText("traeger.no_membership", "die Liste der Personen"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Verlauf")).not.toBeInTheDocument();
@@ -488,7 +512,7 @@ describe("TraegerAccountsPage", () => {
 
     expect(
       await screen.findByText(
-        "Für die Personen des Träger-Büros fehlt Ihnen die Berechtigung. Bitte fragen Sie die Leitung Ihres Träger-Büros.",
+        "Für die Liste der Personen fehlt Ihnen die Berechtigung. Bitte fragen Sie die Leitung Ihres Träger-Büros.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/fragen Sie die Schule/)).not.toBeInTheDocument();

@@ -75,7 +75,7 @@ func newCareScheduleRequestService(
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) carerequests.Service {
-	return owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	return owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(nil,
 		requestRepo, people, arrival, pickup, nil, excusal, nil,
 		caller, emitter, broadcaster,
 		testpkg.RequestReviewPolicy[*peopleValues.StudentState]{UserContext: caller}, testpkg.PermissionsFromContext, nil, logger,
@@ -119,7 +119,7 @@ func newCareFixtureWithEmitter(t *testing.T, emitter eventContract.Emitter, opti
 	require.NoError(t, err)
 
 	autoExcusal := newPickupExcusal(t, db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), timetableOwner, false)
-	svc := owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	svc := owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(nil,
 		repos.CarePlan(),
 		persons,
 		schedules.Arrivals,

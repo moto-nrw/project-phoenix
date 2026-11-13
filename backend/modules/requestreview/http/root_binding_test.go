@@ -5,9 +5,7 @@ import (
 	subject "github.com/moto-ogs/project-phoenix/modules/requestreview/http"
 )
 
-func init() {
-	subject.BindTestConfig = func(cfg subject.ResourceConfig) subject.ResourceConfig {
-		s := api.NewReviewHTTPUnitResource(cfg)
-		return s.ResourceConfig
-	}
+// testResource builds the resource over cfg with the bindings the root adds.
+func testResource(cfg subject.ResourceConfig) *subject.Resource {
+	return subject.NewResource(api.NewReviewHTTPUnitResource(cfg).ResourceConfig)
 }

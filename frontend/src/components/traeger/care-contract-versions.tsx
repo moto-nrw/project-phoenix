@@ -7,7 +7,7 @@
 // Aktionen“ des UI-Kits: eine Karte, weiße Zeilen, eine bündige Spalte mit
 // gleichrangigen Knöpfen.
 
-import { Download, History } from "lucide-react";
+import { Download } from "lucide-react";
 import { useState } from "react";
 import {
   formatService,
@@ -35,6 +35,7 @@ import {
   downloadCareContractVersion,
   type Weekday,
 } from "~/lib/traeger-care-contracts-api";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 
 const logger = createLogger({ component: "CareContractVersions" });
 
@@ -216,7 +217,7 @@ export function CareContractVersions({
   return (
     <SectionCard
       title="Versionen"
-      icon={History}
+      concept={changeHistoryConcept}
       titleBadge={
         versions.length > 1 ? (
           <StatusBadge label={`${versions.length} Versionen`} tone="gray" />
@@ -260,6 +261,8 @@ export function CareContractVersions({
                     ? ` · ${changed.size === 1 ? "1 Tag" : `${changed.size} Tage`} geändert`
                     : null}
                 </p>
+                {/* Every version lists its days, also the only one: the
+                    card is the contract's history, read on its own. */}
                 <div className="mt-3">
                   <DataGrid>
                     {serviceDays(version.services, [...changed]).map((day) => (

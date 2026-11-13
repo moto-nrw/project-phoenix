@@ -68,7 +68,10 @@ type TimeTrackingOverviewRow struct {
 	// EmploymentType is "" when the staff member has none recorded.
 	EmploymentType string `json:"employment_type"`
 	SollMinutes    int    `json:"soll_minutes"`
-	IstMinutes     int    `json:"ist_minutes"`
+	// HasTarget is false when no Soll is maintained for the month; the
+	// Monatskarte's HasTarget (#6887).
+	HasTarget  bool `json:"has_target"`
+	IstMinutes int  `json:"ist_minutes"`
 	// BalanceMinutes is the authoritative closing balance: frozen for an
 	// actively closed month, live otherwise.
 	BalanceMinutes        int     `json:"balance_minutes"`
@@ -147,6 +150,10 @@ type StaffOverviewService interface {
 	// GetMonthExportRows builds the cross-staff payroll rows (#1417 2b) over
 	// the same prefetch + month math as the overview. month == 0 = whole year.
 	GetMonthExportRows(ctx context.Context, year, month int) ([]MonthExportRow, error)
+	// TargetCoverage counts the staff without a Soll in a month for the
+	// payroll completeness check (#6890). It speaks the public contract
+	// directly, so the capability promotes it instead of copying it.
+	TargetCoverage(ctx context.Context, year, month int) (*workforce.TargetCoverage, error)
 }
 
 type staffOverviewService struct {
@@ -400,6 +407,7 @@ func (s *staffOverviewService) overviewRow(ctx context.Context, monthSvc WorkTim
 	row := TimeTrackingOverviewRow{
 		StaffID:        staff.ID,
 		SollMinutes:    summary.TargetMinutesToDate,
+		HasTarget:      summary.HasTarget,
 		IstMinutes:     summary.ActualMinutes,
 		BalanceMinutes: balanceMinutes,
 		RemainingVacationDays: s.remainingVacationDays(

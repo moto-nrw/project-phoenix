@@ -12,7 +12,7 @@ export function traegerBillingRunTopic(): HelpTopic {
     audience: "traeger",
     icon: "FileText",
     requirements: [
-      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Abrechnung`.",
+      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation die Bereiche unter `Finanzen`.",
       "Der Ferienzeitraum ist veröffentlicht, und die Anmeldungen sind bestätigt.",
     ],
     steps: [],
@@ -31,10 +31,11 @@ export function traegerBillingRunTopic(): HelpTopic {
       {
         title: "Lauf starten und prüfen",
         steps: [
+          "Wählen Sie in der Navigation `Abrechnungsläufe`. Der Reiter `Ferien` ist schon offen.",
           "Wählen Sie `Lauf starten`.",
           "Wählen Sie den Ferienzeitraum und dann `Lauf starten`.",
           "Prüfen Sie die Vorschau unter `Rechnungen`. Je Familie steht dort eine Rechnung.",
-          "Die Positionen einer Rechnung sehen Sie im Menü mit den drei Punkten unter `Aufschlüsselung ansehen`.",
+          "Die Beträge je Kind blenden Sie mit `Aufschlüsselung zeigen` unter allen Rechnungen ein. Auf dem Handy finden Sie `Aufschlüsselung zeigen` im Menü mit den drei Punkten.",
         ],
       },
       {
@@ -64,6 +65,7 @@ export function traegerBillingRunTopic(): HelpTopic {
         steps: [
           "Wählen Sie `Lauf freigeben`.",
           "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
+          "Steht im Dialog `Noch offen`, klären Sie diese Punkte zuerst. Oder Sie geben mit `Trotzdem freigeben` frei. Zahlt eine Familie per Lastschrift ohne gültiges Mandat, geben Sie erst frei, wenn das Mandat da ist oder die Familie überweist.",
         ],
       },
       {
@@ -137,7 +139,7 @@ export function traegerBillingRunTopic(): HelpTopic {
           "Wählen Sie `Rechnung stornieren`.",
           "Schreiben Sie eine Begründung, zum Beispiel: Anschrift war falsch. Neue Rechnung folgt.",
           "Wählen Sie `Stornieren`.",
-          "Wählen Sie im Menü der Rechnung `Aufschlüsselung ansehen` und dann `Neu ausstellen`.",
+          "Wählen Sie im Menü der Rechnung `Aufschlüsselung zeigen` und dann `Neu ausstellen`.",
           "moto öffnet einen Lauf in der Vorschau. Dort steht die Familie mit dem Hinweis `Ersetzt` und der alten Nummer.",
           "Hatte die alte Rechnung Korrekturen, stehen sie bei `Übernommene Korrekturen`. Sie zählen schon in der neuen Rechnung mit. Prüfen Sie jede davon.",
           "Stimmt eine Korrektur nicht mehr, wählen Sie bei ihr das Menü mit den drei Punkten und dann `Ändern` oder `Entfernen`.",
@@ -182,10 +184,9 @@ export function traegerBillingRunTopic(): HelpTopic {
         description:
           "Hier sehen Sie alle Rechnungen, Stornos und Gutschriften einer Familie über alle Läufe und ihre Debitorennummer. Eine Familie ist eine E-Mail-Adresse. Familien aus der Ferienbetreuung stehen hier schon, wenn ihre Anmeldung mit Debitorennummer bestätigt ist.",
         steps: [
-          "Wählen Sie in der Navigation `Abrechnung`.",
-          "Wählen Sie oben den Reiter `Familien`.",
+          "Wählen Sie in der Navigation `Familien und Zahlung`. Der Reiter `Familien` ist schon offen.",
           "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offene Forderung`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
-          "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offener Forderung` sehen Sie nur Familien, deren Rechnungen noch Geld verlangen. Mit `Ohne Debitorennummer` sehen Sie Familien ohne Nummer. Denselben Filter setzt ein Klick auf `ohne Debitorennummer` oben in der Zeile mit den Zahlen.",
+          "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offener Forderung` sehen Sie nur Familien, deren Rechnungen noch Geld verlangen. Ob gezahlt wurde, sieht moto nicht. Mit `Ohne Debitorennummer` sehen Sie Familien ohne Nummer. Denselben Filter setzt ein Klick auf `ohne Debitorennummer` oben in der Zeile mit den Zahlen.",
           "Unter `Debitorennummer` steht die Nummer der Familie. Steht auf älteren Rechnungen eine andere, sehen Sie sie darunter. `Nur Ferien` heißt: Die Familie hat keinen Betreuungsvertrag.",
           "Öffnen Sie das Drei-Punkte-Menü neben der Nummer. Wählen Sie `Debitorennummer ändern` oder `Debitorennummer eintragen`. Tragen Sie die Nummer ein und wählen Sie `Speichern`. Ausgestellte Rechnungen behalten ihre Nummer.",
           "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand. Eine Familie ohne Rechnung öffnet sich nicht.",
@@ -213,7 +214,7 @@ export function traegerBillingRunTopic(): HelpTopic {
       "In der Spalte `Zahlung` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`, darunter der Zahlungsweg. Eine stornierte Rechnung zählt dabei nicht mit.",
     ],
     differences: [
-      "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+      "Sie sehen in der Navigation kein `Abrechnungsläufe`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
       "Im Ferienzeitraum fehlt `Zur Abrechnung`? Der Zeitraum ist noch ein Entwurf, oder Ihre Rolle ist nicht Abrechnung.",
       "Im Lauf fehlt `Zum Ferienzeitraum`? Ihre Rolle darf die Ferienbetreuung nicht öffnen.",
       "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",

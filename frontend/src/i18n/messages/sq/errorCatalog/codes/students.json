@@ -88,7 +88,9 @@
   "staff_value_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "staff_value_unsupported": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "status_day_conflict": "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
+  "status_day_occupied": "Për sot është regjistruar një ekskursion klase. Hiqni fillimisht ekskursionin e klasës.",
   "guardian_email_block_needs_review": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "guardian_email_block_lift_failed": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-  "guardian_email_block_stays": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+  "guardian_email_block_stays": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "person_has_active_profile": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }

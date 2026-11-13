@@ -13,7 +13,8 @@ import { FieldLabel } from "./field-label";
  * Zwei Farben sind noch nicht angeglichen und bleiben, bis #6798 entscheidet,
  * benannte Abweichungen statt Klassen im Feld: Die Datumsfelder zeigen ihren
  * Fehler im helleren Rot (`errorTone="base"`), das Zeitfeld seinen Hinweis
- * in Grau-500 (`hintTone="muted"`).
+ * in Grau-500 und 12 px (`hintTone="muted"`); alle anderen Sätze unter
+ * einem Feld stehen in 14 px.
  */
 
 /** Ids eines Feldes und die Liste für `aria-describedby`. */
@@ -56,8 +57,8 @@ export function useFieldIds({
 }
 
 const HINT_TONE_CLASS = {
-  default: "text-gray-600",
-  muted: "text-gray-500",
+  default: "text-sm text-gray-600",
+  muted: "text-xs text-gray-500",
 } as const;
 
 /** Die Zeile unter einem Feld, die stehen bleibt und mitgelesen wird. */
@@ -69,7 +70,7 @@ export function FieldHint({
 }: Readonly<{
   id: string | undefined;
   children: ReactNode;
-  /** `muted`: das Grau des Zeitfelds, siehe oben. */
+  /** `muted`: Grau und Größe des Zeitfelds, siehe oben. */
   tone?: keyof typeof HINT_TONE_CLASS;
   /** Nur für Vorleser, wenn das Umfeld den Hinweis schon sichtbar trägt. */
   visuallyHidden?: boolean;
@@ -77,9 +78,7 @@ export function FieldHint({
   return (
     <p
       id={id}
-      className={
-        visuallyHidden ? "sr-only" : `mt-1 text-xs ${HINT_TONE_CLASS[tone]}`
-      }
+      className={visuallyHidden ? "sr-only" : `mt-1 ${HINT_TONE_CLASS[tone]}`}
     >
       {children}
     </p>

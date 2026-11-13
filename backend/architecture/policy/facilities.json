@@ -29,6 +29,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/facilities/http/behaviortest",
+      "owner": "facilities",
+      "role": "test-support",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/facilities/compose/repositoryadapter",
       "owner": "facilities",
       "role": "compose",
@@ -188,19 +195,6 @@
       "target_owner": "school-membership",
       "target_role": "public",
       "source_package": "modules/facilities/internal/application/roomservice"
-    },
-    {
-      "id": "facilities.http.adapter-test.identity-adapter",
-      "description": "Facilities HTTP integration tests mint authenticated tenant requests.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "facilities",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "http",
-      "source_package": "modules/facilities/http",
-      "target_package": "modules/identityaccess/sessiontoken"
     },
     {
       "id": "facilities.compose.student-presence-public",

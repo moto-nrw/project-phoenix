@@ -207,13 +207,16 @@ func (d *Decisions) linkPrimaryGuardian(ctx context.Context, studentID, guardian
 }
 
 // applyFreshTargetedFields dispatches every targeted form field onto the new
-// student. Ordinary field failures don't abort the approval. Consent-audit
-// failures are different: committing a consent without its required history
-// would break the append-only audit contract, so they abort and let the
-// surrounding tenant transaction roll back. The plan-synced flag is
-// deliberately dropped: this student row was created moments ago in this
-// transaction, so no "läuft mit" link can exist yet and a companion broadcast
-// would only wake every open editor once per mass approval.
+// student. Every failure aborts the approval, like the renewal path does: a
+// student created without the health info, departure plan, contacts or
+// phone the parents submitted would report success while the office never
+// learns the master data is missing (#6839). Invalid request data keeps
+// ErrDecisionInvalidData in the chain, so the handler answers with
+// enrollment.approval_data_invalid. A missing consent audit keeps its own
+// wrap. The plan-synced flag is deliberately dropped: this student row was
+// created moments ago in this transaction, so no "läuft mit" link can exist
+// yet and a companion broadcast would only wake every open editor once per
+// mass approval.
 func (d *Decisions) applyFreshTargetedFields(ctx context.Context, request *enrollment.Request, child *enrollment.RequestChild, student *Student, guardian *GuardianProfile, reviewedBy int64) error {
 	_, err := d.applyTargetedFields(ctx, request, child, student, guardian, reviewedBy, targetedFieldSyncOptions{})
 	if err == nil {
@@ -222,12 +225,7 @@ func (d *Decisions) applyFreshTargetedFields(ctx context.Context, request *enrol
 	if errors.Is(err, errStudentConsentAuditRequired) {
 		return fmt.Errorf("decision: record consent history: %w", err)
 	}
-	d.logger().Warn("decision: targeted-field dispatch had errors",
-		slog.Int64("request_id", request.ID),
-		slog.Int64("child_id", child.ID),
-		slog.String("error", err.Error()),
-	)
-	return nil
+	return fmt.Errorf("decision: targeted-field dispatch on new student: %w", err)
 }
 
 // materializeApprovedOfferings writes the roster rows of the child's

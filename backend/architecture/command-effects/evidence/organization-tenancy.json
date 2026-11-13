@@ -1194,7 +1194,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.provisioningPeople.FindPerson",
-      "binding_digest": "3e77a13d628c46d0b1109d50d4fea675",
+      "binding_digest": "3d0d29ac6cb776b4f8e32b5f7990e926",
+      "port": "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningPeople.FindPerson",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.OperatorPersonStudentMembership",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.provisioningPeople.FindPerson",
+      "binding_digest": "25c2665099d5bb83ce4dc32f25ff5975",
       "port": "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningPeople.FindPerson",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports.IsRepositoryNoRows",
@@ -1202,15 +1210,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.provisioningPeople.FindPerson",
-      "binding_digest": "7bfdad4807762932c11f994d94e4d898",
+      "binding_digest": "f264e0ffe1170488f1ff0a10bf096aff",
       "port": "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningPeople.FindPerson",
       "source_owner": "organization-tenancy",
-      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByID",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDForUpdate",
       "target_owner": "people-directory"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.provisioningPeople.FindPerson",
-      "binding_digest": "41fa5a1e8a7504fa24d088d67e0a6ad1",
+      "binding_digest": "9982ae2c8c9e607fc6a780b354232d95",
       "port": "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningPeople.FindPerson",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-ogs/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -1218,7 +1226,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.provisioningPeople.FindPerson",
-      "binding_digest": "3965e0aaae9c184b5f26a34ca1a2c128",
+      "binding_digest": "106cfa7059368850c5009a188767ff58",
       "port": "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningPeople.FindPerson",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-ogs/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -1226,7 +1234,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.provisioningPeople.FindPerson",
-      "binding_digest": "3c3cef11eadfde18d11f222e34349f8f",
+      "binding_digest": "e847bfee7a294869a64f7a54b1c9c7ef",
       "port": "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningPeople.FindPerson",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-ogs/project-phoenix/modules/schoolmembership.Query.ListStaff",
@@ -1234,7 +1242,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.provisioningPeople.FindPerson",
-      "binding_digest": "4d073f82a73433a5814dd688c9684ea7",
+      "binding_digest": "47e4201ae363fd19950b1f217a2f7357",
       "port": "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningPeople.FindPerson",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-ogs/project-phoenix/modules/schoolmembership.Staff.IsDeleted",

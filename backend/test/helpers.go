@@ -95,7 +95,7 @@ func SetupTestDB(t testing.TB) *bun.DB {
 		claimTenantRun(t)
 	}
 	if perTestDatabases || hasIsolatedTestDB(t) {
-		return setupIsolatedTestDB(t)
+		return setupIsolatedTestDB(t, isolatedTestDBSource(t))
 	}
 
 	// Self-heal after tests that call viper.Reset() (factory config tests):
@@ -124,7 +124,7 @@ func SetupTestDB(t testing.TB) *bun.DB {
 func SetupIsolatedTestDB(t testing.TB) *bun.DB {
 	t.Helper()
 	setupPackageTestDB(t)
-	return setupIsolatedTestDB(t)
+	return setupIsolatedTestDB(t, nil)
 }
 
 func setupPackageTestDB(t testing.TB) {

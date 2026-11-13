@@ -83,7 +83,7 @@ var moduleFacadeMethodSetAllowlist = map[string]int{
 	"modules/devicefleet/devicefleet.go:DeviceQuery":                                                  14,
 	"modules/devicefleet/devicefleet.go:Query":                                                        18,
 	"modules/enrollment/decisions.go:Decisions":                                                       18,
-	"modules/enrollment/enrollment.go:Owner":                                                          141,
+	"modules/enrollment/enrollment.go:Owner":                                                          140,
 	"modules/enrollment/enrollmenttest/careplan_contract.go:PublicDecisions":                          18,
 	"modules/enrollment/holiday_registration_review.go:HolidayRegistrationReview":                     14,
 	"modules/filestorage/filestorage.go:Capability":                                                   17,

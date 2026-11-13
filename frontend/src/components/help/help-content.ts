@@ -150,6 +150,7 @@ function leadTopics(
     articles.staffRecordTopic(),
     articles.staffQualificationsTopic(),
     articles.targetOverrideTopic(),
+    articles.workTimeTemplatesTopic(),
     articles.staffPermissionsTopic(),
     articles.workTimeReviewTopic(),
     articles.payrollTopic(),
@@ -172,6 +173,7 @@ function leadTopics(
     articles.careTimeComparisonTopic(),
     articles.holidayWeeksTopic(),
     articles.holidayGuestGroupTopic(),
+    articles.holidayHomeSchoolChildrenTopic(),
     articles.exportsTopic(),
 
     // --- Einstellungen und Geräte ---
@@ -267,6 +269,7 @@ const TRAEGER_TOPICS: readonly HelpTopic[] = [
   articles.traegerSepaMandatesTopic(),
   articles.traegerSepaDebitFileTopic(),
   articles.traegerFinanceExportsTopic(),
+  articles.traegerExportHandoverTopic(),
   articles.traegerDatevExportTopic(),
   articles.traegerSharedDocumentsTopic(),
   articles.traegerCareTimeOverrunsTopic(),

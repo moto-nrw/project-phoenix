@@ -83,6 +83,7 @@ export function enrollmentSetupTopic(): HelpTopic {
       "Beim Speichern steht `Der neue Zeitraum passt nicht zur geänderten Buchung von …`? Das genannte Kind wechselt sein Angebot ab einem Tag im alten Zeitraum. Der neue Zeitraum würde diese Buchung leeren. Passen Sie zuerst die Angebote dieses Kindes an.",
       "Fehlt `Anmeldungen` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
       "Eine Phase oder ein Angebot lässt sich nicht löschen, weil es vom Träger kommt? Schalten Sie es stattdessen aus. Entfernen kann es nur Ihr Träger.",
+      "Eine Phase lässt sich nicht löschen, weil es Anmeldungen zu ihr gibt? Wählen Sie stattdessen `Deaktivieren`. Die Anmeldungen bleiben so erhalten.",
     ],
     related: [
       HELP_TOPICS.leadEnrollmentForm,

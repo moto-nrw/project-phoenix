@@ -1,10 +1,12 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"testing"
 
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/require"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 // TestCompanionConflictsConfirmed pins what a confirmed extension is worth: the
@@ -21,33 +23,33 @@ func TestCompanionConflictsConfirmed(t *testing.T) {
 	)
 
 	t.Run("exactly what was confirmed", func(t *testing.T) {
-		require.True(t, companionConflictsConfirmed(
+		require.True(t, careplanhttp.CompanionConflictsConfirmedForTest(
 			[]careplan.CompanionConflict{{StudentID: tom, Weekdays: []string{"thu"}}},
-			[]CompanionEntry{{CompanionStudentID: tom, Weekdays: []string{"thu"}}},
+			[]careplanhttp.CompanionEntry{{CompanionStudentID: tom, Weekdays: []string{"thu"}}},
 		))
 	})
 
 	t.Run("a companion that appeared afterwards is not confirmed", func(t *testing.T) {
-		require.False(t, companionConflictsConfirmed(
+		require.False(t, careplanhttp.CompanionConflictsConfirmedForTest(
 			[]careplan.CompanionConflict{
 				{StudentID: tom, Weekdays: []string{"thu"}},
 				{StudentID: mia, Weekdays: []string{"thu"}},
 			},
-			[]CompanionEntry{{CompanionStudentID: tom, Weekdays: []string{"thu"}}},
+			[]careplanhttp.CompanionEntry{{CompanionStudentID: tom, Weekdays: []string{"thu"}}},
 		))
 	})
 
 	t.Run("a weekday that appeared afterwards is not confirmed", func(t *testing.T) {
-		require.False(t, companionConflictsConfirmed(
+		require.False(t, careplanhttp.CompanionConflictsConfirmedForTest(
 			[]careplan.CompanionConflict{{StudentID: tom, Weekdays: []string{"thu", "fri"}}},
-			[]CompanionEntry{{CompanionStudentID: tom, Weekdays: []string{"thu"}}},
+			[]careplanhttp.CompanionEntry{{CompanionStudentID: tom, Weekdays: []string{"thu"}}},
 		))
 	})
 
 	t.Run("a conflict that resolved itself leaves the rest confirmed", func(t *testing.T) {
-		require.True(t, companionConflictsConfirmed(
+		require.True(t, careplanhttp.CompanionConflictsConfirmedForTest(
 			[]careplan.CompanionConflict{{StudentID: tom, Weekdays: []string{"thu"}}},
-			[]CompanionEntry{
+			[]careplanhttp.CompanionEntry{
 				{CompanionStudentID: tom, Weekdays: []string{"thu"}},
 				{CompanionStudentID: mia, Weekdays: []string{"thu"}},
 			},
@@ -55,7 +57,7 @@ func TestCompanionConflictsConfirmed(t *testing.T) {
 	})
 
 	t.Run("a flag without a list confirms nothing", func(t *testing.T) {
-		require.False(t, companionConflictsConfirmed(
+		require.False(t, careplanhttp.CompanionConflictsConfirmedForTest(
 			[]careplan.CompanionConflict{{StudentID: tom, Weekdays: []string{"thu"}}},
 			nil,
 		))

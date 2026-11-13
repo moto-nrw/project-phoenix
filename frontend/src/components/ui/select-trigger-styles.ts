@@ -4,9 +4,11 @@ import { CONTROL_HEIGHT_CLASS, type ControlSize } from "./control-geometry";
 
 const TRIGGER_BASE_CLASS =
   "flex items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100! disabled:text-gray-500 disabled:opacity-80";
-// Heights from the kit's one size vocabulary (control-geometry.ts).
+// Heights from the kit's one size vocabulary (control-geometry.ts). By
+// finger the compact select reaches 44 px and 16-px text, like the kit's
+// fields and buttons; the dense one stays for dense toolbars.
 const TRIGGER_HEIGHT_CLASS = {
-  compact: CONTROL_HEIGHT_CLASS.compact,
+  compact: `${CONTROL_HEIGHT_CLASS.touch} pointer-coarse:text-base`,
   dense: CONTROL_HEIGHT_CLASS.dense,
 } as const satisfies Partial<Record<ControlSize, string>>;
 // `moto-content-surface` is unlayered: it beats the red invalid tint and the

@@ -68,7 +68,7 @@ func mountPayrollDownload(root chi.Router, payroll workforceModule.PayrollDispat
 // substitutions and time tracking.
 func mountStaffRoutes(
 	root, tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, membership schoolMembershipModule.Capability,
-	workTime workforceModule.Capability, users peoplePorts.PersonDirectory, staffAdmin *workforceModule.StaffAdmin,
+	workTime workforceModule.Capability, workTimeCatalog workforceModule.WorkTimeModelCatalog, users peoplePorts.PersonDirectory, staffAdmin *workforceModule.StaffAdmin,
 	workforce owners.WorkforcePlanning, shifts *workforceCompose.ShiftPlanning, education schoolstructure.GroupManagement,
 	substitution SubstitutionOperations, persons peopledirectory.Capability, settings settingsCompose.SettingsService,
 	hub *realtime.Hub, identity identityaccess.Owner, caller *owners.CallerRows, calendar schoolcalendar.Calendar,
@@ -85,7 +85,7 @@ func mountStaffRoutes(
 	absenceTypes := newAbsenceTypesResource(workforceCompose.NewAbsenceTypeAdministration(workTime, logger.With("service", "active")), currentStaffID(caller)).Router()
 	tenant.Mount("/staff", staff.Router())
 	mountPayrollDownload(root, workforce.PayrollDispatch, logger)
-	tenant.Mount("/work-time-models", newWorkTimeModelsResource(workTime, staffTimeTrackingNotifier(hub)).Router())
+	tenant.Mount("/work-time-models", newWorkTimeModelsResource(workTime, workTimeCatalog, staffTimeTrackingNotifier(hub)).Router())
 	tenant.Mount("/staff-shifts", staffShifts.Router())
 	tenant.Mount("/shift-types", newShiftTypesResource(shifts.ShiftTypes).Router())
 	tenant.Mount("/absence-types", absenceTypes)
@@ -235,6 +235,10 @@ func newTimetableResource(
 	})
 }
 
+// enrollmentMount is the school's online enrollment below /api. Its
+// parent-facing routes have the limit of a public link (#6739).
+const enrollmentMount = "/enrollment"
+
 // mountSchoolRoutes serves the school's rooms, groups, activities, schedules,
 // enrollment, settings, info-point displays and data administration under
 // /api.
@@ -259,7 +263,7 @@ func mountSchoolRoutes(
 	tenant.Mount("/groups", groupsHTTP.NewResource(education, active, peopleCompose.NewGroupRoutePeople(users), caller, newGroupStudentsInClassDay(settings), transactionFailures.IsConstraintViolation).Router(ProtectedTenantRoutes))
 	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(activities, timetableOwner, NewTimetableSupervisorDirectory(users), caller, TimetableHTTPTransactions).Router(ProtectedTenantRoutes))
 	// Parent enrollment (PR 5+).
-	tenant.Mount("/enrollment", enrollment.Router(TenantSessionChain))
+	tenant.Mount(enrollmentMount, enrollment.Router(TenantSessionChain))
 	// The hosting school's holiday participant lists (#4665) and holiday
 	// guests (#4666).
 	mountHolidayHostRoutes(tenant, holidaySchools, persons, holidayStudents, holidayCare, holidayAccessLog, healthData)

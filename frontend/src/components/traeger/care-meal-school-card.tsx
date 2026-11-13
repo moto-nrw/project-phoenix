@@ -4,6 +4,7 @@
 // Essen oder als Pauschale, und alle Preise mit ihrem Beginn. Ohne Preis
 // rechnet der Monatslauf die Mensa der Schule nicht ab.
 
+import { Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -22,11 +23,11 @@ import {
   MEAL_MODE_LABELS,
   MEAL_STAND_LABELS,
   type MealStandStatus,
-  mealPriceText,
   mealStandStatus,
   mealStands,
 } from "./care-meal-format";
 import { formatEuro } from "./contribution-format";
+import { schoolsConcept } from "~/lib/concepts/schools";
 
 const STAND_TONES: Record<MealStandStatus, StatusBadgeTone> = {
   current: "green",
@@ -42,7 +43,7 @@ function columns(currentMonth: string): DataTableColumn<CareMealTariff>[] {
       stacked: "title",
       render: (tariff) => (
         <span className="font-medium text-gray-900">
-          1. {formatMonth(tariff.validFrom)}
+          {formatMonth(tariff.validFrom)}
         </span>
       ),
     },
@@ -106,24 +107,33 @@ export function CareMealSchoolCard({
     (tariff) => !billedUntil || tariff.validFrom > billedUntil,
   );
 
+  // The table names every price with its mode and stand; the line under the
+  // title only says what the table cannot: no price yet, or only a planned one.
   const description = current
-    ? `${mealPriceText(current)}, seit 1. ${formatMonth(current.validFrom)}.`
+    ? ""
     : stands.length > 0
-      ? `Ab 1. ${formatMonth(stands[0]?.validFrom ?? currentMonth)} geplant.`
+      ? `Ab ${formatMonth(stands[0]?.validFrom ?? currentMonth)} geplant.`
       : "Noch kein Mensa-Preis. Ohne Preis rechnet der Monatslauf die Mensa dieser Schule nicht ab.";
 
   return (
     <SectionCard
+      concept={schoolsConcept}
       title={school.name}
+      // The mode that counts this month, in green beside the school.
       titleBadge={
         current ? (
           <StatusBadge tone="green" label={MEAL_MODE_LABELS[current.mode]} />
         ) : undefined
       }
       description={
-        billedUntil
-          ? `${description} Abgerechnet bis ${formatMonth(billedUntil)}; diese Monate behalten ihren Preis.`
-          : description
+        [
+          description,
+          billedUntil
+            ? `Abgerechnet bis ${formatMonth(billedUntil)}; diese Monate behalten ihren Preis.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ") || undefined
       }
       actions={
         <div className="flex items-center gap-2">
@@ -135,6 +145,7 @@ export function CareMealSchoolCard({
               ariaLabel={`Weitere Aktionen: ${school.name}`}
               items={deletable.map((tariff) => ({
                 label: `Preis ab ${formatMonth(tariff.validFrom)} löschen`,
+                icon: <Trash2 className="size-4" aria-hidden />,
                 destructive: true,
                 onClick: () => onDelete(tariff),
               }))}

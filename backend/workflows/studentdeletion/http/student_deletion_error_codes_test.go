@@ -1,4 +1,4 @@
-package studentdeletionhttp
+package studentdeletionhttp_test
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 	"github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
+	studentdeletionhttp "github.com/moto-ogs/project-phoenix/workflows/studentdeletion/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +42,7 @@ func TestWithdrawalDeletionErrorRendererUsesStableCodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodDelete, "/", nil)
-			renderError(recorder, request, (&Resource{ResourceConfig: ResourceConfig{ConstraintViolation: transactionFailures.IsConstraintViolation}}).withdrawalDeletionErrorRenderer(tt.err))
+			studentdeletionhttp.RenderErrorForTest(recorder, request, (&studentdeletionhttp.Resource{ResourceConfig: studentdeletionhttp.ResourceConfig{ConstraintViolation: transactionFailures.IsConstraintViolation}}).WithdrawalDeletionErrorRendererForTest(tt.err))
 
 			assert.Equal(t, tt.status, recorder.Code)
 			var response struct {

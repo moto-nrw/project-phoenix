@@ -11,6 +11,11 @@ import { DownloadIcon, LandmarkIcon } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import {
+  HandoverMenu,
+  recipientOfFormat,
+  useFinanceHandover,
+} from "~/components/traeger/finance-export-handover";
+import {
   SEPA_DEBIT_LEFT_LABELS,
   SEPA_SEQUENCE_BADGES,
   collectDatesText,
@@ -180,6 +185,23 @@ export function SepaDebitCard({
     void reload();
   }, [reload]);
 
+  const handoverRun = {
+    pathKind: kind,
+    runId,
+    label: title === "Lastschrift" ? "diesem Lauf" : title,
+  };
+  // Handover of the file to the recipient of the Träger (ADR 0218): a file
+  // that arrived counts like a download for the confirmation below.
+  const handover = useFinanceHandover((arrived) => {
+    if (arrived) {
+      setDownloaded({
+        key: runKey,
+        messageId: messageIdOfDebitFile(arrived.fileName),
+      });
+    }
+    void reload();
+  });
+
   const download = async () => {
     setDownloading(true);
     try {
@@ -273,7 +295,7 @@ export function SepaDebitCard({
         }
         actions={
           pending ? (
-            <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row">
+            <div className="flex w-full max-w-full flex-col flex-wrap gap-2 min-[480px]:w-auto min-[480px]:flex-row">
               <Button
                 type="button"
                 variant="outline"
@@ -283,6 +305,20 @@ export function SepaDebitCard({
               >
                 Bei der Bank eingereicht
               </Button>
+              {fileBlocked ? null : (
+                <HandoverMenu
+                  run={handoverRun}
+                  size="md"
+                  recipients={handover.recipients}
+                  recipientHidden={handover.recipientHidden}
+                  formats={["pain008"]}
+                  busy={downloading || handover.running !== null}
+                  running={handover.running !== null}
+                  onHandOver={(format) =>
+                    handover.handOver(format, handoverRun)
+                  }
+                />
+              )}
               <Button
                 type="button"
                 variant="primary"
@@ -302,6 +338,7 @@ export function SepaDebitCard({
       >
         <div className="flex flex-col gap-5">
           {control}
+          {handover.notice}
           {fileBlocked ? (
             <Alert
               type="warning"
@@ -326,8 +363,10 @@ export function SepaDebitCard({
           ) : null}
           {pending && !downloadedId ? (
             <p className="text-sm text-gray-600">
-              Laden Sie zuerst die Datei herunter. Danach können Sie das
-              Einreichen bestätigen.
+              {recipientOfFormat(handover.recipients, "pain008")?.ready ||
+              handover.recipientHidden
+                ? "Laden Sie zuerst die Datei herunter oder übergeben Sie sie. Danach können Sie das Einreichen bestätigen."
+                : "Laden Sie zuerst die Datei herunter. Danach können Sie das Einreichen bestätigen."}
             </p>
           ) : null}
           {pending ? (
@@ -380,6 +419,7 @@ export function SepaDebitCard({
         </div>
       </SectionCard>
       {run.left.length > 0 ? <SepaDebitsLeftCard left={run.left} /> : null}
+      {handover.dialog}
       <ConfirmationModal
         isOpen={confirming}
         title="Datei bei der Bank eingereicht?"

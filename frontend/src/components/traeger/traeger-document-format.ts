@@ -45,8 +45,11 @@ export function releaseAudienceLabel(
     release.schoolId === null
       ? null
       : (schools.get(release.schoolId) ?? "eine Schule");
+  // Like „Eltern: …“: the label names who sees the document, not only where.
   if (release.audience === "schools") {
-    return school ?? "Alle Schulen";
+    return school === null
+      ? "OGS-Leitung aller Schulen"
+      : `OGS-Leitung: ${school}`;
   }
   if (release.groupId !== null) {
     return `Eltern der Gruppe „${release.groupName}“ (${school ?? "eine Schule"})`;

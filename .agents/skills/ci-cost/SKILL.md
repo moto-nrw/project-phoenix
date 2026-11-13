@@ -96,6 +96,29 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   gained nothing (305 s against 311 s) and slowed them, because they then ran
   at the same time; `scripts/backend-package-budgets.json` holds each
   package's budget.
+- "Backend tests" writes a "CPU seconds" table into its job summary (build,
+  vet, link, Postgres, test binaries). Compare shares of the busy seconds, not
+  job durations: the same full suite took 1431 to 2183 busy CPU seconds and
+  193 to 295 s on six runners of one size (13.11.).
+- In a full suite with a warm build cache Postgres takes about half of the
+  busy CPU seconds, the test binaries a third, linking a seventh. Cloning
+  and dropping databases is a few seconds of that; the rest is fixture work,
+  about 920,000 SELECT and 313,000 INSERT statements. The local server's
+  `fsync=off`, `full_page_writes=off` and `wal_level=minimal` changed nothing
+  on the job's tmpfs.
+- A typical feature pull request compiles more than it tests: `api` 21 times
+  and `roots/owners` 7 times, 60 % of its compile CPU (#6914). `GOGC=400`
+  for the toolchain alone saved 13 % of the build CPU locally; `-exec "env -u
+  GOGC"` keeps it away from the test binaries.
+- A job in front of the job that sets the wall-clock time costs its duration
+  plus a runner start: "Select backend tests" took 40–67 s plus 6–15 s. The
+  long job selects for itself, as t3code's does.
+- Two cold Next.js builds started side by side on four cores took as long as
+  one after the other (207 s against 210 s).
+- The script suite "restore" took 303–313 s on a hosted runner, 232 s of it
+  the encrypted daily backup restore test; a change to
+  `scripts/posthog-dashboards.mjs` alone waited for it. Pull requests now
+  start it only for its own inputs (`restore-suite` filter, #6962).
 - A pull request run with the full suites cost about $0.18–0.27 after #5770
   (check "CI cost"); the backend tests alone, warm, about $0.05.
 

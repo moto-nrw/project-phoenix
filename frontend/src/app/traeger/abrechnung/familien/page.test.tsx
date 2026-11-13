@@ -139,7 +139,7 @@ describe("TraegerBillingFamiliesPage", () => {
     await screen.findAllByText("Tom Berger");
 
     fireEvent.change(
-      screen.getAllByPlaceholderText("Name, E-Mail oder Debitorennummer")[0]!,
+      screen.getAllByPlaceholderText("Name, E-Mail, Debitorennummer")[0]!,
       { target: { value: "4711" } },
     );
 

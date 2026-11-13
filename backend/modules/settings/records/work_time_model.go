@@ -30,6 +30,9 @@ type WorkTimeModel struct {
 	RotationAnchorDate CalendarDate `bun:"rotation_anchor_date,notnull,type:date" json:"rotation_anchor_date"`
 	CreatedAt          time.Time    `bun:"created_at,notnull,default:now()" json:"created_at"`
 	UpdatedAt          time.Time    `bun:"updated_at,notnull,default:now()" json:"updated_at"`
+	// ArchivedAt is set while the template is not offered for new
+	// assignments (#6891).
+	ArchivedAt *time.Time `bun:"archived_at" json:"archived_at,omitempty"`
 
 	Entries []*WorkTimeModelEntry `bun:"rel:has-many,join:id=model_id" json:"entries,omitempty"`
 }

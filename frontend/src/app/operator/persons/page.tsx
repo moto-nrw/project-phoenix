@@ -18,7 +18,11 @@ import {
 } from "~/lib/hooks/use-refresh-after-write";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
-import { PersonTags } from "~/components/operator/persons-table";
+import {
+  PersonTags,
+  SchoolDeletesPersonHint,
+  operatorMayDeletePerson,
+} from "~/components/operator/persons-table";
 import { StaffPersonMerge } from "~/components/operator/staff-person-merge";
 import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { SimpleEmptyState } from "../provisioning/provisioning-shared";
@@ -155,11 +159,14 @@ function OperatorPersonsPageContent() {
         />
       ) : (
         <>
-          <p className="mb-4 text-sm text-gray-500">
-            {schoolPersons.length}{" "}
-            {schoolPersons.length === 1 ? "Person" : "Personen"} in{" "}
-            <span className="font-medium">{selectedSchool.name}</span>
-          </p>
+          <div className="mb-4 space-y-1">
+            <p className="text-sm text-gray-500">
+              {schoolPersons.length}{" "}
+              {schoolPersons.length === 1 ? "Person" : "Personen"} in{" "}
+              <span className="font-medium">{selectedSchool.name}</span>
+            </p>
+            <SchoolDeletesPersonHint persons={schoolPersons} />
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {schoolPersons.map((person) => (
               <div
@@ -179,18 +186,20 @@ function OperatorPersonsPageContent() {
                     </p>
                   )}
                 </div>
-                <OverflowMenu
-                  items={[
-                    {
-                      label: "Person löschen",
-                      icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
-                      destructive: true,
-                      onClick: () => setDeletePersonTarget(person),
-                    },
-                  ]}
-                  triggerSize="sm"
-                  ariaLabel={`Aktionen für ${person.firstName} ${person.lastName}`}
-                />
+                {operatorMayDeletePerson(person) && (
+                  <OverflowMenu
+                    items={[
+                      {
+                        label: "Person löschen",
+                        icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+                        destructive: true,
+                        onClick: () => setDeletePersonTarget(person),
+                      },
+                    ]}
+                    triggerSize="sm"
+                    ariaLabel={`Aktionen für ${person.firstName} ${person.lastName}`}
+                  />
+                )}
               </div>
             ))}
           </div>

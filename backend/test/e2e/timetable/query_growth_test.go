@@ -19,7 +19,8 @@ func TestPopulatedTimetableRequestGrowthQueryBudgets(t *testing.T) {
 			testpkg.OwnTenant(t)
 			testpkg.SetupIsolatedTestDB(t)
 			s := setupTimetableScenarioModule(t)
-			target := calendar.NewDate(2027, 4, 19)
+			// Exception conflicts accept only today or later; the template runs on Mondays.
+			target := s.plannableWeekday(1, 7)
 			s.createActivePeriod(fmt.Sprintf("Growth %d", n), target)
 			room := testpkg.CreateTestRoom(t, s.db, "Growth room")
 			staff := testpkg.CreateTestStaff(t, s.db, "Growth", "Staff")

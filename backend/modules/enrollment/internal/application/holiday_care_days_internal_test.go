@@ -65,7 +65,7 @@ func (s *careDayPeriodStore) HolidayWeeksBookedTogether(context.Context, int64, 
 
 type careDayFormStore struct{ HolidayFormStore }
 
-func (careDayFormStore) InsertHolidayPeriodForm(context.Context, int64, int64, int64, []enrollment.HolidayFormField, []enrollment.FormLegalBlock, enrollment.HolidayAddressRequirement) (enrollment.HolidayPeriodForm, error) {
+func (careDayFormStore) InsertHolidayPeriodForm(context.Context, int64, int64, int64, []enrollment.HolidayFormField, []enrollment.FormLegalBlock, enrollment.HolidayAddressRequirement, enrollment.HolidayHealthRequirement) (enrollment.HolidayPeriodForm, error) {
 	return enrollment.HolidayPeriodForm{}, nil
 }
 

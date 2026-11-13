@@ -162,7 +162,7 @@ export function CarePriceModuleEditor({
           <Input
             id={`care-price-${field}`}
             name={field}
-            controlSize="compact"
+            controlSize="touch"
             aria-label={`${moduleName}, ${column.long}, ${row.label}, Monatspreis in Euro`}
             inputMode="decimal"
             placeholder={row.sibling ? "wie 1." : booked ? "fehlt" : "–"}

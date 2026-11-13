@@ -428,7 +428,7 @@ describe("AnchoredPopover", () => {
 
     for (const trigger of [
       screen.getByRole("combobox", { name: "Gruppe" }),
-      screen.getByRole("button", { name: /Klassen/ }),
+      screen.getByRole("combobox", { name: /Klassen/ }),
     ]) {
       fireEvent.click(trigger);
       const menu = screen

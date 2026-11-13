@@ -47,6 +47,8 @@ interface FormModalProps {
    * Field-level problems additionally go to the field (`Input` `error`).
    */
   readonly error?: FormErrorInput;
+  /** Heading level of the title (see `Modal`); 3 by default. */
+  readonly titleLevel?: 2 | 3;
 }
 
 /**
@@ -69,6 +71,7 @@ export function FormModal({
   isBackdropDismissDisabled = false,
   suspended = false,
   error,
+  titleLevel,
 }: FormModalProps) {
   const busy = pending?.pending ?? false;
 
@@ -77,6 +80,7 @@ export function FormModal({
       isOpen={isOpen}
       onClose={onClose}
       title={title}
+      titleLevel={titleLevel}
       size={size}
       mobileSheet={mobilePosition === "bottom"}
       sheetFooter="row"

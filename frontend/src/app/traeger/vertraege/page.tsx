@@ -24,11 +24,12 @@ import {
   CONCLUSION_MODE_TONES,
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_ORDER,
-  CONTRACT_STATUS_TONES,
+  contractStatusTone,
   SEND_SKIP_LABELS,
   childName,
 } from "~/components/traeger/care-contract-format";
 import { careContractTabs } from "~/components/traeger/care-contract-tabs";
+import { emptySearchText } from "~/components/traeger/empty-search";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -43,7 +44,9 @@ import { SectionCard } from "~/components/ui/section-card";
 import { ApiError } from "~/lib/api-error";
 import { hasPermission } from "~/lib/auth-utils";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { SelectionBar } from "~/components/ui/selection-bar";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
+import { ListSkeleton } from "~/components/ui/page-skeletons";
 import {
   useApiErrorDisplay,
   useApiLoadError,
@@ -128,7 +131,15 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
     header: "Betreuungsort",
     render: (contract) => contract.schoolName,
     sortValue: (contract) => contract.schoolName,
-    stacked: "hidden",
+    stackedLabel: false,
+    // A phone row stays two lines (child, offer and start); only an open
+    // end, a task, adds its orange note.
+    stackedRender: (contract) =>
+      contract.status === "gekuendigt" && !contract.endsOn ? (
+        <span className="text-moto-orange-strong font-medium">
+          Ende festlegen
+        </span>
+      ) : null,
   },
   {
     key: "party",
@@ -157,20 +168,24 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
       <span className="inline-flex flex-col items-start gap-1">
         <StatusBadge
           label={CONTRACT_STATUS_LABELS[contract.status]}
-          tone={CONTRACT_STATUS_TONES[contract.status]}
+          tone={contractStatusTone(contract)}
         />
         {contract.status === "gekuendigt" && contract.endsOn ? (
-          <span className="text-xs text-gray-500">
+          <span className="text-sm text-gray-500">
             zum {formatDate(contract.endsOn)}
           </span>
         ) : contract.status === "gekuendigt" ? (
-          <span className="text-xs text-gray-500">Ende offen</span>
+          // An extraordinary notice waits for the office: the end is a task,
+          // not a quiet date.
+          <span className="text-moto-orange-strong text-sm font-medium">
+            Ende festlegen
+          </span>
         ) : contract.status === "widerrufen" ? null : contract.concluded ? (
-          <span className="text-xs text-gray-500">
+          <span className="text-sm text-gray-500">
             seit {formatBerlinDate(contract.concluded.at)}
           </span>
         ) : contract.sentAt ? (
-          <span className="text-xs text-gray-500">
+          <span className="text-sm text-gray-500">
             am {formatBerlinDate(contract.sentAt)}
           </span>
         ) : null}
@@ -182,7 +197,7 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
     stackedRender: (contract) => (
       <StatusBadge
         label={CONTRACT_STATUS_LABELS[contract.status]}
-        tone={CONTRACT_STATUS_TONES[contract.status]}
+        tone={contractStatusTone(contract)}
       />
     ),
   },
@@ -195,6 +210,8 @@ export default function TraegerVertraegePage() {
   const [status, setStatus] = useState<StatusChoice>("all");
   const [schoolId, setSchoolId] = useState("");
   const [search, setSearch] = useState("");
+  // Null until the person opens or closes the card: then the device decides.
+  const [rulesOpen, setRulesOpen] = useState<boolean | null>(null);
   const debouncedSearch = useDebounce(search.trim(), 250);
   const context = useRef<{
     candidates: ContractCandidate[];
@@ -301,7 +318,7 @@ export default function TraegerVertraegePage() {
           error: err instanceof Error ? err.message : String(err),
         });
         await showLoadError(err, {
-          object: "die Verträge",
+          object: "die Liste der Verträge",
           retry: () => void load(offset),
         });
       } finally {
@@ -367,7 +384,7 @@ export default function TraegerVertraegePage() {
       logger.error("traeger_care_contracts_send_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void actionError.show(err, { object: "die Verträge" });
+      void actionError.show(err, { object: "das Senden der Entwürfe" });
       setSelected(new Set());
       await load();
       setSending(false);
@@ -468,6 +485,8 @@ export default function TraegerVertraegePage() {
       : []),
   ];
 
+  // The count names the children waiting for a contract; the dialog lists
+  // each of them, with the reason where a draft cannot be made yet.
   const createLabel =
     candidates.length > 0
       ? `Verträge erstellen (${candidates.length})`
@@ -476,7 +495,7 @@ export default function TraegerVertraegePage() {
   return (
     <TenantPage
       title="Verträge"
-      info="Hier sehen Sie die Betreuungsverträge aus den angenommenen Anmeldungen Ihrer Schulen. moto übernimmt Kind, Eltern, Beginn und die gebuchten Module je Wochentag. Gilt der Vertrag bei der Annahme, entsteht er von selbst. Sonst prüfen Sie den Entwurf und senden ihn per Mail und in die Eltern-App."
+      info="Hier sehen Sie die Betreuungsverträge aus den angenommenen Anmeldungen Ihrer Schulen. moto übernimmt Kind, Eltern, Beginn und die gebuchten Module je Wochentag. Gilt der Vertrag bei der Annahme, entsteht er von selbst, wenn die Eltern im Anmeldeformular den Vertragsbedingungen zugestimmt haben. Sonst prüfen Sie den Entwurf und senden ihn per Mail und in die Eltern-App."
       tabs={careContractTabs("vertraege")}
       stats={
         total > 0 || candidates.length > 0 ? (
@@ -504,37 +523,26 @@ export default function TraegerVertraegePage() {
         setSchoolId("");
       }}
       actions={
-        <>
-          {selectedDrafts.length > 0 ? (
-            <Button
-              type="button"
-              variant="success"
-              size="md"
-              disabled={sending}
-              onClick={() => void sendSelected()}
-            >
-              <Send className="mr-2 h-4 w-4" aria-hidden="true" />
-              {sending
-                ? "Wird gesendet …"
-                : selectedDrafts.length === 1
-                  ? "1 Entwurf senden"
-                  : `${selectedDrafts.length} Entwürfe senden`}
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            disabled={!data}
-            onClick={() => setCreating(true)}
-          >
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            {createLabel}
-          </Button>
-        </>
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          disabled={!data}
+          onClick={() => setCreating(true)}
+        >
+          <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+          {createLabel}
+        </Button>
       }
       error={pageLoad.error ?? (!data ? afterWrite.error : null)}
-      loading={!pageLoad.error && !afterWrite.error && !data}
+      // A list loads in the shape of its rows.
+      loading={
+        !pageLoad.error && !afterWrite.error && !data ? (
+          <ListSkeleton rows={6} avatar={false} />
+        ) : (
+          false
+        )
+      }
       overlays={
         data ? (
           <CareContractCreateModal
@@ -553,11 +561,27 @@ export default function TraegerVertraegePage() {
       {data && data.modes.length > 0 ? (
         <SectionCard
           title="Wann gilt der Vertrag?"
-          description={conclusionDescription(data.modes)}
+          // Closed, the card shows only its title: the explanation would
+          // push the contracts down again. On a phone the rule per school and
+          // its warning stay, the explanation is in the page's info (i).
+          description={
+            (rulesOpen ?? true) ? (
+              <span className="max-sm:hidden">
+                {conclusionDescription(data.modes)}
+              </span>
+            ) : undefined
+          }
+          // Open on every device: the rule per school decides what to do
+          // next; it folds away on request.
+          collapsible
+          collapsed={!(rulesOpen ?? true)}
+          onCollapsedChange={(collapsed) => setRulesOpen(!collapsed)}
           action={
             hasPermission(session, "traeger_overview:read") ? (
+              // Straight to the tab that holds „Wann gilt der
+              // Betreuungsvertrag?“, not the first tab of the settings.
               <ButtonLink
-                href={traegerPath("/traeger/einstellungen")}
+                href={traegerPath("/traeger/einstellungen?bereich=enrollment")}
                 variant="surface"
                 size="compact"
               >
@@ -570,20 +594,41 @@ export default function TraegerVertraegePage() {
             aria-label="Abschluss je Schule"
             className="divide-y divide-gray-100"
           >
-            {data.modes.map((school) => (
-              <li
-                key={school.schoolId}
-                className="flex flex-wrap items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
-              >
-                <span className="min-w-0 text-sm font-medium wrap-anywhere text-gray-900">
-                  {school.schoolName}
-                </span>
-                <StatusBadge
-                  label={CONCLUSION_MODE_LABELS[school.mode]}
-                  tone={CONCLUSION_MODE_TONES[school.mode]}
-                />
-              </li>
-            ))}
+            {data.modes.map((school) => {
+              // Accepted children the acceptance did not conclude: without
+              // the parents' consent the green mode alone would read as
+              // „every child has a contract“.
+              const withoutContract =
+                school.mode === "bei_annahme"
+                  ? data.candidates.filter(
+                      (candidate) =>
+                        candidate.schoolId === school.schoolId &&
+                        candidate.acceptanceIssue !== null,
+                    ).length
+                  : 0;
+              return (
+                <li
+                  key={school.schoolId}
+                  className="flex flex-wrap items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+                >
+                  <span className="min-w-0 text-sm font-medium wrap-anywhere text-gray-900">
+                    {school.schoolName}
+                  </span>
+                  <span className="flex flex-wrap items-center gap-2">
+                    {withoutContract > 0 ? (
+                      <StatusBadge
+                        label={`${withoutContract === 1 ? "1 Kind" : `${withoutContract} Kinder`} ohne Zustimmung, kein Vertrag`}
+                        tone="orange"
+                      />
+                    ) : null}
+                    <StatusBadge
+                      label={CONCLUSION_MODE_LABELS[school.mode]}
+                      tone={CONCLUSION_MODE_TONES[school.mode]}
+                    />
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </SectionCard>
       ) : null}
@@ -594,7 +639,24 @@ export default function TraegerVertraegePage() {
           getRowKey={(contract) => contract.id}
           stackedOnMobile
           stackedLayout="row"
+          stackedDetailKey="school"
           onRowClick={(contract) => router.push(contractHref(contract))}
+          // Older contracts load inside the list's surface, like every list.
+          moreAction={
+            data?.list.hasMore
+              ? {
+                  // Without a filter the counts name the whole list.
+                  label:
+                    status === "all" && !schoolId && !search.trim()
+                      ? `Weitere Verträge laden (${contracts.length} von ${total})`
+                      : "Weitere Verträge laden",
+                  onClick: () => void load(contracts.length),
+                  loading: loadingMore,
+                  loadingText: "Wird geladen …",
+                  disabled: loadingMore || sending,
+                }
+              : undefined
+          }
           selection={{
             selectedKeys: selected,
             disabled: sending,
@@ -622,28 +684,85 @@ export default function TraegerVertraegePage() {
                 candidates.length,
                 data.modes.length > 0 &&
                   data.modes.every((school) => school.mode === "bei_annahme"),
+                emptySearchText(
+                  search,
+                  activeFilters.map((filter) => filter.label),
+                ).description,
               )}
+              action={
+                total > 0 &&
+                (search.trim() !== "" || activeFilters.length > 0) ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => {
+                      setSearch("");
+                      setStatus("all");
+                      setSchoolId("");
+                    }}
+                  >
+                    {
+                      emptySearchText(
+                        search,
+                        activeFilters.map((filter) => filter.label),
+                      ).actionLabel
+                    }
+                  </Button>
+                ) : undefined
+              }
             />
           }
         />
       ) : null}
-      {data?.list.hasMore ? (
-        <Button
-          type="button"
-          variant="outline"
-          disabled={loadingMore || sending}
-          isLoading={loadingMore}
-          loadingText="Wird geladen …"
-          onClick={() => void load(contracts.length)}
-        >
-          Weitere Verträge laden
-        </Button>
-      ) : null}
-      {data && selected.size > 0 && selectedDrafts.length < selected.size ? (
-        <p className="text-sm text-gray-500">
-          Senden gilt nur für Entwürfe. Einen versendeten Vertrag senden Sie auf
-          seiner Seite erneut.
-        </p>
+      {data && selected.size > 0 ? (
+        // What the ticked rows are for, and the action, stick at the bottom
+        // of the screen while the list scrolls.
+        <SelectionBar
+          aria-label="Ausgewählte Verträge"
+          placement="bottom"
+          count={selected.size}
+          label={
+            selected.size === 1
+              ? "1 Vertrag ausgewählt"
+              : `${selected.size} Verträge ausgewählt`
+          }
+          description={
+            selectedDrafts.length < selected.size ? (
+              // On a phone the bar keeps to the rule, so it covers less of
+              // the list; the way to resend follows from the tablet on.
+              <>
+                Senden gilt nur für Entwürfe.
+                <span className="max-sm:hidden">
+                  {" "}
+                  Einen versendeten Vertrag senden Sie auf seiner Seite erneut.
+                </span>
+              </>
+            ) : (
+              "Die Eltern bekommen den Vertrag per Mail und in der Eltern-App."
+            )
+          }
+          onClear={() => setSelected(new Set())}
+          busy={sending}
+          actions={
+            selectedDrafts.length > 0 ? (
+              <Button
+                type="button"
+                variant="success"
+                size="compact"
+                disabled={sending}
+                onClick={() => void sendSelected()}
+              >
+                <Send className="mr-2 h-4 w-4" aria-hidden="true" />
+                {sending
+                  ? "Wird gesendet …"
+                  : selectedDrafts.length === 1
+                    ? "1 Entwurf senden"
+                    : `${selectedDrafts.length} Entwürfe senden`}
+              </Button>
+            ) : null
+          }
+        />
       ) : null}
     </TenantPage>
   );
@@ -653,8 +772,14 @@ function emptyText(
   contracts: number,
   candidates: number,
   allOnAcceptance: boolean,
+  searchText: string,
 ): { title: string; description?: string } {
-  if (contracts > 0) return { title: "Kein Vertrag passt zu Ihrer Suche." };
+  if (contracts > 0) {
+    return {
+      title: "Kein Vertrag passt zu Ihrer Suche.",
+      description: searchText || undefined,
+    };
+  }
   if (allOnAcceptance) {
     return {
       title: "Noch kein Vertrag.",
@@ -687,6 +812,8 @@ function statusFigures(
   active: number,
   candidates: number,
 ): { value: number; label: string }[] {
+  // The contracts by state; children without a contract complete the line
+  // when there is room (the create button carries their number).
   const figures = [
     { value: active, label: "aktiv" },
     { value: sent, label: "versendet" },

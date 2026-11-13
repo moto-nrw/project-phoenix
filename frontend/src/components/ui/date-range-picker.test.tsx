@@ -633,7 +633,7 @@ describe("DateRangePicker in a dialog", () => {
     await waitFor(() => {
       expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
     });
-    const trigger = screen.getByRole("button", { name: /Gruppen/ });
+    const trigger = screen.getByRole("combobox", { name: /Gruppen/ });
     fireEvent.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
 

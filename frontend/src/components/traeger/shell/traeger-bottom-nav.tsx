@@ -1,5 +1,7 @@
 "use client";
 
+import { Menu } from "lucide-react";
+
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -48,12 +50,15 @@ export function TraegerBottomNav() {
 
   const settingsItems = traegerSettingsNavItemsFor(session ?? null);
   const settingsEntry = settingsItems[0];
-  const items: readonly BottomNavItem[] = isTraegerSettingsPath(pathname)
+  const inSettings = isTraegerSettingsPath(pathname);
+  const items: readonly BottomNavItem[] = inSettings
     ? [
         { ...TRAEGER_BACK_NAV, href: returnHref, direct: true },
         ...settingsItems,
       ]
     : [
+        // Die Leiste folgt der Seitenleiste (#5685); was nicht passt,
+        // steht unter „Mehr“.
         ...traegerNavGroupsFor(session ?? null).flatMap((group) => group.items),
         HELP_ITEM,
         ...(settingsEntry
@@ -64,6 +69,7 @@ export function TraegerBottomNav() {
     key: item.key,
     href: item.direct ? item.href : traegerPath(item.href),
     label: item.label,
+    shortLabel: "shortLabel" in item ? item.shortLabel : undefined,
     concept: item.concept,
     active: item.direct !== true && isTraegerNavActive(item.href, pathname),
     newTab: item.help === true,
@@ -77,6 +83,14 @@ export function TraegerBottomNav() {
       items={navItems}
       moreConcept={moreConcept}
       navItemAttribute="data-traeger-nav-item"
+      activeInMore
+      // Wie im OGS-Portal: die Hauptleiste zeigt die drei Striche des
+      // Menüs; die Einstellungsleiste behält die Punkte wie dort.
+      moreIcon={
+        inSettings ? undefined : (
+          <Menu className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+        )
+      }
     />
   );
 }

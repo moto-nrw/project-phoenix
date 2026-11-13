@@ -8,6 +8,7 @@
 // Menü kommen nur auf der Seite „Schreiben“ dazu
 // (care-run-letter-invoices.tsx), damit der Lauf ihren Code nicht lädt.
 
+import { Wallet } from "lucide-react";
 import {
   ResponsiveActionList,
   ResponsiveActionRow,
@@ -175,7 +176,7 @@ function CostShareLines({ invoice }: Readonly<{ invoice: CareInvoice }>) {
             <p className="text-sm break-words hyphens-auto text-gray-900">
               {share.costBearerName}
             </p>
-            <p className="mt-0.5 text-xs text-gray-600">
+            <p className="mt-0.5 text-sm text-gray-600">
               übernimmt · {COST_SHARE_KIND_LABELS[share.kind]} ·{" "}
               {costShareAmountText(share)}
             </p>
@@ -238,6 +239,120 @@ function invoiceRows(
   });
 }
 
+/** The head of an invoice row: the child, and that it is a meal invoice. */
+function InvoiceChildHead({ invoice }: Readonly<{ invoice: CareInvoice }>) {
+  return (
+    <>
+      <p className="font-semibold text-gray-900">
+        {invoice.childFirstName} {invoice.childLastName}
+      </p>
+      {invoice.service === "meal" ? (
+        <p className="mt-0.5 text-sm font-medium text-gray-700">
+          Mensa-Rechnung
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** Who gets the invoice, how it is paid, its number and date. */
+function InvoiceFacts({ row }: Readonly<{ row: CareInvoiceRow }>) {
+  const { invoice, letter, storno } = row;
+  const kind = recipientKindLabel(invoice.recipient.kind);
+  const number = storno ? letter?.number : invoice.number;
+  const issuedOn = storno ? letter?.issuedOn : invoice.issuedOn;
+  return (
+    <>
+      {/* Who gets the invoice is checked before release: the line wraps
+          instead of being cut. */}
+      <p className="mt-0.5 text-sm break-words text-gray-600">
+        {recipientLine(invoice.recipient)}
+      </p>
+      {kind ? (
+        <p className="mt-1">
+          <StatusBadge label={kind} tone="blue" />
+        </p>
+      ) : null}
+      {/* An invoice of 0 € asks nothing of the family: no way to pay, no
+          due day. */}
+      {!storno && invoice.payment ? (
+        invoice.totalCents <= 0 ? (
+          <p className="mt-0.5 text-sm text-gray-600">Nichts zu zahlen</p>
+        ) : (
+          <InvoicePaymentLine payment={invoice.payment} />
+        )
+      ) : null}
+      {number ? (
+        <p className="mt-1 flex flex-wrap items-center gap-1.5">
+          <span className="font-mono text-sm text-gray-500">{number}</span>
+          {storno ? <StatusBadge label="Storno" tone="blue" /> : null}
+          {!storno && letter?.cancelled ? (
+            <StatusBadge label="Storniert" tone="red" />
+          ) : null}
+        </p>
+      ) : null}
+      {issuedOn ? (
+        <p className="mt-0.5 text-sm text-gray-500">
+          Ausgestellt am {formatDate(issuedOn)}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** The positions of an invoice, or what its Storno cancels. */
+function InvoicePositions({
+  row,
+  month,
+}: Readonly<{ row: CareInvoiceRow; month: string }>) {
+  const { invoice, letter, storno } = row;
+  return storno ? (
+    <div className="min-w-0 space-y-0.5 py-1.5 text-sm">
+      <p className="text-gray-900">
+        Storno zu Rechnung <span className="font-mono">{invoice.number}</span>
+      </p>
+      {letter?.reason ? (
+        <p className="wrap-anywhere text-gray-600">Grund: {letter.reason}</p>
+      ) : null}
+    </div>
+  ) : (
+    <ul className="min-w-0 divide-y divide-gray-100">
+      {invoice.positions.map((position) => (
+        <PositionLine
+          key={`${position.careOfferingId}-${position.serviceFrom}`}
+          position={position}
+          month={month}
+          showAmount={
+            invoice.positions.length > 1 ||
+            invoice.reductions.length > 0 ||
+            invoice.mealPositions.length > 0 ||
+            invoice.costShares.length > 0 ||
+            (invoice.amendments?.length ?? 0) > 0
+          }
+        />
+      ))}
+      {invoice.reductions.map((reduction, index) => (
+        <ReductionLine
+          key={`${reduction.kind}-${index}`}
+          reduction={reduction}
+        />
+      ))}
+      {invoice.mealPositions.map((position) => (
+        <MealPositionLine key={position.mealMonth} position={position} />
+      ))}
+      <CostShareLines invoice={invoice} />
+      {careCorrectionLines(invoice).map((line) => (
+        <InvoiceLine
+          key={`correction-${line.id}`}
+          title={line.kind === "amount" ? "Korrektur" : line.label}
+          detail={`Änderung · Grund: ${line.reason}`}
+          amount={formatEuro(line.amountCents)}
+        />
+      ))}
+    </ul>
+  );
+}
+
 /** The menu of a row on the run: Empfänger und Zahlung of its family. */
 function familyColumn(
   onFamilyBilling: (invoice: CareInvoice) => void,
@@ -253,10 +368,10 @@ function familyColumn(
       storno ? null : (
         <OverflowMenu
           ariaLabel={`Aktionen für die Rechnung von ${invoice.childFirstName} ${invoice.childLastName}`}
-          triggerSize="sm"
           items={[
             {
               label: "Empfänger und Zahlung",
+              icon: <Wallet className="size-4" aria-hidden />,
               description: "Für alle Rechnungen dieser Familie",
               onClick: () => onFamilyBilling(invoice),
             },
@@ -273,50 +388,18 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
       header: "Kind",
       stacked: "title",
       className: "w-56 align-top",
-      render: ({ invoice, letter, storno }) => {
-        const kind = recipientKindLabel(invoice.recipient.kind);
-        const number = storno ? letter?.number : invoice.number;
-        const issuedOn = storno ? letter?.issuedOn : invoice.issuedOn;
-        return (
-          <div className="min-w-0">
-            <p className="font-semibold text-gray-900">
-              {invoice.childFirstName} {invoice.childLastName}
-            </p>
-            {invoice.service === "meal" ? (
-              <p className="mt-0.5 text-xs font-medium text-gray-700">
-                Mensa-Rechnung
-              </p>
-            ) : null}
-            <p className="mt-0.5 truncate text-sm text-gray-600">
-              {recipientLine(invoice.recipient)}
-            </p>
-            {kind ? (
-              <p className="mt-1">
-                <StatusBadge label={kind} tone="blue" />
-              </p>
-            ) : null}
-            {!storno && invoice.payment ? (
-              <InvoicePaymentLine payment={invoice.payment} />
-            ) : null}
-            {number ? (
-              <p className="mt-1 flex flex-wrap items-center gap-1.5">
-                <span className="font-mono text-xs text-gray-500">
-                  {number}
-                </span>
-                {storno ? <StatusBadge label="Storno" tone="blue" /> : null}
-                {!storno && letter?.cancelled ? (
-                  <StatusBadge label="Storniert" tone="red" />
-                ) : null}
-              </p>
-            ) : null}
-            {issuedOn ? (
-              <p className="mt-0.5 text-xs text-gray-500">
-                Ausgestellt am {formatDate(issuedOn)}
-              </p>
-            ) : null}
+      render: (row) => (
+        // In the table the recipient and the payment keep a readable width
+        // beside the positions. On a phone (the stacked list, below md) the
+        // head row carries only the child beside the sum and the menu; the
+        // facts follow at full width with the positions.
+        <div className="md:min-w-60">
+          <InvoiceChildHead invoice={row.invoice} />
+          <div className="max-md:hidden">
+            <InvoiceFacts row={row} />
           </div>
-        );
-      },
+        </div>
+      ),
     },
     {
       key: "positions",
@@ -324,61 +407,26 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
       stacked: "field",
       stackedLabel: false,
       className: "align-top",
-      render: ({ invoice, letter, storno }) =>
-        storno ? (
-          <div className="min-w-0 space-y-0.5 py-1.5 text-sm">
-            <p className="text-gray-900">
-              Storno zu Rechnung{" "}
-              <span className="font-mono">{invoice.number}</span>
-            </p>
-            {letter?.reason ? (
-              <p className="wrap-anywhere text-gray-600">
-                Grund: {letter.reason}
-              </p>
-            ) : null}
+      render: (row) => (
+        <div className="min-w-0">
+          <div className="mb-2 md:hidden">
+            <InvoiceFacts row={row} />
           </div>
-        ) : (
-          <ul className="min-w-0 divide-y divide-gray-100">
-            {invoice.positions.map((position) => (
-              <PositionLine
-                key={`${position.careOfferingId}-${position.serviceFrom}`}
-                position={position}
-                month={month}
-                showAmount={
-                  invoice.positions.length > 1 ||
-                  invoice.reductions.length > 0 ||
-                  invoice.mealPositions.length > 0 ||
-                  invoice.costShares.length > 0 ||
-                  (invoice.amendments?.length ?? 0) > 0
-                }
-              />
-            ))}
-            {invoice.reductions.map((reduction, index) => (
-              <ReductionLine
-                key={`${reduction.kind}-${index}`}
-                reduction={reduction}
-              />
-            ))}
-            {invoice.mealPositions.map((position) => (
-              <MealPositionLine key={position.mealMonth} position={position} />
-            ))}
-            <CostShareLines invoice={invoice} />
-            {careCorrectionLines(invoice).map((line) => (
-              <InvoiceLine
-                key={`correction-${line.id}`}
-                title={line.kind === "amount" ? "Korrektur" : line.label}
-                detail={`Änderung · Grund: ${line.reason}`}
-                amount={formatEuro(line.amountCents)}
-              />
-            ))}
-          </ul>
-        ),
+          <InvoicePositions row={row} month={month} />
+        </div>
+      ),
     },
     {
       key: "total",
-      header: "Betrag",
+      // The invoice's sum at the top of its row, beside the child and the
+      // menu: an open menu leaves it in view, and its own header keeps it
+      // apart from the amounts of the positions. One short word, so the
+      // column stays as narrow as its amounts and leaves the width to the
+      // positions.
+      header: "Summe",
       align: "right",
       stacked: "meta",
+      stackedTone: "figure",
       className: "align-top",
       render: ({ invoice, letter, storno }) => (
         <span

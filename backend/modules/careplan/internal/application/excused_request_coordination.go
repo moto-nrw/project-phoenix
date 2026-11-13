@@ -126,11 +126,12 @@ func (w *ExcusedRequests) WriteStaffValue(ctx context.Context, write careplan.Ex
 		return careplan.ErrStaffValueUnsupported
 	}
 	now := time.Now()
+	reviewer := write.ReviewerID
 	// Clear every status the staff verdict is not, then write the one it is.
 	// Clearing first keeps a day from carrying two active statuses for the
 	// instant between the two writes.
 	for _, other := range careplan.StudentStatusDayStatusesExcept(status) {
-		if err := w.carePlan.ClearStudentStatusDays(ctx, write.StudentID, other, dates, now, careplan.StudentStatusSourceManual); err != nil {
+		if err := w.carePlan.ClearStudentStatusDays(ctx, write.StudentID, other, dates, now, careplan.StudentStatusSourceManual, &reviewer); err != nil {
 			return fmt.Errorf("care plan: clear status days for staff value: %w", err)
 		}
 	}
@@ -141,7 +142,7 @@ func (w *ExcusedRequests) WriteStaffValue(ctx context.Context, write careplan.Ex
 	for _, date := range dates {
 		if _, err := w.carePlan.UpsertStudentStatusDay(ctx, careplan.StudentStatusDay{
 			StudentID: write.StudentID, Date: date, Status: status, ReportedAt: now,
-			Source: careplan.StudentStatusSourceManual, Note: &reason,
+			Source: careplan.StudentStatusSourceManual, Note: &reason, ReportedByAccountID: &reviewer,
 		}); err != nil {
 			return fmt.Errorf("care plan: write status day for staff value: %w", err)
 		}

@@ -237,6 +237,54 @@ func (rs *Resource) listAdminChildOfferingAdjustments(w http.ResponseWriter, r *
 	common.Respond(w, r, http.StatusOK, out, "Offering adjustments retrieved")
 }
 
+// AdminRequestChildOffering is one care-offering pick for a child.
+// SelectedDays is non-empty only for offerings whose
+// days_of_week_mode is "parent_choice"; otherwise it's omitted and
+// the offering's AvailableDays describes the (admin-fixed) schedule.
+//
+// The attribute and validity fields carry the same facts the parent
+// portal renders for this booking (#2185), in the same wire shape:
+// ValidUntil is the INCLUSIVE last covered day, matching
+// workflows/parentportal/http/care_offerings_handlers.go. The stored column is
+// exclusive; one JSON name must not mean two different days depending
+// on which endpoint answered.
+//
+// StartsLater marks a row that is not in effect yet — display only.
+// Which SET a row sits in (offerings vs upcoming_offerings) is what
+// says whether a correction replaces it; before the phase starts a
+// booking is not yet in effect AND on file, so the two questions have
+// different answers and must not share one flag.
+type AdminRequestChildOffering struct {
+	OfferingID            string   `json:"offering_id"`
+	OfferingName          string   `json:"offering_name"`
+	DaysOfWeekMode        string   `json:"days_of_week_mode"`
+	SelectedDays          []string `json:"selected_days,omitempty"`
+	ManualSelectedDays    []string `json:"manual_selected_days,omitempty"`
+	AutomaticSelectedDays []string `json:"automatic_selected_days,omitempty"`
+	AvailableDays         []string `json:"available_days,omitempty"`
+	IncludesLunch         bool     `json:"includes_lunch"`
+	IncludesHolidayCare   bool     `json:"includes_holiday_care"`
+	PriceCents            *int     `json:"price_cents,omitempty"`
+	ValidFrom             string   `json:"valid_from,omitempty"`
+	ValidUntil            string   `json:"valid_until,omitempty"`
+	StartsLater           bool     `json:"starts_later,omitempty"`
+	// SubmittedTerms are the catalog terms the parents submitted and signed
+	// (#6837), absent for a booking without a snapshot. ChangedTerms names
+	// what the catalog changed since: price, days, activity. While it is
+	// non-empty an approval needs accept_offering_changes.
+	SubmittedTerms *AdminSubmittedOfferingTerms    `json:"submitted_terms,omitempty"`
+	ChangedTerms   []capability.OfferingTermChange `json:"changed_terms,omitempty"`
+}
+
+// AdminSubmittedOfferingTerms is the snapshot of an offering's catalog terms
+// at submission (#6837). The linked activity is compared, not shown.
+type AdminSubmittedOfferingTerms struct {
+	Name           string   `json:"name"`
+	PriceCents     *int     `json:"price_cents,omitempty"`
+	DaysOfWeekMode string   `json:"days_of_week_mode"`
+	AvailableDays  []string `json:"available_days"`
+}
+
 func toAdminChildOffering(row ChildOfferingRow) AdminRequestChildOffering {
 	return AdminRequestChildOffering{
 		OfferingID:            strconv.FormatInt(row.OfferingID, 10),
@@ -252,6 +300,18 @@ func toAdminChildOffering(row ChildOfferingRow) AdminRequestChildOffering {
 		ValidFrom:             optionalDateString(row.ValidFrom),
 		ValidUntil:            optionalInclusiveEndDateString(row.ValidUntil),
 		StartsLater:           row.StartsLater,
+		SubmittedTerms:        toAdminSubmittedOfferingTerms(row.SubmittedTerms),
+		ChangedTerms:          row.ChangedTerms,
+	}
+}
+
+func toAdminSubmittedOfferingTerms(terms *capability.OfferingTerms) *AdminSubmittedOfferingTerms {
+	if terms == nil {
+		return nil
+	}
+	return &AdminSubmittedOfferingTerms{
+		Name: terms.Name, PriceCents: terms.PriceCents,
+		DaysOfWeekMode: terms.DaysOfWeekMode, AvailableDays: terms.AvailableDays,
 	}
 }
 

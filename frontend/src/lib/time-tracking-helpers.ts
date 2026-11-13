@@ -938,6 +938,8 @@ export interface BackendMonthSummary {
   carry_in_minutes: number;
   target_minutes: number;
   target_minutes_to_date: number;
+  /** False when no Soll is maintained for the month (#6887). */
+  has_target: boolean;
   actual_minutes: number;
   credited_sick_minutes: number;
   credited_vacation_minutes: number;
@@ -946,6 +948,11 @@ export interface BackendMonthSummary {
   sick_days: number;
   vacation_days: number;
   training_days: number;
+  /** Absence workdays no maintained Soll governs; they credit nothing (#6889). */
+  sick_days_without_target: number;
+  vacation_days_without_target: number;
+  training_days_without_target: number;
+  other_days_without_target: number;
   planned_shift_minutes?: number | null;
   adjustment_minutes: number;
   adjustments?: BackendBalanceAdjustment[] | null;
@@ -1029,6 +1036,10 @@ export interface MonthSummary {
   carryInMinutes: number;
   targetMinutes: number;
   targetMinutesToDate: number;
+  /** False when no Soll is maintained for any day of the month: no work
+   *  schedule, no work-time model, no Sonderarbeitszeit (#6887). Sick and
+   *  vacation days then count 0 hours. */
+  hasTarget: boolean;
   actualMinutes: number;
   creditedSickMinutes: number;
   creditedVacationMinutes: number;
@@ -1037,6 +1048,14 @@ export interface MonthSummary {
   sickDays: number;
   vacationDays: number;
   trainingDays: number;
+  /** Absence workdays (Mo–Fr, no holiday or closing day) that no maintained
+   *  Soll governs: no Sonderarbeitszeit, work schedule or work-time model on
+   *  that day. They credit 0 hours and stay out of the credited day counters
+   *  above, which the payroll exports book (#6889). */
+  sickDaysWithoutTarget: number;
+  vacationDaysWithoutTarget: number;
+  trainingDaysWithoutTarget: number;
+  otherDaysWithoutTarget: number;
   plannedShiftMinutes: number | null;
   adjustmentMinutes: number;
   adjustments: BalanceAdjustment[];
@@ -1144,6 +1163,7 @@ export function mapMonthSummaryResponse(
     carryInMinutes: data.carry_in_minutes,
     targetMinutes: data.target_minutes,
     targetMinutesToDate: data.target_minutes_to_date,
+    hasTarget: data.has_target,
     actualMinutes: data.actual_minutes,
     creditedSickMinutes: data.credited_sick_minutes,
     creditedVacationMinutes: data.credited_vacation_minutes,
@@ -1152,6 +1172,10 @@ export function mapMonthSummaryResponse(
     sickDays: data.sick_days,
     vacationDays: data.vacation_days,
     trainingDays: data.training_days,
+    sickDaysWithoutTarget: data.sick_days_without_target,
+    vacationDaysWithoutTarget: data.vacation_days_without_target,
+    trainingDaysWithoutTarget: data.training_days_without_target,
+    otherDaysWithoutTarget: data.other_days_without_target,
     plannedShiftMinutes: data.planned_shift_minutes ?? null,
     adjustmentMinutes: data.adjustment_minutes ?? 0,
     adjustments: (data.adjustments ?? []).map(mapBalanceAdjustmentResponse),

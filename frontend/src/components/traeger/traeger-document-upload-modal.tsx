@@ -124,6 +124,7 @@ export function TraegerDocumentUploadModal({
       pending={save}
       isBackdropDismissDisabled
       title="Dokument hochladen"
+      titleLevel={2}
       size="md"
       error={formErrors.error}
       footer={
@@ -158,7 +159,7 @@ export function TraegerDocumentUploadModal({
               <p className="truncate text-sm font-medium text-gray-900">
                 {file.name}
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-sm text-gray-500">
                 {documentKindLabel(file.type)} · {formatBytes(file.size)}
               </p>
             </div>
@@ -179,7 +180,9 @@ export function TraegerDocumentUploadModal({
             dragLabel="Datei hier ablegen"
             buttonLabel="Datei auswählen"
             inputLabel="Dokument auswählen"
-            hint="PDF, Word, Excel, PowerPoint oder Bild, höchstens 10 MB"
+            hint={
+              "PDF, Word, Excel, PowerPoint oder Bild, höchstens\u00A010\u00A0MB"
+            }
             disabled={saving}
             onFile={choose}
           />
@@ -192,6 +195,7 @@ export function TraegerDocumentUploadModal({
           live
         />
         <Input
+          controlSize="touch"
           id="traeger-document-title"
           name="title"
           label="Titel"

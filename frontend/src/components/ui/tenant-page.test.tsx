@@ -477,13 +477,15 @@ describe("TenantPage", () => {
       const tablist = screen.getByRole("tablist", {
         name: "Seitenbereiche",
       });
-      const moreButton = screen.getByRole("tab", { name: "Mehr" });
+      // The active tab sits under „Mehr“: the trigger shows its label, so
+      // its name carries that label too (WCAG 2.5.3, label in name).
+      const moreButton = screen.getByRole("tab", { name: "Mehr: Personal" });
 
       expect(moreButton).toHaveAttribute("role", "tab");
       expect(moreButton).toHaveAttribute("aria-selected", "true");
       expect(moreButton).toHaveAttribute("tabindex", "0");
 
-      expect(within(tablist).getByRole("tab", { name: "Mehr" })).toBe(
+      expect(within(tablist).getByRole("tab", { name: "Mehr: Personal" })).toBe(
         moreButton,
       );
       moreButton.focus();

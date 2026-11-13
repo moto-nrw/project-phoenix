@@ -48,7 +48,7 @@ export function ToggleChip({
         // Finger gilt für jedes Kit-Bedienelement die Mindesthöhe von 44 px.
         CONTROL_HEIGHT_CLASS.compact,
         "inline-flex items-center justify-center border px-3 text-sm font-medium transition-colors pointer-coarse:min-h-11",
-        "focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none",
+        "focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none",
         "disabled:cursor-not-allowed disabled:opacity-50",
         shape === "pill" ? "min-w-11 rounded-full" : "rounded-lg",
         pressed

@@ -152,8 +152,18 @@
     },
     {
       "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.HoldsTraegerParentAccess",
+      "reason": "Exact evidence for #6862: the account's parents-portal access at a Träger, read on the caller's connection through the adapter's one query; the school caller gets the fact only through the narrow database capability."
+    },
+    {
+      "decision": "0090",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.IncrementMFAAttempts",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ListActiveTenantIDs",
+      "reason": "Exact evidence for #6862: the account's active schools through the narrow database capability, read in the MFA reset's administrative transaction; not a forward."
     },
     {
       "decision": "0090",

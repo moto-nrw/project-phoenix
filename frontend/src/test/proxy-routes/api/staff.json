@@ -136,6 +136,9 @@
   "api/staff/time-tracking/overview": [
     "GET tenant /api/staff/time-tracking/overview"
   ],
+  "api/staff/time-tracking/target-coverage": [
+    "GET tenant /api/staff/time-tracking/target-coverage query=year,month"
+  ],
   "api/staff/time-tracking/payroll-dispatch": [
     "GET tenant /api/staff/time-tracking/payroll-dispatch"
   ],

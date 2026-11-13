@@ -36,6 +36,7 @@ func (rs *HolidayPeriodResource) registrationRoutes(r chi.Router, withTx common.
 	review.Get("/{id}/registrations", rs.listRegistrations)
 	r.With(rs.requireManage, rs.withSchoolNames, withTx).Get("/{id}/registrations/export", rs.exportRegistrations)
 	r.With(rs.requireManage, rs.withKnownChildren, withTx).Get("/{id}/registrations/known-children", rs.listKnownChildren)
+	review.Get("/{id}/registrations/mail-problems", rs.listMailProblems)
 	files := r.With(rs.requireManage, rs.requireHealthWhenAsked, rs.withSchoolNames)
 	// The archive reads in the Träger transaction and sends after its commit.
 	files.Get("/{id}/registrations/pdf", rs.downloadRegistrationPDFs(withTx))
@@ -100,6 +101,30 @@ func (rs *HolidayPeriodResource) listRegistrations(w http.ResponseWriter, r *htt
 		return
 	}
 	common.Respond(w, r, http.StatusOK, list, "Holiday registrations retrieved successfully")
+}
+
+// mailProblemsResponse names the registrations whose receipt or acceptance
+// mail did not reach the parents (#6737).
+type mailProblemsResponse struct {
+	Registrations []capability.HolidayRegistrationMails `json:"registrations"`
+}
+
+func (rs *HolidayPeriodResource) listMailProblems(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	periodID, err := common.ParseIDParam(r, "id")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	mails, err := rs.mails.HolidayRegistrationMailProblems(r.Context(), reviewer, periodID)
+	if err != nil {
+		renderHolidayReviewError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, mailProblemsResponse{Registrations: mails}, "Holiday registration mail problems retrieved successfully")
 }
 
 func (rs *HolidayPeriodResource) getRegistration(w http.ResponseWriter, r *http.Request) {

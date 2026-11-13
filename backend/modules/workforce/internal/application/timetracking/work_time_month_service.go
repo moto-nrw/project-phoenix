@@ -164,6 +164,9 @@ func (s *workTimeMonthService) computeAggregates(ctx context.Context, staffID in
 		target := resolver.TargetFor(d)
 		agg := aggregates[monthOf(d)]
 		agg.target += target
+		if resolver.HasSource(d) {
+			agg.hasTarget = true
+		}
 		if !d.After(today) {
 			agg.targetToDate += target
 		}
@@ -226,6 +229,11 @@ func balanceSessionEnd(session *WorkSession, now time.Time, today calendar.Date)
 
 type absenceDayVisitor func(d calendar.Date, absence *StaffAbsence, credit int, fraction float64)
 
+// unpricedAbsenceDayVisitor receives a consumed absence day whose Soll is 0,
+// with the day fraction it covers. It credits nothing; the Monatskarte uses it
+// to count absence days in a month without a maintained Soll (#6889).
+type unpricedAbsenceDayVisitor func(d calendar.Date, absence *StaffAbsence, fraction float64)
+
 // walkCreditedAbsenceDays applies the ONE set of absence rules every reader
 // prices days with — Monatskarte, Tageszeile, Stundenkonto: only
 // reported/approved absences count, a day is consumed by the LOWEST absence ID
@@ -243,24 +251,40 @@ func walkCreditedAbsenceDays(
 	targetFor func(calendar.Date) int,
 	visit absenceDayVisitor,
 ) {
+	walkAbsenceDayCoverage(absences, first, through, targetFor, visit, nil)
+}
+
+// walkAbsenceDayCoverage is walkCreditedAbsenceDays that also hands every
+// consumed day without Soll to unpriced (nil skips them). Both visitors see
+// the same consumption order, so a day is either credited or unpriced, never
+// both, and an overlapping absence never counts it twice.
+func walkAbsenceDayCoverage(
+	absences []*StaffAbsence,
+	first, through calendar.Date,
+	targetFor func(calendar.Date) int,
+	visit absenceDayVisitor,
+	unpriced unpricedAbsenceDayVisitor,
+) {
 	sort.Slice(absences, func(i, j int) bool { return absences[i].ID < absences[j].ID })
 	credited := make(map[calendar.Date]bool)
 	for _, absence := range absences {
 		if absence.Status != AbsenceStatusReported && absence.Status != AbsenceStatusApproved {
 			continue
 		}
-		walkAbsenceDays(absence, first, through, credited, targetFor, visit)
+		walkAbsenceDays(absence, first, through, credited, targetFor, visit, unpriced)
 	}
 }
 
 // walkAbsenceDays visits the days of one absence that no lower-ID absence has
-// consumed yet, inside [first, through] and with a Soll.
+// consumed yet, inside [first, through]: days with a Soll go to visit, days
+// without one to unpriced when it is set.
 func walkAbsenceDays(
 	absence *StaffAbsence,
 	first, through calendar.Date,
 	credited map[calendar.Date]bool,
 	targetFor func(calendar.Date) int,
 	visit absenceDayVisitor,
+	unpriced unpricedAbsenceDayVisitor,
 ) {
 	startHalf, endHalf := effectiveAbsenceBoundaryHalves(absence)
 	for d := absence.DateStart; !d.After(absence.DateEnd); d = d.AddDays(1) {
@@ -270,6 +294,9 @@ func walkAbsenceDays(
 		credited[d] = true
 		target := targetFor(d)
 		if target <= 0 {
+			if unpriced != nil {
+				unpriced(d, absence, absenceDayFraction(absence, d, startHalf, endHalf))
+			}
 			continue
 		}
 		credit, fraction := absenceDayCredit(absence, d, target, startHalf, endHalf)
@@ -280,10 +307,9 @@ func walkAbsenceDays(
 // absenceDayCredit prices one consumed absence day with a Soll: the full Soll,
 // or half of it on a half-day boundary.
 func absenceDayCredit(absence *StaffAbsence, d calendar.Date, target int, startHalf, endHalf bool) (int, float64) {
-	fraction := 1.0
+	fraction := absenceDayFraction(absence, d, startHalf, endHalf)
 	credit := target
-	if isHalfAbsenceDay(absence, d, startHalf, endHalf) {
-		fraction = 0.5
+	if fraction < 1 {
 		credit = target / 2
 	}
 	if absence.AbsenceType == AbsenceTypeCompTime {
@@ -294,6 +320,15 @@ func absenceDayCredit(absence *StaffAbsence, d calendar.Date, target int, startH
 		credit = 0
 	}
 	return credit, fraction
+}
+
+// absenceDayFraction is the share of d an absence covers: half on a half-day
+// boundary, otherwise the whole day.
+func absenceDayFraction(absence *StaffAbsence, d calendar.Date, startHalf, endHalf bool) float64 {
+	if isHalfAbsenceDay(absence, d, startHalf, endHalf) {
+		return 0.5
+	}
+	return 1.0
 }
 
 // chainAnchor determines where the live carry computation starts: the

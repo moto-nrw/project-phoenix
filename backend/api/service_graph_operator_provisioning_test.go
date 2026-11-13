@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
@@ -431,7 +432,9 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_WithActiveSupervisions
 	assert.EqualValues(t, 1, blocked.FieldByName("Count").Int(), "one active supervision")
 }
 
-func TestOperatorProvisioningIntegration_SoftDeletePerson_StaffWithoutSupervision(t *testing.T) {
+// A live staff member leaves through the offboarding, not the operator
+// person deletion (#6840): the person and its staff membership stay.
+func TestOperatorProvisioningIntegration_SoftDeletePerson_LiveStaffBlocked(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	service := buildOperatorProvisioning(t, db)
@@ -440,16 +443,11 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_StaffWithoutSupervisio
 	staff := testpkg.CreateTestStaff(t, db, "FreeStaff", "NoSupervision")
 
 	operatorID := testpkg.CreateTestOperator(t, db).ID
-	require.NoError(t, service.SoftDeletePerson(ctx, staff.PersonID, operatorID, provisioningTestClientIP))
-
-	var deletedAt *string
-	err := db.NewSelect().
-		TableExpr("users.persons").
-		Column("deleted_at").
-		Where("id = ?", staff.PersonID).
-		Scan(testpkg.Ctx(t), &deletedAt)
-	require.NoError(t, err)
-	assert.NotNil(t, deletedAt)
+	err := service.SoftDeletePerson(ctx, staff.PersonID, operatorID, provisioningTestClientIP)
+	blocked := requireProvisioningError(t, err, "PersonHasActiveProfileError")
+	assert.Equal(t, staff.PersonID, blocked.FieldByName("PersonID").Int())
+	assertOperatorPersonKept(t, db, staff.PersonID)
+	assert.Zero(t, countOperatorAudit(t, db, "soft_delete", "person", staff.PersonID), "a refused deletion writes no audit entry")
 }
 
 func TestOperatorProvisioningIntegration_SoftDeletePerson_AuditLogCreated(t *testing.T) {
@@ -467,7 +465,10 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_AuditLogCreated(t *tes
 		"should have exactly one audit log entry")
 }
 
-func TestOperatorProvisioningIntegration_SoftDeletePerson_StudentSuccess(t *testing.T) {
+// A child leaves through the student deletion, not the operator person
+// deletion (#6840): deleting only the person would leave the child record
+// pointing at a deleted person.
+func TestOperatorProvisioningIntegration_SoftDeletePerson_StudentBlocked(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	service := buildOperatorProvisioning(t, db)
@@ -476,20 +477,66 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_StudentSuccess(t *test
 	student := testpkg.CreateTestStudent(t, db, "Student", "ToDelete", "2b")
 
 	operatorID := testpkg.CreateTestOperator(t, db).ID
-	require.NoError(t, service.SoftDeletePerson(ctx, student.PersonID, operatorID, provisioningTestClientIP))
+	err := service.SoftDeletePerson(ctx, student.PersonID, operatorID, provisioningTestClientIP)
+	blocked := requireProvisioningError(t, err, "PersonHasActiveProfileError")
+	assert.Equal(t, student.PersonID, blocked.FieldByName("PersonID").Int())
+	assertOperatorPersonKept(t, db, student.PersonID)
+}
 
+// A child profile that a concurrent transaction attaches to the person
+// while the operator deletes it must not end on an anonymised person (#6949).
+// The deletion locks the person before it checks, so it waits for that
+// transaction and then sees the child.
+func TestOperatorProvisioningIntegration_SoftDeletePerson_WaitsForConcurrentProfile(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := buildOperatorProvisioning(t, db)
+	ctx := provisioningContext(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	bare := testpkg.CreateTestPerson(t, db, "Bare", "Person")
+	student := testpkg.CreateTestStudent(t, db, "Moving", "Child", "2b")
+
+	attach, err := db.BeginTx(testpkg.Ctx(t), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = attach.Rollback() })
+	var attachPID int
+	require.NoError(t, attach.QueryRowContext(testpkg.Ctx(t), "SELECT pg_backend_pid()").Scan(&attachPID))
+	_, err = attach.ExecContext(testpkg.Ctx(t), "UPDATE users.student_profiles SET person_id = ? WHERE id = ?", bare.ID, student.ID)
+	require.NoError(t, err)
+
+	deleted := make(chan error, 1)
+	go func() { deleted <- service.SoftDeletePerson(ctx, bare.ID, operatorID, provisioningTestClientIP) }()
+	require.Eventually(t, func() bool {
+		select {
+		case err := <-deleted:
+			deleted <- err
+			return true
+		default:
+		}
+		var waiting int
+		err := db.QueryRowContext(testpkg.Ctx(t),
+			"SELECT count(*) FROM pg_stat_activity WHERE ? = ANY(pg_blocking_pids(pid))", attachPID).Scan(&waiting)
+		return err == nil && waiting > 0
+	}, 10*time.Second, 10*time.Millisecond)
+	require.NoError(t, attach.Commit())
+
+	requireProvisioningError(t, <-deleted, "PersonHasActiveProfileError")
+	assertOperatorPersonKept(t, db, bare.ID)
+}
+
+func assertOperatorPersonKept(t *testing.T, db *bun.DB, personID int64) {
+	t.Helper()
 	var dbPerson struct {
 		FirstName string  `bun:"first_name"`
 		DeletedAt *string `bun:"deleted_at"`
 	}
-	err := db.NewSelect().
+	require.NoError(t, db.NewSelect().
 		TableExpr("users.persons").
 		Column("first_name", "deleted_at").
-		Where("id = ?", student.PersonID).
-		Scan(testpkg.Ctx(t), &dbPerson)
-	require.NoError(t, err)
-	assert.Equal(t, "Gelöscht", dbPerson.FirstName)
-	assert.NotNil(t, dbPerson.DeletedAt)
+		Where("id = ?", personID).
+		Scan(testpkg.Ctx(t), &dbPerson))
+	assert.NotEqual(t, "Gelöscht", dbPerson.FirstName, "the person must not be anonymised")
+	assert.Nil(t, dbPerson.DeletedAt, "the person must stay")
 }
 
 // =============================================================================

@@ -39,6 +39,8 @@ type ScheduleTemplate struct {
 	RotationLength     int
 	RotationAnchorDate calendar.Date
 	Entries            []*ScheduleTemplateEntry
+	// Archived templates are not offered for new assignments (#6891).
+	Archived bool
 }
 
 // ScheduleTemplateEntry carries the target minutes of one (week index, day of
@@ -235,6 +237,9 @@ type DayTargetResolver struct {
 	Overrides      map[string]int
 	NonWorkingDays map[calendar.Date]bool
 	Schedule       func(calendar.Date) (int, bool)
+	// ScheduleCovers reports whether a schedule version is valid on a day,
+	// with or without a row for its weekday; nil treats every day as covered.
+	ScheduleCovers func(calendar.Date) bool
 	Template       func(calendar.Date) (int, bool)
 }
 
@@ -255,6 +260,52 @@ func (r *DayTargetResolver) TargetFor(d calendar.Date) int {
 		return target
 	}
 	return 0
+}
+
+// HasSource reports whether a maintained Soll source prices d: a
+// Sonderarbeitszeit, a schedule row matching the day, or the stand-in
+// template. Without one the day's Soll is zero only because nothing is
+// maintained (#6887), which is why absences on it credit nothing. It follows
+// the order of TargetFor, so a template that may not stand in never counts.
+func (r *DayTargetResolver) HasSource(d calendar.Date) bool {
+	if _, ok := r.Overrides[d.String()]; ok {
+		return true
+	}
+	if r.Schedule != nil {
+		_, matched := r.Schedule(d)
+		return matched
+	}
+	if r.Template != nil {
+		_, ok := r.Template(d)
+		return ok
+	}
+	return false
+}
+
+// Maintains reports whether a maintained Soll governs d, even with zero
+// minutes: a Sonderarbeitszeit, a schedule version valid on the day (a
+// part-timer's free weekday is a day off per plan), or the stand-in template.
+// Unlike HasSource it does not need a row for the weekday. A day it rejects
+// has a Soll of 0 only because nothing is maintained (#6889).
+func (r *DayTargetResolver) Maintains(d calendar.Date) bool {
+	if _, ok := r.Overrides[d.String()]; ok {
+		return true
+	}
+	if r.Schedule != nil {
+		return r.ScheduleCovers == nil || r.ScheduleCovers(d)
+	}
+	return r.Template != nil
+}
+
+// ScheduleCoversDate reports whether any schedule version is valid on d
+// (valid_until is exclusive, as in DailyTargetFromSchedule).
+func ScheduleCoversDate(rows []*ScheduleRow, d calendar.Date) bool {
+	for _, row := range rows {
+		if row != nil && !row.ValidFrom.After(d) && (row.ValidUntil == nil || row.ValidUntil.After(d)) {
+			return true
+		}
+	}
+	return false
 }
 
 // SourceFor names what set the Soll of a day; empty is the regular schedule.

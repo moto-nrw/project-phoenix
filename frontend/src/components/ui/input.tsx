@@ -49,8 +49,11 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 const CONTROL_SIZE_CLASS = {
   large: "px-4 py-3 text-base",
-  compact: `${CONTROL_HEIGHT_CLASS.compact} px-3 py-2 text-sm`,
-  touch: `${CONTROL_HEIGHT_CLASS.touch} px-3 py-2 text-base lg:text-sm`,
+  // By finger 16-px text even in the dense field: no zoom on focus.
+  compact: `${CONTROL_HEIGHT_CLASS.compact} px-3 py-2 text-sm pointer-coarse:text-base`,
+  // By finger 44 px and 16 px text (no zoom on focus), with a mouse the
+  // compact field: the pointer decides, not the window width.
+  touch: `${CONTROL_HEIGHT_CLASS.touch} px-3 py-2 text-sm pointer-coarse:text-base`,
 } as const satisfies Record<InputControlSize, string>;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
@@ -82,7 +85,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   const [ownRevealed, setOwnRevealed] = useState(false);
   const isRevealed = revealed ?? ownRevealed;
 
-  const controlClassName = `block w-full rounded-lg border-0 bg-white text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 read-only:bg-gray-50 read-only:text-gray-500 aria-[invalid=true]:ring-moto-red ${CONTROL_SIZE_CLASS[controlSize]}`;
+  const controlClassName = `block w-full rounded-lg border-0 bg-white text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-600 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 read-only:bg-gray-50 read-only:text-gray-500 aria-[invalid=true]:ring-moto-red ${CONTROL_SIZE_CLASS[controlSize]}`;
 
   const revealPadding = controlSize === "large" ? "pr-12" : "pr-10";
   const control = (
@@ -119,7 +122,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
               setOwnRevealed(!isRevealed);
               onRevealedChange?.(!isRevealed);
             }}
-            className="absolute top-1/2 right-2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none pointer-coarse:right-1 pointer-coarse:h-11 pointer-coarse:w-11"
+            className="absolute top-1/2 right-2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none pointer-coarse:right-1 pointer-coarse:h-11 pointer-coarse:w-11"
             aria-label={isRevealed ? hidePasswordLabel : showPasswordLabel}
           >
             {isRevealed ? (

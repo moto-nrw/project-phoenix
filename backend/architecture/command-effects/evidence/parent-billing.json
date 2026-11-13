@@ -473,6 +473,14 @@
       "target_owner": "care-contract"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.FinanceExportTransfer.Handover",
+      "binding_digest": "6103ff8f050ac7d5b3042b77fe710798",
+      "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.FinanceExportTransfer.Handover",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-ogs/project-phoenix/modules/exporttransfer.TraegerTransfers.Transfer",
+      "target_owner": "export-transfer"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/api.parentBillingBillingRegistrations.ConfirmedHolidayRegistrations",
       "binding_digest": "624b4ac730271b80a870323fea92a33d",
       "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.ConfirmedHolidayRegistrations",

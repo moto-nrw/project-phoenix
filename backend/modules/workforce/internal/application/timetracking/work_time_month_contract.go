@@ -26,9 +26,13 @@ type MonthSummary struct {
 	Year    int   `json:"year"`
 	Month   int   `json:"month"`
 
-	CarryInMinutes          int     `json:"carry_in_minutes"`
-	TargetMinutes           int     `json:"target_minutes"`
-	TargetMinutesToDate     int     `json:"target_minutes_to_date"`
+	CarryInMinutes      int `json:"carry_in_minutes"`
+	TargetMinutes       int `json:"target_minutes"`
+	TargetMinutesToDate int `json:"target_minutes_to_date"`
+	// HasTarget is false when no Soll is maintained for any day of the month:
+	// no schedule, no stand-in work-time model, no Sonderarbeitszeit (#6887).
+	// Absences then credit nothing.
+	HasTarget               bool    `json:"has_target"`
 	ActualMinutes           int     `json:"actual_minutes"`
 	CreditedSickMinutes     int     `json:"credited_sick_minutes"`
 	CreditedVacationMinutes int     `json:"credited_vacation_minutes"`
@@ -37,6 +41,15 @@ type MonthSummary struct {
 	SickDays                float64 `json:"sick_days"`
 	VacationDays            float64 `json:"vacation_days"`
 	TrainingDays            float64 `json:"training_days"`
+	// *DaysWithoutTarget count the absence workdays (Monday to Friday, no
+	// holiday or closing day) that no maintained Soll governs: no
+	// Sonderarbeitszeit, schedule version or stand-in work-time model. They
+	// credit nothing and stay out of the credited day counters above, which
+	// the DATEV and CSV exports book (#6889).
+	SickDaysWithoutTarget     float64 `json:"sick_days_without_target"`
+	VacationDaysWithoutTarget float64 `json:"vacation_days_without_target"`
+	TrainingDaysWithoutTarget float64 `json:"training_days_without_target"`
+	OtherDaysWithoutTarget    float64 `json:"other_days_without_target"`
 	// CreditedByAbsenceType splits the credit of the school's own absence
 	// types for the DATEV export (#4807); not part of the month card.
 	CreditedByAbsenceType map[int64]AbsenceTypeCredit `json:"-"`

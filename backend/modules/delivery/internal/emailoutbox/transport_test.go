@@ -3,8 +3,11 @@ package emailoutbox
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
+	"time"
 
 	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
@@ -123,4 +126,49 @@ type removedFallbackTransport struct{}
 func (removedFallbackTransport) Send(email.Message) error { panic("ReceiptMailer must be used") }
 func (removedFallbackTransport) SendWithReceipt(context.Context, email.Message) (email.Receipt, error) {
 	return email.Receipt{}, email.ErrFallbackRemoved
+}
+
+type throttlingMailTransport struct{}
+
+func (throttlingMailTransport) Send(email.Message) error { panic("ReceiptMailer must be used") }
+func (throttlingMailTransport) SendWithReceipt(context.Context, email.Message) (email.Receipt, error) {
+	return email.Receipt{}, fmt.Errorf("%w: 421 4.7.0 rate limit exceeded", email.ErrThrottled)
+}
+
+// #6737: a throttled send postpones the mail without an attempt while the mail
+// is younger than ThrottleWindow. After that each send counts again, so the mail
+// still ends after its attempts.
+func TestProviderPostponesAThrottledMailWithinTheWindow(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		age      time.Duration
+		deferred bool
+	}{
+		"new mail":           {age: time.Minute, deferred: true},
+		"just inside":        {age: ThrottleWindow - time.Minute, deferred: true},
+		"beyond the window":  {age: ThrottleWindow + time.Minute},
+		"unknown queue time": {age: -1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			renderer := &recordingMailRenderer{}
+			provider := MailPushProvider{
+				Registry: NewTemplateRegistry(map[string]Renderer{"notice": renderer}),
+				Mailer:   throttlingMailTransport{}, Tenants: contextCheckingMailTransactions{}, Logger: slog.Default(),
+			}
+			intent := deliveryContract.ClaimedIntent{TenantID: 42, Template: "notice", EmailPayload: json.RawMessage(`{}`)}
+			if tc.age >= 0 {
+				intent.CreatedAt = time.Now().Add(-tc.age)
+			}
+
+			_, err := provider.SendEmail(context.Background(), intent)
+
+			require.Error(t, err)
+			require.Equal(t, tc.deferred, errors.Is(err, deliveryContract.ErrDeferred), "deferred")
+			require.Equal(t, tc.deferred, errors.Is(err, deliveryContract.ErrThrottled), "throttled")
+			require.NotErrorIs(t, err, deliveryContract.ErrPermanent)
+			require.True(t, renderer.recorded, "the delivery record still sees the send")
+			require.Equal(t, tc.deferred, errors.Is(renderer.result, ErrSendThrottled), "the record learns whether the send counts")
+		})
+	}
 }

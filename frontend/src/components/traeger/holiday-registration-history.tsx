@@ -18,6 +18,8 @@ import type {
 } from "~/lib/traeger-holiday-registrations-api";
 import { editedFieldsText } from "./holiday-registration-edit-fields";
 import { formatHolidayWeek } from "./holiday-registration-format";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const ACTION_LABELS: Readonly<
   Record<HolidayRegistrationEvent["action"], string>
@@ -126,9 +128,12 @@ function debtorNumberText(change: {
   readonly before: string;
   readonly after: string;
 }): string {
-  if (!change.before) return `Debitorennummer ${change.after}`;
-  if (!change.after) return `Debitorennummer ${change.before} entfernt`;
-  return `Debitorennummer vorher ${change.before}, jetzt ${change.after}`;
+  // No-break spaces keep a number with its label and whole on a phone.
+  const nb = (value: string) => value.replaceAll(" ", "\u00A0");
+  if (!change.before) return `Debitorennummer\u00A0${nb(change.after)}`;
+  if (!change.after)
+    return `Debitorennummer\u00A0${nb(change.before)} entfernt`;
+  return `Debitorennummer vorher\u00A0${nb(change.before)}, jetzt\u00A0${nb(change.after)}`;
 }
 
 function eventDetail(
@@ -175,7 +180,10 @@ export function HolidayRegistrationHistory({
   registration: HolidayRegistrationDetail;
 }>) {
   return (
-    <SectionCard title="Verlauf">
+    <SectionCard
+      leading={<ConceptIconTile concept={changeHistoryConcept} />}
+      title="Verlauf"
+    >
       {registration.history.length === 0 ? (
         <p className="text-sm text-gray-700">
           Das Träger-Büro hat diese Anmeldung noch nicht geändert.

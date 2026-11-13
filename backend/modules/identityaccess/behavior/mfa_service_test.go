@@ -104,12 +104,12 @@ func TestMFAService_AdminOverride_PermissionGate(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	target := testpkg.CreateTestAccount(t, db, "mfa-svc-admin-target")
+	testpkg.OwnAccountSecurityNotices(t, db, target.ID)
 
-	// Map target to a tenant so the new cross-tenant guard (#1430 Item #2)
-	// doesn't reject this permission-gate test before the permission check
-	// has a chance to fire.
-	actorTenantID := testpkg.UniqueTestTenantID(t)
-	testpkg.EnsureAccountTenant(t, db, target.ID, actorTenantID)
+	// The fixture maps the target to the test's school, and to no other:
+	// the cross-tenant guard (#1430 Item #2) passes, and the school holds
+	// the account alone, as the account-wide reset requires (#6862).
+	actorTenantID := testpkg.Tenant(t)
 
 	const actorID int64 = 9999
 

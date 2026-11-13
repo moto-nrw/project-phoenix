@@ -63,7 +63,8 @@ type CalendarLayout = "overlay" | "inline" | "popover" | "popover-below";
  *
  * - "natural" (default) the picker's original trigger, used by the filter
  *             bars and dropdowns that adopted it first
- * - "compact" matches `Input controlSize="compact"`
+ * - "compact" matches `Input controlSize="compact"` with a mouse; by finger
+ *             it grows to 44 px like `Input controlSize="touch"`
  * - "large"   matches the default `Input` (`large`)
  */
 type DatePickerSize = Extract<ControlSize, "natural" | "compact" | "large">;
@@ -73,8 +74,8 @@ type DatePickerSize = Extract<ControlSize, "natural" | "compact" | "large">;
 // uses a real 1px border. Matching py-3 would leave it 2px taller than the
 // input next to it.
 const TRIGGER_SIZE_CLASS: Record<DatePickerSize, string> = {
-  natural: "px-3 py-2 text-sm",
-  compact: `${CONTROL_HEIGHT_CLASS.compact} px-3 py-2 text-sm`,
+  natural: "px-3 py-2 text-sm pointer-coarse:min-h-11 pointer-coarse:text-base",
+  compact: `${CONTROL_HEIGHT_CLASS.touch} px-3 py-2 text-sm pointer-coarse:text-base`,
   large: "px-4 py-[11px] text-base",
 };
 
@@ -410,7 +411,7 @@ export function DatePicker({
           className={cn(
             "flex items-center rounded-lg border transition-all",
             iconOnly
-              ? `${CONTROL_HEIGHT_CLASS.compact} w-10 shrink-0 justify-center`
+              ? `${CONTROL_HEIGHT_CLASS.compact} w-10 shrink-0 justify-center pointer-coarse:size-11`
               : `min-w-0 flex-1 justify-between ${
                   TRIGGER_SIZE_CLASS[
                     (isMultiple ? undefined : props.controlSize) ?? "natural"
@@ -744,12 +745,19 @@ interface ISODateInputProps {
   readonly minDateError?: string;
   readonly maxDateError?: string;
   readonly disabled?: boolean;
+  /** Marks the field as required: star at the label, `aria-required`. */
+  readonly required?: boolean;
   /**
    * A check of the surrounding form on the stored value (missing date, date
    * range, overlap). It is shown and wired like the field's own check, which
    * wins while the typed text is no valid date.
    */
   readonly error?: string | null;
+  /**
+   * The browser's autofill hint. Off by default: a due date or the start of
+   * a period is no birthday; a birth date field passes "bday".
+   */
+  readonly autoComplete?: string;
 }
 
 export function ISODateInput({
@@ -764,7 +772,9 @@ export function ISODateInput({
   minDateError = "Das Datum liegt vor dem zulässigen Zeitraum.",
   maxDateError = "Das Datum liegt nach dem zulässigen Zeitraum.",
   disabled,
+  required = false,
   error,
+  autoComplete = "off",
 }: ISODateInputProps) {
   const [inputValue, setInputValue] = useState(() =>
     formatISODateInputValue(value),
@@ -836,6 +846,8 @@ export function ISODateInput({
       ids={ids}
       keepWrapper
       label={label}
+      required={required}
+      invalid={Boolean(shownError)}
       error={shownError}
       // The field's own check runs while typing and is read out at once; the
       // form's error arrives after saving and stays quiet.
@@ -847,10 +859,11 @@ export function ISODateInput({
           <Input
             id={id}
             name={id}
+            aria-required={required || undefined}
             type="text"
-            controlSize="compact"
+            controlSize="touch"
             inputMode="numeric"
-            autoComplete="bday"
+            autoComplete={autoComplete}
             placeholder="TT.MM.JJJJ"
             maxLength={10}
             value={inputValue}

@@ -179,6 +179,16 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/finance-exports/booking-accounts/revenue-accounts"}:     notCaptured,
 	{http.MethodPost, "/traeger/finance-exports/booking-accounts/cost-centers"}:        notCaptured,
 	{http.MethodDelete, "/traeger/finance-exports/booking-accounts/cost-centers/{id}"}: notCaptured,
+	// The recipients of the finance exports, the format each receives and
+	// the handover of a file (#6824, ADR 0218; #6911, ADR 0222) belong to
+	// the Träger, no school to count them for.
+	{http.MethodPost, "/traeger/export-recipient/"}:                               notCaptured,
+	{http.MethodPut, "/traeger/export-recipient/formats"}:                         notCaptured,
+	{http.MethodPut, "/traeger/export-recipient/{id}"}:                            notCaptured,
+	{http.MethodDelete, "/traeger/export-recipient/{id}"}:                         notCaptured,
+	{http.MethodPost, "/traeger/finance-handovers/runs/{kind}/{id}/sollstellung"}: notCaptured,
+	{http.MethodPost, "/traeger/finance-handovers/runs/{kind}/{id}/datev"}:        notCaptured,
+	{http.MethodPost, "/traeger/finance-handovers/runs/{kind}/{id}/pain008"}:      notCaptured,
 	// The import of existing mandates (#6198) belongs to the Träger, not to
 	// a school; the preview stores nothing.
 	{http.MethodPost, "/traeger/sepa-mandates/imports"}:         notCaptured,

@@ -418,6 +418,14 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Decisions.SyncApprovedChildData",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.ApprovedChildChanges.SyncApprovedChildData",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Decisions.SyncApprovedChildData",
       "binding_digest": "b46d2ee2d29706464e70734ddcd3bc6f",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.ApprovedChildChanges.SyncApprovedChildData",
       "source_owner": "enrollment",
@@ -538,6 +546,14 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Approve",
+      "binding_digest": "7f99b0ce61ec298cbd94bd54ee0d75a8",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.ChangeRequests.Approve",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Approve",
       "binding_digest": "dd489c9d69db107f97256a171548c4e4",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.ChangeRequests.Approve",
       "source_owner": "enrollment",
@@ -599,6 +615,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ChangeRequests.CorrectApprovedChildData",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.ChangeRequests.CorrectApprovedChildData",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ChangeRequests.CorrectApprovedChildData",
@@ -706,6 +730,14 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Reject",
+      "binding_digest": "7f99b0ce61ec298cbd94bd54ee0d75a8",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.ChangeRequests.Reject",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Reject",
       "binding_digest": "dd489c9d69db107f97256a171548c4e4",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.ChangeRequests.Reject",
       "source_owner": "enrollment",
@@ -770,6 +802,14 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.DecisionCommand.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
       "binding_digest": "2c91fb756d7870aef733ee767297bf78",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.DecisionCommand.DecideAndInvite",
       "source_owner": "enrollment",
@@ -826,6 +866,14 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Decisions.Decide",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.Decide",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Decisions.Decide",
       "binding_digest": "2c91fb756d7870aef733ee767297bf78",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.Decide",
       "source_owner": "enrollment",
@@ -882,6 +930,14 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.Decide",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.Decide",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.Decide",
       "binding_digest": "2c91fb756d7870aef733ee767297bf78",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.Decide",
       "source_owner": "enrollment",
@@ -938,6 +994,14 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
       "binding_digest": "2c91fb756d7870aef733ee767297bf78",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
       "source_owner": "enrollment",
@@ -991,6 +1055,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite",
@@ -1386,7 +1458,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
-      "binding_digest": "3c6af215213d95e9eb1df0ccd305ac33",
+      "binding_digest": "bb5dea234e3c9e69b4c4f149e63d94cd",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
       "source_owner": "enrollment",
       "target": "*github.com/moto-ogs/project-phoenix/modules/auditlog/compose.Command.Append",
@@ -1394,7 +1466,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
-      "binding_digest": "9f11f7e399f1d1d4d342ffa647aac414",
+      "binding_digest": "d9092965050d64779feb02527c735860",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/auditlog/records.AppendStore.Append",
@@ -1402,7 +1474,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
-      "binding_digest": "085b3f61f78b09b479cfde7b39b8c2d4",
+      "binding_digest": "5daa7f859634a60361cafff090cd30a0",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/auditlog/records.Command.Append",
@@ -1410,7 +1482,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
-      "binding_digest": "34a0920a282ff6328e591153d538c838",
+      "binding_digest": "4e0525b2ebf18f89da06ecedd123abbc",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
@@ -1681,6 +1753,14 @@
       "target_owner": "traeger-view"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/api.holidayMailStates.HolidayMailProblems",
+      "binding_digest": "3f82d023ddf02842271e91f357431a97",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayMailStates.HolidayMailProblems",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.TraegerMails.TraegerEmailStatusesByKey",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayOwnChildPlans.ApplyHolidayOwnChildPlans",
       "binding_digest": "9d93513dc02c5825f8bced000975fcd5",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayOwnChildPlans.ApplyHolidayOwnChildPlans",
@@ -1783,6 +1863,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails",
       "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.SubmitHolidayRegistration",
+      "binding_digest": "50dd30aba0eb5fb289acb5f33b6c2717",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayRegistrations.SubmitHolidayRegistration",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.UploadHolidayProof",
@@ -2135,6 +2223,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Intake.CreateManualApprovedEnrollment",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.IntakeSubmissions.CreateManualApprovedEnrollment",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Intake.CreateManualApprovedEnrollment",
@@ -2754,6 +2850,14 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Rollovers.RunDeadlineWorker",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Rollovers.RunDeadlineWorker",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Rollovers.RunDeadlineWorker",
       "binding_digest": "2c91fb756d7870aef733ee767297bf78",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Rollovers.RunDeadlineWorker",
       "source_owner": "enrollment",
@@ -3178,6 +3282,14 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.changeRequestService.Approve",
+      "binding_digest": "7f99b0ce61ec298cbd94bd54ee0d75a8",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.ChangeRequestService.Approve",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.changeRequestService.Approve",
       "binding_digest": "dd489c9d69db107f97256a171548c4e4",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.ChangeRequestService.Approve",
       "source_owner": "enrollment",
@@ -3239,6 +3351,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.changeRequestService.CorrectApprovedChildData",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.ChangeRequestService.CorrectApprovedChildData",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.changeRequestService.CorrectApprovedChildData",
@@ -3346,6 +3466,14 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.changeRequestService.Reject",
+      "binding_digest": "7f99b0ce61ec298cbd94bd54ee0d75a8",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.ChangeRequestService.Reject",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.changeRequestService.Reject",
       "binding_digest": "dd489c9d69db107f97256a171548c4e4",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.ChangeRequestService.Reject",
       "source_owner": "enrollment",
@@ -3410,6 +3538,14 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.decisionService.Decide",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.DecisionService.Decide",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.decisionService.Decide",
       "binding_digest": "2c91fb756d7870aef733ee767297bf78",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.DecisionService.Decide",
       "source_owner": "enrollment",
@@ -3463,6 +3599,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.decisionService.DecideAndInvite",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.DecisionService.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.decisionService.DecideAndInvite",
@@ -3663,6 +3807,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Intake.CreateManualApprovedEnrollment",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Intake.CreateManualApprovedEnrollment",
@@ -3898,6 +4050,14 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.intakeService.CreateManualApprovedEnrollment",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.RequestService.CreateManualApprovedEnrollment",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.intakeService.CreateManualApprovedEnrollment",
       "binding_digest": "2c91fb756d7870aef733ee767297bf78",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.RequestService.CreateManualApprovedEnrollment",
       "source_owner": "enrollment",
@@ -4087,6 +4247,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.rolloverService.RunDeadlineWorker",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.RolloverService.RunDeadlineWorker",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.rolloverService.RunDeadlineWorker",
@@ -4343,6 +4511,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.manualApprovedEnrollments.CreateManualApprovedEnrollment",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
@@ -5458,6 +5634,14 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
       "binding_digest": "2c91fb756d7870aef733ee767297bf78",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.DecideAndInvite",
       "source_owner": "enrollment",
@@ -5874,6 +6058,14 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueClassSwitches",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueClassSwitches",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueClassSwitches",
       "binding_digest": "e9b4ca63bc54a7ae7306d020cbc78911",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueClassSwitches",
       "source_owner": "enrollment",
@@ -5983,6 +6175,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Decisions.Decide",
+      "binding_digest": "09fc7a065c33e0ca094417131f3e85be",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.RolloverDecider.Decide",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Decisions.Decide",

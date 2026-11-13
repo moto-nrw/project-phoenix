@@ -597,6 +597,17 @@
       "target_owner": "care-contract"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.FinanceExportTransfer.Handover",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.FinanceExportTransfer.Handover",
+      "reason": "Platform protocol participation (durable): parent-billing reaches modules/exporttransfer.TraegerTransfers.Transfer (export-transfer) through roots/owners.FinanceExportTransfer.Handover. Export Transfer opens its own Träger transactions for intent, fence and completion and runs the producer and settlement callbacks of parent-billing inside them; transaction, fence and ordering correctness stay with the platform behavior tests (ADR 0098, ADR 0218 section 5). Since ADR 0222 the binding also hands the recipient Export Transfer resolved for the format (id, name, address, directory) to the producer as parentbilling.HandoverDestination; it decides nothing.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-ogs/project-phoenix/modules/exporttransfer.TraegerTransfers.Transfer",
+      "target_owner": "export-transfer"
+    },
+    {
       "adr": "0067",
       "binding": "github.com/moto-ogs/project-phoenix/api.parentBillingBillingRegistrations.ConfirmedHolidayRegistrations",
       "classification": "leaf",

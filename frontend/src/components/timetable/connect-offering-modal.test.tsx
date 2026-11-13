@@ -185,7 +185,7 @@ describe("ConnectOfferingModal (#5103)", () => {
       expect(add).toBeDisabled();
       fireEvent.click(add);
       expect(
-        screen.getByRole("button", { name: "Angebote" }),
+        screen.getByRole("combobox", { name: "Angebote" }),
       ).toHaveTextContent("Randstunde");
       expect(mockConnect).toHaveBeenCalledWith(
         "9",
@@ -224,7 +224,7 @@ describe("ConnectOfferingModal (#5103)", () => {
         "Mehrere Angebote passen zur Kinderliste. Wählen Sie die Angebote, deren angemeldete Kinder kommen sollen.",
       ),
     ).toBeInTheDocument();
-    const select = screen.getByRole("button", { name: "Angebote" });
+    const select = screen.getByRole("combobox", { name: "Angebote" });
     expect(select).toHaveTextContent("Angebote wählen");
     expect(screen.getByRole("button", { name: "Verbinden" })).toBeDisabled();
     expect(screen.queryByText("Das ändert sich")).not.toBeInTheDocument();
@@ -268,7 +268,7 @@ describe("ConnectOfferingModal (#5103)", () => {
     );
 
     // Anker: the offering field is rendered, named by its label.
-    const select = screen.getByRole("button", { name: "Angebote" });
+    const select = screen.getByRole("combobox", { name: "Angebote" });
     expect(select).toHaveTextContent("Angebote wählen");
     expect(duplicateIds()).toEqual([]);
 
@@ -279,9 +279,9 @@ describe("ConnectOfferingModal (#5103)", () => {
     expect(duplicateIds()).toEqual([]);
 
     expect(await screen.findByText("Mittwoch")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Angebote" })).toHaveTextContent(
-      "Ganztag",
-    );
+    expect(
+      screen.getByRole("combobox", { name: "Angebote" }),
+    ).toHaveTextContent("Ganztag");
     expect(duplicateIds()).toEqual([]);
   });
 
@@ -327,12 +327,12 @@ describe("ConnectOfferingModal (#5103)", () => {
         "Ab 28.10.2026 kommen nur noch die für „Randstunde“ oder „Ganztag“ angemeldeten Kinder. An- und Abmeldungen werden danach automatisch übernommen.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Angebote" })).toHaveTextContent(
-      "Randstunde, Ganztag",
-    );
+    expect(
+      screen.getByRole("combobox", { name: "Angebote" }),
+    ).toHaveTextContent("Randstunde, Ganztag");
 
     // Every offering of the period can be added; another phase cannot.
-    fireEvent.click(screen.getByRole("button", { name: "Angebote" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Angebote" }));
     expect(await screen.findByRole("option", { name: "Ferien" })).toBeEnabled();
     expect(screen.getByRole("option", { name: "Nachmeldung" })).toBeDisabled();
     expect(

@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"testing"
@@ -6,6 +6,8 @@ import (
 	peopleState "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 	"github.com/stretchr/testify/assert"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 func TestNormalizeDeparturePlanForAudit_UsesLegacyMaps(t *testing.T) {
@@ -23,7 +25,7 @@ func TestNormalizeDeparturePlanForAudit_UsesLegacyMaps(t *testing.T) {
 		},
 	}
 
-	normalizeDeparturePlanForAudit(student)
+	careplanhttp.NormalizeDeparturePlanForAuditForTest(student)
 
 	assert.Equal(t, departure.DepartureAlone, student.DepartureDays.ModeFor(departure.PickupDayMonday))
 	assert.Equal(t, departure.DepartureBus, student.DepartureDays.ModeFor(departure.PickupDayTuesday))
@@ -45,7 +47,7 @@ func TestStudentAuditBeforeImage_NormalizesLegacyDeparturePlan(t *testing.T) {
 		},
 	}
 
-	before := studentAuditBeforeImage(student, true)
+	before := careplanhttp.StudentAuditBeforeImageForTest(student, true)
 
 	assert.Equal(t, departure.DepartureBus, before.DepartureDays.ModeFor(departure.PickupDayTuesday))
 	assert.Equal(t, departure.DeparturePickup, before.DepartureDays.ModeFor(departure.PickupDayWednesday))

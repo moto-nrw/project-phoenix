@@ -177,6 +177,7 @@ function ChevronPath({ direction }: { readonly direction: "back" | "next" }) {
  */
 export function CalendarMonthHeader({
   variant = "single",
+  singleMonth = false,
   compact = false,
   month,
   onMonthChange,
@@ -188,6 +189,8 @@ export function CalendarMonthHeader({
 }: {
   /** `range`: two months side by side (`DateRangePicker`). */
   readonly variant?: "single" | "range";
+  /** `range` on a phone: the grid shows one month, the caption names one. */
+  readonly singleMonth?: boolean;
   readonly compact?: boolean;
   readonly month: Date;
   readonly onMonthChange: (month: Date) => void;
@@ -206,7 +209,8 @@ export function CalendarMonthHeader({
           type="button"
           onClick={() => onMonthChange(subMonths(month, 1))}
           aria-label={labels.previousMonth}
-          className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+          // By finger the hit area grows to 44 px without moving the arrow.
+          className="relative rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
         >
           <svg
             className="h-4 w-4"
@@ -219,14 +223,17 @@ export function CalendarMonthHeader({
         </button>
         <span className="text-sm font-medium text-gray-900">
           {format(month, "MMMM yyyy", { locale })}
-          {" - "}
-          {format(addMonths(month, 1), "MMMM yyyy", { locale })}
+          {/* A phone shows one month, so the heading names only that one. */}
+          {singleMonth
+            ? null
+            : ` – ${format(addMonths(month, 1), "MMMM yyyy", { locale })}`}
         </span>
         <button
           type="button"
           onClick={() => onMonthChange(addMonths(month, 1))}
           aria-label={labels.nextMonth}
-          className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+          // By finger the hit area grows to 44 px without moving the arrow.
+          className="relative rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
         >
           <svg
             className="h-4 w-4"
@@ -251,7 +258,8 @@ export function CalendarMonthHeader({
         type="button"
         aria-label={labels.previousMonth}
         onClick={() => onMonthChange(subMonths(month, 1))}
-        className="shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+        // By finger the hit area grows to 44 px without moving the arrow.
+        className="relative shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
       >
         <svg
           className="h-5 w-5"
@@ -314,7 +322,8 @@ export function CalendarMonthHeader({
         type="button"
         aria-label={labels.nextMonth}
         onClick={() => onMonthChange(addMonths(month, 1))}
-        className="shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+        // By finger the hit area grows to 44 px without moving the arrow.
+        className="relative shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
       >
         <svg
           className="h-5 w-5"

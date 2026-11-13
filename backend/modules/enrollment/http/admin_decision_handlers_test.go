@@ -773,6 +773,18 @@ func TestDecideAdminChildHandler_InvalidDataMapsTo400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestDecideAdminChildHandler_ReviewerWithoutStaffProfileMapsTo403(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockDecisionService{decideErr: fmt.Errorf("decision: targeted-field dispatch on new student: %w", capability.ErrDecisionReviewerStaffRequired)}
+	router := buildAdminDecisionRouter(mock)
+	w := executeAdminJSON(t, router, http.MethodPost,
+		"/enrollment/admin/requests/1234/children/99/decide",
+		map[string]any{"status": "approved"})
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"enrollment.approval_staff_profile_required"`)
+}
+
 func TestDecideAdminChildHandler_GenericErrorMapsTo500(t *testing.T) {
 	t.Parallel()
 

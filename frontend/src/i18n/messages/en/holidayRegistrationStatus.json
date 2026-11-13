@@ -1,0 +1,41 @@
+{
+  "loading": "Loading the status",
+  "errorObject": "The status of your holiday registration",
+  "kicker": "Holiday registration",
+  "title": {
+    "received": "Your registration has arrived",
+    "confirmed": "Your registration is confirmed",
+    "cancelled": "This registration is no longer valid"
+  },
+  "lead": {
+    "received": "This is not a confirmation yet. {traeger} is checking your registration and will send you an email.",
+    "confirmed": "{traeger} has confirmed your registration. The confirmation came by email.",
+    "cancelled": "{traeger} has cancelled the registration. The weeks below no longer apply."
+  },
+  "periodLabel": "Period",
+  "submittedLabel": "Received on",
+  "stepsTitle": "What happens next",
+  "stepsCancelled": "There is no next step. If you have questions, please contact the provider.",
+  "stepReceived": "Registration received",
+  "stepReceivedDetail": "On {date}",
+  "stepReview": "The provider checks",
+  "stepReviewRunning": "The check is running.",
+  "stepReviewAfter": "Registration is open until {date}. After that, the provider decides.",
+  "stepReviewDone": "The check is done.",
+  "stepDecision": "Confirmation by email",
+  "stepDecisionNext": "You will get an email as soon as the provider has decided.",
+  "stepDecisionDone": "The confirmation has arrived.",
+  "stepState": {
+    "done": "done",
+    "current": "in progress",
+    "next": "still to come"
+  },
+  "weeksTitle": "Weeks and places",
+  "weeksDescription": "For information only. Please arrange any changes directly with the provider.",
+  "weekCount": "{count, plural, one {# week} other {# weeks}}",
+  "noWeeks": "No week booked.",
+  "hostSchool": "at {school}",
+  "privacyNote": "This link only shows the status of your registration. Do not share it. After the holidays the provider deletes the registration. Then the link no longer works.",
+  "notFoundTitle": "We cannot find this registration",
+  "notFoundText": "Maybe the link is incomplete. Please open it again from your email. After the holidays the registration is deleted. Then the link no longer works."
+}

@@ -53,6 +53,12 @@ const permissionUsersDelete = "users:delete"
 // TestStaffQualificationNoticeFollowsTheRight pins it to the registry.
 const permissionStaffStammdaten = "staff:stammdaten"
 
+// permissionUsersRead restates the right that opens a child's notes and
+// pickup times: a shared note (#6854) and a changed pickup time (#6855) reach
+// whoever may read them. TestStaffStudentNoteSharedFollowsTheRight and
+// TestStudentPickupChangedNoticeFollowsTheRight pin it to the registry.
+const permissionUsersRead = "users:read"
+
 // Groups the profile page renders as headings, in this order.
 const (
 	GroupPickup       = "abholung"
@@ -87,6 +93,10 @@ const (
 	TypeMyActivityStarting     = "my_activity_starting"
 	TypeStudentAbsenceReported = "student_absence_reported"
 	TypeStaffParentMessage     = "staff_parent_message"
+	// TypeStudentPickupChanged tells the staff responsible for a child that a
+	// one-day pickup time its family asked for became current on approval,
+	// or that a corrected decision took it back (#6855).
+	TypeStudentPickupChanged = contract.NotificationStudentPickupChanged
 	// TypeStaffMessage is a message from a colleague in the OGS-internal chat
 	// (#2598) — staff to staff, no parent involved.
 	TypeStaffMessage = "staff_message"
@@ -95,6 +105,9 @@ const (
 	// TypeStaffPlannedExit reminds the Leitung of a planned staff exit and
 	// tells it when the exit is blocked (#4809).
 	TypeStaffPlannedExit = contract.NotificationStaffPlannedExit
+	// TypeStaffStudentNoteShared tells the team that a colleague shared a
+	// child's note with them (#6854). It names no child.
+	TypeStaffStudentNoteShared = contract.NotificationStaffStudentNoteShared
 
 	// TypeStaffQualificationExpiry reminds the Leitung of a Nachweis that
 	// expires (#4808); TypeStaffQualificationOwnExpiry reminds the person.
@@ -274,6 +287,7 @@ func init() {
 	registerPickupTypes()
 	registerActivityTypes()
 	registerStaffMessageTypes()
+	registerStaffNoteTypes()
 	registerStaffQualificationTypes()
 	registerParentMessageTypes()
 	registerParentStatusTypes()
@@ -298,6 +312,20 @@ func registerPickupTypes() {
 		Portal:      PortalStaff,
 		TenantGate:  settingRemindersPickupOverdueEnabled,
 		SortOrder:   2,
+	})
+	// An approved one-day pickup time of a family is part of the day's work,
+	// not a reminder: it is on until the person switches it off, and only
+	// for whoever may read the child's pickup times (#6855). Switching it off
+	// stops the notification on the device; the unread marker in moto stays.
+	RegisterType(TypeDefinition{
+		Key:         TypeStudentPickupChanged,
+		Label:       "Geänderte Abholzeit",
+		Description: "Wenn die OGS eine neue Abholzeit der Eltern für einen Tag bestätigt oder zurücknimmt.",
+		Group:       GroupPickup,
+		Portal:      PortalStaff,
+		Permission:  permissionUsersRead,
+		DefaultOn:   true,
+		SortOrder:   3,
 	})
 }
 
@@ -340,6 +368,23 @@ func registerActivityTypes() {
 		Group:       GroupActivities,
 		Portal:      PortalStaff,
 		SortOrder:   4,
+	})
+}
+
+// registerStaffNoteTypes adds the notes a colleague shares with the team.
+func registerStaffNoteTypes() {
+	// A colleague chose "Speichern und Team informieren" (#6854): on until
+	// the person switches it off, and only offered to those who may read the
+	// notes. The notice names no child; the link opens the note.
+	RegisterType(TypeDefinition{
+		Key:         TypeStaffStudentNoteShared,
+		Label:       "Notizen für das Team",
+		Description: "Wenn jemand aus dem Team eine Notiz zu einem Kind mit Ihnen teilt.",
+		Group:       GroupChildren,
+		Portal:      PortalStaff,
+		Permission:  permissionUsersRead,
+		DefaultOn:   true,
+		SortOrder:   2,
 	})
 }
 

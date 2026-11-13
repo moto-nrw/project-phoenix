@@ -21,6 +21,9 @@ type RequestChildOfferingRecord struct {
 	ManualSelectedDays    []string  `json:"manual_selected_days,omitempty"`
 	AutomaticSelectedDays []string  `json:"automatic_selected_days,omitempty"`
 	Notes                 *string   `json:"notes,omitempty"`
+	// SubmittedTerms are the catalog terms of the parents' submitted choice
+	// of this offering (#6837); nil without one.
+	SubmittedTerms *OfferingTerms `json:"-"`
 	// ValidFrom / ValidUntil make an approved offering switch effective on its
 	// requested date. ValidUntil is exclusive, matching student enrollments.
 	ValidFrom  *calendar.Date `json:"valid_from,omitempty"`
@@ -69,6 +72,7 @@ func RequestChildOfferingRecordsOf(values []*RequestChildOffering) []*RequestChi
 			RequestChildID: value.RequestChildID, CareOfferingID: value.CareOfferingID,
 			SelectedDays: value.SelectedDays, ManualSelectedDays: value.ManualSelectedDays,
 			AutomaticSelectedDays: value.AutomaticSelectedDays, Notes: value.Notes,
+			SubmittedTerms: value.SubmittedTerms,
 		}
 		selection.ID, selection.TenantID = value.ID, value.TenantID
 		selection.CreatedAt, selection.UpdatedAt = value.CreatedAt, value.UpdatedAt

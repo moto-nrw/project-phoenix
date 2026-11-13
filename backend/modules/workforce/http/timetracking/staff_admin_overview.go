@@ -120,3 +120,19 @@ func (rs *StaffAdminResource) getTimeTrackingOverview(w http.ResponseWriter, r *
 	}
 	common.Respond(w, r, http.StatusOK, overview, "Time tracking overview retrieved")
 }
+
+// getTargetCoverage handles GET /api/staff/time-tracking/target-coverage with
+// the overview's optional year/month pair.
+func (rs *StaffAdminResource) getTargetCoverage(w http.ResponseWriter, r *http.Request) {
+	filters, err := parseOverviewFilters(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	coverage, err := rs.StaffOverviewService.TargetCoverage(r.Context(), filters.Year, filters.Month)
+	if err != nil {
+		renderOverviewError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, coverage, "Target coverage retrieved")
+}

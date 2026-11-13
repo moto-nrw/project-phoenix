@@ -338,7 +338,9 @@ describe("operator reads with real SWR", () => {
         hasAccount: false,
         accountEmail: null,
         hasRfidCard: false,
-        isStaff: true,
+        // Without a child or staff profile, so the card offers the deletion
+        // (#6840).
+        isStaff: false,
         isStudent: false,
         schoolId: school.id,
         schoolName: school.name,

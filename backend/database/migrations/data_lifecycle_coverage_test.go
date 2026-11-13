@@ -63,6 +63,9 @@ func TestEveryTableHasDataLifecycleClassification(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	var columns []lifecycleColumn
+	// phx_test holds the test harness's leftover-gate start state
+	// (internal/testdb), which every clone inherits from the template; no
+	// migration creates it.
 	require.NoError(t, db.NewRaw(`
 		SELECT n.nspname || '.' || c.relname AS table_name, COALESCE(a.attname, '') AS column_name,
 		       COALESCE(pn.nspname || '.' || pc.relname, '') AS parent_table,
@@ -74,7 +77,7 @@ func TestEveryTableHasDataLifecycleClassification(t *testing.T) {
 		LEFT JOIN pg_namespace pn ON pn.oid = pc.relnamespace
 		LEFT JOIN pg_attribute pa ON pa.attrelid = pc.oid AND pa.attnum = f.confkey[array_position(f.conkey, a.attnum)]
 		WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition
-		  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+		  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast', 'phx_test')
 		ORDER BY 1, a.attnum`).Scan(context.Background(), &columns))
 	require.NotEmpty(t, columns, "schema discovery must not pass vacuously")
 	require.Empty(t, lifecycleClassificationProblems(readLifecycleCatalog(t).Tables, columns))

@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"errors"
@@ -11,6 +11,8 @@ import (
 	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 func accidentReportForPDF() careplan.AccidentReport {
@@ -20,7 +22,7 @@ func accidentReportForPDF() careplan.AccidentReport {
 	}
 }
 
-func reportFields(doc ReportDocument) map[string]string {
+func reportFields(doc careplanhttp.ReportDocument) map[string]string {
 	fields := map[string]string{}
 	for _, section := range doc.Sections {
 		for _, card := range section.Cards {
@@ -37,14 +39,14 @@ func reportFields(doc ReportDocument) map[string]string {
 func TestAccidentReportDocumentFollowsTheOfficialForm(t *testing.T) {
 	t.Parallel()
 	report := accidentReportForPDF()
-	doc := accidentReportDocument(careplan.AccidentReportFile{Document: careplan.CareDocument{AccidentReport: &report}},
-		accidentReportFacts{SchoolName: "OGS Sonnenschule", SchoolAddress: "Hauptstraße 1, 48143 Münster", Name: "Muster, Mia", Birthday: "2018-03-04"},
+	doc := careplanhttp.AccidentReportDocumentForTest(careplan.AccidentReportFile{Document: careplan.CareDocument{AccidentReport: &report}},
+		careplanhttp.AccidentReportFactsForTest{SchoolName: "OGS Sonnenschule", SchoolAddress: "Hauptstraße 1, 48143 Münster", Name: "Muster, Mia", Birthday: "2018-03-04"},
 		time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC))
 
 	fields := reportFields(doc)
 	assert.Equal(t, "Unfallanzeige", doc.Title)
 	assert.Equal(t, "OGS Sonnenschule, Hauptstraße 1, 48143 Münster", fields["1 Name und Anschrift der Einrichtung"])
-	assert.Equal(t, accidentNotRecorded, fields["3 Unternehmensnummer des Unfallversicherungsträgers"])
+	assert.Equal(t, careplanhttp.AccidentNotRecordedForTest, fields["3 Unternehmensnummer des Unfallversicherungsträgers"])
 	assert.Equal(t, "04.03.2018", fields["6 Geburtsdatum"])
 	assert.Equal(t, "20.10.2026, 10:40 Uhr", fields["12 Unfallzeitpunkt"], "the time prints in Berlin")
 	assert.Equal(t, "Kein Arztbesuch", fields["20 Erstbehandelnde Ärztin, erstbehandelnder Arzt oder Krankenhaus"])
@@ -63,19 +65,19 @@ func TestAccidentReportDocumentShowsSignatureAndItsCheck(t *testing.T) {
 			Method: "drawn", SignerName: "Petra Leitung", PNG: []byte{1}, SignedAt: signedAt, Intact: false,
 		},
 	}
-	fields := reportFields(accidentReportDocument(file, accidentReportFacts{}, signedAt))
+	fields := reportFields(careplanhttp.AccidentReportDocumentForTest(file, careplanhttp.AccidentReportFactsForTest{}, signedAt))
 	assert.Equal(t, "Petra Leitung", fields["Unterschrieben von"])
 	assert.Equal(t, "Einfache elektronische Signatur mit gezeichneter Unterschrift", fields["Verfahren"])
 	assert.Contains(t, fields["Prüfung"], "nachträglich verändert", "a broken checksum is printed, never hidden")
 
 	file.Signature.Method = "typed"
 	file.Signature.TypedName = "Petra Leitung"
-	fields = reportFields(accidentReportDocument(file, accidentReportFacts{}, signedAt))
+	fields = reportFields(careplanhttp.AccidentReportDocumentForTest(file, careplanhttp.AccidentReportFactsForTest{}, signedAt))
 	assert.Equal(t, "Einfache elektronische Signatur mit getipptem Namen", fields["Verfahren"])
 
 	supersedes := int64(3)
 	file.Document.AccidentSupersedesID = &supersedes
-	assert.Equal(t, "Unfallanzeige (Korrektur)", accidentReportDocument(file, accidentReportFacts{}, signedAt).Title)
+	assert.Equal(t, "Unfallanzeige (Korrektur)", careplanhttp.AccidentReportDocumentForTest(file, careplanhttp.AccidentReportFactsForTest{}, signedAt).Title)
 }
 
 func TestAccidentReportVersionsFollowTheCorrections(t *testing.T) {
@@ -88,7 +90,7 @@ func TestAccidentReportVersionsFollowTheCorrections(t *testing.T) {
 		{ID: 1, AccidentReport: &report},
 		{ID: 4},
 	}
-	versions, successors := accidentReportVersions(docs)
+	versions, successors := careplanhttp.AccidentReportVersionsForTest(docs)
 	assert.Equal(t, map[int64]int{1: 1, 2: 2, 3: 3}, versions)
 	assert.Equal(t, map[int64]int64{1: 2, 2: 3}, successors)
 }
@@ -108,7 +110,7 @@ func TestAccidentReportErrorsCarryTheirCodes(t *testing.T) {
 		careplan.ErrCareDocumentNotFound:     common.CodeStudentsAccidentReportNotFound,
 	}
 	for err, code := range cases {
-		renderer := accidentReportErrorRenderer(errors.Join(errors.New("wrapped"), err))
+		renderer := careplanhttp.AccidentReportErrorRendererForTest(errors.Join(errors.New("wrapped"), err))
 		response, ok := renderer.(*common.ErrResponse)
 		require.True(t, ok, err.Error())
 		assert.Equal(t, code, response.Code, err.Error())

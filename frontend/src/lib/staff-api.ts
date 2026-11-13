@@ -875,6 +875,10 @@ export interface WorkTimeModel {
   rotationAnchorDate: string;
   entries: WorkTimeModelEntry[];
   weeklyTotals: number[];
+  /** Gesetzt, solange die Schule die Vorlage nicht mehr anbietet (#6891). */
+  archivedAt: string | null;
+  /** Nur aus `listWithUsage`: so viele Personen erreicht eine Änderung. */
+  assignedStaffCount?: number;
 }
 
 interface BackendWorkTimeModel {
@@ -884,6 +888,29 @@ interface BackendWorkTimeModel {
   rotation_anchor_date: string;
   entries: BackendScheduleEntry[];
   weekly_totals: number[];
+  archived_at?: string | null;
+  assigned_staff_count?: number;
+}
+
+interface WorkTimeModelInput {
+  name: string;
+  rotationLength: number;
+  rotationAnchorDate: string;
+  entries: WorkTimeModelEntry[];
+}
+
+function workTimeModelBody(input: WorkTimeModelInput) {
+  return {
+    name: input.name,
+    rotation_length: input.rotationLength,
+    rotation_anchor_date: input.rotationAnchorDate,
+    entries: input.entries.map((e) => ({
+      week_index: e.weekIndex,
+      day_of_week: e.dayOfWeek,
+      target_minutes: e.targetMinutes,
+      ...(e.startTime ? { start_time: e.startTime } : {}),
+    })),
+  };
 }
 
 function mapWorkTimeModel(m: BackendWorkTimeModel): WorkTimeModel {
@@ -899,7 +926,22 @@ function mapWorkTimeModel(m: BackendWorkTimeModel): WorkTimeModel {
       startTime: e.start_time ?? undefined,
     })),
     weeklyTotals: m.weekly_totals ?? [],
+    archivedAt: m.archived_at ?? null,
+    ...(m.assigned_staff_count === undefined
+      ? {}
+      : { assignedStaffCount: m.assigned_staff_count }),
   };
+}
+
+async function readWorkTimeModel(
+  response: Response,
+  fallback: string,
+): Promise<WorkTimeModel> {
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response, fallback);
+  }
+  const json = (await response.json()) as { data: BackendWorkTimeModel };
+  return mapWorkTimeModel(json.data);
 }
 
 class WorkTimeModelService {
@@ -907,6 +949,76 @@ class WorkTimeModelService {
     const response = await sessionFetch(`/api/work-time-models`);
     const json = (await response.json()) as { data: BackendWorkTimeModel[] };
     return (json.data ?? []).map(mapWorkTimeModel);
+  }
+
+  /** Für die Katalogseite: archivierte Vorlagen und die Nutzungszahl. */
+  async listWithUsage(): Promise<WorkTimeModel[]> {
+    const response = await sessionFetch(
+      `/api/work-time-models?with_usage=true`,
+    );
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        "Vorlagen konnten nicht geladen werden",
+      );
+    }
+    const json = (await response.json()) as {
+      data: BackendWorkTimeModel[] | null;
+    };
+    return (json.data ?? []).map(mapWorkTimeModel);
+  }
+
+  async create(input: WorkTimeModelInput): Promise<WorkTimeModel> {
+    const response = await sessionFetch(`/api/work-time-models`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(workTimeModelBody(input)),
+    });
+    return readWorkTimeModel(response, "Vorlage konnte nicht angelegt werden");
+  }
+
+  async update(id: string, input: WorkTimeModelInput): Promise<WorkTimeModel> {
+    const response = await sessionFetch(`/api/work-time-models/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(workTimeModelBody(input)),
+    });
+    return readWorkTimeModel(
+      response,
+      "Vorlage konnte nicht gespeichert werden",
+    );
+  }
+
+  async archive(id: string): Promise<WorkTimeModel> {
+    const response = await sessionFetch(`/api/work-time-models/${id}/archive`, {
+      method: "POST",
+    });
+    return readWorkTimeModel(
+      response,
+      "Vorlage konnte nicht aus der Auswahl genommen werden",
+    );
+  }
+
+  async restore(id: string): Promise<WorkTimeModel> {
+    const response = await sessionFetch(`/api/work-time-models/${id}/restore`, {
+      method: "POST",
+    });
+    return readWorkTimeModel(
+      response,
+      "Vorlage konnte nicht wieder angeboten werden",
+    );
+  }
+
+  async remove(id: string): Promise<void> {
+    const response = await sessionFetch(`/api/work-time-models/${id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        "Vorlage konnte nicht gelöscht werden",
+      );
+    }
   }
 }
 

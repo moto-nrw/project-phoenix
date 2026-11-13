@@ -32,7 +32,10 @@ func TestStatusDayOverviewShowsActiveAndEndOfDayRowsInsideTheWindows(t *testing.
 	require.Len(t, windows.Or, 1)
 	assert.Equal(t, []StudentScheduleQueryCondition{{Field: "student_id", Operator: "=", Value: int64(32)}, {Field: "date", Operator: "<=", Value: until}}, windows.Or[0].Conditions)
 	assert.Equal(t, []StudentScheduleQueryCondition{{Field: "cleared_at", Operator: "IS NULL"}}, active.Conditions)
-	assert.Equal(t, []StudentScheduleQueryCondition{{Field: "source", Operator: "=", Value: "end_of_day"}}, active.Or[0].Conditions)
+	assert.Equal(t, []StudentScheduleQueryCondition{
+		{Field: "source", Operator: "=", Value: "end_of_day"},
+		{Field: "cleared_source", Operator: "IS NULL"},
+	}, active.Or[0].Conditions, "a withdrawn archive keeps its source and drops out through its clearing (#6842)")
 }
 
 func TestStatusDayOverviewWithoutChildrenMatchesNothing(t *testing.T) {

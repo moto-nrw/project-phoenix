@@ -316,7 +316,7 @@ describe("TraegerHolidayRegistrationPage", () => {
         ).toBeInTheDocument();
         expect(
           screen.queryByText(
-            catalogText("general.unavailable", "die Geschwister"),
+            catalogText("general.unavailable", "die Geschwistergruppe"),
           ),
         ).not.toBeInTheDocument();
 
@@ -579,6 +579,49 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("warns when a mail to the parents did not arrive (#6737)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      mailProblems: [
+        { kind: "holiday_registration_received", state: "failed" },
+        { kind: "holiday_registration_accepted", state: "blocked" },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByText("E-Mail an die Eltern prüfen"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Eingangsbestätigung hat die Eltern nicht erreicht.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Annahme-Mail wurde nicht gesendet. An diese Adresse gehen zurzeit keine Mails.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no mail warning while the mails are on their way (#6737)", async () => {
+    mockRegistration.mockResolvedValue(HOLIDAY_REGISTRATION);
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(await screen.findByText("eva@example.org")).toBeInTheDocument();
+    expect(
+      screen.queryByText("E-Mail an die Eltern prüfen"),
+    ).not.toBeInTheDocument();
+  });
+
   it("says when moto deletes the registration and downloads it as a PDF (#6691)", async () => {
     mockRegistration.mockResolvedValue({
       ...HOLIDAY_REGISTRATION,
@@ -665,8 +708,8 @@ describe("TraegerHolidayRegistrationPage", () => {
     expect(field("Sorgerecht bestätigt")).toHaveTextContent(
       "Ja, am 03.09.2026",
     );
-    expect(field("Name als Erklärung")).toHaveTextContent("Eva Muster");
-    expect(field("Fassung der Texte")).toHaveTextContent("Fassung 4");
+    expect(field("Unterschrieben mit Namen")).toHaveTextContent("Eva Muster");
+    expect(field("Version der Erklärung")).toHaveTextContent("Version 4");
 
     const wording = screen.getByRole("heading", {
       name: "Wortlaut der Erklärung",
@@ -707,7 +750,7 @@ describe("TraegerHolidayRegistrationPage", () => {
       )!,
     );
     expect(
-      parents.getByText("Vor Fassung 2, Wortlaut nicht gespeichert"),
+      parents.getByText("Vor Version 2, Wortlaut nicht gespeichert"),
     ).toBeInTheDocument();
     expect(parents.getByText("Nicht angegeben")).toBeInTheDocument();
     expect(
@@ -905,17 +948,23 @@ describe("TraegerHolidayRegistrationPage", () => {
 
     expect(
       await screen.findByText(
-        "Antworten auf die Fragen des Formulars, Version 2. Antworten zu einem Kind stehen beim Kind.",
+        "Antworten auf die Fragen aus Formular-Version 2. Antworten zu einem Kind stehen beim Kind.",
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Wie haben Sie von den Ferien erfahren?"),
     ).toBeInTheDocument();
     expect(screen.getByText("Elternbrief")).toBeInTheDocument();
-    // A health answer carries its marker; the label comes from version 2.
+    // A health answer stands in the child's „Gesundheit“ box, whose title
+    // marks it; the label comes from version 2.
+    const healthBoxes = screen
+      .getAllByRole("heading", { name: "Gesundheit" })
+      .map((heading) => heading.parentElement!);
     expect(
-      screen.getByText("Tetanus-Impfschutz (Gesundheit)"),
-    ).toBeInTheDocument();
+      healthBoxes.filter(
+        (box) => within(box).queryByText("Tetanus-Impfschutz") !== null,
+      ),
+    ).toHaveLength(1);
     expect(screen.getByText("weiß nicht")).toBeInTheDocument();
     expect(
       screen.getByText("Darf an Ausflügen teilnehmen"),

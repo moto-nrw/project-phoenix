@@ -7,7 +7,10 @@
 
 import { Tags } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import { formatMonth, monthOf } from "~/components/traeger/care-billing-format";
 import { CareRuleModal } from "~/components/traeger/care-rule-modal";
 import { CareRulesCard } from "~/components/traeger/care-rules-card";
@@ -55,7 +58,7 @@ export default function TraegerErmaessigungenPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Ermäßigungen",
+        object: "die Übersicht der Ermäßigungen",
         retry: () => void load(),
       });
     }
@@ -93,7 +96,7 @@ export default function TraegerErmaessigungenPage() {
 
   return (
     <TenantPage
-      title="Abrechnung"
+      title={billingAreaTitle("ermaessigungen")}
       info="Hier legen Sie fest, wann Familien weniger zahlen. Der Monatslauf rechnet in dieser Reihenfolge: Preis aus der Preisliste, Einkommensstufe, Geschwister, Alleinerziehende, Höchstbetrag. Jede Ermäßigung steht als eigene Zeile auf der Rechnung."
       stats={
         data && data.rules.length > 0 ? (

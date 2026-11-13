@@ -33,6 +33,12 @@ import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useHelpHref } from "~/lib/hooks/use-help-href";
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
+import {
+  STAFF_NEWS_TITLE,
+  StaffNewsList,
+  useStaffNews,
+} from "~/components/dashboard/header/staff-news-button";
+import { NotificationBadge } from "~/components/ui/notification-badge";
 import { navigationIcons } from "~/lib/navigation-icons";
 import {
   navigationEntryTarget,
@@ -551,6 +557,10 @@ export function MobileBottomNav(props: MobileBottomNavProps) {
 function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Ungelesene Anmeldungen (#3778) an der Zeile „Anmeldungen" im Menü.
   const { unreadCount: enrollmentsUnreadCount } = useEnrollmentsUnread();
+  // „Neu für Sie“: geteilte Notizen (#6854) und geänderte Abholzeiten
+  // (#6855). Unter 1024 px gibt es keine Kopfzeile, also trägt „Mehr“ den
+  // roten Zähler und das Menü die Liste.
+  const staffNews = useStaffNews();
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
   const routingMode = useTenantRoutingModeSafe();
@@ -1035,6 +1045,16 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
             />
           ),
           "data-setup-tour": "nav-more",
+          badge:
+            mode === "teacher" ? (
+              <NotificationBadge
+                count={staffNews.length}
+                tone="red"
+                size="sm"
+                ariaLabel={`${staffNews.length} neu für Sie`}
+                className="absolute -top-1 -right-2"
+              />
+            ) : null,
           paddingClassName: ITEM_PADDING,
           labelClassName: ITEM_LABEL,
           quiet: true,
@@ -1067,6 +1087,17 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       {TRAEGER_RETURN_LABEL}
                     </span>
                   </ButtonLink>
+                ) : null}
+                {/* „Neu für Sie“ (#6854, #6855) ganz oben: hierher führt der
+                    rote Zähler am Knopf „Mehr“. */}
+                {mode === "teacher" && staffNews.length > 0 ? (
+                  <div className="space-y-2">
+                    <SectionLabel as="h2">{STAFF_NEWS_TITLE}</SectionLabel>
+                    <StaffNewsList
+                      items={staffNews}
+                      onNavigate={closeOverflowMenu}
+                    />
+                  </div>
                 ) : null}
                 {visibleDrawerGroups.map((group) => (
                   <div key={group.key} className="space-y-2">

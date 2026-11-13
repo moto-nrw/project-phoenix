@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-ogs/project-phoenix/api/common"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
@@ -167,6 +168,7 @@ func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 var accountManagementErrorRenderer = common.UnwrapRenderer[*identityaccess.AuthenticationError](
 	[]common.ErrorRule{
 		{Target: identityaccess.ErrAccountNotFound, Render: common.ErrorNotFound},
+		{Target: identityaccess.ErrAccountSharedAcrossSchools, Render: portalauth.AccountSharedAcrossSchools},
 	},
 	common.ErrorInternalServer,
 )

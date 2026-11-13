@@ -26,6 +26,7 @@ export function GuardianAddressFields({
   address,
   required,
   labels,
+  hints,
   fieldError,
   onChange,
   controlSize,
@@ -33,6 +34,8 @@ export function GuardianAddressFields({
   address: GuardianAddressDraft;
   required: boolean;
   labels: GuardianAddressLabels;
+  /** A line under a part, such as where its value came from (#6682). */
+  hints?: Partial<Record<keyof GuardianAddressDraft, string>>;
   fieldError: (name: string) => string | undefined;
   onChange: (address: GuardianAddressDraft) => void;
   /** The Träger-App sets its fields to 40 px; the parents' form keeps the default. */
@@ -48,6 +51,7 @@ export function GuardianAddressFields({
         autoComplete="street-address"
         maxLength={100}
         value={address.street}
+        hint={hints?.street}
         error={fieldError("guardian_address.street")}
         onChange={(event) =>
           onChange({ ...address, street: event.target.value })
@@ -62,6 +66,7 @@ export function GuardianAddressFields({
         inputMode="numeric"
         maxLength={5}
         value={address.postalCode}
+        hint={hints?.postalCode}
         error={fieldError("guardian_address.postal_code")}
         onChange={(event) =>
           onChange({ ...address, postalCode: event.target.value })
@@ -75,6 +80,7 @@ export function GuardianAddressFields({
         autoComplete="address-level2"
         maxLength={100}
         value={address.city}
+        hint={hints?.city}
         error={fieldError("guardian_address.city")}
         onChange={(event) => onChange({ ...address, city: event.target.value })}
       />
