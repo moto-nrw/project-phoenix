@@ -29,6 +29,7 @@ export function parentAnnouncementTopic(): HelpTopic {
       "Unter einer Mitteilung steht `Von …, Lehrkraft der Klasse … · nur zum Lesen`? Die hat eine Lehrkraft in moto schule geschrieben. Sie können sie lesen, ändern kann sie nur die Lehrkraft.",
       "Unter `Priorität` stehen `Info` und `Wichtig` zur Wahl.",
       "Mit `Ablaufdatum (optional)` blenden Sie die Mitteilung später wieder aus.",
+      "Eine Mitteilung bleibt bei den Kindern, die sie beim Veröffentlichen erreicht hat. Wechselt danach ein Kind die Klasse, behält es die Mitteilung. Die neue Klasse bekommt sie nicht. Das gilt auch für `Statistik` und Erinnerungen.",
     ],
     troubleshootingDetails: [
       "`Veröffentlichen` bleibt grau? Dann fehlt noch ein Empfänger.",

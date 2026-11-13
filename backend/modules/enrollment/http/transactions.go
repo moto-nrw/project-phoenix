@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // The routes open their transactions through the shared tenant runtime the

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func (s *Service) CreateRoom(ctx context.Context, input facilities.CreateRoom) (result facilities.Room, err error) {
@@ -30,6 +30,11 @@ func (s *Service) CreateRoom(ctx context.Context, input facilities.CreateRoom) (
 		err := facilities.ErrToiletRoomNotReleasable
 		s.ObserveRejection("create_room", time.Since(started), err)
 		return facilities.Room{}, err
+	}
+	// A toilet room is kiosk infrastructure whoever creates it: is_system is
+	// the one mark the deletion and rename protections read (#6845).
+	if facilities.IsToiletRoomName(input.Name) {
+		input.IsSystem = true
 	}
 	err = s.runWrite(ctx, "create_room", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if err := s.lockRoomName(txCtx, input.Name); err != nil {
@@ -94,41 +99,6 @@ func (s *Service) UpdateRoom(ctx context.Context, input facilities.UpdateRoom) (
 		return err
 	})
 	return result, err
-}
-func (s *Service) DeleteRoom(ctx context.Context, id int64) (err error) {
-	if err := s.requireTenant(ctx, "delete_room"); err != nil {
-		return err
-	}
-	if id <= 0 {
-		err := &facilities.InvalidRoomError{Reason: "room ID is required"}
-		s.ObserveRejection("delete_room", 0, err)
-		return err
-	}
-	return s.runWrite(ctx, "delete_room", func(txCtx context.Context, stats *domain.OperationStats) error {
-		// Timetable writers take the recurrence lock before room FK locks. Keep
-		// deletion in the same order so concurrent template creation cannot
-		// deadlock with a room delete.
-		if err := s.lockDeletion(txCtx); err != nil {
-			return err
-		}
-		existing, found, queryStats, findErr := s.store.FindByID(txCtx, id, "UPDATE")
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if !found {
-			return facilities.ErrRoomNotFound
-		}
-		if isSystemRoomName(existing.Name) {
-			return facilities.ErrSystemRoomProtected
-		}
-		if err := s.refuseUsedRoom(txCtx, id); err != nil {
-			return err
-		}
-		queryStats, err = s.store.Delete(txCtx, id)
-		stats.Add(queryStats)
-		return err
-	})
 }
 func (s *Service) FindRoom(ctx context.Context, id int64) (result facilities.Room, err error) {
 	if err := s.requireTenant(ctx, "find_room"); err != nil {

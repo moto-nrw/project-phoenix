@@ -18,3 +18,13 @@ func (e *CommitOutcomeUnknownError) Error() string {
 }
 func (e *CommitOutcomeUnknownError) Unwrap() error         { return e.Err }
 func (e *CommitOutcomeUnknownError) CommitOutcomeUnknown() {}
+
+// LockNotAvailableError marks a lock wait that lock_timeout ended (55P03);
+// its text is the database error's.
+type LockNotAvailableError struct{ error }
+
+// NewLockNotAvailableError marks err as a lock wait lock_timeout ended.
+func NewLockNotAvailableError(err error) error { return LockNotAvailableError{err} }
+
+func (e LockNotAvailableError) Unwrap() error   { return e.error }
+func (LockNotAvailableError) LockWaitExceeded() {}

@@ -1,6 +1,6 @@
 package application
 
-import "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+import "github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 
 func NewOffboardingFacade(service *Service) *schoolmembership.Offboarding {
 	offboarding := schoolmembership.NewOffboarding(service.PreviewRetirement, service.RetireStaff, service.EraseNextRetiredStaff,

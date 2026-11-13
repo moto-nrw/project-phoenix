@@ -3,12 +3,12 @@
 package api
 
 import (
-	care "github.com/moto-nrw/project-phoenix/modules/careplan/http"
-	people "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
-	projection "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
-	review "github.com/moto-nrw/project-phoenix/modules/requestreview/http"
-	presence "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
-	delete "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/http"
+	care "github.com/moto-ogs/project-phoenix/modules/careplan/http"
+	people "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students"
+	projection "github.com/moto-ogs/project-phoenix/modules/presenceprojection/http"
+	review "github.com/moto-ogs/project-phoenix/modules/requestreview/http"
+	presence "github.com/moto-ogs/project-phoenix/modules/studentpresence/http"
+	delete "github.com/moto-ogs/project-phoenix/workflows/studentdeletion/http"
 )
 
 func NewCareHTTPUnitResource(cfg care.ResourceConfig) *care.Resource {

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Copy, Pencil, Trash2 } from "lucide-react";
+import { expect, screen, userEvent, within } from "storybook/test";
 
 import { OverflowMenu, type OverflowMenuItem } from "./OverflowMenu";
 
@@ -35,6 +36,19 @@ const basicItems: readonly OverflowMenuItem[] = [
 export const Default: Story = {
   args: {
     items: basicItems,
+  },
+};
+
+/** Offenes Menü: `play` klickt den Auslöser (Vorlage für offene Zustände, #6562). */
+export const Opened: Story = {
+  args: {
+    items: basicItems,
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Weitere Aktionen" }),
+    );
+    await expect(await screen.findByRole("menu")).toBeVisible();
   },
 };
 

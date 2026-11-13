@@ -3,7 +3,7 @@ package parentmessaging
 import (
 	"context"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 )
 
 // Co-guardian neutral notice (#2267, story 47).

@@ -200,7 +200,7 @@ export function ClosingDayModal({
             id="closing-day-start"
             name="start_date"
             label="Von"
-            controlSize="lg"
+            controlSize="large"
             value={startDate}
             onChange={(value) => {
               setStartDate(value);
@@ -213,7 +213,7 @@ export function ClosingDayModal({
             id="closing-day-end"
             name="end_date"
             label="Bis"
-            controlSize="lg"
+            controlSize="large"
             value={endDate}
             min={startDate || undefined}
             defaultMonth={startDate}

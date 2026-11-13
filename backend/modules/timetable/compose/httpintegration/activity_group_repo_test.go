@@ -3,9 +3,9 @@ package httpintegration_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

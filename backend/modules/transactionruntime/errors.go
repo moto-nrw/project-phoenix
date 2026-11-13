@@ -2,7 +2,7 @@
 // exposing a driver or database handle to HTTP consumers.
 package transactionruntime
 
-import "github.com/moto-nrw/project-phoenix/modules/transactionruntime/internal/adapters/postgres"
+import "github.com/moto-ogs/project-phoenix/modules/transactionruntime/internal/adapters/postgres"
 
 func IsTransientDatabaseError(err error) bool { return postgres.IsTransientDatabaseError(err) }
 func IsConstraintViolation(err error) bool    { return postgres.IsConstraintViolation(err) }

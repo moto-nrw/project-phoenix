@@ -6,8 +6,8 @@ status: proposed
 
 **Status: Vorgeschlagen.**
 
-Vorschlag vom 08.11.2026 zu [#4695](https://github.com/moto-nrw/project-phoenix/issues/4695),
-Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611)
+Vorschlag vom 08.11.2026 zu [#4695](https://github.com/moto-ogs/project-phoenix/issues/4695),
+Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611)
 (User Stories 82, 84, 85). Er baut auf
 [ADR 0167](0167-zahlungsweg-faelligkeit-und-empfaenger-entscheidet-eine-regel-und-die-rechnung-haelt-sie-fest.md)
 (Zahlungsweg, Fälligkeit, Familie = Mail-Adresse der Anmeldung) und
@@ -23,9 +23,9 @@ ein. Dafür braucht der Träger je Zahler ein SEPA-Mandat (Referenz, Datum der
 Unterschrift, Konto), seine Gläubiger-Identifikationsnummer und eine
 Vorabankündigung (Pre-Notification) auf jeder Rechnung. moto zieht kein Geld
 ein. Zwei Folge-Issues schreiben und lesen dieselben Mandate: der Import der
-bestehenden Mandate aus OGS Connect ([#6198](https://github.com/moto-nrw/project-phoenix/issues/6198))
-und die Lastschriftdatei PAIN.008 ([#4697](https://github.com/moto-nrw/project-phoenix/issues/4697)).
-Später erteilen Eltern das Mandat digital ([#4696](https://github.com/moto-nrw/project-phoenix/issues/4696)).
+bestehenden Mandate aus OGS Connect ([#6198](https://github.com/moto-ogs/project-phoenix/issues/6198))
+und die Lastschriftdatei PAIN.008 ([#4697](https://github.com/moto-ogs/project-phoenix/issues/4697)).
+Später erteilen Eltern das Mandat digital ([#4696](https://github.com/moto-ogs/project-phoenix/issues/4696)).
 
 ## Entscheidung
 
@@ -132,7 +132,7 @@ Unveränderlichkeit und Audit bleiben erhalten.
 ## Ergänzung 2026-11-09 (#4696): Eltern erteilen das Mandat in der Eltern-App
 
 Entscheidung Yannick vom 09.11.2026 zu
-[#4696](https://github.com/moto-nrw/project-phoenix/issues/4696) (Option B der Recherche):
+[#4696](https://github.com/moto-ogs/project-phoenix/issues/4696) (Option B der Recherche):
 
 1. **Nur in der Eltern-App, kein Link mit Token.** Erteilen, Lesen und Widerrufen
    prüfen dasselbe wie das Unterschreiben im Postfach: Beziehung mit

@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	configSvc "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	configSvc "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // WeekendSettings is the one read the weekend plan needs from the Settings

@@ -15,7 +15,7 @@
    PostgreSQL's internal FK triggers are not routing triggers.
 3. Record staging evidence below before accepting the rollout. Backfill and
    caller cutover are separate tickets under
-   [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580).
+   [#2580](https://github.com/moto-ogs/project-phoenix/issues/2580).
 
 No prerequisite change to the old table was needed: `users.students`,
 `users.guardian_profiles` and `platform.schools` already expose the composite

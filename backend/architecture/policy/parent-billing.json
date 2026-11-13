@@ -205,6 +205,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.export_file_transfers",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.export_mappings",
       "write_owner": "parent-billing"
     },

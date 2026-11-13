@@ -16,7 +16,6 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
@@ -442,33 +441,29 @@ function TeachersPageContent() {
           </>
         ),
       }}
-      search={
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={{
-            icon: (
-              <MotoDuotoneIcon
-                icon={staffConcept.icon}
-                tone={staffConcept.tone}
-                size={20}
-              />
-            ),
-            count: filteredTeachers.length,
-            label: "Personal",
-          }}
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Personal suchen…",
-          }}
-          filters={[]}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-          }}
-        />
-      }
+      searchRow={{
+        badge: {
+          icon: (
+            <MotoDuotoneIcon
+              icon={staffConcept.icon}
+              tone={staffConcept.tone}
+              size={20}
+            />
+          ),
+          count: filteredTeachers.length,
+          label: "Personal",
+        },
+        search: {
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Personal suchen…",
+        },
+        filters: [],
+        activeFilters,
+        onClearAllFilters: () => {
+          setSearchTerm("");
+        },
+      }}
     >
       {/* Einladungen anlegen, erneut senden und zurückziehen verlangt
           users:manage. Wer es nicht hält, sieht den Block gar nicht: eine

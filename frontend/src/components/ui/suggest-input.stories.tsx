@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Search } from "lucide-react";
 import { type ComponentProps, useState } from "react";
+import { expect, screen, userEvent, within } from "storybook/test";
 
 import { SuggestInput } from "./suggest-input";
 
@@ -66,5 +67,20 @@ export const WithError: Story = {
   args: {
     required: true,
     error: "Bitte geben Sie eine Position ein.",
+  },
+};
+
+/** Offene Vorschlagsliste nach einer Eingabe (#6576, Baseline des Pixel-Vergleichs). */
+export const Opened: Story = {
+  play: async ({ canvasElement }) => {
+    await userEvent.type(
+      within(canvasElement).getByRole("combobox", { name: "Position" }),
+      "e",
+    );
+    await expect(
+      await screen.findByRole("listbox", {
+        name: "Vorschläge für die Position",
+      }),
+    ).toBeVisible();
   },
 };

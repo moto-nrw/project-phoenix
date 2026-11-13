@@ -8,10 +8,10 @@ import (
 	"slices"
 	"time"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	owner0 "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // CareWithdrawalRecords preserves the retained users model

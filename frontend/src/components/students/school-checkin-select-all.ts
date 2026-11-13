@@ -1,5 +1,5 @@
 import type { Student } from "~/lib/student-helpers";
-import { countedDayStatus } from "~/lib/location-helper";
+import { countedDayStatus } from "~/lib/presence-status";
 import {
   getDayPlanningNotComingLabel,
   hasActualAttendance,

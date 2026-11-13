@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
-	carePlanBindingPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	parentModels "github.com/moto-ogs/project-phoenix/modules/careplan/internal/rows"
+	carePlanBindingPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
 )
 
 // ParentPortalRepositories are the guardian-portal repositories over their

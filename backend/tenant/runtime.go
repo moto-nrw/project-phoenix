@@ -71,18 +71,43 @@ const (
 // Its functions are supplied by the composition root; this package does not
 // know which database or transaction adapter backs them.
 type UnitOfWork struct {
-	withinTenant  func(context.Context, int64, func(context.Context, any) error) error
-	withinAdmin   func(context.Context, func(context.Context, any) error) error
-	withinTraeger func(context.Context, int64, func(context.Context, any) error) error
+	withinExclusive func(context.Context, string, func(context.Context) error) error
+	withinTenant    func(context.Context, int64, func(context.Context, any) error) error
+	withinAdmin     func(context.Context, func(context.Context, any) error) error
+	withinTraeger   func(context.Context, int64, func(context.Context, any) error) error
 	// withinAdminThenTenant is the one-way handoff of ADR 0161 point 2.
 	withinAdminThenTenant func(context.Context, func(context.Context, any) (int64, error), func(context.Context, any) error) error
 	savepoint             func(context.Context, SavepointAction) error
 	retryable             func(error) bool
 	acquireLock           func(context.Context, string, bool) error
 	boundStatements       func(context.Context, time.Duration, func(context.Context) error) error
+	boundLocks            func(context.Context, time.Duration, func(context.Context) error) error
 	withoutTx             func(context.Context) context.Context
 	withTenant            func(context.Context, int64) context.Context
 	withTransaction       func(context.Context, any) context.Context
+}
+
+// WithExclusiveRunner binds a connection-scoped mutex for workflows whose
+// independently committed units must not interleave. It holds no transaction.
+func (uow UnitOfWork) WithExclusiveRunner(run func(context.Context, string, func(context.Context) error) error) UnitOfWork {
+	uow.withinExclusive = run
+	return uow
+}
+
+// WithinExclusive serializes fn across processes without opening a transaction.
+// The callback may open successive tenant and Träger units as usual.
+func WithinExclusive(ctx context.Context, key string, fn func(context.Context) error) error {
+	uow, err := unitOfWorkFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	if _, present := TransactionFromContext(ctx); present || key == "" || fn == nil {
+		return errors.New("tenant: an exclusive workflow requires a key, callback and no ambient transaction")
+	}
+	if uow.withinExclusive == nil {
+		return fmt.Errorf("%w: exclusive runner is required", ErrRuntimeRequired)
+	}
+	return uow.withinExclusive(ctx, key, fn)
 }
 
 // IsZero reports whether the unit of work carries no transaction functions,
@@ -353,6 +378,11 @@ func observeTransaction(ctx context.Context, result UnitOfWorkResult, err error,
 		Retries:  retries,
 	})
 }
+
+// TransactionResult classifies the error of a finished unit of work: a unit
+// that never started, one whose commit outcome is unknown, or one that rolled
+// back. Only a rollback leaves the database as it was before the unit.
+func TransactionResult(err error) UnitOfWorkResult { return transactionResult(err) }
 
 func transactionResult(err error) UnitOfWorkResult {
 	var notStarted interface{ TransactionNotStarted() }

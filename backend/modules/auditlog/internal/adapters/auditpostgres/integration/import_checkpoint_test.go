@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	auditImports "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
-	auditRepo "github.com/moto-nrw/project-phoenix/modules/auditlog/internal/adapters/auditpostgres"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	auditImports "github.com/moto-ogs/project-phoenix/modules/auditlog/imports"
+	auditRepo "github.com/moto-ogs/project-phoenix/modules/auditlog/internal/adapters/auditpostgres"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestImportCheckpoints_CommitRollbackUniquenessAndTenantIsolation(t *testing.T) {

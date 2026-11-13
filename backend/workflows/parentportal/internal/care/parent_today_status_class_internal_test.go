@@ -8,7 +8,8 @@ import (
 )
 
 // A child who went to class has not left for the day (#5656): parents read that
-// fact instead of "gegangen", and can still change today's pickup.
+// fact instead of "gegangen", and can still change today's pickup until the
+// care day ends (#5710).
 func TestAttendanceRowsLeftForClass(t *testing.T) {
 	t.Parallel()
 

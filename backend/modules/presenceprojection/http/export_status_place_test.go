@@ -3,7 +3,7 @@ package presenceprojectionhttp
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 )
 

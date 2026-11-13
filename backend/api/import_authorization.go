@@ -1,8 +1,8 @@
 package api
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // NewImportAuthorization binds Data Import's decision port at the root.

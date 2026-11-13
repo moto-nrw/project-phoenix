@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // OpenAttendanceChecker reports whether any student is checked in for a given

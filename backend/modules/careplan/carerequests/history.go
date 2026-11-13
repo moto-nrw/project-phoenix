@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PickupChangeTerms contains the stored ask, never today's plan. PickupTime
@@ -111,6 +111,9 @@ type SnapshotEntry struct {
 	CareKind string   `json:"care_kind,omitempty"`
 	OldModes []string `json:"old_modes,omitempty"`
 	NewMode  string   `json:"new_mode,omitempty"`
+	// SubmittedOld freezes the family's view at submission when it differed
+	// from the plan the reviewer decided against (#6990).
+	SubmittedOld string `json:"submitted_old,omitempty"`
 }
 
 // FreezeDecision copies the comparison so later edits cannot alter history.
@@ -121,6 +124,7 @@ func FreezeDecision(diff []DiffEntry) *DecisionSnapshot {
 			Label: entry.Label, Old: entry.Old, New: entry.New,
 			Weekday: entry.Weekday, CareKind: entry.CareKind,
 			OldModes: append([]string(nil), entry.OldModes...), NewMode: entry.NewMode,
+			SubmittedOld: entry.SubmittedOld,
 		})
 	}
 	return snapshot
@@ -138,6 +142,7 @@ func (s *DecisionSnapshot) Entries() []DiffEntry {
 			Label: entry.Label, Old: entry.Old, New: entry.New,
 			Weekday: entry.Weekday, CareKind: entry.CareKind,
 			OldModes: append([]string(nil), entry.OldModes...), NewMode: entry.NewMode,
+			SubmittedOld: entry.SubmittedOld,
 		})
 	}
 	return entries

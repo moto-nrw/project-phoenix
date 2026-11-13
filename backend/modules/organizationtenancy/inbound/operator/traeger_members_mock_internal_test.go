@@ -4,7 +4,7 @@ import (
 	"context"
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 // The route mock answers the Träger member capability empty (ADR 0084); the

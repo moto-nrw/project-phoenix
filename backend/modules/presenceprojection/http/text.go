@@ -3,7 +3,7 @@ package presenceprojectionhttp
 import (
 	strings "strings"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 // containsFold reports whether s contains substr, ignoring case and accents

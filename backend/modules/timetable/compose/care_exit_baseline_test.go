@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	directoryPorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	directoryPorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // OperatorAccountAccess is the operator-led management of which schools an
@@ -139,18 +139,12 @@ func (s *OperatorAccountAccess) GrantAccountTenantAccess(ctx context.Context, re
 			if err != nil {
 				return err
 			}
-			account, school, role, activeTenantIDs := facts.account, facts.school, facts.role, facts.activeTenantIDs
 			tenantCtx := s.runtime.WithTenantID(adminCtx, request.SchoolID)
 
-			if err := s.grantSchoolIdentity(tenantCtx, adminCtx, request, account, role, activeTenantIDs); err != nil {
+			if err := s.grantSchoolIdentity(tenantCtx, adminCtx, request, facts.account, facts.role, facts.activeTenantIDs); err != nil {
 				return err
 			}
-			s.logOperatorAction(adminCtx, request.OperatorID, domain.OperatorAuditActionCreate, request.AccountID, request.ClientIP, domain.OperatorAccessChange{
-				SchoolID: school.ID, Email: account.Email, RoleID: role.ID, RoleName: role.Name,
-			})
-			if err := s.recordAccessAuthEvent(tenantCtx, request.AccountID, request.SchoolID, domain.AuthEventTenantAccessGranted, domain.TenantAccessEvidence{
-				SchoolID: school.ID, SchoolName: school.Name, Role: role.Name, OperatorID: request.OperatorID,
-			}); err != nil {
+			if err := s.recordGrant(adminCtx, tenantCtx, request, facts); err != nil {
 				return err
 			}
 			entries, err := s.loadTenantAccess(adminCtx, request.AccountID)
@@ -233,9 +227,11 @@ func (s *OperatorAccountAccess) revokeTenantAccessInAdmin(adminCtx context.Conte
 	if err != nil {
 		return nil, err
 	}
-	s.logOperatorAction(adminCtx, operatorID, domain.OperatorAuditActionDelete, accountID, clientIP, domain.OperatorAccessChange{
+	if err := s.recordOperatorAction(adminCtx, operatorID, domain.OperatorAuditActionDelete, accountID, clientIP, domain.OperatorAccessChange{
 		SchoolID: school.ID, Email: account.Email, AccountDeactivated: accountDeactivated,
-	})
+	}); err != nil {
+		return nil, err
+	}
 	if err := s.recordAccessAuthEvent(tenantCtx, accountID, schoolID, domain.AuthEventTenantAccessRevoked, domain.TenantAccessEvidence{
 		SchoolID: school.ID, SchoolName: school.Name, AccountDeactivated: accountDeactivated, OperatorID: operatorID,
 	}); err != nil {
@@ -503,18 +499,35 @@ func roleProjection(role domain.RoleFact) domain.AccountTenantRole {
 	return domain.AccountTenantRole{ID: role.ID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole, SchoolPortal: role.SchoolPortal}
 }
 
-// logOperatorAction records the platform-side audit entry; a failed write
-// is logged, as the retained provisioning service did.
-func (s *OperatorAccountAccess) logOperatorAction(ctx context.Context, operatorID int64, action string, accountID int64, clientIP string, change domain.OperatorAccessChange) {
+// recordGrant files a granted school access in the operator ledger and in
+// the school's own ledger, both inside the grant's transaction.
+func (s *OperatorAccountAccess) recordGrant(adminCtx, tenantCtx context.Context, request identityaccess.GrantAccountTenantAccess, facts operatorAccessFacts) error {
+	account, school, role := facts.account, facts.school, facts.role
+	if err := s.recordOperatorAction(adminCtx, request.OperatorID, domain.OperatorAuditActionCreate, request.AccountID, request.ClientIP, domain.OperatorAccessChange{
+		SchoolID: school.ID, Email: account.Email, RoleID: role.ID, RoleName: role.Name,
+	}); err != nil {
+		return err
+	}
+	return s.recordAccessAuthEvent(tenantCtx, request.AccountID, request.SchoolID, domain.AuthEventTenantAccessGranted, domain.TenantAccessEvidence{
+		SchoolID: school.ID, SchoolName: school.Name, Role: role.Name, OperatorID: request.OperatorID,
+	})
+}
+
+// recordOperatorAction records the platform-side audit entry in the
+// administrative transaction of the change: a failed write fails the change,
+// which then rolls back with it (#6844).
+func (s *OperatorAccountAccess) recordOperatorAction(ctx context.Context, operatorID int64, action string, accountID int64, clientIP string, change domain.OperatorAccessChange) error {
 	entry := domain.OperatorAuditEntry{
 		OperatorID: operatorID, Action: action, ResourceType: domain.OperatorAuditResourceMapping,
 		ResourceID: &accountID, AccessChange: &change, IPAddress: clientIP,
 	}
 	if err := s.operatorAudit.RecordOperatorAction(ctx, entry); err != nil {
-		s.logger.Error("failed to create operator audit log",
-			slog.Any("error", err),
+		s.logger.Error("operator audit unavailable",
+			slog.String("action", action),
 			slog.String("resource_type", domain.OperatorAuditResourceMapping))
+		return errors.Join(identityaccess.ErrOperatorAuditUnavailable, err)
 	}
+	return nil
 }
 
 // recordAccessAuthEvent writes the tenant-visible audit trail so the
@@ -587,9 +600,11 @@ func (s *OperatorAccountAccess) changeTenantRoleInAdmin(adminCtx context.Context
 	if err := s.sessions.RevokeAllTokensWithReason(tenantCtx, accountID, domain.RevocationReasonRoleChanged); err != nil {
 		return result, fmt.Errorf("revoke tokens after role change: %w", err)
 	}
-	s.logOperatorAction(adminCtx, operatorID, domain.OperatorAuditActionUpdate, accountID, clientIP, domain.OperatorAccessChange{
+	if err := s.recordOperatorAction(adminCtx, operatorID, domain.OperatorAuditActionUpdate, accountID, clientIP, domain.OperatorAccessChange{
 		SchoolID: school.ID, Email: account.Email, RoleID: role.ID, RoleName: role.Name, RemovedRoles: removed,
-	})
+	}); err != nil {
+		return result, err
+	}
 	if err := s.recordAccessAuthEvent(tenantCtx, accountID, schoolID, domain.AuthEventTenantRoleChanged, domain.TenantAccessEvidence{
 		SchoolID: school.ID, SchoolName: school.Name, Role: role.Name, RemovedRoles: removed, OperatorID: operatorID,
 	}); err != nil {

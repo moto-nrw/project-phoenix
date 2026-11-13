@@ -4,7 +4,7 @@ status: accepted
 
 # Every backend source tree stays in the ratchets
 
-Decision of 2026-10-23 for [#4737](https://github.com/moto-nrw/project-phoenix/issues/4737).
+Decision of 2026-10-23 for [#4737](https://github.com/moto-ogs/project-phoenix/issues/4737).
 Complete the source gates requested by [ADR 0083](0083-ratchets-protect-invariants-and-expose-command-effects.md)
 section 1. A move must retain its gate (Rule 16, ADRs 0064 and 0070).
 The thresholds and all existing allowances stay unchanged.

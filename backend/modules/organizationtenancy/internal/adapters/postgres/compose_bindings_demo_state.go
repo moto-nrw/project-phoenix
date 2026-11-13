@@ -3,7 +3,7 @@ package postgres
 import (
 	context "context"
 
-	organizationtenancy "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationtenancy "github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 type DemoStateEngine struct{ Store *DemoStateStore }

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/moto-nrw/project-phoenix/database/migrations"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	observabilityCompose "github.com/moto-nrw/project-phoenix/observability/compose"
+	"github.com/moto-ogs/project-phoenix/database/migrations"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	observabilityCompose "github.com/moto-ogs/project-phoenix/observability/compose"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

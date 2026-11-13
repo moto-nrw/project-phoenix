@@ -3,16 +3,16 @@
 package api
 
 import (
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
-	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
+	owner0 "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // StudentTestRepositories are the student suites' Care Plan rows: the owner

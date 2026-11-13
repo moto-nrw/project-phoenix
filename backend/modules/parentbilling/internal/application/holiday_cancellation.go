@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // A cancellation in a sibling group (#5662, ADR 0115 addendum): the

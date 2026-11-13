@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/appointments/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/appointments/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/appointments/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/appointments/internal/ports"
 )
 
 // Service is the Appointments owner. It validates every input at the owner
@@ -537,15 +537,19 @@ func (s *Service) CreateAppointmentRecipients(ctx context.Context, appointmentID
 	return result, links, nil
 }
 
-func (s *Service) UpdateAppointmentRecipientResponse(ctx context.Context, recipientID int64, status string) error {
-	if recipientID <= 0 {
+func (s *Service) UpdateAppointmentRecipientResponse(ctx context.Context, response appointments.RecipientResponse) error {
+	if response.RecipientID <= 0 {
 		return invalid("appointment recipient ID is required")
 	}
-	if !appointments.ValidResponseStatus(status) {
+	if !appointments.ValidResponseStatus(response.Status) {
 		return invalid("invalid recipient status")
 	}
+	// A single date of a series takes an answer only, never pending or info.
+	if !response.OccurrenceDate.IsZero() && response.Status != appointments.ResponseStatusAccepted && response.Status != appointments.ResponseStatusDeclined {
+		return invalid("an occurrence takes accepted or declined")
+	}
 	return s.runUnit(ctx, "update_appointment_recipient_response", func(ctx context.Context, stats *domain.OperationStats) error {
-		updated, queryStats, err := s.store.UpdateAppointmentRecipientResponse(ctx, recipientID, status)
+		updated, queryStats, err := s.store.UpdateAppointmentRecipientResponse(ctx, response)
 		stats.Add(queryStats)
 		if err == nil && !updated {
 			return appointments.ErrAppointmentRecipientNotFound

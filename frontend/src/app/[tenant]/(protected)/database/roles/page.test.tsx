@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import type { TenantPageSearchRowProps } from "~/components/ui/tenant-page-search-row";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +7,10 @@ import RolesPage from "./page";
 import { ApiError } from "~/lib/api-error";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { catalogText } from "~/test/error-catalog-text";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 /** Text of a FormErrorInput, as the shared kit components render it. */
 function errorText(error: unknown): string | null {
@@ -99,55 +104,59 @@ vi.mock("~/components/ui/confirm-delete-modal", () => ({
     ) : null,
 }));
 
-vi.mock("~/components/database/database-page-layout", () => ({
-  DatabasePageLayout: ({
-    children,
-    loading,
-    intro,
-    search,
-    error,
-    empty,
-    overlays,
-  }: {
-    children: ReactNode;
-    loading: boolean;
-    intro?: { title: string; description?: ReactNode; actions?: ReactNode };
-    search?: ReactNode;
-    error?: unknown;
-    empty?: {
-      title: string;
-      description?: string;
-      icon?: ReactNode;
-      action?: ReactNode;
-    } | null;
-    overlays?: ReactNode;
-  }) => (
-    <div data-testid="database-layout" data-loading={loading}>
-      {intro ? (
-        <div data-testid="page-intro">
-          <h1>{intro.title}</h1>
-          {intro.description}
-          {intro.actions}
-          {search}
-        </div>
-      ) : null}
-      {/* Fehler und Leerzustand liefert das Geruest, nicht die Seite. */}
-      {error ? <div data-testid="page-error">{errorText(error)}</div> : null}
-      {!error && empty ? (
-        <div data-testid="page-empty">
-          <p>{empty.title}</p>
-          {empty.description ? <p>{empty.description}</p> : null}
-          {empty.action}
-        </div>
-      ) : null}
-      {!error && !empty ? children : null}
-      {overlays}
-    </div>
-  ),
-}));
+vi.mock("~/components/database/database-page-layout", async () => {
+  const { TenantPageSearchRow } =
+    await import("~/components/ui/tenant-page-search-row");
+  return {
+    DatabasePageLayout: ({
+      children,
+      loading,
+      intro,
+      searchRow,
+      error,
+      empty,
+      overlays,
+    }: {
+      children: ReactNode;
+      loading: boolean;
+      intro?: { title: string; description?: ReactNode; actions?: ReactNode };
+      searchRow?: TenantPageSearchRowProps;
+      error?: unknown;
+      empty?: {
+        title: string;
+        description?: string;
+        icon?: ReactNode;
+        action?: ReactNode;
+      } | null;
+      overlays?: ReactNode;
+    }) => (
+      <div data-testid="database-layout" data-loading={loading}>
+        {intro ? (
+          <div data-testid="page-intro">
+            <h1>{intro.title}</h1>
+            {intro.description}
+            {intro.actions}
+            {searchRow ? <TenantPageSearchRow {...searchRow} /> : null}
+          </div>
+        ) : null}
+        {/* Fehler und Leerzustand liefert das Geruest, nicht die Seite. */}
+        {error ? <div data-testid="page-error">{errorText(error)}</div> : null}
+        {!error && empty ? (
+          <div data-testid="page-empty">
+            <p>{empty.title}</p>
+            {empty.description ? <p>{empty.description}</p> : null}
+            {empty.action}
+          </div>
+        ) : null}
+        {!error && !empty ? children : null}
+        {overlays}
+      </div>
+    ),
+  };
+});
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: ({
     search,
     onClearAllFilters,
     actionButton,
@@ -850,25 +859,17 @@ describe("RolesPage", () => {
       expect(screen.getByTestId("role-row-1")).toBeInTheDocument();
     });
 
-    it("discards protected roles and management actions after a refused reload", async () => {
+    it("loads the page anew after a refused reload (#6801)", async () => {
       setSelectedRole("1");
       render(<RolesPage />);
       await screen.findByTestId("role-detail-panel");
+      resetPageReloads();
       mockCreate.mockResolvedValueOnce({ id: "3", name: "Neue Rolle" });
       mockGetList.mockRejectedValueOnce(new ApiError("refused", 403));
       fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
       fireEvent.click(await screen.findByTestId("submit-create"));
-      expect(
-        await screen.findByText(
-          `${catalogText("general.permission", "die Anzeige der Rollen")} ${SAVED_BUT_STALE_SUFFIX}`,
-        ),
-      ).toBeVisible();
-      expect(screen.queryByTestId("role-row-1")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("role-detail-panel")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("role-create-modal")).not.toBeInTheDocument();
-      expect(
-        screen.queryByLabelText("Rolle erstellen"),
-      ).not.toBeInTheDocument();
+      await expectPageReloadedAfterRefusal();
+      expect(mockCreate).toHaveBeenCalledTimes(1);
     });
 
     it("keeps a deleted role deleted when the reload fails", async () => {

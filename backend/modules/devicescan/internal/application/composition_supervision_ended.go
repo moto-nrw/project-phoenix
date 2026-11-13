@@ -1,6 +1,6 @@
 package application
 
-import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 // SupervisionEnded matches ActiveOn: end_date <= today, not a future planned end.
 func SupervisionEnded(endDate *string, today string) bool {

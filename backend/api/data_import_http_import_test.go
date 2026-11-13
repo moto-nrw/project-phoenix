@@ -20,11 +20,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/http"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	dataImportCompose "github.com/moto-ogs/project-phoenix/modules/dataimport/compose"
+	importAPI "github.com/moto-ogs/project-phoenix/modules/dataimport/http"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // init seeds JWT viper defaults so jwt.MustNewTokenAuth (called by

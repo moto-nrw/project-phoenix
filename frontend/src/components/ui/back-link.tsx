@@ -8,7 +8,7 @@ import { cn } from "~/lib/utils";
 // für Hover und Fokus trotzdem symmetrisch. Auf dem Telefon 44 px hoch, die
 // Untergrenze einer Touch-Fläche.
 const BACK_CLASS_NAME =
-  "-ml-2 flex h-8 w-fit items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 max-sm:h-11";
+  "-ml-2 flex h-8 w-fit items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 max-sm:h-11";
 
 /**
  * Der Rückweg einer Unterseite: Pfeil und Ziel als Text, auf jeder Breite.

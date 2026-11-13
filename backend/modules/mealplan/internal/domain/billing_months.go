@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // BillingChild is a child of a released Mensa month (#4686).

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/require"
 )
 
@@ -81,6 +81,7 @@ func TestReviewBatchPreservesPerChildFallback(t *testing.T) {
 					return careplan.ReviewScope{SchoolWide: true}, nil
 				},
 				BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil }, Today: func() careplan.Date { return "2026-11-05" },
+				Fingerprint: rawFingerprint,
 			})
 			items, _, err := query.ListPending(context.Background(), careplan.RequestQueueFilter{})
 			require.NoError(t, err)

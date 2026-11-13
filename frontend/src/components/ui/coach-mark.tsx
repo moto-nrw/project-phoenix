@@ -1,11 +1,11 @@
 "use client";
 
 import { Z_LAYER } from "./overlay-styles";
+import { useOverlay } from "./overlay-stack";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { HandPointingIcon } from "@phosphor-icons/react";
 import { Button } from "~/components/ui/button";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 
 /**
  * Hebt eine Stelle der Seite hervor und erklärt sie in einer Sprechblase
@@ -14,7 +14,9 @@ import { LOCATION_COLORS } from "~/lib/location-helper";
  * anklickt.
  *
  * Ohne Ziel (Stelle gerade nicht sichtbar) steht die Sprechblase mittig.
- * Liegt über geöffneten Fenstern (`Z_LAYER.coach` über `Z_LAYER.modal`).
+ * Liegt über geöffneten Fenstern (`Z_LAYER.coach` über `Z_LAYER.modal`) und
+ * nimmt ihnen deshalb im Overlay-Stapel das Escape ab: Escape beendet die
+ * Tour, das Fenster darunter bleibt offen.
  */
 interface CoachMarkProps {
   readonly target: Element | null;
@@ -205,6 +207,7 @@ export function CoachMark({
   const [box, setBox] = useState<Box | null>(() => measure(target, endBefore));
   const [bubbleHeight, setBubbleHeight] = useState(0);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const { isTopmost } = useOverlay(true, "coach");
 
   // Die Stelle kann scrollen, aufklappen oder sich verschieben; die
   // Hervorhebung folgt ihr jedes Bild.
@@ -246,11 +249,11 @@ export function CoachMark({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && isTopmost()) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, isTopmost]);
 
   if (typeof document === "undefined") return null;
 
@@ -369,7 +372,7 @@ export function CoachMark({
                 size={18}
                 weight="fill"
                 aria-hidden
-                style={{ color: LOCATION_COLORS.GROUP_ROOM }}
+                className="text-moto-green"
               />
               {action}
             </p>
@@ -381,6 +384,7 @@ export function CoachMark({
             variant="ghost"
             size="compact"
             onClick={onClose}
+            noTooltip="„Tour beenden“ schließt nur die Tour, an der Seite ändert sich nichts."
           >
             {closeLabel}
           </Button>
@@ -391,6 +395,7 @@ export function CoachMark({
                 variant="outline"
                 size="compact"
                 onClick={onBack}
+                noTooltip="Zurück zeigt nur den vorigen Schritt der Tour."
               >
                 {backLabel}
               </Button>
@@ -401,6 +406,7 @@ export function CoachMark({
                 variant="primary"
                 size="compact"
                 onClick={onNext}
+                noTooltip="Weiter zeigt nur den nächsten Schritt der Tour."
               >
                 {nextLabel}
               </Button>

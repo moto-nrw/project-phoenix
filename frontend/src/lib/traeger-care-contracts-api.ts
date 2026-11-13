@@ -302,7 +302,7 @@ export interface ContractFile {
   readonly filename: string;
 }
 
-interface BackendTerms {
+export interface BackendTerms {
   term_kind: ContractTermKind;
   term_months: number | null;
   notice_months: number;
@@ -442,7 +442,7 @@ interface BackendVersion {
   created_at: string;
 }
 
-function termsFromBackend(terms: BackendTerms): ContractTerms {
+export function termsFromBackend(terms: BackendTerms): ContractTerms {
   return {
     termKind: terms.term_kind,
     termMonths: terms.term_months,
@@ -457,7 +457,7 @@ function termsFromBackend(terms: BackendTerms): ContractTerms {
   };
 }
 
-function termsToBackend(terms: ContractTerms): BackendTerms {
+export function termsToBackend(terms: ContractTerms): BackendTerms {
   return {
     term_kind: terms.termKind,
     term_months: terms.termKind === "fixed_months" ? terms.termMonths : null,

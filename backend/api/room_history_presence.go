@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	facilitiesNative "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesNative "github.com/moto-ogs/project-phoenix/modules/facilities"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 type RoomHistoryPresence struct {

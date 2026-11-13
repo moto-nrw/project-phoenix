@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -27,6 +27,9 @@ var (
 	ErrForbidden      = portal.ErrForbidden
 	ErrNotFound       = portal.ErrNotFound
 	ErrConflict       = portal.ErrConflict
+	// ErrOccurrenceUnavailable: the answered or counted date is not one the
+	// appointment takes place on (#6987).
+	ErrOccurrenceUnavailable = portal.ErrOccurrenceUnavailable
 )
 
 type Service = portal.Service
@@ -160,6 +163,9 @@ type AppointmentOverview = portal.AppointmentOverview
 
 type AppointmentAttendee = portal.AppointmentAttendee
 
+type AppointmentResponseCounts = portal.AppointmentResponseCounts
+type InvitationAnswer = portal.InvitationAnswer
+
 type RecurrenceRequest = portal.RecurrenceRequest
 
 type AppointmentTarget = portal.AppointmentTarget
@@ -288,7 +294,7 @@ func (s *service) parentTenantEvents(ctx context.Context, tenantID int64, tenant
 	return appointmentEvents, nil
 }
 
-func (s *service) GetParentAppointmentOverview(ctx context.Context, accountID, appointmentID int64) (*AppointmentOverview, error) {
+func (s *service) GetParentAppointmentOverview(ctx context.Context, accountID, appointmentID int64, occurrenceDate appointmentcap.Date) (*AppointmentOverview, error) {
 	if err := validateParentAppointmentRequest(accountID, appointmentID); err != nil {
 		return nil, err
 	}
@@ -302,7 +308,7 @@ func (s *service) GetParentAppointmentOverview(ctx context.Context, accountID, a
 		var forbidden bool
 		if err := s.cfg.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 			var err error
-			overview, forbidden, err = s.parentTenantAppointmentOverview(txCtx, appointmentID, tenantChildren)
+			overview, forbidden, err = s.parentTenantAppointmentOverview(txCtx, appointmentID, occurrenceDate, tenantChildren)
 			return err
 		}); err != nil {
 			return nil, err
@@ -321,7 +327,7 @@ func (s *service) GetParentAppointmentOverview(ctx context.Context, accountID, a
 // parentTenantAppointmentOverview builds the overview inside one tenant when
 // the appointment is addressed to the parent there. It reports forbidden when
 // the parent may see the appointment but not its overview.
-func (s *service) parentTenantAppointmentOverview(ctx context.Context, appointmentID int64, tenantChildren []*ports.ChildSummary) (*AppointmentOverview, bool, error) {
+func (s *service) parentTenantAppointmentOverview(ctx context.Context, appointmentID int64, occurrenceDate appointmentcap.Date, tenantChildren []*ports.ChildSummary) (*AppointmentOverview, bool, error) {
 	// A soft-deleted appointment is not viewable by parents either.
 	appointment, recipients, err := s.parentVisibleAppointment(ctx, appointmentID, tenantChildren)
 	if err != nil || appointment == nil {
@@ -330,16 +336,21 @@ func (s *service) parentTenantAppointmentOverview(ctx context.Context, appointme
 	if !canParentViewOverview(appointment, true) {
 		return nil, true, nil
 	}
-	overview, err := s.buildAppointmentOverview(ctx, appointment, recipients)
+	occurrenceDate, err = s.answeredOccurrence(ctx, appointment, occurrenceDate)
+	if err != nil {
+		return nil, false, err
+	}
+	listed := parentListedRecipients(recipients, distinctGuardianProfileIDs(tenantChildren), distinctChildStudentIDs(tenantChildren))
+	overview, err := s.buildAppointmentOverview(ctx, appointment, occurrenceDate, recipients, listed)
 	return overview, false, err
 }
 
-func (s *service) RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error {
+func (s *service) RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, answer InvitationAnswer) error {
 	if accountID <= 0 {
 		return fmt.Errorf("%w: account id is required", ErrForbidden)
 	}
-	if status != appointmentcap.ResponseStatusAccepted && status != appointmentcap.ResponseStatusDeclined {
-		return fmt.Errorf("%w: response status must be accepted or declined", ErrInvalidRequest)
+	if err := validateAnswerStatus(answer.Status); err != nil {
+		return err
 	}
 
 	children, err := s.parentChildren(ctx, accountID)
@@ -357,7 +368,7 @@ func (s *service) RespondToParentInvitation(ctx context.Context, accountID, reci
 		var updated bool
 		if err := s.cfg.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 			var err error
-			updated, err = s.respondAsGuardianInTenant(txCtx, recipientID, status, tenantChildren)
+			updated, err = s.respondAsGuardianInTenant(txCtx, recipientID, answer, tenantChildren)
 			return err
 		}); err != nil {
 			return err
@@ -372,7 +383,7 @@ func (s *service) RespondToParentInvitation(ctx context.Context, accountID, reci
 // respondAsGuardianInTenant records the RSVP when the recipient belongs to one
 // of the tenant's guardian profiles through a visible child. It reports false
 // (and no error) when the recipient is not this parent's in the tenant.
-func (s *service) respondAsGuardianInTenant(ctx context.Context, recipientID int64, status string, tenantChildren []*ports.ChildSummary) (bool, error) {
+func (s *service) respondAsGuardianInTenant(ctx context.Context, recipientID int64, answer InvitationAnswer, tenantChildren []*ports.ChildSummary) (bool, error) {
 	allowedProfiles := int64Set(distinctGuardianProfileIDs(tenantChildren))
 	allowedStudentIDs := int64Set(distinctChildStudentIDs(tenantChildren))
 	recipient, err := s.cfg.Appointments.FindAppointmentRecipient(ctx, recipientID)
@@ -403,7 +414,7 @@ func (s *service) respondAsGuardianInTenant(ctx context.Context, recipientID int
 	if appointment.CancelledAt != nil {
 		return false, fmt.Errorf("%w: appointment is cancelled", ErrInvalidRequest)
 	}
-	if err := s.cfg.Appointments.UpdateAppointmentRecipientResponse(ctx, recipientID, status); err != nil {
+	if err := s.recordAnswer(ctx, appointment, recipientID, answer); err != nil {
 		return false, err
 	}
 	return true, nil

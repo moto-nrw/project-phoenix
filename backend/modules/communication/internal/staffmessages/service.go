@@ -19,8 +19,8 @@ import (
 	"log/slog"
 	"strings"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // maxMessageLen caps one message in runes. Mirrors the parent-OGS chat limit so

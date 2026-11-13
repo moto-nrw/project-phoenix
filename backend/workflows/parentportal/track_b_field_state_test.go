@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

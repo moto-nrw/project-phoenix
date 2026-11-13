@@ -16,10 +16,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // Operations the workflow authorizes. The composition maps each one to the
@@ -251,12 +251,21 @@ type Rosters interface {
 	CurrentRosterBaseline(ctx context.Context) (int64, error)
 }
 
+// ClassChange is one child whose class a transition rewrote, with the class
+// before the rewrite (#6841).
+type ClassChange struct {
+	StudentID           int64
+	PreviousSchoolClass string
+}
+
 // Dependencies are consumer-owned ports. UnitOfWork must join an ambient
 // tenant transaction or open one. Authorize resolves the tenant principal
 // for one operation. LockRecurrenceWrites is the tenant-wide recurrence gate
 // every timetable writer takes; ResyncOfferingRosters re-reconciles the
 // offering-sourced templates after the class rewrite (effectiveFrom is a
-// YYYY-MM-DD calendar day).
+// YYYY-MM-DD calendar day); FollowClassChanges moves the rewritten children
+// between the materialized occurrences of Regeltermine with a Klasse or
+// Jahrgang target (#6841).
 type Dependencies struct {
 	UnitOfWork func(context.Context, func(context.Context) error) error
 	Authorize  func(context.Context, string) (Actor, error)
@@ -270,6 +279,7 @@ type Dependencies struct {
 
 	LockRecurrenceWrites      func(context.Context) error
 	ResyncOfferingRosters     func(ctx context.Context, effectiveFrom string) error
+	FollowClassChanges        func(ctx context.Context, changes []ClassChange, effectiveFrom string) error
 	AppendClassListEntryAudit func(context.Context, Actor, ClassListEntryAudit) error
 	Observe                   func(Observation)
 }
@@ -286,7 +296,7 @@ type Workflow struct{ deps Dependencies }
 func New(deps Dependencies) (*Workflow, error) {
 	if deps.UnitOfWork == nil || deps.Authorize == nil || deps.Today == nil || deps.Now == nil ||
 		deps.Structure == nil || deps.Directory == nil || deps.Membership == nil || deps.Presence == nil || deps.Rosters == nil ||
-		deps.LockRecurrenceWrites == nil || deps.ResyncOfferingRosters == nil || deps.AppendClassListEntryAudit == nil || deps.Observe == nil {
+		deps.LockRecurrenceWrites == nil || deps.ResyncOfferingRosters == nil || deps.FollowClassChanges == nil || deps.AppendClassListEntryAudit == nil || deps.Observe == nil {
 		return nil, errors.New("grade transition: all dependencies are required")
 	}
 	return &Workflow{deps: deps}, nil

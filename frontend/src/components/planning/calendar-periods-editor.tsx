@@ -107,7 +107,8 @@ export function CalendarPeriodsEditor({
       (period.scheduleCount ?? 0) +
       (period.studentEnrollmentCount ?? 0) +
       (period.supervisorCount ?? 0) +
-      (period.activityInstanceCount ?? 0),
+      (period.activityInstanceCount ?? 0) +
+      (period.staffShiftSeriesCount ?? 0),
     [],
   );
 
@@ -200,6 +201,7 @@ export function CalendarPeriodsEditor({
               studentEnrollmentCount: period.studentEnrollmentCount ?? 0,
               supervisorCount: period.supervisorCount ?? 0,
               activityInstanceCount: period.activityInstanceCount ?? 0,
+              staffShiftSeriesCount: period.staffShiftSeriesCount ?? 0,
             },
           );
           return usage ? (

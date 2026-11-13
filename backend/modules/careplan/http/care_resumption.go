@@ -3,7 +3,7 @@ package careplanhttp
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // CareResumption is this HTTP adapter's workflow entry port. Root binds it

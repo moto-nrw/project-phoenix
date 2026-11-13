@@ -2214,47 +2214,6 @@ export function useEventForm({
     };
   };
 
-  /**
-   * Rebuilds a template's future planned instances: chunked scoped
-   * re-plan from today through the period end (each window stays within
-   * the backend's 56-day materialization cap). Chunk failures are caught
-   * here — the primary template write already succeeded, so they must not
-   * bubble into the form's error path. Returns false when a chunk failed.
-   */
-  const replanTemplateFuture = async (
-    templateId: string,
-    periodEndISO?: string,
-  ): Promise<boolean> => {
-    const endISO =
-      periodEndISO ?? findPeriod(form.calendarPeriodId)?.endDate ?? weekTo;
-    if (!endISO) return true;
-    const chunks = chunkDateRange(
-      berlinTodayISO(),
-      endISO,
-      MATERIALIZE_CHUNK_DAYS,
-    );
-    for (const chunk of chunks) {
-      try {
-        const result = await timetableService.replanWeek(
-          chunk.from,
-          chunk.to,
-          templateId,
-        );
-        // A precondition like "no_active_period" applies to every chunk.
-        if (result.warnings.some((w) => w.code === "no_active_period")) break;
-      } catch (err) {
-        logger.error("series_replan_chunk_failed", {
-          template_id: templateId,
-          from: chunk.from,
-          to: chunk.to,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return false;
-      }
-    }
-    return true;
-  };
-
   /** Materializes only dates exposed by a pull-forward, preserving existing instances. */
   const materializePulledForwardWindow = async (
     fromISO: string,
@@ -2483,6 +2442,11 @@ export function useEventForm({
           await timetableService.updateTemplate(seriesId, {
             ...seriesBody(parsed.roomId, categoryId),
             ...(notesOnly ? { propagate_notes_to_predecessors: true } : {}),
+            // #6838: the server rebuilds the future occurrences in the same
+            // transaction. A notes-only save and a start-only pull keep them.
+            ...(!notesOnly && !isStartDateOnlyPull
+              ? { replan_future: true }
+              : {}),
             // #2226: pull the Serienbeginn forward when the user picked an
             // earlier date; unchanged keeps the stored envelope untouched.
             ...(pulledSeriesStart !== null
@@ -2495,13 +2459,12 @@ export function useEventForm({
               : {}),
           });
           const followUpOk =
+            !isStartDateOnlyPull ||
             notesOnly ||
-            (isStartDateOnlyPull
-              ? await materializePulledForwardWindow(
-                  pulledSeriesStart,
-                  seriesStartEdit!.original,
-                )
-              : await replanTemplateFuture(seriesId));
+            (await materializePulledForwardWindow(
+              pulledSeriesStart,
+              seriesStartEdit!.original,
+            ));
           if (followUpOk) {
             toastSuccess("Der Regeltermin ist gespeichert.");
           } else {
@@ -2896,7 +2859,9 @@ export function useEventForm({
         studentScopeIDs.length > 0 || staffScopeIDs.length > 0;
       await timetableService.updateTemplate(seriesTemplateId, {
         ...body,
-        ...(notesOnly ? { propagate_notes_to_predecessors: true } : {}),
+        ...(notesOnly
+          ? { propagate_notes_to_predecessors: true }
+          : { replan_future: true }),
         ...(rosterChanged
           ? {
               series_roster_from: rosterFrom,
@@ -2917,24 +2882,17 @@ export function useEventForm({
             }
           : {}),
       });
-      if (
-        notesOnly ||
-        (await replanTemplateFuture(seriesTemplateId, periodEnd))
-      ) {
-        // The roster change reaches back to rosterFrom, but title, time, room
-        // and Planungsschiene belong to the successor's own window and start
-        // where it starts. Naming rosterFrom for all of them would claim more
-        // than was written, so an edited scalar says which date it takes
-        // effect from (#2187 review) and everything else stays generic.
-        const successorFrom = template.schedules[0]?.validFrom;
-        toastSuccess(
-          chainScalars.edited && successorFrom
-            ? `Der Regeltermin ist gespeichert. Zeit, Raum und Titel gelten ab dem ${formatDate(successorFrom)}.`
-            : "Der Regeltermin ist gespeichert.",
-        );
-      } else {
-        toastWarning(FOLLOW_UP_WARNING);
-      }
+      // The roster change reaches back to rosterFrom, but title, time, room
+      // and Planungsschiene belong to the successor's own window and start
+      // where it starts. Naming rosterFrom for all of them would claim more
+      // than was written, so an edited scalar says which date it takes
+      // effect from (#2187 review) and everything else stays generic.
+      const successorFrom = template.schedules[0]?.validFrom;
+      toastSuccess(
+        chainScalars.edited && successorFrom
+          ? `Der Regeltermin ist gespeichert. Zeit, Raum und Titel gelten ab dem ${formatDate(successorFrom)}.`
+          : "Der Regeltermin ist gespeichert.",
+      );
       reportSaved(op, { kind: "series", seriesId: seriesTemplateId });
       return;
     }
@@ -2951,9 +2909,10 @@ export function useEventForm({
         materialize_from: effectiveDate,
         materialize_to: chunks[0]?.to ?? effectiveDate,
       });
-      // Beyond the first 56-day window the split leaves the old
-      // template's stale planned rows in place; a scoped re-plan per
-      // chunk clears them and materializes the successor template.
+      // The split deletes the old template's planned rows from the
+      // effective date on; beyond the first 56-day window a scoped re-plan
+      // per chunk materializes the successor template. A failed chunk only
+      // leaves gaps the scheduler fills later.
       // Chunk failures are follow-up only — the split already
       // succeeded, so warn and close instead of re-opening the form.
       let followUpOk = true;
@@ -2988,15 +2947,13 @@ export function useEventForm({
       }
       reportSaved(op, { kind: "series", seriesId: split.newTemplateId });
     } else {
-      await timetableService.updateTemplate(seriesTemplateId, body);
-      if (
-        notesOnly ||
-        (await replanTemplateFuture(seriesTemplateId, periodEnd))
-      ) {
-        toastSuccess("Der Regeltermin ist gespeichert.");
-      } else {
-        toastWarning(FOLLOW_UP_WARNING);
-      }
+      // #6838: the server rebuilds the future occurrences in the same
+      // transaction; a notes-only save keeps them.
+      await timetableService.updateTemplate(
+        seriesTemplateId,
+        notesOnly ? body : { ...body, replan_future: true },
+      );
+      toastSuccess("Der Regeltermin ist gespeichert.");
       reportSaved(op, { kind: "series", seriesId: seriesTemplateId });
     }
   };

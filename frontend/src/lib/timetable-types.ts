@@ -1290,6 +1290,11 @@ export type UpdateTemplateBody = Omit<
    * predecessor segments too, so every occurrence keeps one series note.
    */
   propagate_notes_to_predecessors?: boolean;
+  /**
+   * Rebuilds the series' planned occurrences from today through the end of
+   * its planning period in the update's own transaction (#6838).
+   */
+  replan_future?: boolean;
 };
 
 /**

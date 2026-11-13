@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/workflows/catererportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/workflows/catererportal"
 )
 
 // InvitationResponse is a school's invitation to its caterer. The link is

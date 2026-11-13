@@ -12,6 +12,7 @@ import "@testing-library/jest-dom/vitest";
 import { RejectReasonModal } from "./care-contract-notice-modal";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { ContractNoticeOptions } from "~/lib/care-contract-notices";
+import { unavailableApiError } from "~/lib/api-error";
 
 function render(ui: React.ReactElement) {
   return renderPlain(ui, { wrapper: ToastProvider });
@@ -29,6 +30,10 @@ vi.mock("~/lib/care-contract-notices-api", () => ({
   recordContractNotice: mocks.recordContractNotice,
   setContractNoticeEnd: mocks.setContractNoticeEnd,
   rejectContractNoticeReason: mocks.rejectContractNoticeReason,
+}));
+
+vi.mock("~/lib/traeger-url", () => ({
+  traegerPath: (path: string) => path.replace(/^\/traeger/, "") || "/",
 }));
 
 import { parseISODate, toISODate } from "~/lib/date-helpers";
@@ -148,6 +153,16 @@ describe("CareContractNoticeCard (#4682)", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Kündigung eintragen" }),
     );
+    // The warning names where the text of the parents' e-mail is set; a
+    // new tab keeps the dialog.
+    const mailText = await screen.findByRole("link", {
+      name: "Text der E-Mail ansehen, neuer Tab",
+    });
+    expect(mailText).toHaveAttribute(
+      "href",
+      "/einstellungen?bereich=vertraege",
+    );
+    expect(mailText).toHaveAttribute("target", "_blank");
     fireEvent.change(await screen.findByLabelText(/Eingegangen am/), {
       target: { value: "2026-09-01" },
     });
@@ -247,6 +262,55 @@ describe("CareContractNoticeCard (#4682)", () => {
       expect.objectContaining({ expectedEndsOn: "2026-12-31" }),
     );
   });
+  // A lost connection may still have recorded the notice and sent its
+  // mail: the dialog reads the contract before a second try could repeat it.
+  it("shows a notice recorded despite a lost connection instead of a retry", async () => {
+    const recorded = {
+      ...active,
+      status: "gekuendigt" as const,
+      notice: {
+        kind: "kuendigung" as const,
+        terminationKind: "ordentlich" as const,
+        channel: "post" as const,
+        declaredAt: "2026-09-09T09:30:00Z",
+        receivedOn: "2026-09-09",
+        endsOn: "2026-12-31",
+        recipient: "birgit.jansen@email.de",
+        confirmationText: "wir bestätigen Ihre Kündigung.",
+      },
+    };
+    mocks.fetchContractNoticeOptions
+      .mockResolvedValueOnce(active)
+      .mockResolvedValueOnce(active)
+      .mockResolvedValue(recorded);
+    mocks.recordContractNotice.mockRejectedValue(
+      unavailableApiError(new TypeError("Failed to fetch")),
+    );
+    const onChanged = vi.fn();
+    render(
+      <CareContractNoticeCard
+        contractId="25"
+        status="aktiv"
+        concludedAt="2026-08-19T09:00:00Z"
+        onChanged={onChanged}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Kündigung eintragen" }),
+    );
+    await screen.findByText(/Nächster Termin:/);
+    fireEvent.click(
+      document.querySelector('button[form="care-contract-notice-form"]')!,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Kündigung ist eingetragen. Die Eltern bekommen eine Bestätigung per E-Mail.",
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.recordContractNotice).toHaveBeenCalledTimes(1);
+  });
+
   it("records a timely dispatch separately from a late receipt", async () => {
     mocks.fetchContractNoticeOptions.mockResolvedValue({
       ...active,

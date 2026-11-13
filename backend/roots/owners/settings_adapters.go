@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
 )
 
 type schoolSettingsStore struct {

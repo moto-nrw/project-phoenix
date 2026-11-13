@@ -4,8 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ChildFeatures resolves the parent-portal feature toggles for the child's
@@ -61,6 +62,7 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 		PickupChangeModeEnabled:      f.pickupChangeMode && canManagePickup,
 		PickupChangeCutoffTime:       f.pickupCutoff.Clock,
 		PickupChangeTodayClosed:      f.pickupCutoff.Closed(calendar.DateFromTime(f.pickupCutoff.Now)),
+		PickupChangeCareDayEnded:     carerequests.CareDayEnded(f.careDayEnd, f.pickupCutoff.Now),
 		PickupManageAllowed:          f.guardianManagement && canManagePickup,
 		GuardianContactManageAllowed: f.guardianManagement && canManageGuardianContacts,
 		AbsenceRequestEditEnabled:    child.HasPermission(GuardianPermissionSickNoteSubmit),

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // The rollover and the deletions as these routes speak them.

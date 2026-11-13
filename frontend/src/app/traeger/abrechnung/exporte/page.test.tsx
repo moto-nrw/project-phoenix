@@ -19,6 +19,11 @@ vi.mock("~/lib/traeger-finance-exports-api", async (importOriginal) => ({
   ...api,
 }));
 vi.mock("~/lib/file-download", () => files);
+// The recipient of the handover (ADR 0218) is tested on its own.
+vi.mock("~/lib/traeger-export-handovers-api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  fetchExportRecipients: () => new Promise(() => undefined),
+}));
 vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
 
 const RUN: ExportRun = {
@@ -155,6 +160,7 @@ it("offers older files of the protocol", async () => {
     costCenterFallbacks: [],
     exportedByYou: true,
     exportedByAccount: true,
+    exportedByName: "",
     exportedAt: "2026-11-09T10:00:00Z",
     submittedAt: null,
   };
@@ -353,6 +359,7 @@ const LAST_DATEV = {
   costCenterFallbacks: [],
   exportedByYou: true,
   exportedByAccount: true,
+  exportedByName: "",
   exportedAt: "2026-11-09T10:00:00Z",
   submittedAt: null,
 };

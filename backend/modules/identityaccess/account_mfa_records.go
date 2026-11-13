@@ -136,6 +136,28 @@ type CatererMFAResetMail struct {
 	ResetAt     string
 }
 
+// MFAResetByAdminMail tells an account holder that a school administrator
+// or a moto operator reset their second factor (#6862). The reset holds for
+// the whole account, so the mail names no school.
+type MFAResetByAdminMail struct {
+	Recipient   string
+	ReferenceID int64
+	ResetAt     string
+	// ByOperator names the moto team instead of the school's administration.
+	ByOperator bool
+}
+
+// LoginAddressChangedMail tells the previous address of an account that an
+// administrator moved the login to another one (#6862). TenantID is the
+// school whose administrator changed it; a platform change carries none.
+type LoginAddressChangedMail struct {
+	Recipient   string
+	ReferenceID int64
+	TenantID    int64
+	ChangedAt   string
+	ByOperator  bool
+}
+
 // MFAEvidence carries the metadata of one mfa_* authentication event.
 type MFAEvidence struct {
 	ChallengeID int64

@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
 func (s *Service) ListClassAssignments(ctx context.Context, filter schoolmembership.ClassAssignmentFilter) (result []schoolmembership.ClassAssignment, err error) {

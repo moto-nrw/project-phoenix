@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // notifyGroupRecipients tells every reached guardian about a new group

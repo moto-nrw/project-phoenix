@@ -1,9 +1,26 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import type { AnchorHTMLAttributes } from "react";
+import { describe, expect, it, vi } from "vitest";
 
-import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getAccessibleTextColor } from "~/lib/kit-palette";
 
 import { StatCard } from "./stat-card";
+import { TileCard } from "./tile-card";
+
+vi.mock("~/components/ui/navigation-link", () => ({
+  default: ({
+    children,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a>,
+}));
+
+/** Klassen eines Elements, die mit einem der Präfixe beginnen. */
+function classesWith(element: Element, prefixes: readonly string[]) {
+  return [...element.classList]
+    .filter((name) => prefixes.some((prefix) => name.startsWith(prefix)))
+    .sort();
+}
 
 describe("StatCard", () => {
   it("zeigt Beschriftung, Wert und Hinweis", () => {
@@ -115,5 +132,81 @@ describe("StatCard", () => {
         color: getAccessibleTextColor(LOCATION_COLORS.DANGER),
       });
     });
+  });
+
+  describe("mit Link wie TileCard (#6565)", () => {
+    function renderBoth() {
+      render(
+        <>
+          <StatCard label="Kinder anwesend" value={12} href="/students" />
+          <TileCard href="/rooms" ariaLabel="Räume">
+            Räume
+          </TileCard>
+        </>,
+      );
+      const statLink = screen.getByRole("link", { name: /Kinder anwesend/ });
+      const tileLink = screen.getByRole("link", { name: "Räume" });
+      return { statLink, tileLink };
+    }
+
+    it("zeigt beim Tastaturfokus denselben Fokusring", () => {
+      const { statLink, tileLink } = renderBoth();
+
+      const focus = classesWith(tileLink, ["focus-visible:"]);
+      expect(focus).not.toHaveLength(0);
+      expect(classesWith(statLink, ["focus-visible:", "focus:"])).toEqual(
+        focus,
+      );
+    });
+
+    it("zeigt den Tastaturfokus in beiden Karten blau, nicht im Grau des Hover-Rahmens", () => {
+      const { statLink, tileLink } = renderBoth();
+
+      // Grau-300 erreichte auf Weiß nur 1,5:1; moto-blue erreicht 3,9:1.
+      expect(tileLink).toHaveClass("focus-visible:outline-moto-blue");
+      expect(statLink).toHaveClass("focus-visible:outline-moto-blue");
+    });
+
+    it("zeigt den Zeiger für beide klickbaren Karten", () => {
+      const { statLink, tileLink } = renderBoth();
+
+      expect(statLink).toHaveClass("cursor-pointer");
+      expect(tileLink).toHaveClass("cursor-pointer");
+    });
+
+    it("hebt sich beim Überfahren wie TileCard, ohne eigenes Verschieben", () => {
+      const { statLink } = renderBoth();
+      const surface = statLink.firstElementChild as Element;
+
+      // Anker: die Fläche trägt die Hover-Hervorhebung von TileCard.
+      expect(surface).toHaveClass("moto-hover-elevated");
+      expect(classesWith(surface, ["group-hover:", "transition-"])).toEqual([]);
+    });
+  });
+
+  it("hat auf dem Telefon den Innenabstand von TileCard, mit und ohne Link (#6565)", () => {
+    render(
+      <>
+        <StatCard label="Kinder anwesend" value={12} href="/students" />
+        <StatCard label="Auslastung" value="80 %" />
+        <TileCard href="/rooms" ariaLabel="Räume">
+          Räume
+        </TileCard>
+      </>,
+    );
+    const padding = ["p-", "max-sm:p-", "compact:p-"];
+    const tile = classesWith(
+      screen.getByRole("link", { name: "Räume" }),
+      padding,
+    );
+    const linked = screen.getByRole("link", { name: /Kinder anwesend/ })
+      .firstElementChild as Element;
+    const unlinked = screen
+      .getByText("Auslastung")
+      .closest(".moto-content-surface") as Element;
+
+    expect(tile).not.toHaveLength(0);
+    expect(classesWith(linked, padding)).toEqual(tile);
+    expect(classesWith(unlinked, padding)).toEqual(tile);
   });
 });

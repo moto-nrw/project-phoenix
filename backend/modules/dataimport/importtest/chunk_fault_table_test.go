@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun/driver/pgdriver"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Fault table of the chunk executor (#5827 review R2; the table is in the PR).

@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

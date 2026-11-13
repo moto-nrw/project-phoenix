@@ -1,8 +1,8 @@
 package application
 
 import (
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
 )
 
 func NewObservationAdapter(observe func(deliveryContract.Observation)) func(domain.Observation) {

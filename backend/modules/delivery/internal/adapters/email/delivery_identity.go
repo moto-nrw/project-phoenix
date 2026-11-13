@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	mailcontract "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 	"github.com/wneessen/go-mail"
 )
 
@@ -33,12 +33,22 @@ func setDeliveryIdentity(msg *mail.Msg, message mailcontract.Message) {
 //   - 5.1.1/2/3/4/6/10 at RCPT TO or DATA: the destination address is unusable.
 //   - 5.6.x at DATA: this mail's content cannot be delivered.
 //
+// A 4xx asks to send later: the provider throttles or its quota is used up
+// (#6737). It is ErrThrottled, which postpones the mail without using up an
+// attempt.
+//
 // Everything else stays retryable, up to the mail's attempts: network errors,
-// 4xx, other 5xx and answers of servers without enhanced status codes. Dial and
+// other 5xx and answers of servers without enhanced status codes. Dial and
 // login errors are no SendError and stay retryable for the same reason.
 func classifySendError(err error) error {
 	var sendErr *mail.SendError
-	if !errors.As(err, &sendErr) || sendErr.ErrorCode() < 500 || sendErr.ErrorCode() > 599 {
+	if !errors.As(err, &sendErr) {
+		return err
+	}
+	if code := sendErr.ErrorCode(); code >= 400 && code <= 499 {
+		return fmt.Errorf("%w: %w", mailcontract.ErrThrottled, err)
+	}
+	if sendErr.ErrorCode() < 500 || sendErr.ErrorCode() > 599 {
 		return err
 	}
 	enhanced := sendErr.EnhancedStatusCode()

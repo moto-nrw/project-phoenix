@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // journalClockMargin reads the year a little earlier: right after New Year a

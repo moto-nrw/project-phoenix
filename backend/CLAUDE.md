@@ -154,8 +154,8 @@ Before adding, changing, or diagnosing tests, read
 Use real fixture IDs, per-test tenants, `t.Parallel()`, and package-owned pools.
 Preserve assertion strength and report failed checks accurately.
 Keep each Go package at about 60 s in the CI backend job; compare package
-durations on base and branch and make a slow test faster or leaner; timeouts,
-slot reserve and slot limit stay fixed: [ci-test-performance](../.claude/rules/ci-test-performance.md).
+durations on base and branch and make a slow test faster or leaner; timeouts
+and slot reserve stay fixed: [ci-test-performance](../.claude/rules/ci-test-performance.md).
 
 ## Seed Coverage (MANDATORY)
 

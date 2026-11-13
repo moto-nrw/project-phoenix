@@ -3,8 +3,8 @@
 package owners
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
 )
 
 // CareScheduleRepositories are the retained schedule repositories served by

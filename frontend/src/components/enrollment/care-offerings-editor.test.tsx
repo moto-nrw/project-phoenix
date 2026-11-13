@@ -206,6 +206,10 @@ import {
   deferred,
   resetEditorMocks,
 } from "~/test/enrollment-editors";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 beforeEach(() => {
   resetEditorMocks(mocks);
@@ -2056,8 +2060,9 @@ describe("CareOfferingsEditor", () => {
   });
 
   it.each(["phases", "offerings"])(
-    "discards the catalog when the post-write %s read is refused",
+    "loads the page anew when the post-write %s read is refused",
     async (source) => {
+      resetPageReloads();
       mocks.listPhases.mockResolvedValue([phase()]);
       mocks.listCareOfferings.mockReset().mockResolvedValue([offering()]);
       mocks.deleteCareOffering.mockResolvedValue(undefined);
@@ -2081,17 +2086,8 @@ describe("CareOfferingsEditor", () => {
           name: "Endgültig löschen",
         }),
       );
-      expect(
-        await screen.findByText(
-          `${catalogText("general.permission", "die Anzeige der Betreuungsangebote")} ${SAVED_BUT_STALE_SUFFIX}`,
-        ),
-      ).toBeVisible();
-      expect(screen.queryByText("Regelbetreuung")).not.toBeInTheDocument();
-      expect(screen.queryByRole("table")).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: "Neues Angebot" }),
-      ).not.toBeInTheDocument();
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      // #6801: the page loads anew; its first load shows the refusal.
+      await expectPageReloadedAfterRefusal();
       expect(mocks.deleteCareOffering).toHaveBeenCalledTimes(1);
     },
   );

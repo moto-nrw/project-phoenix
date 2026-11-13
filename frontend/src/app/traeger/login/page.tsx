@@ -34,6 +34,7 @@ import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { traegerLogin, type TraegerChoice } from "~/lib/traeger-api";
+import { TRAEGER_FORGOT_PASSWORD_PARAM } from "~/lib/traeger-login-params";
 import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerLoginPage" });
@@ -131,6 +132,20 @@ function LoginForm() {
     clearSessionErrorFromUrl();
   }, [searchParams]);
 
+  // A reset link without token leads here to ask for a new link: the dialog
+  // opens at once, and the address forgets the request.
+  useEffect(() => {
+    if (searchParams.get(TRAEGER_FORGOT_PASSWORD_PARAM) !== "1") return;
+    setIsResetModalOpen(true);
+    const url = new URL(window.location.href);
+    url.searchParams.delete(TRAEGER_FORGOT_PASSWORD_PARAM);
+    window.history.replaceState(
+      {},
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }, [searchParams]);
+
   const isSubmitting = isLoading || awaitingRedirect;
 
   const completeLogin = async () => {
@@ -140,8 +155,27 @@ function LoginForm() {
   };
 
   const submit = async () => {
-    setIsLoading(true);
     formErrors.clear();
+    // An empty field is named before anything is sent: „prüfen Sie Ihre
+    // Angaben“ would not say what is missing.
+    if (!choices) {
+      const missing: Record<string, string> = {};
+      if (email.trim() === "")
+        missing.email = "Bitte geben Sie Ihre E-Mail-Adresse ein.";
+      if (password === "")
+        missing.password = "Bitte geben Sie Ihr Passwort ein.";
+      const texts = Object.values(missing);
+      if (texts.length > 0) {
+        formErrors.invalid(
+          texts.length > 1
+            ? "Bitte geben Sie E-Mail-Adresse und Passwort ein."
+            : (texts[0] ?? ""),
+          missing,
+        );
+        return;
+      }
+    }
+    setIsLoading(true);
     setSessionExpired(false);
     try {
       const result = await traegerLogin({
@@ -292,7 +326,7 @@ function LoginForm() {
                   name="email"
                   type="email"
                   label="E-Mail-Adresse"
-                  controlSize="compact"
+                  controlSize="touch"
                   data-testid="input-email"
                   autoComplete="username"
                   required
@@ -315,7 +349,7 @@ function LoginForm() {
                   id="password"
                   name="password"
                   type="password"
-                  controlSize="compact"
+                  controlSize="touch"
                   data-testid="input-password"
                   autoComplete="current-password"
                   required

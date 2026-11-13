@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // This test-only adapter preserves the former root binding's scalar getter,

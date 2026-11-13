@@ -1,7 +1,7 @@
 "use client";
 
 // Shared realistic loading skeletons. Each primitive mirrors the markup of
-// its real kit counterpart (DataTable, SectionCard, PageHeaderWithSearch,
+// its real kit counterpart (DataTable, SectionCard, TenantPage,
 // detail-modal-components) so the pulse state has the same silhouette as the
 // loaded screen and the swap causes no layout reshuffle.
 //
@@ -12,7 +12,15 @@
 import type React from "react";
 
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { MobilePageHelpTarget } from "~/components/ui/mobile-page-help-target";
 import { Skeleton } from "~/components/ui/skeleton";
+
+import {
+  HEAD_CONTROL_HEIGHT,
+  HEAD_CONTROL_HEIGHT_SELF,
+  HEAD_PADDING,
+  HEAD_TITLE_SIZE,
+} from "./control-geometry";
 
 // Deterministic width cycle — varied line lengths read as real text without
 // Math.random() (which would break SSR hydration and test snapshots).
@@ -52,6 +60,32 @@ export function SkeletonRegion({
   );
 }
 
+// Maße wie im Kopf von `TenantPage`: dieselben Ränder je Bildschirm, eine
+// Titelzeile in der Höhe der Überschrift (Schriftgrad mal `leading-tight`) und
+// eine 20-px-Statuszeile 4 px darunter. Das Elternportal lädt mit einem
+// anderen Kopf (`ParentPageHeader`) und behält bis #6613 die Maße von vor
+// #6568: 20 px Rand, ein 28-px-Titelbalken, 8 px darunter die Statuszeile.
+// Der Layouttest `page-header-skeleton.spec.ts` misst beide Varianten nach.
+//
+// Unter `lg` setzt die Portalhülle die Seitenhilfe als Knopf in den Kopf von
+// `TenantPage` (`MobilePageHelpTarget`), auf der Bedienhöhe der Kopfkarte.
+// Der Ladekopf bietet ihr denselben Platz an. Sonst wächst der Kopf einer
+// Seite ohne Statuszeile beim Wechsel um diesen Knopf.
+const HEAD_GEOMETRY = {
+  "tenant-page": {
+    surface: HEAD_PADDING,
+    titleLine: `h-lh ${HEAD_TITLE_SIZE.standard}`,
+    titleBar: "h-[1em]",
+    statusLine: "mt-1 h-5",
+  },
+  "parent-page": {
+    surface: "p-5",
+    titleLine: "",
+    titleBar: "h-7",
+    statusLine: "mt-2",
+  },
+} as const;
+
 /**
  * Die Kopfkarte von `TenantPage` als Platzhalter: dieselbe Fläche, dieselben
  * Ränder, dieselbe Zeilenfolge (Titel, Statuszeile, optional Bedienzeile).
@@ -64,6 +98,7 @@ export function TenantPageHeaderSkeleton({
   info = false,
   controls = false,
   back,
+  matches = "tenant-page",
 }: Readonly<{
   /** Platz für Avatar oder Konzept-Symbol links vom Titel. */
   leading?: boolean;
@@ -78,26 +113,60 @@ export function TenantPageHeaderSkeleton({
   back?: React.ReactNode;
   /** Zweite Zeile für Suche, Filter oder Zeitnavigation. */
   controls?: boolean;
+  /**
+   * Welcher Kopf danach kommt. `parent-page` hält Rand, Titel und
+   * Statuszeile des Elternportals auf den bisherigen Maßen (#6613).
+   */
+  matches?: keyof typeof HEAD_GEOMETRY;
 }> = {}) {
-  return (
-    <header className="moto-content-surface rounded-2xl border p-5">
-      {back}
-      <div className="flex min-w-0 items-center gap-3">
-        {leading && <Skeleton shape="inner" className="h-12 w-12 shrink-0" />}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1">
-            <Skeleton shape="round" className="h-7 w-52 max-w-3/4" />
-            {info && <Skeleton className="h-8 w-8 shrink-0" />}
+  const geometry = HEAD_GEOMETRY[matches];
+  // Bedienelemente mit 40 px, auf dem Telefon 44 px; `leading` hängt an der
+  // Größe, die die Seite für Avatar oder Symbol wählt.
+  const titleRow = (
+    <div className="flex min-w-0 items-center gap-3">
+      {leading && <Skeleton shape="inner" className="h-12 w-12 shrink-0" />}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1">
+          <div
+            className={`flex w-52 max-w-3/4 items-center ${geometry.titleLine}`}
+          >
+            <Skeleton shape="round" className={`w-full ${geometry.titleBar}`} />
           </div>
-          {stats && (
-            <Skeleton shape="round" className="mt-2 h-4 w-64 max-w-full" />
-          )}
+          {info && <Skeleton className="h-8 w-8 shrink-0" />}
         </div>
+        {stats && (
+          <div className={`flex items-center ${geometry.statusLine}`}>
+            <Skeleton shape="round" className="h-4 w-64 max-w-full" />
+          </div>
+        )}
       </div>
+    </div>
+  );
+  return (
+    <header
+      className={`moto-content-surface rounded-2xl border ${geometry.surface}`}
+    >
+      {back}
+      {matches === "tenant-page" ? (
+        <div className="flex items-start gap-x-4 max-sm:gap-x-2">
+          <div className="min-w-0 flex-1">{titleRow}</div>
+          <div className={`contents ${HEAD_CONTROL_HEIGHT}`}>
+            <MobilePageHelpTarget />
+          </div>
+        </div>
+      ) : (
+        titleRow
+      )}
       {controls && (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Skeleton shape="control" className="h-9 w-48" />
-          <Skeleton shape="control" className="h-9 w-32" />
+        <div className="compact:mt-3 mt-4 flex items-center gap-3 max-sm:mt-3">
+          <Skeleton
+            shape="control"
+            className={`w-48 min-w-0 ${HEAD_CONTROL_HEIGHT_SELF}`}
+          />
+          <Skeleton
+            shape="control"
+            className={`w-32 min-w-0 ${HEAD_CONTROL_HEIGHT_SELF}`}
+          />
         </div>
       )}
     </header>

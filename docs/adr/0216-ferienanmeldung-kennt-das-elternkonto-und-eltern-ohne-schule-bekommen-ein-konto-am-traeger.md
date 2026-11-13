@@ -4,7 +4,7 @@ status: accepted
 
 # Ferienanmeldung kennt das Elternkonto, und Eltern ohne Schule bekommen ein Konto am Träger
 
-Entscheidung vom 11.11.2026 zu [#6673](https://github.com/moto-nrw/project-phoenix/issues/6673).
+Entscheidung vom 11.11.2026 zu [#6673](https://github.com/moto-ogs/project-phoenix/issues/6673).
 Sie ändert [ADR 0110](0110-oeffentliche-ferienanmeldung-schreibt-in-der-traeger-transaktion.md)
 (Folgen: „die Anmeldung kennt kein Elternkonto“),
 [ADR 0113](0113-vorbefuellung-der-ferienanmeldung-liest-im-elternportal.md)

@@ -4,7 +4,7 @@ status: accepted
 
 # Träger-Zugriffsprotokoll zeigt die Ferienanmeldungen über Enrollment
 
-Entscheidung vom 29.10.2026 zu [#5326](https://github.com/moto-nrw/project-phoenix/issues/5326).
+Entscheidung vom 29.10.2026 zu [#5326](https://github.com/moto-ogs/project-phoenix/issues/5326).
 Sie ergänzt [ADR 0109](0109-traeger-zugriffsprotokoll-liest-die-audit-spur-ueber-den-owner.md)
 um eine zweite Quelle und führt keinen neuen Owner ein.
 

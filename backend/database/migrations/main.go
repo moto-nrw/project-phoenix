@@ -17,11 +17,15 @@ type Operation func(ctx context.Context, db *bun.DB) error
 // newMigrator builds the migrator every entry point here uses, with the
 // per-migration log hooks already wired in.
 func newMigrator(db *bun.DB, runLog *runnerLog) *migrate.Migrator {
+	return newMigratorFor(db, Migrations, runLog)
+}
+
+func newMigratorFor(db *bun.DB, set *migrate.Migrations, runLog *runnerLog) *migrate.Migrator {
 	options := []migrate.MigratorOption{migrate.WithMarkAppliedOnSuccess(true)}
 	if runLog != nil {
 		options = append(options, runLog.migratorOptions()...)
 	}
-	return migrate.NewMigrator(db, Migrations, options...)
+	return migrate.NewMigrator(db, set, options...)
 }
 
 // Migrate runs all pending migrations
@@ -34,7 +38,18 @@ func migrateWithLogger(ctx context.Context, db *bun.DB, logger *slog.Logger) err
 		return fmt.Errorf("migration database is required")
 	}
 	runLog := newRunnerLog(migrationLogger(logger))
-	migrator := newMigrator(db, runLog)
+	if err := migrateSet(ctx, db, Migrations, runLog); err != nil {
+		return err
+	}
+	// After the numbered migrations, on every run: see repeatable.go.
+	return applyRepeatableDefinitions(ctx, db)
+}
+
+// migrateSet applies the pending numbered migrations of set. Migrate passes
+// the registered ones; the order check holds some of them back for a second
+// pass (migration_order_test.go).
+func migrateSet(ctx context.Context, db *bun.DB, set *migrate.Migrations, runLog *runnerLog) error {
+	migrator := newMigratorFor(db, set, runLog)
 
 	// Initialize migration tables
 	if err := migrator.Init(ctx); err != nil {
@@ -165,6 +180,10 @@ func resetWithLogger(ctx context.Context, db *bun.DB, logger *slog.Logger) error
 	if err != nil {
 		runLog.logFailure(ctx, err)
 		return fmt.Errorf("run migrations after reset: %w", err)
+	}
+
+	if err := applyRepeatableDefinitions(ctx, db); err != nil {
+		return err
 	}
 
 	runLog.logger.InfoContext(ctx, "database reset complete",

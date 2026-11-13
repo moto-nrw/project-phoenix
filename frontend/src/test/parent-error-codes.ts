@@ -175,4 +175,6 @@ export const PARENT_PORTAL_ERROR_CODES = [
   // Elternsprechtag (#4801): booking, moving or cancelling a slot.
   "school.parent_conference_slot_taken",
   "school.parent_conference_change_closed",
+  // A parent answers a date of a series that was cancelled meanwhile (#6987).
+  "calendar.occurrence_unavailable",
 ] as const satisfies readonly ErrorCode[];

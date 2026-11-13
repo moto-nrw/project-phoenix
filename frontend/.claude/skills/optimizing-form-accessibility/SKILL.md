@@ -2,7 +2,7 @@
 name: optimizing-form-accessibility
 description: Use when optimizing forms for keyboard navigation, focus management, or accessibility. Triggers on login pages, signup forms, checkout flows, or any form where tab order and focus behavior need improvement.
 metadata:
-  author: moto-nrw
+  author: moto-ogs
   version: "1.0.0"
 ---
 

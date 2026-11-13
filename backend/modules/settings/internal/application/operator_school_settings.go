@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // OperatorSchoolSettings combines the existing schema and write capabilities.

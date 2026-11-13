@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 func (c *StudentImportConfig) createGuardianRelationships(ctx context.Context, student ports.CreatedEnrollmentStudent, guardians []importModels.GuardianImportData) error {

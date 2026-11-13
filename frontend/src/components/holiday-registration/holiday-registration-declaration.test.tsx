@@ -50,6 +50,15 @@ describe("HolidayRegistrationDeclaration reading aid", () => {
     ).toBeInTheDocument();
   });
 
+  it("says that the provider keeps the debtor number and when it goes (#6692)", () => {
+    renderDeclaration("en");
+    expect(
+      screen.getByText(
+        /the provider keeps it for later registrations\. It deletes it at the end of the third year after the last registration\./,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("uses the Russian number forms for the days", () => {
     renderDeclaration("ru", { ...HOLIDAY_CONSENT_TEXTS, retentionDays: 181 });
     expect(

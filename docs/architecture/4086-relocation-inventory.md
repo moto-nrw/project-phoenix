@@ -146,7 +146,7 @@ Round-3 contract probe reverted cleanly; assertions, roles, rules and budgets re
         a counted method may well be the right place for its logic. See "Known limitations" in
         the header of test/module_passthrough_ratchet_test.go before acting on an individual hit.
 FAIL
-FAIL	github.com/moto-nrw/project-phoenix/test	1.288s
+FAIL	github.com/moto-ogs/project-phoenix/test	1.288s
 FAIL
 ```
 
@@ -218,8 +218,8 @@ exit status 1
 Round-3 attempt reverted cleanly. Exact remaining diagnostic:
 
 ```text
-load Go packages with GOOS=linux GOARCH=amd64 CGO_ENABLED=0: package github.com/moto-nrw/project-phoenix/services/import
-	services/import/batches.go:12:2: use of internal package github.com/moto-nrw/project-phoenix/modules/dataimport/internal/ports/imports not allowed
+load Go packages with GOOS=linux GOARCH=amd64 CGO_ENABLED=0: package github.com/moto-ogs/project-phoenix/services/import
+	services/import/batches.go:12:2: use of internal package github.com/moto-ogs/project-phoenix/modules/dataimport/internal/ports/imports not allowed
 exit status 1
 ```
 
@@ -338,8 +338,8 @@ Removed six adapter/service query pairs. The native Engine now owns the observed
 Round-3 attempt reverted cleanly. Exact remaining diagnostic:
 
 ```text
-load Go packages with GOOS=linux GOARCH=amd64 CGO_ENABLED=0: package github.com/moto-nrw/project-phoenix/observability/compose
-	observability/compose/compose.go:7:8: use of internal package github.com/moto-nrw/project-phoenix/modules/observability/internal/adapters/pwausage not allowed
+load Go packages with GOOS=linux GOARCH=amd64 CGO_ENABLED=0: package github.com/moto-ogs/project-phoenix/observability/compose
+	observability/compose/compose.go:7:8: use of internal package github.com/moto-ogs/project-phoenix/modules/observability/internal/adapters/pwausage not allowed
 exit status 1
 ```
 
@@ -423,17 +423,17 @@ Round-3 attempt reverted cleanly. Exact remaining diagnostic:
 ratchet budgets passed: 11 constants, 29 budget registers, 2 exception registers
 backend architecture legacy ratchet failed:
 new violations (6):
-  production|contracts.internal-model|github.com/moto-nrw/project-phoenix/modules/settings|settings.DefinitionNotFoundError -- public contract exposes an internal model type
+  production|contracts.internal-model|github.com/moto-ogs/project-phoenix/modules/settings|settings.DefinitionNotFoundError -- public contract exposes an internal model type
     at modules/settings/settings.go:185 (settings.DefinitionNotFoundError)
-  production|contracts.internal-model|github.com/moto-nrw/project-phoenix/modules/settings|settings.InvalidValueError -- public contract exposes an internal model type
+  production|contracts.internal-model|github.com/moto-ogs/project-phoenix/modules/settings|settings.InvalidValueError -- public contract exposes an internal model type
     at modules/settings/settings.go:186 (settings.InvalidValueError)
-  production|contracts.internal-model|github.com/moto-nrw/project-phoenix/modules/settings|settings.PermissionDeniedError -- public contract exposes an internal model type
+  production|contracts.internal-model|github.com/moto-ogs/project-phoenix/modules/settings|settings.PermissionDeniedError -- public contract exposes an internal model type
     at modules/settings/settings.go:187 (settings.PermissionDeniedError)
-  production|contracts.internal-model|github.com/moto-nrw/project-phoenix/modules/settings|settings.SettingsError -- public contract exposes an internal model type
+  production|contracts.internal-model|github.com/moto-ogs/project-phoenix/modules/settings|settings.SettingsError -- public contract exposes an internal model type
     at modules/settings/settings.go:184 (settings.SettingsError)
-  production|contracts.internal-model|github.com/moto-nrw/project-phoenix/modules/settings|settings.Snapshot -- public contract exposes an internal model type
+  production|contracts.internal-model|github.com/moto-ogs/project-phoenix/modules/settings|settings.Snapshot -- public contract exposes an internal model type
     at modules/settings/settings.go:171 (settings.Snapshot)
-  production|contracts.internal-model|github.com/moto-nrw/project-phoenix/modules/settings|settings.WithSettingsSnapshot -- public contract exposes an internal model type
+  production|contracts.internal-model|github.com/moto-ogs/project-phoenix/modules/settings|settings.WithSettingsSnapshot -- public contract exposes an internal model type
     at modules/settings/settings.go:228 (settings.WithSettingsSnapshot)
 composition surface grew against base 41f264ba26dba4581c74571870217c6924d335dc:
   production|setter|modules/settings/internal/application/settingsservice|TenantOperations.SetValueSetHook->TenantOperations.hook at modules/settings/internal/application/settingsservice/tenant_operations.go:47:2
@@ -455,10 +455,10 @@ exit status 1
 Round-3 attempt reverted cleanly. Exact remaining diagnostic:
 
 ```text
-# github.com/moto-nrw/project-phoenix/services/config
-package github.com/moto-nrw/project-phoenix/services/config (test)
-	services/config/attendance_scope_test.go:12:2: use of internal package github.com/moto-nrw/project-phoenix/modules/settings/internal/application/defaults not allowed
-FAIL	github.com/moto-nrw/project-phoenix/services/config [setup failed]
+# github.com/moto-ogs/project-phoenix/services/config
+package github.com/moto-ogs/project-phoenix/services/config (test)
+	services/config/attendance_scope_test.go:12:2: use of internal package github.com/moto-ogs/project-phoenix/modules/settings/internal/application/defaults not allowed
+FAIL	github.com/moto-ogs/project-phoenix/services/config [setup failed]
 FAIL
 ```
 
@@ -506,7 +506,7 @@ Round-3 contract probe reverted cleanly; assertions, roles, rules and budgets re
         a counted method may well be the right place for its logic. See "Known limitations" in
         the header of test/module_passthrough_ratchet_test.go before acting on an individual hit.
 FAIL
-FAIL	github.com/moto-nrw/project-phoenix/test	1.288s
+FAIL	github.com/moto-ogs/project-phoenix/test	1.288s
 FAIL
 ```
 
@@ -592,15 +592,15 @@ composition surface passed: 1644 -> 1644 field/setter targets across production 
 ratchet budgets passed: 11 constants, 29 budget registers, 2 exception registers
 backend architecture legacy ratchet failed:
 new violations (5):
-  production|contracts.internal-model|github.com/moto-nrw/project-phoenix/modules/transactionruntime|transactionruntime.DatabaseStats -- public contract exposes an internal model type
+  production|contracts.internal-model|github.com/moto-ogs/project-phoenix/modules/transactionruntime|transactionruntime.DatabaseStats -- public contract exposes an internal model type
     at modules/transactionruntime/database_stats.go:10 (transactionruntime.DatabaseStats)
-  production|contracts.internal-model|github.com/moto-nrw/project-phoenix/modules/transactionruntime|transactionruntime.DatabaseStatsCapabilities -- public contract exposes an internal model type
+  production|contracts.internal-model|github.com/moto-ogs/project-phoenix/modules/transactionruntime|transactionruntime.DatabaseStatsCapabilities -- public contract exposes an internal model type
     at modules/transactionruntime/database_stats.go:12 (transactionruntime.DatabaseStatsCapabilities)
-  production|contracts.internal-model|github.com/moto-nrw/project-phoenix/modules/transactionruntime|transactionruntime.DatabaseStatsDependencies -- public contract exposes an internal model type
+  production|contracts.internal-model|github.com/moto-ogs/project-phoenix/modules/transactionruntime|transactionruntime.DatabaseStatsDependencies -- public contract exposes an internal model type
     at modules/transactionruntime/database_stats.go:11 (transactionruntime.DatabaseStatsDependencies)
-  production|contracts.internal-model|github.com/moto-nrw/project-phoenix/modules/transactionruntime|transactionruntime.DatabaseStatsResponse -- public contract exposes an internal model type
+  production|contracts.internal-model|github.com/moto-ogs/project-phoenix/modules/transactionruntime|transactionruntime.DatabaseStatsResponse -- public contract exposes an internal model type
     at modules/transactionruntime/database_stats.go:13 (transactionruntime.DatabaseStatsResponse)
-  production|contracts.internal-model|github.com/moto-nrw/project-phoenix/modules/transactionruntime|transactionruntime.NewDatabaseStats -- public contract exposes an internal model type
+  production|contracts.internal-model|github.com/moto-ogs/project-phoenix/modules/transactionruntime|transactionruntime.NewDatabaseStats -- public contract exposes an internal model type
     at modules/transactionruntime/database_stats.go:17 (transactionruntime.NewDatabaseStats)
 remaining legacy violations: 61
 exit status 1

@@ -1,6 +1,6 @@
 package fileformat
 
-import importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+import importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 
 func rowError(row int, err error) error { return &importModels.FileRowError{Row: row, Err: err} }
 

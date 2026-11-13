@@ -7,14 +7,14 @@ import (
 	"fmt"
 	"time"
 
-	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	schedule "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 
 	// The rows below keep the retained persistence shapes of class arrival
 	// exceptions, staff notices and activity reopening that
 	// database/repositories/schedule served until #3220. The methods return
 	// driver errors unchanged so the compatibility composition keeps the legacy
 	// error contract of each operation.
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
