@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { loadSeedAccess, type SeedAccess } from "../scripts/seed-state";
 import { frontendPort } from "./frontend-port";
@@ -63,19 +63,77 @@ export async function loginToTenant(
   await waitForSignedInRedirect(page);
 }
 
+/** Längste Zeit für die Weiterleitung von `/`, samt kalter Übersetzung. */
+const SIGNED_IN_REDIRECT_TIMEOUT = 60_000;
+
 /**
  * Wartet, bis die Tenant-Wurzel `/` ein angemeldetes Konto weitergeleitet hat.
  * Die Wurzel ist die Login-Maske; mit Sitzung zeigt sie „Sie sind bereits
  * angemeldet“ und leitet erst im Browser weiter (SmartRedirect, nach /home oder
- * zur Schul-Übergabe, für jedes Konto weg von `/`). Auf einem kalten
- * Next-Dev-Server dauert das samt erster Übersetzung der Zielseite länger als
- * die 5 s eines expect: Ohne dieses Warten zerstörte die Weiterleitung den
- * Kontext von page.evaluate, oder die erste Spec eines Shards prüfte noch die
- * Login-Maske. Seit #6937 laufen die Shards in eigenen Jobs mit kaltem Server,
- * und „Rest 2/2“ fiel deshalb in planung-navigation.spec.ts.
+ * zur Schul-Übergabe, für jedes Konto weg von `/`). Ohne dieses Warten zerstörte
+ * die Weiterleitung den Kontext von page.evaluate, oder die Spec prüfte noch die
+ * Login-Maske.
+ *
+ * Auf einem kalten Next-Dev-Server übersetzt die erste Weiterleitung die
+ * Zielseite; das kostet im CI-Job bis zu 30 s. Seit #6937 laufen die Shards in
+ * eigenen Jobs mit kaltem Server, und die erste Spec eines Shards verbrauchte
+ * damit ihr ganzes Zeitbudget im Login. Diese Zeit zählt deshalb nicht gegen
+ * den Test: Er bekommt das Warten als Zeit dazu. Hängt die Weiterleitung,
+ * meldet waitForURL das selbst, bevor das Budget endet. `commit`, nicht `load`:
+ * der Dev-Server hält SSE-Verbindungen offen, `load` kann hängen.
  */
 async function waitForSignedInRedirect(page: Page): Promise<void> {
-  await page.waitForURL((url) => url.pathname !== "/", { timeout: 30_000 });
+  // Nur verlängern, nie kürzen: Ein Aufrufer (etwa ein beforeAll mit eigenem
+  // Budget) behält seine Zeit.
+  test.info().setTimeout(test.info().timeout + SIGNED_IN_REDIRECT_TIMEOUT);
+  await page.waitForURL((url) => url.pathname !== "/", {
+    timeout: SIGNED_IN_REDIRECT_TIMEOUT,
+    waitUntil: "commit",
+  });
+}
+
+/** Längste Zeit, die eine kalte Seite zum Bauen und Hochfahren bekommt. */
+const WARM_PAGE_TIMEOUT = 60_000;
+
+/**
+ * Baut Seiten auf dem Next-Dev-Server vor, bevor ein Test sie misst. Der Server
+ * baut eine Seite beim ersten Aufruf; auf dem kalten Server eines CI-Shards
+ * (seit #6937) kostet das je Seite viele Sekunden und belegt die CPU, die der
+ * Browser für Klicks braucht. Fertig ist eine Seite, wenn ihr Code im Browser
+ * läuft: Sie stellt ihre erste Anfrage an `/api/…` (wie warmTourPages in
+ * onboarding-tours.spec.ts). Aufrufen in einem `beforeAll` mit eigenem Budget.
+ */
+export async function warmPages(
+  page: Page,
+  paths: readonly string[],
+  base = tenantBase,
+): Promise<void> {
+  for (const path of paths) {
+    const running = page.waitForRequest(
+      (request) => {
+        const url = new URL(request.url());
+        if (
+          !url.pathname.startsWith("/api/") ||
+          url.pathname === "/api/logs" ||
+          !["fetch", "xhr"].includes(request.resourceType())
+        ) {
+          return false;
+        }
+        try {
+          return new URL(request.frame().url()).pathname === path;
+        } catch {
+          // Anfragen eines Service Workers haben keinen Frame.
+          return false;
+        }
+      },
+      { timeout: WARM_PAGE_TIMEOUT },
+    );
+    await page.goto(`${base}${path}`, {
+      waitUntil: "domcontentloaded",
+      timeout: WARM_PAGE_TIMEOUT,
+    });
+    await running;
+  }
 }
 
 /**
