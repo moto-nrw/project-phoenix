@@ -1,10 +1,9 @@
-package schoolsearchview_test
+package schoolsearchview
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/moto-ogs/project-phoenix/modules/schoolsearchview"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,26 +24,26 @@ func TestPhoneSearchKeyMeetsEveryWayOfWritingTheSameNumber(t *testing.T) {
 		"0043 1 2345678":     "4312345678",
 		"4567":               "4567",
 	} {
-		require.Equal(t, key, schoolsearchview.PhoneSearchKey(text), text)
+		require.Equal(t, key, PhoneSearchKey(text), text)
 	}
 }
 
 func TestPhoneSearchKeyLeavesNamesAndShortNumbersAlone(t *testing.T) {
 	t.Parallel()
 	for _, text := range []string{"Müller", "3a", "123", "0170 Müller", "mia@example.org", "+49", "12-3"} {
-		require.Empty(t, schoolsearchview.PhoneSearchKey(text), text)
+		require.Empty(t, PhoneSearchKey(text), text)
 	}
 }
 
 func TestValidateQueryTextTrimsAndBoundsTheQuery(t *testing.T) {
 	t.Parallel()
-	text, err := schoolsearchview.ValidateQueryText("  Mia ")
+	text, err := ValidateQueryText("  Mia ")
 	require.NoError(t, err)
 	require.Equal(t, "Mia", text)
-	for _, invalid := range []string{"", " a ", strings.Repeat("x", schoolsearchview.MaxQueryRunes+1)} {
-		_, err := schoolsearchview.ValidateQueryText(invalid)
-		require.ErrorIs(t, err, schoolsearchview.ErrInvalidQuery)
+	for _, invalid := range []string{"", " a ", strings.Repeat("x", MaxQueryRunes+1)} {
+		_, err := ValidateQueryText(invalid)
+		require.ErrorIs(t, err, ErrInvalidQuery)
 	}
-	_, err = schoolsearchview.ValidateQueryText(strings.Repeat("ü", schoolsearchview.MaxQueryRunes))
+	_, err = ValidateQueryText(strings.Repeat("ü", MaxQueryRunes))
 	require.NoError(t, err, "the bound counts characters, not bytes")
 }

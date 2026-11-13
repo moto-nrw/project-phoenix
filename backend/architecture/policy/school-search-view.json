@@ -180,6 +180,19 @@
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "public"
+    },
+    {
+      "id": "school-search-view.internal-test.identity-access.http",
+      "description": "ADR 0227: the scope tests put the caller's permissions into the request context as the session token does.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "school-search-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/schoolsearchview/http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
     }
   ],
   "read_projections": [
