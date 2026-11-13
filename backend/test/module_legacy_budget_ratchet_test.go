@@ -318,6 +318,8 @@ const moduleComposeBudgetTotal = 13482
 // ADR 0187 raised modules/identityaccess/compose,
 // modules/organizationtenancy/compose and modules/parentbilling/compose for
 // the audit and the PAIN.008 files of the Träger package.
+// ADR 0227 raised modules/enrollment/compose for the registration answers and
+// added modules/schoolsearchview/compose for the school search.
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose": 45,
 	// ADR 0103: the signature ledger constructor, construction only.
@@ -365,6 +367,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0216: account proofs and the account's holiday registrations (+10).
 	// ADR 0215: NewTraegerPhases (+4) and NewOfferingSelectionReferences (+4),
 	// less shortened comments and a merged file (-6).
+	// ADR 0227: the registration answers constructor (+5).
 	"modules/enrollment/compose": 640,
 	// ADR 0218: the Träger scope and the recipient rekey (+33).
 	"modules/exporttransfer/compose":               182,
