@@ -958,16 +958,16 @@ order by Woche desc`),
     },
     {
       name: 'Nutzungsanalyse: Demo',
-      description: 'Was Interessenten in der öffentlichen Demo ansehen, ausprobieren und wo sie aussteigen, bis zum Klick auf „Kostenlos starten“. Nur deployment = demo, Demo-Zugänge statt Personen. Eine Sitzung endet auch beim Neuladen oder in einem neuen Tab. „Kostenlos starten“ führt auf das Formular moto-ogs.de/start (?src=demo); seine Schritte und Absendungen misst Umami auf der Website (Events start-form-*), nicht PostHog.',
+      description: 'Was Interessenten in der öffentlichen Demo ansehen, ausprobieren und wo sie aussteigen, bis zum Klick auf „Termin buchen“. Nur deployment = demo, Demo-Zugänge statt Personen. Eine Sitzung endet auch beim Neuladen oder in einem neuen Tab. „Termin buchen“ öffnet den Terminkalender in HubSpot; gebuchte Termine stehen dort, nicht in PostHog. Ältere Klicks desselben Ereignisses kamen vom früheren Knopf „Kostenlos starten“.',
       insights: [
         {
-          name: 'Demo-Funnel: Einstieg bis Kostenlos starten',
-          description: 'Folgt einem Demo-Zugang vom Einstieg über den Rollenwechsel bis „Kostenlos starten“, letzte 30 Tage. Das ist die Konversion der Demo.',
+          name: 'Demo-Funnel: Einstieg bis Termin buchen',
+          description: 'Folgt einem Demo-Zugang vom Einstieg über den Rollenwechsel bis „Termin buchen“, letzte 30 Tage. Das ist die Konversion der Demo.',
           ...funnel('demo', {
             series: [
               series('demo_entered', 'Eingestiegen'),
               series('demo_role_switched', 'Rolle gewechselt'),
-              series('demo_start_clicked', 'Kostenlos starten'),
+              series('demo_start_clicked', 'Termin buchen'),
             ],
           }),
         },
@@ -980,7 +980,7 @@ select
   count() as Sitzungen,
   round(100 * count() / sum(count()) over (), 1) as ${quoted('Anteil in Prozent')},
   round(avg(Seiten), 1) as ${quoted('Seiten (Mittel)')},
-  countIf(Gestartet = 1) as ${quoted('davon Kostenlos starten')}
+  countIf(Gestartet = 1) as ${quoted('davon „Termin buchen“ geklickt')}
 from (
   select
     properties.$session_id as Sitzung,
@@ -1022,8 +1022,8 @@ join (
 order by Rolle, Sitzungen desc`),
         },
         {
-          name: 'Demo-Verhalten: Funktionen vor „Kostenlos starten“',
-          description: 'Letzte 30 Tage. Welcher Anteil der Sitzungen mit und ohne Klick auf „Kostenlos starten“ einen Funktionsbereich gesehen hat. Ein großer Abstand deutet auf eine Funktion, die überzeugt. Wenige Klicks bedeuten große Zufallsschwankung.',
+          name: 'Demo-Verhalten: Funktionen vor „Termin buchen“',
+          description: 'Letzte 30 Tage. Welcher Anteil der Sitzungen mit und ohne Klick auf „Termin buchen“ einen Funktionsbereich gesehen hat. Ein großer Abstand deutet auf eine Funktion, die überzeugt. Wenige Klicks bedeuten große Zufallsschwankung.',
           ...hogql('demo', (where) => `
 select
   Funktion,
@@ -1112,7 +1112,7 @@ select
   coalesce(properties.src, 'ohne') as Quelle,
   countIf(event = 'demo_entered') as Einstiege,
   countIf(event = 'demo_role_switched') as Rollenwechsel,
-  countIf(event = 'demo_start_clicked') as \`Kostenlos starten\`
+  countIf(event = 'demo_start_clicked') as \`Termin buchen\`
 from events
 where ${where}
   and event in ('demo_entered', 'demo_role_switched', 'demo_start_clicked')
@@ -1128,7 +1128,7 @@ order by Einstiege desc`),
               series('demo_started', 'Demo-Schule bereitgestellt'),
               series('demo_entered', 'Eingestiegen'),
               series('demo_role_switched', 'Rolle gewechselt'),
-              series('demo_start_clicked', 'Kostenlos starten'),
+              series('demo_start_clicked', 'Termin buchen'),
             ],
           }),
         },
@@ -1148,7 +1148,7 @@ from (
   union all
   select 5, 'Rolle gewechselt', countIf(event = 'demo_role_switched') from events where ${where} and timestamp > now() - interval 30 day
   union all
-  select 6, 'Kostenlos starten', countIf(event = 'demo_start_clicked') from events where ${where} and timestamp > now() - interval 30 day
+  select 6, 'Termin buchen', countIf(event = 'demo_start_clicked') from events where ${where} and timestamp > now() - interval 30 day
 )
 order by Nr`),
         },
