@@ -252,6 +252,7 @@ describe("known children of a parent account (#4662)", () => {
     birthDate: "2018-03-01",
     holidayWish: "",
     holidayWishProof: "",
+    contacts: [],
   };
   const known = (studentId: string): HolidayKnownChild => ({
     ...felix,
@@ -265,6 +266,7 @@ describe("known children of a parent account (#4662)", () => {
         lastName: "Schneider",
         email: "s@example.org",
         phone: "0151",
+        address: null,
       },
       children: [felix],
       accountProof: "",
@@ -394,7 +396,7 @@ describe("optional second guardian", () => {
     ).toBeUndefined();
     expect(
       registrationFromFamily({
-        guardian: draft.guardian,
+        guardian: { ...draft.guardian, address: null },
         children: [],
         accountProof: "",
       }).secondGuardian,
@@ -634,6 +636,7 @@ describe("holiday care wish of a known child (#4703)", () => {
     birthDate: "2018-03-01",
     holidayWish: "yes",
     holidayWishProof: "sealed",
+    contacts: [],
   };
   const withMode = (
     holidayWishMode: HolidayRegistrationOffer["holidayWishMode"],
@@ -816,6 +819,7 @@ describe("parent account in the payload (#6673)", () => {
         lastName: "Schneider",
         email: "s@example.org",
         phone: "0151",
+        address: null,
       },
       children: [],
       accountProof: "sealed",
@@ -834,7 +838,7 @@ describe("parent account in the payload (#6673)", () => {
     expect(payload.parent_account_requested).toBe(false);
     expect(
       registrationFromFamily({
-        guardian: draft.guardian,
+        guardian: { ...draft.guardian, address: null },
         children: [],
         accountProof: "",
       }).parentAccountProof,

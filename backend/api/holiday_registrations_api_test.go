@@ -356,7 +356,12 @@ func assertHolidayRegistrationStatus(t *testing.T, f holidayRegistrationFixture,
 	assert.Equal(t, "Ben", status.Children[1].FirstName)
 	assert.Len(t, status.Children[1].Weeks, 2)
 
-	rec = publicJSON(t, f.public, http.MethodGet, holidayStatusPath("x"+token[1:]), nil)
+	// Change the first character; base64url tokens may already start with "x".
+	unknown := "x" + token[1:]
+	if token[0] == 'x' {
+		unknown = "y" + token[1:]
+	}
+	rec = publicJSON(t, f.public, http.MethodGet, holidayStatusPath(unknown), nil)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 	assert.Contains(t, rec.Body.String(), "enrollment.holiday_registration_status_not_found")
 }

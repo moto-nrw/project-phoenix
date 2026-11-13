@@ -28,7 +28,7 @@
   "addChild": "Kardeş ekle",
   "removeChild": "Çocuğu kaldır",
   "knownChildrenTitle": "Veli hesabınızdaki çocuklarınız",
-  "knownChildrenText": "Çocuğunuzu seçin. Bilgileri o zaman formda görünür. Göndermeden önce değiştirebilirsiniz. Bu sadece bu kaydı değiştirir.",
+  "knownChildrenText": "Çocuğunuzu seçin. Bilgileri, adresiniz ve okulun kişileri o zaman formda görünür. Göndermeden önce hepsini değiştirebilirsiniz. Bu sadece bu kaydı değiştirir.",
   "knownChildMeta": "{school} · doğum tarihi {birthDate}",
   "knownChildrenFull": "En fazla üç çocuğu birlikte kaydedebilirsiniz.",
   "firstName": "Ad",
@@ -195,5 +195,13 @@
   },
   "doneAccountTitle": "Sonraki adım: veli hesabınız",
   "doneAccountText": "{email} adresine ikinci bir e-posta gönderdik. İçindeki bağlantıyı açın. Orada şifrenizi belirler veya giriş yaparsınız.",
-  "doneToRegistrations": "Tatil kayıtlarınıza git"
+  "doneToRegistrations": "Tatil kayıtlarınıza git",
+  "fromAccountHint": "Veli hesabından",
+  "healthNotPrefilled": "Sağlık bilgilerini aktarmıyoruz. Lütfen buraya yazın.",
+  "knownContactPhoneHint": "Okulda bu kişinin numarası yok. Lütfen yazın.",
+  "relationshipTypes": {
+    "parent": "Ebeveyn",
+    "guardian": "Vasi",
+    "relative": "Akraba"
+  }
 }
