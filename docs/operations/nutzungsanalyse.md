@@ -92,11 +92,11 @@ Screenshots, Videos, Traces und automatische DOM-Fehlerabbilder sind aus.
 Für die Portale gibt es getrennte Dateien vor der Anmeldung und für den
 Sitzungsübergang samt geschützter Seite sowie eine gemeinsame Aufzeichnung.
 **PR-CI, nicht nur lokal:** Der separate Workflow **Frontend E2E**
-(`.github/workflows/e2e.yml`) führt im Job `e2e` (**Playwright E2E flows**)
+(`.github/workflows/e2e.yml`) führt im Job **Playwright network evidence**
 den Schritt **Run portal network evidence** mit `pnpm run test:network` aus.
 Dieser Schritt verwendet den oben beschriebenen gesperrten Node-Resolver.
-Danach folgt **Upload sanitized network evidence**, anschließend
-**Run E2E flows** für die bisherigen geseedeten Tests. Die Netzwerksuite
+Danach folgt **Upload sanitized network evidence**. Die geseedeten Tests
+laufen parallel dazu in den Jobs **Playwright E2E flows**. Die Netzwerksuite
 gehört nicht zum Job `Lint / Frontend build` des Hauptworkflows.
 
 Der E2E-Workflow ist kein Required Check. Er läuft auf PRs gegen
