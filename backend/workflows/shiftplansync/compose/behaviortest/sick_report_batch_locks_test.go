@@ -24,7 +24,7 @@ func TestSickReportLocksStaffRowsInOneQuery(t *testing.T) {
 	}
 	counter := testpkg.CaptureQueriesForContext(t, e.db)
 	e.inTx(t, func(ctx context.Context) error {
-		return e.cascade.LockSickReportWrite(counter.Context(ctx), e.subject.ID, absenceID, stampWeekOne.String(), stampWeekOne.String())
+		return e.cascade.LockSickReportWrite(counter.Context(ctx), e.subject.ID, absenceID, "", stampWeekOne.String(), stampWeekOne.String())
 	})
 	locks := counter.Matching(func(sql string) bool {
 		return strings.Contains(sql, "users.staff_school_memberships") && strings.Contains(sql, "for no key update")

@@ -400,8 +400,8 @@ func indexSeriesShifts(existing []*workforce.ShiftRecord, seriesID int64) (map[c
 	return byDate, owned
 }
 
-// seriesCandidate is the occurrence of d. sickAbsenceID names the sick report
-// covering d as a full sick day, zero when the staff member is not sick then.
+// seriesCandidate is the occurrence of d. stamp names the absence covering d
+// as a full absence day, the zero stamp when the staff member works then.
 func seriesCandidate(series *StaffShiftSeries, d calendar.Date, stamp absenceStamp) *workforce.ShiftRecord {
 	seriesID := series.ID
 	occurrenceDate := d

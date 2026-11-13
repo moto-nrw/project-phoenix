@@ -199,8 +199,8 @@ type materializationWorld struct {
 	existingIdx   map[existingKey]struct{}
 	exceptionIdx  map[exceptionKey]*schedule.ActivityException
 	timeframeByID map[int64]*schedule.Timeframe
-	// sickDays names the report behind every full sick day of a staff member
-	// in the window (#6292).
+	// sickDays names the absence behind every full absence day of a staff
+	// member in the window (#6292, #6847).
 	sickDays map[staffDay]absenceStamp
 	// weekendFollowsFriday materializes Saturday and Sunday from Friday's
 	// schedules (#3921).
@@ -742,7 +742,7 @@ func (s *materializationService) copyExpectedStudents(
 }
 
 // copySupervisors inserts the occurrence's supervisor rows; sickDays names
-// the supervisors on a full sick day (#6292).
+// the supervisors on a full absence day (#6292, #6847).
 func (s *materializationService) copySupervisors(
 	ctx context.Context,
 	instanceID int64,
@@ -781,8 +781,8 @@ func (s *materializationService) copySupervisors(
 			IsSubstitute: false,
 			IsAbsent:     false,
 		}
-		// A supervisor on a full sick day is planned absent, exactly as the
-		// sick cascade marks rows that existed when the report came in.
+		// A supervisor on a full absence day is planned absent, exactly as the
+		// cascade marks rows that existed when the absence came in.
 		if err := writeStaffAssignment(ctx, s.staffRepo, row, date, sickDays, false); err != nil {
 			return &ports.ScheduleError{Op: "materialize template: copy supervisor", Err: err}
 		}

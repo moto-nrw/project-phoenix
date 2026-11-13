@@ -222,7 +222,7 @@ function appointmentState(appointment: EnrichedInstance, person: PersonForm) {
     ? ` · ${getStatusLabel(appointment.status)}`
     : sickLocked
       ? person.lockedByOtherAbsence
-        ? " · Abwesend gemeldet"
+        ? " · Abwesend"
         : " · Krankgemeldet"
       : "";
   return { selectable, status };

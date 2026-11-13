@@ -270,6 +270,8 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // pass-throughs fewer (-2).
 // Lowered by #6840: People Directory's DeletePerson checks for a live child or
 // staff profile before the soft delete (-1).
+// Lowered by #6847: approving and withdrawing an absence return their plan
+// cascade instead of forwarding the write (-2).
 const modulePassthroughOwnerBudgetTotal = 1399
 
 // modulePassthroughOwnerBudgets is the register: module directory →
@@ -339,6 +341,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/studentpresence": 123,
 	"modules/timetable":       203,
 	// Raised by ADR 0141: the payroll dispatch overview (+1).
+	// Lowered by #6847: approving and withdrawing an absence return their
+	// plan cascade instead of forwarding the write (-2).
 	"modules/workforce":      137,
 	"workflows/openroommove": 1,
 	// Raised by ADR 0078: the week change of the meal plan adapter.

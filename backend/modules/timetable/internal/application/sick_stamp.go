@@ -47,9 +47,10 @@ func applySickReportOfDay(row *scheduleModel.InstanceStaff, stamp absenceStamp) 
 	}
 }
 
-// sickDaysIn reads the open sick reports over the days (I-1). It takes no
-// lock: each caller reads them inside the locks its path already holds
-// (#6292 adds no lock and no lock order). Without a reader nobody is sick.
+// sickDaysIn reads the absences in force over the days (I-1): sick reports
+// and, since #6847, every other type. It takes no lock: each caller reads
+// them inside the locks its path already holds (#6292 adds no lock and no
+// lock order). Without a reader nobody is absent.
 func sickDaysIn(ctx context.Context, reports ports.SickReportReader, days ...calendar.Date) (map[staffDay]absenceStamp, error) {
 	if reports == nil || len(days) == 0 {
 		return nil, nil
@@ -116,9 +117,10 @@ type staffDay struct {
 	date    calendar.Date
 }
 
-// sickDayIndex maps every full sick day in [from, to] to the report that
-// covers it. Overlapping reports of one person are merged by Workforce; should
-// two still cover a day, the lower id wins so reruns stamp the same report.
+// sickDayIndex maps every full absence day in [from, to] to the absence that
+// covers it. Overlapping absences of one person are merged by Workforce;
+// should two still cover a day, the lower id wins so reruns stamp the same
+// absence.
 func sickDayIndex(reports []timetable.SickReport, from, to calendar.Date) map[staffDay]absenceStamp {
 	index := make(map[staffDay]absenceStamp)
 	for _, report := range reports {

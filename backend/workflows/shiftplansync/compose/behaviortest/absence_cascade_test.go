@@ -187,3 +187,26 @@ func TestAbsenceCascade_ReportedTrainingCascadesButAHalfDayDoesNot(t *testing.T)
 	assertAbsentStamp(t, e.reloadRow(t, fullRow.ID), trainingID, "full training day")
 	assert.False(t, e.reloadShift(t, halfShift.ID).Cancelled, "a half training day leaves the shift to the planner")
 }
+
+// A4: an open-ended "Sonstige" (an Elternzeit, say) cascades over a bounded
+// window: today's plans leave, and the write neither scans nor locks years.
+func TestAbsenceCascade_OpenEndedAbsenceCascadesOverABoundedWindow(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	tomorrow := calendar.NewDate(2026, time.August, 25)
+	shift := e.createShift(t, e.subject.ID, tomorrow, "08:00", "12:00", nil)
+
+	var absenceID int64
+	e.inTx(t, func(ctx context.Context) error {
+		created, err := e.absences.SickReports.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
+			AbsenceType: workforce.AbsenceTypeOther, DateStart: tomorrow.String(), DateEnd: "9999-12-31",
+		})
+		if err == nil {
+			absenceID = created.ID
+		}
+		return err
+	})
+
+	assertAbsenceCancelled(t, e.reloadShift(t, shift.ID), absenceID, "first day of the open-ended absence")
+}

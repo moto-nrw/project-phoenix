@@ -47,7 +47,7 @@ type SickReportAbsences interface {
 // the staff row can close. staffID names the
 // subject of the absence. Malformed dates, unknown absences and ownership
 // mismatches add nothing: the write itself reports them.
-func (s *sickCascade) LockSickReportWrite(ctx context.Context, staffID, absenceID int64, dateStart, dateEnd string) error {
+func (s *sickCascade) LockSickReportWrite(ctx context.Context, staffID, absenceID int64, absenceType, dateStart, dateEnd string) error {
 	if s.absences == nil {
 		return errors.New("sick report lock: absence capability is not configured")
 	}
@@ -55,7 +55,7 @@ func (s *sickCascade) LockSickReportWrite(ctx context.Context, staffID, absenceI
 	if err != nil || subject <= 0 {
 		return err
 	}
-	days, staffIDs, err := s.lockSickReportScope(ctx, subject, absenceID, dateStart, dateEnd)
+	days, staffIDs, err := s.lockSickReportScope(ctx, subject, absenceID, absenceType, dateStart, dateEnd)
 	if err != nil {
 		return err
 	}
@@ -104,13 +104,13 @@ var errSickReportStaffScopeChanged = errors.New("sick report lock: cover owners 
 // the new owner may sort before a gate already acquired. The absence gate stays
 // held outside the savepoint; no recurrence/day lock or absence write happens
 // until the staff set is stable. Allow three restarts, like transaction retries.
-func (s *sickCascade) lockSickReportScope(ctx context.Context, subject, absenceID int64, dateStart, dateEnd string) (map[calendar.Date]bool, []int64, error) {
+func (s *sickCascade) lockSickReportScope(ctx context.Context, subject, absenceID int64, absenceType, dateStart, dateEnd string) (map[calendar.Date]bool, []int64, error) {
 	for attempt := 0; attempt < 4; attempt++ {
 		var days map[calendar.Date]bool
 		var staffIDs []int64
 		err := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
 			var err error
-			days, staffIDs, err = s.lockAndRevalidateSickReportScope(ctx, subject, absenceID, dateStart, dateEnd)
+			days, staffIDs, err = s.lockAndRevalidateSickReportScope(ctx, subject, absenceID, absenceType, dateStart, dateEnd)
 			return err
 		})
 		if err == nil {
@@ -123,8 +123,8 @@ func (s *sickCascade) lockSickReportScope(ctx context.Context, subject, absenceI
 	return nil, nil, errSickReportStaffScopeChanged
 }
 
-func (s *sickCascade) lockAndRevalidateSickReportScope(ctx context.Context, subject, absenceID int64, dateStart, dateEnd string) (map[calendar.Date]bool, []int64, error) {
-	days, staffIDs, err := s.sickReportWriteScope(ctx, subject, absenceID, dateStart, dateEnd)
+func (s *sickCascade) lockAndRevalidateSickReportScope(ctx context.Context, subject, absenceID int64, absenceType, dateStart, dateEnd string) (map[calendar.Date]bool, []int64, error) {
+	days, staffIDs, err := s.sickReportWriteScope(ctx, subject, absenceID, absenceType, dateStart, dateEnd)
 	if err != nil || len(staffIDs) == 0 {
 		return days, staffIDs, err
 	}
@@ -136,7 +136,7 @@ func (s *sickCascade) lockAndRevalidateSickReportScope(ctx context.Context, subj
 		held[id] = true
 	}
 	locked := staffIDs
-	days, staffIDs, err = s.sickReportWriteScope(ctx, subject, absenceID, dateStart, dateEnd)
+	days, staffIDs, err = s.sickReportWriteScope(ctx, subject, absenceID, absenceType, dateStart, dateEnd)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -150,7 +150,7 @@ func (s *sickCascade) lockAndRevalidateSickReportScope(ctx context.Context, subj
 
 // sickReportWriteScope reads, under the subject's absence gate, the days
 // and the staff-shift gates one write of the subject may need.
-func (s *sickCascade) sickReportWriteScope(ctx context.Context, subject, absenceID int64, dateStart, dateEnd string) (map[calendar.Date]bool, []int64, error) {
+func (s *sickCascade) sickReportWriteScope(ctx context.Context, subject, absenceID int64, absenceType, dateStart, dateEnd string) (map[calendar.Date]bool, []int64, error) {
 	days := make(map[calendar.Date]bool)
 	var reportIDs []int64
 	var stored workforce.StaffAbsence
@@ -167,20 +167,23 @@ func (s *sickCascade) sickReportWriteScope(ctx context.Context, subject, absence
 			dateStart, dateEnd = cmp.Or(dateStart, stored.DateStart), cmp.Or(dateEnd, stored.DateEnd)
 		}
 	}
-	// Workforce validates sick ranges before writing. Leave invalid or oversized
-	// ranges to that validation without expanding or locking them here. Other
-	// absence types may legitimately span longer; their cascade takes each
-	// day lock itself, ascending, as it writes.
-	if !addDateRange(days, dateStart, dateEnd) {
+	// Workforce validates the ranges before writing. Leave invalid ranges to
+	// that validation without expanding or locking them here. A long range
+	// locks the days its cascade may write (cascadeWindow).
+	// The request names its type on a create; an edit keeps the stored one.
+	// Only a sick report must fit the cap, so an oversized sick range locks
+	// nothing and reaches validation at once.
+	today := s.todayDate()
+	if !addDateRange(days, dateStart, dateEnd, today, cmp.Or(absenceType, stored.AbsenceType) != workforce.AbsenceTypeSick) {
 		return days, nil, nil
 	}
-	addDateRange(days, stored.DateStart, stored.DateEnd)
+	addDateRange(days, stored.DateStart, stored.DateEnd, today, stored.AbsenceType != workforce.AbsenceTypeSick)
 	overlapping, err := s.overlappingSickReports(ctx, subject, days)
 	if err != nil {
 		return nil, nil, err
 	}
 	for _, report := range overlapping {
-		addDateRange(days, report.DateStart, report.DateEnd)
+		addDateRange(days, report.DateStart, report.DateEnd, today, report.AbsenceType != workforce.AbsenceTypeSick)
 		reportIDs = append(reportIDs, report.ID)
 	}
 	staffIDs := []int64{subject}
@@ -240,7 +243,7 @@ func (s *sickCascade) overlappingSickReports(ctx context.Context, subject int64,
 	}
 	sorted := sortedDateSet(days)
 	reports, err := s.absences.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{
-		StaffID:     subject,
+		StaffID: subject, Statuses: workforce.RangeBlockingAbsenceStatuses(),
 		OverlapFrom: sorted[0].String(), OverlapTo: sorted[len(sorted)-1].String(),
 	})
 	if err != nil {
@@ -265,13 +268,30 @@ func (s *sickCascade) addStampedBlockDays(ctx context.Context, days map[calendar
 	return nil
 }
 
-// addDateRange adds every day of a bounded [start, end]. Invalid or oversized
-// ranges add none and return false, leaving validation to Workforce.
-func addDateRange(days map[calendar.Date]bool, start, end string) bool {
+// addDateRange adds every day of [start, end]. A range longer than
+// workforce.MaxSickAbsenceRangeDays is invalid for a sick report and adds
+// none. For every other type (long allowed) it adds the future days its
+// cascade may write, at most that many (cascadeWindow): the cascade writes
+// no past day of a long range, and the bound keeps an open-ended absence
+// from locking years. Invalid ranges add none and return false, leaving
+// validation to Workforce.
+func addDateRange(days map[calendar.Date]bool, start, end string, today calendar.Date, long bool) bool {
 	from, errFrom := calendar.ParseDate(start)
 	to, errTo := calendar.ParseDate(end)
-	if errFrom != nil || errTo != nil || to.Before(from) || from.DaysUntil(to)+1 > workforce.MaxSickAbsenceRangeDays {
+	if errFrom != nil || errTo != nil || to.Before(from) {
 		return false
+	}
+	if from.DaysUntil(to)+1 > workforce.MaxSickAbsenceRangeDays {
+		if !long {
+			return false
+		}
+		if from.Before(today) {
+			from = today
+		}
+		_, to = cascadeWindow(from, to, today)
+		if to.Before(from) {
+			return true
+		}
 	}
 	for day := from; ; day = day.AddDays(1) {
 		days[day] = true

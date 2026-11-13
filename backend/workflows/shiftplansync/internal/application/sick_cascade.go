@@ -104,7 +104,7 @@ type SickCascade interface {
 	ClearSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
 	ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error
 	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
-	LockSickReportWrite(ctx context.Context, staffID, absenceID int64, dateStart, dateEnd string) error
+	LockSickReportWrite(ctx context.Context, staffID, absenceID int64, absenceType, dateStart, dateEnd string) error
 }
 
 // NewSickCascade wires the #1843 cascade. Compose checks the dependencies and
@@ -154,7 +154,7 @@ func (s *sickCascade) MarkSickForRange(ctx context.Context, in workforce.SickCas
 	if err != nil {
 		return err
 	}
-	days := sickCascadeDays(report)
+	days := sickCascadeDays(report, s.todayDate())
 	if len(days) == 0 {
 		return nil
 	}
@@ -341,7 +341,7 @@ func (s *sickCascade) ReconcileSickRange(ctx context.Context, beforeInput, after
 	if before.subjectStaffID != after.subjectStaffID || before.absenceID != after.absenceID {
 		return fmt.Errorf("sick reconcile: before and after must identify the same absence")
 	}
-	removed, added := sickCascadeDayDifference(before, after)
+	removed, added := sickCascadeDayDifference(before, after, s.todayDate())
 	if len(removed) == 0 && len(added) == 0 {
 		return nil
 	}
@@ -703,18 +703,20 @@ func shiftDate(shift workforce.StaffShift) (calendar.Date, error) {
 	return date, nil
 }
 
-// sickCascadeDays expands the absence range into the full sick days, skipping
-// half boundary days — a half sick day never cascades (#1843 product rule).
-// The Timetable owner's SickReport decides each day, the rule the
-// materializer applies to blocks planned after the report (#6292).
-func sickCascadeDays(report sickReport) []calendar.Date {
+// sickCascadeDays expands the absence range into the full days, skipping
+// half boundary days — a half day never cascades (#1843 product rule). The
+// Timetable owner's SickReport decides each day, the rule the materializer
+// applies to blocks planned after the absence (#6292). Only the days of
+// cascadeWindow are expanded.
+func sickCascadeDays(report sickReport, today calendar.Date) []calendar.Date {
 	plan := timetable.SickReport{
 		AbsenceID: report.absenceID, StaffID: report.subjectStaffID, Sick: report.sick(),
 		DateStart: report.dateStart, DateEnd: report.dateEnd,
 		SkipStartDay: report.skipStartDay, SkipEndDay: report.skipEndDay,
 	}
+	from, to := cascadeWindow(report.dateStart, report.dateEnd, today)
 	var days []calendar.Date
-	for d := report.dateStart; !d.After(report.dateEnd); d = d.AddDays(1) {
+	for d := from; !d.After(to); d = d.AddDays(1) {
 		if plan.CoversFullDay(d) {
 			days = append(days, d)
 		}
@@ -722,9 +724,30 @@ func sickCascadeDays(report sickReport) []calendar.Date {
 	return days
 }
 
-func sickCascadeDayDifference(before, after sickReport) (removed, added map[calendar.Date]bool) {
-	beforeDays := dateSet(sickCascadeDays(before))
-	afterDays := dateSet(sickCascadeDays(after))
+// cascadeWindow bounds the days one cascade expands. A sick report spans at
+// most workforce.MaxSickAbsenceRangeDays and is never cut. Since #6847 every
+// absence type cascades, and an Elternzeit or an open-ended "Sonstige" can
+// run for years: the cascade then covers at most that many days from today
+// (or from a later start) and as many before it. Rows beyond the window do
+// not exist yet; the materializers stamp them when they plan them.
+func cascadeWindow(start, end, today calendar.Date) (calendar.Date, calendar.Date) {
+	span := workforce.MaxSickAbsenceRangeDays
+	if floor := today.AddDays(-span); start.Before(floor) {
+		start = floor
+	}
+	anchor := start
+	if anchor.Before(today) {
+		anchor = today
+	}
+	if ceiling := anchor.AddDays(span - 1); end.After(ceiling) {
+		end = ceiling
+	}
+	return start, end
+}
+
+func sickCascadeDayDifference(before, after sickReport, today calendar.Date) (removed, added map[calendar.Date]bool) {
+	beforeDays := dateSet(sickCascadeDays(before, today))
+	afterDays := dateSet(sickCascadeDays(after, today))
 	removed = make(map[calendar.Date]bool)
 	added = make(map[calendar.Date]bool)
 	for day := range beforeDays {

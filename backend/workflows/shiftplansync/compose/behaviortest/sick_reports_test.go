@@ -99,7 +99,7 @@ func (c *sickReportCalls) ReassignSickStamps(context.Context, int64, int64) erro
 	return c.cascadeErr
 }
 
-func (c *sickReportCalls) LockSickReportWrite(_ context.Context, staffID, absenceID int64, dateStart, dateEnd string) error {
+func (c *sickReportCalls) LockSickReportWrite(_ context.Context, staffID, absenceID int64, _, dateStart, dateEnd string) error {
 	c.calls = append(c.calls, "lock", fmt.Sprint(staffID, "/", absenceID, " ", dateStart, "..", dateEnd))
 	return c.lockErr
 }
