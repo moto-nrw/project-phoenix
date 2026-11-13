@@ -1,6 +1,7 @@
 package timetracking
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -320,7 +321,13 @@ func TestUpdateSchedule_ArchivedTemplateOnlyKeepsExistingAssignees(t *testing.T)
 	_, err = catalog.ArchiveWorkTimeModel(testpkg.Ctx(t), model.ID)
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusBadRequest, assign(newcomer.ID).StatusCode, "an archived template is not assigned anew")
+	refused := assign(newcomer.ID)
+	assert.Equal(t, http.StatusConflict, refused.StatusCode, "an archived template is not assigned anew")
+	var problem struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.NewDecoder(refused.Body).Decode(&problem))
+	assert.Equal(t, "workforce.work_time_model_archived", problem.Code, "the refusal names its own code")
 	rows, err := capability.CurrentStaffSchedule(testpkg.Ctx(t), newcomer.ID)
 	require.NoError(t, err)
 	assert.Empty(t, rows, "the refused assignment writes no schedule")

@@ -486,6 +486,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "work_session_overlap"
+    },
+    {
+      "code": "workforce.work_time_model_archived",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.work_time_model_archived"
     }
   ]
 }

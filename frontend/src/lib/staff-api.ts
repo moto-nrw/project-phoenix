@@ -995,7 +995,7 @@ class WorkTimeModelService {
     });
     return readWorkTimeModel(
       response,
-      "Vorlage konnte nicht archiviert werden",
+      "Vorlage konnte nicht aus der Auswahl genommen werden",
     );
   }
 

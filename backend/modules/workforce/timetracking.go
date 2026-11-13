@@ -56,6 +56,9 @@ var (
 	ErrTimeExportInvalid       = errors.New("time export request is invalid")
 	ErrPayrollConfigIncomplete = errors.New("payroll configuration is incomplete")
 	ErrScheduleValidation      = errors.New("schedule validation failed")
+	// ErrWorkTimeModelArchived refuses a new assignment of a template the
+	// school no longer offers (#6891).
+	ErrWorkTimeModelArchived = errors.New("work time model is archived")
 )
 
 // WorkSessionWire serializes a work session for the endpoints that return

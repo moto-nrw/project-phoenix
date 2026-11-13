@@ -46,6 +46,7 @@ import {
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
 import { useInvalidateMatching, useSWRAuth } from "~/lib/swr";
+import { workTimeModelKeys } from "~/lib/swr/staff-keys";
 import { formatDuration } from "~/lib/time-tracking-helpers";
 
 import { isStaleAfterModelSave } from "./arbeitszeit-hours";
@@ -469,7 +470,7 @@ function ArbeitszeitmodellEditor({
   const [saving, setSaving] = useState(false);
 
   const { data: templates, mutate: reloadTemplates } = useSWRAuth(
-    "work-time-models",
+    workTimeModelKeys.picker(),
     () => workTimeModelService.list(),
   );
   // Eine nebenan auf der Katalogseite angelegte Vorlage steht ohne Neuladen

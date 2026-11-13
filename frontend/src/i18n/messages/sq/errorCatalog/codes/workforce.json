@@ -75,5 +75,6 @@
   "payroll_wage_type_in_use": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "payroll_wage_type_name_taken": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "qualification_type_name_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "qualification_type_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+  "qualification_type_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "work_time_model_archived": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }
