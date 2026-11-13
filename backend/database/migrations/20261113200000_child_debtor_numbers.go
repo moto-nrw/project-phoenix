@@ -43,7 +43,8 @@ func init() {
 //
 // The trail names a number only by its ID. Both go with their Träger. The
 // erasure of a retired demo school deletes the numbers of its families with
-// the families (platform.erase_demo_visitor_families).
+// the families (platform.erase_demo_visitor_families, a repeatable
+// definition since this migration).
 const childDebtorNumbersUpSQL = `
 CREATE TABLE parent_billing.child_debtor_numbers (
 	id BIGSERIAL PRIMARY KEY,
@@ -105,93 +106,6 @@ GRANT USAGE ON SEQUENCE parent_billing.child_debtor_numbers_id_seq, parent_billi
 GRANT ALL ON parent_billing.child_debtor_numbers, parent_billing.child_debtor_number_events TO phoenix_admin;
 `
 
-// demoVisitorChildrenErasureSQL is platform.erase_demo_visitor_families of
-// 1.15.951 that also erases the numbers of the children of the families it
-// erases (#7007): the children of a contract of the retired schools and of a
-// family whose holiday registration goes with them, unless the family keeps
-// a registration or a contract elsewhere. The trail of a number names it
-// only by its ID and goes with it.
-const demoVisitorChildrenErasureSQL = `
-CREATE OR REPLACE FUNCTION platform.erase_demo_visitor_families(hidden_schools BIGINT[])
-RETURNS VOID
-LANGUAGE plpgsql
-VOLATILE
-SET search_path = pg_catalog
-AS $$
-BEGIN
-	PERFORM 1 FROM enrollment.holiday_registrations AS registration
-	WHERE EXISTS (SELECT 1 FROM enrollment.holiday_registration_children AS child
-			WHERE child.organization_id = registration.organization_id
-				AND child.holiday_registration_id = registration.id
-				AND child.home_school_id = ANY (hidden_schools))
-	ORDER BY registration.organization_id, registration.id
-	FOR UPDATE;
-	WITH going AS (
-		SELECT DISTINCT registration.organization_id, LOWER(BTRIM(registration.guardian_email)) AS family_email
-		FROM enrollment.holiday_registrations AS registration
-		WHERE EXISTS (SELECT 1 FROM enrollment.holiday_registration_children AS child
-				WHERE child.organization_id = registration.organization_id
-					AND child.holiday_registration_id = registration.id
-					AND child.home_school_id = ANY (hidden_schools))
-	),
-	going_children AS (
-		SELECT organization_id, family_email FROM going
-		UNION
-		SELECT DISTINCT party.organization_id, LOWER(BTRIM(party.email)) AS family_email
-		FROM care_contract.contract_parties AS party
-		JOIN care_contract.contracts AS contract
-			ON contract.organization_id = party.organization_id AND contract.id = party.contract_id
-		WHERE contract.school_id = ANY (hidden_schools) AND BTRIM(party.email) <> ''
-	),
-	child AS (
-		DELETE FROM parent_billing.child_debtor_numbers AS child
-		USING going_children AS going
-		WHERE going.organization_id = child.organization_id AND going.family_email = child.family_email
-			AND NOT EXISTS (SELECT 1 FROM enrollment.holiday_registrations AS kept
-				WHERE kept.organization_id = child.organization_id
-					AND LOWER(BTRIM(kept.guardian_email)) = child.family_email
-					AND NOT EXISTS (SELECT 1 FROM enrollment.holiday_registration_children AS kept_child
-						WHERE kept_child.organization_id = kept.organization_id
-							AND kept_child.holiday_registration_id = kept.id
-							AND kept_child.home_school_id = ANY (hidden_schools)))
-			AND NOT EXISTS (SELECT 1 FROM care_contract.contract_parties AS kept_party
-				JOIN care_contract.contracts AS kept_contract
-					ON kept_contract.organization_id = kept_party.organization_id AND kept_contract.id = kept_party.contract_id
-				WHERE kept_party.organization_id = child.organization_id
-					AND LOWER(BTRIM(kept_party.email)) = child.family_email
-					AND NOT (kept_contract.school_id = ANY (hidden_schools)))
-		RETURNING child.organization_id, child.id
-	),
-	child_trail AS (
-		DELETE FROM parent_billing.child_debtor_number_events AS event
-		USING child
-		WHERE event.organization_id = child.organization_id AND event.child_debtor_number_id = child.id
-	),
-	family AS (
-		DELETE FROM parent_billing.family_billing AS family
-		WHERE (EXISTS (SELECT 1 FROM care_contract.contracts AS contract
-					WHERE contract.organization_id = family.organization_id
-						AND contract.id = family.care_contract_id
-						AND contract.school_id = ANY (hidden_schools))
-				OR (family.care_contract_id IS NULL AND EXISTS (SELECT 1 FROM going
-					WHERE going.organization_id = family.organization_id AND going.family_email = family.family_email)))
-			AND NOT EXISTS (SELECT 1 FROM enrollment.holiday_registrations AS kept
-				WHERE kept.organization_id = family.organization_id
-					AND LOWER(BTRIM(kept.guardian_email)) = family.family_email
-					AND NOT EXISTS (SELECT 1 FROM enrollment.holiday_registration_children AS child
-						WHERE child.organization_id = kept.organization_id
-							AND child.holiday_registration_id = kept.id
-							AND child.home_school_id = ANY (hidden_schools)))
-		RETURNING family.organization_id, family.id
-	)
-	DELETE FROM parent_billing.family_billing_events AS event
-	USING family
-	WHERE event.organization_id = family.organization_id AND event.family_billing_id = family.id;
-END;
-$$;
-REVOKE ALL ON FUNCTION platform.erase_demo_visitor_families(BIGINT[]) FROM PUBLIC;
-`
-
 const childDebtorNumbersDownSQL = `
 DROP TABLE IF EXISTS parent_billing.child_debtor_number_events;
 DROP TABLE IF EXISTS parent_billing.child_debtor_numbers;
@@ -201,18 +115,13 @@ func childDebtorNumbersUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, childDebtorNumbersUpSQL); err != nil {
 		return fmt.Errorf("create the debtor numbers of the children: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, demoVisitorChildrenErasureSQL); err != nil {
-		return fmt.Errorf("erase the children's debtor numbers of retired demo schools: %w", err)
-	}
 	return nil
 }
 
-// childDebtorNumbersDown restores the erasure of 1.15.951 first, which no
-// longer reads the tables, and drops them.
+// childDebtorNumbersDown drops the tables. The erasure of the demo families
+// (repeatable_platform_erase_demo_visitor_families.go) names them in
+// PL/pgSQL, which resolves a table only when it runs.
 func childDebtorNumbersDown(ctx context.Context, db *bun.DB) error {
-	if err := restoreDemoVisitorFamiliesErasure(ctx, db); err != nil {
-		return err
-	}
 	if _, err := db.ExecContext(ctx, childDebtorNumbersDownSQL); err != nil {
 		return fmt.Errorf("drop the debtor numbers of the children: %w", err)
 	}
