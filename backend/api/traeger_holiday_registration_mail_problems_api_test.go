@@ -77,6 +77,9 @@ func TestHolidayRegistrationMailProblemsStayWithTheTraegerAndAreFlat(t *testing.
 	other := newTraegerOffice(t, f.db, f.traeger, "Mailstand Fremd", identityaccess.TraegerRoleAdministration)
 	rec := traegerJSON(t, f.traeger, other.token, http.MethodGet, f.path("/mail-problems"), nil)
 	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	readOnly := newTraegerOffice(t, f.db, f.traeger, "Mailstand Lesend", identityaccess.TraegerRoleReadOnly)
+	rec = traegerJSON(t, f.traeger, readOnly.token, http.MethodGet, f.path("/mail-problems"), nil)
+	assert.Equal(t, http.StatusForbidden, rec.Code, "the read needs the right to manage registrations")
 
 	read := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
