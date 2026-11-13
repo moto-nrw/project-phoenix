@@ -1,22 +1,40 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { Search } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { Button } from "~/components/ui/button";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
   SchoolSearchSlotContext,
   type SchoolSearchPlacement,
 } from "./school-search-slot";
 
-// The dialog with its result rendering loads apart from the page: the header
-// fetches it once the browser is idle, so the first open shows it at once.
-const loadSchoolSearch = () => import("./school-search");
-const SchoolSearchDialog = dynamic(
-  () => loadSchoolSearch().then((mod) => mod.SchoolSearchDialog),
-  { ssr: false },
-);
+type SchoolSearchDialogComponent =
+  typeof import("./school-search").SchoolSearchDialog;
+
+// The dialog with its result rendering loads apart from the page, two seconds
+// after the button mounts or on the first open. It renders only once its code
+// is here: a lazy component (next/dynamic) suspends on its first render even
+// with the code cached, and React then holds the reveal for 300 ms.
+const loadedDialog: { component: SchoolSearchDialogComponent | null } = {
+  component: null,
+};
+let dialogLoad: Promise<SchoolSearchDialogComponent> | null = null;
+
+function loadSchoolSearchDialog(): Promise<SchoolSearchDialogComponent> {
+  dialogLoad ??= import("./school-search").then(
+    (mod) => (loadedDialog.component = mod.SchoolSearchDialog),
+    (error: unknown) => {
+      // The next open tries again.
+      dialogLoad = null;
+      throw error;
+    },
+  );
+  return dialogLoad;
+}
+
+const PRELOAD_DELAY_MS = 2000;
 
 const subscribeNothing = () => () => undefined;
 
@@ -48,10 +66,12 @@ interface SchoolSearchTriggerProps {
  * The search button of the staff portal. On a wide screen it reads like a
  * search field with its shortcut; on a phone and tablet it is a magnifier.
  */
-export function SchoolSearchTrigger({
+function SchoolSearchTrigger({
   placement,
 }: Readonly<SchoolSearchTriggerProps>) {
   const [isOpen, setIsOpen] = useState(false);
+  const [hasDialog, setHasDialog] = useState(loadedDialog.component !== null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const shortcut = useShortcutLabel();
   // The shortcut listener reads the open state without re-subscribing.
   const openRef = useRef(isOpen);
@@ -72,12 +92,34 @@ export function SchoolSearchTrigger({
       setIsOpen((current) => !current);
     };
     globalThis.addEventListener("keydown", handleKeyDown);
-    const preload = globalThis.setTimeout(() => void loadSchoolSearch(), 2000);
+    return () => globalThis.removeEventListener("keydown", handleKeyDown);
+  }, [placement]);
+
+  useEffect(() => {
+    if (hasDialog) return;
+    let live = true;
+    const load = () =>
+      loadSchoolSearchDialog().then(
+        () => live && setHasDialog(true),
+        () => {
+          // A failed preload stays silent; an open the person asked for says so.
+          if (live && openRef.current) {
+            setIsOpen(false);
+            setLoadFailed(true);
+          }
+        },
+      );
+    if (isOpen) void load();
+    const preload = isOpen
+      ? undefined
+      : globalThis.setTimeout(() => void load(), PRELOAD_DELAY_MS);
     return () => {
-      globalThis.removeEventListener("keydown", handleKeyDown);
+      live = false;
       globalThis.clearTimeout(preload);
     };
-  }, [placement]);
+  }, [hasDialog, isOpen]);
+
+  const Dialog = hasDialog ? loadedDialog.component : null;
 
   return (
     <>
@@ -110,11 +152,26 @@ export function SchoolSearchTrigger({
       >
         <Search aria-hidden="true" className="h-[18px] w-[18px]" />
       </Button>
-      {isOpen ? (
-        <SchoolSearchDialog isOpen onClose={() => setIsOpen(false)} />
+      {isOpen && Dialog ? (
+        <Dialog isOpen onClose={() => setIsOpen(false)} />
+      ) : null}
+      {loadFailed ? (
+        <SearchLoadFailed onShown={() => setLoadFailed(false)} />
       ) : null}
     </>
   );
+}
+
+/** Says once that the search could not be opened (no network, new release). */
+function SearchLoadFailed({ onShown }: Readonly<{ onShown: () => void }>) {
+  const { showMessage } = useApiErrorDisplay();
+  useEffect(() => {
+    showMessage(
+      "Die Suche konnte nicht geöffnet werden. Bitte versuchen Sie es noch einmal.",
+    );
+    onShown();
+  }, [showMessage, onShown]);
+  return null;
 }
 
 function renderSchoolSearchTrigger(placement: SchoolSearchPlacement) {
