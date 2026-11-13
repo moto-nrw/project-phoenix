@@ -24,6 +24,7 @@ const CodeStudentsCareExitNoteTooLong = "students.care_exit_note_too_long"
 const CodeStudentsCareExitPreviewChanged = "students.care_exit_preview_changed"
 const CodeStudentsCareExitTooManyStudents = "students.care_exit_too_many_students"
 const CodeStudentsCareOfferingsDisabled = "students.care_offerings_disabled"
+const CodeStudentsCareRequestPlanChanged = "students.care_request_plan_changed"
 const CodeStudentsCareResumeAlumnus = "students.care_resume_alumnus"
 const CodeStudentsCareResumeMissing = "students.care_resume_missing"
 const CodeStudentsCareResumeNotChecked = "students.care_resume_not_checked"
@@ -120,6 +121,7 @@ var errorCodeClassesStudents = []errorCodeClass{
 	{CodeStudentsCareExitPreviewChanged, "business_rejection"},
 	{CodeStudentsCareExitTooManyStudents, "input"},
 	{CodeStudentsCareOfferingsDisabled, "permission"},
+	{CodeStudentsCareRequestPlanChanged, "business_rejection"},
 	{CodeStudentsCareResumeAlumnus, "business_rejection"},
 	{CodeStudentsCareResumeMissing, "business_rejection"},
 	{CodeStudentsCareResumeNotChecked, "input"},

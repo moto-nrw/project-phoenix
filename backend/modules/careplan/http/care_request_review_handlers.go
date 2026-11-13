@@ -36,6 +36,7 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	input.ReviewedBy = int64(claims.ID)
 	input.ReasonRequired = rs.staffReasonRequired(r)
+	input.WeeklyImpact = rs.CareRequestReviews
 	item, err := rs.CareRequestService.Decide(r.Context(), input)
 	if err != nil {
 		renderError(w, r, careRequestDecisionErrorRenderer(err))
@@ -75,6 +76,7 @@ var careRequestDecisionErrorRenderer = common.RulesRenderer(parentRequestRules(
 	common.ErrorRule{Target: carerequests.ErrPickupChangeAlreadyCompleted, Render: conflictWithCode(common.CodeStudentsPickupChangeCompleted)},
 	common.ErrorRule{Target: carerequests.ErrPickupChangeExpired, Render: conflictWithCode(common.CodeStudentsPickupChangeExpired)},
 	common.ErrorRule{Target: carerequests.ErrPickupChangeImpactChanged, Render: conflictWithCode(common.CodeStudentsPickupChangeImpactChanged)},
+	common.ErrorRule{Target: carerequests.ErrWeeklyPlanChanged, Render: conflictWithCode(common.CodeStudentsCareRequestPlanChanged)},
 	common.ErrorRule{Target: carerequests.ErrCareDayManagedByBooking, Render: conflictWithCode(common.CodeStudentsCareDayManagedByBooking)},
 	common.ErrorRule{Match: isInvalidCareRequestDecision, Render: common.ErrorInvalidRequest},
 ), careRequestDecisionFallback)

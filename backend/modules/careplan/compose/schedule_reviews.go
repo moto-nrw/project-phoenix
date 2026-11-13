@@ -35,8 +35,8 @@ type ScheduleReviewDependencies struct {
 }
 
 func NewScheduleReviews(db *bun.DB, observe func(Observation), deps ScheduleReviewDependencies) (careplan.CareScheduleReviewQuery, error) {
-	if db == nil || observe == nil || deps.People == nil || deps.Bookings == nil || deps.Classes == nil || deps.Scope == nil || deps.BookingsAuthoritative == nil || deps.Today == nil || deps.Blocks != nil && deps.Fingerprint == nil {
-		return nil, errors.New("care schedule reviews: database, observer, people, bookings, classes, scope, booking policy, clock, and impact fingerprint for block previews are required")
+	if db == nil || observe == nil || deps.People == nil || deps.Bookings == nil || deps.Classes == nil || deps.Scope == nil || deps.BookingsAuthoritative == nil || deps.Today == nil || deps.Fingerprint == nil {
+		return nil, errors.New("care schedule reviews: database, observer, people, bookings, classes, scope, booking policy, clock, and impact fingerprint are required")
 	}
 	requests, err := NewCareScheduleRequestQueries(db, deps.StudentDirectory, observe)
 	if err != nil {
