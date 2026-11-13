@@ -48,6 +48,7 @@ func TestQuoteNULDelimiters(t *testing.T) {
 		"x;prefix,\x00value\x00,suffix":      "x;prefix,\x00value\x00,suffix",
 		"\"a\x00\x00b\";\x00c\x00":           "\"a\x00\x00b\";\"c\"",
 		"\"a\"\"\x00\";b":                    "\"a\"\"\x00\";b",
+		"x;\"a\"b;\x00value\x00;suffix\"\n":  "x;\"a\"b;\x00value\x00;suffix\"\n",
 	} {
 		if got := string(QuoteNULDelimiters([]byte(in), ';')); got != want {
 			t.Errorf("QuoteNULDelimiters(%q) = %q, want %q", in, got, want)

@@ -1,6 +1,7 @@
 package application
 
 import (
+	"bytes"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -45,6 +46,7 @@ func readImportTable(content []byte, delimiter string) (importTable, error) {
 	// The delimiter comes first: a NUL is a quote only at the edge of a
 	// field of that delimiter (#7009). The delimiters are ASCII, so the
 	// bytes tell them in UTF-8 and Windows-1252 alike.
+	content = bytes.TrimPrefix(content, []byte("\xEF\xBB\xBF"))
 	comma, err := textnorm.CSVDelimiter(string(content), delimiter)
 	if err != nil {
 		return importTable{}, parentbilling.ErrImportFileInvalid

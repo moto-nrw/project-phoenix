@@ -26,12 +26,14 @@ func TestReadImportTableReadsEncodingsAndDelimiters(t *testing.T) {
 		encoding, delim   string
 		holder, delimiter string
 	}{
-		"utf-8 semicolon":        {content: header + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller"},
-		"utf-8 with bom":         {content: "\xEF\xBB\xBF" + header + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller"},
-		"windows-1252":           {content: windows, encoding: encodingWindows1252, delim: ";", holder: "Jürgen Müller"},
-		"comma with quotes":      {content: comma, encoding: encodingUTF8, delim: ",", holder: "Müller, Jürgen"},
-		"semicolon chosen":       {content: header + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller", delimiter: ";"},
-		"crlf and an empty line": {content: "Mandatsreferenz;Mandatsdatum;IBAN;Kontoinhaber;E-Mail\r\n\r\n" + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller"},
+		"utf-8 semicolon":              {content: header + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller"},
+		"utf-8 with bom":               {content: "\xEF\xBB\xBF" + header + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller"},
+		"windows-1252":                 {content: windows, encoding: encodingWindows1252, delim: ";", holder: "Jürgen Müller"},
+		"comma with quotes":            {content: comma, encoding: encodingUTF8, delim: ",", holder: "Müller, Jürgen"},
+		"semicolon chosen":             {content: header + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller", delimiter: ";"},
+		"bom and an empty line, comma": {content: "\xEF\xBB\xBF\r\nMandatsreferenz,Mandatsdatum,IBAN,Kontoinhaber,E-Mail\n" + strings.ReplaceAll(row, ";", ","), encoding: encodingUTF8, delim: ",", holder: "Jürgen Müller"},
+		"bom and an empty line, tab":   {content: "\xEF\xBB\xBF\n" + strings.ReplaceAll(header+row, ";", "\t"), encoding: encodingUTF8, delim: "\t", holder: "Jürgen Müller"},
+		"crlf and an empty line":       {content: "Mandatsreferenz;Mandatsdatum;IBAN;Kontoinhaber;E-Mail\r\n\r\n" + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller"},
 	} {
 		table, err := readImportTable([]byte(test.content), test.delimiter)
 		require.NoError(t, err, name)
@@ -112,6 +114,7 @@ func TestReadImportTableRefusesANULOutsideTheRoleOfAQuote(t *testing.T) {
 		"after the start":                     "Mandatsreferenz;IBAN\nSJR-1;D\x00E\x00\n",
 		"inside a field of another delimiter": "Mandatsreferenz;Notiz\nSJR-1;a,\x00b\x00,c\n",
 		"inside a quoted field":               "Mandatsreferenz;Notiz\nSJR-1;\"a\x00\x00b\"\n",
+		"after a literal quote":               "Mandatsreferenz;Notiz\nx;\"a\"b;\x00value\x00;suffix\"\n",
 	} {
 		_, err := readImportTable([]byte(content), "")
 		require.ErrorIs(t, err, parentbilling.ErrImportFileInvalid, name)

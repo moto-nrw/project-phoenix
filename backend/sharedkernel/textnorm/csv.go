@@ -40,7 +40,8 @@ func DecodeCSVText(content []byte) (string, string, error) {
 // write \x00Name\x00 where a CSV has "Name". With the file's delimiter it
 // follows the fields: a NUL opens a field only as its first character and
 // closes it only before the delimiter, a line break or the end of the file;
-// a quote inside such a field is doubled. A NUL anywhere else, also inside
+// a quote inside such a field is doubled. An ordinary quoted field closes
+// as csv.Reader with LazyQuotes closes it. A NUL anywhere else, also inside
 // an ordinary quoted field, stays, so DecodeCSVText still refuses the file
 // as no text. A file without NUL, or with a NUL field that never closes, is
 // answered unchanged.
@@ -75,14 +76,16 @@ func QuoteNULDelimiters(content []byte, comma rune) []byte {
 			}
 			continue
 		case quoted:
+			// As csv.Reader with LazyQuotes: "" is a quote, a quote before
+			// the delimiter or a line break closes the field, any other
+			// quote is text.
 			out = append(out, b)
-			if b == '"' {
-				if i+1 < len(content) && content[i+1] == '"' {
-					out = append(out, '"')
-					i++
-				} else {
-					state = plain
-				}
+			switch {
+			case b == '"' && i+1 < len(content) && content[i+1] == '"':
+				out = append(out, '"')
+				i++
+			case b == '"' && ends(i+1):
+				state = plain
 			}
 			continue
 		}
