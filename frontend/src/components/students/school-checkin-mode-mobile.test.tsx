@@ -485,7 +485,7 @@ describe("SchoolCheckinModeMobile", () => {
       renderSelection({ allSelected: true });
       expect(
         screen.getByRole("button", { name: "Alle 8 auswählen" }),
-      ).toBeDisabled();
+      ).toHaveAttribute("aria-disabled", "true");
     });
   });
 });

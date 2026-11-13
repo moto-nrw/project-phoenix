@@ -184,7 +184,13 @@ export function CareRunStartModal({
       footer={
         blockedRunId ? (
           <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" variant="outline" size="md" onClick={onClose}>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              noTooltip="Abbrechen schließt nur das Fenster, ohne etwas zu starten."
+              onClick={onClose}
+            >
               Abbrechen
             </Button>
             <ButtonLink
@@ -193,6 +199,7 @@ export function CareRunStartModal({
               )}
               variant="primary"
               size="md"
+              tooltip="Schließt das Fenster und öffnet den offenen Lauf dieses Monats."
             >
               Lauf öffnen
             </ButtonLink>
@@ -253,6 +260,11 @@ export function CareRunStartModal({
                     type="button"
                     variant="link"
                     size="md"
+                    tooltip={
+                      allSelected
+                        ? "Nimmt bei allen Schulen den Haken weg."
+                        : "Setzt den Haken bei allen Schulen ohne offenen Lauf."
+                    }
                     onClick={() => setSelected(allSelected ? [] : free)}
                   >
                     {allSelected ? "Keine wählen" : "Alle wählen"}

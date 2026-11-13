@@ -72,6 +72,8 @@ export function exportMenuItems({
             ? EXPORT_FORMAT_LABELS[option.format]
             : EXPORT_ACTION_LABELS.print)),
     icon: optionIcon(option),
+    noDescription:
+      "Format oder Drucken unter „Herunterladen“ sagt schon, was passiert",
     disabled: unavailable || busyKey !== null,
     onClick: () => onSelect(option),
   }));

@@ -22,5 +22,6 @@
     "showAll": "Alle ansehen",
     "showAllLabel": "Alle Ferienanmeldungen ansehen",
     "more": "{count, plural, one {# weitere Anmeldung} other {# weitere Anmeldungen}}"
-  }
+  },
+  "toDocumentsTooltip": "Öffnet Ihre Dokumente mit Bestätigung und Rechnung."
 }

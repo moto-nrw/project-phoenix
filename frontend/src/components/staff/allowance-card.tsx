@@ -116,6 +116,7 @@ export function AllowanceCard({
                 size="compact"
                 onClick={onEdit}
                 aria-label={`Anspruch ändern: ${title}`}
+                tooltip={`Öffnet ein Formular, um den Anspruch für ${year} zu ändern.`}
               >
                 <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden />
                 Anspruch ändern

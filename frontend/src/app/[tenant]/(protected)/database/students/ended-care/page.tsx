@@ -189,6 +189,8 @@ export default function EndedCarePage() {
                 ? [
                     {
                       label: "Wieder aufnehmen",
+                      description:
+                        "Öffnet ein Fenster für den neuen Beginn der Betreuung.",
                       icon: <RotateCcw className="h-4 w-4" aria-hidden />,
                       onClick: () => setResumeTarget(entry),
                     },
@@ -196,6 +198,8 @@ export default function EndedCarePage() {
                 : []),
               {
                 label: "Endgültig löschen",
+                description:
+                  "Entfernt das Kind mit seinen Daten. moto fragt vorher nach.",
                 icon: <Trash2 className="h-4 w-4" aria-hidden />,
                 destructive: true,
                 onClick: () => setDeleteTarget(entry),
@@ -328,6 +332,7 @@ export default function EndedCarePage() {
                     variant="outline"
                     size="compact"
                     aria-label="Vorherige Seite"
+                    tooltip="Zeigt die vorherige Seite der Liste."
                     disabled={page <= 1}
                     onClick={() =>
                       setPage((current) => Math.max(1, current - 1))
@@ -341,6 +346,7 @@ export default function EndedCarePage() {
                     size="compact"
                     disabled={page >= totalPages}
                     aria-label="Nächste Seite"
+                    tooltip="Zeigt die nächste Seite der Liste."
                     onClick={() =>
                       setPage((current) => Math.min(totalPages, current + 1))
                     }

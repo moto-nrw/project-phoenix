@@ -472,14 +472,19 @@ describe("PhasesEditor", () => {
         const confirm = await screen.findByRole("button", {
           name: "Betreuung beenden",
         });
-        await waitFor(() => expect(confirm).toBeEnabled());
+        await waitFor(() => {
+          expect(confirm).toBeEnabled();
+          expect(confirm).not.toHaveAttribute("aria-disabled");
+        });
         fireEvent.click(confirm);
       }
       expect(
         await screen.findByText("Die Betreuung wurde nicht beendet"),
       ).toBeVisible();
       const confirm = screen.getByRole("button", { name: "Betreuung beenden" });
-      await waitFor(() => expect(confirm).toBeDisabled());
+      await waitFor(() =>
+        expect(confirm).toHaveAttribute("aria-disabled", "true"),
+      );
       const exclude = screen.getByRole("button", {
         name: "Aus Auswahl nehmen",
       });
@@ -503,7 +508,10 @@ describe("PhasesEditor", () => {
         const retryConfirm = await screen.findByRole("button", {
           name: "Betreuung beenden",
         });
-        await waitFor(() => expect(retryConfirm).toBeEnabled());
+        await waitFor(() => {
+          expect(retryConfirm).toBeEnabled();
+          expect(retryConfirm).not.toHaveAttribute("aria-disabled");
+        });
         fireEvent.click(retryConfirm);
         await waitFor(() =>
           expect(careExit.confirm).toHaveBeenLastCalledWith(
@@ -616,7 +624,10 @@ describe("PhasesEditor", () => {
       const confirm = await screen.findByRole("button", {
         name: "Betreuung beenden",
       });
-      await waitFor(() => expect(confirm).toBeEnabled());
+      await waitFor(() => {
+        expect(confirm).toBeEnabled();
+        expect(confirm).not.toHaveAttribute("aria-disabled");
+      });
       expect(careExit.preview).toHaveBeenNthCalledWith(
         index + 1,
         expect.objectContaining({

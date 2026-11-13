@@ -10,7 +10,10 @@ import {
   formatWeeks,
   holidayStatusLabel,
 } from "~/components/traeger/holiday-period-format";
-import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
+import {
+  HOLIDAY_CRITERIA_HINT,
+  HolidayHeadFacts,
+} from "~/components/traeger/holiday-period-head";
 import { ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -99,6 +102,7 @@ export default function TraegerHolidayPeriodsPage() {
             href={traegerPath("/traeger/ferien/kriterien")}
             variant="outline"
             size="md"
+            tooltip={HOLIDAY_CRITERIA_HINT}
             className="gap-2"
           >
             <ListChecks className="h-4 w-4" aria-hidden="true" />
@@ -108,6 +112,7 @@ export default function TraegerHolidayPeriodsPage() {
             href={newHref}
             variant="primary"
             size="md"
+            tooltip="Öffnet einen neuen Ferienzeitraum als Entwurf, Eltern sehen ihn noch nicht."
             className="gap-2"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />

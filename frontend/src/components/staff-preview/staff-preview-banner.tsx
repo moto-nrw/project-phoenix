@@ -102,6 +102,7 @@ function ActivePreviewBanner({
         onClick={() => void handleEnd()}
         isLoading={isEnding}
         loadingText="Wird beendet …"
+        tooltip="Schließt die Vorschau und zeigt wieder Ihre eigene Ansicht."
         className="shrink-0"
       >
         Vorschau beenden

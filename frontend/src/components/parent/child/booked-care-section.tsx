@@ -272,6 +272,7 @@ export function BookedCareSection({
                 type="button"
                 variant="surface"
                 size="md"
+                tooltip={t("careOfferings.requestButtonTooltip")}
                 onClick={() => setModalOpen(true)}
               >
                 {t("careOfferings.requestButton")}
@@ -399,6 +400,7 @@ export function BookedCareSection({
                   type="button"
                   variant="outline"
                   size="md"
+                  tooltip={t("requestEditTooltip")}
                   onClick={() => setEditRequest(pending.id)}
                 >
                   {t("careOfferings.edit")}

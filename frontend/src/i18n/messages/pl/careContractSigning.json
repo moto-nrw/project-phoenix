@@ -51,5 +51,6 @@
     "fri": "Piątek",
     "sat": "Sobota",
     "sun": "Niedziela"
-  }
+  },
+  "submitTooltip": "Od razu zawiera wiążącą umowę z organem prowadzącym."
 }

@@ -119,6 +119,7 @@ export function AbsenceRequestRow<
                 size="compact"
                 onClick={() => onQuestion(row)}
                 disabled={isBusy}
+                tooltip="Öffnet ein Feld für Ihre Rückfrage an die Person."
               >
                 Rückfrage
               </Button>
@@ -129,6 +130,7 @@ export function AbsenceRequestRow<
               size="compact"
               onClick={() => onDeny(row)}
               disabled={isBusy}
+              tooltip="Öffnet ein Feld für die Begründung der Ablehnung."
             >
               Ablehnen
             </Button>
@@ -138,6 +140,7 @@ export function AbsenceRequestRow<
               size="compact"
               onClick={() => onApprove(row)}
               disabled={isBusy}
+              tooltip="Genehmigt den Antrag sofort und informiert die Person."
             >
               {isBusy ? "…" : "Genehmigen"}
             </Button>

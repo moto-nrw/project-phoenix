@@ -16,7 +16,7 @@ import (
 // per server; the search and the child list's filter share it.
 func newStudentAnswers() enrollmentOwner.StudentAnswers { return enrollmentCompose.NewStudentAnswers() }
 
-// mountSchoolSearch serves the school search at /api/search (ADR 0230,
+// mountSchoolSearch serves the school search at /api/search (ADR 0231,
 // #6954) over Enrollment's registration answers and the caller's staff check.
 func mountSchoolSearch(tenant chi.Router, staff schoolSearchHTTP.StaffCheck, answers enrollmentOwner.StudentAnswers) error {
 	search, err := schoolSearchCompose.New(answers)

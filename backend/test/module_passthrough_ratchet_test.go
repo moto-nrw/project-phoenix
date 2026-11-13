@@ -272,7 +272,9 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // staff profile before the soft delete (-1).
 // Lowered by #6847: approving and withdrawing an absence return their plan
 // cascade instead of forwarding the write (-2).
-const modulePassthroughOwnerBudgetTotal = 1399
+// Raised by ADR 0230: Timetable's set-based assignment read of the absence
+// plan gaps (+1).
+const modulePassthroughOwnerBudgetTotal = 1400
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -339,7 +341,9 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// the window and takes the later of its cutoff and the retention mark
 	// (+1).
 	"modules/studentpresence": 123,
-	"modules/timetable":       203,
+	// Raised by ADR 0230: the assignments of several staff members in a date
+	// range, one read for the absence plan gaps (+1).
+	"modules/timetable": 204,
 	// Raised by ADR 0141: the payroll dispatch overview (+1).
 	// Lowered by #6847: approving and withdrawing an absence return their
 	// plan cascade instead of forwarding the write (-2).

@@ -158,7 +158,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Selection bar | `SelectionBar count label? actions onClear placement` | `~/components/ui/selection-bar` |
 | Failed API call shown to the user | `useApiErrorDisplay` (toast), `useApiFormError` + `FormErrorAlert`, `useApiLoadError` + `LoadErrorAlert`; rules in `.claude/rules/error-path.md` | `~/contexts/ToastContext`, `~/components/ui/form-error-alert` |
 | List search, filters, count; page tabs | `TenantPage` `search`, `filters`, `badge`, `filterPanel`, `tabs` (the only page head; tests mock `TenantPageSearchRow`); search elsewhere: `SearchBar` | `~/components/ui/tenant-page` |
-| Search dialog with grouped hits (Cmd/Ctrl+K) | `CommandPalette`; ADR 0230 point 6 | `~/components/ui/command-palette` |
+| Search dialog with grouped hits (Cmd/Ctrl+K) | `CommandPalette`; ADR 0231 point 6 | `~/components/ui/command-palette` |
 | Kebab / overflow action menu (every row action of a list item goes here; `bauart/no-row-action-buttons` fails a per-row `Button` named Bearbeiten/Löschen/Archivieren/…); menu behind a text button | `OverflowMenu` — entry `description`, `selected`; `triggerButton` + `triggerContent` for a kit button, `wrapperClassName` | `~/components/ui/page-header/OverflowMenu` |
 | Filter toggle button | `FilterButton` | `~/components/ui/page-header/FilterButton` |
 | Stammdaten-Katalog einer Schule (Kategorien, Planungsspuren, Schichtarten, Abwesenheitsarten): Sammlung + Objektbearbeitung | `CatalogPage` auf einer eigenen Route unter `/database/…`; ein Formular, dem ein Eintrag fehlt, trägt nur die Auswahl und `CatalogManageLink`. Nie ein Slide-over, Modal oder Auswahlfeld — `bauart/no-manage-surface-in-overlay` fällt darauf (#3114). | `~/components/database/catalog/catalog-page`, `~/components/database/catalog/catalog-manage-link` |
@@ -210,6 +210,7 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 - Same action, same sentence; repeated text lives in the kit piece. Translated portals: every language's catalog.
 - `disabledReason`: what is missing or comes first („Wählen Sie zuerst mindestens ein Kind aus.“), never just „Nicht möglich.“
 - `noTooltip` only if the word says it all with no side effect („Abbrechen“, „Zurück“, a pure „Speichern“); never deleting, sending, releasing, icon buttons.
+- Menu entries: visible `description` or `noDescription: "<Grund>"` (`ui-kit/menu-item-needs-description`; `kind`, `selected` exempt). Full stop optional; deleting says „sofort“ or „moto fragt vorher nach“.
 
 Kit pieces bring their sentence (#6744); override if the click does more: `closeTooltip`, `confirmTooltip`, `confirmDisabledReason` (modals), `saveTooltip`/`disabledReason` (`EditActions`), `buttonTooltip`, `collapseTooltip`, `loadMoreTooltip`, `triggerTooltip`, `tooltip` (`ExportMenu`), `dismissTooltip`, `removeTooltip`, `*Hint` date/time labels. German defaults drop under a non-German `KitLocaleProvider` (parents, enrollment): pass one.
 

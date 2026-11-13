@@ -196,7 +196,7 @@ describe("ParentCalendarPage", () => {
     await screen.findByRole("heading", { name: "August 2026" });
     expect(
       screen.getByRole("button", { name: "Vorheriger Monat" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.queryByRole("button", { name: "16.08.2026" }),
     ).not.toBeInTheDocument();
@@ -210,6 +210,9 @@ describe("ParentCalendarPage", () => {
     expect(
       screen.getByRole("button", { name: "Nächster Monat" }),
     ).not.toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Nächster Monat" }),
+    ).not.toHaveAttribute("aria-disabled");
 
     fireEvent.click(screen.getByRole("button", { name: "Nächster Monat" }));
 
@@ -218,7 +221,7 @@ describe("ParentCalendarPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Nächster Monat" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   // Ein Termin im angebrochenen Schlussmonat ist auch per Deep-Link

@@ -166,6 +166,14 @@ export function CareLettersCard({
             isLoading={sendingAll}
             loadingText="Wird gesendet …"
             disabled={toSend === 0}
+            disabledReason={
+              summary.letters === 0
+                ? "Es gibt noch kein Schreiben zum Senden."
+                : summary.withoutEmail >= summary.notSent && summary.sent === 0
+                  ? "Keine Familie hat eine E-Mail-Adresse. Drucken Sie die Schreiben."
+                  : "Alle Schreiben mit E-Mail-Adresse sind schon gesendet."
+            }
+            tooltip="Sendet allen Familien mit E-Mail-Adresse ihr Schreiben, moto fragt vorher nach."
             onClick={() => setConfirming(true)}
           >
             An alle senden

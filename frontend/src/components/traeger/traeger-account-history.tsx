@@ -204,6 +204,7 @@ export function TraegerAccountHistory({
                 size="md"
                 isLoading={loadingMore}
                 loadingText="Lädt …"
+                tooltip="Zeigt weitere, ältere Änderungen unten in der Liste."
                 onClick={() => void loadMore()}
               >
                 Ältere Einträge laden

@@ -499,6 +499,7 @@ export default function ClassListEntriesPage() {
             <div className="flex items-center justify-end">
               <ButtonLink
                 href={tenantPath(`/students/${row.student.id}`)}
+                tooltip="Öffnet die Akte des Kindes."
                 variant="ghost"
                 size="compact"
               >
@@ -516,6 +517,8 @@ export default function ClassListEntriesPage() {
             ? [
                 {
                   label: "Zuordnen",
+                  description:
+                    "Entfernt den Eintrag, das angelegte Kind bleibt. moto fragt vorher nach.",
                   icon: <UserRoundCheck className="h-4 w-4" aria-hidden />,
                   onClick: () => {
                     clearModalErrors();
@@ -533,6 +536,7 @@ export default function ClassListEntriesPage() {
             ? [
                 {
                   label: "Bearbeiten",
+                  description: "Ändert Name oder Klasse des Eintrags.",
                   icon: <Pencil className="h-4 w-4" aria-hidden />,
                   onClick: () => openEdit(entry),
                 },
@@ -542,6 +546,8 @@ export default function ClassListEntriesPage() {
             ? [
                 {
                   label: "Löschen",
+                  description:
+                    "Nimmt den Eintrag von allen Klassenlisten. moto fragt vorher nach.",
                   icon: <Trash2 className="h-4 w-4" aria-hidden />,
                   destructive: true,
                   onClick: () => {
@@ -586,6 +592,7 @@ export default function ClassListEntriesPage() {
               items={[
                 {
                   label: "Sammelimport",
+                  description: "Legt viele Einträge aus einer Datei an.",
                   icon: <Upload className="h-4 w-4" aria-hidden />,
                   href: tenantPath("/database/students/class-list/import"),
                   // Navigation only: OverflowMenu verlangt onClick auch bei href.
@@ -660,6 +667,7 @@ export default function ClassListEntriesPage() {
                   type="button"
                   variant="outline"
                   size="md"
+                  noTooltip="Abbrechen schließt nur das Fenster, ohne etwas zu ändern."
                   onClick={closeModal}
                 >
                   Abbrechen
@@ -673,6 +681,16 @@ export default function ClassListEntriesPage() {
                     !form.firstName.trim() ||
                     !form.lastName.trim() ||
                     !form.schoolClass.trim()
+                  }
+                  disabledReason={
+                    saving
+                      ? undefined
+                      : "Füllen Sie zuerst Vorname, Nachname und Klasse aus."
+                  }
+                  tooltip={
+                    modal?.kind === "edit"
+                      ? "Speichert Name und Klasse des Eintrags."
+                      : "Setzt das Kind ohne OGS-Betreuung auf die Klassenliste."
                   }
                   onClick={() => void submitForm()}
                 >

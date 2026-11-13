@@ -1,7 +1,7 @@
 import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
-// Die Suche über die ganze Schul-App (#6954, ADR 0230). Was jemand findet,
+// Die Suche über die ganze Schul-App (#6954, ADR 0231). Was jemand findet,
 // entscheidet der Server nach den Rechten des Kontos; der Artikel nennt nur,
 // was die Person dann anders sieht.
 export function schoolSearchTopic(): HelpTopic {

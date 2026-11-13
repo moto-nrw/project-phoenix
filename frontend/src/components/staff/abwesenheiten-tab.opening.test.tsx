@@ -188,7 +188,7 @@ describe("AbwesenheitenTab vacation takeover", () => {
 
       expect(
         screen.getByRole("button", { name: "Übernahme buchen" }),
-      ).toBeDisabled();
+      ).toHaveAttribute("aria-disabled", "true");
       expect(
         screen.getByText(
           "Bitte eine Zahl zwischen -999 und 999 mit höchstens einer Nachkommastelle eingeben.",

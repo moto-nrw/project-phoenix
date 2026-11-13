@@ -440,7 +440,7 @@ export function SchoolSearchDialog({
   }
 
   // A hint, never a link carrying the text: the typed text stays out of
-  // every URL (ADR 0230).
+  // every URL (ADR 0231).
   const footer = <span className="text-gray-500">{scopeHint(scope)}</span>;
 
   return (

@@ -9,7 +9,8 @@
     "body": "Një ndryshim nuk u ruajt dot. Nëse e lini faqen, ai do të humbasë.",
     "leave": "Largohu gjithsesi",
     "stay": "Qëndro këtu",
-    "retry": "Provo përsëri"
+    "retry": "Provo përsëri",
+    "retryTooltip": "Ruan sërish ndryshimin e fundit."
   },
   "healthDirectHint": "Ndryshimet ruhen menjëherë. Ekipi i {careTerm}-së i sheh menjëherë të dhënat.",
   "healthPlaceholder": "Për shembull alergji, intoleranca ose ilaçe të rëndësishme.",
@@ -41,7 +42,8 @@
     "submitting": "Kërkesa po dërgohet…",
     "cancel": "Anulo",
     "noChange": "Ndryshoni të paktën një të dhënë.",
-    "required": "Një e dhënë e ndryshuar nuk mund të jetë bosh."
+    "required": "Një e dhënë e ndryshuar nuk mund të jetë bosh.",
+    "submitTooltip": "E dërgon kërkesën menjëherë te {careTerm} për shqyrtim."
   },
   "sections": {
     "child": "Të dhënat personale",
@@ -131,7 +133,8 @@
     "decisionApplied": "Kjo u ndryshua:",
     "decisionConsidered": "Ndryshimi i kërkuar:",
     "decisionOverridden": "Ekipi i kujdesit nuk e rezervoi {names}.",
-    "errorObject": "kujdesi i rezervuar"
+    "errorObject": "kujdesi i rezervuar",
+    "requestButtonTooltip": "Hap një formular për të kërkuar kujdes tjetër."
   },
   "careOfferingsModal": {
     "title": "Kërko ndryshim të përkujdesjes së rezervuar",
@@ -198,7 +201,10 @@
     "noCourses": "Për momentin nuk ka kurse.",
     "errorObjectList": "lista e kurseve",
     "errorObjectRequest": "kërkesa për kursin",
-    "errorObjectWithdraw": "tërheqja e kërkesës për kursin"
+    "errorObjectWithdraw": "tërheqja e kërkesës për kursin",
+    "requestTooltip": "E dërgon menjëherë kërkesën për kursin te {careTerm}.",
+    "withdrawTooltip": "E tërheq menjëherë kërkesën për kursin.",
+    "requestBlocked": "Shkruani fillimisht një arsye."
   },
   "careSchedule": {
     "arrival": "Ora e mbërritjes",
@@ -242,10 +248,15 @@
     "pendingNotice": "{careTerm}-ja po shqyrton ndryshimin. Plani aktual javor mbetet në fuqi deri në miratim.",
     "requestedAt": "Kërkuar më {date}",
     "errorObject": "lista e orareve të kujdesit",
-    "requestErrorObject": "kërkesa për planin javor"
+    "requestErrorObject": "kërkesa për planin javor",
+    "requestButtonTooltip": "Hap një formular për të kërkuar ndryshime në planin javor.",
+    "requestSubmitTooltip": "E dërgon kërkesën menjëherë te {careTerm} për shqyrtim."
   },
   "errorObject": "përmbledhja e të dhënave",
   "errorObjectChange": "ndryshimi",
   "errorObjectRequest": "kërkesa",
-  "errorNoEnrollment": "Fëmija juaj nuk ka më një regjistrim të vlefshëm. Ju lutemi kontaktoni shkollën."
+  "errorNoEnrollment": "Fëmija juaj nuk ka më një regjistrim të vlefshëm. Ju lutemi kontaktoni shkollën.",
+  "identityRequestButtonTooltip": "Hap një formular për të kërkuar ndryshimin e të dhënave.",
+  "requestEditTooltip": "Hap kërkesën tuaj të hapur për ndryshim.",
+  "departureEditTooltip": "Hap marrjen e fëmijës për çdo ditë. Ndryshimet i kontrollon {careTerm}."
 }

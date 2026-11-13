@@ -1,5 +1,6 @@
 {
   "title": "Sayfa gösterilemedi",
   "object": "sayfa",
-  "home": "Ana sayfaya git"
+  "home": "Ana sayfaya git",
+  "homeTooltip": "Veli uygulamasının ana sayfasını açar."
 }

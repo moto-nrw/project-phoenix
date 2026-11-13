@@ -418,7 +418,10 @@ jobs:
       # took 87-166 s of this job on every run (13.11.2026). The script reuses
       # a restored file only if it is a valid measurement of exactly that
       # identity and builds cold otherwise. A cache saved by a pull request is
-      # visible to that pull request alone.
+      # visible to that pull request alone; frontend-bundle-base.yml measures
+      # every development commit with this job's env and commands, so a pull
+      # request based on one finds it ("base measurement: cache hit|measured"
+      # in the log and the job summary).
       - name: Restore merge-base bundle measurement
         id: bundle-base-cache
         if: github.event_name == 'pull_request' && github.base_ref != 'main'

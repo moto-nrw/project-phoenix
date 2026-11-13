@@ -65,6 +65,7 @@ export function DocumentTemplatePlaceholdersCard({
                 variant="outline"
                 size="compact"
                 disabled={disabled}
+                tooltip="Setzt den Platzhalter an der Schreibmarke in den Brieftext."
                 onClick={() => onInsert(placeholder)}
                 className="w-full min-w-0 justify-between gap-3"
               >

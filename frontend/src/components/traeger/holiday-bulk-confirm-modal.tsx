@@ -306,6 +306,7 @@ export function HolidayBulkConfirmModal({
             variant="outline"
             size="md"
             disabled={stopping}
+            tooltip="Hält nach der laufenden Anmeldung an, Bestätigte bleiben bestätigt."
             onClick={() => {
               stopRequested.current = true;
               setStopping(true);
@@ -355,6 +356,7 @@ export function HolidayBulkConfirmModal({
             variant="primary"
             size="md"
             onClick={close}
+            noTooltip="Fertig schließt nur das Ergebnis, ohne etwas zu ändern."
             className="flex-1"
           >
             Fertig
@@ -431,6 +433,7 @@ export function HolidayBulkConfirmModal({
           variant="primary"
           size="md"
           onClick={close}
+          noTooltip="Schließen schließt nur das Fenster, ohne etwas zu ändern."
           className="flex-1"
         >
           Schließen

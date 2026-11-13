@@ -300,7 +300,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // class follow-up port (+2).
 // ADR 0225: the Stammdaten decision's class follow-up port of
 // modules/careplan/compose (+3).
-// ADR 0230: the registration answers constructor of modules/enrollment/compose
+// ADR 0231: the registration answers constructor of modules/enrollment/compose
 // (+5) and the new school search projection modules/schoolsearchview/compose
 // (+38).
 const moduleComposeBudgetTotal = 13477
@@ -318,7 +318,7 @@ const moduleComposeBudgetTotal = 13477
 // ADR 0187 raised modules/identityaccess/compose,
 // modules/organizationtenancy/compose and modules/parentbilling/compose for
 // the audit and the PAIN.008 files of the Träger package.
-// ADR 0230 raised modules/enrollment/compose for the registration answers and
+// ADR 0231 raised modules/enrollment/compose for the registration answers and
 // added modules/schoolsearchview/compose for the school search.
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose": 45,
@@ -367,7 +367,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0216: account proofs and the account's holiday registrations (+10).
 	// ADR 0215: NewTraegerPhases (+4) and NewOfferingSelectionReferences (+4),
 	// less shortened comments and a merged file (-6).
-	// ADR 0230: the registration answers constructor (+5).
+	// ADR 0231: the registration answers constructor (+5).
 	"modules/enrollment/compose": 640,
 	// ADR 0218: the Träger scope and the recipient rekey (+33).
 	"modules/exporttransfer/compose":               182,
@@ -439,7 +439,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0151: the school figure constructor (+6).
 	// ADR 0202: the pending-window constructor (+5).
 	"modules/schoolmembership/compose": 200,
-	// ADR 0230: the school search projection binds the school transaction.
+	// ADR 0231: the school search projection binds the school transaction.
 	"modules/schoolsearchview/compose": 38,
 	"modules/schoolsetup/compose":      56,
 	// #4722: the field cipher of the health information, construction only;

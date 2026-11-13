@@ -403,6 +403,7 @@ function CourseAction({
         variant="outline"
         size="md"
         disabled={busy}
+        tooltip={t("courses.withdrawTooltip")}
         onClick={onWithdraw}
       >
         {t("courses.withdraw")}
@@ -416,6 +417,8 @@ function CourseAction({
       variant="surface"
       size="md"
       disabled={busy || reasonMissing}
+      tooltip={t("courses.requestTooltip")}
+      disabledReason={reasonMissing ? t("courses.requestBlocked") : undefined}
       onClick={onRequest}
     >
       {t("courses.request")}

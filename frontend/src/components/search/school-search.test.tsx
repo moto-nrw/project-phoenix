@@ -148,7 +148,7 @@ describe("SchoolSearchDialog", () => {
       "0170 1234567",
       expect.any(AbortSignal),
     );
-    // The typed text never lands in a URL (ADR 0230).
+    // The typed text never lands in a URL (ADR 0231).
     expect(document.querySelector('a[href*="0170"]')).toBeNull();
 
     await user.keyboard("{Enter}");

@@ -322,11 +322,17 @@ function TeachersPageContent() {
       ? [
           {
             label: "Personal einladen",
+            description: "Die Person erhält eine Einladung per E-Mail.",
             onClick: () => setShowInviteModal(true),
             // Ziel der Einrichtungs-Tour (setup-tours.ts, Schritt „team“).
             tourTarget: "invite-create",
           },
-          { label: "Externe Person anlegen", onClick: openExternalCreate },
+          {
+            label: "Externe Person anlegen",
+            description:
+              "Trägt jemanden von außen ein, etwa von der Musikschule.",
+            onClick: openExternalCreate,
+          },
         ]
       : undefined;
 
@@ -335,6 +341,7 @@ function TeachersPageContent() {
       ? [
           {
             label: "Importieren",
+            description: "Legt viel Personal aus einer Datei an.",
             href: tenantPath("/database/personal/import"),
             onClick: () => undefined,
           },
@@ -344,6 +351,7 @@ function TeachersPageContent() {
       ? [
           {
             label: "Eröffnungssalden importieren",
+            description: "Übernimmt Stundensaldo und Urlaub aus einer Datei.",
             href: tenantPath("/database/personal/opening-balances"),
             onClick: () => undefined,
           },

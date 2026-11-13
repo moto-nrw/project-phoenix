@@ -2106,6 +2106,8 @@ export const dutyRosterTopic = function dutyRosterTopic(): HelpTopic {
     ],
     differences: [
       "Eine neue Schicht auf einem Schließtag löst eine Rückfrage aus.",
+      // #7021: Abwesenheiten von vor #6847 übernimmt die Leitung selbst.
+      "Steht über dem Plan `Abwesenheiten fehlen im Plan`? Diese Abwesenheiten gelten schon, die Personen stehen aber noch im Plan. Wählen Sie `In den Plan übernehmen` oder `Alle übernehmen`. Abgesagte Schichten und Vertretungen bleiben, wie sie sind. Soll die Person doch arbeiten, wählen Sie `Ausblenden`.",
       "Ist ein Tag nicht vollständig durch Schichten abgedeckt, weist moto darauf hin.",
     ],
     troubleshootingDetails: [
@@ -7854,7 +7856,7 @@ export const roomsTopic = function roomsTopic(
   };
 } satisfies typeof authored_roomsTopic;
 
-// Die Suche über die ganze Schul-App (#6954, ADR 0230). Was jemand findet,
+// Die Suche über die ganze Schul-App (#6954, ADR 0231). Was jemand findet,
 // entscheidet der Server nach den Rechten des Kontos; der Artikel nennt nur,
 // was die Person dann anders sieht.
 export const schoolSearchTopic = function schoolSearchTopic(): HelpTopic {

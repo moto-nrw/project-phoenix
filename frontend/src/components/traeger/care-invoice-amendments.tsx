@@ -441,6 +441,7 @@ export function CareAmendmentHistoryCard({
                       variant="surface"
                       size="compact"
                       aria-label={`${KIND_LABELS[amendment.kind]} zurücknehmen`}
+                      tooltip="Öffnet ein Fenster, um die Änderung mit Grund zurückzunehmen."
                       onClick={() => onDraft({ kind: "revoke", amendment })}
                     >
                       Zurücknehmen

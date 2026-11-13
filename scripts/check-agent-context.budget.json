@@ -4,7 +4,7 @@
   ".claude/rules/ci-test-performance.md": 6015,
   ".claude/rules/env-docker-sync.md": 7455,
   ".claude/rules/error-path.md": 3670,
-  ".claude/rules/frontend-ui-kit.md": 45357,
+  ".claude/rules/frontend-ui-kit.md": 45572,
   ".claude/rules/guardian-parent-permissions.md": 5883,
   ".claude/rules/help-guide-sync.md": 10932,
   ".claude/rules/information-flow.md": 3093,
@@ -17,7 +17,7 @@
   ".claude/rules/usage-analytics.md": 11820,
   ".claude/rules/verstaendlichkeit.md": 6180,
   "backend/CLAUDE.md": 18978,
-  "CLAUDE.md": 12674,
+  "CLAUDE.md": 12711,
   "frontend/AGENTS.md": 1729,
   "frontend/CLAUDE.md": 8666,
   "skill-catalog": 18186

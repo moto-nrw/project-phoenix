@@ -880,7 +880,10 @@ describe("PersonalInfoEditPanel", () => {
           /Speichern geht erst, wenn die Einwilligung geladen ist/,
         ),
       ).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Speichern" })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
       expect(mockOnSave).not.toHaveBeenCalled();
     });
 

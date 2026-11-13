@@ -53,5 +53,14 @@
     "declined": "Declined",
     "pending": "Open",
     "privacy": "You do not see other parents' names."
-  }
+  },
+  "openEventTooltip": "Shows or hides the details of this appointment.",
+  "acceptTooltip": "Accepts right away. You can still change the answer later.",
+  "declineTooltip": "Declines right away. You can still change the answer later.",
+  "previousMonthTooltip": "Shows the appointments of the previous month.",
+  "nextMonthTooltip": "Shows the appointments of the next month.",
+  "previousMonthBlocked": "The calendar does not show past months.",
+  "nextMonthBlocked": "The calendar does not show later months yet.",
+  "closeTooltip": "Closes the details and shows the calendar again.",
+  "changeAnswerTooltip": "Shows Accept and Decline again. Your answer stays until you choose again."
 }

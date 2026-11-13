@@ -150,6 +150,7 @@ function DecisionForm({
             size="md"
             className="flex-1"
             disabled={saving}
+            noTooltip="Abbrechen schließt nur das Fenster, ohne etwas zu entscheiden."
             onClick={onClose}
           >
             Abbrechen
@@ -162,6 +163,11 @@ function DecisionForm({
             className="flex-1"
             isLoading={saving}
             loadingText="Speichert …"
+            tooltip={
+              placement === "placed"
+                ? "Gibt dem Kind den Platz und schickt den Eltern sofort eine E-Mail."
+                : "Setzt das Kind auf die Warteliste und schickt den Eltern sofort eine E-Mail."
+            }
           >
             {actionLabel}
           </Button>

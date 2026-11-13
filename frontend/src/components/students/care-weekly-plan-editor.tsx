@@ -403,6 +403,11 @@ export function CareWeeklyPlanGrid({
                     size="compact"
                     className="mt-1 gap-1"
                     aria-expanded={expandedWeekdays.has(day.value)}
+                    tooltip={
+                      expandedWeekdays.has(day.value)
+                        ? "Blendet die Notizen für diesen Wochentag aus."
+                        : "Zeigt die Notizen für diesen Wochentag zum Bearbeiten."
+                    }
                     onClick={() => toggleNotes(day.value)}
                   >
                     <StickyNote className="h-3.5 w-3.5" aria-hidden="true" />
@@ -456,6 +461,7 @@ export function CareWeeklyPlanGrid({
                           type="button"
                           variant="ghost"
                           size="compact"
+                          tooltip="Leert die eigene Ankunftszeit, dann gilt die Zeit der Klasse."
                           disabled={disabled}
                           onClick={() => setField(day.value, "arrivalTime", "")}
                         >
@@ -610,6 +616,7 @@ function TimePresetButton({
       size="compact"
       className="mt-1.5"
       aria-label={ariaLabel}
+      tooltip="Trägt die übliche Zeit der Schule in das Feld ein."
       disabled={disabled}
       onClick={onApply}
     >
@@ -1003,6 +1010,7 @@ export function CareWeeklyPlanEditForm({
             type="button"
             variant="outline"
             size="md"
+            noTooltip="Schließt nur die Rückfrage, der Wochenplan bleibt offen."
             onClick={clearDecision}
             disabled={isSubmitting}
           >

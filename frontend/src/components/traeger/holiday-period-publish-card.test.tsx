@@ -71,9 +71,11 @@ describe("HolidayPeriodPublishCard", () => {
     );
     expect(
       screen.getByRole("button", { name: "Veröffentlichen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
-      screen.getByText(/braucht der Ferienzeitraum mindestens eine Woche/),
+      screen.getByText(/braucht der Ferienzeitraum mindestens eine Woche/, {
+        selector: "p",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -87,9 +89,11 @@ describe("HolidayPeriodPublishCard", () => {
     );
     expect(
       screen.getByRole("button", { name: "Veröffentlichen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
-      screen.getByText("Bitte speichern Sie zuerst Ihre Änderungen."),
+      screen.getByText("Bitte speichern Sie zuerst Ihre Änderungen.", {
+        selector: "p",
+      }),
     ).toBeInTheDocument();
   });
 

@@ -149,7 +149,10 @@ describe("HandOverSupervisionModal", () => {
         "Die Kinder bleiben im Raum und die Aktivität läuft weiter. Die Planung ändert sich nicht.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Übergeben" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Übergeben" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     fireEvent.change(screen.getByLabelText("An wen übergeben Sie?"), {
       target: { value: "73" },
     });
@@ -201,7 +204,10 @@ describe("HandOverSupervisionModal", () => {
         "Sie sind die einzige Aufsicht. Übergeben Sie die Aufsicht an eine Person oder beenden Sie die Aktivität.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Abgeben" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Abgeben" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("offers nothing when the user no longer supervises the session", async () => {
@@ -216,7 +222,10 @@ describe("HandOverSupervisionModal", () => {
         "Sie beaufsichtigen diese Aktivität nicht mehr. Deshalb können Sie die Aufsicht nicht übergeben.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Übergeben" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Übergeben" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(
       screen.queryByLabelText("An wen übergeben Sie?"),
     ).not.toBeInTheDocument();
@@ -246,6 +255,9 @@ describe("HandOverSupervisionModal", () => {
       screen.queryByText("no other supervisor stays with the session"),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abgeben" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Abgeben" })).not.toHaveAttribute(
+      "aria-disabled",
+    );
     expect(onDone).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });

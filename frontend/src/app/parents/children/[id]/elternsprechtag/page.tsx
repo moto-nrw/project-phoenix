@@ -233,6 +233,7 @@ export default function ParentConferencePage({
                     variant="outline_danger"
                     size="md"
                     disabled={busy !== null}
+                    tooltip={t("cancelTooltip")}
                     onClick={() => {
                       cancelErrors.clear();
                       setCancelTarget(offer);

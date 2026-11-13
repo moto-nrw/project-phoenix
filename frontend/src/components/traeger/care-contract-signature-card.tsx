@@ -101,6 +101,7 @@ export function CareContractSignatureCard({
               type="button"
               variant="outline"
               size="md"
+              tooltip="Öffnet ein Fenster, um den unterschriebenen Vertrag als PDF hochzuladen."
               onClick={() => setPaperOpen(true)}
             >
               <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -184,6 +185,7 @@ function SignatureDetails({
               type="button"
               variant="outline"
               size="md"
+              tooltip="Lädt das PDF des unterschriebenen Papiervertrags herunter."
               onClick={() => void downloadPaper()}
             >
               <Download className="mr-2 h-4 w-4" aria-hidden="true" />

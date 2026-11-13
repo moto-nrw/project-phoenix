@@ -6,6 +6,7 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { StatCard } from "~/components/ui/stat-card";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -1450,6 +1451,7 @@ function CalendarEventDetail({
                 className="gap-2"
                 disabled={responding}
                 onClick={() => answer("accepted")}
+                tooltip="Speichert sofort Ihre Zusage zu diesem Termin."
               >
                 <Check className="h-4 w-4" aria-hidden />
                 Zusagen
@@ -1461,6 +1463,7 @@ function CalendarEventDetail({
                 className="gap-2"
                 disabled={responding}
                 onClick={() => answer("declined")}
+                tooltip="Speichert sofort Ihre Absage zu diesem Termin."
               >
                 <X className="h-4 w-4" aria-hidden />
                 Absagen
@@ -1468,20 +1471,22 @@ function CalendarEventDetail({
             </div>
           ) : null}
           {showIcs ? (
-            <a
-              href={`${icsHrefBase}/${encodeURIComponent(
-                event.appointment_id!,
-              )}/ics`}
-              download
-              className={buttonClassName({
-                variant: "outline",
-                size: "md",
-                className: "w-full gap-1.5",
-              })}
-            >
-              <MotoConceptIcon concept={calendarPeriodsConcept} size={16} />
-              Zum Kalender hinzufügen
-            </a>
+            <ActionHint text="Speichert den Termin als Datei für Ihren Kalender.">
+              <a
+                href={`${icsHrefBase}/${encodeURIComponent(
+                  event.appointment_id!,
+                )}/ics`}
+                download
+                className={buttonClassName({
+                  variant: "outline",
+                  size: "md",
+                  className: "w-full gap-1.5",
+                })}
+              >
+                <MotoConceptIcon concept={calendarPeriodsConcept} size={16} />
+                Zum Kalender hinzufügen
+              </a>
+            </ActionHint>
           ) : null}
           {showOverview ? (
             <Button
@@ -1496,6 +1501,7 @@ function CalendarEventDetail({
                 );
                 onClose();
               }}
+              tooltip="Zeigt, wer eingeladen ist und wer zu- oder abgesagt hat."
             >
               <MotoConceptIcon concept={peopleConcept} size={16} />
               Teilnehmer
@@ -1514,6 +1520,11 @@ function CalendarEventDetail({
                     onEdit(event);
                     onClose();
                   }}
+                  tooltip={
+                    event.recurring
+                      ? "Öffnet die ganze Reihe zum Ändern."
+                      : "Öffnet den Termin zum Ändern."
+                  }
                 >
                   <Pencil className="h-4 w-4" aria-hidden />
                   Bearbeiten
@@ -1530,6 +1541,11 @@ function CalendarEventDetail({
                     onCancel(event);
                     onClose();
                   }}
+                  tooltip={
+                    event.recurring
+                      ? "moto fragt, ob nur dieser Termin oder die ganze Reihe ausfällt."
+                      : "moto fragt vorher nach und sagt den Termin für alle Empfänger ab."
+                  }
                 >
                   <MotoConceptIcon concept={closingDaysConcept} size={16} />
                   Absagen
@@ -1546,6 +1562,11 @@ function CalendarEventDetail({
                     onDelete(event);
                     onClose();
                   }}
+                  tooltip={
+                    event.recurring
+                      ? "moto fragt, ob nur dieser Termin oder die ganze Reihe gelöscht wird."
+                      : "moto fragt vorher nach und löscht den Termin für alle Empfänger."
+                  }
                 >
                   <Trash2 className="h-4 w-4" aria-hidden />
                   Löschen
@@ -1703,6 +1724,7 @@ export function PersonalCalendarChrome({
             size="md"
             className="gap-1.5"
             onClick={onCreate}
+            tooltip={NEW_APPOINTMENT_HINT}
           >
             <Plus className="h-4 w-4" aria-hidden />
             Neuer Termin
@@ -1717,6 +1739,11 @@ export function PersonalCalendarChrome({
           size="compact"
           aria-pressed={showWeekend}
           onClick={() => onShowWeekendChange(!showWeekend)}
+          tooltip={
+            showWeekend
+              ? "Blendet Samstag und Sonntag im Kalender aus."
+              : "Zeigt auch Samstag und Sonntag mit ihren Terminen."
+          }
         >
           {hiddenWeekendCount > 0 ? `Sa/So (${hiddenWeekendCount})` : "Sa/So"}
         </Button>
@@ -1727,3 +1754,7 @@ export function PersonalCalendarChrome({
     </PlanningContextBar>
   );
 }
+
+/** Erklärung von „Neuer Termin“, gleich im Kopf der Seite und in der Leiste. */
+export const NEW_APPOINTMENT_HINT =
+  "Öffnet ein leeres Formular für einen neuen Termin.";

@@ -17,8 +17,11 @@ import (
 // CleanupAbandonedSessions cleans up sessions that have been abandoned for longer than the specified duration.
 // A session is considered abandoned if:
 // 1. No activity (RFID scans or device pings) for longer than the threshold, AND
-// 2. The device is offline (not pinging)
-// This ensures sessions stay alive if either there's activity OR the device is still online.
+// 2. The device is offline (not pinging), AND
+// 3. No child is checked into the session.
+// This ensures sessions stay alive if there's activity, the device is still
+// online, or children are in the room: during a terminal outage the team
+// checks children in through the app, which needs the running session (#6977).
 func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.Duration) (int, error) {
 	// Find sessions with no activity since the threshold
 	cutoffTime := time.Now().Add(-threshold)
@@ -42,7 +45,17 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 	}
 	slices.Sort(ids)
 	if _, shared := tenant.TransactionFromContext(ctx); shared && len(ids) > 0 {
-		if err := s.SchoolPresence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{GroupIDs: ids}); err != nil {
+		err := s.SchoolPresence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{GroupIDs: ids})
+		if errors.Is(err, studentpresence.ErrVisitWriteConflict) {
+			// A child was checked into a candidate after the selection, so
+			// that session is in use again. The sweep has written nothing
+			// yet; the next run ends the sessions that stay abandoned.
+			s.getLogger().InfoContext(ctx, "abandoned session cleanup deferred: a session is in use again",
+				slog.Int("candidates", len(ids)),
+			)
+			return 0, nil
+		}
+		if err != nil {
 			return 0, &ActiveError{Op: "CleanupAbandonedSessions", Err: err}
 		}
 	}

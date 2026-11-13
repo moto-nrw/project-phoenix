@@ -8,6 +8,10 @@ import { SelectionBar } from "~/components/ui/selection-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import {
+  CHECKIN_HINTS,
+  selectAllBlockedReason,
+} from "~/components/students/school-checkin-hints";
+import {
   leftOutLabel,
   type SelectAllControl,
 } from "~/components/students/school-checkin-select-all";
@@ -121,6 +125,7 @@ export function SchoolCheckinModeMobile({
         onClick={onToggle}
         aria-pressed={false}
         aria-label="Kinder an- und abmelden"
+        tooltip={CHECKIN_HINTS.start}
         variant="surface"
         size="base"
         className="w-full gap-2"
@@ -175,6 +180,7 @@ export function SchoolCheckinModeMobile({
             onClick={onToggle}
             disabled={disabled}
             aria-label="Fertig, An- und Abmelde-Modus beenden"
+            tooltip={CHECKIN_HINTS.finish}
             className="shrink-0"
           >
             Fertig
@@ -214,6 +220,8 @@ export function SchoolCheckinModeMobile({
                 disabled={
                   selectAll.count === 0 || selectAll.allSelected || disabled
                 }
+                tooltip={CHECKIN_HINTS.selectAll}
+                disabledReason={selectAllBlockedReason(selectAll)}
               >
                 Alle {selectAll.count} auswählen
               </Button>
@@ -247,6 +255,10 @@ export function SchoolCheckinModeMobile({
                 onClearSelection === undefined
               }
               aria-label="Auswahl aufheben"
+              tooltip={CHECKIN_HINTS.clearSelection}
+              disabledReason={
+                selectedCount === 0 ? CHECKIN_HINTS.noneSelected : undefined
+              }
             >
               <X className="size-3.5" aria-hidden />
             </Button>
@@ -258,6 +270,10 @@ export function SchoolCheckinModeMobile({
               onClick={() => onBulkAction?.("in")}
               disabled={
                 selectedCount === 0 || disabled || onBulkAction === undefined
+              }
+              tooltip={CHECKIN_HINTS.checkIn}
+              disabledReason={
+                selectedCount === 0 ? CHECKIN_HINTS.noneSelected : undefined
               }
             >
               {runningAction === "in" ? (
@@ -275,6 +291,10 @@ export function SchoolCheckinModeMobile({
               onClick={() => onBulkAction?.("out")}
               disabled={
                 selectedCount === 0 || disabled || onBulkAction === undefined
+              }
+              tooltip={CHECKIN_HINTS.checkOut}
+              disabledReason={
+                selectedCount === 0 ? CHECKIN_HINTS.noneSelected : undefined
               }
             >
               {runningAction === "out" ? (

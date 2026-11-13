@@ -94,6 +94,7 @@ export function RequestCaseDetail({
               type="button"
               variant="ghost"
               size="md"
+              noTooltip="Zur Liste wechselt nur zurück, ohne etwas zu ändern."
               onClick={onBackToList}
             >
               Zur Liste

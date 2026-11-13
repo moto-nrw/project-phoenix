@@ -429,6 +429,7 @@ function ShiftTypesPageContent() {
           size="md"
           isLoading={seeding}
           loadingText="Wird angelegt…"
+          tooltip="Legt sofort typische Dienstarten an, die noch fehlen."
           onClick={() => void handleSeed()}
         >
           Beispiele hinzufügen

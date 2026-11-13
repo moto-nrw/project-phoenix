@@ -377,6 +377,7 @@ function SignForm({
             variant="success"
             size="lg"
             disabled={saving}
+            tooltip={t("submitTooltip")}
             className="w-full sm:w-auto"
           >
             {saving ? t("submitting") : t("submit")}

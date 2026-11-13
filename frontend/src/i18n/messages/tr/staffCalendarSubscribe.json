@@ -14,5 +14,9 @@
   "passwordCopied": "Uygulama şifresi kopyalandı.",
   "passwordOnce": "Uygulama şifresini yalnızca şimdi görüyorsunuz. Hemen takvim programına kaydedin.",
   "passwordHidden": "Uygulama şifresi zaten gösterildi. Artık elinizde yoksa yeni erişim bilgileri oluşturun.",
-  "caldavUnavailable": "Bağlantı şu anda kullanılamıyor. Lütfen tekrar deneyin."
+  "caldavUnavailable": "Bağlantı şu anda kullanılamıyor. Lütfen tekrar deneyin.",
+  "rotateHint": "Hemen yeni erişim bilgileri oluşturur, eski takvim aboneliği sona erer.",
+  "copyAddressHint": "Adresi takvim programınıza yapıştırmak için kopyalar.",
+  "copyUsernameHint": "Kullanıcı adını takvim programınıza yapıştırmak için kopyalar.",
+  "copyPasswordHint": "Uygulama şifresini takvim programınıza yapıştırmak için kopyalar."
 }

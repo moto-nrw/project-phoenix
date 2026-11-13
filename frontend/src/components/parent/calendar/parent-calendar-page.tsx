@@ -590,6 +590,7 @@ function CalendarListEvent({
             variant="ghost"
             size="md"
             onClick={toggle}
+            tooltip={t("openEventTooltip")}
             aria-label={`${event.title}, ${eventTime(event, t("allDay"))}`}
             aria-expanded={open}
             aria-controls={open ? panelId : undefined}
@@ -630,6 +631,7 @@ function CalendarListEvent({
               variant="primary"
               size="md"
               isLoading={responding}
+              tooltip={t("acceptTooltip")}
               onClick={() => void respondInRow("accepted", rowOccurrenceDate)}
             >
               {t("accept")}
@@ -639,6 +641,7 @@ function CalendarListEvent({
               variant="outline_danger"
               size="md"
               disabled={responding}
+              tooltip={t("declineTooltip")}
               onClick={() => void respondInRow("declined", rowOccurrenceDate)}
             >
               {t("decline")}
@@ -715,7 +718,9 @@ function CalendarMonthPanel({
             variant="ghost"
             size="icon"
             aria-label={t("previousMonth")}
+            tooltip={t("previousMonthTooltip")}
             disabled={!canGoBack}
+            disabledReason={t("previousMonthBlocked")}
             onClick={() => onChangeMonth(-1)}
           >
             <CaretLeftIcon size={16} weight="bold" aria-hidden="true" />
@@ -731,7 +736,9 @@ function CalendarMonthPanel({
             variant="ghost"
             size="icon"
             aria-label={t("nextMonth")}
+            tooltip={t("nextMonthTooltip")}
             disabled={!canGoForward}
+            disabledReason={t("nextMonthBlocked")}
             onClick={() => onChangeMonth(1)}
           >
             <CaretRightIcon size={16} weight="bold" aria-hidden="true" />
@@ -852,6 +859,7 @@ function MonthEventButton({
           variant="ghost"
           size="compact"
           onClick={toggle}
+          tooltip={t("openEventTooltip")}
           aria-label={`${event.title}, ${eventTime(event, t("allDay"))}${accessibleStatus}`}
           aria-expanded={open}
           aria-controls={open ? panelId : undefined}
@@ -1031,6 +1039,7 @@ function CalendarEventDetails({
           variant="ghost"
           size="icon"
           aria-label={t("close")}
+          tooltip={t("closeTooltip")}
           className="shrink-0"
           onClick={onClose}
         >
@@ -1143,6 +1152,7 @@ function CalendarEventRespond({
           type="button"
           variant="outline"
           size="md"
+          tooltip={t("changeAnswerTooltip")}
           onClick={() => {
             setScope(defaultAnswerScope(event));
             setChanging(true);
@@ -1179,6 +1189,7 @@ function CalendarEventRespond({
           variant="primary"
           size="md"
           isLoading={responding}
+          tooltip={t("acceptTooltip")}
           onClick={() => void answer("accepted")}
         >
           {t("accept")}
@@ -1188,6 +1199,7 @@ function CalendarEventRespond({
           variant="outline_danger"
           size="md"
           disabled={responding}
+          tooltip={t("declineTooltip")}
           onClick={() => void answer("declined")}
         >
           {t("decline")}

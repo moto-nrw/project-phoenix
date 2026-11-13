@@ -39,7 +39,7 @@
   "rules": [
     {
       "id": "school-search-view.application.enrollment.public",
-      "description": "ADR 0230: the search joins the registration answers Enrollment matched for the school's children.",
+      "description": "ADR 0231: the search joins the registration answers Enrollment matched for the school's children.",
       "scopes": [
         "production"
       ],
@@ -50,7 +50,7 @@
     },
     {
       "id": "school-search-view.public.enrollment.public",
-      "description": "ADR 0230: the answer port names Enrollment's answer match value.",
+      "description": "ADR 0231: the answer port names Enrollment's answer match value.",
       "scopes": [
         "production"
       ],
@@ -61,7 +61,7 @@
     },
     {
       "id": "school-search-view.application.public",
-      "description": "ADR 0230: the search answers in the projection's public contract and reads Enrollment's answers through its consumer port.",
+      "description": "ADR 0231: the search answers in the projection's public contract and reads Enrollment's answers through its consumer port.",
       "scopes": [
         "production"
       ],
@@ -72,7 +72,7 @@
     },
     {
       "id": "school-search-view.postgres.public",
-      "description": "ADR 0230: the search statements answer in the projection's public hit values.",
+      "description": "ADR 0231: the search statements answer in the projection's public hit values.",
       "scopes": [
         "production"
       ],
@@ -83,7 +83,7 @@
     },
     {
       "id": "school-search-view.postgres.facilities-public",
-      "description": "ADR 0230: the room search leaves out the same system rooms as Facilities' room list, by Facilities' own names.",
+      "description": "ADR 0231: the room search leaves out the same system rooms as Facilities' room list, by Facilities' own names.",
       "scopes": [
         "production"
       ],
@@ -94,7 +94,7 @@
     },
     {
       "id": "school-search-view.postgres.transaction-runtime.contract",
-      "description": "ADR 0230: the search statements carry the query log marker that keeps the typed text out of the log.",
+      "description": "ADR 0231: the search statements carry the query log marker that keeps the typed text out of the log.",
       "scopes": [
         "production"
       ],
@@ -105,7 +105,7 @@
     },
     {
       "id": "school-search-view.compose.tenant-runtime",
-      "description": "ADR 0230: composition binds only the existing school transaction and its tenant.",
+      "description": "ADR 0231: composition binds only the existing school transaction and its tenant.",
       "scopes": [
         "production"
       ],
@@ -116,7 +116,7 @@
     },
     {
       "id": "school-search-view.compose.orm-sql",
-      "description": "ADR 0230: composition binds the existing BUN school transaction to the private projection adapter.",
+      "description": "ADR 0231: composition binds the existing BUN school transaction to the private projection adapter.",
       "scopes": [
         "production"
       ],
@@ -126,7 +126,7 @@
     },
     {
       "id": "school-search-view.http.public",
-      "description": "ADR 0230: the search route calls the projection's one public capability.",
+      "description": "ADR 0231: the search route calls the projection's one public capability.",
       "scopes": [
         "production"
       ],
@@ -137,7 +137,7 @@
     },
     {
       "id": "school-search-view.http.tenant-runtime.common",
-      "description": "ADR 0230: the search route uses the shared HTTP request, principal and response helpers.",
+      "description": "ADR 0231: the search route uses the shared HTTP request, principal and response helpers.",
       "scopes": [
         "production"
       ],
@@ -149,7 +149,7 @@
     },
     {
       "id": "school-search-view.http.identity-access.http",
-      "description": "ADR 0230: the search route reads the caller's permissions from the session token.",
+      "description": "ADR 0231: the search route reads the caller's permissions from the session token.",
       "scopes": [
         "production"
       ],
@@ -161,7 +161,7 @@
     },
     {
       "id": "school-search-view.http.security-runtime.contract",
-      "description": "ADR 0230: the search route names the staff permissions of the pages a hit leads to.",
+      "description": "ADR 0231: the search route names the staff permissions of the pages a hit leads to.",
       "scopes": [
         "production"
       ],
@@ -172,7 +172,7 @@
     },
     {
       "id": "school-search-view.http.security-runtime.public",
-      "description": "ADR 0230: the search route decides the scope with Security Runtime's permission helpers.",
+      "description": "ADR 0231: the search route decides the scope with Security Runtime's permission helpers.",
       "scopes": [
         "production"
       ],
@@ -183,7 +183,7 @@
     },
     {
       "id": "school-search-view.internal-test.identity-access.http",
-      "description": "ADR 0230: the scope tests put the caller's permissions into the request context as the session token does.",
+      "description": "ADR 0231: the scope tests put the caller's permissions into the request context as the session token does.",
       "scopes": [
         "internal_test"
       ],

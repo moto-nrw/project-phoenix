@@ -25,6 +25,7 @@ import {
 } from "~/components/traeger/holiday-allocation-model";
 import { HolidayAllocationWeekCard } from "~/components/traeger/holiday-allocation-week";
 import {
+  HOLIDAY_CRITERIA_HINT,
   HolidayHeadFacts,
   holidayPeriodTabs,
 } from "~/components/traeger/holiday-period-head";
@@ -232,6 +233,7 @@ export default function TraegerHolidayAllocationPage() {
             variant="primary"
             size="md"
             disabled={busy}
+            tooltip="moto fragt vorher nach, dann vergibt es die Plätze und schreibt den Eltern."
             onClick={() => setProposalScope("all")}
           >
             Vorschlag für alle Wochen übernehmen
@@ -261,6 +263,7 @@ export default function TraegerHolidayAllocationPage() {
                 variant="outline"
                 size="md"
                 className="gap-2"
+                tooltip={HOLIDAY_CRITERIA_HINT}
               >
                 <ListChecks className="h-4 w-4" aria-hidden="true" />
                 Kriterien ändern

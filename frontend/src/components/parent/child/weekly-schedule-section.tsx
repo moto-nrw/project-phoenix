@@ -69,6 +69,7 @@ export function WeeklyScheduleSection(props: Readonly<ScheduleProps>) {
               type="button"
               variant="surface"
               size="md"
+              tooltip={t("requestButtonTooltip")}
               onClick={() => setRequestOpen(true)}
             >
               {t("requestButton")}

@@ -22,5 +22,6 @@
     "showAll": "Shihni të gjitha",
     "showAllLabel": "Shihni të gjitha regjistrimet për pushimet",
     "more": "{count, plural, one {edhe # regjistrim} other {edhe # regjistrime}}"
-  }
+  },
+  "toDocumentsTooltip": "Hap dokumentet tuaja me konfirmimin dhe faturën."
 }

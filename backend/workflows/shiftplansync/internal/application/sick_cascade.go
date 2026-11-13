@@ -53,6 +53,10 @@ type TimetableRows interface {
 type SickStamps interface {
 	ListBySickAbsence(ctx context.Context, absenceID int64) ([]*timetable.InstanceStaff, error)
 	SetSickAbsence(ctx context.Context, assignmentID int64, absenceID *int64) (int64, error)
+	// FindByStaffIDsAndDateRange lists the assignments of the staff members
+	// in the inclusive date range in one read; the absence plan gaps compare
+	// them with the absences in force (#7021).
+	FindByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to calendar.Date) ([]*timetable.InstanceStaff, error)
 }
 
 // SickDeviations is the Timetable owner's sick-report write surface
@@ -105,6 +109,8 @@ type SickCascade interface {
 	ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error
 	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
 	LockSickReportWrite(ctx context.Context, staffID, absenceID int64, absenceType, dateStart, dateEnd string) error
+	AbsencePlanGaps(ctx context.Context) ([]workforce.AbsencePlanGap, error)
+	MarkAbsenceInForce(ctx context.Context, absenceID, actorStaffID int64, actorAccountID *int64) (bool, error)
 }
 
 // NewSickCascade wires the #1843 cascade. Compose checks the dependencies and

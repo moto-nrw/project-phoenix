@@ -27,5 +27,8 @@
   "booked": "Your appointment at {time} is booked.",
   "cancelled": "Your appointment is cancelled.",
   "errorObject": "the parent-teacher conference",
-  "errorObjectBooking": "the booking"
+  "errorObjectBooking": "the booking",
+  "cancelTooltip": "Cancels the appointment and frees the time. moto asks first.",
+  "entryActionTooltip": "Opens the free times of the parent-teacher day for booking.",
+  "entryActionBookedTooltip": "Opens your appointment, where you can move or cancel it."
 }

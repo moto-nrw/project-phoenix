@@ -12,6 +12,7 @@ import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
+import { SCHULHOF_SUPERVISE_TOOLTIP } from "~/components/active-supervisions/supervision-action-hints";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
@@ -32,6 +33,8 @@ interface EmptyRoomsViewProps {
 interface SchulhofSuperviseButtonProps {
   readonly isToggling: boolean;
   readonly disabled?: boolean;
+  /** Why it is blocked, e.g. on a weekend; shown on hover, focus and tap. */
+  readonly disabledReason?: string;
   readonly onToggle: () => void;
 }
 
@@ -171,6 +174,7 @@ export function ReleaseSupervisionModal({
 export function SchulhofSuperviseButton({
   isToggling,
   disabled = false,
+  disabledReason,
   onToggle,
 }: SchulhofSuperviseButtonProps) {
   return (
@@ -180,6 +184,8 @@ export function SchulhofSuperviseButton({
       size="md"
       onClick={onToggle}
       disabled={isToggling || disabled}
+      disabledReason={isToggling ? undefined : disabledReason}
+      tooltip={SCHULHOF_SUPERVISE_TOOLTIP}
     >
       {isToggling ? "Wird übernommen…" : "Beaufsichtigen"}
     </Button>

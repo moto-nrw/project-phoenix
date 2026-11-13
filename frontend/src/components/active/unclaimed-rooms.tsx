@@ -19,6 +19,7 @@ import { SpinnerIcon } from "~/components/ui/icons";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { schoolyardConcept } from "~/lib/concepts/schoolyard";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SCHULHOF_SUPERVISE_TOOLTIP } from "~/components/active-supervisions/supervision-action-hints";
 
 const logger = createLogger({ component: "UnclaimedRooms" });
 
@@ -256,6 +257,7 @@ export function UnclaimedRooms({
             size="compact"
             onClick={() => void handleClaim()}
             disabled={claiming}
+            tooltip={SCHULHOF_SUPERVISE_TOOLTIP}
           >
             {claiming ? (
               <span className="flex items-center gap-2">

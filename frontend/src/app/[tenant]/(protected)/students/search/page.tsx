@@ -174,7 +174,10 @@ import {
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
-import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
+import {
+  CHECKOUT_HINTS,
+  useEarlyCheckoutDialog,
+} from "~/components/students/early-checkout-note";
 import { StudentSearchTransitCard } from "~/components/students/student-search-transit-card";
 import {
   useAttendanceWebEnabled,
@@ -2061,7 +2064,13 @@ function SearchPageContent() {
     reloadStudentsRef.current = reloadStudents;
   });
   const reloadAction = (
-    <Button type="button" variant="outline" size="md" onClick={reloadStudents}>
+    <Button
+      type="button"
+      variant="outline"
+      size="md"
+      onClick={reloadStudents}
+      tooltip="Versucht noch einmal, die Liste der Kinder zu laden."
+    >
       Erneut laden
     </Button>
   );
@@ -2300,6 +2309,7 @@ function SearchPageContent() {
                 size="compact"
                 variant={isToday ? "primary" : "outline"}
                 onClick={() => updateSelectedDate(todayIso)}
+                tooltip="Zeigt, wo die Kinder heute gerade sind."
               >
                 Heute
               </Button>
@@ -2312,6 +2322,7 @@ function SearchPageContent() {
                   size="compact"
                   variant={selectedDate === tomorrowIso ? "primary" : "outline"}
                   onClick={() => updateSelectedDate(tomorrowIso)}
+                  tooltip="Zeigt, welche Kinder morgen laut Plan kommen."
                 >
                   Morgen
                 </Button>
@@ -3312,6 +3323,8 @@ function SearchPageContent() {
                   // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
                   // ohnehin nach einem Kind sucht.
                   label: "Abwesenheiten",
+                  description:
+                    "Öffnet die Übersicht, welche Kinder wann fehlen.",
                   icon: <CalendarRange className="h-4 w-4" aria-hidden />,
                   onClick: () => router.push("/absences"),
                 },
@@ -3320,6 +3333,8 @@ function SearchPageContent() {
                   ? [
                       {
                         label: "Exportieren",
+                        description:
+                          "Öffnet den Export der Kinder aus der aktuellen Filterung.",
                         icon: <Download className="h-4 w-4" aria-hidden />,
                         onClick: () => setIsExportOpen(true),
                         badge: rowsLoaded ? filteredStudents.length : undefined,
@@ -3338,6 +3353,8 @@ function SearchPageContent() {
                   ? [
                       {
                         label: "Elternbrief schreiben",
+                        description:
+                          "Öffnet einen neuen Brief an die Eltern der gezeigten Kinder.",
                         icon: <FileText className="h-4 w-4" aria-hidden />,
                         onClick: writeParentLetter,
                         badge: filteredStudents.length,
@@ -3449,6 +3466,7 @@ function SearchPageContent() {
                     variant="outline"
                     size="md"
                     onClick={clearAllFilters}
+                    tooltip="Hebt Suche, Filter und Sortierung auf und zeigt wieder heute."
                   >
                     Filter zurücksetzen
                   </Button>
@@ -3474,6 +3492,7 @@ function SearchPageContent() {
                     variant="outline"
                     size="md"
                     onClick={() => setPendingRoomCheckout(null)}
+                    noTooltip={CHECKOUT_HINTS.cancel}
                   >
                     Abbrechen
                   </Button>
@@ -3491,6 +3510,7 @@ function SearchPageContent() {
                       );
                       setPendingRoomCheckout(null);
                     }}
+                    tooltip={CHECKOUT_HINTS.toClass}
                   >
                     Geht zum Unterricht
                   </Button>
@@ -3506,6 +3526,7 @@ function SearchPageContent() {
                       );
                       setPendingRoomCheckout(null);
                     }}
+                    tooltip={CHECKOUT_HINTS.home}
                   >
                     Geht nach Hause
                   </Button>
@@ -3557,6 +3578,7 @@ function SearchPageContent() {
                     variant="outline"
                     size="compact"
                     onClick={() => updateSelectedDate(todayIso)}
+                    tooltip="Zeigt, wo die Kinder heute gerade sind."
                   >
                     Zurück zu heute
                   </Button>

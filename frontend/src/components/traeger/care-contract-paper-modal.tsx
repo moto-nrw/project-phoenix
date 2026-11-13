@@ -49,9 +49,18 @@ export function PaperSignatureModal({
   const signedOnError = formError.fieldError("signed_on");
   const { success } = useToast();
 
+  // Was fehlt, sperrt den Abschluss und ist zugleich sein Grund.
+  const missingText = !signerName.trim()
+    ? "Tragen Sie zuerst ein, wer unterschrieben hat."
+    : !signedOn
+      ? "Wählen Sie zuerst den Tag der Unterschrift."
+      : !file
+        ? "Wählen Sie zuerst das PDF des Vertrags."
+        : undefined;
+
   const save = async () => {
     formError.clear();
-    if (!file || !signedOn || !signerName.trim()) return;
+    if (!file || !signedOn || missingText) return;
     await submission.run(async (op) => {
       try {
         await recordPaperSignature(contract.id, {
@@ -87,6 +96,7 @@ export function PaperSignatureModal({
             size="md"
             onClick={onClose}
             disabled={saving}
+            noTooltip="Abbrechen schließt nur das Fenster, ohne etwas zu speichern."
           >
             Abbrechen
           </Button>
@@ -94,7 +104,9 @@ export function PaperSignatureModal({
             type="button"
             variant="success"
             size="md"
-            disabled={saving || !file || !signedOn || !signerName.trim()}
+            disabled={saving || Boolean(missingText)}
+            disabledReason={saving ? undefined : missingText}
+            tooltip="Speichert das PDF und schließt den Vertrag sofort ab."
             onClick={() => void save()}
           >
             {saving ? "Wird erfasst …" : "Vertrag abschließen"}

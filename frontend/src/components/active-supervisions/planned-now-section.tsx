@@ -79,6 +79,20 @@ function rosterPreviewLabel(
 // weekday) and "cancelled" ("kommt heute nicht"). The backend leaves both out
 // of expected_students_count, so testing one value would show a child as
 // "Erwartet" that the header count does not include (#1747).
+function startClock(startAvailableAt: string): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(startAvailableAt));
+}
+
+/** Why „Starten“ is locked; the button's own label names the same state. */
+function startBlockedReason(instance: PlannedTimetableInstance): string {
+  return instance.startAvailableAt
+    ? `Die Aktivität lässt sich erst ab ${startClock(instance.startAvailableAt)} Uhr starten.`
+    : "Nur eingeplante Betreuer können diese Aktivität starten.";
+}
+
 function isNotScheduled(row: TimetableRosterRow): boolean {
   return (
     !isCareDayExpected(row.careDayStatus) &&
@@ -276,6 +290,12 @@ export function PlannedNowSection({
                             isStartingInstance === instance.id ||
                             !canStartPlannedInstance(instance, now)
                           }
+                          disabledReason={
+                            isStartingInstance === instance.id
+                              ? undefined
+                              : startBlockedReason(instance)
+                          }
+                          tooltip="Startet die Aktivität sofort und öffnet ihre Anwesenheitsliste."
                           onClick={() => onStart(instance)}
                           className="shrink-0 gap-2"
                         >
@@ -285,7 +305,7 @@ export function PlannedNowSection({
                             : canStartPlannedInstance(instance, now)
                               ? "Starten"
                               : instance.startAvailableAt
-                                ? `Starten ab ${new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(instance.startAvailableAt))}`
+                                ? `Starten ab ${startClock(instance.startAvailableAt)}`
                                 : "Nur für Eingeplante"}
                         </Button>
                       </div>

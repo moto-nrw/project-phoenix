@@ -147,10 +147,13 @@ function shortDate(date: Date): string {
 
 function NavButton({
   ariaLabel,
+  tooltip,
   onClick,
   children,
 }: {
   readonly ariaLabel: string;
+  /** Was der Klick zeigt (#6765). */
+  readonly tooltip: string;
   readonly onClick: () => void;
   readonly children: ReactNode;
 }) {
@@ -160,6 +163,7 @@ function NavButton({
       variant="surface"
       size="md"
       aria-label={ariaLabel}
+      tooltip={tooltip}
       onClick={onClick}
       className="gap-1"
     >
@@ -344,6 +348,7 @@ export function CarePlanView({
           <>
             <NavButton
               ariaLabel="Vorheriger Tag"
+              tooltip="Zeigt den Plan des vorherigen Betreuungstags."
               onClick={() =>
                 setSelectedDate((d) => stepWeekday(d, -1, weekendOpen, today))
               }
@@ -361,6 +366,7 @@ export function CarePlanView({
                 type="button"
                 variant="surface"
                 size="md"
+                tooltip="Springt zurück zum Plan von heute."
                 onClick={() => setSelectedDate(today)}
               >
                 Heute
@@ -368,6 +374,7 @@ export function CarePlanView({
             )}
             <NavButton
               ariaLabel="Nächster Tag"
+              tooltip="Zeigt den Plan des nächsten Betreuungstags."
               onClick={() =>
                 setSelectedDate((d) => stepWeekday(d, 1, weekendOpen, today))
               }
@@ -378,7 +385,11 @@ export function CarePlanView({
           </>
         ) : (
           <>
-            <NavButton ariaLabel="Vorherige Woche" onClick={() => moveWeek(-1)}>
+            <NavButton
+              ariaLabel="Vorherige Woche"
+              tooltip="Zeigt den Plan der Woche davor."
+              onClick={() => moveWeek(-1)}
+            >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Vorherige Woche</span>
             </NavButton>
@@ -392,12 +403,17 @@ export function CarePlanView({
                 type="button"
                 variant="surface"
                 size="md"
+                tooltip="Springt zurück zum Plan dieser Woche."
                 onClick={() => setWeekStartISO(currentWeekStartISO)}
               >
                 Diese Woche
               </Button>
             )}
-            <NavButton ariaLabel="Nächste Woche" onClick={() => moveWeek(1)}>
+            <NavButton
+              ariaLabel="Nächste Woche"
+              tooltip="Zeigt den Plan der Woche danach."
+              onClick={() => moveWeek(1)}
+            >
               <span className="hidden sm:inline">Nächste Woche</span>
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </NavButton>

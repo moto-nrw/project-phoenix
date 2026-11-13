@@ -159,7 +159,10 @@ describe("NewMessageModal", () => {
       expect.stringContaining("Ömer Kaya"),
       expect.stringContaining("Zoe Weber"),
     ]);
-    expect(screen.getByRole("button", { name: "Weiter" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Weiter" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
 
     fireEvent.change(screen.getByRole("searchbox", { name: "Kind suchen" }), {
       target: { value: "Bei" },

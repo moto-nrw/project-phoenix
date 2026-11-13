@@ -1208,6 +1208,8 @@ function CareOfferingToolbar({
               size="md"
               onClick={onCreate}
               disabled={!selectedPhaseId}
+              disabledReason="Wählen Sie zuerst eine Anmeldephase aus."
+              tooltip="Öffnet ein leeres Formular für ein Angebot dieser Phase."
               className="shrink-0 gap-2"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
@@ -1232,6 +1234,7 @@ function PlannerMetadataNotice({ onRetry }: Readonly<{ onRetry: () => void }>) {
           variant="surface"
           size="compact"
           onClick={onRetry}
+          tooltip="Lädt Regeltermine und Planungsperioden noch einmal."
         >
           Erneut laden
         </Button>
@@ -1254,6 +1257,7 @@ function NoPhaseState() {
             href={tenantPath("/enrollment-phases")}
             size="md"
             className="gap-2"
+            tooltip="Öffnet die Anmeldephasen, um die erste anzulegen."
           >
             <MotoConceptIcon
               concept={calendarPeriodsConcept}
@@ -1340,12 +1344,15 @@ function CareOfferingActions({
         items={[
           {
             label: "Bearbeiten",
+            description: "Öffnet das Betreuungsangebot zum Ändern.",
             icon: <Pencil className="h-4 w-4" aria-hidden />,
             disabled: saving,
             onClick: onEdit,
           },
           {
             label: "Duplizieren",
+            description:
+              "Öffnet ein Fenster, um das Angebot in eine Phase zu kopieren.",
             icon: <Copy className="h-4 w-4" aria-hidden />,
             disabled: saving,
             onClick: onClone,
@@ -1353,6 +1360,7 @@ function CareOfferingActions({
           { kind: "separator" },
           {
             label: deleting ? "Löscht…" : "Löschen",
+            description: "moto fragt vorher nach und löscht dann das Angebot.",
             icon: <Trash2 className="h-4 w-4" aria-hidden />,
             destructive: true,
             disabled: deleting || saving,
@@ -2006,6 +2014,8 @@ function CareOfferingAvailabilityFields({
                     variant="surface"
                     size="compact"
                     disabled={index === 0}
+                    disabledReason="Die Bedingung steht schon ganz oben."
+                    tooltip="Schiebt die Bedingung eine Stelle nach oben."
                     onClick={() => moveCondition(index, -1)}
                     aria-label={`Bedingung ${index + 1} nach oben`}
                   >
@@ -2016,6 +2026,8 @@ function CareOfferingAvailabilityFields({
                     variant="surface"
                     size="compact"
                     disabled={index === rule.conditions.length - 1}
+                    disabledReason="Die Bedingung steht schon ganz unten."
+                    tooltip="Schiebt die Bedingung eine Stelle nach unten."
                     onClick={() => moveCondition(index, 1)}
                     aria-label={`Bedingung ${index + 1} nach unten`}
                   >
@@ -2036,6 +2048,7 @@ function CareOfferingAvailabilityFields({
                       })
                     }
                     aria-label={`Bedingung ${index + 1} löschen`}
+                    tooltip="Entfernt die Bedingung, wirksam erst nach dem Speichern."
                   >
                     Löschen
                   </Button>
@@ -2116,6 +2129,7 @@ function CareOfferingAvailabilityFields({
               })
             }
             className="gap-2"
+            tooltip="Fügt eine weitere Bedingung hinzu, wer das Angebot wählen darf."
           >
             <Plus className="h-4 w-4" />
             Bedingung hinzufügen
@@ -2274,6 +2288,31 @@ function CareOfferingDisplayFields({
   );
 }
 
+/** Why an offering draft cannot be saved yet, in the order the form reads. */
+function offeringSubmitBlockedReason({
+  phaseChosen,
+  named,
+  templateMismatch,
+  unverifiableTemplateChange,
+  availabilityIncomplete,
+}: Readonly<{
+  phaseChosen: boolean;
+  named: boolean;
+  templateMismatch: boolean;
+  unverifiableTemplateChange: boolean;
+  availabilityIncomplete: boolean;
+}>): string | undefined {
+  if (!phaseChosen) return "Wählen Sie zuerst eine Anmeldephase aus.";
+  if (!named) return "Geben Sie zuerst einen Namen für das Angebot ein.";
+  if (templateMismatch)
+    return "Wählen Sie einen passenden Regeltermin oder entfernen Sie ihn.";
+  if (unverifiableTemplateChange)
+    return "Laden Sie die Regeltermine neu oder entfernen Sie die Verknüpfung.";
+  if (availabilityIncomplete)
+    return "Vervollständigen Sie zuerst die markierten Bedingungen.";
+  return undefined;
+}
+
 function submitLabel(saving: boolean, editing: boolean): string {
   if (saving) return "Speichert…";
   return editing ? "Speichern" : "Erstellen";
@@ -2283,11 +2322,14 @@ function CareOfferingFormActions({
   saving,
   editing,
   submitDisabled,
+  submitBlockedReason,
   onCancel,
 }: Readonly<{
   saving: boolean;
   editing: boolean;
   submitDisabled: boolean;
+  /** Why the draft cannot be saved yet; absent while it only saves. */
+  submitBlockedReason?: string;
   onCancel: () => void;
 }>) {
   return (
@@ -2298,6 +2340,7 @@ function CareOfferingFormActions({
         size="md"
         onClick={onCancel}
         disabled={saving}
+        noTooltip="Abbrechen schließt nur das Fenster, ohne etwas zu ändern."
       >
         Abbrechen
       </Button>
@@ -2306,6 +2349,12 @@ function CareOfferingFormActions({
         variant="primary"
         size="md"
         disabled={submitDisabled}
+        disabledReason={saving ? undefined : submitBlockedReason}
+        tooltip={
+          editing
+            ? "Speichert die Änderungen am Betreuungsangebot."
+            : "Legt das Betreuungsangebot in dieser Anmeldephase an."
+        }
       >
         {submitLabel(saving, editing)}
       </Button>
@@ -2350,6 +2399,18 @@ function CareOfferingForm({
     originalActivityGroupID,
     metadataStatus,
   );
+  const submitBlockedReason = offeringSubmitBlockedReason({
+    phaseChosen: Boolean(draft.phase_id),
+    named: Boolean(draft.name.trim()),
+    templateMismatch:
+      linkedTemplatePeriodMismatch || linkedTemplateWeekdayMismatch,
+    unverifiableTemplateChange,
+    availabilityIncomplete:
+      careOfferingAvailabilityRuleError(
+        draft.availability_rule,
+        gradeLevelMax,
+      ) !== null,
+  });
 
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-5">
@@ -2550,18 +2611,8 @@ function CareOfferingForm({
       <CareOfferingFormActions
         saving={saving}
         editing={editing}
-        submitDisabled={
-          saving ||
-          !draft.phase_id ||
-          !draft.name.trim() ||
-          linkedTemplatePeriodMismatch ||
-          linkedTemplateWeekdayMismatch ||
-          unverifiableTemplateChange ||
-          careOfferingAvailabilityRuleError(
-            draft.availability_rule,
-            gradeLevelMax,
-          ) !== null
-        }
+        submitDisabled={saving || submitBlockedReason !== undefined}
+        submitBlockedReason={submitBlockedReason}
         onCancel={onCancel}
       />
     </form>
@@ -2619,6 +2670,7 @@ function CloneOfferingForm({
           size="md"
           onClick={onCancel}
           disabled={saving}
+          noTooltip="Abbrechen schließt nur das Fenster, ohne etwas zu ändern."
         >
           Abbrechen
         </Button>
@@ -2627,6 +2679,10 @@ function CloneOfferingForm({
           variant="primary"
           size="md"
           disabled={saving || !targetPhaseId}
+          disabledReason={
+            targetPhaseId ? undefined : "Wählen Sie zuerst eine Zielphase aus."
+          }
+          tooltip="Legt eine Kopie des Angebots in der Zielphase an."
         >
           {saving ? "Dupliziert…" : "Duplizieren"}
         </Button>

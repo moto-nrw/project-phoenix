@@ -12,6 +12,9 @@ const TRAEGER_HANDOFF_PATH = "/traeger-uebergabe";
 
 /** Texts of the Absprung, shared by the Träger portal and the entry page. */
 export const TRAEGER_HANDOFF_OPEN = "Schul-App öffnen";
+/** What a click on „Schul-App öffnen“ does (#6747). */
+export const TRAEGER_HANDOFF_OPEN_HINT =
+  "Öffnet die Schul-App dieser Schule in einem neuen Tab.";
 export const TRAEGER_HANDOFF_OPENING = "Schule wird geöffnet …";
 export const TRAEGER_HANDOFF_FAILED_TITLE =
   "Die Schule konnte nicht geöffnet werden.";

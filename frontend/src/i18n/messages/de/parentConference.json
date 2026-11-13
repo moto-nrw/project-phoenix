@@ -27,5 +27,8 @@
   "booked": "Ihr Termin um {time} ist gebucht.",
   "cancelled": "Ihr Termin ist abgesagt.",
   "errorObject": "den Elternsprechtag",
-  "errorObjectBooking": "die Buchung"
+  "errorObjectBooking": "die Buchung",
+  "cancelTooltip": "Sagt den Termin ab, die Zeit wird frei. moto fragt vorher nach.",
+  "entryActionTooltip": "Öffnet die freien Zeiten des Elternsprechtags zum Buchen.",
+  "entryActionBookedTooltip": "Öffnet Ihren Termin, dort können Sie ihn verschieben oder absagen."
 }

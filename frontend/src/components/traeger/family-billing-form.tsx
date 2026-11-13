@@ -487,6 +487,7 @@ export function FamilyBillingForm({
           variant="outline"
           size="compact"
           className="self-start"
+          tooltip="Leert alle Abweichungen im Formular, gespeichert wird erst mit „Speichern“."
           onClick={() =>
             setDraft((current) => ({
               ...EMPTY_FAMILY_BILLING,

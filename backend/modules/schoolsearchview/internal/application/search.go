@@ -1,4 +1,4 @@
-// Package application runs one school search (ADR 0230): it reads the query
+// Package application runs one school search (ADR 0231): it reads the query
 // once, asks the reader only for the kinds the Scope opens and joins the
 // registration answers Enrollment matched to the child rows.
 package application

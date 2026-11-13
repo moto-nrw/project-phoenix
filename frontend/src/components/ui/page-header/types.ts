@@ -191,6 +191,11 @@ export interface OverflowMenuItem {
   readonly label: string;
   /** One short line under the label that says what the entry does. */
   readonly description?: string;
+  /**
+   * Why the label alone says what the entry does (#6745). Not rendered; it
+   * makes the missing `description` visible in the code, like `noTooltip`.
+   */
+  readonly noDescription?: string;
   /** Optional left icon. */
   readonly icon?: ReactNode;
   /** Click handler. The menu closes automatically before this fires. */

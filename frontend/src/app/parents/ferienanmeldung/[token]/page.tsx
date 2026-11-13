@@ -158,6 +158,7 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
                     href={holidayRegistrationLoginPath(token)}
                     variant="link_tone"
                     size="compact"
+                    tooltip={t("accountHintLoginTooltip")}
                   >
                     {t("accountHintLogin")}
                   </ButtonLink>

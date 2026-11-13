@@ -116,3 +116,19 @@ type SickReportWrites interface {
 	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) (SickCascadePlan, error)
 	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) (SickCascadePlan, error)
 }
+
+// AbsencePlanGap is one absence in force whose plan rows from today on do
+// not yet carry its effect (#7021): shifts still planned on its full days
+// and care-block rows still staffed. An absence entered before every type
+// cascaded (#6847) left the rows planned at that time untouched; the cascade
+// re-applied over it closes the gap without overriding hand planning.
+// DateStart and DateEnd are calendar days in DateLayout.
+type AbsencePlanGap struct {
+	AbsenceID   int64  `json:"absence_id"`
+	StaffID     int64  `json:"staff_id"`
+	AbsenceType string `json:"absence_type"`
+	DateStart   string `json:"date_start"`
+	DateEnd     string `json:"date_end"`
+	OpenShifts  int    `json:"open_shifts"`
+	OpenBlocks  int    `json:"open_blocks"`
+}

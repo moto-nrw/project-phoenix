@@ -1,5 +1,5 @@
 // Package postgres is the SQL side of the school search projection (ADR
-// 0230). Every statement reads in the caller's tenant transaction, filters on
+// 0231). Every statement reads in the caller's tenant transaction, filters on
 // its school explicitly as well as through RLS, and returns a bounded list.
 // It reads only the tables policy names for the read projection and never
 // writes. The statements are constants, so the architecture check resolves

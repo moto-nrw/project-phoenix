@@ -128,6 +128,7 @@ import {
   saveStudentPartialAbsence,
 } from "~/lib/student-partial-absences-api";
 import {
+  CHECKOUT_HINTS,
   EarlyCheckoutNoteField,
   useEarlyCheckoutCheck,
 } from "~/components/students/early-checkout-note";
@@ -1561,6 +1562,7 @@ function StudentDetailPageContent() {
                   variant="outline"
                   size="md"
                   onClick={closeCheckoutDialog}
+                  noTooltip={CHECKOUT_HINTS.cancel}
                 >
                   Abbrechen
                 </Button>
@@ -1572,6 +1574,7 @@ function StudentDetailPageContent() {
                   isLoading={checkingOut === "class"}
                   loadingText="Wird abgemeldet…"
                   onClick={() => void handleConfirmCheckout("class")}
+                  tooltip={CHECKOUT_HINTS.toClass}
                 >
                   Geht zum Unterricht
                 </Button>
@@ -1583,6 +1586,7 @@ function StudentDetailPageContent() {
                   isLoading={checkingOut === "home"}
                   loadingText="Wird abgemeldet…"
                   onClick={() => void handleConfirmCheckout()}
+                  tooltip={CHECKOUT_HINTS.home}
                 >
                   Geht nach Hause
                 </Button>
@@ -1655,6 +1659,7 @@ function StudentDetailPageContent() {
               // Antwort sonst keine Fläche (#6594).
               disabled={sickLoading}
               onClick={() => openPlannedStatusFromLift("sick")}
+              tooltip="Wechselt zur Liste aller Kranktage, ohne etwas aufzuheben."
             >
               Alle Kranktage ansehen
             </Button>
@@ -1702,6 +1707,7 @@ function StudentDetailPageContent() {
                 className="mt-4"
                 disabled={excusedLoading}
                 onClick={() => openPlannedStatusFromLift("excused")}
+                tooltip="Wechselt zur Liste aller entschuldigten Tage, ohne etwas aufzuheben."
               >
                 Alle entschuldigten Tage ansehen
               </Button>
@@ -1789,6 +1795,7 @@ function StudentDetailPageContent() {
                 variant="outline"
                 size="compact"
                 onClick={() => setCareWithdrawalModalOpen(true)}
+                tooltip="Öffnet den Austritt mit Vorschau, moto fragt vorher nach."
               >
                 Betreuung beenden
               </Button>
