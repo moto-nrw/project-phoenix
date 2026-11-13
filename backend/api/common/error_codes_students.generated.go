@@ -94,6 +94,7 @@ const CodeStudentsStaffProfileRequired = "students.staff_profile_required"
 const CodeStudentsStaffValueInvalid = "students.staff_value_invalid"
 const CodeStudentsStaffValueUnsupported = "students.staff_value_unsupported"
 const CodeStudentsStatusDayConflict = "students.status_day_conflict"
+const CodeStudentsStatusDayOccupied = "students.status_day_occupied"
 
 var errorCodeClassesStudents = []errorCodeClass{
 	{CodeStudentsAbsenceReadRequired, "permission"},
@@ -189,6 +190,7 @@ var errorCodeClassesStudents = []errorCodeClass{
 	{CodeStudentsStaffValueInvalid, "input"},
 	{CodeStudentsStaffValueUnsupported, "input"},
 	{CodeStudentsStatusDayConflict, "business_rejection"},
+	{CodeStudentsStatusDayOccupied, "business_rejection"},
 }
 
 func init() {

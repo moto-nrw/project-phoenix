@@ -19,6 +19,11 @@ import (
 // ErrSickExcusedConflict rejects a profile patch that leaves both statuses effective.
 var ErrSickExcusedConflict = errors.New("a student cannot be both sick and excused at the same time")
 
+// ErrStatusDayOccupied rejects a profile patch that reports a status on a day
+// a class trip already holds. The status-day write refuses such a day too,
+// with its own conflict listing.
+var ErrStatusDayOccupied = errors.New("the day already carries another student status")
+
 // Broad day statuses. The values are the persisted column values.
 const (
 	StudentStatusDaySick      = excusedrequests.StudentStatusDaySick

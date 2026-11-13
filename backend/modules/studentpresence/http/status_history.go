@@ -2,6 +2,7 @@ package studentpresencehttp
 
 import (
 	context "context"
+	errors "errors"
 	time "time"
 
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
@@ -29,11 +30,20 @@ func clearRequested(requested *bool) bool {
 	return requested != nil && !*requested
 }
 
-func (rs *Resource) PersistStudentStatusHistory(ctx context.Context, student *peopleModule.StudentState, requestedSick, requestedExcused *bool, wasSick, wasExcused bool, now time.Time, sickNote *string) error {
-	if rs.StudentStatusDayService == nil {
+// ApplyProfileStatusChange is the status-day path of the student PUT
+// (#6959): it validates the requested sick/excused change, writes today's
+// status days and derives the child's live flags from it. student is the
+// locked row before the change; on return its flags show the result, which
+// the caller persists with the row. The PUT never sets the flags itself, so
+// the flags and the status days cannot be written apart.
+func (rs *Resource) ApplyProfileStatusChange(ctx context.Context, student *peopleModule.StudentState, requestedSick, requestedExcused *bool, now time.Time, sickNote *string) error {
+	if student == nil {
 		return nil
 	}
-	if student == nil {
+	if rs.StudentStatusDayService == nil {
+		if requestedSick != nil || requestedExcused != nil {
+			return errors.New("student status day service is not configured")
+		}
 		return nil
 	}
 
@@ -41,6 +51,8 @@ func (rs *Resource) PersistStudentStatusHistory(ctx context.Context, student *pe
 	if err := rs.StudentStatusDayService.ValidateProfileStatusChange(ctx, student.ID, today, requestedSick, requestedExcused); err != nil {
 		return err
 	}
+	wasSick, wasExcused := boolPtrValue(student.Sick), boolPtrValue(student.Excused)
+	deriveProfileLiveFlags(student, requestedSick, requestedExcused, now)
 	// Only the sick status carries a free-text reason; excused stays note-less.
 	if err := rs.persistSingleStatusHistory(ctx, student.ID, absencerecords.StudentStatusDaySick, statusTransition{
 		wasActive: wasSick, isActive: boolPtrValue(student.Sick), clearRequested: clearRequested(requestedSick),
@@ -53,6 +65,35 @@ func (rs *Resource) PersistStudentStatusHistory(ctx context.Context, student *pe
 		return err
 	}
 	return nil
+}
+
+// deriveProfileLiveFlags applies the requested statuses to the live flags with
+// the rules every status-day write of today uses: a newly reported status
+// stands since now, a standing one keeps its time, a lifted one is cleared.
+// Lifts run first, so a switch in one request ends on the reported status.
+func deriveProfileLiveFlags(student *peopleModule.StudentState, requestedSick, requestedExcused *bool, now time.Time) {
+	record := presenceRecord(student)
+	requests := []struct {
+		status    string
+		requested *bool
+		standing  bool
+	}{
+		// A flag without its since time gets one, as the PUT always did.
+		{absencerecords.StudentStatusDaySick, requestedSick, boolPtrValue(student.Sick) && student.SickSince != nil},
+		{absencerecords.StudentStatusDayExcused, requestedExcused, boolPtrValue(student.Excused) && student.ExcusedSince != nil},
+	}
+	for _, request := range requests {
+		if clearRequested(request.requested) {
+			studentpresence.ClearLiveStatusForToday(record, request.status)
+		}
+	}
+	for _, request := range requests {
+		if boolPtrValue(request.requested) && !request.standing {
+			studentpresence.ApplyLiveStatusForToday(record, request.status, now)
+		}
+	}
+	student.Sick, student.SickSince = record.Sick, record.SickSince
+	student.Excused, student.ExcusedSince = record.Excused, record.ExcusedSince
 }
 
 // statusTransition describes one status flag across an update. wasActive and

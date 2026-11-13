@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/moto-ogs/project-phoenix/api/common"
 	"github.com/moto-ogs/project-phoenix/api/testutil"
 	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -152,4 +154,78 @@ func TestUpdateStudent_SickExcusedMutualExclusion(t *testing.T) {
 		assert.Contains(t, switchRR.Body.String(), `"sick":false`)
 		assert.Contains(t, switchRR.Body.String(), `"excused":true`)
 	})
+}
+
+// The student PUT writes a status through the status-day path (#6959), so it
+// refuses a day that already carries a class trip, as the status-day route
+// does, instead of leaving two statuses standing on the same day.
+func TestUpdateStudent_StatusOnClassTripDayIsRejected(t *testing.T) {
+	t.Parallel()
+
+	today := calendar.NewDate(2026, 9, 9)
+	tc := setupStudentsRoute(t, func() time.Time { return today.BerlinMidnight().Add(10 * time.Hour) })
+
+	for _, status := range []string{absencerecords.StudentStatusDaySick, absencerecords.StudentStatusDayExcused} {
+		t.Run(status, func(t *testing.T) {
+			student := testpkg.CreateTestStudent(t, tc.db, "ClassTrip", "Put"+status, "CT1")
+			testpkg.CreateTestStudentStatusDay(t, tc.db, student.ID, today, absencerecords.StudentStatusDayClassTrip)
+
+			rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+				map[string]any{status: true}), testutil.AdminTestClaims(1), []string{"admin:*"})
+
+			require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+			assert.Contains(t, rr.Body.String(), common.CodeStudentsStatusDayOccupied)
+
+			var rows []testpkg.StudentStatusDayRow
+			require.NoError(t, tc.db.NewSelect().Model(&rows).
+				ModelTableExpr(`active.student_status_days AS "student_status_day"`).
+				Where(`"student_status_day".student_id = ?`, student.ID).
+				Where(`"student_status_day".cleared_at IS NULL`).Scan(testpkg.Ctx(t)))
+			require.Len(t, rows, 1, "only the class trip stands")
+			assert.Equal(t, absencerecords.StudentStatusDayClassTrip, rows[0].Status)
+
+			state, err := tc.resource.PeopleDirectory.FindStudentRecord(testpkg.Ctx(t), student.ID)
+			require.NoError(t, err)
+			assert.False(t, state.Sick != nil && *state.Sick, "the live flag stays unset")
+			assert.False(t, state.Excused != nil && *state.Excused, "the live flag stays unset")
+		})
+	}
+
+	t.Run("standing_status_repeats_as_no_op", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "ClassTrip", "Standing", "CT2")
+		testpkg.CreateTestStudentStatusDay(t, tc.db, student.ID, today, absencerecords.StudentStatusDayClassTrip)
+		testpkg.CreateTestStudentStatusDay(t, tc.db, student.ID, today, absencerecords.StudentStatusDaySick)
+
+		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]any{"sick": true}), testutil.AdminTestClaims(1), []string{"admin:*"})
+		assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	})
+}
+
+// The live flag the PUT derives carries the request's own instant, the one its
+// status day is dated by, not a second wall-clock reading (#6959).
+func TestUpdateStudent_StatusSinceUsesRequestInstant(t *testing.T) {
+	t.Parallel()
+
+	now := calendar.NewDate(2026, 9, 9).BerlinMidnight().Add(10 * time.Hour)
+	tc := setupStudentsRoute(t, func() time.Time { return now })
+
+	for _, status := range []string{absencerecords.StudentStatusDaySick, absencerecords.StudentStatusDayExcused} {
+		t.Run(status, func(t *testing.T) {
+			student := testpkg.CreateTestStudent(t, tc.db, "Since", "Put"+status, "SI1")
+
+			rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+				map[string]any{status: true}), testutil.AdminTestClaims(1), []string{"admin:*"})
+			require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+			state, err := tc.resource.PeopleDirectory.FindStudentRecord(testpkg.Ctx(t), student.ID)
+			require.NoError(t, err)
+			since := state.SickSince
+			if status == absencerecords.StudentStatusDayExcused {
+				since = state.ExcusedSince
+			}
+			require.NotNil(t, since)
+			assert.True(t, since.Equal(now), "since %s, want %s", since, now)
+		})
+	}
 }
