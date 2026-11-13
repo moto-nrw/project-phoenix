@@ -94,7 +94,8 @@ func ToCareRequestHistoryResponse(item *careplan.CareScheduleHistoryItem) CareRe
 
 func careImpactToken(item *careplan.CareScheduleReviewItem) string {
 	if !item.ImpactAvailable {
-		return ""
+		// A weekly request pins its displayed diff (#6843).
+		return item.ImpactToken
 	}
 	return securityruntime.Fingerprint(carerequests.PickupImpactContent(item.AffectedBlocks))
 }

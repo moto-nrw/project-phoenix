@@ -6800,6 +6800,26 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.scheduleReviewCommands.WeeklyImpactToken",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.CareScheduleReviewQuery.WeeklyImpactToken",
+      "reason": "Read-only target: care-plan reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through modules/careplan/internal/application.scheduleReviewCommands.WeeklyImpactToken to rebuild the weekly review diff an approval pins (#6843). No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.scheduleReviewCommands.WeeklyImpactToken",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.CareScheduleReviewQuery.WeeklyImpactToken",
+      "reason": "Read-only target: care-plan reaches modules/settings/records.SettingsService.ResolveBool (settings-platform) through modules/careplan/internal/application.scheduleReviewCommands.WeeklyImpactToken to rebuild the weekly review diff an approval pins (#6843). No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/ports.PickupScheduleRecords.DeleteDepartureException",
       "classification": "platform",
@@ -14618,6 +14638,26 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.ContextWithCompanionChangeRecorder",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan.CareScheduleReviewQuery.WeeklyImpactToken",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests.WeeklyImpact.WeeklyImpactToken",
+      "reason": "Read-only target: care-plan reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through modules/careplan.CareScheduleReviewQuery.WeeklyImpactToken to rebuild the weekly review diff an approval pins (#6843). No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan.CareScheduleReviewQuery.WeeklyImpactToken",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests.WeeklyImpact.WeeklyImpactToken",
+      "reason": "Read-only target: care-plan reaches modules/settings/records.SettingsService.ResolveBool (settings-platform) through modules/careplan.CareScheduleReviewQuery.WeeklyImpactToken to rebuild the weekly review diff an approval pins (#6843). No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
     },
     {
       "adr": "0098",

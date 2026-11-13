@@ -59,6 +59,21 @@ func WeeklySummary(changes []WeekdayChange) []DiffEntry {
 	return weeklyEntries(changes, nil)
 }
 
+// WeeklyImpactContent canonically encodes the ordered weekly diff displayed to
+// the reviewer. The composition root supplies the SHA-256 fingerprint primitive.
+func WeeklyImpactContent(entries []DiffEntry) []byte {
+	var content strings.Builder
+	for _, entry := range entries {
+		content.WriteString(entry.Label)
+		content.WriteByte(0)
+		content.WriteString(entry.Old)
+		content.WriteByte(0)
+		content.WriteString(entry.New)
+		content.WriteByte(0)
+	}
+	return []byte(content.String())
+}
+
 func weeklyEntries(changes []WeekdayChange, current *WeeklyPlan) []DiffEntry {
 	weekdays := append([]WeekdayChange(nil), changes...)
 	sort.Slice(weekdays, func(i, j int) bool { return weekdays[i].Weekday < weekdays[j].Weekday })
