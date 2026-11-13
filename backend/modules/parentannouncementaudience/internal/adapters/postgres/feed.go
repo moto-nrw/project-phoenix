@@ -65,6 +65,7 @@ func (p *Projection) ListFeedForAccount(ctx context.Context, accountID int64, sc
 		applicants,
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs),
 		today, today, today, p.links.AllSchoolsGuardianLinkRows(db), accountID, accountID, accountID,
+		accountID, p.links.AllSchoolsGuardianLinkRows(db), accountID, // recorded recipient
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list parent announcement feed: %w", err)
 	}
@@ -118,15 +119,19 @@ func (p *Projection) CountOutstandingForAccount(ctx context.Context, accountID i
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs),
 		today, today, today, p.links.AllSchoolsGuardianLinkRows(db), accountID,
 		today, today, today, p.links.AllSchoolsGuardianLinkRows(db), accountID, accountID, accountID,
+		accountID, p.links.AllSchoolsGuardianLinkRows(db), accountID, // recorded recipient
 	).Scan(ctx, &count); err != nil {
 		return 0, fmt.Errorf("count outstanding parent announcements: %w", err)
 	}
 	return count, nil
 }
 
-// statsSQL intersects read/ack counts with the CURRENT audience so the staff
-// "X von Y" never shows more readers than the live target count.
-const statsSQL = pendingApplicantsCTE + `, audience AS (` + audienceAccountsBound + `
+// statsSQL intersects read/ack counts with the recipients (#6988): the
+// accounts the publication recorded, or the audience of today for a draft
+// and an announcement published before recording. The staff "X von Y" never
+// shows more readers than recipients.
+const statsSQL = pendingApplicantsCTE + `, recorded AS (` + recordedMarkBound + `
+			), audience AS (` + recipientAccountsBound + `
 			)
 			SELECT
 				(SELECT COUNT(*) FROM audience) AS target_count,
@@ -135,7 +140,8 @@ const statsSQL = pendingApplicantsCTE + `, audience AS (` + audienceAccountsBoun
 						AND par.account_id IN (SELECT account_id FROM audience)) AS read_count,
 				(SELECT COUNT(*) FROM users.parent_announcement_reads par
 					WHERE par.announcement_id = ? AND par.tenant_id = ? AND par.acknowledged_at IS NOT NULL
-						AND par.account_id IN (SELECT account_id FROM audience)) AS acknowledged_count`
+						AND par.account_id IN (SELECT account_id FROM audience)) AS acknowledged_count,
+				COALESCE((SELECT yes FROM recorded), FALSE) AS recorded`
 
 // Stats returns the reach/read/ack counts for an announcement.
 func (p *Projection) Stats(ctx context.Context, schoolID, announcementID int64) (*contract.ParentAnnouncementStats, error) {
@@ -151,11 +157,13 @@ func (p *Projection) Stats(ctx context.Context, schoolID, announcementID int64) 
 	stats := &contract.ParentAnnouncementStats{}
 	if err := db.NewRaw(statsSQL,
 		applicants,
+		announcementID, schoolID, // recorded mark
+		announcementID, schoolID, // recorded recipients
 		schoolID, schoolID, today, today, today, announcementID, schoolID, p.guardianLinks(db, schoolID), schoolID,
 		announcementID, schoolID,
 		announcementID, schoolID,
 		announcementID, schoolID,
-	).Scan(ctx, &stats.TargetCount, &stats.ReadCount, &stats.AcknowledgedCount); err != nil {
+	).Scan(ctx, &stats.TargetCount, &stats.ReadCount, &stats.AcknowledgedCount, &stats.Recorded); err != nil {
 		return nil, fmt.Errorf("parent announcement stats: %w", err)
 	}
 	return stats, nil

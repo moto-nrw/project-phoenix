@@ -39,6 +39,9 @@ func (r *announcementRepository) AnnouncementLatestDeclarationVersion(ctx contex
 func (r *announcementRepository) AnnouncementReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*communication.PortalParentAnnouncementTarget) error {
 	return r.ReplaceTargets(ctx, tenantID, announcementID, targets)
 }
+func (r *announcementRepository) AnnouncementRecordRecipients(ctx context.Context, id int64, accountIDs []int64) error {
+	return r.store.RecordRecipients(ctx, id, accountIDs)
+}
 func (r *announcementRepository) AnnouncementSetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {
 	return r.SetPublished(ctx, id, publishedAt)
 }

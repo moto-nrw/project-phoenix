@@ -43,6 +43,10 @@ func (r *letterRepo) PublishIfDraft(_ context.Context, _ int64, publishedAt time
 	return true, nil
 }
 
+func (r *letterRepo) RecordRecipients(context.Context, int64, []int64) error {
+	return nil
+}
+
 func (r *letterRepo) SetPublished(_ context.Context, _ int64, publishedAt *time.Time) error {
 	r.announcement.PublishedAt = publishedAt
 	return nil

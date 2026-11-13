@@ -62,6 +62,11 @@
     },
     {
       "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.AnnouncementRecordRecipients",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
       "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.AnswerableChildren",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -898,6 +903,11 @@
     {
       "decision": "0090",
       "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.PublishIfDraft",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.RecordRecipients",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

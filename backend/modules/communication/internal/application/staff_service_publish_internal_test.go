@@ -25,6 +25,9 @@ type fakeAnnouncementRepo struct {
 	updateCalls  int
 	publishCalls int
 	deleteCalls  int
+	// recorded holds the accounts the last publication recorded (#6988);
+	// nil until a publication recorded any.
+	recorded []int64
 	// editOnPublish, when set, replaces the stored row the instant PublishIfDraft
 	// runs — simulating a concurrent edit that committed while PublishIfDraft was
 	// blocked on the row lock. The pre-publish load still sees the original.
@@ -69,6 +72,14 @@ func (f *fakeAnnouncementRepo) Update(_ context.Context, _ *StaffParentAnnouncem
 
 func (f *fakeAnnouncementRepo) SetPublished(_ context.Context, _ int64, publishedAt *time.Time) error {
 	f.announcement.PublishedAt = publishedAt
+	if publishedAt == nil {
+		f.recorded = nil
+	}
+	return nil
+}
+
+func (f *fakeAnnouncementRepo) RecordRecipients(_ context.Context, _ int64, accountIDs []int64) error {
+	f.recorded = append([]int64{}, accountIDs...)
 	return nil
 }
 
@@ -497,6 +508,39 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 		event.Priority != communication.PriorityNormal ||
 		event.DeepLink != "/" {
 		t.Fatalf("unexpected guardian notification metadata: %+v", event)
+	}
+}
+
+// A publication records the accounts it reached (#6988), so statistics and
+// the staff recipient list keep counting them after a child changes class.
+func TestPublish_RecordsTheReachedAccounts(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeAnnouncementRepo{
+		announcement: draftAnnouncement(false),
+		audience: []*StaffAnnouncementRecipientStatus{
+			{AccountID: 101},
+			{AccountID: 202},
+			{AccountID: 101},
+		},
+	}
+	svc := NewService(ServiceConfig{
+		Repo:     repo,
+		Settings: &fakeSettings{enabled: true},
+		Logger:   slog.Default(),
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.NewParentDeliveryPolicy())
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+	if !slices.Equal(repo.recorded, []int64{101, 202}) {
+		t.Fatalf("recorded recipients %v, want [101 202]", repo.recorded)
+	}
+	if _, err := svc.Unpublish(context.Background(), repo.announcement.ID); err != nil {
+		t.Fatalf("unpublish failed: %v", err)
+	}
+	if repo.recorded != nil {
+		t.Fatalf("retraction kept recorded recipients %v", repo.recorded)
 	}
 }
 

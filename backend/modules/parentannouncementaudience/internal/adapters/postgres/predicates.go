@@ -182,10 +182,12 @@ const audienceAccountsBound = `
 				AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL`
 
 // reachedAccountFeed is the SQL boolean "the bound account is reached by
-// announcement a right now" for the cross-school feed, where the announcement
+// announcement a right now, or was a recorded recipient of it and may still
+// open the portal" (#6988) for the cross-school feed, where the announcement
 // and school are column references.
 //
-// Bind order: today, today, today, guardian links, account, account, account.
+// Bind order: today, today, today, guardian links, account, account, account,
+// account, guardian links, account.
 const reachedAccountFeed = `(
 		EXISTS (
 			SELECT 1
@@ -220,13 +222,15 @@ const reachedAccountFeed = `(
 			WHERE pt.announcement_id = a.id AND pt.tenant_id = a.tenant_id
 				AND pt.target_type = 'pending_enrollment'
 		)
+		OR ` + recordedRecipientFeed + `
 	)`
 
 // reachedAccountBound is reachedAccountFeed for one bound announcement.
 //
 // Bind order: school, school, today, today, today, announcement, school,
 // guardian links of the school, school, account, school, account, account,
-// announcement, school.
+// announcement, school, announcement, school, account, guardian links of the
+// school, account, school.
 const reachedAccountBound = `(
 		EXISTS (
 			SELECT 1` + reachedStudentsBound + `
@@ -255,6 +259,7 @@ const reachedAccountBound = `(
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ?
 				AND pt.target_type = 'pending_enrollment'
 	)
+	OR ` + recordedRecipientBound + `
 )`
 
 // openPollForAccountFeed is the SQL boolean "announcement a is an open poll

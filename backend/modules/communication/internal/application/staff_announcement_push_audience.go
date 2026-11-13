@@ -56,3 +56,20 @@ func (s *service) filterAnnouncementPushAudience(ctx context.Context, announceme
 	}
 	return accountIDs, nil
 }
+
+// recordAnnouncementRecipients keeps who this publication reached (#6988).
+// It runs in the publish transaction before the push and the e-mails, so
+// statistics, the staff recipient list and every later reminder count the
+// people the announcement went to, not whoever the targets reach on the day
+// someone looks. Until the mark is set, AudienceRecipients still resolves
+// the audience of this moment, which is what gets recorded.
+func (s *service) recordAnnouncementRecipients(ctx context.Context, a *StaffParentAnnouncement) error {
+	accountIDs, _, err := s.resolveAnnouncementPushAudience(ctx, a)
+	if err != nil {
+		return fmt.Errorf("announcement: resolve recipients to record: %w", err)
+	}
+	if err := s.repo.RecordRecipients(ctx, a.ID, accountIDs); err != nil {
+		return fmt.Errorf("announcement: record recipients: %w", err)
+	}
+	return nil
+}
