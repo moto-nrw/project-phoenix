@@ -128,6 +128,8 @@ func confirmEmailChangeErrorRenderer(err error) render.Renderer {
 		errors.Is(err, identityaccess.ErrOperatorEmailInUse),
 		errors.Is(err, identityaccess.ErrOperatorInactive):
 		return common.OperatorRejection(http.StatusBadRequest, common.CodeIdentityEmailChangeLinkInvalid, "dieser Link ist abgelaufen oder ungültig. Bitte starte den Vorgang erneut")
+	case errors.Is(err, identityaccess.ErrOperatorAuditUnavailable):
+		return operatorAuditUnavailable()
 	default:
 		return common.OperatorInternal("Ein Serverfehler ist aufgetreten")
 	}
@@ -158,6 +160,8 @@ func ProfileErrorRenderer(err error) render.Renderer {
 		return common.OperatorInvalidField(common.CodeIdentityEmailChangeSameEmail, "new_email", "die neue E-Mail ist identisch mit der aktuellen")
 	case errors.Is(err, identityaccess.ErrOperatorEmailChangeNotFound):
 		return common.OperatorRejection(http.StatusBadRequest, common.CodeIdentityEmailChangeLinkInvalid, "dieser Link ist abgelaufen oder ungültig")
+	case errors.Is(err, identityaccess.ErrOperatorAuditUnavailable):
+		return operatorAuditUnavailable()
 	default:
 		return common.OperatorInternal("An error occurred")
 	}

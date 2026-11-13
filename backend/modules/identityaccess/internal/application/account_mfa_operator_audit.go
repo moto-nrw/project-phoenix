@@ -11,16 +11,23 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-// Operator MFA mutations and their mandatory audit share the admin unit.
-func (f *AccountMFAFlows) disableForAdmin(ctx context.Context, actorType string, actorID, schoolID, accountID int64) error {
+// Admin MFA mutations and their mandatory audit share the admin unit: the
+// operator ledger entry and the school's override row commit with the reset
+// or not at all (#6989).
+func (f *AccountMFAFlows) disableForAdmin(ctx context.Context, actorType string, actorID, schoolID, accountID int64, overridden domain.AuthEvent) error {
 	byOperator := actorType == actorTypeOperator
 	resetAt := f.now()
-	return f.Disable(ctx, accountID, func(txCtx context.Context) error {
+	// Both rows are filed at the school that ordered the reset, which the
+	// membership check proved holds the account.
+	return f.Disable(f.runtime.WithTenantID(ctx, schoolID), accountID, func(txCtx context.Context) error {
 		if byOperator {
 			if err := f.recordOperatorMFAChange(txCtx, actorID, accountID, domain.OperatorMFAOverrideEvidence{SchoolID: schoolID, Action: "disable", Scope: "tenant"}); err != nil {
 				return err
 			}
 		} else if err := f.requireSchoolHoldsAccount(txCtx, schoolID, accountID); err != nil {
+			return err
+		}
+		if err := f.recordAuthEvent(txCtx, overridden); err != nil {
 			return err
 		}
 		return f.notifyAdminReset(txCtx, accountID, byOperator, resetAt)

@@ -48,7 +48,7 @@ func (rs *Resource) accessError(err error) render.Renderer {
 	case errors.Is(err, identityaccess.ErrSchoolDeleted):
 		return common.OperatorRejection(http.StatusConflict, common.CodeProvisioningSchoolAlreadyDeleted, "School is already deleted")
 	case errors.Is(err, identityaccess.ErrOperatorAuditUnavailable):
-		return common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable")
+		return operatorAuditUnavailable()
 	case errors.Is(err, identityaccess.ErrEmailAlreadyExists):
 		// A caterer account joins no school (ADR 0077).
 		return common.OperatorRejection(http.StatusConflict, common.CodeIdentityEmailAlreadyExists, "account cannot join a school")
@@ -97,4 +97,16 @@ func invalidOperatorInput(err error, passwordField string) render.Renderer {
 		return common.OperatorInvalidField(code, field, err.Error())
 	}
 	return common.OperatorInvalidRequest(err)
+}
+
+// operatorAuditUnavailable answers a change the operator ledger could not
+// record: it rolled back with the entry and may be retried.
+func operatorAuditUnavailable() render.Renderer {
+	return common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable")
+}
+
+// mfaStatusUnavailable answers an MFA change on a school account that
+// could not read or record its state; it rolled back and may be retried.
+func mfaStatusUnavailable() render.Renderer {
+	return common.OperatorRejection(http.StatusServiceUnavailable, common.CodeIdentityMfaStatusUnavailable, "MFA status unavailable, please retry")
 }
