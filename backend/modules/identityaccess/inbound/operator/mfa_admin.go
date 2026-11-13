@@ -157,6 +157,12 @@ func (rs *SchoolAccountMFAResource) ResetSchoolAccountMFA(w http.ResponseWriter,
 			common.RenderError(w, r, operatorAuditUnavailable())
 			return
 		}
+		if errors.Is(err, identityaccess.ErrMFAStatusUnavailable) {
+			// The school's ledger or the target's MFA state could not be
+			// read or written; the change rolled back and may be retried.
+			common.RenderError(w, r, mfaStatusUnavailable())
+			return
+		}
 		if errors.Is(err, identityaccess.ErrMFAPermissionDenied) {
 			common.RenderError(w, r, common.OperatorForbidden("Permission denied"))
 			return
@@ -192,6 +198,12 @@ func (rs *SchoolAccountMFAResource) SetSchoolAccountMFAOverride(w http.ResponseW
 	if err := rs.TenantMFAService.OperatorSetMFAOverride(ctx, operatorID, schoolID, accountID, req.Override, req.Reason); err != nil {
 		if errors.Is(err, identityaccess.ErrOperatorAuditUnavailable) {
 			common.RenderError(w, r, operatorAuditUnavailable())
+			return
+		}
+		if errors.Is(err, identityaccess.ErrMFAStatusUnavailable) {
+			// The school's ledger or the target's MFA state could not be
+			// read or written; the change rolled back and may be retried.
+			common.RenderError(w, r, mfaStatusUnavailable())
 			return
 		}
 		if errors.Is(err, identityaccess.ErrMFAInvalidOverride) {
@@ -288,6 +300,12 @@ func (rs *SchoolAccountMFAResource) SetAccountMFAGlobalOverride(w http.ResponseW
 	if err := rs.TenantMFAService.OperatorSetGlobalMFAOverride(ctx, operatorID, accountID, req.Override, req.Reason); err != nil {
 		if errors.Is(err, identityaccess.ErrOperatorAuditUnavailable) {
 			common.RenderError(w, r, operatorAuditUnavailable())
+			return
+		}
+		if errors.Is(err, identityaccess.ErrMFAStatusUnavailable) {
+			// The school's ledger or the target's MFA state could not be
+			// read or written; the change rolled back and may be retried.
+			common.RenderError(w, r, mfaStatusUnavailable())
 			return
 		}
 		if errors.Is(err, identityaccess.ErrMFAInvalidOverride) {

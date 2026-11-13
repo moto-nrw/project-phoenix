@@ -512,8 +512,9 @@ func (f *AccountMFAFlows) recordFailure(ctx context.Context, accountID, tenantID
 // observeAuthEvent files an attempt the flow refused or observed: a wrong
 // code, a lockout, a refused admin action, a verified code. The refusal or
 // the verification stands whether or not the row is written, so a failed
-// append is logged, not returned (#6989). A sent code belongs here too.
-// Changes to what protects an account use recordAuthEvent instead.
+// append is logged, not returned (#6989). Inside a caller's transaction a
+// statement the database refuses still aborts that transaction. Changes to
+// what protects an account use recordAuthEvent instead.
 func (f *AccountMFAFlows) observeAuthEvent(ctx context.Context, event domain.AuthEvent) {
 	if err := f.recordAuthEvent(ctx, event); err != nil {
 		f.logger.Error("failed to audit mfa event",
@@ -619,7 +620,9 @@ func (f *AccountMFAFlows) activateDeliveredChallenge(ctx context.Context, challe
 			return err
 		}
 		// A sent code changes no protection of the account; the session it
-		// leads to is audited when it is minted (#6844).
+		// leads to is audited when it is minted (#6844). A missing school
+		// only logs here, but an insert the database refuses still aborts
+		// this transaction, as it did before #6989.
 		f.observeAuthEvent(txCtx, domain.AuthEvent{AccountID: challenge.AccountID, TenantID: challenge.TenantID, Type: domain.AuthEventMFAEmailSent, Success: true, IPAddress: domain.MFAAuditIP(challenge.IPAddress), MFA: &domain.MFAEvidence{ChallengeID: challenge.ID}})
 		return nil
 	})

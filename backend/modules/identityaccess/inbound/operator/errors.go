@@ -104,3 +104,9 @@ func invalidOperatorInput(err error, passwordField string) render.Renderer {
 func operatorAuditUnavailable() render.Renderer {
 	return common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable")
 }
+
+// mfaStatusUnavailable answers an MFA change on a school account that
+// could not read or record its state; it rolled back and may be retried.
+func mfaStatusUnavailable() render.Renderer {
+	return common.OperatorRejection(http.StatusServiceUnavailable, common.CodeIdentityMfaStatusUnavailable, "MFA status unavailable, please retry")
+}

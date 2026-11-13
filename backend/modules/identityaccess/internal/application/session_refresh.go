@@ -522,7 +522,11 @@ func (s *AccountAuthentication) auditLogout(txCtx context.Context, revoked domai
 	if !revoked.KeptAtSchool() {
 		tenantID = 0
 	} else if tenantID == 0 {
-		return fmt.Errorf("audit logout: school is required")
+		// A token whose row is gone and whose claims name no school (a
+		// legacy or evicted session) has no ledger to file at; refusing
+		// would leave it unrevokable on every retry.
+		s.logger.Warn("logout without a school ledger",
+			slog.Int64("account_id", revoked.AccountID))
 	}
 	bySchool := sessionsBySchool(sessions, tenantID)
 	for _, schoolID := range slices.Sorted(maps.Keys(bySchool)) {

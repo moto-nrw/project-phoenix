@@ -298,8 +298,8 @@ func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 	}
 	refreshToken := sessiontoken.RefreshTokenFromCtx(r.Context())
 	client := portalauth.ClientOf(r)
-	// The audit rows follow the commit and never fail the call. An error here
-	// means the family was not revoked: its access tokens stay valid, so the
+	// The audit rows commit with the revocation (#6989). An error here means
+	// the family was not revoked: its access tokens stay valid, so the
 	// browser must not take the logout for done (#5194).
 	if err := rs.Sessions.LogoutWithAudit(r.Context(), refreshToken, client.IP, client.UserAgent); err != nil {
 		if errors.Is(err, identityaccess.ErrInvalidToken) {
