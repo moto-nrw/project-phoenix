@@ -15,7 +15,7 @@ type RequestEdits struct {
 	Records ports.RequestEditRecords
 	Pickup  ports.RequestSubmissionPickup
 	Events  ports.RequestEditEvents
-	// Baseline reads the plan the family sees; nil stores no baseline.
+	// Baseline reads the plan the family sees (#6990).
 	Baseline ports.RequestWeeklyBaseline
 	Today    func() calendar.Date
 }

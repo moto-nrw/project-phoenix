@@ -34,7 +34,7 @@ func TestNativeRequestEditChecksOwnershipBeforeStatusAndVersion(t *testing.T) {
 	row, err := owner.CreateCareScheduleRequest(ctx, carerequests.Request{StudentID: student.ID, SubmittedBy: account.ID,
 		RequestKind: "weekly_schedule", Status: "pending", Payload: json.RawMessage(`{"weekdays":[{"weekday":1,"pickup":"16:00"}]}`)})
 	require.NoError(t, err)
-	query, err := compose.NewRequestEdits(owner, nil, &editEvents{}, nil, func() calendar.Date { return "2026-09-20" })
+	query, err := compose.NewRequestEdits(owner, nil, &editEvents{}, unseenBaseline{}, func() calendar.Date { return "2026-09-20" })
 	require.NoError(t, err)
 	input := carerequests.EditInput{RequestID: row.ID, StudentID: student.ID, GuardianAccountID: stranger.ID, ExpectedVersion: "stale"}
 	edit := func() error {
@@ -82,7 +82,7 @@ func TestNativePickupEditChecksOldCutoffAndRollsBackLedgerFailure(t *testing.T) 
 	require.NoError(t, err)
 	events := &editEvents{err: errors.New("ledger unavailable")}
 	pickup := &editedPickup{}
-	query, err := compose.NewRequestEdits(owner, pickup, events, nil, func() calendar.Date { return "2026-09-20" })
+	query, err := compose.NewRequestEdits(owner, pickup, events, unseenBaseline{}, func() calendar.Date { return "2026-09-20" })
 	require.NoError(t, err)
 	cutoff, err := carerequests.NewSameDayCutoff("11:00", time.Date(2026, 9, 20, 12, 0, 0, 0, calendar.Berlin))
 	require.NoError(t, err)

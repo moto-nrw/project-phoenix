@@ -72,9 +72,6 @@ func (s *RequestDiffs) Snapshot(ctx context.Context, request *carerequests.Reque
 		diff, err = storedPermissionDiff(request)
 	default:
 		diff, err = s.Weekly(ctx, request.StudentID, request.Payload)
-		// The baseline came from this same plan read, so a hint names a
-		// real change since the family submitted (#6990).
-		diff = carerequests.MarkSubmittedBaseline(diff, request.Payload)
 	}
 	if err != nil {
 		s.Logger.Warn("schedule: build care request decision snapshot failed",
@@ -82,6 +79,11 @@ func (s *RequestDiffs) Snapshot(ctx context.Context, request *carerequests.Reque
 			"error", err.Error(),
 		)
 		return nil
+	}
+	if request.RequestKind != "pickup_change" && request.RequestKind != carerequests.KindPickupPermission {
+		// The baseline came from this same plan read, so a hint names a
+		// real change since the family submitted (#6990).
+		diff = carerequests.MarkSubmittedBaseline(diff, request.Payload)
 	}
 	return carerequests.FreezeDecision(diff)
 }

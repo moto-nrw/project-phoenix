@@ -74,7 +74,9 @@ func WeeklyImpactContent(entries []DiffEntry) []byte {
 		content.WriteByte(0)
 		content.WriteString(entry.New)
 		content.WriteByte(0)
-		// The hint is part of what the reviewer decides on (#6990).
+		// The hint is part of what the reviewer decides on (#6990). Its own
+		// terminator keeps the content of entries without a hint, and so the
+		// tokens issued before #6990, byte for byte unchanged.
 		if entry.SubmittedOld != "" {
 			content.WriteString(entry.SubmittedOld)
 			content.WriteByte(1)

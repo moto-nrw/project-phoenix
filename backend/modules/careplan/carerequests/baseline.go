@@ -35,6 +35,9 @@ func WithBaseline(raw json.RawMessage, seen []DiffEntry) (json.RawMessage, error
 		}
 		values = append(values, baselineValue{Weekday: entry.Weekday, CareKind: entry.CareKind, Old: entry.Old})
 	}
+	if len(values) == 0 {
+		return raw, nil
+	}
 	payload[baselineKey] = values
 	return json.Marshal(payload)
 }

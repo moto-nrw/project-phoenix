@@ -11,8 +11,8 @@ import (
 )
 
 func NewRequestSubmissions(records careRecordPorts.RequestSubmissionRecords, pickup ports.RequestSubmissionPickup, effects ports.RequestSubmissionEffects, baseline ports.RequestWeeklyBaseline, today func() calendar.Date) (carerequests.Submissions, error) {
-	if records == nil || effects == nil || today == nil {
-		return nil, errors.New("care request submissions: records, effects, and clock are required")
+	if records == nil || effects == nil || baseline == nil || today == nil {
+		return nil, errors.New("care request submissions: records, effects, weekly baseline, and clock are required")
 	}
 	return &application.RequestSubmissions{Records: retainedRequestSubmissionRecordsAdapter{RequestSubmissionRecords: records}, Pickup: pickup, Effects: effects, Baseline: baseline, Today: today}, nil
 }

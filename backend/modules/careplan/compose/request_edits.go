@@ -11,8 +11,8 @@ import (
 )
 
 func NewRequestEdits(records careRecordPorts.RequestEditRecords, pickup ports.RequestSubmissionPickup, events ports.RequestEditEvents, baseline ports.RequestWeeklyBaseline, today func() calendar.Date) (carerequests.Edits, error) {
-	if records == nil || events == nil || today == nil {
-		return nil, errors.New("care request edits: records, events, and clock are required")
+	if records == nil || events == nil || baseline == nil || today == nil {
+		return nil, errors.New("care request edits: records, events, weekly baseline, and clock are required")
 	}
 	return &application.RequestEdits{Records: application.RequestEditRecordsAdapter{RequestEditRecords: records}, Pickup: pickup, Events: events, Baseline: baseline, Today: today}, nil
 }

@@ -311,9 +311,8 @@ function CareRequestDetails({ row }: Readonly<{ row: StaffCareRequest }>) {
         {row.diff.some((entry) => entry.submitted_old) && (
           <Alert
             type="warning"
-            size="compact"
             className="mb-3"
-            message="Der Plan wurde nach der Anfrage geändert. Die Eltern kannten noch die markierten Werte."
+            message="Der Plan wurde nach der Anfrage geändert. Bei „Eltern sahen“ steht der Wert, den die Eltern kannten."
           />
         )}
         <RequestDiffRows diff={row.diff} />
