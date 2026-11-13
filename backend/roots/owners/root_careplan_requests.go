@@ -59,6 +59,7 @@ func BuildCarePlanRequests(
 	enrollment EnrollmentRows, timetableOwner timetable.Capability, settings settingsCompose.BatchSettingsService,
 	audit AuditOwner, services PeopleServices, emitter eventContract.Emitter, caller *CallerRows,
 	reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string, absences deliveryCompose.AbsenceNotifier, pickupReach careplan.PickupChangeTeamReach, documentPermissions carePlanCompose.StudentDocumentPermissions,
+	cohorts timetable.CohortRosters,
 ) (CarePlanRequests, error) {
 	shares, err := NewRequestShareVisibility(db)
 	if err != nil {
@@ -101,7 +102,8 @@ func BuildCarePlanRequests(
 	); err != nil {
 		return CarePlanRequests{}, fmt.Errorf("compose excused absence requests: %w", err)
 	}
-	return buildCarePlanDecisions(db, env, hub, carePlan, persons, people, services, emitter, caller, reviews, permissions, shares, audit, requests, documentPermissions)
+	return buildCarePlanDecisions(db, env, hub, carePlan, persons, people, services, emitter, caller, reviews, permissions, shares, audit, requests, documentPermissions,
+		NewMasterDataClassChanges(offerings.Bookings, cohorts))
 }
 
 // newPickupChangeTeam builds Care Plan's notice to the child's team over the
@@ -151,6 +153,7 @@ func buildCarePlanDecisions(
 	persons peopledirectory.Capability, people PeopleRows, services PeopleServices, emitter eventContract.Emitter,
 	caller *CallerRows, reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string,
 	shares eventContract.ShareVisibilityResolver, audit AuditOwner, requests CarePlanRequests, documentPermissions carePlanCompose.StudentDocumentPermissions,
+	classChanges carePlanCompose.MasterDataClassChanges,
 ) (CarePlanRequests, error) {
 	deps, err := StudentDocumentDependencies(carePlan, people.Students, caller, audit.Persistence.StudentFieldEdit, audit.Persistence.DataAccessLog, documentPermissions)
 	if err != nil {
@@ -166,7 +169,7 @@ func buildCarePlanDecisions(
 	if requests.MasterData, err = NewMasterDataDecisions(
 		carePlan, persons, people.Students, people.Persons,
 		services.StudentAudit, ParentRequestWriteScope(reviews, permissions),
-		emitter, hub, events, shares, env.Logger.With("service", "master-data-review"), env.Today,
+		emitter, hub, events, shares, env.Logger.With("service", "master-data-review"), env.Today, classChanges,
 	); err != nil {
 		return CarePlanRequests{}, fmt.Errorf("compose master data decisions: %w", err)
 	}

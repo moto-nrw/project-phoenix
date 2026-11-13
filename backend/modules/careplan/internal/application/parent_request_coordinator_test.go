@@ -30,6 +30,14 @@ func (s *masterDataBulkStub) LockBulkRequest(_ context.Context, requestID int64)
 	return s.lockErr
 }
 
+func (s *masterDataBulkStub) LockBulkClassChanges(context.Context, map[int64]*careplan.MasterDataReviewItem) error {
+	return nil
+}
+
+func (s *masterDataBulkStub) FollowBulkClassChanges(ctx context.Context, apply func(context.Context) error) error {
+	return apply(ctx)
+}
+
 func (s *masterDataBulkStub) LockBulkStudents(_ context.Context, studentIDs []int64) error {
 	s.locked = append(s.locked, studentIDs...)
 	return nil

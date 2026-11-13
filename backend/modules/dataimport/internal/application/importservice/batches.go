@@ -387,6 +387,10 @@ func (a *batchImportAttempt[T]) applyAcceptedRows(ctx context.Context, service *
 		}
 		service = &ImportService[T]{config: prepared, savepointLost: service.savepointLost}
 	}
+	ctx, finish, err := beginRowWrites(ctx, service.config)
+	if err != nil {
+		return err
+	}
 	for _, index := range a.run.order[a.run.position:a.next] {
 		if a.run.accepted[index] {
 			if err := service.applyBatchRow(ctx, a.run.request, batch, &a.run.request.Rows[index], index+2); err != nil {
@@ -394,7 +398,15 @@ func (a *batchImportAttempt[T]) applyAcceptedRows(ctx context.Context, service *
 			}
 		}
 	}
-	return nil
+	return finish(ctx)
+}
+
+// beginRowWrites starts the follow-up a config owes its row writes, if any.
+func beginRowWrites[T any](ctx context.Context, config ports.ImportConfig[T]) (context.Context, func(context.Context) error, error) {
+	if followUp, ok := config.(ports.RowWriteFollowUp); ok {
+		return followUp.BeginRowWrites(ctx)
+	}
+	return ctx, func(context.Context) error { return nil }, nil
 }
 
 func (a *batchImportAttempt[T]) appendCheckpoint(ctx context.Context, batch *importModels.ImportResult[T]) error {

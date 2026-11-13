@@ -14720,6 +14720,17 @@
       "target_owner": ""
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.Decide",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.MasterDataDecisions.Decide. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.Decide",
       "classification": "query",
       "effect": "query",
@@ -14738,6 +14749,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.Decide",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.Decide",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.MasterDataDecisions.Decide. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -14776,6 +14811,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.Decide",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.Decide",
       "classification": "unresolved",
@@ -14785,6 +14832,17 @@
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.DecideConflictRequest",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.MasterDataDecisions.DecideConflictRequest. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.DecideConflictRequest",
@@ -14805,6 +14863,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.DecideConflictRequest",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.DecideConflictRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.MasterDataDecisions.DecideConflictRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -14843,6 +14925,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.DecideConflictRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.DecideConflictRequest",
       "classification": "unresolved",
@@ -14851,6 +14945,53 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.MasterDataDecisions.scope. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.MasterDataDecisions.FollowBulkClassChanges. The offering resync of a bulk approval's Klassen joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "reason": "E4 named Care master-data approval surface: the Klassen a bulk approval wrote let Regeltermine with a Klasse or Jahrgang target follow in one call after its last decision, right after the offering resync, under the class-writes and recurrence gates the bulk took before its child frontier; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now. The bulk approval's class follow-up reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:roots/owners.today. The bulk approval's class follow-up reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
       "target_owner": ""
     },
     {
@@ -14907,6 +15048,125 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.MasterDataDecisions.scope. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.LockBulkClassChanges",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkClassChanges",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.MasterDataDecisions.LockBulkClassChanges. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.LockBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.LockBulkRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.MasterDataDecisions.LockBulkRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.LockBulkRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.LockConflictRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockConflictRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.MasterDataDecisions.LockConflictRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.LockConflictRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockConflictRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.WriteStaffValue",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.MasterDataDecisions.WriteStaffValue. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.WriteStaffValue",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.WriteStaffValue",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now. The staff-written Klasse of a conflict resolution now reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.MasterDataDecisions.WriteStaffValue",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:roots/owners.today. The staff-written Klasse of a conflict resolution now reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
       "target_owner": ""
     },
     {
@@ -20224,6 +20484,17 @@
       "target_owner": ""
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest",
       "classification": "query",
       "effect": "query",
@@ -20242,6 +20513,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -20280,6 +20575,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.DecideConflictRequest",
       "classification": "unresolved",
@@ -20289,6 +20596,17 @@
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
@@ -20309,6 +20627,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -20343,6 +20685,18 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:roots/owners.today. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.DecideConflictRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
       "target_owner": ""
     },
     {
@@ -20428,6 +20782,101 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.LockConflictRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.LockConflictRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.LockConflictRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.LockConflictRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.LockConflictRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockConflictRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.LockConflictRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.ParentRequestMasterData.LockConflictRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockConflictRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.LockConflictRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.WriteStaffValue",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.MasterDataDecisions.WriteStaffValue. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.WriteStaffValue",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.WriteStaffValue",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now. The staff-written Klasse of a conflict resolution now reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.WriteStaffValue",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:roots/owners.today. The staff-written Klasse of a conflict resolution now reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.CareScheduleRequestService.WriteStaffValue",
       "classification": "unresolved",
@@ -20436,6 +20885,53 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.ParentRequestMasterData.WriteStaffValue. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now. The staff-written Klasse of a conflict resolution now reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.WriteStaffValue",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.ConflictPort.WriteStaffValue",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:roots/owners.today. The staff-written Klasse of a conflict resolution now reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
       "target_owner": ""
     },
     {
@@ -20885,6 +21381,17 @@
       "target_owner": "delivery-platform"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.MasterDataDecisions.Decide. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
       "classification": "query",
       "effect": "query",
@@ -20903,6 +21410,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.Decide. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -20941,6 +21472,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
       "classification": "unresolved",
@@ -20950,6 +21493,17 @@
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.ParentRequestMasterData.Decide. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
@@ -20970,6 +21524,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.ParentRequestMasterData.Decide. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -21008,6 +21586,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.Decide",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.Decide",
       "classification": "unresolved",
@@ -21016,6 +21606,100 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.MasterDataDecisions.scope. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.MasterDataDecisions.FollowBulkClassChanges. The offering resync of a bulk approval's Klassen joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "E4 named Care master-data approval surface: the Klassen a bulk approval wrote let Regeltermine with a Klasse or Jahrgang target follow in one call after its last decision, right after the offering resync, under the class-writes and recurrence gates the bulk took before its child frontier; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now. The bulk approval's class follow-up reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.FollowBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:roots/owners.today. The bulk approval's class follow-up reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges. The offering resync of a bulk approval's Klassen joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "E4 named Care master-data approval surface: the Klassen a bulk approval wrote let Regeltermine with a Klasse or Jahrgang target follow in one call after its last decision, right after the offering resync, under the class-writes and recurrence gates the bulk took before its child frontier; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now. The bulk approval's class follow-up reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.FollowBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.FollowBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:roots/owners.today. The bulk approval's class follow-up reads the decision's clock for its follow-up day (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
       "target_owner": ""
     },
     {
@@ -21128,6 +21812,102 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.MasterDataDecisions.scope. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.LockBulkClassChanges",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkClassChanges",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.LockBulkClassChanges. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.LockBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkClassChanges",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkClassChanges",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.ParentRequestMasterData.LockBulkClassChanges. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkClassChanges",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkClassChanges",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.LockBulkRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.LockBulkRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.LockBulkRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkRequest",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkRequest",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/compose.ParentRequestMasterData.LockBulkRequest. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.ParentRequestMasterData.LockBulkRequest",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports.MasterDataBulkPort.LockBulkRequest",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
       "target_owner": ""
     },
     {
@@ -25061,6 +25841,17 @@
       "target_owner": "identity-access"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Correct",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Correct",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.MasterDataDecisions.Correct. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Correct",
       "classification": "query",
       "effect": "query",
@@ -25079,6 +25870,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Correct",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Correct",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Correct",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Correct",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.Correct. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -25117,6 +25932,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Correct",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Correct",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Correct",
       "classification": "unresolved",
@@ -25126,6 +25953,17 @@
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Decide",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.MasterDataDecisions.Decide. The offering resync of an approved Klasse joins the decision's tenant unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
@@ -25146,6 +25984,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Decide",
+      "reason": "E4 named Care master-data approval surface: an approved or staff-written Klasse lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync, under the class-writes and recurrence gates the decision took before the child row; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0225. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Decide",
+      "reason": "Cross-owner lock of the master-data approval: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.MasterDataDecisions.Decide. A Klasse request takes the shared class-writes gate and then the recurrence gate before any child row lock, the project-wide order of every other class writer (ADR 0225).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -25180,6 +26042,18 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:roots/owners.today. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/roots/owners.today",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0225",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.Decide",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests.Decisions.Decide",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence. Reached through the class-change gates of the master-data approval (ADR 0225); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.LockTemplateRecurrence",
       "target_owner": ""
     },
     {
