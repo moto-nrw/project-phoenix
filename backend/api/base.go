@@ -158,7 +158,6 @@ func NewUsersResource(module peopleModule.Capability, accountEmails func(context
 		SuccessPaginated: func(w http.ResponseWriter, r *http.Request, status int, data any, pagination usersAPI.Pagination, message string) {
 			apiCommon.RespondPaginated(w, r, status, data, apiCommon.PaginationParams{Page: pagination.Page, PageSize: pagination.PageSize, Total: pagination.Total}, message)
 		},
-		NoContent: apiCommon.RespondNoContent,
 		Failure: func(w http.ResponseWriter, r *http.Request, kind usersAPI.FailureKind, err error) {
 			switch kind {
 			case usersAPI.FailureInvalidRequest:
@@ -167,8 +166,6 @@ func NewUsersResource(module peopleModule.Capability, accountEmails func(context
 				apiCommon.RenderError(w, r, apiCommon.ErrorNotFound(err))
 			case usersAPI.FailureConflict:
 				apiCommon.RenderError(w, r, apiCommon.ErrorConflict(err))
-			case usersAPI.FailurePersonHasActiveProfile:
-				apiCommon.RenderError(w, r, apiCommon.ErrorConflictWithCode(err, apiCommon.CodeStudentsPersonHasActiveProfile))
 			default:
 				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap("Internal server error", err))
 			}

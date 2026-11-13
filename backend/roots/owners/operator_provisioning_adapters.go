@@ -33,9 +33,11 @@ type accountEmailQuery interface {
 // operatorPersonStudents is the operator person listing's student-facts port.
 type operatorPersonStudents func(ctx context.Context, personIDs []int64) (map[int64]bool, error)
 
-// provisioningPersonRows reads the person a deletion removes.
+// provisioningPersonRows locks the person a deletion removes, so a child or
+// staff profile attached concurrently commits before the deletion checks
+// (#6949).
 type provisioningPersonRows interface {
-	FindByID(ctx context.Context, id any) (*peopledirectory.DirectoryPersonSnapshot, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.DirectoryPersonSnapshot, error)
 }
 
 // ProvisioningPersonDirectory is the People Directory the operator person
@@ -297,7 +299,7 @@ func operatorPersonIDs(persons []peopledirectory.Person) ([]int64, []int64) {
 // student standing. The administrative context carries no tenant, so the
 // repository's tenant filter is a no-op.
 func (p provisioningPeople) FindPerson(ctx context.Context, id int64) (organizationCompose.ProvisioningPerson, bool, error) {
-	person, err := p.personRows.FindByID(ctx, id)
+	person, err := p.personRows.FindByIDForUpdate(ctx, id)
 	if peoplePorts.IsRepositoryNoRows(err) {
 		return organizationCompose.ProvisioningPerson{}, false, nil
 	}

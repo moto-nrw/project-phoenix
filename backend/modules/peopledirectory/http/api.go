@@ -30,9 +30,6 @@ const (
 	FailureInternal       FailureKind = "internal"
 	FailureUnauthorized   FailureKind = "unauthorized"
 	FailureForbidden      FailureKind = "forbidden"
-	// FailurePersonHasActiveProfile is the conflict of a person deletion a
-	// child or live staff membership still blocks (#6840).
-	FailurePersonHasActiveProfile FailureKind = "person_has_active_profile"
 )
 
 type Pagination struct {
@@ -50,7 +47,6 @@ type Runtime struct {
 	ParsePagination  func(*http.Request) (page, pageSize int)
 	Success          func(http.ResponseWriter, *http.Request, int, any, string)
 	SuccessPaginated func(http.ResponseWriter, *http.Request, int, any, Pagination, string)
-	NoContent        func(http.ResponseWriter, *http.Request)
 	Failure          func(http.ResponseWriter, *http.Request, FailureKind, error)
 	// AccountEmails returns e-mails keyed by account ID. Missing accounts are
 	// absent from the result.
@@ -69,7 +65,7 @@ type Resource struct {
 
 func NewResource(directory peopledirectory.Capability, runtime Runtime) *Resource {
 	if directory == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.ParsePagination == nil ||
-		runtime.Success == nil || runtime.SuccessPaginated == nil || runtime.NoContent == nil || runtime.Failure == nil ||
+		runtime.Success == nil || runtime.SuccessPaginated == nil || runtime.Failure == nil ||
 		runtime.AccountEmails == nil || runtime.TagExists == nil || runtime.ObserveResponse == nil ||
 		runtime.ParseIDParam == nil {
 		panic("users HTTP: all dependencies are required")
@@ -85,7 +81,6 @@ func (rs *Resource) Router() chi.Router {
 		protected.With(rs.runtime.Permission(permissions.UsersRead), withTx).Get("/{id}", rs.getPerson)
 		protected.With(rs.runtime.Permission(permissions.UsersCreate), withTx).Post("/", rs.createPerson)
 		protected.With(rs.runtime.Permission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updatePerson)
-		protected.With(rs.runtime.Permission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deletePerson)
 	})
 	return router
 }
@@ -229,19 +224,6 @@ func (rs *Resource) updatePerson(w http.ResponseWriter, r *http.Request) {
 	rs.respondPerson(w, r, http.StatusOK, person, "Person updated successfully")
 }
 
-func (rs *Resource) deletePerson(w http.ResponseWriter, r *http.Request) {
-	id, ok := rs.parseID(w, r)
-	if !ok {
-		return
-	}
-	if err := rs.directory.DeletePerson(r.Context(), id); err != nil {
-		rs.moduleFailure(w, r, err)
-		return
-	}
-	rs.runtime.NoContent(w, r)
-	rs.runtime.ObserveResponse(http.StatusNoContent, "none")
-}
-
 // referencesExist validates the foreign links a person form may carry. The
 // directory owns persons only, so accounts and RFID cards are checked
 // through the root-injected lookups before the write.
@@ -346,8 +328,6 @@ func classifyModuleError(err error) FailureKind {
 		return FailureInvalidRequest
 	case errors.Is(err, peopledirectory.ErrTagConflict), errors.Is(err, peopledirectory.ErrAccountConflict):
 		return FailureConflict
-	case errors.Is(err, peopledirectory.ErrPersonHasActiveProfile):
-		return FailurePersonHasActiveProfile
 	default:
 		return FailureInternal
 	}
@@ -359,7 +339,7 @@ func statusOf(kind FailureKind) int {
 		return http.StatusBadRequest
 	case FailureNotFound:
 		return http.StatusNotFound
-	case FailureConflict, FailurePersonHasActiveProfile:
+	case FailureConflict:
 		return http.StatusConflict
 	case FailureUnauthorized:
 		return http.StatusUnauthorized
