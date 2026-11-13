@@ -29,7 +29,7 @@ func TestFlowA_PlanToReport(t *testing.T) {
 
 	// --- Setup: period, room, staff, students, template --------------------
 	// Pick a Wednesday far enough ahead that the scheduler accepts the window.
-	target := nextWeekday(calendar.TodayDate(), 3, 7) // Wed, ≥7 days out
+	target := s.plannableWeekday(3, 7) // Wed, ≥7 days out
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-A-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowA-Room")

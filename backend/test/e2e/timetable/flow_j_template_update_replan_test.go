@@ -22,9 +22,10 @@ func TestFlowJ_TemplateUpdateReplansTheWholePeriod(t *testing.T) {
 
 	s := setupTimetableScenarioModule(t)
 
-	near := nextWeekday(calendar.TodayDate(), 3, 7) // Wednesday, >=7 days out
-	far := near.AddDays(10 * 7)                     // beyond the first 56-day window
-	beyond := far.AddDays(7)                        // never materialized before the edit
+	const farDays, beyondDays = 10 * 7, 11 * 7
+	near := s.plannableWeekday(3, 7, farDays, beyondDays) // Wednesday, >=7 days out
+	far := near.AddDays(farDays)                          // beyond the first 56-day window
+	beyond := near.AddDays(beyondDays)                    // never materialized before the edit
 	period := s.createActivePeriod(fmt.Sprintf("E2E-Flow-J-%d", time.Now().UnixNano()), near)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowJ-Room")
