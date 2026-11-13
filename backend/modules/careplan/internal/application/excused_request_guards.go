@@ -263,11 +263,7 @@ func (w *ExcusedRequests) applyAbsenceRequest(ctx context.Context, req *careplan
 	now := time.Now()
 	note := req.Note
 	guardianAccountID := req.SubmittedBy
-	for _, other := range careplan.StudentStatusDayStatusesExcept(req.AbsenceStatus) {
-		if err := w.carePlan.ClearStudentStatusDays(ctx, req.StudentID, other, req.Dates, now, careplan.StudentStatusSourceParent, &guardianAccountID); err != nil {
-			return err
-		}
-	}
+	// Each write replaces the status standing for its day (#6958).
 	for _, d := range req.Dates {
 		if _, err := w.carePlan.UpsertStudentStatusDay(ctx, careplan.StudentStatusDay{
 			StudentID: req.StudentID, Date: d, Status: req.AbsenceStatus, ReportedAt: now,
