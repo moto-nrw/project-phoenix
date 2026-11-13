@@ -39,6 +39,22 @@ func (r *announcementRepository) AnnouncementLatestDeclarationVersion(ctx contex
 func (r *announcementRepository) AnnouncementReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*communication.PortalParentAnnouncementTarget) error {
 	return r.ReplaceTargets(ctx, tenantID, announcementID, targets)
 }
+
+// AnnouncementRecordRecipients records the children the announcement reaches
+// at this moment, inside the publish transaction (#6988). The letter child
+// statuses are exactly every reached child, for any kind of announcement, in
+// one statement; before the record exists they follow the targets of today.
+func (r *announcementRepository) AnnouncementRecordRecipients(ctx context.Context, tenantID, id int64) error {
+	children, err := r.AnnouncementAudienceReads.LetterChildStatuses(ctx, tenantID, id)
+	if err != nil {
+		return err
+	}
+	studentIDs := make([]int64, 0, len(children))
+	for _, child := range children {
+		studentIDs = append(studentIDs, child.StudentID)
+	}
+	return r.store.RecordRecipients(ctx, id, studentIDs)
+}
 func (r *announcementRepository) AnnouncementSetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {
 	return r.SetPublished(ctx, id, publishedAt)
 }

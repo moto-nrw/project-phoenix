@@ -176,6 +176,9 @@ type statsResponse struct {
 	TargetCount       int `json:"target_count"`
 	ReadCount         int `json:"read_count"`
 	AcknowledgedCount int `json:"acknowledged_count"`
+	// Recorded tells the counts refer to the recipients of the publication
+	// (#6988); false for a draft and an announcement published before.
+	Recorded bool `json:"recorded"`
 }
 
 func announcementStatus(a *announcementService.ParentAnnouncement) string {
@@ -458,6 +461,7 @@ func (rs *Resource) stats(w http.ResponseWriter, r *http.Request) {
 		TargetCount:       s.TargetCount,
 		ReadCount:         s.ReadCount,
 		AcknowledgedCount: s.AcknowledgedCount,
+		Recorded:          s.Recorded,
 	}, "Stats retrieved")
 }
 

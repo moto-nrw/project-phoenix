@@ -113,6 +113,10 @@ func (r *declarationRepo) PublishIfDraft(_ context.Context, _ int64, at time.Tim
 	return true, nil
 }
 
+func (r *declarationRepo) RecordRecipients(context.Context, int64, int64) error {
+	return nil
+}
+
 func (r *declarationRepo) SetPublished(_ context.Context, _ int64, at *time.Time) error {
 	r.announcement.PublishedAt = at
 	return nil

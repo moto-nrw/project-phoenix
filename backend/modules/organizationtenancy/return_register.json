@@ -32879,6 +32879,12 @@
           "type": "text",
           "udt": "text",
           "nullable": true
+        },
+        {
+          "name": "recipient_student_ids",
+          "type": "ARRAY",
+          "udt": "_int8",
+          "nullable": true
         }
       ],
       "relationships": [

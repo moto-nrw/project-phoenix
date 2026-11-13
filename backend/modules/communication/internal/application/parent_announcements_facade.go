@@ -112,6 +112,7 @@ func (p *parentAnnouncements) ParentAnnouncementStats(ctx context.Context, id in
 	}
 	return &communication.ParentAnnouncementStats{
 		TargetCount: stats.TargetCount, ReadCount: stats.ReadCount, AcknowledgedCount: stats.AcknowledgedCount,
+		Recorded: stats.Recorded,
 	}, mapParentAnnouncementError(err)
 }
 
