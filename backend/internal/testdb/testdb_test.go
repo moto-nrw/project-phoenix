@@ -409,15 +409,20 @@ func TestTemplateHashCoversMigrationsAndBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	current, err := TemplateHash()
 	require.NoError(t, err)
-	assert.Equal(t, templateHash(migrations, templateBootstrapStatements), current)
+	preparation := append(slices.Clone(templateBootstrapStatements), sharedRowRules()...)
+	assert.Equal(t, templateHash(migrations, preparation), current)
 	assert.Len(t, current, 32)
 	assert.NotEqual(t, migrations, current)
 
-	edited := slices.Clone(templateBootstrapStatements)
+	edited := slices.Clone(preparation)
 	edited[0] += " "
 	assert.NotEqual(t, current, templateHash(migrations, edited), "an edited bootstrap statement names a new template")
-	assert.NotEqual(t, current, templateHash(migrations, edited[1:]), "a removed bootstrap statement names a new template")
-	assert.NotEqual(t, current, templateHash(migrations+"0", templateBootstrapStatements), "a migration change names a new template")
+	assert.NotEqual(t, current, templateHash(migrations, preparation[1:]), "a removed bootstrap statement names a new template")
+	edited = slices.Clone(preparation)
+	edited[len(edited)-1] += " "
+	assert.NotEqual(t, current, templateHash(migrations, edited), "a changed shared-row rule names a new template")
+	assert.NotEqual(t, current, templateHash(migrations+"0", preparation), "a migration change names a new template")
+	assert.Contains(t, sharedRowRules(), "auth.accounts|false|false|"+sharedRowPredicate("auth.accounts", false, false))
 }
 
 func TestMigrationSetsMatchRequiresExactSet(t *testing.T) {
@@ -607,6 +612,21 @@ func TestMigrationsCompleteAgainstRealTemplate(t *testing.T) {
 	complete, err := migrationsComplete(ctx, templateCfg.TemplateDSN())
 	require.NoError(t, err)
 	assert.True(t, complete, "the migrated template must pass the default completeness check — otherwise CI rebuilds instead of adopting")
+
+	// The preparation wrote the bootstrap rows and the gate's start state
+	// into the template, under the current rules (#6962).
+	template := openSQL(templateCfg.TemplateDSN())
+	defer func() { require.NoError(t, template.Close()) }()
+	var bootstrapSchool, organizationSequence int64
+	require.NoError(t, template.QueryRowContext(ctx, `SELECT id FROM platform.schools WHERE id = 1`).Scan(&bootstrapSchool))
+	require.NoError(t, template.QueryRowContext(ctx, `SELECT last_value FROM platform.organizations_id_seq`).Scan(&organizationSequence))
+	assert.GreaterOrEqual(t, organizationSequence, TenantIDCeiling)
+	_, recorded, ok, err := readSharedBaseline(ctx, template)
+	require.NoError(t, err)
+	require.True(t, ok, "the template carries the leftover gate's start state")
+	current, err := tableSharedPredicates(ctx, template)
+	require.NoError(t, err)
+	assert.Equal(t, current, recorded)
 }
 
 func TestCreateCloneAndSweepLifecycle(t *testing.T) {
@@ -837,6 +857,51 @@ func TestLeftoversFollowsOrganizationOwnershipToTenantlessRows(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, deltas, "undoing %s restores the start state", leftover.name)
 	}
+}
+
+// A clone inherits the template's start state. EnsureSharedBaseline keeps a
+// current one — so a row written afterwards stays a leftover — and takes a
+// missing or outdated one again (#6962).
+func TestEnsureSharedBaselineKeepsCurrentAndRetakesStaleSnapshot(t *testing.T) {
+	t.Parallel()
+	cfg := integrationConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	builds := 0
+	templateCfg, err := EnsureTemplate(ctx, cfg, WithBuild(fakeBuild(&builds)), WithMigrationsHash("ensurebaselinehash"))
+	require.NoError(t, err)
+	handle, err := CreateClone(ctx, templateCfg, SanitizeRunID(""))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = handle.Close()
+		dropBareClone(t, cfg, handle.Name)
+	})
+	clone := openSQL(handle.DSN)
+	defer func() { require.NoError(t, clone.Close()) }()
+
+	// Missing: the fake template recorded none.
+	require.NoError(t, EnsureSharedBaseline(ctx, handle.DSN))
+	deltas, err := Leftovers(ctx, handle.DSN)
+	require.NoError(t, err)
+	require.Empty(t, deltas)
+
+	// Current: kept, so a later row is still reported.
+	_, err = clone.ExecContext(ctx, `INSERT INTO marker (id) VALUES (1)`)
+	require.NoError(t, err)
+	require.NoError(t, EnsureSharedBaseline(ctx, handle.DSN))
+	deltas, err = Leftovers(ctx, handle.DSN)
+	require.NoError(t, err)
+	require.Len(t, deltas, 1)
+	assert.Equal(t, "public.marker", deltas[0].Table)
+
+	// Outdated: recorded under another predicate, taken again.
+	_, err = clone.ExecContext(ctx, `UPDATE `+baselineTable+` SET shared_predicate = 'false' WHERE table_name = 'public.marker'`)
+	require.NoError(t, err)
+	require.NoError(t, EnsureSharedBaseline(ctx, handle.DSN))
+	deltas, err = Leftovers(ctx, handle.DSN)
+	require.NoError(t, err)
+	assert.Empty(t, deltas, "a snapshot under outdated rules is replaced by one under the current rules")
 }
 
 func TestLeftoversFollowsAccountOwnershipToTenantlessRows(t *testing.T) {

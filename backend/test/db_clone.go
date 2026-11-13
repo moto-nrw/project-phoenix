@@ -99,8 +99,10 @@ func initPackageTestDB() error {
 	if err := bindPackageTenantRuntime(sharedTestDB); err != nil {
 		return fmt.Errorf("bind package tenant runtime: %w", err)
 	}
-	if err := testdb.SnapshotSharedBaseline(ctx, clone.DSN); err != nil {
-		return fmt.Errorf("snapshot clone baseline: %w", err)
+	// The clone inherited the template's start snapshot; only a missing or
+	// outdated one is taken again here.
+	if err := testdb.EnsureSharedBaseline(ctx, clone.DSN); err != nil {
+		return fmt.Errorf("ensure clone baseline: %w", err)
 	}
 	return nil
 }

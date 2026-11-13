@@ -115,6 +115,9 @@ func dropPackageClone() {
 		_ = sharedTestDB.Close()
 	}
 	_ = packageClone.Close()
+	if err := dropIsolatedTemplates(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "testdb: could not drop package templates: %v\n", err)
+	}
 	if err := testdb.ReleaseMaintenance(ctx, packageMaintenance, packageClone.Name); err != nil {
 		fmt.Fprintf(os.Stderr, "testdb: could not drop package clone %s: %v\n", packageClone.Name, err)
 	}

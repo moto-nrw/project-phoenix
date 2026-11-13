@@ -39,6 +39,7 @@ const maxConcurrentIsolatedTestDatabases = 2
 var isolatedTestDatabaseSlots = newIsolatedTestDatabaseLimiter(maxConcurrentIsolatedTestDatabases)
 
 type isolatedTestDatabase struct {
+	source      *IsolatedTemplate // nil: a clone of the run's template
 	once        sync.Once
 	dropOnce    sync.Once
 	users       int           // guarded by isolatedTestDatabaseUsersMu
@@ -63,20 +64,33 @@ func hasIsolatedTestDB(tb testing.TB) bool {
 	return ok
 }
 
+// isolatedTestDBSource returns the package-local template of tb's current
+// isolated clone, or nil.
+func isolatedTestDBSource(tb testing.TB) *IsolatedTemplate {
+	if value, ok := isolatedTestDatabases.Load(topLevelTestName(tb)); ok {
+		return value.(*isolatedTestDatabase).source
+	}
+	return nil
+}
+
 // setupIsolatedTestDB returns the clone of tb's scope (its top-level test, or
 // the nearest OwnTenant ancestor). Every call is one user of that clone and
 // leaves it in tb's cleanup; the last user to leave drops it. A parent and its
 // subtests, and parallel sibling subtests, therefore share one clone for as
 // long as any of them runs, whichever of them opened it. A test that sets up
 // after the last user left gets a fresh clone.
-func setupIsolatedTestDB(tb testing.TB) *bun.DB {
+func setupIsolatedTestDB(tb testing.TB, source *IsolatedTemplate) *bun.DB {
 	tb.Helper()
 	name := topLevelTestName(tb)
 	var entry *isolatedTestDatabase
 	for {
 		isolatedTestDatabaseUsersMu.Lock()
-		value, _ := isolatedTestDatabases.LoadOrStore(name, &isolatedTestDatabase{dropped: make(chan struct{})})
+		value, _ := isolatedTestDatabases.LoadOrStore(name, &isolatedTestDatabase{source: source, dropped: make(chan struct{})})
 		entry = value.(*isolatedTestDatabase)
+		if entry.source != source {
+			isolatedTestDatabaseUsersMu.Unlock()
+			tb.Fatalf("setup isolated test database: %s already uses a clone of another template", name)
+		}
 		if !entry.leaving {
 			entry.users++
 			isolatedTestDatabaseUsersMu.Unlock()
@@ -123,8 +137,7 @@ func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) 
 	ctx, cancel := context.WithTimeout(context.Background(), isolatedTestDatabaseOpenTimeout)
 	defer cancel()
 
-	entry.clone, err = packageMaintenance.CreateClone(ctx, packageCloneCfg, testdb.RunID()+"-"+name)
-	if err != nil {
+	if entry.clone, err = entry.createClone(ctx, name); err != nil {
 		return errors.Join(err, entry.drop())
 	}
 	defer func() {
@@ -142,14 +155,34 @@ func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) 
 	if err != nil {
 		return err
 	}
+	return entry.ensureScopeTenant(ctx, name)
+}
+
+// createClone copies the run's template, or the package-local template the
+// scope asked for.
+func (entry *isolatedTestDatabase) createClone(ctx context.Context, name string) (*testdb.CloneHandle, error) {
+	if entry.source == nil {
+		return packageMaintenance.CreateClone(ctx, packageCloneCfg, testdb.RunID()+"-"+name)
+	}
+	source, err := entry.source.built(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return packageMaintenance.CreateCloneOf(ctx, packageCloneCfg, source, testdb.RunID()+"-"+name)
+}
+
+// ensureScopeTenant creates the scope's tenant in a clone of the run's
+// template. A package-local template's build owns its schema, including the
+// tenant tables; its tests insert the rows they need themselves.
+func (entry *isolatedTestDatabase) ensureScopeTenant(ctx context.Context, name string) error {
+	if entry.source != nil {
+		return nil
+	}
 	if value, ok := testTenants.Load(name); ok {
 		if tenantID := value.(*tenantEntry).id; tenantID != 0 {
-			if err = ensureTestTenant(ctx, entry.db, tenantID); err != nil {
-				return err
-			}
+			return ensureTestTenant(ctx, entry.db, tenantID)
 		}
 	}
-
 	return nil
 }
 

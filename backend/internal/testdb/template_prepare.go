@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash/fnv"
+	"slices"
 )
 
 // CloneSearchPath is the search_path every clone gets from the maintenance
@@ -72,9 +73,18 @@ var templateBootstrapStatements = []string{
 }
 
 // prepareTemplate is the default preparation of a migrated template: it
-// writes the bootstrap rows in one transaction. It runs on every template the
-// lifecycle builds or adopts, before the template is stamped.
+// writes the bootstrap rows in one transaction and then records the shared
+// start state of the leftover gate, which every clone inherits (#6962). It
+// runs on every template the lifecycle builds or adopts, before the template
+// is stamped.
 func prepareTemplate(ctx context.Context, templateDSN string) error {
+	if err := bootstrapTemplate(ctx, templateDSN); err != nil {
+		return err
+	}
+	return SnapshotSharedBaseline(ctx, templateDSN)
+}
+
+func bootstrapTemplate(ctx context.Context, templateDSN string) error {
 	db := openSQL(templateDSN)
 	defer func() { _ = db.Close() }()
 	tx, err := db.BeginTx(ctx, nil)
@@ -94,21 +104,44 @@ func prepareTemplate(ctx context.Context, templateDSN string) error {
 }
 
 // TemplateHash is the hash that names the template: the migration sources and
-// the preparation that runs after them. A change to either builds a new
-// template.
+// the preparation that runs after them, including the leftover gate's rules
+// for shared rows, whose start state the template records. A change to either
+// builds a new template.
 func TemplateHash() (string, error) {
 	migrations, err := MigrationsHash()
 	if err != nil {
 		return "", err
 	}
-	return templateHash(migrations, templateBootstrapStatements), nil
+	return templateHash(migrations, append(slices.Clone(templateBootstrapStatements), sharedRowRules()...)), nil
 }
 
-func templateHash(migrations string, bootstrap []string) string {
+func templateHash(migrations string, preparation []string) string {
 	h := fnv.New128a() // identifier derivation, see identifierHash
 	_, _ = fmt.Fprintf(h, "migrations\x00%s\x00", migrations)
-	for _, statement := range bootstrap {
+	for _, statement := range preparation {
 		_, _ = fmt.Fprintf(h, "bootstrap\x00%d\x00%s\x00", len(statement), statement)
 	}
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// sharedRowRules spells out sharedRowPredicate for every table it names and
+// for every column shape of the others. EnsureSharedBaseline still compares
+// the recorded predicates with the current ones per clone; the hash only
+// spares the clones that comparison's fallback snapshot.
+func sharedRowRules() []string {
+	tables := []string{""}
+	for table := range tenantIdentityTables {
+		tables = append(tables, table)
+	}
+	for table := range mappedTenantTables {
+		tables = append(tables, table)
+	}
+	slices.Sort(tables)
+	rules := make([]string, 0, 4*len(tables))
+	for _, table := range tables {
+		for _, shape := range [][2]bool{{false, false}, {false, true}, {true, false}, {true, true}} {
+			rules = append(rules, fmt.Sprintf("%s|%t|%t|%s", table, shape[0], shape[1], sharedRowPredicate(table, shape[0], shape[1])))
+		}
+	}
+	return rules
 }
