@@ -1,5 +1,6 @@
 "use client";
 
+import { useKitDefault } from "~/components/ui/kit-locale";
 import Link from "~/components/ui/navigation-link";
 import { MobilePageHelpTarget } from "~/components/ui/mobile-page-help-target";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -287,6 +288,7 @@ function TenantPageInfo({
           aria-expanded={expanded}
           aria-controls={expanded ? panelId : undefined}
           onClick={handleTriggerClick}
+          noTooltip="Der Info-Knopf öffnet seinen Text schon beim Zeigen; eine Blase verdeckte ihn."
           onPointerEnter={handlePointerEnter}
           onPointerLeave={handlePointerLeave}
           // Sichtbar 32 px wie die übrigen Symbolknöpfe; die Trefferfläche
@@ -338,6 +340,7 @@ export function TenantPageStats({
     readonly selectLabel?: string;
   }[];
 }>) {
+  const kitDefault = useKitDefault();
   const shown = items.slice(0, MAX_STATS_ITEMS);
   return (
     <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
@@ -366,6 +369,10 @@ export function TenantPageStats({
                 // wie die übrigen Zahlen der Zeile, die nur Anzeige sind.
                 className="gap-1.5 underline decoration-gray-300 underline-offset-4"
                 aria-label={item.selectLabel}
+                // Filtert nur die Ansicht; die Daten bleiben unverändert.
+                tooltip={kitDefault(
+                  "Filtert die Liste auf genau diese Einträge.",
+                )}
                 onClick={item.onSelect}
               >
                 {pair}

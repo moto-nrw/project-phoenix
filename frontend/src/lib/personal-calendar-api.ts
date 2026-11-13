@@ -159,10 +159,22 @@ interface CalendarAttendee {
   readonly responded_at?: string;
 }
 
+/** Answers of every recipient, also of the ones the overview does not name. */
+export interface CalendarResponseCounts {
+  readonly accepted: number;
+  readonly declined: number;
+  readonly pending: number;
+}
+
+/**
+ * Staff get every attendee by name. A parent gets the staff and their own
+ * entries only; other parents appear in `counts` alone (#6846).
+ */
 export interface CalendarAppointmentOverview {
   readonly appointment_id: string;
   readonly delivery_mode: CalendarDeliveryMode;
   readonly overview_visibility: CalendarOverviewVisibility;
+  readonly counts: CalendarResponseCounts;
   readonly attendees: CalendarAttendee[];
 }
 
@@ -312,6 +324,12 @@ export function respondParentCalendar(
 export function getStaffAppointmentOverview(appointmentId: string) {
   return fetchJSON<CalendarAppointmentOverview>(
     `/api/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`,
+  );
+}
+
+export function getParentAppointmentOverview(appointmentId: string) {
+  return fetchJSON<CalendarAppointmentOverview>(
+    `/api/parent/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`,
   );
 }
 

@@ -19,7 +19,7 @@ type seamRecorder interface {
 	LockRoomsByID(context.Context, []int64) ([]facilities.Room, error)
 	CreateRoom(context.Context, facilities.CreateRoom) (facilities.Room, error)
 	UpdateRoom(context.Context, facilities.UpdateRoom) (facilities.Room, error)
-	DeleteRoom(context.Context, int64) error
+	DeleteRoom(context.Context, int64) (facilities.RoomRemoval, error)
 	ObserveRejection(string, time.Duration, error)
 }
 type seamStore struct{ e seamRecorder }
@@ -32,8 +32,12 @@ func (s seamStore) Update(ctx context.Context, v facilities.UpdateRoom) (facilit
 	r, err := s.e.UpdateRoom(ctx, v)
 	return r, domain.OperationStats{}, err
 }
-func (s seamStore) Delete(ctx context.Context, id int64) (domain.OperationStats, error) {
-	return domain.OperationStats{}, s.e.DeleteRoom(ctx, id)
+func (s seamStore) Delete(ctx context.Context, id int64) (bool, domain.OperationStats, error) {
+	_, err := s.e.DeleteRoom(ctx, id)
+	return err == nil, domain.OperationStats{}, err
+}
+func (s seamStore) Archive(_ context.Context, id int64) (facilities.Room, domain.OperationStats, error) {
+	return facilities.Room{ID: id}, domain.OperationStats{}, nil
 }
 func (s seamStore) FindByID(ctx context.Context, id int64, lock string) (facilities.Room, bool, domain.OperationStats, error) {
 	if lock != "" {
@@ -76,7 +80,7 @@ func newTestModule(e seamRecorder) *Service {
 	if e == nil {
 		return NewRooms(nil, seamTransaction{}, func(ports.Observation) {})
 	}
-	return New(seamStore{e}, seamTransaction{}, func(context.Context) error { return nil }, UnusedRooms{}, func(o ports.Observation) {
+	return New(seamStore{e}, seamTransaction{}, func(context.Context) error { return nil }, UnusedRooms{}, NoRoomReferences, func(o ports.Observation) {
 		if o.Err != nil {
 			e.ObserveRejection(o.Operation, o.Duration, o.Err)
 		}

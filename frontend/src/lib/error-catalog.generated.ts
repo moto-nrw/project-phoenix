@@ -1237,12 +1237,20 @@ export const ERROR_CATALOG = {
         "Aus dieser Phase gibt es schon eine Anschlussphase. Bitte löschen Sie zuerst die bestehende Anschlussphase.",
       "rollover.source_not_found":
         "Die Ausgangsphase gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "rooms.archived":
+        "Dieser Raum ist archiviert. Sie können ihn nicht mehr ändern.",
       "rooms.color_already_in_use":
         "Diese Farbe hat schon ein anderer Raum. Bitte wählen Sie eine andere Farbe.",
       "rooms.not_found":
         "Diesen Raum gibt es nicht mehr. Bitte wählen Sie ihn in der Liste neu aus.",
       "rooms.not_released":
         "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum.",
+      "rooms.required_by_care_offering":
+        "Ein Betreuungsangebot braucht diesen Raum noch. Wählen Sie dort zuerst einen anderen Raum.",
+      "rooms.session_running":
+        "In diesem Raum läuft gerade eine Aktivität. Beenden Sie sie zuerst.",
+      "rooms.still_planned":
+        "Dieser Raum wird noch genutzt. Verlegen Sie zuerst Aktivitäten, Termine, Gruppen und Geräte in einen anderen Raum.",
       "school.parent_conference_change_closed":
         "Bis 24 Stunden vor dem Termin können Sie buchen, umbuchen oder absagen. Danach wenden Sie sich bitte direkt an die Lehrkraft.",
       "school.parent_conference_slot_taken":
@@ -1495,6 +1503,8 @@ export const ERROR_CATALOG = {
         "{object} überschneidet sich mit anderen Zeiträumen. Bitte prüfen Sie die Termine.",
       "timetable.calendar_period_roster_conflict":
         "Der Zeitraum lässt sich nicht löschen. Sonst wären Kinder oder Personal doppelt eingeteilt. Bitte passen Sie zuerst die Regeltermine an.",
+      "timetable.calendar_period_shift_series_conflict":
+        "Der Zeitraum lässt sich nicht löschen. Schichtserien im Dienstplan nutzen ihn noch. Bitte beenden Sie diese Serien zuerst.",
       "timetable.calendar_period_week_cycle_anchor_missing":
         "Bitte wählen Sie das Startdatum der Wiederholung.",
       "timetable.closing_day_end_before_start":
@@ -1933,6 +1943,8 @@ export const ERROR_CATALOG = {
         "Die Serie liegt außerhalb des Kalenderzeitraums. Bitte prüfen Sie „Gültig ab“ und „Gültig bis“.",
       "workforce.shift_series_week_cycle_missing":
         "Dieser Kalenderzeitraum hat keine Woche A und B. Bitte wählen Sie „Jede Woche“.",
+      "workforce.shift_type_archived":
+        "Diese Dienstart wurde entfernt. Bitte wählen Sie eine andere.",
       "workforce.shift_type_inactive":
         "Diese Dienstart ist ausgeschaltet. Bitte wählen Sie eine andere.",
       "workforce.staff_profile_missing":

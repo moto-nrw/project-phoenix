@@ -487,7 +487,7 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			facilities, err = owners.BuildFacilitiesModule(db, owners.ObserveFacilities, timetableRows.RecurrenceLock, presence.Presence, requests.CareOfferings)
+			facilities, err = owners.BuildFacilitiesModule(db, owners.ObserveFacilities, timetableRows.RecurrenceLock, presence.Presence, requests.CareOfferings, groups, devices)
 			return
 		},
 		func() (err error) {
@@ -540,13 +540,13 @@ func composeServeRoot(
 				feedback, organizations, identity)
 		},
 		func() error {
-			return mountStaffRoutes(router, tenant, db, logger, membership, workTime, workTime, services.Users, staffAdmin, workforce, shifts,
+			return mountStaffRoutes(router, tenant, db, logger, membership, workTime, workTime, workTime, services.Users, staffAdmin, workforce, shifts,
 				structureViews.Education, structureViews.Substitution, persons, settings.Service, hub, identity, caller, calendarAdmin)
 		},
 		func() error {
 			return mountSchoolPortalRoutes(router, tenant, db, logger, limiters, studentPresence, timetableOwner, calendarAdmin,
 				materialization, lifecycle, planning, timetableRows.PlanningTracks, services.Users, schedules, caller, settings.Service,
-				careOfferings, planExport, chat, persons, notifications, deliveryDevices, classDay, identity, calendarApp, announcements)
+				careOfferings, planExport, chat, persons, notifications, deliveryDevices, classDay, identity, calendarApp, announcements, workTime)
 		},
 		func() error {
 			enrollmentResource := newEnrollmentResource(logger, settings.Service, config.Turnstile, careOfferings, flows, phases,

@@ -32,8 +32,7 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 	// disconnect, so it answers 499 and reaches neither Sentry nor the ERROR
 	// log. The 5xx it replaces rolled the request transaction back, and so
 	// does this answer.
-	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 &&
-		errors.Is(errResp.Err, context.Canceled) && r.Context().Err() != nil {
+	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 && ClientCanceled(r, errResp.Err) {
 		tenant.MarkRollback(r.Context())
 		renderer = ErrorClientClosed(errResp.Err)
 	}
@@ -57,6 +56,23 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 	if err := render.Render(w, r, renderer); err != nil {
 		slog.Default().Error("error rendering error response", slog.String("error", err.Error()))
 	}
+}
+
+// ClientCanceled reports whether err is the cancellation of a request the
+// client went away from. Such a failure is the disconnect, no server error.
+func ClientCanceled(r *http.Request, err error) bool {
+	return errors.Is(err, context.Canceled) && r.Context().Err() != nil
+}
+
+// RenderUnexpectedFailure answers a failure that reports no cause of its own:
+// 499 when the client canceled the request (ClientCanceled),
+// otherwise a cause-less 500 (RenderStatus).
+func RenderUnexpectedFailure(w http.ResponseWriter, r *http.Request, err error) {
+	if ClientCanceled(r, err) {
+		RenderError(w, r, ErrorClientClosed(err))
+		return
+	}
+	RenderStatus(w, r, http.StatusInternalServerError, "")
 }
 
 // RenderExpectedUnavailable writes a 503 that no one has to act on: the deployment

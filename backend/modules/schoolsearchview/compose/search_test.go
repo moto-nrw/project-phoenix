@@ -225,7 +225,7 @@ func TestSearchQueryBudget(t *testing.T) {
 // TestEveryStatementWithTheTypedTextIsMarkedForTheLog keeps names and phone
 // numbers out of the slow-query log: bun writes bound values into the logged
 // SQL, so each statement that carries the text must carry the marker that
-// makes the log drop its literals (ADR 0227).
+// makes the log drop its literals (ADR 0229).
 func TestEveryStatementWithTheTypedTextIsMarkedForTheLog(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

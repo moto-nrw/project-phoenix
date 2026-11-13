@@ -387,7 +387,7 @@ export function SchoolSearchDialog({
   }
 
   // A hint, never a link carrying the text: the typed text stays out of
-  // every URL (ADR 0227).
+  // every URL (ADR 0229).
   const footer = (
     <span className="text-gray-500">
       {readsContacts

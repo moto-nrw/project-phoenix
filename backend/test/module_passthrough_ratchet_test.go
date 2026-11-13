@@ -270,7 +270,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // pass-throughs fewer (-2).
 // Lowered by #6840: People Directory's DeletePerson checks for a live child or
 // staff profile before the soft delete (-1).
-const modulePassthroughOwnerBudgetTotal = 1402
+const modulePassthroughOwnerBudgetTotal = 1401
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -305,7 +305,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/feedback":       2,
 	"modules/filestorage":    6,
 	// Raised by ADR 0077: the caterer flows.
-	"modules/identityaccess": 208,
+	"modules/identityaccess": 207,
 	"modules/mealplan":       1,
 	// Raised by ADR 0112: the Träger logo read of the Träger-Portal.
 	// Raised by ADR 0172: the document contact read without an account (+1).

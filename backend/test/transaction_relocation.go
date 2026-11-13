@@ -16,6 +16,7 @@ func transactionScopeSubset(current, previous map[string]string, moves map[strin
 	current = withoutReviewedSessionMintTransactions(withoutReviewedEmailDeliveryEventTransactions(withoutReviewedRealtimeNotificationTransactions(current)))
 	current = withoutReviewedEnrollmentDecisionCommandTransaction(current)
 	current = withoutReviewedAccountMFAEnrollmentTransaction(current)
+	current = withoutReviewedSchoolAccountAuditTransactions(current)
 	current = withoutReviewedTransactionFrameBundles(current)
 	current = withoutReviewedBelegRetentionTransactions(current)
 	current = withoutReviewedVisitRetentionTransaction(current)

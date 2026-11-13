@@ -977,11 +977,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeInvitation",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeInvitationsForEmail",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

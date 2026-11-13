@@ -40,7 +40,7 @@ func buildModule(t *testing.T, db *bun.DB, observe func(Observation)) facilities
 	t.Helper()
 	module, err := New(Dependencies{
 		DB: db, DeletionLock: func(context.Context) error { return nil },
-		Usage: roomUsageFunc(func(context.Context) bool { return false }), Observe: observe,
+		Usage: roomUsageFunc(func(context.Context) bool { return false }), References: noReferences, Observe: observe,
 	})
 	require.NoError(t, err)
 	return module

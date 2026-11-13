@@ -6,6 +6,7 @@ GET /api/rooms/by-category -> basis
 GET /api/rooms/categories -> basis
 GET /api/rooms/{id} -> basis
 GET /api/rooms/{id}/history -> basis
+GET /api/rooms/{id}/removal-impact -> basis
 POST /api/rooms/ -> basis
 POST /api/rooms/export -> basis
 PUT /api/rooms/{id} -> basis

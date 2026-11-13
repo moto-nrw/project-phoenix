@@ -79,8 +79,13 @@ func (a shiftTypeAdministration) UpdateShiftType(ctx context.Context, input work
 	return shiftTypeToCapability(saved), nil
 }
 
-func (a shiftTypeAdministration) DeleteShiftType(ctx context.Context, id int64) error {
-	return mapShiftTypeError(a.types.DeleteShiftType(ctx, id))
+// DeleteShiftType archives a type planned shifts or series still carry and
+// deletes an unused one (#6845). An archived type keeps its category
+// mapping like every other reference; a deleted one loses it through the
+// FK.
+func (a shiftTypeAdministration) DeleteShiftType(ctx context.Context, id int64) (workforce.ShiftTypeRemoval, error) {
+	removal, err := a.types.DeleteShiftType(ctx, id)
+	return removal, mapShiftTypeError(err)
 }
 
 // syncCategoryLinks applies the optional mapping after a write. A nil set
@@ -116,7 +121,7 @@ func shiftTypeToCapability(shiftType *workforce.ShiftTypeRecord) workforce.Shift
 	}
 	return workforce.ShiftType{
 		ID: shiftType.ID, TenantID: shiftType.TenantID, Name: shiftType.Name, Color: shiftType.Color,
-		Description: shiftType.Description, IsActive: shiftType.IsActive, CreatedAt: shiftType.CreatedAt, UpdatedAt: shiftType.UpdatedAt,
+		Description: shiftType.Description, IsActive: shiftType.IsActive, ArchivedAt: shiftType.ArchivedAt, CreatedAt: shiftType.CreatedAt, UpdatedAt: shiftType.UpdatedAt,
 	}
 }
 

@@ -174,8 +174,10 @@ func TestSettingsGETCancellationPreservesReadOnlyFailure(t *testing.T) {
 			require.Equal(t, 499, rec.Code, rec.Body.String())
 			require.JSONEq(t, `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar","title":"Client Closed Request","status":499,"detail":"settings service error in traeger_schema: unit of work: start transaction: context canceled","instance":"","code":"general.unavailable"}`, rec.Body.String())
 		} else {
-			require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
-			assertSettingsProblem(t, rec.Body.Bytes(), http.StatusInternalServerError, "general.server")
+			// The request transaction cannot begin for a client that went
+			// away: 499 instead of a server error.
+			require.Equal(t, 499, rec.Code, rec.Body.String())
+			require.JSONEq(t, `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar","title":"Client Closed Request","status":499,"detail":"unit of work: start transaction: context canceled","instance":"","code":"general.unavailable"}`, rec.Body.String())
 		}
 		f.noSettingsDML(t, false)
 		t.Logf("canceled path=%s SQL=%q", path, f.counter.Queries())

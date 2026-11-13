@@ -1,7 +1,7 @@
 import { bffJson } from "~/lib/bff-fetch";
 
 /**
- * The school search (#6954, ADR 0227). The query travels in a POST body and
+ * The school search (#6954, ADR 0229). The query travels in a POST body and
  * never in a URL, so a phone number or a name stays out of access logs,
  * browser history and error reports.
  */

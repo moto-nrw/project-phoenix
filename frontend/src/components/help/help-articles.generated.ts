@@ -1195,6 +1195,8 @@ export const calendarPeriodsTopic = function calendarPeriodsTopic(): HelpTopic {
       "Im Betreuungsplan plant moto an Schließtagen und gesetzlichen Feiertagen keine Termine. Abgesagte Termine verschwinden aus dem Plan. Eltern bekommen keine Nachricht.",
     notes: [
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
+      // #6845: Schichtserien halten ihren Zeitraum fest.
+      "Einen Zeitraum mit Schichtserien im Dienstplan können Sie nicht löschen, auch wenn die Serien beendet sind. Nehmen Sie stattdessen den Haken bei `Zeitraum im Plan verwenden` heraus.",
       "Ferienbetreuung an Schließtagen: Wählen Sie beim Speichern der Serie `Auch an Schließtagen planen`. Tragen Sie bei `Letzter Tag` den letzten Ferientag ein. Dann endet die Serie mit den Ferien.",
       "Schicht-Serien im Dienstplan lassen Ferien und Schließtage aus.",
       "Ein Schließtag mit `Vom Träger` hat Ihr Träger geplant. Er gilt wie Ihre eigenen Schließtage. Ändern kann ihn nur das Träger-Büro.",
@@ -2090,6 +2092,8 @@ export const dutyRosterTopic = function dutyRosterTopic(): HelpTopic {
     notes: [
       "Jede Schicht kann eine Dienstart tragen. Die Farbe kommt von der Dienstart.",
       "Über `Dienstarten verwalten` pflegen Sie die Arten.",
+      // #6845: eine genutzte Dienstart wird archiviert statt gelöscht.
+      "Löschen Sie eine Dienstart, die geplante Dienste tragen, behalten diese Dienste sie. Sie verschwindet nur aus der Auswahl für neue Dienste.",
       // ADR 0116: die ausgerichtete Ferienwoche im Dienstplan.
       "Richtet Ihre OGS eine Ferienwoche für den Träger aus, steht im Kopf jedes Tages `Ferienbetreuung`. Darunter stehen die Zahl der Kinder und die Betreuungszeit. Planen Sie dafür Schichten. In der Ansicht `Halbjahr` zeigt eine Sonne die Woche.",
       "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Dienstart und das Soll.",
@@ -4916,7 +4920,8 @@ export const myScheduleTopic = function myScheduleTopic(): HelpTopic {
       "Sie haben einen Überblick über Ihre Termine und Einsätze. Das Kalender-Abo übernimmt neue, geänderte und abgesagte Einträge automatisch.",
     notes: [
       "Mit `Sa/So` blenden Sie das Wochenende ein. Eine Zahl zeigt, dass dort Einträge liegen.",
-      "Bei einer Einladung wählen Sie im geöffneten Termin `Zusagen` oder `Absagen`.",
+      "Bei einer Einladung wählen Sie im geöffneten Termin `Zusagen` oder `Absagen`. Bei einer Reihe gilt die Antwort für alle Termine.",
+      "Beim Anlegen und Bearbeiten wählen Sie unter `Wer sieht die Teilnehmerübersicht?`, wer die Antworten sieht. Bei `Alle Eingeladenen` sehen Eltern nur, wie viele zugesagt und abgesagt haben, keine Namen.",
       "Legen Sie einen Termin an und wählen Sie `Alle Lehrkräfte`. Dann sehen die Lehrkräfte ihn in moto schule.",
     ],
     differences: [
@@ -5643,12 +5648,15 @@ export const parentCalendarTopic = function parentCalendarTopic(): HelpTopic {
       "Ein Termin ist eine `Betreuungszeit`, eine `Einladung` oder ein `Termin`.",
       "Bei einer Einladung antworten Sie mit `Zusagen` oder `Absagen`.",
       "Danach steht am Termin `Zugesagt` oder `Abgesagt`.",
+      "Wiederholt sich ein Termin, gilt Ihre Antwort für alle Termine der Reihe.",
+      "Unter `Rückmeldungen` sehen Sie, wie viele zugesagt und abgesagt haben. Namen anderer Eltern sehen Sie nicht.",
       "Rechts steht ein Monatskalender. Mit den Pfeilen wechseln Sie den Monat.",
       "Unter `Kalender abonnieren` holen Sie sich mit `Abo-Link anzeigen` die Termine in Ihren eigenen Kalender.",
     ],
     differences: [
       "Ein Termin trägt `Antwort erforderlich`? Dann wartet die OGS auf Ihre Antwort.",
       "Hat die OGS abgesagt, steht dort `Von der OGS abgesagt`.",
+      "Sie sehen keine `Rückmeldungen`? Dann zeigt die OGS sie bei diesem Termin nicht.",
       "Der Kalender zeigt die nächsten 3 Monate.",
     ],
     troubleshootingDetails: [
@@ -7260,6 +7268,8 @@ export const parentRequestsTopic = function parentRequestsTopic(
       // #5024: Freigeben braucht standardmäßig keine Begründung mehr.
       "Zeigt das Feld `Begründung (Pflicht)` statt `Begründung (Pflicht bei Ablehnung)`? Dann verlangt Ihre OGS auch beim Freigeben eine Begründung. Tragen Sie sie vorher ein.",
       "Bei einer geänderten Abholzeit zeigt moto vorher betroffene Termine an.",
+      // #6990: Wochenplan seit der Anfrage geändert.
+      "Steht bei einer Zeile `Eltern sahen ...`? Dann wurde der Plan nach der Anfrage geändert. Die Eltern kannten noch diesen Wert. Prüfen Sie, ob die Anfrage noch passt.",
       // #3945: Tagesanfrage mit Abholart.
       "Eine Anfrage für einen einzelnen Tag kann die Abholzeit, die Abholart oder beides ändern. Die neue Abholart gilt nur an diesem Tag.",
       // #4780: Abholperson fuer einen Tag und Abholberechtigung je Wochentag.
@@ -7662,10 +7672,13 @@ export const roomsCatalogTopic = function roomsCatalogTopic(
       },
       {
         title: "Einen Raum löschen",
+        description:
+          "moto zeigt vorher, wo der Raum noch genutzt wird. Hat der Raum schon Termine oder Anwesenheiten, archiviert moto ihn. Der Verlauf behält dann den Raum.",
         steps: [
           "Öffnen Sie `Räume` und wählen Sie den Raum aus der Liste.",
           "Wählen Sie oben rechts `Löschen`.",
-          "Bestätigen Sie mit `Ja, löschen`.",
+          "Lesen Sie, was mit dem Raum passiert.",
+          "Bestätigen Sie mit `Ja, löschen` oder `Ja, archivieren`.",
         ],
       },
     ],
@@ -7690,7 +7703,7 @@ export const roomsCatalogTopic = function roomsCatalogTopic(
     ],
     troubleshootingDetails: [
       "Fehlt `Datenverwaltung` in der Seitenleiste? Dann fehlen Ihnen die Leitungsrechte. Fragen Sie Ihre Leitung.",
-      "Lässt sich ein Raum nicht löschen? Dann ist er gerade belegt. Oder ein Betreuungsangebot braucht ihn.",
+      "Lässt sich ein Raum nicht löschen? Dann wird er noch genutzt. Der Dialog nennt Aktivitäten, Termine, Gruppen und Geräte. Wählen Sie dort zuerst einen anderen Raum.",
       ...(tracksRooms
         ? [
             "Meldet moto oder das Tablet, der Raum ist voll? Dann ist `Maximale Belegung` erreicht. Erhöhen Sie die Zahl hier. Ist dagegen die Aktivität voll, ändern Sie `Maximale Teilnehmer` unter `Aktivitäten`.",
@@ -7833,7 +7846,7 @@ export const roomsTopic = function roomsTopic(
   };
 } satisfies typeof authored_roomsTopic;
 
-// Die Suche über die ganze Schul-App (#6954, ADR 0227). Was jemand findet,
+// Die Suche über die ganze Schul-App (#6954, ADR 0229). Was jemand findet,
 // entscheidet der Server nach den Rechten des Kontos; der Artikel nennt nur,
 // was die Person dann anders sieht.
 export const schoolSearchTopic = function schoolSearchTopic(): HelpTopic {

@@ -55,12 +55,17 @@ import { cn } from "~/lib/utils";
 const PRIMARY_ROW_MIN_H = "min-h-10";
 const CONTEXT_ROW_MIN_H = "min-h-9";
 const DAY_CHIP_SCROLL_MARGIN_PX = 4;
+const TODAY_TOOLTIP = "Springt zum Zeitraum mit dem heutigen Tag.";
 
 interface PlanningContextBarProps {
   readonly onPrevious?: () => void;
   readonly onNext?: () => void;
   readonly previousLabel?: string;
   readonly nextLabel?: string;
+  /** What the back arrow shows (#6744), e.g. „Zeigt die Woche davor.“ */
+  readonly previousTooltip?: string;
+  /** What the forward arrow shows (#6744), e.g. „Zeigt die Woche danach.“ */
+  readonly nextTooltip?: string;
   /** Sichtbare Überschrift der Fläche, z. B. "KW 31 · 27.07.–02.08.2026". */
   readonly dateLabel?: string;
   /** Beliebiger Inhalt anstelle des Datums, falls eine Fläche etwas anderes
@@ -100,6 +105,8 @@ export function PlanningContextBar({
   onNext,
   previousLabel = "Zurück",
   nextLabel = "Weiter",
+  previousTooltip = "Zeigt den Zeitraum davor.",
+  nextTooltip = "Zeigt den Zeitraum danach.",
   dateLabel,
   navigationSlot,
   onToday,
@@ -155,6 +162,7 @@ export function PlanningContextBar({
             onClick={onPrevious}
             disabled={!onPrevious}
             aria-label={previousLabel}
+            tooltip={previousTooltip}
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -169,6 +177,7 @@ export function PlanningContextBar({
               variant="segment"
               onClick={onToday}
               disabled={!onToday}
+              tooltip={TODAY_TOOLTIP}
             >
               {todayLabel}
             </Button>
@@ -180,6 +189,7 @@ export function PlanningContextBar({
             onClick={onNext}
             disabled={!onNext}
             aria-label={nextLabel}
+            tooltip={nextTooltip}
           >
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -195,6 +205,7 @@ export function PlanningContextBar({
             variant="ghost"
             className="md:order-2"
             onClick={onToday}
+            tooltip={TODAY_TOOLTIP}
           >
             {todayLabel}
           </Button>
@@ -351,6 +362,7 @@ export function PlanningDayChip({
       onClick={onClick}
       aria-label={ariaLabel}
       aria-pressed={selected}
+      noTooltip="Ein Tag der Leiste wählt nur den Tag der Ansicht, er steht auf dem Knopf."
       // Unter dem Telefon teilen sich die Tage die Breite gleichmäßig.
       // `scroll-mx-1` hält beim automatischen Heranscrollen den Rand frei
       // (#2031).

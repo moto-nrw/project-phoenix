@@ -64,6 +64,8 @@ export interface BackendCalendarPeriod {
   student_enrollment_count?: number;
   supervisor_count?: number;
   activity_instance_count?: number;
+  /** Dienstplan series planned in the period; they block its deletion. */
+  staff_shift_series_count?: number;
 }
 
 /** Frontend shape (camelCase, string IDs). */
@@ -94,6 +96,12 @@ export interface CalendarPeriod {
   supervisorCount?: number;
   /** How many materialized appointments reference this period (advisory). */
   activityInstanceCount?: number;
+  /**
+   * How many Dienstplan series (Schichtserien) are planned in this period.
+   * Unlike the other references they are not unlinked: the period cannot be
+   * deleted while one exists (#6845).
+   */
+  staffShiftSeriesCount?: number;
 }
 
 /** POST/PUT body — backend expects YYYY-MM-DD strings, not Date objects. */
@@ -126,6 +134,7 @@ export function mapPeriod(raw: BackendCalendarPeriod): CalendarPeriod {
     studentEnrollmentCount: raw.student_enrollment_count ?? 0,
     supervisorCount: raw.supervisor_count ?? 0,
     activityInstanceCount: raw.activity_instance_count ?? 0,
+    staffShiftSeriesCount: raw.staff_shift_series_count ?? 0,
   };
 }
 
@@ -309,6 +318,7 @@ export function formatPeriodUsage(
     studentEnrollmentCount?: number;
     supervisorCount?: number;
     activityInstanceCount?: number;
+    staffShiftSeriesCount?: number;
   },
 ): string {
   const parts: string[] = [];
@@ -356,7 +366,16 @@ export function formatPeriodUsage(
         : `${activityInstanceCount} Termininstanzen`,
     );
   }
+  const staffShiftSeriesCount = extra?.staffShiftSeriesCount ?? 0;
+  if (staffShiftSeriesCount > 0) {
+    parts.push(formatShiftSeriesCount(staffShiftSeriesCount));
+  }
   return parts.join(separator);
+}
+
+/** „1 Schichtserie“ / „3 Schichtserien“ aus dem Dienstplan. */
+export function formatShiftSeriesCount(count: number): string {
+  return count === 1 ? "1 Schichtserie" : `${count} Schichtserien`;
 }
 
 /**

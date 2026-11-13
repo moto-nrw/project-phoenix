@@ -1171,7 +1171,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (a shiftTypeAdministration) DeleteShiftType(ctx context.Context, id int64) error {\n\treturn mapShiftTypeError(a.types.DeleteShiftType(ctx, id))\n}",
+      "evidence": "func (a shiftTypeAdministration) DeleteShiftType(ctx context.Context, id int64) (workforce.ShiftTypeRemoval, error) {\n\tremoval, err := a.types.DeleteShiftType(ctx, id)\n\treturn removal, mapShiftTypeError(err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/workforce/internal/planning/shiftTypeAdministration.DeleteShiftType",
       "owner": "modules/workforce"

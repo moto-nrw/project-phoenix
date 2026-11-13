@@ -48,5 +48,6 @@ func (r *Repository) Delete(ctx context.Context, rawID any) error {
 	if err != nil {
 		return err
 	}
-	return r.DeleteRoom(ctx, id)
+	_, err = r.DeleteRoom(ctx, id)
+	return err
 }

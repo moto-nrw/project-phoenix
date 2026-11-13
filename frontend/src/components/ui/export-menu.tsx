@@ -1,5 +1,6 @@
 "use client";
 
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { ChevronDown, FileSpreadsheet, FileText, Printer } from "lucide-react";
 
 import {
@@ -85,13 +86,17 @@ export function exportMenuItems({
 export function ExportMenu({
   label = EXPORT_ACTION_LABELS.download,
   ariaLabel,
+  tooltip,
   ...args
 }: ExportMenuItemsArgs & {
   /** Visible trigger text. */
   readonly label?: string;
   /** Accessible name of the trigger when the text alone is not enough. */
   readonly ariaLabel?: string;
+  /** What a click on the trigger does (#6744). */
+  readonly tooltip?: string;
 }) {
+  const kitDefault = useKitDefault();
   return (
     <OverflowMenu
       ariaLabel={ariaLabel ?? label}
@@ -99,6 +104,12 @@ export function ExportMenu({
       items={exportMenuItems({ ...args, header: args.header ?? null })}
       triggerButton={{ variant: "outline", size: "md" }}
       triggerClassName="gap-2 whitespace-nowrap"
+      triggerTooltip={
+        tooltip ??
+        kitDefault(
+          "Zeigt die Formate zur Auswahl, noch wird nichts heruntergeladen.",
+        )
+      }
       triggerContent={
         <>
           {label}

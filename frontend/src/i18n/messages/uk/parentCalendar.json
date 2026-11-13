@@ -30,5 +30,15 @@
   "moreEvents": "+ ще {count}",
   "responseRequired": "Потрібна відповідь",
   "errorObjectList": "список зустрічей",
-  "errorObjectResponse": "відповідь"
+  "errorObjectResponse": "відповідь",
+  "responseRequiredSeries": "Відповідь для всіх дат серії",
+  "seriesAnswer": "Ваша відповідь діє для всіх дат цієї серії.",
+  "errorObjectOverview": "відповіді",
+  "responses": {
+    "title": "Відповіді",
+    "accepted": "Прийняли",
+    "declined": "Відмовилися",
+    "pending": "Без відповіді",
+    "privacy": "Імена інших батьків вам не видно."
+  }
 }

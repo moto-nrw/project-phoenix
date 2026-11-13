@@ -1375,6 +1375,11 @@ function CalendarEventDetail({
 
       {hasActions ? (
         <div className="flex flex-col gap-2 border-t border-gray-200 pt-4">
+          {showRespond && event.recurring ? (
+            <p className="text-xs leading-5 text-gray-500">
+              Ihre Antwort gilt für alle Termine dieser Reihe.
+            </p>
+          ) : null}
           {showRespond ? (
             <div className="grid grid-cols-2 gap-2">
               <Button
@@ -1499,15 +1504,7 @@ function CalendarEventDetail({
 export function CalendarOverviewList({
   overview,
 }: Readonly<{ overview: CalendarAppointmentOverview }>) {
-  const accepted = overview.attendees.filter(
-    (attendee) => attendee.status === "accepted",
-  ).length;
-  const declined = overview.attendees.filter(
-    (attendee) => attendee.status === "declined",
-  ).length;
-  const pending = overview.attendees.filter(
-    (attendee) => attendee.status === "pending",
-  ).length;
+  const { accepted, declined, pending } = overview.counts;
 
   return (
     <div className="space-y-4">

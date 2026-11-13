@@ -25593,6 +25593,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/api.calendarPeriodUsage.UsageCounts",
+      "binding_digest": "31395b8bd64257c2eec7ed5f78208bea",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable/http.CalendarPeriodUsage.UsageCounts",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/workforce.ShiftPlanReferenceQuery.ShiftPlanReferences",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.calendarPeriodUsage.UsageCounts",
+      "binding_digest": "486fbcfe19d31eb845e31d29229963f3",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable/http.CalendarPeriodUsage.UsageCounts",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/workforce/compose.WorkTime.ShiftPlanReferences",
+      "target_owner": "workforce"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/modules/schoolcalendar.Calendar.AddCalendarPeriod",
       "binding_digest": "39d668ff112f138f5af2f01c508591ae",
       "port": "github.com/moto-ogs/project-phoenix/modules/timetable/http.CalendarPeriods.AddCalendarPeriod",

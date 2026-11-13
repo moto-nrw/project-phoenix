@@ -130,6 +130,7 @@ export function TimeField({
   const localizedTimePickerLabels = useMemo<TimePickerLabels>(
     () => ({
       selectTime: tTimePicker("selectTime"),
+      selectTimeHint: tTimePicker("selectTimeHint"),
       hour: tTimePicker("hour"),
       minute: tTimePicker("minute"),
       minimum: (time) => tTimePicker("minimum", { time }),
@@ -264,6 +265,7 @@ export function TimeField({
               size="icon"
               disabled={disabled}
               aria-label={pickerLabels.selectTime}
+              tooltip={pickerLabels.selectTimeHint}
               aria-haspopup="dialog"
               aria-expanded={isOpen}
               aria-controls={isOpen ? panelId : undefined}

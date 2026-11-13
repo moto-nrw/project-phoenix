@@ -33,3 +33,21 @@ func TestDeparturePlansReadCanonicalModesForRequestedChildren(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, plans)
 }
+
+// #6990: a row whose mode set is empty answers from its legacy columns, as
+// every other plan read does. Otherwise the request review read "Geht alleine"
+// where the family saw "Fährt Bus" and flagged a change nobody made.
+func TestDeparturePlansResolveLegacyColumnsLikeEveryPlanRead(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildStudentOwnersModule(t, db)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "Legacy", "Departure", "1a")
+	_, err := db.NewRaw(`UPDATE users.student_care_profiles SET allowed_departure_modes = '{}'::jsonb, departure_days = '{}'::jsonb,
+		bus_days = '{"wed": true}'::jsonb, pickup_days = '{}'::jsonb
+		WHERE membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)`, student.ID).Exec(ctx)
+	require.NoError(t, err)
+	plans, err := module.ListStudentDepartureModes(ctx, []int64{student.ID})
+	require.NoError(t, err)
+	require.Equal(t, []string{"bus"}, plans[student.ID]["wed"])
+}

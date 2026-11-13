@@ -2,5 +2,5 @@
   "scenario": "modules.schoolsearchview.search",
   "max": 7,
   "exact": true,
-  "description": "modules/schoolsearchview — one school search (ADR 0227, #6954) with every kind\nopen: children, the children found through registration answers, contact\npersons and the children of all contact hits in one read, staff, rooms and\ngroups. Flat in the number of children, contacts and hits; the transaction\nframe of the tenant runtime is not counted."
+  "description": "modules/schoolsearchview — one school search (ADR 0229, #6954) with every kind\nopen: children, the children found through registration answers, contact\npersons and the children of all contact hits in one read, staff, rooms and\ngroups. Flat in the number of children, contacts and hits; the transaction\nframe of the tenant runtime is not counted."
 }

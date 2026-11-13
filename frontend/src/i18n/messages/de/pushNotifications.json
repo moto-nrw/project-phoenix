@@ -47,5 +47,6 @@
   "enableTooltip": "Schaltet Benachrichtigungen ein, nachdem Ihr Gerät Sie um Erlaubnis gefragt hat.",
   "disableTooltip": "Schaltet Benachrichtigungen sofort aus, nur auf diesem Gerät.",
   "installTooltip": "Startet die Installation von moto als App auf diesem Gerät.",
-  "checkAgainTooltip": "Prüft noch einmal, ob moto Sie auf diesem Gerät benachrichtigen darf."
+  "checkAgainTooltip": "Prüft noch einmal, ob moto Sie auf diesem Gerät benachrichtigen darf.",
+  "moreActionsHint": "Zeigt weitere Aktionen."
 }

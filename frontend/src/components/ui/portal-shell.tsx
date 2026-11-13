@@ -74,6 +74,7 @@ export function PortalShell({
           href={`#${MAIN_CONTENT_ID}`}
           variant="primary"
           size="compact"
+          noTooltip="„Zum Inhalt“ springt nur zum Inhalt; der Link erscheint erst per Tab, eine Blase würde ihn verdecken."
           onClick={() =>
             requestAnimationFrame(() =>
               document.getElementById(MAIN_CONTENT_ID)?.focus(),

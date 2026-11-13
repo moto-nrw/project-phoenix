@@ -407,7 +407,11 @@ export function PushNotificationSection({
       <>
         {primaryAction}
         {secondaryActions.length > 0 && (
-          <OverflowMenu items={secondaryActions} ariaLabel={t("moreActions")} />
+          <OverflowMenu
+            items={secondaryActions}
+            ariaLabel={t("moreActions")}
+            triggerTooltip={t("moreActionsHint")}
+          />
         )}
       </>
     ) : null;

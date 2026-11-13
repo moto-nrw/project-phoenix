@@ -76,7 +76,7 @@ func ErrorCode(err error) string {
 		return "not_found"
 	case errors.Is(err, ErrAbsenceTypeNameTaken), errors.Is(err, ErrAbsenceTypeNameReserved), errors.Is(err, ErrAbsenceTypeInUse),
 		errors.Is(err, ErrAbsenceTypeInactive), errors.Is(err, ErrAbsenceTypeAllowanceExceeded), errors.Is(err, ErrAllowanceBookingOverlap), errors.Is(err, ErrGroupSubstitutionExists),
-		errors.Is(err, ErrStaffShiftDuplicate), errors.Is(err, ErrShiftTypeNameTaken), errors.Is(err, ErrWorkSessionAlreadyOpen),
+		errors.Is(err, ErrStaffShiftDuplicate), errors.Is(err, ErrShiftTypeNameTaken), errors.Is(err, ErrShiftTypeArchived), errors.Is(err, ErrWorkSessionAlreadyOpen),
 		errors.Is(err, ErrPersonnelNumberTaken), errors.Is(err, ErrStaffTargetOverrideRejected):
 		return "conflict"
 	default:

@@ -536,7 +536,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return
 		},
 		func() (err error) {
-			facilities, err = BuildFacilitiesModule(db, ObserveFacilities, timetableRows.RecurrenceLock, presence.Presence, requests.CareOfferings)
+			facilities, err = BuildFacilitiesModule(db, ObserveFacilities, timetableRows.RecurrenceLock, presence.Presence, requests.CareOfferings, groups, devices)
 			return
 		},
 		func() (err error) {

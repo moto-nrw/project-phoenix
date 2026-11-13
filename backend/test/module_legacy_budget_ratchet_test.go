@@ -300,10 +300,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // class follow-up port (+2).
 // ADR 0225: the Stammdaten decision's class follow-up port of
 // modules/careplan/compose (+3).
-// ADR 0227: the registration answers constructor of modules/enrollment/compose
+// ADR 0229: the registration answers constructor of modules/enrollment/compose
 // (+5) and the new school search projection modules/schoolsearchview/compose
 // (+38).
-const moduleComposeBudgetTotal = 13482
+const moduleComposeBudgetTotal = 13477
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC (ADR 0220 adds 13 to modules/careplan/compose), raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -318,7 +318,7 @@ const moduleComposeBudgetTotal = 13482
 // ADR 0187 raised modules/identityaccess/compose,
 // modules/organizationtenancy/compose and modules/parentbilling/compose for
 // the audit and the PAIN.008 files of the Träger package.
-// ADR 0227 raised modules/enrollment/compose for the registration answers and
+// ADR 0229 raised modules/enrollment/compose for the registration answers and
 // added modules/schoolsearchview/compose for the school search.
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose": 45,
@@ -367,7 +367,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0216: account proofs and the account's holiday registrations (+10).
 	// ADR 0215: NewTraegerPhases (+4) and NewOfferingSelectionReferences (+4),
 	// less shortened comments and a merged file (-6).
-	// ADR 0227: the registration answers constructor (+5).
+	// ADR 0229: the registration answers constructor (+5).
 	"modules/enrollment/compose": 640,
 	// ADR 0218: the Träger scope and the recipient rekey (+33).
 	"modules/exporttransfer/compose":               182,
@@ -439,7 +439,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0151: the school figure constructor (+6).
 	// ADR 0202: the pending-window constructor (+5).
 	"modules/schoolmembership/compose": 200,
-	// ADR 0227: the school search projection binds the school transaction.
+	// ADR 0229: the school search projection binds the school transaction.
 	"modules/schoolsearchview/compose": 38,
 	"modules/schoolsetup/compose":      56,
 	// #4722: the field cipher of the health information, construction only;
@@ -461,7 +461,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0128: the student template days constructor (+5), by
 	// ADR 0144: the vacation hint constructor (+6) and by ADR 0224: the cohort
 	// rosters constructor (+5).
-	"modules/timetable/compose":                     1156,
+	"modules/timetable/compose":                     1151,
 	"modules/timetableblockdisplay/compose":         9,
 	"modules/timetableenrollmentprovenance/compose": 10,
 	"modules/timetableprojection/compose":           7,

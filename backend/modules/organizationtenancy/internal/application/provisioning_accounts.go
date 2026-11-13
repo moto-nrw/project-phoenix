@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"strings"
 
@@ -59,8 +58,11 @@ func (p *Provisioning) InviteSchoolAdmin(ctx context.Context, schoolID, operator
 // The school and role are resolved in the administrative scope. The identity
 // chain then runs in one transaction of the school, so a failing step leaves
 // no partial account behind; the tenant runtime does not nest a school
-// transaction inside an administrative one (#3313). The operator audit entry
-// follows the commit.
+// transaction inside an administrative one (#3313). The tenant role cannot
+// write the operator audit, so the entry commits in an administrative
+// transaction of its own before the school transaction does: an audit
+// failure rolls the account back (#6984). If the school commit itself fails
+// afterwards, the entry records an attempt that left no account.
 func (p *Provisioning) CreateSchoolAccount(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, input organizationtenancy.SchoolAccountInput) (*organizationtenancy.CreatedAccount, error) {
 	type target struct {
 		school organizationtenancy.School
@@ -92,22 +94,18 @@ func (p *Provisioning) CreateSchoolAccount(ctx context.Context, schoolID, operat
 			return err
 		}
 		account = registered
-		return p.ensureSchoolIdentity(tenantCtx, account.ID, school.ID, role, input)
+		if err := p.ensureSchoolIdentity(tenantCtx, account.ID, school.ID, role, input); err != nil {
+			return err
+		}
+		return p.tx.RunAdminDetached(tenantCtx, func(adminCtx context.Context) error {
+			return p.recordAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceAccount, &account.ID, clientIP, map[string]any{
+				"schoolID": school.ID,
+				"email":    account.Email,
+			})
+		})
 	})
 	if err != nil {
 		return nil, err
-	}
-	auditErr := p.inAdmin(ctx, func(adminCtx context.Context) error {
-		return p.recordAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceAccount, &account.ID, clientIP, map[string]any{
-			"schoolID": school.ID,
-			"email":    account.Email,
-		})
-	})
-	if auditErr != nil {
-		p.logger.Error("failed to create operator audit log",
-			slog.Any("error", auditErr),
-			slog.String("resource_type", domain.AuditResourceAccount),
-		)
 	}
 	view := organizationtenancy.CreatedAccount(account)
 	return &view, nil

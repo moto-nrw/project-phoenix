@@ -101,7 +101,7 @@ func TestQueryLogRedactsBankData(t *testing.T) {
 }
 
 // TestMarkedStatementsLoseTheirTypedTextInTheLog keeps a search text out of
-// the slow-query log: bun writes bound values into the logged SQL (ADR 0227).
+// the slow-query log: bun writes bound values into the logged SQL (ADR 0229).
 func TestMarkedStatementsLoseTheirTypedTextInTheLog(t *testing.T) {
 	t.Parallel()
 	hook, buf := newTestQueryHook(t)
