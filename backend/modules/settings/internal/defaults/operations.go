@@ -247,7 +247,7 @@ var operations_init_sitzungsbereinigung_4Definitions = []config.Definition{
 	{
 		Key:             config.KeySessionCleanupEnabled,
 		Label:           "Bereinigung verlassener Sitzungen",
-		Description:     "Automatische Bereinigung von Sitzungen ohne Aktivität",
+		Description:     "Beendet Sitzungen ohne Aktivität, wenn das Gerät offline ist. Sitzungen mit Kindern im Raum bleiben offen.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -275,7 +275,7 @@ var operations_init_sitzungsbereinigung_4Definitions = []config.Definition{
 	{
 		Key:             config.KeySessionAbandonedThresholdMin,
 		Label:           "Inaktivitätsschwelle (Minuten)",
-		Description:     "Minuten ohne Aktivität, bevor eine Sitzung als verlassen gilt",
+		Description:     "Minuten ohne Aktivität, bevor eine Sitzung ohne Kinder im Raum als verlassen gilt",
 		Type:            config.FieldNumber,
 		Default:         60,
 		ReadPermission:  "config:read",
@@ -290,7 +290,7 @@ var operations_init_sitzungsbereinigung_4Definitions = []config.Definition{
 	{
 		Key:             config.KeySessionInactivityTimeoutMin,
 		Label:           "Standard-Sitzungstimeout (Minuten)",
-		Description:     "Standardzeit ohne Aktivität, nach der eine Sitzung automatisch beendet wird, sofern für die Sitzung kein eigenes Timeout gesetzt ist",
+		Description:     "Zeit ohne Aktivität, die moto dem Gerät als Zeitlimit meldet, wenn die Sitzung kein eigenes Timeout hat. moto beendet die Sitzung danach nicht selbst.",
 		Type:            config.FieldNumber,
 		Default:         30,
 		ReadPermission:  "config:read",

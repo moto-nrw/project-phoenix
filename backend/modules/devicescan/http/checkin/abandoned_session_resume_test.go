@@ -16,10 +16,11 @@ import (
 )
 
 // The abandoned-session sweep selects inactive sessions of offline devices
-// without a lock. Between that selection and the session lock the device can
-// come back: a committed scan, a heartbeat or a manual end. The sweep must
-// judge the session again under its lock and keep a resumed session, its
-// visits and its timetable mirror open (#6502).
+// without children in the room, without a lock. Between that selection and the
+// session lock the device can come back: a committed scan, a heartbeat or a
+// manual end. The sweep must judge the session again under its lock and keep a
+// resumed session, the scanned child's visit and its timetable mirror open
+// (#6502, #6977).
 func TestAbandonedSessionCleanupRechecksTheLockedSession(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupTestDB(t)
@@ -61,6 +62,14 @@ func TestAbandonedSessionCleanupRechecksTheLockedSession(t *testing.T) {
 			if scanned != nil {
 				testutil.AssertSuccessResponse(t, awaitScan(t, scanned), 200)
 			}
+			if scenario.scan {
+				// The scan checked a child into the planned cohort while the
+				// sweep waited for its lock: the sweep rolls back and the next
+				// run sees a session in use.
+				require.ErrorIs(t, awaitReattach(t, swept), studentpresence.ErrVisitWriteConflict)
+				f.assertOpen(t, true)
+				return
+			}
 			require.NoError(t, awaitReattach(t, swept))
 			if scenario.ends {
 				require.Equal(t, 1, *count)
@@ -68,7 +77,7 @@ func TestAbandonedSessionCleanupRechecksTheLockedSession(t *testing.T) {
 				return
 			}
 			require.Zero(t, *count, "a resumed session is no longer abandoned")
-			f.assertOpen(t)
+			f.assertOpen(t, false)
 		})
 	}
 }
@@ -78,7 +87,7 @@ func TestAbandonedSessionCleanupRechecksTheLockedSession(t *testing.T) {
 func TestAbandonedSessionCleanupSkipsAConcurrentManualEnd(t *testing.T) {
 	t.Parallel()
 	f := newAbandonedSweepFixture(t)
-	holder := holdRow(t, f.k.db, "SELECT id FROM active.visits WHERE id = ? FOR UPDATE", f.held)
+	holder := holdRow(t, f.k.db, "SELECT id FROM active.groups WHERE id = ? FOR UPDATE", f.scanStay)
 	workflow := api.NewActiveTestSessionEnd(testpkg.NewDatabase(t, f.k.db), testpkg.TenantRuntime(t, f.k.db)).SessionEnd
 	ended := startLockOrderCommand(t, func(ctx context.Context) error {
 		return testpkg.WithTenantTx(t, ctx, f.k.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
@@ -98,21 +107,22 @@ func TestAbandonedSessionCleanupSkipsAConcurrentManualEnd(t *testing.T) {
 
 type abandonedSweepFixture struct {
 	bulkMoveScanFixture
-	held     int64
 	device   int64
 	instance int64
 }
 
 // newAbandonedSweepFixture builds the kiosk session of an offline device that
-// has been idle for two hours. It holds two open visits and mirrors a running
-// timetable instance.
+// has been idle for two hours. Its children have left the room, so the sweep
+// may end it (#6977), and it mirrors a running timetable instance.
 func newAbandonedSweepFixture(t *testing.T) abandonedSweepFixture {
 	t.Helper()
-	base, held := newSessionEndScanFixture(t)
-	f := abandonedSweepFixture{bulkMoveScanFixture: base, held: held}
+	base, _ := newSessionEndScanFixture(t)
+	f := abandonedSweepFixture{bulkMoveScanFixture: base}
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, f.k.db.NewRaw("SELECT device_id FROM active.groups WHERE tenant_id = ? AND id = ?", testpkg.Tenant(t), f.scanStay).Scan(ctx, &f.device))
 	_, err := f.k.db.NewRaw("UPDATE iot.devices SET last_seen = NOW() - INTERVAL '2 hours' WHERE tenant_id = ? AND id = ?", testpkg.Tenant(t), f.device).Exec(ctx)
+	require.NoError(t, err)
+	_, err = f.k.db.NewRaw("UPDATE active.visits SET exit_time = NOW() - INTERVAL '30 minutes' WHERE tenant_id = ? AND active_group_id = ? AND exit_time IS NULL", testpkg.Tenant(t), f.scanStay).Exec(ctx)
 	require.NoError(t, err)
 	f.instance = testpkg.CreateTestActivityInstance(t, f.k.db, testpkg.TodayDate(), f.scanRoom, testpkg.ActivityInstanceOpts{
 		IsSpontaneous: true, StartHHMM: "00:00", EndHHMM: "23:59", ActiveGroupID: &f.scanStay,
@@ -134,15 +144,16 @@ func (f abandonedSweepFixture) sweep(t *testing.T) (<-chan error, *int) {
 	}), count
 }
 
-func (f abandonedSweepFixture) assertOpen(t *testing.T) {
+func (f abandonedSweepFixture) assertOpen(t *testing.T, scanned bool) {
 	t.Helper()
 	group, err := f.active.GetActiveGroup(testpkg.Ctx(t), f.scanStay)
 	require.NoError(t, err)
 	require.Nil(t, group.EndTime, "the resumed session stays open")
-	open, err := f.k.presence(t).ListVisits(testpkg.Ctx(t), studentpresence.VisitFilter{ActiveGroupIDs: []int64{f.scanStay}, OpenOnly: true})
-	require.NoError(t, err)
-	require.NotEmpty(t, open, "the visits of a resumed session stay open")
-	require.True(t, slices.ContainsFunc(open, func(v studentpresence.Visit) bool { return v.ID == f.held }), "the untouched visit stays open")
+	if scanned {
+		open, err := f.k.presence(t).ListVisits(testpkg.Ctx(t), studentpresence.VisitFilter{ActiveGroupIDs: []int64{f.scanStay}, OpenOnly: true})
+		require.NoError(t, err)
+		require.True(t, slices.ContainsFunc(open, func(v studentpresence.Visit) bool { return v.StudentID == f.student }), "the scanned child stays in the room")
+	}
 	require.Equal(t, testpkg.ScheduleInstanceStatusActive, testpkg.InstanceStatus(t, f.k.db, f.instance), "the timetable mirror keeps running")
 }
 

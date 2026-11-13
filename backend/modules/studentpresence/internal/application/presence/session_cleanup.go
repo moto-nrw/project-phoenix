@@ -17,8 +17,11 @@ import (
 // CleanupAbandonedSessions cleans up sessions that have been abandoned for longer than the specified duration.
 // A session is considered abandoned if:
 // 1. No activity (RFID scans or device pings) for longer than the threshold, AND
-// 2. The device is offline (not pinging)
-// This ensures sessions stay alive if either there's activity OR the device is still online.
+// 2. The device is offline (not pinging), AND
+// 3. No child is checked into the session.
+// This ensures sessions stay alive if there's activity, the device is still
+// online, or children are in the room: during a terminal outage the team
+// checks children in through the app, which needs the running session (#6977).
 func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.Duration) (int, error) {
 	// Find sessions with no activity since the threshold
 	cutoffTime := time.Now().Add(-threshold)
