@@ -335,6 +335,15 @@ func (c monthClosingCapability) ListMonthStatus(ctx context.Context, year, month
 
 type staffOverviewCapability struct {
 	overview StaffOverviewService
+	// targetCoverage is promoted unchanged: the service already answers in
+	// the public contract and its failure kinds (#6890).
+	targetCoverage
+}
+
+// targetCoverage is the slice of the overview service workforce.StaffOverview
+// serves as it is.
+type targetCoverage interface {
+	TargetCoverage(ctx context.Context, year, month int) (*workforce.TargetCoverage, error)
 }
 
 // StaffOverviewCapability serves workforce.StaffOverview from the retained
@@ -343,7 +352,7 @@ func StaffOverviewCapability(overview StaffOverviewService) workforce.StaffOverv
 	if overview == nil {
 		panic("staff overview capability: overview service is required")
 	}
-	return staffOverviewCapability{overview: overview}
+	return staffOverviewCapability{overview: overview, targetCoverage: overview}
 }
 
 func (c staffOverviewCapability) DashboardSummary(ctx context.Context, period string) (*workforce.DashboardSummary, error) {

@@ -27,7 +27,9 @@ const {
   setAbsenceTypeWageTypeMock,
   swrData,
   swrKeys,
+  sessionPermissions,
 } = vi.hoisted(() => ({
+  sessionPermissions: { current: ["config:manage"] as string[] },
   mutateMock: vi.fn(),
   setSettingValueMock: vi.fn(),
   updateWageTypeMock: vi.fn(),
@@ -84,6 +86,13 @@ vi.mock("~/lib/swr", () => ({
   },
 }));
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { permissions: sessionPermissions.current } },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("~/lib/hooks/use-require-permission", () => ({
   useRequirePermission: () => ({
     isReady: true,
@@ -109,6 +118,9 @@ function resetSwr(dispatch: Record<string, unknown> = {}) {
   for (const key of Object.keys(swrData)) delete swrData[key];
   swrData["payroll-status"] = { data: payrollStatus(dispatch) };
   swrData["payroll-dispatch"] = { data: null };
+  swrData["payroll-target-coverage"] = {
+    data: { year: 2026, month: 9, staffTotal: 9, staffWithoutTarget: 0 },
+  };
   swrData["payroll-sftp-status"] = {
     data: { enabled: true, ready: true, missingSettings: [] },
   };
@@ -885,5 +897,105 @@ describe("PayrollPage eigene Lohnarten und Zuschläge (#4807)", () => {
     expect(
       screen.getByText(/Legen Sie zuerst oben eine Lohnart an/),
     ).toBeInTheDocument();
+  });
+});
+
+describe("PayrollPage Soll in der Vollständigkeit (#6890)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    swrKeys.length = 0;
+    mutateMock.mockResolvedValue(undefined);
+    resetSwr();
+    sessionPermissions.current = ["config:manage", "time_tracking:manage"];
+  });
+
+  it("zählt Personen ohne Soll und führt zu genau diesen Zeitkonten", () => {
+    swrData["payroll-target-coverage"] = {
+      data: { year: 2026, month: 9, staffTotal: 9, staffWithoutTarget: 2 },
+    };
+
+    render(<PayrollPage />);
+
+    expect(swrKeys).toContain("payroll-target-coverage");
+    expect(
+      screen.getByText(
+        "2 von 9 Personen mit Zeitkonto haben im September 2026 kein Soll. Krankheit, Urlaub und Fortbildung zählen bei ihnen 0 Stunden.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Personen ohne Soll" }),
+    ).toHaveAttribute(
+      "href",
+      "/staff?view=accounts&filter=ohne-soll&month=2026-09",
+    );
+  });
+
+  it("nennt ohne Zugriff auf die Zeitkonten, wer das Soll einträgt", () => {
+    sessionPermissions.current = ["config:manage"];
+    swrData["payroll-target-coverage"] = {
+      data: { year: 2026, month: 9, staffTotal: 9, staffWithoutTarget: 2 },
+    };
+
+    render(<PayrollPage />);
+
+    expect(
+      screen.getByText(/kein Soll\..*Das Soll trägt die Leitung ein\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/von 9 Personen mit Zeitkonto/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Personen ohne Soll" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("zeigt die Zeile als erledigt, wenn alle ein Soll haben", () => {
+    render(<PayrollPage />);
+
+    expect(
+      screen.getByText(
+        "Alle 9 Personen mit Zeitkonto haben im September 2026 ein Soll",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Soll (Arbeitszeit)")).toBeInTheDocument();
+  });
+
+  it("meldet nie „Alles erledigt“, wenn die Soll-Prüfung scheitert", () => {
+    const status = payrollStatus();
+    swrData["payroll-status"] = {
+      data: {
+        ...status,
+        beraternummer: "1234567",
+        mandantennummer: "12345",
+        lodasHeaderComplete: true,
+        configuredCategories: 1,
+        staffWithoutPersonnelNumber: 0,
+      },
+    };
+    swrData["payroll-target-coverage"] = {
+      error: new ApiError("boom", 500, { code: "general.internal_error" }),
+    };
+
+    render(<PayrollPage />);
+
+    expect(
+      screen.getByText("Konnte nicht geprüft werden."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 offen")).toBeInTheDocument();
+    expect(screen.queryByText("Alles erledigt")).not.toBeInTheDocument();
+  });
+
+  it("lässt die Zeile weg, wenn die Schule die Zeiterfassung nicht gebucht hat", () => {
+    swrData["payroll-target-coverage"] = {
+      error: new ApiError("not booked", 403, {
+        code: "module.not_booked",
+        details: { module: "zeiterfassung" },
+      }),
+    };
+
+    render(<PayrollPage />);
+
+    expect(screen.getByText("Personalnummern")).toBeInTheDocument();
+    expect(screen.queryByText("Soll (Arbeitszeit)")).not.toBeInTheDocument();
   });
 });

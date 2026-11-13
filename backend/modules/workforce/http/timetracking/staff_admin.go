@@ -183,6 +183,11 @@ func (rs *StaffAdminResource) RegisterStaffRoutes(r chi.Router, withTx common.Mi
 func (rs *StaffAdminResource) registerOverviewRoutes(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/dashboard-summary", rs.getDashboardSummary)
 	r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/overview", rs.getTimeTrackingOverview)
+	// The Vollständigkeit of /payroll (#6890), which config:manage opens: how
+	// many staff have no Soll in the month. Counts only, like the personnel
+	// numbers there; the names stay behind time_tracking:manage.
+	r.With(common.RequiresAnyPermission(permissions.TimeTrackingManage, permissions.ConfigManage), withTx).
+		Get("/time-tracking/target-coverage", rs.getTargetCoverage)
 }
 
 // registerPersonnelRoutes serves the Personalnummer (#1417) and the

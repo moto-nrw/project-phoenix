@@ -124,6 +124,30 @@ func TestTimeTrackingOverviewAPI_PermissionSplit(t *testing.T) {
 	}
 }
 
+// TestTargetCoverageAPI_PermissionSplit: the payroll page (config:manage)
+// reads how many staff have no Soll (#6890), but only the counts. The names
+// stay behind time_tracking:manage, and users:read sees nothing.
+func TestTargetCoverageAPI_PermissionSplit(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupOverviewAPI(t)
+
+	rec := ctx.get("/staff/time-tracking/target-coverage", "users:read")
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+
+	for _, permission := range []string{"config:manage", "time_tracking:manage"} {
+		rec = ctx.get("/staff/time-tracking/target-coverage", permission)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		for _, field := range []string{`"year"`, `"month"`, `"staff_total"`, `"staff_without_target"`} {
+			assert.Contains(t, rec.Body.String(), field)
+		}
+		assert.NotContains(t, rec.Body.String(), "Editor-", "counts only, no names")
+	}
+
+	rec = ctx.get("/staff/time-tracking/target-coverage?month=3", "config:manage")
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+}
+
 func TestTimeTrackingOverviewAPI_FilterValidation(t *testing.T) {
 	t.Parallel()
 

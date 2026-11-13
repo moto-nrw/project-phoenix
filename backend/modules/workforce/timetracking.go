@@ -728,6 +728,9 @@ type MonthClosing interface {
 type StaffOverview interface {
 	DashboardSummary(ctx context.Context, period string) (*DashboardSummary, error)
 	TimeTrackingOverview(ctx context.Context, filters OverviewFilters) (*TimeTrackingOverview, error)
+	// TargetCoverage counts the active staff without a Soll in a month (#6890).
+	// Year and month both zero mean the current month.
+	TargetCoverage(ctx context.Context, year, month int) (*TargetCoverage, error)
 }
 
 // TimeTrackingAuditLog serves the cross-staff audit feed.

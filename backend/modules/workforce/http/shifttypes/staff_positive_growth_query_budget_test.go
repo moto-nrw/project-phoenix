@@ -290,7 +290,7 @@ func TestStaffRecordPositiveGrowthQueryBudget(t *testing.T) {
 
 func TestStaffReportingPositiveGrowthQueryBudget(t *testing.T) {
 	t.Parallel()
-	for _, route := range []string{"overview", "export", "export/datev-report", "month-close", "audit-log"} {
+	for _, route := range []string{"overview", "target-coverage", "export", "export/datev-report", "month-close", "audit-log"} {
 		t.Run(route, func(t *testing.T) {
 			testpkg.OwnTenant(t)
 			f := newStaffGrowthFixture(t)
@@ -359,6 +359,9 @@ func TestStaffReportingPositiveGrowthQueryBudget(t *testing.T) {
 					require.Equal(t, float64(n), obj["staff_exported"])
 					require.Equal(t, float64(n), obj["line_count"])
 					require.Empty(t, obj["staff_skipped"])
+				case "target-coverage":
+					// Counts only, never names: nobody here has a Soll (#6890).
+					require.Equal(t, map[string]any{"year": float64(2026), "month": float64(1), "staff_total": float64(n), "staff_without_target": float64(n)}, staffGrowthData(t, rec))
 				default:
 					data := staffGrowthData(t, rec)
 					var rows []any
@@ -410,6 +413,8 @@ func TestStaffReportingPositiveGrowthQueryBudget(t *testing.T) {
 				switch route {
 				case "overview":
 					querybudgets.AssertQueryBudget(t, "workforce.staff_growth.overview", queries)
+				case "target-coverage":
+					querybudgets.AssertQueryBudget(t, "workforce.staff_growth.target_coverage", queries)
 				case "export":
 					querybudgets.AssertQueryBudget(t, "workforce.staff_growth.export", queries)
 				case "export/datev-report":
@@ -422,7 +427,7 @@ func TestStaffReportingPositiveGrowthQueryBudget(t *testing.T) {
 			}
 			// Overview/export may retain genuine per-person work. Their separately
 			// measured exact cardinality contracts must not invent a constant floor.
-			if route == "month-close" || route == "audit-log" {
+			if route == "month-close" || route == "audit-log" || route == "target-coverage" {
 				require.Equal(t, counts[0], counts[1])
 			}
 		})

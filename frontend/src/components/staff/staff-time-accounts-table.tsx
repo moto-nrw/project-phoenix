@@ -12,7 +12,7 @@
 // Berechtigung feuert der Request gar nicht erst.
 
 import { EmptyState } from "~/components/ui/empty-state";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Lock } from "lucide-react";
 
 import { MISSING_TARGET_OWNER } from "~/components/staff/missing-target-notice";
@@ -110,6 +110,9 @@ interface Props {
   /** Darf das Soll setzen (Reiter „Arbeitszeitmodell“): dann führt der
    *  Hinweis zum Klick auf die Zeile, sonst nennt er, wer es einträgt. */
   readonly canSetTarget?: boolean;
+  /** Startet mit dem Filter „ohne Soll“, etwa vom Link unter Abrechnung
+   *  (#6890). Greift nur, solange es solche Personen gibt. */
+  readonly initialOnlyWithoutTarget?: boolean;
   /** Nur die Freieingabe der Saldo-Grenzen; die Presets stehen darüber. */
   readonly saldoPreset: SaldoPresetId;
   readonly onSaldoPresetChange: (preset: SaldoPresetId) => void;
@@ -138,6 +141,7 @@ export function StaffTimeAccountsTable({
   error,
   onRowClick,
   canSetTarget = false,
+  initialOnlyWithoutTarget = false,
   saldoPreset,
   onSaldoPresetChange,
   customSaldoHours,
@@ -152,12 +156,23 @@ export function StaffTimeAccountsTable({
   // Personen ohne gepflegtes Soll (#6887): ihre Krankheits- und Urlaubstage
   // zählen 0 Stunden. Der Hinweis über der Tabelle zählt sie und filtert auf
   // Wunsch auf sie, ohne neue Abfrage.
-  const [onlyWithoutTarget, setOnlyWithoutTarget] = useState(false);
+  const [onlyWithoutTarget, setOnlyWithoutTarget] = useState(
+    initialOnlyWithoutTarget,
+  );
   const withoutTargetCount = useMemo(
     () => rows.filter((row) => !row.hasTarget).length,
     [rows],
   );
   const showOnlyWithoutTarget = onlyWithoutTarget && withoutTargetCount > 0;
+  // Vom Link unter Abrechnung (#6890): einmal zum Hinweis über der Tabelle
+  // scrollen, sobald die Personen ohne Soll geladen sind.
+  const withoutTargetRef = useRef<HTMLDivElement>(null);
+  const scrolledToTarget = useRef(!initialOnlyWithoutTarget);
+  useEffect(() => {
+    if (scrolledToTarget.current || withoutTargetCount === 0) return;
+    scrolledToTarget.current = true;
+    withoutTargetRef.current?.scrollIntoView({ block: "start" });
+  }, [withoutTargetCount]);
   const visibleRows = useMemo(
     () =>
       rows.filter(
@@ -459,30 +474,32 @@ export function StaffTimeAccountsTable({
       <LoadErrorAlert error={error} />
 
       {withoutTargetCount > 0 && (
-        <Alert
-          type="warning"
-          announce="off"
-          message={`${
-            withoutTargetCount === 1
-              ? "1 Person hat"
-              : `${withoutTargetCount} Personen haben`
-          } in ${formatOverviewMonth(year, month)} kein Soll. Krankheit, Urlaub und Fortbildung zählen bei ihnen 0 Stunden. ${
-            canSetTarget
-              ? "Ein Klick auf die Zeile öffnet das Arbeitszeitmodell."
-              : MISSING_TARGET_OWNER
-          }`}
-          action={
-            <Button
-              type="button"
-              size="compact"
-              variant="ghost_tone"
-              onClick={() => setOnlyWithoutTarget((value) => !value)}
-              aria-pressed={showOnlyWithoutTarget}
-            >
-              {showOnlyWithoutTarget ? "Alle zeigen" : "Nur diese zeigen"}
-            </Button>
-          }
-        />
+        <div ref={withoutTargetRef} className="scroll-mt-24">
+          <Alert
+            type="warning"
+            announce="off"
+            message={`${
+              withoutTargetCount === 1
+                ? "1 Person hat"
+                : `${withoutTargetCount} Personen haben`
+            } in ${formatOverviewMonth(year, month)} kein Soll. Krankheit, Urlaub und Fortbildung zählen bei ihnen 0 Stunden. ${
+              canSetTarget
+                ? "Ein Klick auf die Zeile öffnet das Arbeitszeitmodell."
+                : MISSING_TARGET_OWNER
+            }`}
+            action={
+              <Button
+                type="button"
+                size="compact"
+                variant="ghost_tone"
+                onClick={() => setOnlyWithoutTarget((value) => !value)}
+                aria-pressed={showOnlyWithoutTarget}
+              >
+                {showOnlyWithoutTarget ? "Alle zeigen" : "Nur diese zeigen"}
+              </Button>
+            }
+          />
+        </div>
       )}
 
       {/* Ohne geladene Zeitkonten ist die Liste nicht leer, sondern fehlt. */}
