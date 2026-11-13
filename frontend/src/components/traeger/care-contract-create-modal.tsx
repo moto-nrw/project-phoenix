@@ -239,6 +239,7 @@ export function CareContractCreateModal({
               href={traegerPath("/traeger/einstellungen?bereich=enrollment")}
               variant="ghost_tone"
               size="compact"
+              tooltip="Schließt das Fenster und öffnet die Einstellungen zur Anmeldung."
               className="max-sm:-ml-2.5"
             >
               Einstellung öffnen
@@ -280,6 +281,7 @@ export function CareContractCreateModal({
                 type="button"
                 variant="ghost_tone"
                 size="compact"
+                tooltip="Schließt das Fenster und öffnet die Vertragsbedingungen der Module."
                 className="max-sm:-ml-2.5"
                 onClick={onOpenConditions}
               >

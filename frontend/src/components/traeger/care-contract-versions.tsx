@@ -295,6 +295,7 @@ export function CareContractVersions({
                   size="compact"
                   aria-label={`PDF von Version ${version.number} herunterladen`}
                   disabled={loading !== null}
+                  tooltip="Lädt den Vertrag in dieser Version als PDF herunter."
                   onClick={() => void download(version.number)}
                 >
                   <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />
