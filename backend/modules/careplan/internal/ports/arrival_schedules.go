@@ -60,3 +60,6 @@ type ArrivalRuleStudents interface {
 	LockStudent(context.Context, int64) error
 	SchoolClass(context.Context, int64) (string, error)
 }
+
+// CIMeasurementProbe exists only in the measurement run for #6784 and is never merged.
+const CIMeasurementProbe = 1

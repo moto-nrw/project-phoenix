@@ -17,3 +17,6 @@ type DeferredPushIntent struct {
 	Related        RelatedEntity
 	Payload        json.RawMessage
 }
+
+// CIMeasurementProbe exists only in the measurement run for #6784 and is never merged.
+const CIMeasurementProbe = 1

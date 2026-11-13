@@ -644,3 +644,6 @@ export function fromDateTimeLocalValue(local: string): string | null {
   if (Number.isNaN(d.getTime())) return null;
   return d.toISOString();
 }
+
+// Measurement run for #6784, never merged.
+export const ciMeasurementProbe = 1;
