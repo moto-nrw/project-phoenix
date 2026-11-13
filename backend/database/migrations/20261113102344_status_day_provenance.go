@@ -73,11 +73,17 @@ const statusDayProvenanceUpSQL = `
 // back, so the earlier end_of_day test no longer reads it as standing, and
 // restores the trigger's column list. The columns stay: the repeatable
 // history function reads them, and a down no longer restores an earlier
-// function (ADR 0223). Code before this migration ignores them.
+// function (ADR 0223). Clear the retained clearing fields: earlier writers
+// reopen days by clearing only cleared_at, which would violate the check.
+// The history keeps the clearing's source and account.
 const statusDayProvenanceDownSQL = `
 	UPDATE active.student_status_days
 	SET source = cleared_source
 	WHERE source = 'end_of_day' AND cleared_source IS NOT NULL;
+
+	UPDATE active.student_status_days
+	SET cleared_source = NULL, cleared_by_account_id = NULL
+	WHERE cleared_source IS NOT NULL OR cleared_by_account_id IS NOT NULL;
 
 	DROP TRIGGER IF EXISTS record_meal_sickness_status ON active.student_status_days;
 	CREATE TRIGGER record_meal_sickness_status
