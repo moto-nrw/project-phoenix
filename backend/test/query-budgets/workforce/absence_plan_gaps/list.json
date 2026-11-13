@@ -1,0 +1,7 @@
+{
+  "scenario": "workforce.absence_plan_gaps.list",
+  "max": 7,
+  "exact": true,
+  "description": "modules/workforce/http/timetracking — GET\n/api/staff/absences/plan-gaps (#7021): the tenant-transaction statements,\nONE read of the absences in force, ONE of their staff members' planned\nshifts, ONE of their block assignments and ONE of those blocks. Flat in\nthe number of absences.",
+  "route": "GET /api/staff/absences/plan-gaps"
+}

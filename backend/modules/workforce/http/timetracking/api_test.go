@@ -172,6 +172,12 @@ func (m *mockStaffAbsenceService) DeleteOwnAbsence(ctx context.Context, staffID 
 func (m *mockStaffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectStaffID, _ int64, _ *int64, absenceID int64) error {
 	return m.deleteAbsence(ctx, subjectStaffID, absenceID)
 }
+func (m *mockStaffAbsenceService) AbsencePlanGaps(context.Context) ([]workforce.AbsencePlanGap, error) {
+	return nil, nil
+}
+func (m *mockStaffAbsenceService) SyncAbsencePlan(context.Context, int64, int64, *int64) (bool, error) {
+	return false, nil
+}
 func (m *mockStaffAbsenceService) PreviewCompTimeBalance(_ context.Context, _ int64, _, _ string, _ bool) (*workforce.CompTimeBalancePreview, error) {
 	return &workforce.CompTimeBalancePreview{}, nil
 }

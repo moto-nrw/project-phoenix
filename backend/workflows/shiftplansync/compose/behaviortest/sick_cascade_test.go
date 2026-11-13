@@ -68,8 +68,14 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 // the cascade, so a recording broadcaster sees exactly the cascade's events.
 func buildSickCascadeEnvWith(t *testing.T, cascadeBroadcaster realtime.Broadcaster) *sickCascadeEnv {
 	t.Helper()
-	env := newPlanSyncEnv(t, cascadeBroadcaster, sickCascadeNow)
-	absences, _, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, env.db), testpkg.TenantRuntime(t, env.db), sickCascadeNow)
+	return buildSickCascadeEnvAt(t, cascadeBroadcaster, sickCascadeNow)
+}
+
+// buildSickCascadeEnvAt composes the workflow against the clock now.
+func buildSickCascadeEnvAt(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now func() time.Time) *sickCascadeEnv {
+	t.Helper()
+	env := newPlanSyncEnv(t, cascadeBroadcaster, now)
+	absences, _, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, env.db), testpkg.TenantRuntime(t, env.db), now)
 	require.NoError(t, err)
 
 	suffix := time.Now().UnixNano()

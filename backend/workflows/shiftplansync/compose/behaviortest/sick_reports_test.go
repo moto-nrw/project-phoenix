@@ -104,6 +104,16 @@ func (c *sickReportCalls) LockSickReportWrite(_ context.Context, staffID, absenc
 	return c.lockErr
 }
 
+func (c *sickReportCalls) AbsencePlanGaps(context.Context) ([]workforce.AbsencePlanGap, error) {
+	c.calls = append(c.calls, "gaps")
+	return nil, nil
+}
+
+func (c *sickReportCalls) MarkAbsenceInForce(_ context.Context, absenceID, _ int64, _ *int64) (bool, error) {
+	c.calls = append(c.calls, fmt.Sprint("mark-in-force ", absenceID))
+	return true, nil
+}
+
 func inSickReportTx() context.Context { return context.Background() }
 
 func TestSickReportsApplyThePlanInOrderAfterTheWrite(t *testing.T) {
@@ -212,4 +222,23 @@ func TestNewSickReportsRequiresTheWritesTheCascadeAndTheUnitOfWork(t *testing.T)
 	require.Error(t, err)
 	_, err = shiftplansync.NewSickReports(calls, calls, nil)
 	require.Error(t, err)
+}
+
+// The take-over of an absence in force (#7021) runs its locks before the
+// cascade in one unit of work; a lock failure writes nothing.
+func TestSickReportsSyncAnAbsencePlanBehindItsLocks(t *testing.T) {
+	t.Parallel()
+	calls := &sickReportCalls{}
+	reports := newSickReports(t, calls)
+
+	applied, err := reports.SyncAbsencePlan(inSickReportTx(), 42, 12, nil)
+	require.NoError(t, err)
+	assert.True(t, applied)
+	assert.Equal(t, []string{"tx", "lock", "0/42 ..", "mark-in-force 42"}, calls.calls,
+		"the stored absence names its subject; the lock reads it (staff 0)")
+
+	calls.calls, calls.lockErr = nil, errors.New("lock timeout")
+	_, err = reports.SyncAbsencePlan(inSickReportTx(), 42, 12, nil)
+	require.ErrorIs(t, err, calls.lockErr)
+	assert.Equal(t, []string{"tx", "lock", "0/42 .."}, calls.calls, "no cascade without its locks")
 }

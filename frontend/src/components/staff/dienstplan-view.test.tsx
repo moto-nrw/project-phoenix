@@ -59,6 +59,11 @@ vi.mock("~/components/timetable/period-switcher-dropdown", () => ({
     ) : null,
 }));
 
+// Eigene Tests in absence-plan-gaps.test.tsx; hier zählt nur das Raster.
+vi.mock("~/components/staff/absence-plan-gaps", () => ({
+  AbsencePlanGaps: () => null,
+}));
+
 vi.mock("~/components/staff/dienstplan-resource-grid", () => ({
   DienstplanResourceGrid: ({
     weekDays,

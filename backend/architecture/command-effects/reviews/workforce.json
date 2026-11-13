@@ -18092,6 +18092,16 @@
       "target_owner": "shift-plan-sync"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.WorkforceAbsenceWrites.AbsencePlanGaps",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking.AdminAbsenceWrites.AbsencePlanGaps",
+      "reason": "HTTP transport entry (#4825, ADR 0099): the port is the consuming http package's own interface and the root binds the workflow entry; no domain application calls it. Shift Plan Sync SickReports reads in one tenant transaction the absences in force, their staff members' planned shifts, their block assignments and those blocks, one statement each, and counts what MarkSickForRange would change (#7021, ADR 0230). No owned-row mutation or locking read.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-ogs/project-phoenix/workflows/shiftplansync.SickReports.AbsencePlanGaps",
+      "target_owner": "shift-plan-sync"
+    },
+    {
       "adr": "0067",
       "approval_adr": "0229",
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.WorkforceAbsenceWrites.ApproveAbsence",
@@ -18125,6 +18135,18 @@
       "reason": "HTTP transport entry (#4825, ADR 0099): the port is the consuming http package's own interface and the root binds the workflow entry; no domain application calls it. Shift Plan Sync SickReports runs Workforce's absence write and the SickCascadePlan it returns in one tenant transaction: absence lock before the cascade's shift and day locks; a failed plan step aborts the write.",
       "source_owner": "workforce",
       "target": "*github.com/moto-ogs/project-phoenix/workflows/shiftplansync.SickReports.DeleteAbsenceFor",
+      "target_owner": "shift-plan-sync"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0230",
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.WorkforceAbsenceWrites.SyncAbsencePlan",
+      "classification": "workflow",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking.AdminAbsenceWrites.SyncAbsencePlan",
+      "reason": "HTTP transport entry (#4825, ADR 0099): the port is the consuming http package's own interface and the root binds the workflow entry; no domain application calls it. Shift Plan Sync SickReports takes the locks of an absence write (absence gate before the cascade's shift and day locks, #6232) and runs MarkSickForRange over the stored absence in force in one tenant transaction, one absence per request: an absence entered before every type cascaded takes its plan effect; hand planning stays (#7021, ADR 0230).",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-ogs/project-phoenix/workflows/shiftplansync.SickReports.SyncAbsencePlan",
       "target_owner": "shift-plan-sync"
     },
     {

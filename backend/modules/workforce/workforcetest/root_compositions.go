@@ -43,6 +43,8 @@ type AbsenceWrites interface {
 	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
 	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error
 	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
+	AbsencePlanGaps(ctx context.Context) ([]workforce.AbsencePlanGap, error)
+	SyncAbsencePlan(ctx context.Context, absenceID, actorStaffID int64, actorAccountID *int64) (bool, error)
 }
 
 // Rows read back the native values the route suites assert on: the staff
