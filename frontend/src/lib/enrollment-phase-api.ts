@@ -63,9 +63,10 @@ export interface Phase {
 }
 
 /**
- * Blast radius of deleting a phase, fetched for the confirmation modal.
- * `requests` and `care_offerings` are permanently deleted; `students_kept`
- * survive (their enrollment back-link is cleared, the student records stay).
+ * Preview of deleting a phase, fetched for the confirmation modal.
+ * `requests` block the delete (#6836); `care_offerings` are permanently
+ * deleted with the phase; `students_kept` counts the children created
+ * from its requests.
  */
 export interface PhaseDeleteImpact {
   requests: number;

@@ -709,6 +709,18 @@ func TestDeletePhaseHandler_EffectiveBookingsReturns409(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"code":"enrollment.phase_has_effective_bookings"`)
 }
 
+// A phase with enrollment requests is refused with 409 and its own code, so
+// the dialog explains that the requests stay as evidence (#6836).
+func TestDeletePhaseHandler_RequestsReturns409(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockPhaseService{deleteErr: fmt.Errorf("%w: 3 requests", capability.ErrPhaseHasRequests)}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"enrollment.phase_has_requests"`)
+}
+
 func TestDeletePhaseHandler_GenericErrorReturns500(t *testing.T) {
 	t.Parallel()
 

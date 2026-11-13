@@ -784,6 +784,12 @@
       "legacy": "enrollment.phase_has_effective_bookings"
     },
     {
+      "code": "enrollment.phase_has_requests",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.phase_has_requests"
+    },
+    {
       "code": "enrollment.phase_eligibility_setting_required",
       "class": "input",
       "parameters": [],

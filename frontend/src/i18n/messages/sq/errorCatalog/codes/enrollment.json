@@ -105,6 +105,7 @@
   "phase_booking_bounds_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_care_offering_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_has_effective_bookings": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "phase_has_requests": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_eligibility_setting_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "phase_pending_child_window_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_name_exists": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
