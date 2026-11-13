@@ -293,8 +293,9 @@ func operatorPersonIDs(persons []peopledirectory.Person) ([]int64, []int64) {
 	return personIDs, accountIDs
 }
 
-// FindPerson reads one non-deleted person of any school. The administrative
-// context carries no tenant, so the repository's tenant filter is a no-op.
+// FindPerson reads one non-deleted person of any school with its staff and
+// student standing. The administrative context carries no tenant, so the
+// repository's tenant filter is a no-op.
 func (p provisioningPeople) FindPerson(ctx context.Context, id int64) (organizationCompose.ProvisioningPerson, bool, error) {
 	person, err := p.personRows.FindByID(ctx, id)
 	if peoplePorts.IsRepositoryNoRows(err) {
@@ -303,13 +304,17 @@ func (p provisioningPeople) FindPerson(ctx context.Context, id int64) (organizat
 	if err != nil {
 		return organizationCompose.ProvisioningPerson{}, false, err
 	}
-	_, former, err := p.staffStanding(ctx, []int64{person.ID})
+	live, former, err := p.staffStanding(ctx, []int64{person.ID})
+	if err != nil {
+		return organizationCompose.ProvisioningPerson{}, false, err
+	}
+	students, err := p.students(ctx, []int64{person.ID})
 	if err != nil {
 		return organizationCompose.ProvisioningPerson{}, false, err
 	}
 	return organizationCompose.ProvisioningPerson{
 		ID: person.ID, TenantID: person.TenantID, AccountID: person.AccountID, HasRFIDCard: person.TagID != nil,
-		FormerStaff: former[person.ID],
+		FormerStaff: former[person.ID], LiveStaff: live[person.ID], Student: students[person.ID],
 	}, true, nil
 }
 

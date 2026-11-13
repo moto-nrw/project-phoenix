@@ -7,6 +7,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/ports"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // Service owns validation, transactions and the public People Directory capability.
@@ -20,6 +21,7 @@ type Service struct {
 	studentConsents   *StudentConsentService
 	studentPhotos     *StudentPhotoService
 	studentNotes      *StudentNoteService
+	liveStaff         peoplePorts.LiveStaffProfiles
 	store             ports.Store
 	tx                ports.Transaction
 	observe           ports.Observer
@@ -54,6 +56,7 @@ func New(store ports.Store, tx ports.Transaction, observe ports.Observer, servic
 		students: services.Students, guardianRows: services.Guardians, guardianDirectory: provider,
 		guardianLinkCommands: services.GuardianLifecycle, guardianLifecycle: services.GuardianLifecycle, studentAudit: services.StudentAudit,
 		studentConsents: services.StudentConsents, studentPhotos: services.StudentPhotos, studentNotes: services.StudentNotes,
+		liveStaff: services.LiveStaff,
 	}
 }
 
@@ -156,6 +159,9 @@ type Services struct {
 	StudentConsents   *StudentConsentService
 	StudentPhotos     *StudentPhotoService
 	StudentNotes      *StudentNoteService
+	// LiveStaff answers whether a person still holds a live staff
+	// membership. Optional: without it a person deletion is refused.
+	LiveStaff peoplePorts.LiveStaffProfiles
 }
 
 var _ peopledirectory.Owner = (*Service)(nil)

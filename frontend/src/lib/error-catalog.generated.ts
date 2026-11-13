@@ -1195,6 +1195,8 @@ export const ERROR_CATALOG = {
         "Diesen Träger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "provisioning.organization_slug_taken":
         "Diesen Slug hat schon ein anderer Träger. Bitte wählen Sie einen anderen.",
+      "provisioning.person_has_active_profile":
+        "Diese Person ist noch als Kind oder Mitarbeitende an der Schule angelegt. Das Kind löscht die Schule beim Kind. Mitarbeitende lassen sich erst nach ihrem Austritt löschen.",
       "provisioning.person_has_supervisions":
         "Diese Person führt gerade eine Aufsicht. Bitte beenden Sie die Aufsicht zuerst.",
       "provisioning.person_not_found":
@@ -1415,6 +1417,8 @@ export const ERROR_CATALOG = {
         "Für das Kind gibt es keine gültige Anmeldung mehr. Bitte lehnen Sie {object} ab.",
       "students.partial_absence_conflict":
         "Das Kind ist an einem gewählten Tag schon ab einer Uhrzeit entschuldigt. Entfernen Sie zuerst die Teilentschuldigung unter „Entschuldigen“ und „Ab Uhrzeit“.",
+      "students.person_has_active_profile":
+        "Diese Person ist noch als Kind oder Mitarbeitende angelegt. Löschen Sie das Kind direkt beim Kind. Mitarbeitende lassen sich erst nach ihrem Austritt löschen.",
       "students.photo_consent_required":
         "Für ein Foto fehlt die Einwilligung der Eltern. Bitte bestätigen Sie zuerst die Einwilligung.",
       "students.photo_consent_withdrawn":
@@ -2552,6 +2556,8 @@ export const ERROR_CATALOG = {
         "The mandate text has changed. Please read and confirm it again.",
       "parent_billing.sollstellung_revenue_account_missing":
         "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings.",
+      "provisioning.person_has_active_profile":
+        "This person is still registered as a child or staff member at the school. The school must delete the child or record the staff member's exit first.",
       "school.parent_conference_change_closed":
         "You can book, change or cancel up to 24 hours before the meeting. After that, please contact the teacher directly.",
       "school.parent_conference_slot_taken":
@@ -2592,6 +2598,8 @@ export const ERROR_CATALOG = {
         "The child no longer has a valid enrollment. Please decline {object}.",
       "students.partial_absence_conflict":
         "The child is already excused from a certain time on a chosen day. First remove that partial excusal under “Entschuldigen” and “Ab Uhrzeit”.",
+      "students.person_has_active_profile":
+        "This person is still registered as a child or staff member. Please delete the child or record the staff member's exit first.",
       "students.pickup_permission_contact_gone":
         "{object} could not be changed. Please check the current state.",
       "students.pickup_proof_not_found":

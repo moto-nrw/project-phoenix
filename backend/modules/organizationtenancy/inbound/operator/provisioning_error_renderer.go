@@ -27,14 +27,15 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	var schoolInactive *organizationtenancy.SchoolInactiveError
 	var schoolAlreadyDeleted *organizationtenancy.SchoolAlreadyDeletedError
 	var schoolNotDeleted *organizationtenancy.SchoolNotDeletedError
-	var personNotFound *organizationtenancy.PersonNotFoundError
-	var personActiveSupervisors *organizationtenancy.PersonHasActiveSupervisionsError
 	var identityErr *organizationtenancy.ProvisioningIdentityError
 
 	if errors.As(err, &identityErr) && identityErr.Err != nil {
 		return provisioningIdentityRenderer(identityErr)
 	}
 	if renderer, ok := deviceOrTraegerErrorRenderer(err); ok {
+		return renderer
+	}
+	if renderer, ok := personErrorRenderer(err); ok {
 		return renderer
 	}
 
@@ -64,12 +65,26 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		return common.OperatorRejection(http.StatusConflict, common.CodeProvisioningSchoolAlreadyDeleted, "School is already deleted")
 	case errors.As(err, &schoolNotDeleted):
 		return common.OperatorRejection(http.StatusConflict, common.CodeProvisioningSchoolNotDeleted, "School is not deleted")
-	case errors.As(err, &personNotFound):
-		return common.OperatorRejection(http.StatusNotFound, common.CodeProvisioningPersonNotFound, "Person not found")
-	case errors.As(err, &personActiveSupervisors):
-		return common.OperatorRejection(http.StatusConflict, common.CodeProvisioningPersonHasSupervisions, "Person has active supervisions and cannot be deleted")
 	default:
 		return common.OperatorInternal(internalErrorMessage)
+	}
+}
+
+// personErrorRenderer maps the outcomes of a person deletion; ok is false for
+// any other error.
+func personErrorRenderer(err error) (render.Renderer, bool) {
+	var notFound *organizationtenancy.PersonNotFoundError
+	var supervising *organizationtenancy.PersonHasActiveSupervisionsError
+	var activeProfile *organizationtenancy.PersonHasActiveProfileError
+	switch {
+	case errors.As(err, &notFound):
+		return common.OperatorRejection(http.StatusNotFound, common.CodeProvisioningPersonNotFound, "Person not found"), true
+	case errors.As(err, &supervising):
+		return common.OperatorRejection(http.StatusConflict, common.CodeProvisioningPersonHasSupervisions, "Person has active supervisions and cannot be deleted"), true
+	case errors.As(err, &activeProfile):
+		return common.OperatorRejection(http.StatusConflict, common.CodeProvisioningPersonHasActiveProfile, "Person still has an active student or staff profile and cannot be deleted"), true
+	default:
+		return nil, false
 	}
 }
 

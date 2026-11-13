@@ -24,6 +24,11 @@ var (
 	ErrInvalidPerson   = errors.New("invalid person")
 	ErrTagConflict     = errors.New("tag is already linked to another person")
 	ErrAccountConflict = errors.New("account is already linked to another person")
+	// ErrPersonHasActiveProfile refuses to retire a person a child or a live
+	// staff membership still names. Leaving the school runs through the
+	// student deletion or the staff offboarding, which clean up behind it
+	// (#6840).
+	ErrPersonHasActiveProfile = errors.New("person still has an active student or staff profile")
 )
 
 type InvalidPersonError struct{ Reason string }
@@ -283,6 +288,8 @@ func ErrorCode(err error) string {
 		return "tag_conflict"
 	case errors.Is(err, ErrAccountConflict):
 		return "account_conflict"
+	case errors.Is(err, ErrPersonHasActiveProfile):
+		return "person_has_active_profile"
 	default:
 		return "internal_error"
 	}
