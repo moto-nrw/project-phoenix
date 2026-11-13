@@ -66,6 +66,20 @@ test('a migration below the newest one of the advanced remote tip is late, not r
   assert.equal(result.stdout, `${early}\n`);
 });
 
+test('the late list is the same when the script runs from backend/, as the CI test step does', t => {
+  const f = fixture(t);
+  f.add(migration(early));
+  f.commit();
+  f.git('checkout', '-q', 'development');
+  f.add(migration(later));
+  f.commit();
+  f.git('checkout', '-q', 'feature');
+  const result = spawnSync(process.execPath, [script, '--late', 'origin/development', 'HEAD'],
+    { cwd: join(f.cwd, 'backend'), env: gitTestEnvironment(), encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, `${early}\n`);
+});
+
 test('a timestamp another migration of the remote tip already has fails', t => {
   const f = fixture(t);
   f.add(migration(early));

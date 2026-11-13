@@ -184,7 +184,9 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     const late = args[0] === '--late';
     if (late) args.shift();
     if (args.length > 2) throw new Error('Usage: node scripts/check-migration-versions.mjs [--late] [origin/<base>] [head]');
-    const cwd = process.cwd();
+    // The pathspecs are relative to the repository root; CI runs this from
+    // backend/, where git would resolve them below backend/.
+    const cwd = git(process.cwd(), ['rev-parse', '--show-toplevel']);
     const base = args[0] ?? `origin/${process.env.GITHUB_BASE_REF || 'development'}`;
     let comparison;
     if (args[1]) {
