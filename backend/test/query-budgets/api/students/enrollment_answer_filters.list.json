@@ -1,0 +1,7 @@
+{
+  "scenario": "api.students.enrollment_answer_filters.list",
+  "max": 5,
+  "exact": false,
+  "description": "api/students — GET /students/enrollment-answer-filters (#6954), ten\nanswered children: the request frame plus one read of the linked answers and\none of their form versions.",
+  "route": "GET /api/students/enrollment-answer-filters"
+}

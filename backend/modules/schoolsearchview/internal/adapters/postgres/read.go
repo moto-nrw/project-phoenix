@@ -61,7 +61,7 @@ const (
 
 // childrenSQL: text, school, notes, limit. A name hit ranks before a class,
 // group or note hit; within a rank the list is sorted by name.
-const childrenSQL = `SELECT * FROM (
+const childrenSQL = `SELECT hit.id, hit.first_name, hit.last_name, hit.school_class, hit.group_name, hit.match_field, hit.match_text FROM (
 	SELECT student.id, person.first_name, person.last_name, membership.school_class, COALESCE(grp.name, '') AS group_name,
 		CASE WHEN ` + childNameMatch + ` THEN 'name' WHEN ` + childClassMatch + ` THEN 'class'
 			WHEN ` + childGroupMatch + ` THEN 'group' ELSE 'parent_note' END AS match_field,

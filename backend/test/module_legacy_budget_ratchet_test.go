@@ -300,7 +300,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // class follow-up port (+2).
 // ADR 0225: the Stammdaten decision's class follow-up port of
 // modules/careplan/compose (+3).
-const moduleComposeBudgetTotal = 13439
+// ADR 0227: the registration answers constructor of modules/enrollment/compose
+// (+5) and the new school search projection modules/schoolsearchview/compose
+// (+38).
+const moduleComposeBudgetTotal = 13482
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC (ADR 0220 adds 13 to modules/careplan/compose), raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -362,7 +365,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0216: account proofs and the account's holiday registrations (+10).
 	// ADR 0215: NewTraegerPhases (+4) and NewOfferingSelectionReferences (+4),
 	// less shortened comments and a merged file (-6).
-	"modules/enrollment/compose": 635,
+	"modules/enrollment/compose": 640,
 	// ADR 0218: the Träger scope and the recipient rekey (+33).
 	"modules/exporttransfer/compose":               182,
 	"modules/facilities/compose":                   184,
@@ -433,6 +436,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0151: the school figure constructor (+6).
 	// ADR 0202: the pending-window constructor (+5).
 	"modules/schoolmembership/compose": 200,
+	// ADR 0227: the school search projection binds the school transaction.
+	"modules/schoolsearchview/compose": 38,
 	"modules/schoolsetup/compose":      56,
 	// #4722: the field cipher of the health information, construction only;
 	// the 7 LOC come out of modules/enrollment/compose, the total stays.

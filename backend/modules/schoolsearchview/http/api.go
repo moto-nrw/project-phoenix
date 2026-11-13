@@ -83,35 +83,46 @@ func (rs *Resource) searchSchool(w http.ResponseWriter, r *http.Request) {
 // person kinds follow the child read scope (#2329): an administrator, or
 // staff of this school. Each kind needs the permission its own page needs.
 func (rs *Resource) scope(ctx context.Context) (schoolsearchview.Scope, error) {
-	granted := sessiontoken.PermissionsFromCtx(ctx)
-	has := func(permissions ...string) bool {
-		if securityruntime.HasAdminWildcard(granted) {
-			return true
-		}
-		for _, permission := range permissions {
-			if securityruntime.HasPermission(permission, granted) {
-				return true
-			}
-		}
-		return false
+	granted := grantedPermissions(sessiontoken.PermissionsFromCtx(ctx))
+	readsChildren, err := rs.readsChildren(ctx, granted)
+	if err != nil {
+		return schoolsearchview.Scope{}, err
 	}
-	readsChildren := has(permissions.UsersRead, permissions.StudentsRead)
-	readsDetails := has(permissions.UsersRead)
-	if readsChildren {
-		isStaff, err := rs.staff.HasCurrentStaff(ctx)
-		if err != nil {
-			return schoolsearchview.Scope{}, err
-		}
-		if !securityruntime.HasAdminWildcard(granted) && !isStaff {
-			readsChildren, readsDetails = false, false
-		}
-	}
+	readsDetails := readsChildren && granted.any(permissions.UsersRead)
 	return schoolsearchview.Scope{
 		Children:     readsChildren,
-		ChildDetails: readsDetails && readsChildren,
-		Contacts:     readsDetails && readsChildren,
-		Staff:        has(permissions.UsersRead, permissions.StaffManage, permissions.StaffStammdaten),
-		Rooms:        has(permissions.RoomsRead),
-		Groups:       has(permissions.GroupsRead) && readsChildren,
+		ChildDetails: readsDetails,
+		Contacts:     readsDetails,
+		Staff:        granted.any(permissions.UsersRead, permissions.StaffManage, permissions.StaffStammdaten),
+		Rooms:        granted.any(permissions.RoomsRead),
+		Groups:       readsChildren && granted.any(permissions.GroupsRead),
 	}, nil
+}
+
+// readsChildren reports the child read: users:read or students:read, held by
+// an administrator or by staff of this school.
+func (rs *Resource) readsChildren(ctx context.Context, granted grantedPermissions) (bool, error) {
+	if !granted.any(permissions.UsersRead, permissions.StudentsRead) {
+		return false, nil
+	}
+	if securityruntime.HasAdminWildcard(granted) {
+		return true, nil
+	}
+	return rs.staff.HasCurrentStaff(ctx)
+}
+
+// grantedPermissions are the caller's permissions; an administrator holds
+// every one.
+type grantedPermissions []string
+
+func (granted grantedPermissions) any(wanted ...string) bool {
+	if securityruntime.HasAdminWildcard(granted) {
+		return true
+	}
+	for _, permission := range wanted {
+		if securityruntime.HasPermission(permission, granted) {
+			return true
+		}
+	}
+	return false
 }

@@ -241,8 +241,7 @@ func mountStudentRoutes(
 			WeekdayPickupNotes:     carePlan,
 		},
 		projectionStudentsHTTP.ResourceConfig{
-			EnrollmentAnswers:      newStudentEnrollmentAnswerFilters(),
-			PrivacyConsents:        presence,
+			EnrollmentAnswers: newStudentEnrollmentAnswerFilters(), PrivacyConsents: presence,
 			AbsenceOverview:        reports.AbsenceOverview,
 			ActiveEnrollments:      studentActiveEnrollments{enrollments: activities},
 			ActiveService:          active,

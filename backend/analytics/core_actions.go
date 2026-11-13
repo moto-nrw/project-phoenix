@@ -270,6 +270,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/rooms/export"}:                                                   export("rooms"),
 	{http.MethodDelete, "/api/rooms/{id}"}:                                                   notCaptured,
 	{http.MethodPut, "/api/rooms/{id}"}:                                                      notCaptured,
+	{http.MethodPost, "/api/search/"}:                                                        notCaptured,
 	{http.MethodPost, "/api/school-setup/complete"}:                                          notCaptured,
 	{http.MethodPut, "/api/school-setup/dismissal"}:                                          notCaptured,
 	{http.MethodPut, "/api/school-setup/steps/{step}"}:                                       notCaptured,

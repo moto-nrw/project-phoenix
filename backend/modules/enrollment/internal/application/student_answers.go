@@ -57,10 +57,11 @@ type answerSet struct {
 	answers   []studentAnswer
 	questions map[string]enrollment.FormField
 	versions  map[string]int64
+	seen      map[string]bool
 }
 
 func (s *StudentAnswers) load(ctx context.Context) (answerSet, error) {
-	set := answerSet{questions: map[string]enrollment.FormField{}, versions: map[string]int64{}}
+	set := answerSet{questions: map[string]enrollment.FormField{}, versions: map[string]int64{}, seen: map[string]bool{}}
 	rows, err := s.records.LinkedChildAnswers(ctx)
 	if err != nil {
 		return set, err
@@ -69,31 +70,33 @@ func (s *StudentAnswers) load(ctx context.Context) (answerSet, error) {
 	if err != nil {
 		return set, err
 	}
-	seen := map[string]bool{}
 	for _, row := range rows {
-		schema := schemas[row.SchemaID]
-		for _, field := range schema.Fields {
-			if !field.AppliesToCh || field.Target != "" || !answerableTypes[field.Type] {
-				continue
-			}
-			if set.versions[field.Key] < schema.ID {
-				set.questions[field.Key], set.versions[field.Key] = field, schema.ID
-			}
-			raw, ok := row.CustomData.Lookup(field.Key)
-			key := strconv.FormatInt(row.StudentID, 10) + "\x00" + field.Key
-			if !ok || seen[key] {
-				continue
-			}
-			answer, ok := readAnswer(field, raw)
-			if !ok {
-				continue
-			}
-			seen[key] = true
+		set.add(row, schemas[row.SchemaID])
+	}
+	return set, nil
+}
+
+// add takes the answers of one registration child. Rows come newest first,
+// so the first answer of a child to a question is its newest one.
+func (set *answerSet) add(row enrollment.LinkedChildAnswers, schema *enrollment.FormSchema) {
+	for _, field := range schema.Fields {
+		if !field.AppliesToCh || field.Target != "" || !answerableTypes[field.Type] {
+			continue
+		}
+		if set.versions[field.Key] < schema.ID {
+			set.questions[field.Key], set.versions[field.Key] = field, schema.ID
+		}
+		key := strconv.FormatInt(row.StudentID, 10) + "\x00" + field.Key
+		raw, ok := row.CustomData.Lookup(field.Key)
+		if !ok || set.seen[key] {
+			continue
+		}
+		if answer, ok := readAnswer(field, raw); ok {
+			set.seen[key] = true
 			answer.studentID = row.StudentID
 			set.answers = append(set.answers, answer)
 		}
 	}
-	return set, nil
 }
 
 // schemas loads every form version the rows were given in. A version that
@@ -134,46 +137,32 @@ func (s *StudentAnswers) schemas(ctx context.Context, rows []enrollment.LinkedCh
 // of the wrong shape or an empty one is no answer.
 func readAnswer(field enrollment.FormField, raw any) (studentAnswer, bool) {
 	answer := studentAnswer{field: field}
-	switch field.Type {
-	case enrollment.FormFieldBoolean:
+	if field.Type == enrollment.FormFieldBoolean {
 		yes, ok := raw.(bool)
-		if !ok {
-			return answer, false
-		}
 		answer.value, answer.text, answer.affirmative = strconv.FormatBool(yes), "Nein", yes
 		if yes {
 			answer.text = "Ja"
 		}
+		return answer, ok
+	}
+	if number, ok := raw.(float64); ok && field.Type == enrollment.FormFieldNumber {
+		answer.text, answer.affirmative = strings.ReplaceAll(strconv.FormatFloat(number, 'f', -1, 64), ".", ","), true
 		return answer, true
-	case enrollment.FormFieldNumber:
-		number, ok := raw.(float64)
-		if !ok {
-			return answer, false
-		}
-		answer.text = strings.ReplaceAll(strconv.FormatFloat(number, 'f', -1, 64), ".", ",")
+	}
+	value, ok := raw.(string)
+	value = strings.TrimSpace(value)
+	if !ok || value == "" || field.Type == enrollment.FormFieldNumber {
+		return answer, false
+	}
+	answer.text, answer.affirmative = value, true
+	switch field.Type {
 	case enrollment.FormFieldSelect:
-		value, ok := raw.(string)
-		if !ok || strings.TrimSpace(value) == "" {
-			return answer, false
-		}
 		answer.value, answer.text = value, optionLabel(field, value)
 	case enrollment.FormFieldDate:
-		value, ok := raw.(string)
-		if !ok || value == "" {
-			return answer, false
-		}
-		answer.text = value
 		if date, err := calendar.ParseDate(value); err == nil {
 			answer.text = date.Format("02.01.2006")
 		}
-	default:
-		value, ok := raw.(string)
-		if !ok || strings.TrimSpace(value) == "" {
-			return answer, false
-		}
-		answer.text = strings.TrimSpace(value)
 	}
-	answer.affirmative = true
 	return answer, true
 }
 
