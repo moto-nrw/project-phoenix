@@ -1754,7 +1754,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/api.holidayMailStates.HolidayMails",
-      "binding_digest": "bff328c1e2b6653cfef2089037b7273e",
+      "binding_digest": "364a41f714129ac346ef7807f9c5f380",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayMailStates.HolidayMails",
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.TraegerMails.TraegerEmailStatusesOf",

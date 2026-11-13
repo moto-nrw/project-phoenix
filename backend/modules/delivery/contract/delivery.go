@@ -243,8 +243,10 @@ type Status struct {
 	ID             int64
 	// Kind is the template of the intent; RelatedID the entity it was
 	// enqueued for, nil without one (#6976).
-	Kind           string
-	RelatedID      *int64
+	Kind      string
+	RelatedID *int64
+	// CreatedAt is when the intent was enqueued (#6976).
+	CreatedAt      time.Time
 	Transport      Transport
 	State          State
 	Attempts       int

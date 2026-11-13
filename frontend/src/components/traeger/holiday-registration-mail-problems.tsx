@@ -60,8 +60,10 @@ export function useHolidayRegistrationMailProblems(
 }
 
 // The receipt is no acceptance yet; its name keeps it apart from the
-// office's „Bestätigen“.
-const MAIL_LABELS: Record<HolidayRegistrationMailKind, string> = {
+// office's „Bestätigen“. Every name is feminine, so „die“ and „der“ fit.
+export const HOLIDAY_MAIL_LABELS: Readonly<
+  Record<HolidayRegistrationMailKind, string>
+> = {
   holiday_registration_received: "Eingangsbestätigung",
   holiday_registration_accepted: "Annahme-Mail",
   holiday_place_granted: "Mail zum Ferienplatz",
@@ -71,7 +73,7 @@ const MAIL_LABELS: Record<HolidayRegistrationMailKind, string> = {
 
 /** The name of a mail in a list, as „Eingangsbestätigung“ (#6976). */
 export function holidayMailLabel(kind: HolidayRegistrationMailKind): string {
-  return MAIL_LABELS[kind] ?? "E-Mail";
+  return HOLIDAY_MAIL_LABELS[kind] ?? "E-Mail";
 }
 
 /** What the office does when a mail did not reach the parents. */
@@ -89,6 +91,11 @@ function holidayMailProblemText(
       return `${Mail} wurde nicht gesendet. An diese Adresse gehen zurzeit keine Mails.`;
     case "unknown":
       return `Ob ${mail} angekommen ist, ist unklar.`;
+    // These mails arrived; the parents refused them afterwards (#6976).
+    case "complained":
+      return `Die Eltern haben ${mail} als unerwünscht gemeldet.`;
+    case "unsubscribed":
+      return `Nach der ${holidayMailLabel(problem.kind)} haben sich die Eltern von den Mails abgemeldet.`;
     default:
       return `${Mail} hat die Eltern nicht erreicht.`;
   }

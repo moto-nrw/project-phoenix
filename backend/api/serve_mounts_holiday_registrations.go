@@ -187,7 +187,7 @@ func (s holidayMailStates) HolidayMails(ctx context.Context, organizationID int6
 	}
 	states := make([]enrollmentOwner.HolidayMailState, 0, len(statuses))
 	for _, status := range statuses {
-		state := enrollmentOwner.HolidayMailState{Kind: status.Kind, Outcome: string(status.Outcome), Problem: holidayMailProblem(status.Outcome)}
+		state := enrollmentOwner.HolidayMailState{Kind: status.Kind, Outcome: string(status.Outcome), Problem: holidayMailProblem(status.Outcome), CreatedAt: status.CreatedAt}
 		if status.RelatedID != nil {
 			state.RegistrationID = *status.RelatedID
 		}
@@ -200,14 +200,19 @@ func (s holidayMailStates) HolidayMails(ctx context.Context, organizationID int6
 }
 
 // holidayMailProblem names an outcome of a mail that did not reach the
-// parents; a mail on its way, accepted, delivered or withdrawn has none.
+// parents or that they refused; a mail on its way, accepted, delivered or
+// withdrawn has none.
 func holidayMailProblem(outcome deliveryContract.EmailOutcome) string {
 	switch outcome {
 	case deliveryContract.EmailSendFailed, deliveryContract.EmailUndeliverable:
 		return enrollmentOwner.HolidayMailFailed
-	case deliveryContract.EmailBlocked, deliveryContract.EmailProviderBlocked, deliveryContract.EmailHeldByStop,
-		deliveryContract.EmailComplained, deliveryContract.EmailUnsubscribed:
+	case deliveryContract.EmailBlocked, deliveryContract.EmailProviderBlocked, deliveryContract.EmailHeldByStop:
 		return enrollmentOwner.HolidayMailBlocked
+	// These mails arrived; the parents refused them afterwards (#6976).
+	case deliveryContract.EmailComplained:
+		return enrollmentOwner.HolidayMailComplained
+	case deliveryContract.EmailUnsubscribed:
+		return enrollmentOwner.HolidayMailUnsubscribed
 	case deliveryContract.EmailOutcomeUnknown, deliveryContract.EmailOverdue:
 		return enrollmentOwner.HolidayMailUnknown
 	default:

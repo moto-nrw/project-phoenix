@@ -169,3 +169,48 @@ func TestHolidayRegistrationDetailNamesEveryMail(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	assert.NotContains(t, rec.Body.String(), "holiday_closure_notice", "another Träger reads none of the mails")
 }
+
+// #6976, the staging case of 11.11.: the mail server took the receipt, then
+// the provider withheld it for a known bad address. It reads as held back,
+// never as sent, in the detail, the warning and the list. A receipt the
+// parents reported as unwanted and an acceptance after which they
+// unsubscribed arrived: they name what the parents did, not a held mail.
+func TestHolidayRegistrationMailsNameSuppressedAndRefusedMails(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Mailstand Zurückgehalten")
+	ctx := context.Background()
+	set := func(id int64, kind, set string) {
+		_, err := f.db.NewRaw(`UPDATE platform.email_outbox SET `+set+`, delivery_state_at = NOW()
+			WHERE organization_id = ? AND kind = ? AND related_entity_id = ?`, f.office.organization, kind, id).Exec(ctx)
+		require.NoError(t, err)
+	}
+	set(f.siblings, enrollment.MailKindHolidayRegistrationReceived, `status = 'sent', sent_at = NOW(), delivery_state = 'suppressed'`)
+	set(f.again, enrollment.MailKindHolidayRegistrationReceived, `status = 'sent', sent_at = NOW(), delivery_state = 'complained'`)
+	_, err := f.db.NewRaw(`INSERT INTO platform.email_outbox
+		(organization_id, kind, recipient, payload, related_entity_type, related_entity_id, idempotency_key, status, sent_at, delivery_state, delivery_state_at)
+		VALUES (?, ?, '{"address":"papa.muster@example.org"}', '{}', ?, ?, ?, 'sent', NOW(), 'unsubscribed', NOW())`,
+		f.office.organization, enrollment.MailKindHolidayRegistrationAccepted, enrollment.MailRelatedHolidayRegistration, f.again,
+		"holiday-registration-accepted:test").Exec(ctx)
+	require.NoError(t, err)
+
+	detail := func(id int64) enrollment.HolidayRegistrationDetail {
+		rec := traegerJSON(t, f.traeger, f.office.token, http.MethodGet, f.registrationPath(id, ""), nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return decodeSchoolPortalData[enrollment.HolidayRegistrationDetail](t, rec.Body.Bytes())
+	}
+	siblings := detail(f.siblings)
+	require.Len(t, siblings.Mails, 1)
+	assert.Equal(t, string(deliveryContract.EmailProviderBlocked), siblings.Mails[0].Outcome, "a withheld mail never reads as sent")
+	assert.NotNil(t, siblings.Mails[0].CreatedAt, "each mail names when it came about")
+	suppressed := []enrollment.HolidayRegistrationMailProblem{{Kind: enrollment.MailKindHolidayRegistrationReceived, State: enrollment.HolidayMailBlocked}}
+	assert.Equal(t, suppressed, siblings.MailProblems)
+
+	again := detail(f.again)
+	refused := []enrollment.HolidayRegistrationMailProblem{
+		{Kind: enrollment.MailKindHolidayRegistrationReceived, State: enrollment.HolidayMailComplained},
+		{Kind: enrollment.MailKindHolidayRegistrationAccepted, State: enrollment.HolidayMailUnsubscribed},
+	}
+	assert.Equal(t, refused, again.MailProblems)
+	assert.Equal(t, map[int64][]enrollment.HolidayRegistrationMailProblem{f.siblings: suppressed, f.again: refused}, f.mailProblems(t),
+		"the list marks both")
+}

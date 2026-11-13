@@ -349,7 +349,7 @@ func intentStatuses(transport deliveryContract.Transport, rows []domain.Intent) 
 			}
 		}
 		statuses = append(statuses, deliveryContract.Status{
-			ID: row.ID, IdempotencyKey: row.IdempotencyKey, Kind: row.Template, RelatedID: row.RelatedEntityID,
+			ID: row.ID, IdempotencyKey: row.IdempotencyKey, Kind: row.Template, RelatedID: row.RelatedEntityID, CreatedAt: row.CreatedAt,
 			Transport: transport, State: deliveryContract.State(row.Status), Attempts: row.Attempts,
 			LastError: row.LastError, ProviderResult: providerResult, NextAttemptAt: row.NextRetryAt,
 			SentAt: row.SentAt, DeadLetterAt: row.DeadLetterAt, CancelledAt: row.CancelledAt,

@@ -201,10 +201,14 @@ type HolidayRegistrationSummary struct {
 // (#6737): moto gave it up or the mail server returned it, the address is
 // blocked so the mail stayed back, or it is unknown whether it went out
 // because sending stopped midway or the server never reported a result.
+// A mail that arrived can still be one (#6976): the parents reported it as
+// unwanted or unsubscribed from the mails.
 const (
-	HolidayMailFailed  = "failed"
-	HolidayMailBlocked = "blocked"
-	HolidayMailUnknown = "unknown"
+	HolidayMailFailed       = "failed"
+	HolidayMailBlocked      = "blocked"
+	HolidayMailUnknown      = "unknown"
+	HolidayMailComplained   = "complained"
+	HolidayMailUnsubscribed = "unsubscribed"
 )
 
 // HolidayRegistrationMailProblem is a mail of the registration that did not
@@ -239,7 +243,8 @@ type HolidayMailStates interface {
 
 // HolidayMailState is what became of one mail of the Träger: Kind is its
 // MailKind, RegistrationID the registration it was enqueued for (0 without
-// one), Outcome the delivery outcome in Delivery's words and Problem a
+// one), Outcome the delivery outcome in Delivery's words, CreatedAt when it
+// was enqueued and Problem a
 // HolidayMail value for a mail that did not reach the parents, empty
 // otherwise.
 type HolidayMailState struct {
@@ -248,6 +253,7 @@ type HolidayMailState struct {
 	IdempotencyKey string
 	Outcome        string
 	Problem        string
+	CreatedAt      time.Time
 }
 
 // HolidayRegistrationList is the list of a period: the registrations of the

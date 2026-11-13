@@ -296,7 +296,11 @@ describe("traeger-holiday-registrations-api", () => {
         data: {
           ...BACKEND_DETAIL,
           mails: [
-            { kind: "holiday_registration_received", outcome: "delivered" },
+            {
+              kind: "holiday_registration_received",
+              outcome: "delivered",
+              created_at: "2026-11-11T13:05:00Z",
+            },
             { kind: "holiday_closure_notice", outcome: "blocked" },
           ],
         },
@@ -307,8 +311,12 @@ describe("traeger-holiday-registrations-api", () => {
     );
 
     expect((await fetchHolidayRegistration("5", "7")).mails).toEqual([
-      { kind: "holiday_registration_received", outcome: "delivered" },
-      { kind: "holiday_closure_notice", outcome: "blocked" },
+      {
+        kind: "holiday_registration_received",
+        outcome: "delivered",
+        createdAt: "2026-11-11T13:05:00Z",
+      },
+      { kind: "holiday_closure_notice", outcome: "blocked", createdAt: null },
     ]);
     expect((await fetchHolidayRegistration("5", "7")).mails).toEqual([]);
   });

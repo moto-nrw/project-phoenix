@@ -145,13 +145,21 @@ export type HolidayRegistrationMailKind =
 export interface HolidayRegistrationMail {
   readonly kind: HolidayRegistrationMailKind;
   readonly outcome: MailOutcome;
+  /** When the mail came about; two mails of one kind stay apart. */
+  readonly createdAt: string | null;
 }
 
 /**
  * What became of a mail that did not reach the parents (#6737): moto gave it
  * up or it came back, the address is blocked, or the outcome is unknown.
  */
-type HolidayRegistrationMailState = "failed" | "blocked" | "unknown";
+type HolidayRegistrationMailState =
+  | "failed"
+  | "blocked"
+  | "unknown"
+  // The mail arrived; the parents reported it or unsubscribed (#6976).
+  | "complained"
+  | "unsubscribed";
 
 export interface HolidayRegistrationMailProblem {
   readonly kind: HolidayRegistrationMailKind;
@@ -495,7 +503,13 @@ interface BackendDetail extends BackendSummary {
         checked_at: string | null;
       }[]
     | null;
-  mails?: HolidayRegistrationMail[] | null;
+  mails?:
+    | {
+        kind: HolidayRegistrationMailKind;
+        outcome: MailOutcome;
+        created_at?: string | null;
+      }[]
+    | null;
 }
 
 function checksFromBackend(
@@ -657,6 +671,7 @@ function detailFromBackend(
     mails: (registration.mails ?? []).map((mail) => ({
       kind: mail.kind,
       outcome: mail.outcome,
+      createdAt: mail.created_at ?? null,
     })),
   };
 }

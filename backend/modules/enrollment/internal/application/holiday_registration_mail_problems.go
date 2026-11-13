@@ -44,7 +44,12 @@ func (h *HolidayRegistrationReview) addMails(ctx context.Context, organizationID
 	mails := byRegistration[detail.ID]
 	detail.MailProblems = holidayMailProblems(mails)
 	for _, mail := range mails {
-		detail.Mails = append(detail.Mails, enrollment.RequestMailOutcome{Kind: mail.Kind, Outcome: mail.Outcome})
+		outcome := enrollment.RequestMailOutcome{Kind: mail.Kind, Outcome: mail.Outcome}
+		if !mail.CreatedAt.IsZero() {
+			createdAt := mail.CreatedAt
+			outcome.CreatedAt = &createdAt
+		}
+		detail.Mails = append(detail.Mails, outcome)
 	}
 	return nil
 }
