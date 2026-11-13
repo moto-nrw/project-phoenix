@@ -2,12 +2,10 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // reviewDiff sets the diff the queue shows, falling back to the requested
@@ -22,7 +20,7 @@ func (s *ScheduleReviews) reviewDiff(ctx context.Context, row *careplan.CareSche
 		)
 		item.Diff = requestedCareSummary(row.Payload)
 	}
-	if row.RequestKind != "pickup_change" && row.RequestKind != carerequests.KindPickupPermission {
+	if row.RequestKind != carerequests.KindPickupChange && row.RequestKind != carerequests.KindPickupPermission {
 		item.ImpactToken = s.deps.Fingerprint(carerequests.WeeklyImpactContent(item.Diff))
 	}
 }
@@ -31,9 +29,6 @@ func (s *ScheduleReviews) reviewDiff(ctx context.Context, row *careplan.CareSche
 // from the same live plan and clock. It runs inside the deciding unit, which
 // already authorized and locked the child, and opens no unit of its own.
 func (s *scheduleReviewCommands) WeeklyImpactToken(ctx context.Context, request carerequests.Request) (string, error) {
-	if _, active := tenant.TransactionFromContext(ctx); !active {
-		return "", errors.New("schedule: weekly impact needs the deciding transaction")
-	}
 	reviews := s.commands
 	students, err := reviews.deps.People.FindStudents(ctx, []int64{request.StudentID})
 	if err != nil {

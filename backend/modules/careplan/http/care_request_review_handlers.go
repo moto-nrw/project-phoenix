@@ -104,5 +104,6 @@ func isInvalidCareRequestDecision(err error) bool {
 	return errors.Is(err, carerequests.ErrRejectReasonRequired) ||
 		errors.Is(err, carerequests.ErrRejectReasonTooLong) ||
 		errors.Is(err, carerequests.ErrInvalidPayload) ||
-		errors.Is(err, carerequests.ErrPickupChangeImpactRequired)
+		errors.Is(err, carerequests.ErrPickupChangeImpactRequired) ||
+		errors.Is(err, carerequests.ErrWeeklyPlanImpactRequired)
 }

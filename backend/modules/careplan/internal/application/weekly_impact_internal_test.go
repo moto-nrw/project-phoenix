@@ -21,6 +21,7 @@ func TestVerifyWeeklyImpact(t *testing.T) {
 	request := weeklyCareRequest()
 	shown, stale := "shown", "stale"
 	require.NoError(t, verifyWeeklyImpact(ctx, request, carerequests.DecideInput{}), "bulk and conflict decisions carry no token")
+	require.ErrorIs(t, verifyWeeklyImpact(ctx, request, carerequests.DecideInput{RequireImpactToken: true}), carerequests.ErrWeeklyPlanImpactRequired)
 	require.NoError(t, verifyWeeklyImpact(ctx, request, carerequests.DecideInput{ExpectedImpactToken: &shown, WeeklyImpact: fixedWeeklyImpact(shown)}))
 	require.ErrorIs(t, verifyWeeklyImpact(ctx, request, carerequests.DecideInput{ExpectedImpactToken: &stale, WeeklyImpact: fixedWeeklyImpact(shown)}), carerequests.ErrWeeklyPlanChanged)
 	require.Error(t, verifyWeeklyImpact(ctx, request, carerequests.DecideInput{ExpectedImpactToken: &shown}), "a token without a check fails instead of approving unpinned")

@@ -16,6 +16,9 @@ var (
 	// longer matches the live plan (#6843): approving would silently
 	// overwrite a change made after the reviewer opened the request.
 	ErrWeeklyPlanChanged = errors.New("schedule: care plan changed since the weekly request was reviewed")
+	// ErrWeeklyPlanImpactRequired refuses a weekly approval through the
+	// decide route that names no reviewed diff.
+	ErrWeeklyPlanImpactRequired = errors.New("schedule: weekly request impact token is required")
 )
 
 type DecideInput struct {

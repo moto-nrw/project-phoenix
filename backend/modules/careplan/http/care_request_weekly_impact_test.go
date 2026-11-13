@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-ogs/project-phoenix/api/testutil"
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-ogs/project-phoenix/tenant"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -40,33 +41,8 @@ func TestWeeklyApprovalRefusesPlanChangedSinceReview(t *testing.T) {
 		json.RawMessage(`{"weekdays":[{"weekday":1,"pickup":"16:00"}]}`))
 	require.NoError(t, err)
 
-	open := func() (token, old string) {
-		req, reqErr := http.NewRequest(http.MethodGet, fmt.Sprintf("/change-requests?view=open&types=care_schedule&student_id=%d", chain.StudentID), nil)
-		require.NoError(t, reqErr)
-		rr := authExec(t, tc, req, claims, []string{"admin:*"})
-		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-		var body struct {
-			Data struct {
-				Items []struct {
-					Data struct {
-						ID          string `json:"id"`
-						ImpactToken string `json:"impact_token"`
-						Diff        []struct {
-							Old string `json:"old"`
-						} `json:"diff"`
-					} `json:"data"`
-				} `json:"items"`
-			} `json:"data"`
-		}
-		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-		for _, item := range body.Data.Items {
-			if item.Data.ID == strconv.FormatInt(pending.ID, 10) {
-				require.Len(t, item.Data.Diff, 1)
-				return item.Data.ImpactToken, item.Data.Diff[0].Old
-			}
-		}
-		t.Fatalf("pending request %d missing from the open queue", pending.ID)
-		return "", ""
+	open := func() (string, string) {
+		return openWeeklyImpact(t, tc, claims, chain.StudentID, pending.ID)
 	}
 	decide := func(token string) (int, string) {
 		req, reqErr := http.NewRequest(http.MethodPost, fmt.Sprintf("/care-schedule-change-requests/%d/decide", pending.ID),
@@ -96,4 +72,36 @@ func TestWeeklyApprovalRefusesPlanChangedSinceReview(t *testing.T) {
 	assert.Equal(t, "17:00", old, "the reloaded diff shows the staff change")
 	code, body = decide(reloaded)
 	require.Equal(t, http.StatusOK, code, body)
+}
+
+// openWeeklyImpact reads the impact token and the first old value the open
+// queue shows for one pending care request.
+func openWeeklyImpact(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, studentID, requestID int64) (token, old string) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("/change-requests?view=open&types=care_schedule&student_id=%d", studentID), nil)
+	require.NoError(t, err)
+	rr := authExec(t, tc, req, claims, []string{"admin:*"})
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var body struct {
+		Data struct {
+			Items []struct {
+				Data struct {
+					ID          string `json:"id"`
+					ImpactToken string `json:"impact_token"`
+					Diff        []struct {
+						Old string `json:"old"`
+					} `json:"diff"`
+				} `json:"data"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	for _, item := range body.Data.Items {
+		if item.Data.ID == strconv.FormatInt(requestID, 10) {
+			require.Len(t, item.Data.Diff, 1)
+			return item.Data.ImpactToken, item.Data.Diff[0].Old
+		}
+	}
+	t.Fatalf("pending request %d missing from the open queue", requestID)
+	return "", ""
 }

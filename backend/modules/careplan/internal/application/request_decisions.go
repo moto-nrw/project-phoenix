@@ -159,11 +159,14 @@ func (s *RequestDecisions) apply(ctx context.Context, request *carerequests.Requ
 
 // verifyWeeklyImpact refuses a weekly approval whose reviewer saw a diff the
 // live plan no longer yields (#6843). It runs after the child lock, so the
-// approval writes onto exactly the plan the token names. A decision without
-// a token (bulk and conflict resolutions, which lock their group, and old
-// clients) is not pinned, like the expected version.
+// approval writes onto exactly the plan the token names. The decide route
+// requires the token like a pickup approval; bulk and conflict resolutions
+// lock and version-check their group instead.
 func verifyWeeklyImpact(ctx context.Context, request *carerequests.Request, input carerequests.DecideInput) error {
 	if input.ExpectedImpactToken == nil {
+		if input.RequireImpactToken {
+			return carerequests.ErrWeeklyPlanImpactRequired
+		}
 		return nil
 	}
 	if input.WeeklyImpact == nil {
