@@ -3,9 +3,9 @@ package compose
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	internalports "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application"
+	internalports "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	identityBindingPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // newAccountAdministration composes the account administration flows
@@ -33,7 +33,7 @@ func newAccountAdministration(
 		Verifier:  sessions.Passwords,
 		Passwords: deps.Passwords,
 		Runtime:   runtime,
-		Logger:    deps.Logger,
+		Logger:    deps.Logger, Notice: sessions.SecurityNotice,
 	})
 }
 

@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	checkinAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/checkin"
+	checkinAPI "github.com/moto-ogs/project-phoenix/modules/devicescan/http/checkin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // An admin transfer holds the target session while its capacity check waits
@@ -77,6 +77,9 @@ type sessionEndScanCase struct {
 	end  func(context.Context, *testing.T, bulkMoveScanFixture) error
 }
 
+// sessionEndScanCases lists the paths that end a session with children in the
+// room. The abandoned-session sweep is none of them: it spares such sessions
+// (#6977); its races are in abandoned_session_resume_test.go.
 func sessionEndScanCases() []sessionEndScanCase {
 	return []sessionEndScanCase{
 		{name: "timetable_start"},
@@ -94,10 +97,6 @@ func sessionEndScanCases() []sessionEndScanCase {
 				return err
 			}
 			_, err := f.active.ProcessSessionTimeout(ctx, id)
-			return err
-		}},
-		{"scheduler_timeout", func(ctx context.Context, _ *testing.T, f bulkMoveScanFixture) error {
-			_, err := f.active.CleanupAbandonedSessions(ctx, time.Minute)
 			return err
 		}},
 		{"nightly_end", func(ctx context.Context, _ *testing.T, f bulkMoveScanFixture) error {
@@ -130,7 +129,7 @@ func TestSessionEndPathsAndScanDoNotDeadlock(t *testing.T) {
 			scanned := make(chan *httptest.ResponseRecorder, 1)
 			scanDone := make(chan error, 1)
 			go func() { scanned <- <-scan; scanDone <- nil }()
-			scanFinished, waitErr := awaitDoneOrWaiting(t, f.k.db, scanDone, endPID)
+			_, waitErr := awaitDoneOrWaiting(t, f.k.db, scanDone, endPID)
 			require.NoError(t, waitErr)
 			holder.commit(t)
 			require.NoError(t, awaitReattach(t, ending))
@@ -140,16 +139,8 @@ func TestSessionEndPathsAndScanDoNotDeadlock(t *testing.T) {
 			require.NoError(t, err)
 			open, err := f.k.presence(t).ListVisits(testpkg.Ctx(t), studentpresence.VisitFilter{ActiveGroupIDs: []int64{f.scanStay}, OpenOnly: true})
 			require.NoError(t, err)
-			if scenario.name == "scheduler_timeout" && scanFinished {
-				// The scan refreshed the session before the sweep locked it,
-				// so the sweep spares it (#6502).
-				require.Nil(t, group.EndTime)
-				require.Len(t, open, 1)
-				require.Equal(t, held, open[0].ID)
-			} else {
-				require.NotNil(t, group.EndTime)
-				require.Empty(t, open)
-			}
+			require.NotNil(t, group.EndTime)
+			require.Empty(t, open)
 			var openAttendance int
 			require.NoError(t, f.k.db.NewRaw("SELECT count(*) FROM active.attendance WHERE tenant_id = ? AND student_id = ? AND check_out_time IS NULL", testpkg.Tenant(t), f.student).Scan(testpkg.Ctx(t), &openAttendance))
 			require.Equal(t, 1, openAttendance, "ending a room session must not end the school attendance")
@@ -219,7 +210,7 @@ func TestScanAndSessionEndPathsDoNotDeadlock(t *testing.T) {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
 			testpkg.OwnTenant(t)
-			f, held := newSessionEndScanFixture(t)
+			f, _ := newSessionEndScanFixture(t)
 			scenario := prepareTimetableScanCase(t, scenario, f)
 			queries := testpkg.CaptureQueries(t, f.k.db)
 			holder := holdRow(t, f.k.db, "SELECT id FROM active.groups WHERE id = ? FOR UPDATE", f.scanStay)
@@ -240,17 +231,8 @@ func TestScanAndSessionEndPathsDoNotDeadlock(t *testing.T) {
 			require.NoError(t, err)
 			open, err := f.k.presence(t).ListVisits(testpkg.Ctx(t), studentpresence.VisitFilter{ActiveGroupIDs: []int64{f.scanStay}, OpenOnly: true})
 			require.NoError(t, err)
-			if scenario.name == "scheduler_timeout" {
-				// The committed scan refreshed the session before the sweep
-				// locked it, so the sweep spares it (#6502). The explicit
-				// device timeout above still ends it.
-				require.Nil(t, group.EndTime)
-				require.Len(t, open, 1)
-				require.Equal(t, held, open[0].ID)
-			} else {
-				require.NotNil(t, group.EndTime)
-				require.Empty(t, open)
-			}
+			require.NotNil(t, group.EndTime)
+			require.Empty(t, open)
 			var openAttendance int
 			require.NoError(t, f.k.db.NewRaw("SELECT count(*) FROM active.attendance WHERE tenant_id = ? AND student_id = ? AND check_out_time IS NULL", testpkg.Tenant(t), f.student).Scan(testpkg.Ctx(t), &openAttendance))
 			require.Equal(t, 1, openAttendance, "ending a room session must not end the school attendance")

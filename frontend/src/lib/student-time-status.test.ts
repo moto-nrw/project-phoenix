@@ -809,7 +809,17 @@ describe("checked-in child despite a status (#6407)", () => {
     },
   );
 
-  it.each(["Zuhause", "Schule", "Im Unterricht", "", null, undefined])(
+  // #5710: zum Unterricht abgemeldet ist kein Fehlen, auch mit Krankmeldung.
+  it("drops the absence for a child staff checked out to class", () => {
+    expect(
+      getStudentAbsence({ sick: true, currentLocation: "Im Unterricht" }),
+    ).toBeNull();
+    expect(
+      getStudentAbsence({ excused: true, currentLocation: "Im Unterricht" }),
+    ).toBeNull();
+  });
+
+  it.each(["Zuhause", "Schule", "", null, undefined])(
     "keeps the absence for a child not checked in (location %s)",
     (location) => {
       expect(

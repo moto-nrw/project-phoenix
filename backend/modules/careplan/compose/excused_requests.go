@@ -5,11 +5,11 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
 )
 
 // Consumer-owned ports of the excused-absence workflow, re-exported so the
@@ -31,10 +31,8 @@ type (
 	ShareVisibility        = ports.ShareVisibility
 )
 
-// ExcusedAbsenceRequests is the composed workflow behind the public
-// careplan.ExcusedAbsenceRequests contract. Every dependency is bound at
-// construction; a root whose effect sinks exist later hands in a port that
-// resolves them lazily.
+// ExcusedAbsenceRequests is the workflow behind careplan.ExcusedAbsenceRequests; every dependency is bound
+// at construction, and a root whose effect sinks exist later hands in a port that resolves them lazily.
 type ExcusedAbsenceRequests = application.ExcusedRequests
 
 // ExcusedRequestDependencies wires the workflow. CarePlan, Students, Scope,

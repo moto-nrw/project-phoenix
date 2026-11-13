@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Träger lifecycle (#4657, spec #4611 user story 11): the moto team

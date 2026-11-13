@@ -3,7 +3,7 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 type PickupChangePresence interface {

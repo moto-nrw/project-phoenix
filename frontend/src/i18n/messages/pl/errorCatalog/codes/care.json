@@ -60,6 +60,7 @@
   "offering_changes_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
   "payer_guardian_protected": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
   "photo_consent_not_withdrawn": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "pickup_change_care_day_ended": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "pickup_change_cutoff_passed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "pickup_change_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
   "pickup_permission_request_required": "Nowa zgoda na odbiór wymaga Państwa podpisu. OGS ją potem potwierdzi.",

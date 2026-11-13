@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // occurrenceShiftID accepts legacy JSON numbers as well as the lossless

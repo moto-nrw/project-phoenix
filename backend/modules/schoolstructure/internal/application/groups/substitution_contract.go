@@ -1,6 +1,6 @@
 package groups
 
-import "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
+import "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
 
 type TargetType = contract.TargetType
 type OperationError = contract.OperationError

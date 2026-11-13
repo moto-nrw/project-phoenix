@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // FindByOrganization names the Träger it reads for, not only the row-level

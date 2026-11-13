@@ -6,9 +6,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // CareContractTestHolidays answers the same statutory holidays for every

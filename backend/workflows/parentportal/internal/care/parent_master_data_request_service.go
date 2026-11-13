@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // MasterDataFieldChange is one proposed Track B change submitted by a parent.

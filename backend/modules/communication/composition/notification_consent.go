@@ -3,9 +3,9 @@ package compose
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/adapters/parentpostgres"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/adapters/postgres"
 	"github.com/uptrace/bun"
 )
 

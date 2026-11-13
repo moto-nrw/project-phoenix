@@ -4,10 +4,10 @@ import (
 	"context"
 	"log/slog"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	boundaryBinding "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	boundaryBinding "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

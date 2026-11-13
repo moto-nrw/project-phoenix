@@ -1,9 +1,9 @@
 package api
 
 import (
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // legacyStaffToMembership projects a legacy staff model onto the capability

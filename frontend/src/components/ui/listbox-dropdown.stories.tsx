@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
+import { expect, screen, userEvent, within } from "storybook/test";
 
 import {
   ListboxDropdown,
@@ -40,9 +41,19 @@ type Story = StoryObj<typeof ControlledListboxDropdown>;
 
 export const Default: Story = {};
 
+/** Offene Liste: `play` klickt den Auslöser (Vorlage für offene Zustände, #6562). */
+export const Opened: Story = {
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Frucht auswählen" }),
+    );
+    await expect(await screen.findByRole("listbox")).toBeVisible();
+  },
+};
+
 export const Compact: Story = {
   args: {
-    size: "compact",
+    size: "dense",
   },
 };
 

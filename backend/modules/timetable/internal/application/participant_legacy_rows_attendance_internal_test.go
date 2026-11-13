@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	scheduleModels "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 // TestSameLegacyAttendanceRestoreComparesValues pins the comparison the

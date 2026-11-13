@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // SessionActivityRecords are the Timetable activity group reads, in the

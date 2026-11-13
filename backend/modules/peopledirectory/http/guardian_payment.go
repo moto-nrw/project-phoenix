@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // Guardian payment endpoints (#2608). The whole section sits behind

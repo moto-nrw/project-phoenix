@@ -3,7 +3,7 @@ package carecontract
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // RetentionFact is one contract past its draft, as the retention of the

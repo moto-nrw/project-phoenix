@@ -4,13 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // recordingRelativeAccess captures what the root forwards to the owner.

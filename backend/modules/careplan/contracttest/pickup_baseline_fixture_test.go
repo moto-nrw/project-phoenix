@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // fixedPickupBaseline projects one recurring offering time for one student.

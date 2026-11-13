@@ -8,14 +8,14 @@ import (
 	strings "strings"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	carerequests "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	excusedrequests "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	masterdatarequests "github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	parentrequests "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	carerequests "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	excusedrequests "github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	masterdatarequests "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
+	parentrequests "github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type resolveConflictBody struct {

@@ -11,7 +11,7 @@ Zwei aufeinanderfolgende kalte Linux-Analysen messen alle 193 Routen
 Wiederholbarkeit dieses Stands, keine Garantie für beliebige Plattformen.
 
 54 Routen liegen aktuell mehr als 5 % unter ihrer Referenz. Der historische
-[CI-Lauf 41283980408](https://github.com/moto-nrw/project-phoenix/actions/runs/41283980408)
+[CI-Lauf 41283980408](https://github.com/moto-ogs/project-phoenix/actions/runs/41283980408)
 auf `02729196ab7f092c4ccfdcab359ab6d6ec8fb9e8` identifiziert die 57 Routen aus
 dem Issue. Seine Werte dienen **nur zur Routenauswahl**, nicht als neue Referenz.
 Drei davon liegen heute knapp weniger als 5 % darunter: `/operator/organizations`,

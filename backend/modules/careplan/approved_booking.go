@@ -1,6 +1,6 @@
 package careplan
 
-import timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 // ApprovedBooking is the student booking read by arrival and pickup projections.
 type ApprovedBooking struct {

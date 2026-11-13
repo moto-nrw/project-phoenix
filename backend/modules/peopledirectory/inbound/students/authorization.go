@@ -4,11 +4,11 @@ import (
 	context "context"
 	http "net/http"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	securityruntime "github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // CallerContext is the slice of the Identity & Access caller context the

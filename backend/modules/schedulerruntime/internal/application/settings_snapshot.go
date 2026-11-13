@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 )
 
 var errSchedulerSettingsBatchUnsupported = errors.New("scheduler settings resolver does not support batch snapshots")

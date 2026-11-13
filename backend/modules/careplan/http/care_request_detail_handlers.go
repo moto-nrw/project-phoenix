@@ -5,9 +5,9 @@ import (
 	http "net/http"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	carerequests "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	carerequests "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 )
 
 // getCareScheduleChangeRequest serves GET

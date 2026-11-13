@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
 )
 
 // SchoolsAlerts returns the hints of every school of the Träger (#4675). The

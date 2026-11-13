@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // The helpers below are the catalog's access to its own rows. They keep the

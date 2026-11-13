@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { Modal, type ModalSize } from "./modal";
-import { FormErrorAlert } from "./form-error-alert";
+import { DialogActions, DialogErrorSlot } from "./dialog-parts";
 import type { FormErrorInput } from "./form-error";
 import type { FormModalPending } from "./use-form-modal-pending";
 
@@ -12,6 +11,10 @@ interface FormModalProps {
   readonly onClose: () => void;
   readonly title: string;
   readonly children: ReactNode;
+  /**
+   * Footer actions. A dismissal action uses `ModalCancelButton`, which
+   * `isDismissDisabled` locks; submit actions stay independent of it.
+   */
   readonly footer?: ReactNode;
   readonly size?: ModalSize;
   // Where to position the modal on mobile viewports
@@ -25,6 +28,11 @@ interface FormModalProps {
    * `ui-kit/form-modal-pending` fails a `FormModal` without it.
    */
   readonly pending?: FormModalPending;
+  /**
+   * Locks every way to close the dialog without a running operation; the
+   * one name for this lock in every kit dialog (#6575). A running `pending` save locks it too.
+   */
+  readonly isDismissDisabled?: boolean;
   /** Keep backdrop taps from discarding in-progress form input (#3370). */
   readonly isBackdropDismissDisabled?: boolean;
   /**
@@ -39,14 +47,16 @@ interface FormModalProps {
    * Field-level problems additionally go to the field (`Input` `error`).
    */
   readonly error?: FormErrorInput;
+  /** Heading level of the title (see `Modal`); 3 by default. */
+  readonly titleLevel?: 2 | 3;
 }
 
 /**
  * FormModal — a form inside the kit `Modal`. The dialog shell (portal, focus
  * trap, scroll lock, backdrop, panel, close X, exit animation, dismissal lock)
  * is `Modal`'s; this adds only the form defaults: a wider dialog, a bottom
- * sheet on phones, the footer row, the `FormErrorAlert` slot and the
- * pending lock of `useFormModalPending`.
+ * sheet on phones, the footer row (`DialogActions`), the error slot
+ * (`DialogErrorSlot`) and the pending lock of `useFormModalPending`.
  */
 export function FormModal({
   isOpen,
@@ -57,55 +67,38 @@ export function FormModal({
   size = "lg",
   mobilePosition = "bottom",
   pending,
+  isDismissDisabled = false,
   isBackdropDismissDisabled = false,
   suspended = false,
   error,
+  titleLevel,
 }: FormModalProps) {
-  const visible = isOpen && !suspended;
   const busy = pending?.pending ?? false;
-
-  // Window events kept from the former standalone shell (pinned by
-  // form-modal.test.tsx); nothing in the app listens to them today.
-  useEffect(() => {
-    globalThis.dispatchEvent(
-      new CustomEvent(visible ? "mobile-modal-open" : "mobile-modal-close"),
-    );
-  }, [visible]);
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={title}
+      titleLevel={titleLevel}
       size={size}
       mobileSheet={mobilePosition === "bottom"}
-      isDismissDisabled={busy}
+      sheetFooter="row"
+      isDismissDisabled={isDismissDisabled || busy}
       busy={busy}
       isBackdropDismissDisabled={isBackdropDismissDisabled}
       suspended={suspended}
       footer={
         footer ? (
-          // Form actions stay one right-aligned row on every width; the
-          // Modal footer around it adds the phone safe-area inset. The
-          // disabled fieldset locks every footer action (Abbrechen too)
-          // while a save runs, without each caller wiring it again. A link
-          // (`ButtonLink`) ignores the fieldset, so a busy footer also
-          // swallows its clicks: leaving would look like a cancel too.
-          <fieldset
-            disabled={busy}
-            onClickCapture={(event) => {
-              if (!busy) return;
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            className="m-0 flex min-w-0 flex-1 flex-wrap justify-end gap-3 border-0 p-0"
-          >
+          // Form actions stay one right-aligned row on every width
+          // (`sheetFooter="row"`); the row locks while a save runs.
+          <DialogActions locked={busy} className="m-0 flex-1 border-0 p-0">
             {footer}
-          </fieldset>
+          </DialogActions>
         ) : undefined
       }
     >
-      <FormErrorAlert message={error} className="mb-4" />
+      <DialogErrorSlot error={error} />
       {children}
     </Modal>
   );

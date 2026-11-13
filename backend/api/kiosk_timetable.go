@@ -5,12 +5,12 @@ import (
 	"log/slog"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	devicescanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // NewKioskSessionMirror binds existing Timetable wiring, without a root graph field.

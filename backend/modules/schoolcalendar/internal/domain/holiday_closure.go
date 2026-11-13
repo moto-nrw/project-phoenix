@@ -1,7 +1,7 @@
 package domain
 
 import (
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // HolidayClosureSourceSchoolClosingDay names a school closing day as the
@@ -24,7 +24,8 @@ func RangeOf(start, end string) *HolidayClosureRange {
 
 // HolidayClosureChange is one change of a school closing day: its range
 // before (nil for a new one) and after (nil for a deletion), under the
-// school's revision the change raised.
+// school's revision the change raised. Today is the first day a new
+// proposal may still tell.
 type HolidayClosureChange struct {
 	SourceKind string
 	SourceID   int64
@@ -32,6 +33,7 @@ type HolidayClosureChange struct {
 	Previous   *HolidayClosureRange
 	Current    *HolidayClosureRange
 	Revision   int64
+	Today      calendar.Date
 }
 
 // Span covers every day the change touches.
@@ -49,10 +51,4 @@ func (c HolidayClosureChange) Span() (calendar.Date, calendar.Date) {
 		}
 	}
 	return from, to
-}
-
-// Touches reports whether the change reaches day or later.
-func (c HolidayClosureChange) Touches(day calendar.Date) bool {
-	_, to := c.Span()
-	return !to.IsZero() && !to.Before(day)
 }

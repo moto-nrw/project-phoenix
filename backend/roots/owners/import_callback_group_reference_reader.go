@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
 )
 
 func NewGroupReferenceReader(groups schoolstructure.GroupListing) func(ctx context.Context) ([]dataimport.Reference, error) {

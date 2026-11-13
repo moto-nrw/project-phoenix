@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 var (
@@ -36,6 +36,10 @@ var defaultShiftTypes = []defaultShiftType{
 	{name: "Sonstiges", color: "#D946EF"},
 }
 
+// ErrShiftTypeArchived signals an attempt to assign an archived shift type to
+// a new shift or series (#6845).
+var ErrShiftTypeArchived = errors.New("shift type is archived")
+
 // ShiftTypeService manages tenant-defined shift types (Schichtarten, #1836).
 type ShiftTypeService interface {
 	// ListShiftTypes returns all shift types for the current tenant (active and
@@ -47,9 +51,10 @@ type ShiftTypeService interface {
 	CreateShiftType(ctx context.Context, shiftType *workforce.ShiftTypeRecord) (*workforce.ShiftTypeRecord, error)
 	// UpdateShiftType validates and persists changes to an existing shift type.
 	UpdateShiftType(ctx context.Context, shiftType *workforce.ShiftTypeRecord) (*workforce.ShiftTypeRecord, error)
-	// DeleteShiftType removes a shift type. Shifts referencing it keep the shift
-	// but lose the type (ON DELETE SET NULL).
-	DeleteShiftType(ctx context.Context, id int64) error
+	// DeleteShiftType removes a shift type that no planned shift or series
+	// carries. A referenced type is archived instead: it keeps labelling those
+	// shifts and series but leaves the choice (#6845).
+	DeleteShiftType(ctx context.Context, id int64) (workforce.ShiftTypeRemoval, error)
 	// CreateDefaultShiftTypes seeds example shift types for the current tenant,
 	// skipping any whose name already exists (idempotent). Returns the full
 	// list afterwards.
@@ -108,7 +113,8 @@ func (s *shiftTypeService) nameTaken(ctx context.Context, name string, excludeID
 	}
 	target := strings.ToLower(strings.TrimSpace(name))
 	for _, t := range existing {
-		if t.ID == excludeID {
+		// An archived type left the choice; its name is free again (#6845).
+		if t.ID == excludeID || t.ArchivedAt != nil {
 			continue
 		}
 		if strings.ToLower(strings.TrimSpace(t.Name)) == target {
@@ -167,7 +173,8 @@ func (s *shiftTypeService) UpdateShiftType(ctx context.Context, shiftType *workf
 		}
 		return nil, fmt.Errorf("find shift type: %w", err)
 	}
-	if existing == nil {
+	// An archived type only labels planned rows; it is not edited (#6845).
+	if existing == nil || existing.ArchivedAt != nil {
 		return nil, ErrShiftTypeNotFound
 	}
 	if err := shiftType.Validate(); err != nil {
@@ -199,27 +206,34 @@ func (s *shiftTypeService) UpdateShiftType(ctx context.Context, shiftType *workf
 	return shiftType, nil
 }
 
-func (s *shiftTypeService) DeleteShiftType(ctx context.Context, id int64) error {
+func (s *shiftTypeService) DeleteShiftType(ctx context.Context, id int64) (workforce.ShiftTypeRemoval, error) {
 	if id <= 0 {
-		return ErrShiftTypeNotFound
+		return "", ErrShiftTypeNotFound
 	}
 	existingValue, err := s.repo.FindShiftType(ctx, id)
 	err = shiftReadError("find by id", err, workforce.ErrShiftTypeNotFound)
 	existing := shiftTypeToRow(existingValue)
 	if err != nil {
 		if isRecordNotFound(err) {
-			return ErrShiftTypeNotFound
+			return "", ErrShiftTypeNotFound
 		}
-		return fmt.Errorf("find shift type: %w", err)
+		return "", fmt.Errorf("find shift type: %w", err)
 	}
 	if existing == nil {
-		return ErrShiftTypeNotFound
+		return "", ErrShiftTypeNotFound
 	}
-	if err := shiftWriteError("delete shift type", s.repo.DeleteShiftType(ctx, id)); err != nil {
-		return err
+	removal, err := s.repo.RemoveShiftType(ctx, id)
+	if errors.Is(err, workforce.ErrShiftTypeNotFound) {
+		return "", ErrShiftTypeNotFound
 	}
-	s.getLogger().Info("shift type deleted", "shift_type_id", id)
-	return nil
+	if err != nil {
+		return "", shiftWriteError("remove shift type", err)
+	}
+	s.getLogger().Info("shift type removed",
+		"shift_type_id", id,
+		"outcome", string(removal),
+	)
+	return removal, nil
 }
 
 func (s *shiftTypeService) CreateDefaultShiftTypes(ctx context.Context) ([]*workforce.ShiftTypeRecord, error) {
@@ -231,6 +245,11 @@ func (s *shiftTypeService) CreateDefaultShiftTypes(ctx context.Context) ([]*work
 	}
 	present := make(map[string]struct{}, len(existing))
 	for _, t := range existing {
+		// An archived example was removed on purpose but its name is free:
+		// the examples bring it back as a new type, as after a deletion.
+		if t.ArchivedAt != nil {
+			continue
+		}
 		present[strings.ToLower(strings.TrimSpace(t.Name))] = struct{}{}
 	}
 

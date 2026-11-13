@@ -19,6 +19,8 @@ import { formatMonth } from "./care-billing-format";
 import { mealPositionLabel } from "./care-meal-format";
 import { formatEuro } from "./contribution-format";
 import { InvoiceLine } from "./invoice-line";
+import { mealPlanConcept } from "~/lib/concepts/mealPlan";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 /** A Mensa month on an invoice: „2 Mittagessen im Januar 2026 à 4,80 €“. */
 export function MealPositionLine({
@@ -168,12 +170,17 @@ export function CareRunMealsCard({
   }
   return (
     <SectionCard
+      leading={<ConceptIconTile concept={mealPlanConcept} />}
       title="Mensa"
       titleBadge={
         <span className="text-moto-orange-strong text-sm font-medium">
           {[
+            // Across schools the months add up school-months, no span of
+            // time: the badge names the schools instead.
             open.length > 0
-              ? `${open.length} ${open.length === 1 ? "Monat" : "Monate"} ohne Freigabe`
+              ? bySchool.size > 1
+                ? `${open.length} ${open.length === 1 ? "Monat" : "Monate"} ohne Freigabe an ${bySchool.size} Schulen`
+                : `${open.length} ${open.length === 1 ? "Monat" : "Monate"} ohne Freigabe`
               : null,
             expired.length > 0
               ? `${expired.length} nicht mehr abrechenbar`

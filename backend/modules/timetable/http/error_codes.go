@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // codedFieldError is a request validation failure that names its registered

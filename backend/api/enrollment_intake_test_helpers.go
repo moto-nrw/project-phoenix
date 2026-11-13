@@ -3,10 +3,10 @@
 package api
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // Test bindings of Enrollment's intake and change requests (#3565): the

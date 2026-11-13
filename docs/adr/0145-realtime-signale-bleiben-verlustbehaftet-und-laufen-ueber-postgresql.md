@@ -4,7 +4,7 @@ status: accepted
 
 # Echtzeit-Signale bleiben verlustbehaftet und laufen über PostgreSQL
 
-Für [#5457](https://github.com/moto-nrw/project-phoenix/issues/5457) erweitert
+Für [#5457](https://github.com/moto-ogs/project-phoenix/issues/5457) erweitert
 Delivery Platform den vorhandenen LISTEN/NOTIFY-Mechanismus der
 Mail-Outbox-Wakeups um einen eigenen Kanal für Echtzeit-Signale. Die Vorgaben
 des Issues bleiben maßgeblich: keine neue Infrastruktur, Signale nach dem
@@ -27,8 +27,8 @@ Zielschule noch die Adressierung verändern. Der bestehende Poll-Abgleich
 Mail und Push bleiben unabhängig davon dauerhafte Zustellaufträge.
 
 Die unadressierten Legacy-API-Aufrufe `BroadcastToAll` wurden mit
-[#5541](https://github.com/moto-nrw/project-phoenix/pull/5541) für
-[#5492](https://github.com/moto-nrw/project-phoenix/issues/5492) entfernt.
+[#5541](https://github.com/moto-ogs/project-phoenix/pull/5541) für
+[#5492](https://github.com/moto-ogs/project-phoenix/issues/5492) entfernt.
 Ankunftsplan-Signale werden nach dem Commit über `BroadcastToTenant` an die
 Schule des schreibenden Kontexts zugestellt und über den Schulkanal verteilt.
 Ohne gültige Schule wird kein Signal gesendet.

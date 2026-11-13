@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	parentHTTP "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	parentHTTP "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // The parents login page branches on these codes, so each refusal of the

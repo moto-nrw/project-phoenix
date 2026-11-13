@@ -5,7 +5,7 @@ status: accepted
 # Nachrichten tragen Fotos und Dateien
 
 Vorschlag vom 11.11.2026 zu
-[#6685](https://github.com/moto-nrw/project-phoenix/issues/6685). Die
+[#6685](https://github.com/moto-ogs/project-phoenix/issues/6685). Die
 Freigabe erteilt Yannick Wenger mit dem Merge des Pull Requests, der diese
 ADR einführt; vorher gilt sie nicht. Sie führt keinen neuen Owner ein.
 

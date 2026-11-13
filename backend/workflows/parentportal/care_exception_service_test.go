@@ -12,14 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 )
 
 // errBoom is the injected repository failure used by the error-propagation
@@ -140,6 +140,15 @@ func buildCareServiceWithPickupRepo(t *testing.T, wrap func(owners.ParentCareExc
 
 func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
+	return buildCareServiceWithSettings(t, parentSettingsStub{
+		boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: pickupChangeEnabled},
+	})
+}
+
+// buildCareServiceWithSettings is buildCareService with the school's settings
+// given by the test (#5710 sets the care day end).
+func buildCareServiceWithSettings(t *testing.T, settings parentSettingsStub) (careTestService, *testpkg.RecordingBroadcaster, *bun.DB) {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
@@ -163,11 +172,9 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         owners.NewParentStudentReads(reposPeople.Student),
 		CareExceptions:      owners.NewParentCareExceptions(repos.CarePlan()),
-		Settings: parentSettingsStub{
-			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: pickupChangeEnabled},
-		},
-		StudentUpdates: owners.BindParentStudentUpdates(bc),
-		Logger:         slog.Default(),
+		Settings:            settings,
+		StudentUpdates:      owners.BindParentStudentUpdates(bc),
+		Logger:              slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
@@ -280,6 +287,49 @@ func TestSubmitCareException_TodayAfterCheckout(t *testing.T) {
 
 	err = svc.DeleteCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, careFixtureToday())
 	assert.ErrorIs(t, err, parentService.ErrCareExceptionAlreadyLeft)
+}
+
+// #5710: from the school's care day end, today's pickup is closed for
+// guardians, also for a child who never came back from class. The end minute
+// is closed; tomorrow stays open.
+func TestSubmitCareException_TodayAfterCareDayEnd(t *testing.T) {
+	t.Parallel()
+
+	careDayEnd := "14:01" // the service's clock reads 14:00 in Berlin
+	svc, _, db := buildCareServiceWithSettings(t, parentSettingsStub{
+		boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: true},
+		stringInTxFn: func(key string) (string, error) {
+			switch key {
+			case parentService.KeyParentPickupChangeEnabled:
+				return "true", nil
+			case parentService.KeySessionEndTime:
+				return careDayEnd, nil
+			}
+			return "", nil
+		},
+	})
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	staff := testpkg.CreateTestStaff(t, db, "Care", "Class")
+	device := testpkg.CreateTestDevice(t, db, "parent-care-class")
+	now := careFixtureNow()
+	toClass := now.Add(-3 * time.Hour)
+	stay := testpkg.CreateTestAttendanceForDate(t, db, chain.StudentID, staff.ID, device.ID, careFixtureToday(), now.Add(-5*time.Hour), &toClass)
+	_, err := db.NewUpdate().Table("active.attendance").Set("check_out_reason = 'class'").
+		Where("id = ?", stay.ID).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	_, err = svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, careFixtureToday(), wallClock(16, 0), nil)
+	require.NoError(t, err, "before the care day end today stays open for a child in class")
+
+	careDayEnd = "14:00"
+	_, err = svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, careFixtureToday(), wallClock(17, 0), nil)
+	assert.ErrorIs(t, err, parentService.ErrPickupChangeCareDayEnded)
+	err = svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, careFixtureToday())
+	assert.ErrorIs(t, err, parentService.ErrPickupChangeCareDayEnded)
+
+	_, err = svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, careFixtureToday().AddDays(1), wallClock(15, 0), nil)
+	require.NoError(t, err, "a later day stays open")
 }
 
 func TestSubmitCareException_TooFarDate(t *testing.T) {

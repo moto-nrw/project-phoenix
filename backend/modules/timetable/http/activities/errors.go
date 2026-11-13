@@ -2,8 +2,8 @@ package httpadapter
 
 import (
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 )
 
 func onlySupervisorConflict(err error) render.Renderer {

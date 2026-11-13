@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // A later pickup decision (#3261) writes to two owners since the presence

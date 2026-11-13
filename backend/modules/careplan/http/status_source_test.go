@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -107,12 +107,14 @@ func TestUpdateStudent_WithdrawsAnArchivedStatus(t *testing.T) {
 				map[string]any{status: false}), claims, perms)
 			require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 			var row struct {
-				Source    string    `bun:"source"`
-				ClearedAt time.Time `bun:"cleared_at"`
+				Source        string    `bun:"source"`
+				ClearedSource string    `bun:"cleared_source"`
+				ClearedAt     time.Time `bun:"cleared_at"`
 			}
-			require.NoError(t, tc.db.NewRaw(`SELECT source, cleared_at FROM active.student_status_days
+			require.NoError(t, tc.db.NewRaw(`SELECT source, cleared_source, cleared_at FROM active.student_status_days
 				WHERE student_id = ? AND date = ? AND status = ?`, student.ID, date, status).Scan(testpkg.Ctx(t), &row))
-			assert.Equal(t, "manual", row.Source)
+			assert.Equal(t, "end_of_day", row.Source, "the withdrawal keeps the archive's source (#6842)")
+			assert.Equal(t, "manual", row.ClearedSource)
 			assert.True(t, clearedAt.Equal(row.ClearedAt), "a repeated withdrawal keeps the first clear time")
 		})
 	}

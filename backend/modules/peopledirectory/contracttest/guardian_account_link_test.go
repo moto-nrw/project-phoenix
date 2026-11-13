@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

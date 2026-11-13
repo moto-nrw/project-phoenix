@@ -3,14 +3,14 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	schoolMembershipCompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	schoolStructureCompose "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // traegerOccupancyPorts binds the owners' reads behind the Träger's occupancy

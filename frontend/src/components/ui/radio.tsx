@@ -23,7 +23,7 @@ export function Radio({ className, ...props }: RadioProps) {
           "pointer-events-none flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white shadow-sm transition-all",
           "peer-checked:border-gray-900 peer-checked:bg-gray-900",
           "peer-checked:[&>span]:opacity-100",
-          "peer-focus-visible:ring-2 peer-focus-visible:ring-gray-300 peer-focus-visible:outline-none",
+          "peer-focus-visible:ring-2 peer-focus-visible:ring-gray-600 peer-focus-visible:outline-none",
           "peer-disabled:opacity-50",
           className,
         )}

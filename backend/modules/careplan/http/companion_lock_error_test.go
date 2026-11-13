@@ -1,14 +1,14 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"errors"
 	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 )
 
 // A claimed intent of a cancelled module is cancelled before anything is

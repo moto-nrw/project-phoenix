@@ -9,7 +9,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Runtime runs the Worker's units of work in the composed tenant runtime.

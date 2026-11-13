@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The cost bearer shares of the monthly care contribution (#4687, spec

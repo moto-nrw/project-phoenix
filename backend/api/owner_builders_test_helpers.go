@@ -3,9 +3,9 @@
 package api
 
 import (
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 var (

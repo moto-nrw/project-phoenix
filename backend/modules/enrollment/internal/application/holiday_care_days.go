@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Days without holiday care (#4702): a statutory holiday of the host school's

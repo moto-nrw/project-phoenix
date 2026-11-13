@@ -7,12 +7,12 @@ import (
 	slices "slices"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 const maxStudentStatusDayRangeDays = 31
@@ -143,7 +143,8 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []string) studentpresence.StatusDayWriteContext {
 	tenantID := tenant.FromContext(r.Context())
 	return studentpresence.StatusDayWriteContext{
-		TenantID: tenantID,
+		TenantID:       tenantID,
+		ActorAccountID: sessiontoken.ActorAccountIDFromCtx(r.Context()),
 		StudentService: newStatusDayStudents(rs.PeopleDirectory, func(ctx context.Context, student *peopleModule.StudentState, status string) bool {
 			ok, _ := rs.canManageStudentStatus(ctx, userPermissions, student, status)
 			return ok

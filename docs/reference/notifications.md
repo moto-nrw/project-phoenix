@@ -64,7 +64,7 @@ notification ports; the root translates those values to Delivery's contract
 (ADR 0067), rather than importing its private package.
 
 ```go
-import "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
+import "github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications"
 
 err := notifier.Notify(ctx, notifications.Event{
     Type:     "pickup_upcoming",              // stable, feature-defined type

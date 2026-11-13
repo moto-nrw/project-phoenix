@@ -3,7 +3,7 @@ package traegerview
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The hint on a known child in the review of the holiday registrations

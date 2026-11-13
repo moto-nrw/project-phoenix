@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
-	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
+	studentdeletioncompose "github.com/moto-ogs/project-phoenix/workflows/studentdeletion/compose"
 )
 
 // BuildStudentDeletion binds the permanent child deletion (#2710), which

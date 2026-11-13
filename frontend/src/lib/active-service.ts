@@ -56,6 +56,8 @@ export interface StudentMoveResult {
   skipped: StudentMoveSkipped[];
   active_group_id?: number | null;
   room_id?: number | null;
+  /** Children a check-in into the target opened today's attendance for (#6953). */
+  checked_in?: number[];
 }
 
 export interface StudentMoveSummary {
@@ -479,6 +481,51 @@ export const activeService = {
     }
     const payload = (await response.json()) as ApiResponse<StudentMoveResult>;
     return payload.data;
+  },
+
+  /**
+   * Checks the children in to the school and places them in a running
+   * session in one step (#6953). Children already present move under the
+   * ordinary move rules.
+   */
+  checkInStudentsToActiveGroup: async (
+    studentIds: string[],
+    activeGroupId: string,
+    keepPresent: boolean,
+  ): Promise<StudentMoveResult> => {
+    return coreFetch<StudentMoveResult>(
+      "POST",
+      "/api/active/visits/check-in-to-group",
+      "/active/visits/check-in-to-group",
+      "Check students in to active group",
+      {
+        student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
+        target_active_group_id: Number.parseInt(activeGroupId, 10),
+        keep_present: keepPresent,
+      },
+    );
+  },
+
+  /**
+   * Checks the children in to the school and records a stay in a released
+   * room in one step (#6953). Rejects like moveStudentsToOpenRoom.
+   */
+  checkInStudentsToOpenRoom: async (
+    studentIds: string[],
+    roomId: string,
+    keepPresent: boolean,
+  ): Promise<StudentMoveResult> => {
+    return coreFetch<StudentMoveResult>(
+      "POST",
+      "/api/active/visits/check-in-to-room",
+      "/active/visits/check-in-to-room",
+      "Check students in to open room",
+      {
+        student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
+        target_room_id: Number.parseInt(roomId, 10),
+        keep_present: keepPresent,
+      },
+    );
   },
 
   // Schulhof (Schoolyard) - Permanent Tab Functions

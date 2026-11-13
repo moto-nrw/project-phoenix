@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 )
 
 // The moto team records and withdraws the erasure order of a deactivated

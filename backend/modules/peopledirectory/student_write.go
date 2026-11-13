@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // The two bounds of the enrolment interval a lifecycle tick compares against.

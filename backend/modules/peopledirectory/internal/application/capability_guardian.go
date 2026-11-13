@@ -3,8 +3,8 @@ package application
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/ports"
 )
 
 func (s *Service) observed(operation string, fn func() error) error {

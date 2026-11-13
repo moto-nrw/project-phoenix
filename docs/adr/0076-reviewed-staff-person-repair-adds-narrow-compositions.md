@@ -4,7 +4,7 @@ status: accepted
 
 # Reviewed staff person repair adds narrow owner compositions
 
-Decision for [#3397](https://github.com/moto-nrw/project-phoenix/issues/3397),
+Decision for [#3397](https://github.com/moto-ogs/project-phoenix/issues/3397),
 following ADR 0021 and the workflow boundary of ADR 0067. A reviewed repair
 retains the account-bearing person and both employments. It must change People
 Directory and School Membership together and append its operator audit in the

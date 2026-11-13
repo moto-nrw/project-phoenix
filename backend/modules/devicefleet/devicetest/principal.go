@@ -6,7 +6,7 @@ package devicetest
 import (
 	"context"
 
-	device "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/deviceauth"
+	device "github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/adapters/deviceauth"
 )
 
 // Principal is the device principal handlers read from the request context.

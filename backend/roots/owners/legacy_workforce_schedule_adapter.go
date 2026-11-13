@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // WorkTimeModelRepository serves configModels.WorkTimeModelRepository from the
@@ -170,11 +170,8 @@ func modelsToLegacy(models []workforce.WorkTimeModel) []*configModels.WorkTimeMo
 
 func modelToLegacy(model workforce.WorkTimeModel) *configModels.WorkTimeModel {
 	legacy := &configModels.WorkTimeModel{
-		ID:                 model.ID,
-		TenantID:           model.TenantID,
-		Name:               model.Name,
-		RotationLength:     model.RotationLength,
-		RotationAnchorDate: configModels.CalendarDate(model.RotationAnchorDate),
+		ID: model.ID, TenantID: model.TenantID, Name: model.Name, RotationLength: model.RotationLength,
+		RotationAnchorDate: configModels.CalendarDate(model.RotationAnchorDate), ArchivedAt: model.ArchivedAt,
 	}
 	if model.Entries == nil {
 		return legacy

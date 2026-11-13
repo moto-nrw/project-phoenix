@@ -31,12 +31,36 @@
   "responseRequired": "Kërkohet përgjigje",
   "errorObjectList": "lista e takimeve",
   "errorObjectResponse": "përgjigjja",
+  "responseRequiredSeries": "Përgjigje për të gjitha datat e serisë",
+  "answerScope": {
+    "legend": "Përgjigjja juaj vlen për",
+    "occurrence": "Vetëm më {date}",
+    "series": "Të gjitha datat",
+    "occurrenceHintOthers": "Datat e tjera të serisë e mbajnë përgjigjen e tyre.",
+    "occurrenceHintOpen": "Datat e tjera të serisë mbeten pa përgjigje.",
+    "occurrenceHintKeeps": "Për datat e tjera vlen ende: {answer}.",
+    "seriesHint": "Përgjigjja juaj vlen për të gjitha datat e kësaj serie.",
+    "seriesHintReplaces": "Atëherë përgjigjja vlen për të gjitha datat, edhe për ato me përgjigje më vete."
+  },
+  "onlyThisDate": "Vetëm për këtë datë",
+  "changeAnswer": "Ndrysho përgjigjen",
+  "acceptedOn": "U pranua për {date}.",
+  "declinedOn": "U refuzua për {date}.",
+  "errorObjectOverview": "përgjigjet",
+  "responses": {
+    "title": "Përgjigjet",
+    "accepted": "Pranuan",
+    "declined": "Refuzuan",
+    "pending": "Pa përgjigje",
+    "privacy": "Emrat e prindërve të tjerë nuk i shihni."
+  },
   "openEventTooltip": "Shfaq ose fsheh hollësitë e këtij takimi.",
-  "acceptTooltip": "Pranon menjëherë. Më pas përgjigjen nuk e ndryshoni dot këtu.",
-  "declineTooltip": "Refuzon menjëherë. Më pas përgjigjen nuk e ndryshoni dot këtu.",
+  "acceptTooltip": "Pranon menjëherë. Përgjigjen mund ta ndryshoni edhe më vonë.",
+  "declineTooltip": "Refuzon menjëherë. Përgjigjen mund ta ndryshoni edhe më vonë.",
   "previousMonthTooltip": "Shfaq takimet e muajit të kaluar.",
   "nextMonthTooltip": "Shfaq takimet e muajit të ardhshëm.",
   "previousMonthBlocked": "Kalendari nuk shfaq muajt e kaluar.",
   "nextMonthBlocked": "Kalendari ende nuk shfaq muajt e mëvonshëm.",
-  "closeTooltip": "Mbyll hollësitë dhe shfaq përsëri kalendarin."
+  "closeTooltip": "Mbyll hollësitë dhe shfaq përsëri kalendarin.",
+  "changeAnswerTooltip": "Shfaq përsëri „Pranoni” dhe „Refuzoni”. Përgjigjja mbetet derisa të zgjidhni sërish."
 }

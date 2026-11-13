@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // settingExportColumns names the value columns of each setting table the

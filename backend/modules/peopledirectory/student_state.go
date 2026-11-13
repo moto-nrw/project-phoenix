@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentState is a child as the student routes carry it: People Directory's owned

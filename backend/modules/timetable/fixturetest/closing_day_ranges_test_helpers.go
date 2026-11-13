@@ -6,9 +6,9 @@ import (
 	"context"
 	"fmt"
 
-	records "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	records "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type closingDayRangeSource interface {

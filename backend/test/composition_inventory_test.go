@@ -14,7 +14,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
 )
 
 const compositionEvidenceCommit = "8dc3a9ca8ac7cb8edbfa3c17760d92c02751bc3e"
@@ -332,11 +332,11 @@ func receiverName(expression ast.Expr) string {
 }
 
 var compositionConstructors = map[string]map[string]string{
-	"github.com/moto-nrw/project-phoenix/api":                                           {"New": "api.New", "NewServer": "api.NewServer", "WithRuntime": "api.WithRuntime"},
-	"github.com/moto-nrw/project-phoenix/api/testutil":                                  {"SetupAPITest": "api/testutil.SetupAPITest"},
-	"github.com/moto-nrw/project-phoenix/database/repositories":                         {"NewFactory": "database/repositories.NewFactory"},
-	"github.com/moto-nrw/project-phoenix/services":                                      {"NewFactory": "services.NewFactory"},
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/application": {"NewScheduler": "services/scheduler.NewScheduler", "NewWorker": "services/scheduler.NewWorker"},
+	"github.com/moto-ogs/project-phoenix/api":                                           {"New": "api.New", "NewServer": "api.NewServer", "WithRuntime": "api.WithRuntime"},
+	"github.com/moto-ogs/project-phoenix/api/testutil":                                  {"SetupAPITest": "api/testutil.SetupAPITest"},
+	"github.com/moto-ogs/project-phoenix/database/repositories":                         {"NewFactory": "database/repositories.NewFactory"},
+	"github.com/moto-ogs/project-phoenix/services":                                      {"NewFactory": "services.NewFactory"},
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/internal/application": {"NewScheduler": "services/scheduler.NewScheduler", "NewWorker": "services/scheduler.NewWorker"},
 }
 
 type callerAggregate struct {
@@ -415,7 +415,7 @@ func compositionPackagePath(relative, packageName string) string {
 	if packageName != filepath.Base(directory) {
 		return ""
 	}
-	return "github.com/moto-nrw/project-phoenix/" + directory
+	return "github.com/moto-ogs/project-phoenix/" + directory
 }
 
 func compositionImportAliases(file *ast.File) map[string]string {

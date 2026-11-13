@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // route mounts h under a one-param chi route and fires a request at it, so

@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // NewTimetableLifecycle composes the instance lifecycle over deps and the

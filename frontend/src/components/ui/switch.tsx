@@ -45,9 +45,13 @@ export function Switch({
       onClick={() => onCheckedChange(!checked)}
       className={cn(
         "relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out",
-        "focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none",
+        // By finger the hit area reaches 44 px around the 28-px track.
+        "pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']",
+        "focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:ring-offset-2 focus-visible:outline-none",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-gray-900" : "bg-gray-200",
+        // Off, the light track carries a gray-500 edge: without it the
+        // switch stands at 1.2:1 against a white card (WCAG 1.4.11).
+        checked ? "bg-gray-900" : "border-gray-500 bg-gray-200",
         className,
       )}
       {...rest}
@@ -116,7 +120,7 @@ export function SwitchRow({
           {label}
         </FieldLabel>
         {description ? (
-          <p id={descriptionId} className="mt-0.5 text-xs text-gray-500">
+          <p id={descriptionId} className="mt-0.5 text-sm text-gray-500">
             {description}
           </p>
         ) : null}

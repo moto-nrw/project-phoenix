@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
-	"github.com/moto-nrw/project-phoenix/modules/schoolclosingdaysview"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/traegercalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolclosingdaysview"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // TraegerCalendarOrganizations lists the schools of a Träger.

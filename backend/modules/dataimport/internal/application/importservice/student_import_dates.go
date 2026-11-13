@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // createStudentFromRow creates a student from person and row

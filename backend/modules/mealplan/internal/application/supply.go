@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/domain"
 )
 
 // ErrOrderNotFound: the school has no such order.

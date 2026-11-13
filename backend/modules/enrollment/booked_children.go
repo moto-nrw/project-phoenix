@@ -3,7 +3,7 @@ package enrollment
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // BookedChildren answers the Träger's occupancy of a school (#4676): the child

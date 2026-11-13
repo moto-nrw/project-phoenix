@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/passthrough"
+	"github.com/moto-ogs/project-phoenix/internal/passthrough"
 )
 
 // TestModulePassthroughRatchet enforces .claude/rules/backend-conventions.md
@@ -268,7 +268,11 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // workflow of modules/parentbilling (+1).
 // Lowered by ADR 0196: the holiday closure notices leave School Calendar two
 // pass-throughs fewer (-2).
-const modulePassthroughOwnerBudgetTotal = 1404
+// Lowered by #6840: People Directory's DeletePerson checks for a live child or
+// staff profile before the soft delete (-1).
+// Lowered by #6847: approving and withdrawing an absence return their plan
+// cascade instead of forwarding the write (-2).
+const modulePassthroughOwnerBudgetTotal = 1399
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -291,7 +295,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Raised by ADR 0079: the facade observes the reachable-children read.
 	"modules/communication": 55,
 	"modules/dataimport":    1,
-	"modules/delivery":      5,
+	"modules/delivery":      4,
 	"modules/devicefleet":   33,
 	"modules/devicescan":    35,
 	// Raised by ADR 0105: the holiday period reads of the Träger-Portal; by
@@ -303,7 +307,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/feedback":       2,
 	"modules/filestorage":    6,
 	// Raised by ADR 0077: the caterer flows.
-	"modules/identityaccess": 208,
+	"modules/identityaccess": 207,
 	"modules/mealplan":       1,
 	// Raised by ADR 0112: the Träger logo read of the Träger-Portal.
 	// Raised by ADR 0172: the document contact read without an account (+1).
@@ -320,7 +324,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Raised by ADR 0209: the billing lock B of the holiday allocation
 	// workflow, which validates the Träger and maps the lock error (+1).
 	"modules/parentbilling":    12,
-	"modules/peopledirectory":  205,
+	"modules/peopledirectory":  204, // #6840: DeletePerson checks live profiles (-1)
 	"modules/requestreview":    15,
 	"modules/schedulerruntime": 4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.
@@ -337,7 +341,9 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/studentpresence": 123,
 	"modules/timetable":       203,
 	// Raised by ADR 0141: the payroll dispatch overview (+1).
-	"modules/workforce":      139,
+	// Lowered by #6847: approving and withdrawing an absence return their
+	// plan cascade instead of forwarding the write (-2).
+	"modules/workforce":      137,
 	"workflows/openroommove": 1,
 	// Raised by ADR 0078: the week change of the meal plan adapter.
 	"workflows/parentportal": 18,

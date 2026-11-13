@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/testdb"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/internal/testdb"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/viper"
 	"github.com/subosito/gotenv"
 	"github.com/uptrace/bun"
@@ -33,8 +33,12 @@ var (
 	packageClone *testdb.CloneHandle
 
 	// packageCloneCfg is the resolved lifecycle config the clone was created
-	// from; dropPackageClone needs its maintenance DSN.
+	// from; isolated clones copy its template.
 	packageCloneCfg *testdb.Config
+
+	// packageMaintenance is the binary's lasting maintenance session. Every
+	// clone the binary creates or drops goes through it (#6962).
+	packageMaintenance *testdb.Maintenance
 
 	// sharedTestDB is the one connection pool per test binary (#2419 PR 2).
 	// Every SetupTestDB call returns this handle; tests never close it — the
@@ -55,8 +59,9 @@ func init() {
 }
 
 // initPackageTestDB is the process-once part of SetupTestDB: environment,
-// lifecycle (server/template/clone), viper config, and the one-time clone
-// bootstrap. Everything after it is per-test and parallel-safe.
+// lifecycle (server/template/clone) and viper config. The template already
+// carries the bootstrap rows (testdb.prepareTemplate). Everything after it is
+// per-test and parallel-safe.
 func initPackageTestDB() error {
 	cfg, err := packageTestConfig()
 	if err != nil {
@@ -71,7 +76,12 @@ func initPackageTestDB() error {
 	if err != nil {
 		return err
 	}
-	clone, err := testdb.CreateClone(ctx, templateCfg, testdb.RunID())
+	// The generation GC runs once per binary, here; isolated clones skip it.
+	packageMaintenance = testdb.OpenMaintenance(templateCfg)
+	if err := packageMaintenance.CollectDeadRuns(ctx, templateCfg, testdb.RunID()); err != nil {
+		return err
+	}
+	clone, err := packageMaintenance.CreateClone(ctx, templateCfg, testdb.RunID())
 	if err != nil {
 		return err
 	}
@@ -82,15 +92,17 @@ func initPackageTestDB() error {
 		return fmt.Errorf("configure package test database: %w", err)
 	}
 	applyViperTestConfig()
-	sharedTestDB, err = openBootstrappedPackageDB(ctx, clone)
+	sharedTestDB, err = openPackageDB()
 	if err != nil {
 		return err
 	}
 	if err := bindPackageTenantRuntime(sharedTestDB); err != nil {
 		return fmt.Errorf("bind package tenant runtime: %w", err)
 	}
-	if err := testdb.SnapshotSharedBaseline(ctx, clone.DSN); err != nil {
-		return fmt.Errorf("snapshot clone baseline: %w", err)
+	// The clone inherited the template's start snapshot; only a missing or
+	// outdated one is taken again here.
+	if err := testdb.EnsureSharedBaseline(ctx, clone.DSN); err != nil {
+		return fmt.Errorf("ensure clone baseline: %w", err)
 	}
 	return nil
 }
@@ -174,40 +186,16 @@ func resolvePackageTemplate(ctx context.Context, cfg *testdb.Config) (*testdb.Co
 	return testdb.EnsureTemplate(ctx, cfg)
 }
 
-func openBootstrappedPackageDB(ctx context.Context, clone *testdb.CloneHandle) (*bun.DB, error) {
+// openPackageDB opens the binary's shared pool on its clone. The clone got its
+// search_path from the maintenance session before any connection existed, so
+// every pooled connection inherits it.
+func openPackageDB() (*bun.DB, error) {
 	db, err := transactionruntime.OpenPool()
-	if err != nil {
-		return nil, fmt.Errorf("connect to package test database: %w", err)
-	}
-
-	// Bake search_path into the clone so every pooled connection gets it.
-	// BUN's Relation() JOIN generation sometimes uses unqualified table names,
-	// which fails when the target schema isn't in search_path. A per-session
-	// SET would only reach one pooled connection; ALTER DATABASE reaches all
-	// connections opened after it — the shared pool below is opened lazily,
-	// so its connections all inherit this.
-	if _, err := db.ExecContext(ctx, fmt.Sprintf(
-		`ALTER DATABASE %q SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, feedback, config, meta, audit`,
-		clone.Name)); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("set clone search_path: %w", err)
-	}
-
-	if err := initCloneBootstrap(ctx, db); err != nil {
-		_ = db.Close()
-		return nil, err
-	}
-	// The bootstrap pool predates the ALTER DATABASE above, so its existing
-	// connections may lack the search_path. Recycle it for the shared pool.
-	if err := db.Close(); err != nil {
-		return nil, fmt.Errorf("close bootstrap pool: %w", err)
-	}
-	sharedDB, err := transactionruntime.OpenPool()
 	if err != nil {
 		return nil, fmt.Errorf("open shared package test pool: %w", err)
 	}
-	attachTestQueryHooks(sharedDB)
-	return sharedDB, nil
+	attachTestQueryHooks(db)
+	return db, nil
 }
 
 // applyViperTestConfig restores the fixed service config and points viper at
@@ -258,105 +246,4 @@ const poolSizeCap = 16
 // changes exactly that number.
 func poolSize() int {
 	return min(parallelism()+nestedConnHeadroom, poolSizeCap)
-}
-
-// initCloneBootstrap seeds the per-package clone once: the default tenant
-// (school 1), the default room, and the system staff fixture.
-// The fixed bootstrap entities disappear with the PR-2 per-test-tenant sweep.
-func initCloneBootstrap(ctx context.Context, db *bun.DB) error {
-	// Ensure the default tenant (school ID 1) exists in platform.schools.
-	// Legacy fixtures use tenant_id=1, which requires a FK target row.
-	if err := ensureBootstrapTenant(ctx, db); err != nil {
-		return fmt.Errorf("ensure default test tenant: %w", err)
-	}
-
-	// Ensure the legacy bootstrap room (ID 1) exists: older fixtures hardcode
-	// room_id=1 and need a FK target row. It disappears with the PR-2
-	// per-test-tenant sweep, like the other fixed bootstrap entities.
-	if _, err := db.ExecContext(ctx, `
-		INSERT INTO facilities.rooms (id, tenant_id, name, building)
-		VALUES (1, 1, 'Default Room', 'Default')
-		ON CONFLICT (id) DO UPDATE
-		SET tenant_id = EXCLUDED.tenant_id, name = EXCLUDED.name, building = EXCLUDED.building`); err != nil {
-		return fmt.Errorf("ensure default room fixture (id=1): %w", err)
-	}
-
-	// Ensure default system staff exists (person ID 1, staff ID 1) for legacy
-	// tests that hardcode CreatedBy: 1 to satisfy created_by FK constraints.
-	// Each ID is reconciled so an adopted legacy template cannot retain a
-	// bootstrap row from another tenant.
-	if err := db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, e := tx.ExecContext(ctx, `
-			INSERT INTO users.persons (id, tenant_id, first_name, last_name)
-			VALUES (1, 1, 'System', 'Test')
-			ON CONFLICT (id) DO UPDATE
-			SET tenant_id = EXCLUDED.tenant_id, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name`); e != nil {
-			return fmt.Errorf("ensure system person fixture (id=1): %w", e)
-		}
-		// Staff lives in the School Membership row and its Workforce
-		// employment profile since the cutover (#2753).
-		if _, e := tx.ExecContext(ctx, `
-			INSERT INTO users.staff_school_memberships (id, tenant_id, person_id)
-			VALUES (1, 1, 1)
-			ON CONFLICT (id) DO UPDATE
-			SET tenant_id = EXCLUDED.tenant_id, person_id = EXCLUDED.person_id`); e != nil {
-			return fmt.Errorf("ensure system staff fixture (id=1): %w", e)
-		}
-		if _, e := tx.ExecContext(ctx, `
-			INSERT INTO users.staff_employment_profiles (membership_id, tenant_id)
-			VALUES (1, 1)
-			ON CONFLICT (membership_id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id`); e != nil {
-			return fmt.Errorf("ensure system staff employment fixture (id=1): %w", e)
-		}
-		return nil
-	}); err != nil {
-		return fmt.Errorf("ensure system person/staff fixtures (id=1): %w", err)
-	}
-
-	// Advance the BIGSERIAL sequences past the explicitly-inserted IDs.
-	if _, err := db.ExecContext(ctx, `
-		SELECT setval('facilities.rooms_id_seq', GREATEST((SELECT last_value FROM facilities.rooms_id_seq), (SELECT COALESCE(MAX(id), 1) FROM facilities.rooms))),
-		       setval('users.persons_id_seq', GREATEST((SELECT last_value FROM users.persons_id_seq), (SELECT COALESCE(MAX(id), 1) FROM users.persons))),
-		       setval('users.staff_school_memberships_id_seq', GREATEST((SELECT last_value FROM users.staff_school_memberships_id_seq), (SELECT COALESCE(MAX(id), 1) FROM users.staff_school_memberships)))`); err != nil {
-		return fmt.Errorf("advance bootstrap sequences: %w", err)
-	}
-
-	return nil
-}
-
-// ensureBootstrapTenant reconciles ID 1 from a legacy template before its
-// dependent bootstrap fixtures are created. Unlike ordinary test tenants,
-// this fixed ID is an invariant of legacy fixtures and cannot retain data
-// owned by another tenant.
-func ensureBootstrapTenant(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, `
-		INSERT INTO platform.organizations (id, name, slug, active)
-		VALUES (1, 'Test Org 1', 'test-org-1', true)
-		ON CONFLICT (id) DO UPDATE
-		SET name = EXCLUDED.name, slug = EXCLUDED.slug, active = EXCLUDED.active`); err != nil {
-		return fmt.Errorf("ensure bootstrap organization: %w", err)
-	}
-	if _, err := db.ExecContext(ctx, `
-		INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active)
-		VALUES (1, 1, 'Test School 1', 'test-school-1', 't1', true)
-		ON CONFLICT (id) DO UPDATE
-		SET organization_id = EXCLUDED.organization_id, name = EXCLUDED.name,
-			slug = EXCLUDED.slug, subdomain = EXCLUDED.subdomain, active = EXCLUDED.active`); err != nil {
-		return fmt.Errorf("ensure bootstrap school: %w", err)
-	}
-	// Lift both tenant sequences clear of the test-tenant band before the
-	// first test runs. Two things depend on it: a service-path school
-	// (platform.CreateSchool) can never collide with an ID CreateTestTenant
-	// hands out explicitly, and — because every tenant a test creates is then
-	// at or above testdb.TenantIDBase — the leftover gate can tell a test's
-	// own tenant from shared state by looking at the ID alone.
-	if _, err := db.ExecContext(ctx, `
-		SELECT setval(pg_get_serial_sequence('platform.organizations', 'id'),
-			GREATEST((SELECT last_value FROM platform.organizations_id_seq), ?)),
-		       setval(pg_get_serial_sequence('platform.schools', 'id'),
-			GREATEST((SELECT last_value FROM platform.schools_id_seq), ?))`,
-		testdb.TenantIDCeiling, testdb.TenantIDCeiling); err != nil {
-		return fmt.Errorf("advance bootstrap tenant sequences: %w", err)
-	}
-	return nil
 }

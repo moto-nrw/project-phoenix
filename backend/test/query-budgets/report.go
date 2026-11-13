@@ -7,7 +7,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/moto-nrw/project-phoenix/architecture/querybudget"
+	"github.com/moto-ogs/project-phoenix/architecture/querybudget"
 )
 
 // Test names retain fixture-size subtests when several calls share a scenario.

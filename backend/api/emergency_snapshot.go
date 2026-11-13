@@ -15,18 +15,18 @@ import (
 	"strings"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
-	emergencysnapshotCompose "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/compose"
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/modules/emergencysnapshot"
+	emergencysnapshotCompose "github.com/moto-ogs/project-phoenix/modules/emergencysnapshot/compose"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // emergencySnapshotPresence is the slice of the Student Presence facade the

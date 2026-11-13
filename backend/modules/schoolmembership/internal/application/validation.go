@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // The owner edge: every input is validated and normalised here, before the

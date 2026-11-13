@@ -1,7 +1,6 @@
 "use client";
 
 import { PlugsIcon } from "@phosphor-icons/react";
-import { EmptyState } from "~/components/ui/empty-state";
 import { TenantPage } from "~/components/ui/tenant-page";
 
 interface FeatureOffPageProps {
@@ -14,7 +13,6 @@ interface FeatureOffPageProps {
    * (NFC, Anwesenheitsmodus), ist das ausdrücklich NICHT die Leitung.
    */
   readonly whoCanEnable?: string;
-  readonly embedded?: boolean;
 }
 
 /**
@@ -34,20 +32,9 @@ export function FeatureOffPage({
   title,
   description,
   whoCanEnable = "Wenden Sie sich an moto, wenn Sie diese Funktion nutzen möchten.",
-  embedded = false,
 }: FeatureOffPageProps) {
   const icon = <PlugsIcon className="h-12 w-12" aria-hidden="true" />;
   const body = `${description} ${whoCanEnable}`;
-
-  if (embedded) {
-    return (
-      <EmptyState
-        icon={icon}
-        title="Diese Funktion ist nicht eingeschaltet"
-        description={body}
-      />
-    );
-  }
 
   return (
     <TenantPage

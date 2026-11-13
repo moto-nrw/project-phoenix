@@ -1,0 +1,28 @@
+{
+  "api/traeger/catalog/offerings/[id]": [
+    "PUT traeger /traeger/catalog/offerings/id%2F1"
+  ],
+  "api/traeger/catalog/offerings/[id]/withdraw": [
+    "POST traeger /traeger/catalog/offerings/id%2F1/withdraw"
+  ],
+  "api/traeger/catalog/phases": [
+    "GET traeger /traeger/catalog/phases",
+    "POST traeger /traeger/catalog/phases"
+  ],
+  "api/traeger/catalog/phases/[id]": [
+    "GET traeger /traeger/catalog/phases/id%2F1",
+    "PUT traeger /traeger/catalog/phases/id%2F1"
+  ],
+  "api/traeger/catalog/phases/[id]/offerings": [
+    "POST traeger /traeger/catalog/phases/id%2F1/offerings"
+  ],
+  "api/traeger/catalog/phases/[id]/preview": [
+    "POST traeger /traeger/catalog/phases/id%2F1/preview"
+  ],
+  "api/traeger/catalog/phases/[id]/rollout": [
+    "POST traeger /traeger/catalog/phases/id%2F1/rollout"
+  ],
+  "api/traeger/catalog/phases/[id]/withdraw": [
+    "POST traeger /traeger/catalog/phases/id%2F1/withdraw"
+  ]
+}

@@ -6,21 +6,21 @@ import (
 	"sync"
 	"testing"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	movebinding "github.com/moto-nrw/project-phoenix/roots/openroommovebinding"
+	movebinding "github.com/moto-ogs/project-phoenix/roots/openroommovebinding"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove/compose"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove/compose"
 )
 
 // These tests run the workflow against the real Facilities and Timetable
@@ -35,6 +35,8 @@ type recordedMove struct {
 	sessionID  int64
 	studentIDs []int64
 	auth       studentpresence.StudentMoveAuthorization
+	// checkedInBy is set by a check-in (#6953).
+	checkedInBy int64
 }
 
 type recordingPresence struct {
@@ -79,6 +81,18 @@ func (p *recordingPresence) MoveStudentsToOpenRoomSessionAuthorized(ctx context.
 	return &studentpresence.StudentMoveResult{Moved: studentIDs}, nil
 }
 
+func (p *recordingPresence) CheckInStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, sessionID, staffID int64, auth studentpresence.StudentMoveAuthorization, _ bool) (*studentpresence.StudentMoveResult, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.moveErr != nil {
+		return nil, p.moveErr
+	}
+	p.moves = append(p.moves, recordedMove{sessionID: sessionID, studentIDs: studentIDs, auth: auth, checkedInBy: staffID})
+	_, inTx := tenant.TransactionFromContext(ctx)
+	p.inTx = append(p.inTx, inTx)
+	return &studentpresence.StudentMoveResult{Moved: studentIDs, CheckedIn: studentIDs}, nil
+}
+
 type moveStack struct {
 	rooms     facilities.Capability
 	timetable timetable.Capability
@@ -99,7 +113,10 @@ func newMoveStack(t *testing.T) *moveStack {
 		DB:           db,
 		DeletionLock: func(context.Context) error { return nil },
 		Usage:        unusedRooms{},
-		Observe:      func(facilitiesCompose.Observation) {},
+		References: func(context.Context, int64) (facilities.RoomReferences, error) {
+			return facilities.RoomReferences{}, nil
+		},
+		Observe: func(facilitiesCompose.Observation) {},
 	})
 	require.NoError(t, err)
 	s := &moveStack{rooms: rooms, timetable: owners.NewTestTimetable(t, testpkg.MustDatabase(db)), presence: newRecordingPresence()}
@@ -107,7 +124,7 @@ func newMoveStack(t *testing.T) *moveStack {
 		Rooms:        rooms,
 		Activities:   s.timetable,
 		RoomSessions: movebinding.NewRoomSessions(s.presence),
-		Moves:        movebinding.NewMoves(s.presence),
+		Moves:        movebinding.NewMoves(s.presence, s.presence),
 		Observe:      func(compose.Observation) {},
 	})
 	require.NoError(t, err)
@@ -300,3 +317,22 @@ func TestMoveToOpenRoomKeepsTheSchulhofOnItsOwnActivity(t *testing.T) {
 }
 
 func (p *recordingPresence) PrepareOpenRoomMove(context.Context, []int64, int64) error { return nil }
+
+func TestCheckInToOpenRoomChecksInThroughTheBinding(t *testing.T) {
+	t.Parallel()
+	s := newMoveStack(t)
+	ctx := testpkg.Ctx(t)
+	gym := testpkg.CreateTestOpenRoom(t, testpkg.SetupTestDB(t), "Turnhalle Anmelden")
+
+	result, err := s.command.CheckInToOpenRoom(ctx, openroommove.CheckIn{
+		RoomID: gym.ID, StudentIDs: []int64{21, 22}, CheckedInBy: 7, Actor: openroommove.Actor{StaffID: 7},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, s.presence.moves, 1)
+	assert.Equal(t, staffMove(gym.ID).Actor.StaffID, s.presence.moves[0].checkedInBy, "the attendance names the staff member")
+	assert.Equal(t, []int64{21, 22}, result.CheckedIn)
+	for _, inTx := range s.presence.inTx {
+		assert.True(t, inTx, "the check-in runs in the workflow's unit")
+	}
+}

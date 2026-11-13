@@ -2,7 +2,7 @@
 name: help-guide-sync
 description: Use when adding or substantially changing a user-facing feature flow that the in-app help documents, or when editing help articles. Triggers on help-content.ts, HELP_TOPICS, /help pages, Hilfe, Anleitung, HelpTopic, the help sidebar, or "update the docs/guide".
 metadata:
-  author: moto-nrw
+  author: moto-ogs
   version: "2.0.0"
 ---
 

@@ -31,7 +31,7 @@ export default function TraegerVertragsbedingungenPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Vertragsbedingungen",
+        object: "die Übersicht der Vertragsbedingungen",
         retry: () => void load(),
       });
     }

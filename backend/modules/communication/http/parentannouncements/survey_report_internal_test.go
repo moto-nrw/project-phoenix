@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	announcementService "github.com/moto-nrw/project-phoenix/modules/communication"
+	announcementService "github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // The PDF holds back what the screen holds back (#4781): a running anonymous

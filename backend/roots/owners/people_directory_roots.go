@@ -3,19 +3,19 @@ package owners
 import (
 	"fmt"
 
-	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
+	guardianLinkView "github.com/moto-ogs/project-phoenix/modules/guardianlinkview/compose"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	membershipCompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // GuardianRolePresets is the Security Runtime's role-preset policy as People

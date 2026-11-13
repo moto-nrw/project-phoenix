@@ -13,12 +13,14 @@ const (
 	TraegerAccountRolesChanged       = "roles_changed"
 	TraegerAccountMemberRemoved      = "member_removed"
 	TraegerAccountMembersListed      = "members_listed"
+	TraegerAccountNameChanged        = "name_changed"
 )
 
 // TraegerAccountChange is one step of the Träger-Büro account management in
 // the Audit-owned audit.traeger_account_changes ledger: who invited, revoked,
-// accepted, changed roles, removed a person or read the member list. A Träger
-// is no tenant, so the entry carries its Träger and no school.
+// accepted, changed roles or a name (#4693), removed a person or read the
+// member list. A Träger is no tenant, so the entry carries its Träger and no
+// school.
 type TraegerAccountChange struct {
 	ID              int64     `bun:"id,pk,autoincrement" json:"id"`
 	OrganizationID  int64     `bun:"organization_id,notnull" json:"organization_id"`
@@ -26,6 +28,7 @@ type TraegerAccountChange struct {
 	Action          string    `bun:"action,notnull" json:"action"`
 	TargetAccountID *int64    `bun:"target_account_id" json:"target_account_id,omitempty"`
 	TargetEmail     *string   `bun:"target_email" json:"target_email,omitempty"`
+	TargetName      *string   `bun:"target_name" json:"target_name,omitempty"`
 	RolesBefore     []string  `bun:"roles_before,array,notnull" json:"roles_before"`
 	RolesAfter      []string  `bun:"roles_after,array,notnull" json:"roles_after"`
 	CreatedAt       time.Time `bun:"created_at,notnull,default:current_timestamp" json:"created_at"`
@@ -45,7 +48,7 @@ func (c *TraegerAccountChange) Validate() error {
 	}
 	switch c.Action {
 	case TraegerAccountInvitationCreated, TraegerAccountInvitationRevoked, TraegerAccountInvitationAccepted,
-		TraegerAccountRolesChanged, TraegerAccountMemberRemoved, TraegerAccountMembersListed:
+		TraegerAccountRolesChanged, TraegerAccountMemberRemoved, TraegerAccountMembersListed, TraegerAccountNameChanged:
 	default:
 		return errors.New("unknown Träger account change action")
 	}

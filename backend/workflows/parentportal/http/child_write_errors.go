@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 func renderParentCareWriteError(w http.ResponseWriter, r *http.Request, err error) bool {
@@ -48,6 +48,8 @@ func renderParentCareWriteError(w http.ResponseWriter, r *http.Request, err erro
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCarePickupChangeDisabled))
 	case errors.Is(err, parentService.ErrPickupChangeCutoffPassed):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCarePickupChangeCutoffPassed))
+	case errors.Is(err, parentService.ErrPickupChangeCareDayEnded):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCarePickupChangeCareDayEnded))
 	default:
 		return false
 	}

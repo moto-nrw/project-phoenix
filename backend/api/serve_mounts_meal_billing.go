@@ -7,14 +7,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	mealplanModule "github.com/moto-ogs/project-phoenix/modules/mealplan"
+	mealplanAPI "github.com/moto-ogs/project-phoenix/modules/mealplan/http"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // mealBillingErrorRules name the refusals of the Mensa-Monatsfreigabe

@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 // SetPortalConsent writes the photo slice the parents portal decided on. It

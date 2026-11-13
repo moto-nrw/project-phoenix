@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // Token Management Endpoints

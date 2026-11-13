@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The presence capability is published as small facades. A consumer declares
@@ -141,6 +141,20 @@ type StudentMoves interface {
 	EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*SessionDetail, error)
 }
 
+// SessionCheckIns checks children in to the school and places them in a
+// session in one unit (#6953): the app path that equals a scan at the room's
+// terminal. It is a capability of its own beside Presence, whose method set
+// is frozen (ADR 0178).
+type SessionCheckIns interface {
+	// CheckInStudentsToSessionAuthorized places the children in a running
+	// session with supervision.
+	// keepPresent leaves children who are already present where they are.
+	CheckInStudentsToSessionAuthorized(ctx context.Context, studentIDs []int64, activeGroupID, staffID int64, auth StudentMoveAuthorization, keepPresent bool) (*StudentMoveResult, error)
+	// CheckInStudentsToOpenRoomSessionAuthorized places them in the room
+	// session of a released room; the open-room workflow resolves it.
+	CheckInStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID, staffID int64, auth StudentMoveAuthorization, keepPresent bool) (*StudentMoveResult, error)
+}
+
 // AttendanceCommands checks students in to and out of school.
 type AttendanceCommands interface {
 	// ToggleStudentAttendance flips state based on the current row — used by
@@ -260,7 +274,7 @@ type StatusDayWrites interface {
 	// student lock and roll back the surrounding transaction on failure.
 	ValidateProfileStatusChange(context.Context, int64, calendar.Date, *bool, *bool) error
 	UpsertReported(ctx context.Context, entry *absencerecords.StudentStatusDay) error
-	MarkCleared(ctx context.Context, studentID int64, status string, date calendar.Date, clearedAt time.Time, source string) error
+	MarkCleared(ctx context.Context, studentID int64, status string, date calendar.Date, clearedAt time.Time, source string, accountID *int64) error
 	CreateForDates(ctx context.Context, wc StatusDayWriteContext, studentID int64, status, reason string, dates []calendar.Date) error
 	BulkCreateForDates(ctx context.Context, wc StatusDayWriteContext, studentIDs []int64, status, reason string, dates []calendar.Date) error
 	// DeleteStatusDay removes one of the student's status days inside the

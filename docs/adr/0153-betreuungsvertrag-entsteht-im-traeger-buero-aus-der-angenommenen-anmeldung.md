@@ -6,8 +6,8 @@ status: accepted
 
 Freigegeben von Yannick Wenger am 07.11.2026
 
-Vorschlag vom 06.11.2026 zu [#4678](https://github.com/moto-nrw/project-phoenix/issues/4678),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Vorschlag vom 06.11.2026 zu [#4678](https://github.com/moto-ogs/project-phoenix/issues/4678),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 46, 47 (Weg a) und 49. Er ist der erste Bau-Schnitt des Owners
 Betreuungsvertrag (`care-contract`) aus
 [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)

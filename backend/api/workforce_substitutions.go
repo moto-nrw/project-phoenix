@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	substitutionsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/substitutions"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
+	substitutionsHTTP "github.com/moto-ogs/project-phoenix/modules/workforce/http/substitutions"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // capabilityError reports a Workforce sentinel through errors.Is while keeping

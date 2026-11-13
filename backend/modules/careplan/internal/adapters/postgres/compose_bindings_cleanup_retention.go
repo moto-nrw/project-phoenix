@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
 )
 
 // cleanupRetention binds each deletion to its window; the store deletes what

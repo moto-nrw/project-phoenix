@@ -5,7 +5,7 @@ status: accepted
 # Own absence allowances use the Workforce observer
 
 Decision of 2026-10-26 for
-[#4971](https://github.com/moto-nrw/project-phoenix/issues/4971). It approves
+[#4971](https://github.com/moto-ogs/project-phoenix/issues/4971). It approves
 four new command-effect diagnostics. It adds no owner, no policy rule and no
 runtime exception.
 

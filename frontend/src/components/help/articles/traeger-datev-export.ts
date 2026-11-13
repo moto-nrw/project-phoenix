@@ -14,7 +14,7 @@ export function traegerDatevExportTopic(): HelpTopic {
     requirements: [
       "Ihre Rolle im Träger-Büro hat das Recht Finanz-Export.",
       "Ihr Steuerbüro hat Ihnen die DATEV-Werte genannt.",
-      "Bei Monatsbeiträgen hat jede Familie eine Debitorennummer. Bei Ferienbeiträgen steht sie in der Ferienanmeldung.",
+      "Bei Monatsbeiträgen hat jede Familie eine Debitorennummer. Bei Ferienbeiträgen steht sie in der Ferienanmeldung. Fehlt sie dort, gilt die Nummer der Familie.",
       "Der Monatslauf oder Ferienlauf ist ausgestellt.",
     ],
     steps: [],
@@ -69,7 +69,7 @@ export function traegerDatevExportTopic(): HelpTopic {
     result:
       "In der Datei steht jede Rechnung im Soll, jedes Storno und jede Gutschrift im Haben. Die Datei steht im `Exportprotokoll` mit ihrer Nummer. Eine Datei mit allen Buchungen steht dort als `Alle erneut: Wiederholung`. In jeder Rechnung zeigt `Verlauf`, in welcher Datei sie war.",
     notes: [
-      "Bei Monatsbeiträgen tragen Sie die Debitorennummer bei `Empfänger und Zahlung` der Familie ein. Bei Ferienbeiträgen tragen Sie sie in der Ferienanmeldung ein. DATEV nimmt nur Ziffern an, eine mehr als bei den Sachkonten. Bei 4 Stellen ist das zum Beispiel `10001`.",
+      "Bei Monatsbeiträgen tragen Sie die Debitorennummer bei `Empfänger und Zahlung` der Familie ein. Bei Ferienbeiträgen gilt die Nummer der Ferienanmeldung. Hat die Anmeldung keine, gilt die Nummer der Familie. DATEV nimmt nur Ziffern an, eine mehr als bei den Sachkonten. Bei 4 Stellen ist das zum Beispiel `10001`.",
       "Jede Buchung kommt nur einmal in eine DATEV-Datei. Stornieren Sie später eine Rechnung, steht das Storno in der nächsten Datei des Laufs. Die Rechnung selbst steht dort nicht noch einmal.",
       "Eine DATEV-Datei gilt für ein Wirtschaftsjahr. Liegt ein Storno im neuen Jahr, kommt es in eine eigene Datei. Laden Sie dafür noch einmal `DATEV` herunter.",
       "Hat ein Lauf keine neuen Buchungen, lässt sich `DATEV` nicht wählen. Dann entsteht keine Datei und keine Nummer.",

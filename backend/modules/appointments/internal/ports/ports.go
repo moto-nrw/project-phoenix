@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/appointments/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/appointments/internal/domain"
 )
 
 // Store persists the Appointments records in the public vocabulary. A find
@@ -46,7 +46,7 @@ type Store interface {
 	CancelOccurrence(context.Context, int64, appointments.Date) (bool, domain.OperationStats, error)
 	InsertAppointmentRecipients(context.Context, int64, []appointments.AppointmentRecipientFields) ([]*appointments.AppointmentRecipient, domain.OperationStats, error)
 	InsertAppointmentRecipientStudents(context.Context, []appointments.AppointmentRecipientStudent) ([]*appointments.AppointmentRecipientStudent, domain.OperationStats, error)
-	UpdateAppointmentRecipientResponse(context.Context, int64, string) (bool, domain.OperationStats, error)
+	UpdateAppointmentRecipientResponse(context.Context, appointments.RecipientResponse) (bool, domain.OperationStats, error)
 	ClaimReminderPushDelivery(context.Context, int64, int, appointments.Date, int64) (bool, domain.OperationStats, error)
 	ReleaseReminderPushDelivery(context.Context, int64, int, appointments.Date, int64) (bool, domain.OperationStats, error)
 }

@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
 	"github.com/uptrace/bun"
 )
 

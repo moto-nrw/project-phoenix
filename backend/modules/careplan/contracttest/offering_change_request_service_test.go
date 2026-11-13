@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetable "github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
 
 	"testing"
 	"time"
@@ -18,17 +18,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // Post-enrollment offering change requests (#1665). The service is exercised

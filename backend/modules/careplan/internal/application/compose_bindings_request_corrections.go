@@ -3,9 +3,9 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	careRecordPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	careRecordPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
 )
 
 type RequestCorrectionRecordsAdapter struct {

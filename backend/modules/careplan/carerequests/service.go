@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Service owns the weekly-care and pickup-change request lifecycle.

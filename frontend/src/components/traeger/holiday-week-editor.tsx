@@ -30,6 +30,7 @@ import {
   weekBooked,
   type WeekDraft,
 } from "./holiday-period-model";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const BOOKING_UNITS = [
   { value: "week", label: "Ganze Woche" },
@@ -146,19 +147,23 @@ function TimeModelRow({
       <Input
         name={`${field}.name`}
         label="Name"
-        controlSize="compact"
-        placeholder="bis 13 Uhr"
+        required
+        controlSize="touch"
+        placeholder="z. B. bis 13 Uhr"
         value={model.name}
         maxLength={80}
         error={fieldError(`${field}.name`) ?? undefined}
         onChange={(event) => onChange({ ...model, name: event.target.value })}
       />
-      <div className="sm:pt-1">
+      <div>
         <TimeField
           name={`${field}.starts_at`}
           label="Beginn"
-          hint="z. B. 08:00"
-          placeholder="08:00"
+          required
+          // The example shows once, under an empty field; a filled field
+          // needs none.
+          hint={model.startsAt ? "" : "z. B. 08:00"}
+          placeholder=""
           value={model.startsAt}
           invalid={Boolean(startsError)}
           describedBy={startsError ? `${field}.starts_at-error` : undefined}
@@ -166,12 +171,13 @@ function TimeModelRow({
         />
         <FieldErrorHint id={`${field}.starts_at-error`} message={startsError} />
       </div>
-      <div className="sm:pt-1">
+      <div>
         <TimeField
           name={`${field}.ends_at`}
           label="Ende"
-          hint="z. B. 13:00"
-          placeholder="13:00"
+          required
+          hint={model.endsAt ? "" : "z. B. 13:00"}
+          placeholder=""
           value={model.endsAt}
           invalid={Boolean(endsError)}
           describedBy={endsError ? `${field}.ends_at-error` : undefined}
@@ -182,10 +188,13 @@ function TimeModelRow({
       <Input
         name={`${field}.price_cents`}
         label={unit === "day" ? "Preis je Tag in Euro" : "Preis in Euro"}
-        controlSize="compact"
+        required
+        controlSize="touch"
         inputMode="decimal"
-        placeholder="45,00"
+        placeholder="z. B. 45,00"
         value={model.price}
+        // What a new price of a booked time model changes stands once
+        // above the weeks, not under every price.
         error={fieldError(`${field}.price_cents`) ?? undefined}
         onChange={(event) => onChange({ ...model, price: event.target.value })}
       />
@@ -207,12 +216,13 @@ function TimeModelRow({
           </Button>
         ) : (
           // Icon only next to the row on wide screens; on a phone the row
-          // stacks, so the button names what it removes.
+          // stacks, so the button names what it removes. The name starts
+          // with that visible text, so voice control finds it (WCAG 2.5.3).
           <Button
             type="button"
             variant="ghost"
             size="compact"
-            aria-label={`Zeitmodell ${model.name || "ohne Namen"} entfernen`}
+            aria-label={`Zeitmodell entfernen: ${model.name || "ohne Namen"}`}
             onClick={onRemove}
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -268,6 +278,9 @@ export function HolidayWeekEditor({
     });
 
   const title = weekTitle(index, week);
+  // A week with bookings stays: moto refuses to remove it when saving, so the
+  // form does not offer it (like a booked time model, which can only be
+  // archived).
   const booked = weekBooked(week);
   const unitHintId = `${prefix}.booking_unit-hint`;
   const notice =
@@ -278,23 +291,36 @@ export function HolidayWeekEditor({
     // Eine Zeile der Formularkarte, keine eigene Karte (#5146): die Wochen
     // trennt eine Linie wie die Zeitmodelle darunter.
     <section className="space-y-4 border-t border-gray-200 pt-6 first:border-t-0 first:pt-0">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* The week's head on a muted strip: the weeks stand apart at a
+          glance, and the fields below keep the card's full width. */}
+      <InsetPanel
+        tone="muted"
+        padding="compact"
+        className="flex flex-wrap items-center justify-between gap-3"
+      >
         <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
-        <Button
-          type="button"
-          variant="outline_danger"
-          size="md"
-          onClick={onRemove}
-        >
-          Woche entfernen
-        </Button>
-      </div>
+        {booked ? (
+          <p className="text-sm text-gray-600">
+            Für diese Woche gibt es Anmeldungen. Sie bleibt im Zeitraum.
+          </p>
+        ) : (
+          <Button
+            type="button"
+            variant="outline_danger"
+            size="md"
+            onClick={onRemove}
+          >
+            Woche entfernen
+          </Button>
+        )}
+      </InsetPanel>
       <div role="group" aria-label={title} className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <ISODateInput
               id={`${prefix}.starts_on`}
               label="Erster Tag"
+              required
               value={week.startsOn}
               error={fieldError(`${prefix}.starts_on`)}
               onValidityChange={startsValidity}
@@ -305,6 +331,7 @@ export function HolidayWeekEditor({
             <ISODateInput
               id={`${prefix}.ends_on`}
               label="Letzter Tag"
+              required
               value={week.endsOn}
               min={week.startsOn || undefined}
               minDateError="Der letzte Tag liegt vor dem ersten Tag."
@@ -317,6 +344,7 @@ export function HolidayWeekEditor({
             id={`${prefix}.host_school_id`}
             name={`${prefix}.host_school_id`}
             label="Ausrichtende OGS"
+            required
             error={hostError}
             placeholder="Schule wählen"
             value={week.hostSchoolId}
@@ -357,13 +385,8 @@ export function HolidayWeekEditor({
         </div>
 
         <div className="space-y-3">
-          <div>
-            <h5 className="text-sm font-semibold text-gray-900">Zeitmodelle</h5>
-            <p className="text-sm text-gray-500">
-              Zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“, jedes mit eigenem
-              Preis.
-            </p>
-          </div>
+          {/* What a time model is stands once above the weeks. */}
+          <h5 className="text-sm font-semibold text-gray-900">Zeitmodelle</h5>
           {week.timeModels.every((model) => model.archived) ? (
             <p className="text-sm text-gray-600">
               Diese Woche hat noch kein buchbares Zeitmodell. Zum

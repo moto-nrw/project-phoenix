@@ -15,9 +15,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
+	"github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/ports"
 )
 
 func resultKey(scope reminder.BatchScope) int64 {

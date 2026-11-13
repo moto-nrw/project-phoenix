@@ -75,6 +75,7 @@
   "pickup_change_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "pickup_change_expired": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "pickup_change_impact_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "care_request_plan_changed": "Plan opieki właśnie się zmienił. Odśwież stronę. Następnie sprawdź wniosek jeszcze raz.",
   "pickup_permission_contact_gone": "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
   "pickup_proof_not_found": "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
   "pickup_reset_requires_offering": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -88,7 +89,9 @@
   "staff_value_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "staff_value_unsupported": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "status_day_conflict": "Niektóre dni mają już wpis. Tych dni nie zmieniono.",
+  "status_day_occupied": "Na dziś wpisana jest wycieczka klasowa. Najpierw usuń wycieczkę klasową.",
   "guardian_email_block_needs_review": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "guardian_email_block_lift_failed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
-  "guardian_email_block_stays": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
+  "guardian_email_block_stays": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "person_has_active_profile": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

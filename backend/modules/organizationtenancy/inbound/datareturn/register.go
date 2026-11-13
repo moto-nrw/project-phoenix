@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 //go:embed openapi.json

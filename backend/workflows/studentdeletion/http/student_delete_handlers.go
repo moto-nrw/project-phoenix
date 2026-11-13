@@ -6,10 +6,10 @@ import (
 	strings "strings"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
-	studentdeletion "github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
+	studentdeletion "github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
 )
 
 // deleteStudent permanently deletes an active child through the student

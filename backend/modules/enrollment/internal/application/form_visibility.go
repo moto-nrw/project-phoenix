@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"strings"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // The server-side counterpart of the frontend visibility evaluator

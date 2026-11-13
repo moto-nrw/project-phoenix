@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	people "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	people "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"

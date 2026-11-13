@@ -3,9 +3,9 @@ package users
 import (
 	context "context"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	models "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (r nativeStudentRepository) UpdateStatus(ctx context.Context, studentID int64, newStatus string) error {

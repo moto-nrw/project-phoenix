@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/appointments/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/appointments/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -644,19 +644,27 @@ func (s *Store) InsertAppointmentRecipientStudents(ctx context.Context, links []
 	return appointmentRecipientStudentsToPublic(rows), stats, err
 }
 
-func (s *Store) UpdateAppointmentRecipientResponse(ctx context.Context, recipientID int64, status string) (bool, domain.OperationStats, error) {
+// UpdateAppointmentRecipientResponse stores one answer. Without an occurrence
+// date it sets the answer for the whole series and drops the answers for
+// single dates; with one it sets the answer for that date only (#6987).
+func (s *Store) UpdateAppointmentRecipientResponse(ctx context.Context, response appointments.RecipientResponse) (bool, domain.OperationStats, error) {
 	db, tenantID, err := s.databaseForTenant(ctx, "update an appointment recipient response")
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewUpdate().Model((*appointmentRecipientRow)(nil)).
 		ModelTableExpr(`calendar.appointment_recipients AS "appointment_recipient"`).
-		Set("status = ?", status).
-		Where(`"appointment_recipient".id = ?`, recipientID), "appointment_recipient", tenantID)
-	if status == "accepted" || status == "declined" {
-		query = query.Set("responded_at = NOW()")
-	} else {
-		query = query.Set("responded_at = NULL")
+		Where(`"appointment_recipient".id = ?`, response.RecipientID), "appointment_recipient", tenantID)
+	switch {
+	case !response.OccurrenceDate.IsZero():
+		query = query.
+			Set(`occurrence_responses = "appointment_recipient".occurrence_responses || jsonb_build_object(?::text, ?::text)`,
+				response.OccurrenceDate.String(), response.Status).
+			Set("responded_at = NOW()")
+	case response.Status == appointments.ResponseStatusAccepted || response.Status == appointments.ResponseStatusDeclined:
+		query = query.Set("status = ?", response.Status).Set(`occurrence_responses = '{}'::jsonb`).Set("responded_at = NOW()")
+	default:
+		query = query.Set("status = ?", response.Status).Set(`occurrence_responses = '{}'::jsonb`).Set("responded_at = NULL")
 	}
 	stats, rows, err := execute(ctx, query, "update appointment recipient response")
 	return rows == 1, stats, err

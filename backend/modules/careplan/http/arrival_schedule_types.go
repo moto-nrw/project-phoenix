@@ -7,8 +7,8 @@ import (
 	strings "strings"
 	time "time"
 
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // ArrivalScheduleResponse represents an arrival schedule in API responses

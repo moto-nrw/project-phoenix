@@ -5,8 +5,8 @@ status: accepted
 # Principle: only the target is a rule, and debt leaves with evidence
 
 Principle ADR of 2026-10-19 under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), written for
-[#4091](https://github.com/moto-nrw/project-phoenix/issues/4091). It states the
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), written for
+[#4091](https://github.com/moto-ogs/project-phoenix/issues/4091). It states the
 rules for the ratchet, recorded debt, reviewed policy changes and migration
 evidence that still hold. The ADRs it cites keep their context, measurements
 and history; this ADR changes none of them.
@@ -83,9 +83,9 @@ and history; this ADR changes none of them.
 
 - Ratchet 0 means what #2580 promised: no permitted violation is hidden in the
   policy. One key remains, `modules/dataimport/compose -> auth/authorize`
-  under [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004). The
+  under [#4004](https://github.com/moto-ogs/project-phoenix/issues/4004). The
   zero-ratchet cutover follows the runtime checkpoint
-  [#3021](https://github.com/moto-nrw/project-phoenix/issues/3021).
+  [#3021](https://github.com/moto-ogs/project-phoenix/issues/3021).
 - The cutover ADRs that let successors keep retired reach (ADR 0030, ADR 0035
   to ADR 0038, ADR 0052) are historical records. Their exceptions no longer
   exist, and what they let stand became exact debt and has since been removed.

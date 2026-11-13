@@ -79,6 +79,7 @@
     "cutoffHint": "Die Abholzeit für heute können Sie bis {time} Uhr ändern.",
     "cutoffClosed": "Für heute geht das nur bis {time} Uhr. Bitte wenden Sie sich an die {careTerm}. Andere Tage können Sie weiter ändern.",
     "cutoffClosedGeneric": "Für heute ist keine Änderung mehr möglich. Bitte wenden Sie sich an die {careTerm}. Andere Tage können Sie weiter ändern.",
+    "careDayEnded": "Die Betreuung ist für heute schon zu Ende. Die Abholzeit für heute können Sie nicht mehr ändern. Andere Tage können Sie weiter ändern.",
     "reset": "Änderung zurücknehmen",
     "resetTitle": "Änderung zurücknehmen?",
     "resetDescription": "Die abweichende Abholzeit für den {date} wird entfernt. Es gilt wieder der reguläre Wochenplan.",

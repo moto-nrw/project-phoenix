@@ -1,12 +1,14 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 func TestRenderPickupAdjustmentError_CareOfferingsDisabledIsConflict(t *testing.T) {
@@ -14,7 +16,7 @@ func TestRenderPickupAdjustmentError_CareOfferingsDisabledIsConflict(t *testing.
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/", nil)
-	renderPickupAdjustmentError(recorder, request, careplan.ErrCareOfferingsDisabled)
+	careplanhttp.RenderPickupAdjustmentErrorForTest(recorder, request, careplan.ErrCareOfferingsDisabled)
 
 	assert.Equal(t, http.StatusConflict, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), `"code":"pickup.offerings_disabled"`)
@@ -25,7 +27,7 @@ func TestRenderPickupAdjustmentError_CompleteWithdrawalConfirmationIsConflict(t 
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/", nil)
-	renderPickupAdjustmentError(recorder, request, careplan.ErrCompleteWithdrawalConfirmationRequired)
+	careplanhttp.RenderPickupAdjustmentErrorForTest(recorder, request, careplan.ErrCompleteWithdrawalConfirmationRequired)
 
 	assert.Equal(t, http.StatusConflict, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), `"code":"enrollment.complete_withdrawal_confirmation_required"`)

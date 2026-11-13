@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // ParentChildReadsForBookedSchools hides the children of a school that has

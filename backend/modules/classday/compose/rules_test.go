@@ -3,11 +3,11 @@ package compose_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/classday/compose"
-	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/classday/compose"
+	"github.com/moto-ogs/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func ptrDate(d calendar.Date) *calendar.Date { return &d }

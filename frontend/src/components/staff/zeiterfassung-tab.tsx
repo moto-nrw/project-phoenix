@@ -105,6 +105,7 @@ export function ZeiterfassungTab({
   initialDate,
   staff,
   canBookAbsences = false,
+  onSetTarget,
 }: {
   readonly staffId: string;
   readonly initialDate?: string;
@@ -112,7 +113,15 @@ export function ZeiterfassungTab({
   // time_tracking:manage, wie das Eintragen im Reiter Abwesenheiten.
   readonly staff?: SickReportStaff;
   readonly canBookAbsences?: boolean;
+  /** Wechselt zum Reiter „Arbeitszeitmodell“, wenn das Soll fehlt (#6887);
+   *  nur gesetzt, wenn der Reiter für die Person sichtbar ist. */
+  readonly onSetTarget?: () => void;
 }) {
+  // Soll-Hinweis der Nachtrag-Dialoge (#6887); den Reiter zum Setzen gibt es
+  // nur, wenn die Seite ihn anbietet.
+  const targetHint = canBookAbsences
+    ? { canSetTarget: onSetTarget !== undefined }
+    : undefined;
   const [backfill, setBackfill] = useState<{
     date: string;
     kind: "absence" | "sick";
@@ -426,7 +435,7 @@ export function ZeiterfassungTab({
       {metricsLoad ? (
         <LoadErrorAlert error={metricsLoad} />
       ) : (
-        <KpiCards metrics={metrics} />
+        <KpiCards metrics={metrics} onSetTarget={onSetTarget} />
       )}
 
       <SectionCard
@@ -461,6 +470,7 @@ export function ZeiterfassungTab({
               accountStartsInFuture={accountStartsInFuture}
               accountStartDate={accountStartDate}
               onReopen={() => setShowReopenModal(true)}
+              onSetTarget={onSetTarget}
             />
           </div>
         )}
@@ -571,6 +581,7 @@ export function ZeiterfassungTab({
           staff={staff}
           types={absenceTypes ?? []}
           initialDate={backfill.date}
+          targetHint={targetHint}
           onClose={() => setBackfill(null)}
           onSaved={() => {
             setBackfill(null);
@@ -583,6 +594,7 @@ export function ZeiterfassungTab({
           isOpen
           staff={staff}
           initialDate={backfill.date}
+          targetHint={targetHint}
           onClose={() => setBackfill(null)}
           onCreated={() => {
             // Die Krankmeldung ist gespeichert. Ein fehlgeschlagenes Nachladen

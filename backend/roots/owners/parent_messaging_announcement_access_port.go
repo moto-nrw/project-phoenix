@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 func BindParentAnnouncementAccess(source communication.PortalAnnouncementAccess) parentportal.AnnouncementAccess {

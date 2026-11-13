@@ -1,4 +1,4 @@
-package staffmessaging
+package staffmessaging_test
 
 import (
 	"encoding/json"
@@ -8,7 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	staffmessaging "github.com/moto-ogs/project-phoenix/modules/communication/http/staffmessages"
 )
 
 func TestStaffMessagingGroupLimitErrorsIncludeStructuredLimits(t *testing.T) {
@@ -41,7 +42,7 @@ func TestStaffMessagingGroupLimitErrorsIncludeStructuredLimits(t *testing.T) {
 			t.Parallel()
 
 			rec := httptest.NewRecorder()
-			renderStaffMessagingError(rec, httptest.NewRequest(http.MethodPost, "/", nil), tt.err)
+			staffmessaging.RenderStaffMessagingErrorForTest(rec, httptest.NewRequest(http.MethodPost, "/", nil), tt.err)
 
 			require.Equal(t, http.StatusBadRequest, rec.Code)
 			var body struct {

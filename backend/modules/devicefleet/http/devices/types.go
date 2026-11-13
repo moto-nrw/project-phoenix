@@ -7,7 +7,7 @@ import (
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation"
-	devicefleet "github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	devicefleet "github.com/moto-ogs/project-phoenix/modules/devicefleet"
 )
 
 // DeviceResponse represents a device API response

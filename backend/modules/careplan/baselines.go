@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ArrivalWeek maps ISO weekday to the row applicable that day.

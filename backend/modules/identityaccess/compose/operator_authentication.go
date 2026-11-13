@@ -4,11 +4,11 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	rotationBindings "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application"
+	rotationBindings "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application/rotation"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // The operator flows (#3252) need facts other owners hold and the retained

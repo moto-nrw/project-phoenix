@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
 
 	"golang.org/x/tools/go/packages"
 )

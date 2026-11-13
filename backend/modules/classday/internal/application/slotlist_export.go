@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/modules/classday/internal/ports"
 )
 
 func (s *service) RenderList(ctx context.Context, requested classday.Params, format classday.Format) (classday.File, error) {

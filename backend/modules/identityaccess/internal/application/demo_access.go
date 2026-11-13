@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // DemoAccess runs the demo access of the public demo (#3462): a prospect

@@ -3,9 +3,9 @@ package owners
 import (
 	"context"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/planexport"
+	"github.com/moto-ogs/project-phoenix/modules/planexport"
 )
 
 // staffWithPersonReader is the slice of the retained staff repository the

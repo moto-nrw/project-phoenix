@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -4,11 +4,11 @@ status: accepted
 
 # Operator dashboard view is a projection owner
 
-[PR #3297](https://github.com/moto-nrw/project-phoenix/pull/3297) introduced
+[PR #3297](https://github.com/moto-ogs/project-phoenix/pull/3297) introduced
 the projection owner `operator-dashboard-view` without the architecture
 decision that
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580) requires for a
-new owner. [#3414](https://github.com/moto-nrw/project-phoenix/issues/3414)
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580) requires for a
+new owner. [#3414](https://github.com/moto-ogs/project-phoenix/issues/3414)
 asked to record one or dissolve the owner. We keep it and record the decision
 here. No production code and no policy entry changes.
 

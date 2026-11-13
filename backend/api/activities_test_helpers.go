@@ -3,13 +3,13 @@
 package api
 
 import (
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // ActivitiesTestModule is the Timetable side of the activity routes; the

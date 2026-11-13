@@ -99,6 +99,10 @@ type CloneHandle struct {
 	keeperDB   *sql.DB
 	keeperConn *sql.Conn
 	keeperStop chan struct{}
+
+	// copying serializes clones taken of this clone (Maintenance.CreateCloneOf),
+	// which each lift its keeper for the copy.
+	copying sync.Mutex
 }
 
 // Close releases the keeper connection. Test binaries never call this — the
@@ -115,7 +119,9 @@ func (h *CloneHandle) Close() error {
 		h.keeperConn = nil
 	}
 	if h.keeperDB != nil {
-		return h.keeperDB.Close()
+		err := h.keeperDB.Close()
+		h.keeperDB = nil
+		return err
 	}
 	return nil
 }
@@ -130,28 +136,43 @@ func (h *CloneHandle) keepAlive(stop <-chan struct{}) {
 		case <-stop:
 			return
 		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			h.mu.Lock()
-			// Open and verify the replacement before releasing the old keeper.
-			// That guarantees pg_stat_activity contains a liveness session for
-			// the clone throughout a normal reconnect.
-			replacement, err := h.keeperDB.Conn(ctx)
-			if err == nil {
-				err = replacement.PingContext(ctx)
+			if !h.refreshKeeper(stop) {
+				return
 			}
-			if err == nil {
-				previous := h.keeperConn
-				h.keeperConn = replacement
-				if previous != nil {
-					_ = previous.Close()
-				}
-			} else if replacement != nil {
-				_ = replacement.Close()
-			}
-			h.mu.Unlock()
-			cancel()
 		}
 	}
+}
+
+// refreshKeeper replaces the keeper session and reports false when Close
+// stopped the loop while it waited for the lock; a later pin then owns the
+// keeper fields.
+func (h *CloneHandle) refreshKeeper(stop <-chan struct{}) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	select {
+	case <-stop:
+		return false
+	default:
+	}
+	// Open and verify the replacement before releasing the old keeper.
+	// That guarantees pg_stat_activity contains a liveness session for
+	// the clone throughout a normal reconnect.
+	replacement, err := h.keeperDB.Conn(ctx)
+	if err == nil {
+		err = replacement.PingContext(ctx)
+	}
+	if err == nil {
+		previous := h.keeperConn
+		h.keeperConn = replacement
+		if previous != nil {
+			_ = previous.Close()
+		}
+	} else if replacement != nil {
+		_ = replacement.Close()
+	}
+	return true
 }
 
 // CreateClone creates this run's clone of the template for the package in
@@ -159,25 +180,69 @@ func (h *CloneHandle) keepAlive(stop <-chan struct{}) {
 // lock, skipped when someone else holds it), then creates the clone under the
 // SHARED lock — so the ~93 package binaries of a run clone concurrently
 // instead of queueing — and pins it with a keeper connection.
+//
+// It opens and closes a maintenance connection of its own. A test binary
+// holds one Maintenance for its whole life instead (#6962).
 func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, error) {
+	maint := OpenMaintenance(cfg)
+	defer func() { _ = maint.db.Close() }()
+	if err := maint.CollectDeadRuns(ctx, cfg, runID); err != nil {
+		return nil, err
+	}
+	return maint.CreateClone(ctx, cfg, runID)
+}
+
+// Maintenance is one test binary's lasting session on the server's
+// maintenance database. Every lifecycle step of the binary — the generation
+// GC, its package clone, each isolated clone and every drop — runs on it, so
+// a binary pays one connection start instead of one per clone operation
+// (#6962: about 1,900 clones per suite, each with its own fresh maintenance
+// sessions before).
+//
+// It carries no template: callers pass the Config to clone from, because
+// tests swap the package's Config to provoke a missing template.
+type Maintenance struct {
+	db *sql.DB
+}
+
+// maintenancePoolSize covers the concurrent lifecycle steps of one binary:
+// its two isolated database slots each hold a lock connection while they
+// clone, and a drop may run beside them.
+const maintenancePoolSize = 3
+
+// OpenMaintenance opens the lasting maintenance pool. Connections are opened
+// lazily and kept until Close.
+func OpenMaintenance(cfg *Config) *Maintenance {
+	db := sql.OpenDB(newLifecycleConnector(cfg.MaintenanceDSN()))
+	db.SetMaxOpenConns(maintenancePoolSize)
+	db.SetMaxIdleConns(maintenancePoolSize)
+	db.SetConnMaxLifetime(0)
+	db.SetConnMaxIdleTime(0)
+	return &Maintenance{db: db}
+}
+
+// CollectDeadRuns runs the generation GC once if the exclusive lifecycle lock
+// is free right now (see collectDeadRuns). A test binary calls it once,
+// before its package clone; its isolated clones skip it.
+func (m *Maintenance) CollectDeadRuns(ctx context.Context, cfg *Config, runID string) error {
+	return collectDeadRuns(ctx, m.db, cfg, runID)
+}
+
+// CreateClone creates a clone of cfg's template for runID and the package in
+// the current working directory, without a GC pass, and pins it with a
+// keeper connection.
+func (m *Maintenance) CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("determine package working directory: %w", err)
 	}
 	name := CloneName(runID, wd)
 
-	maint := openSQL(cfg.MaintenanceDSN())
-	defer func() { _ = maint.Close() }()
-
-	if err := collectDeadRuns(ctx, maint, cfg, runID); err != nil {
-		return nil, err
-	}
-
 	// Shared, not exclusive: two cloners never write the same database (the
 	// name carries run ID and package), and CREATE DATABASE ... TEMPLATE only
 	// needs the template to sit still, which is exactly what the exclusive
 	// holders — template rebuild and GC — are kept out for.
-	conn, unlock, err := acquireLifecycleLockShared(ctx, maint)
+	conn, unlock, err := acquireLifecycleLockShared(ctx, m.db)
 	if err != nil {
 		return nil, fmt.Errorf("acquire test DB lifecycle lock: %w", err)
 	}
@@ -187,6 +252,57 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 		return nil, err
 	}
 	return openCloneHandle(ctx, cfg, name)
+}
+
+// CreateCloneOf creates a clone of the live clone source instead of the
+// template: a package-local template that a test binary built once on top of
+// its run's template, so each test gets its own copy of that work (#6962).
+//
+// CREATE DATABASE ... TEMPLATE needs a source without sessions, so source's
+// keeper is lifted for the copy and pinned again afterwards. The shared
+// lifecycle lock held meanwhile keeps every generation GC out, which is what
+// the keeper otherwise protects against.
+func (m *Maintenance) CreateCloneOf(ctx context.Context, cfg *Config, source *CloneHandle, runID string) (*CloneHandle, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("determine package working directory: %w", err)
+	}
+	name := CloneName(runID, wd)
+
+	source.copying.Lock()
+	defer source.copying.Unlock()
+	conn, unlock, err := acquireLifecycleLockShared(ctx, m.db)
+	if err != nil {
+		return nil, fmt.Errorf("acquire test DB lifecycle lock: %w", err)
+	}
+	defer unlock()
+
+	if err := source.Close(); err != nil {
+		return nil, fmt.Errorf("lift keeper of clone source %q: %w", source.Name, err)
+	}
+	created := createCloneDatabase(ctx, conn, cfg.WithTemplate(source.Name), name, packageLabel(wd))
+	if pinned := source.pin(ctx); pinned != nil {
+		if created == nil {
+			created = dropDatabase(ctx, conn, name)
+		}
+		return nil, errors.Join(created, pinned)
+	}
+	if created != nil {
+		return nil, created
+	}
+	return openCloneHandle(ctx, cfg, name)
+}
+
+// DropClone drops one clone by name on the maintenance session; see the
+// package-level DropClone.
+func (m *Maintenance) DropClone(ctx context.Context, name string) error {
+	return dropDatabase(ctx, m.db, name)
+}
+
+// ReleaseMaintenance is the last lifecycle step of a test binary: it drops
+// the binary's own package clone and closes the maintenance session.
+func ReleaseMaintenance(ctx context.Context, m *Maintenance, packageClone string) error {
+	return errors.Join(dropDatabase(ctx, m.db, packageClone), m.db.Close())
 }
 
 func createCloneDatabase(ctx context.Context, conn sqlExecutor, cfg *Config, name, label string) error {
@@ -206,30 +322,45 @@ func createCloneDatabase(ctx context.Context, conn sqlExecutor, cfg *Config, nam
 		quoteLiteral(pkgCommentPrefix+label)); err != nil {
 		return fmt.Errorf("stamp package label on clone %q: %w", name, err)
 	}
+	// Database settings are not copied by CREATE DATABASE ... TEMPLATE, and
+	// ALTER DATABASE works from any session: setting it here spares the clone
+	// a connection of its own. Every connection opened later inherits it.
+	if _, err := conn.ExecContext(ctx, `ALTER DATABASE `+quoteIdentifier(name)+` SET search_path TO `+CloneSearchPath); err != nil {
+		return fmt.Errorf("set search_path of clone %q: %w", name, err)
+	}
 	return nil
 }
 
 func openCloneHandle(ctx context.Context, cfg *Config, name string) (*CloneHandle, error) {
 	handle := &CloneHandle{Name: name, DSN: cfg.DatabaseDSN(name)}
-	handle.keeperDB = openSQL(handle.DSN)
-	handle.keeperDB.SetMaxOpenConns(2)
-	handle.keeperDB.SetConnMaxLifetime(0)
-	handle.keeperDB.SetConnMaxIdleTime(0)
-	keeperConn, err := handle.keeperDB.Conn(ctx)
+	if err := handle.pin(ctx); err != nil {
+		return nil, err
+	}
+	return handle, nil
+}
+
+// pin opens the keeper connection and starts its keep-alive loop.
+func (h *CloneHandle) pin(ctx context.Context) error {
+	keeperDB := openSQL(h.DSN)
+	keeperDB.SetMaxOpenConns(2)
+	keeperDB.SetConnMaxLifetime(0)
+	keeperDB.SetConnMaxIdleTime(0)
+	keeperConn, err := keeperDB.Conn(ctx)
 	if err != nil {
-		_ = handle.keeperDB.Close()
-		return nil, fmt.Errorf("pin package test database %q: %w", name, err)
+		_ = keeperDB.Close()
+		return fmt.Errorf("pin package test database %q: %w", h.Name, err)
 	}
 	if err := keeperConn.PingContext(ctx); err != nil {
 		_ = keeperConn.Close()
-		_ = handle.keeperDB.Close()
-		return nil, fmt.Errorf("pin package test database %q: %w", name, err)
+		_ = keeperDB.Close()
+		return fmt.Errorf("pin package test database %q: %w", h.Name, err)
 	}
-	handle.keeperConn = keeperConn
-	handle.keeperStop = make(chan struct{})
-	go handle.keepAlive(handle.keeperStop)
-
-	return handle, nil
+	h.mu.Lock()
+	h.keeperDB, h.keeperConn = keeperDB, keeperConn
+	h.mu.Unlock()
+	h.keeperStop = make(chan struct{})
+	go h.keepAlive(h.keeperStop)
+	return nil
 }
 
 // DropClone drops one clone by name. Deliberately WITHOUT the lifecycle
@@ -239,9 +370,9 @@ func openCloneHandle(ctx context.Context, cfg *Config, name string) (*CloneHandl
 // dropping is idempotent (IF EXISTS), and a concurrent GC pass that listed it
 // a moment ago simply finds it gone.
 func DropClone(ctx context.Context, cfg *Config, name string) error {
-	maint := openSQL(cfg.MaintenanceDSN())
-	defer func() { _ = maint.Close() }()
-	return dropDatabase(ctx, maint, name)
+	maint := OpenMaintenance(cfg)
+	defer func() { _ = maint.db.Close() }()
+	return maint.DropClone(ctx, name)
 }
 
 // gcLocked drops every clone no package process can still use. Each package

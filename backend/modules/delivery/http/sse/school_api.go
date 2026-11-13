@@ -72,18 +72,7 @@ func (rs *Resource[E, C]) SchoolEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allowed, err := rs.schoolAccess.HasSchoolPortalAccess(ctx, accountID, tenantID)
-	if err != nil {
-		logger.ErrorContext(ctx, "school SSE failed to verify portal access",
-			slog.String("error", err.Error()))
-		writeSSEProblem(w, http.StatusInternalServerError, codeGeneralServer, "Failed to verify access")
-		return
-	}
-	if !allowed {
-		logger.WarnContext(ctx, "school SSE rejected: no school portal role",
-			slog.Int64("account_id", accountID),
-			slog.Int64("tenant_id", tenantID))
-		writeSSEProblem(w, http.StatusForbidden, codeGeneralPermission, "Forbidden")
+	if !rs.verifySchoolAccess(ctx, w, accountID, tenantID, logger) {
 		return
 	}
 
@@ -99,6 +88,29 @@ func (rs *Resource[E, C]) SchoolEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rs.startSchoolStream(ctx, conn, accountID, tenantID, logger)
+}
+
+// verifySchoolAccess checks the school-portal role before the first byte and
+// writes the refusal when the stream may not start: 499 when the client went
+// away during the check, 500 when the check failed, 403 without the role.
+func (rs *Resource[E, C]) verifySchoolAccess(ctx context.Context, w http.ResponseWriter, accountID, tenantID int64, logger *slog.Logger) bool {
+	allowed, err := rs.schoolAccess.HasSchoolPortalAccess(ctx, accountID, tenantID)
+	switch {
+	case err != nil && writeClientGone(ctx, w):
+		return false
+	case err != nil:
+		logger.ErrorContext(ctx, "school SSE failed to verify portal access",
+			slog.String("error", err.Error()))
+		writeSSEProblem(w, http.StatusInternalServerError, codeGeneralServer, "Failed to verify access")
+		return false
+	case !allowed:
+		logger.WarnContext(ctx, "school SSE rejected: no school portal role",
+			slog.Int64("account_id", accountID),
+			slog.Int64("tenant_id", tenantID))
+		writeSSEProblem(w, http.StatusForbidden, codeGeneralPermission, "Forbidden")
+		return false
+	}
+	return true
 }
 
 func (rs *Resource[E, C]) startSchoolStream(ctx context.Context, conn *sseConnection[E, C], accountID, tenantID int64, logger *slog.Logger) {

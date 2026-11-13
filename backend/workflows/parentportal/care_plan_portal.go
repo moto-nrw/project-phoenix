@@ -3,7 +3,7 @@ package parentportal
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Public results are the application values themselves, including nil and empty.

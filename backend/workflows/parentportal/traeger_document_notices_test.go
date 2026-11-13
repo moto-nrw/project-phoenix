@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 )
 
 // The pushes of a sent care contract and of a release for parents (#5941)

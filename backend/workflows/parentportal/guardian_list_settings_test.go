@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 	"github.com/stretchr/testify/require"
 )
 

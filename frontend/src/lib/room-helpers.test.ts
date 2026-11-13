@@ -9,7 +9,7 @@ import {
   isSystemRoom,
   formatFloor,
 } from "./room-helpers";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { suppressConsole } from "~/test/helpers/console";
 import { buildBackendRoom } from "~/test/fixtures/rooms";
 
@@ -329,14 +329,12 @@ describe("getRoomCategoryColor", () => {
       MOTO_COLOR_PALETTE.indigo.base,
     );
     expect(getRoomCategoryColor("Gruppenraum")).toBe(
-      MOTO_COLOR_PALETTE.roomCategory.group,
+      MOTO_COLOR_PALETTE.emerald.base,
     );
     expect(getRoomCategoryColor("Themenraum")).toBe(
-      MOTO_COLOR_PALETTE.roomCategory.theme,
+      MOTO_COLOR_PALETTE.violet.base,
     );
-    expect(getRoomCategoryColor("Sport")).toBe(
-      MOTO_COLOR_PALETTE.roomCategory.sport,
-    );
+    expect(getRoomCategoryColor("Sport")).toBe(MOTO_COLOR_PALETTE.pink.base);
   });
 
   it("keeps the four categories visually distinct", () => {

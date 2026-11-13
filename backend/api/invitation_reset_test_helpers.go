@@ -8,16 +8,16 @@ import (
 
 	"github.com/spf13/viper"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	schoolCalendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // WithInvitationResetClock pins the return day in invitation integration tests.

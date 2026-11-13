@@ -18,6 +18,11 @@ on:
       run-seed-smoke:
         type: boolean
         required: true
+      # True when the changed file list alone proves a selection of at most
+      # 16 packages (main.yml, "Size backend test scope").
+      backend-small-runner:
+        type: boolean
+        default: false
       # True for pull requests: test only what changed against base_ref. False
       # for protected-branch pushes, release pull requests and the nightly run,
       # which run both full suites.
@@ -47,68 +52,19 @@ env:
   GOFLAGS: -tags=testhooks -trimpath
 
 jobs:
-  plan-backend:
-    name: Select backend tests
-    if: ${{ inputs.run-backend && inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    outputs:
-      matrix: ${{ steps.packages.outputs.matrix }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 1
-          filter: blob:none
-      - name: Fetch backend comparison history
-        env:
-          BASE_REF: ${{ inputs.base_ref }}
-        run: |
-          refs=("$(git rev-parse HEAD)" "+refs/heads/development:refs/remotes/origin/development")
-          if [ -n "$BASE_REF" ] && [ "$BASE_REF" != development ]; then
-            refs+=("+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF")
-          fi
-          git fetch --no-tags --unshallow origin "${refs[@]}"
-      - name: Setup Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: backend/go.mod
-          cache: true
-          cache-dependency-path: backend/go.sum
-      - name: Test backend test scripts
-        run: |
-          scripts/backend-affected-packages_test.sh
-          scripts/backend-test-matrix_test.sh
-          scripts/test-changed_test.sh
-          scripts/go-test-link-cache_test.sh
-      - name: Select and partition backend packages
-        id: packages
-        working-directory: backend
-        env:
-          FULL_SUITE: ${{ inputs.full-backend-suite }}
-          BASE_REF: ${{ inputs.base_ref }}
-        run: |
-          packages=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
-          if [ "$packages" = ./... ]; then
-            packages=$(go list ./...)
-            FULL_SUITE=true
-          fi
-          matrix=$(printf '%s\n' "$packages" | FULL_SUITE="$FULL_SUITE" ../scripts/backend-test-matrix.sh)
-          printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
-          printf '%s\n' "$matrix" | jq '.include | map({shard, runner, packages: (.packages | split("\n") | map(select(length > 0)) | length)})'
-
   test-backend:
     name: Backend tests (${{ matrix.shard }})
-    needs: plan-backend
-    if: ${{ !cancelled() && inputs.run-backend && (needs.plan-backend.result == 'success' || needs.plan-backend.result == 'skipped') }}
+    if: ${{ inputs.run-backend }}
     strategy:
       fail-fast: false
-      # One job sized from the affected graph (scripts/backend-test-matrix.sh).
-      # Only the nightly race run keeps four shards.
-      matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix || (inputs.backend-race && '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}' || '{"include":[{"shard":0,"blobs":true}]}')) }}
-    runs-on: ${{ matrix.runner || 'blacksmith-8vcpu-ubuntu-2404' }}
+      # One job. Only the nightly race run keeps four shards.
+      matrix: ${{ fromJSON(inputs.backend-race && '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}' || '{"include":[{"shard":0}]}') }}
+    # This job sets the pull request's wall-clock time, so it selects its own
+    # packages in "Run Go tests" instead of waiting for a planning job: that
+    # job took 40-67 s plus 6-15 s for the next runner in 31 pull request
+    # runs (12.11.2026). Before the selection the import graph is unknown, so
+    # the caller sizes the runner from the changed file list alone.
+    runs-on: ${{ inputs.backend-small-runner && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     # Instrumented builds and tests need more headroom than ordinary runs.
     # Keep the default Actions limit unchanged for non-race callers.
     timeout-minutes: ${{ inputs.backend-race && 60 || 20 }}
@@ -122,12 +78,22 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f
         env:
           POSTGRES_DB: phoenix_test
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           TZ: Europe/Berlin
+          # As the local test server (docker-compose.example.yml). Six package
+          # binaries hold a pool of twelve each, and every isolated clone adds
+          # its own: with two clones per package the default of 100 answered
+          # "too many clients already" (#6784).
+          #
+          # The local server's fsync=off, full_page_writes=off and
+          # wal_level=minimal change nothing here: on this tmpfs Postgres
+          # took 50.7 % of the busy CPU seconds with them and 48.6-51.2 %
+          # without (full suite, 13.11.2026).
+          POSTGRES_INITDB_ARGS: --set max_connections=300
         ports:
           - 5432:5432
         # Package database drops force checkpoints. These disposable databases
@@ -147,9 +113,16 @@ jobs:
           # its history and comparison refs without downloading every branch
           # and tag. Only the architecture suite needs historical blobs.
           fetch-depth: 1
-          filter: ${{ !(matrix.blobs || matrix.shard == 1) && 'blob:none' || '' }}
+          # The architecture suite reads historical source blobs; a partial
+          # clone would fetch them one by one. Whether it is selected is known
+          # only after the history below arrived, so every job but the other
+          # race shards fetches blobs. That fetch runs beside the setup steps.
+          filter: ${{ inputs.backend-race && matrix.shard != 1 && 'blob:none' || '' }}
 
-      - name: Fetch backend comparison history
+      # Runs in the background while Node, Go and the build cache are set up
+      # (28 s of 383 s in series, #6784); "Finish fetching" below waits for it.
+      # None of the steps in between reads git.
+      - name: Start fetching backend comparison history
         env:
           BASE_REF: ${{ inputs.base_ref }}
         run: |
@@ -159,7 +132,11 @@ jobs:
           fi
           # Full ancestry keeps merge-base intact for the architecture
           # comparisons. Unrelated refs and tags are not test inputs.
-          git fetch --no-tags --unshallow origin "${refs[@]}"
+          (
+            set +e
+            git fetch --no-tags --unshallow origin "${refs[@]}"
+            echo "$?" > "$RUNNER_TEMP/history-status"
+          ) > "$RUNNER_TEMP/history.log" 2>&1 < /dev/null &
 
       - name: Setup Node.js for error-code generator fixtures
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -208,13 +185,24 @@ jobs:
           key: ${{ steps.build-cache-key.outputs.key }}
           restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
 
+      - name: Finish fetching backend comparison history
+        timeout-minutes: 5
+        run: |
+          until test -s "$RUNNER_TEMP/history-status"; do sleep 1; done
+          cat "$RUNNER_TEMP/history.log"
+          exit "$(cat "$RUNNER_TEMP/history-status")"
+
+      # Pull requests and pushes run these in the "ratchets" suite of
+      # ci-scripts (main.yml), off this job's critical path. The nightly run
+      # has no such job.
       - name: Test backend test scripts
-        if: ${{ matrix.shard == 0 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') }}
+        if: ${{ matrix.shard == 0 && inputs.backend-race }}
         run: |
           scripts/backend-affected-packages_test.sh
           scripts/backend-test-matrix_test.sh
           scripts/test-changed_test.sh
           scripts/go-test-link-cache_test.sh
+          scripts/go-cache-sweep_test.sh
 
       - name: Verify snapshot roles match migrations
         if: matrix.shard == 0
@@ -246,7 +234,7 @@ jobs:
           # this block too, including role memberships such as pg_read_all_data.
           # A role the dump references fails the restore (ON_ERROR_STOP); a role
           # used only through SET ROLE fails later, in the tests that need it.
-          # Everything runs inside the postgres:17-alpine service container: the
+          # Everything runs inside the postgres service container: the
           # local socket is trust-auth and the runner's psql is v16, which
           # refuses a v17 server.
           docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d phoenix_test <<EOF
@@ -323,15 +311,32 @@ jobs:
           TRAEGER_URL: http://traeger.localhost:3000
           NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
           TENANT_DOMAIN: localhost
-          TEST_PACKAGES: ${{ matrix.packages }}
-          PACKAGE_WORKERS: ${{ matrix.workers || 6 }}
+          BASE_REF: ${{ inputs.base_ref }}
+          PG_CONTAINER: ${{ job.services.postgres.id }}
           FULL_SUITE: ${{ !inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '' }}
           SHARD_INDEX: ${{ matrix.shard }}
           BACKEND_RACE: ${{ inputs.backend-race }}
           SPLIT_SUITES: ${{ inputs.backend-race }}
         run: |
+          # A migration this pull request adds below the newest one of its
+          # base reaches deployed databases after it. Name those for
+          # TestLateMigrationsYieldTheFreshSchema, which replays that order
+          # (ADR 0223). Usually none: the test then skips.
+          if [ -n "$BASE_REF" ]; then
+            PHX_LATE_MIGRATIONS=$(node ../scripts/check-migration-versions.mjs --late "origin/$BASE_REF" HEAD)
+            export PHX_LATE_MIGRATIONS
+            echo "Late migrations: [$PHX_LATE_MIGRATIONS]"
+          fi
+          TEST_PACKAGES=
+          if [ "$FULL_SUITE" != true ]; then
+            # A selector failure fails the job; a go.mod or go.sum change
+            # selects everything.
+            TEST_PACKAGES=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
+            if [ "$TEST_PACKAGES" = ./... ]; then
+              FULL_SUITE=true
+            fi
+          fi
           if [ "$FULL_SUITE" = true ]; then
-            # Known full runs start immediately, without a planning runner.
             all_packages=$(go list ./...)
             TEST_PACKAGES=$(printf '%s\n' "$all_packages" | FULL_SUITE=true ../scripts/backend-test-matrix.sh |
               jq -er --argjson shard "$SHARD_INDEX" '.include[] | select(.shard == $shard) | .packages')
@@ -346,6 +351,11 @@ jobs:
           fi
           echo "Running ${#packages[@]} selected Go packages"
 
+          # Six package binaries keep eight vCPUs busy, four the small runner.
+          PACKAGE_WORKERS=6
+          if [ "$(nproc)" -lt 8 ]; then
+            PACKAGE_WORKERS=4
+          fi
           race_flags=()
           measure=()
           if [ "$BACKEND_RACE" = true ]; then
@@ -361,11 +371,62 @@ jobs:
             free -m
           fi
 
+          # Counters for "Summarize backend CPU use" below.
+          head -n 1 /proc/stat > "$RUNNER_TEMP/cpu-before"
+          docker exec "$PG_CONTAINER" cat /sys/fs/cgroup/cpu.stat > "$RUNNER_TEMP/postgres-cpu-before" || true
+
           # Single pass produces junit.xml. No retries: flaky tests should fail
           # loudly, not be hidden. gotestsum propagates race/test failures.
-          "${measure[@]}" go tool gotestsum --format pkgname-and-test-fails \
+          #
+          # GOGC=400 is for the compiler, vet and the linker only: they are
+          # short-lived and spent 13 % less CPU with it (549 against 480 CPU s
+          # in the median of four alternating builds of a typical selection,
+          # 11/2026; GOGC=off saved 18 % but leaves memory unbounded). -exec
+          # starts every test binary without it, so tests run as before.
+          GOGC=400 "${measure[@]}" go tool gotestsum --format pkgname-and-test-fails \
             --junitfile junit.xml --jsonfile go-test.json \
-            -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
+            -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" \
+            -exec "env -u GOGC" \
+            -debug-actiongraph="$RUNNER_TEMP/actiongraph.json" "${packages[@]}"
+
+      # The job keeps its cores busy, so its wall time follows CPU work. This
+      # table says whose: the compiler, vet and the linker from Go's action
+      # graph, Postgres from its cgroup, and the test binaries as the rest.
+      # Compare it before and after a change instead of the job duration,
+      # which varies by minutes between runs of one commit (#6784).
+      - name: Summarize backend CPU use
+        if: ${{ !cancelled() && !inputs.backend-race && hashFiles('backend/go-test.json') != '' }}
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          [ -s "$RUNNER_TEMP/actiongraph.json" ] && [ -s "$RUNNER_TEMP/cpu-before" ] || exit 0
+          read -r _ user nice system idle iowait irq softirq steal _ < "$RUNNER_TEMP/cpu-before"
+          busy_before=$((user + nice + system + irq + softirq + steal)); idle_before=$((idle + iowait))
+          read -r _ user nice system idle iowait irq softirq steal _ < /proc/stat
+          busy=$(((user + nice + system + irq + softirq + steal - busy_before) / $(getconf CLK_TCK)))
+          idle=$(((idle + iowait - idle_before) / $(getconf CLK_TCK)))
+          postgres_cpu() { awk '$1 == "usage_usec" { printf "%d", $2 / 1000000 }' "$@"; }
+          # Without the cgroup counter Postgres stays in the last row.
+          postgres=null
+          after=$(docker exec "$PG_CONTAINER" cat /sys/fs/cgroup/cpu.stat | postgres_cpu) || after=
+          before=$(postgres_cpu "$RUNNER_TEMP/postgres-cpu-before") || before=
+          if [ -n "$after" ] && [ -n "$before" ]; then
+            postgres=$((after - before))
+          fi
+          {
+            echo '### Backend test step: CPU seconds'
+            echo '| Work | Actions | CPU s |'
+            echo '|---|---:|---:|'
+            jq -r --argjson busy "$busy" --argjson idle "$idle" --argjson postgres "$postgres" '
+              [.[] | select(.Cmd != null and (.Mode == "build" or .Mode == "vet" or .Mode == "link"))] as $actions |
+              ($actions | map(.CmdUser + .CmdSys) | add // 0 | . / 1e9 | round) as $toolchain |
+              ($actions | group_by(.Mode) | map("| \(.[0].Mode) | \(length) | \(map(.CmdUser + .CmdSys) | add / 1e9 | round) |") | .[]),
+              (if $postgres == null then empty else "| Postgres | | \($postgres) |" end),
+              "| test binaries\(if $postgres == null then ", Postgres" else "" end) and the rest | | \($busy - $toolchain - ($postgres // 0)) |",
+              "| **busy** | | **\($busy)** |",
+              "| idle | | \($idle) |"
+            ' "$RUNNER_TEMP/actiongraph.json"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       # A package over its budget fails the pull request that made it slower,
       # not the next unrelated one that crosses Go's timeout (#6784).
@@ -514,29 +575,10 @@ jobs:
     permissions:
       contents: read
 
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: phoenix_seed
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          TZ: Europe/Berlin
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 2s
-          --health-timeout 5s
-          --health-retries 10
-      mailpit:
-        # Operator login enrolls MFA and reads the code back out of mailpit's
-        # REST API, so the seeder cannot authenticate without a mail sink.
-        image: axllent/mailpit:v1.30
-        ports:
-          - 1025:1025
-          - 8025:8025
-
+    # Postgres and Mailpit are no service containers: the runner pulled and
+    # started those for 9-11 s before the first step. The first step starts
+    # them in the background, and they come up while checkout, Go and the
+    # build run.
     env:
       DB_MAX_OPEN_CONNS: "40"
       DB_MAX_IDLE_CONNS: "40"
@@ -606,57 +648,119 @@ jobs:
       SESSION_END_SCHEDULER_ENABLED: "false"
 
     steps:
+      # bg-start runs a command in the background, bg-wait waits for it,
+      # prints its output and fails with its exit status. A background job
+      # therefore fails the step that waits for it, never silently.
+      - name: Start Postgres and Mailpit in the background
+        env:
+          POSTGRES_IMAGE: postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f
+          MAILPIT_IMAGE: axllent/mailpit:v1.30
+        run: |
+          cat > "${RUNNER_TEMP}/bg-start" <<'SCRIPT'
+          #!/usr/bin/env bash
+          # bg-start <name> <command...>: output to <name>.log, exit status
+          # to <name>.status once the command ends.
+          set -euo pipefail
+          job="${RUNNER_TEMP:?}/$1"
+          shift
+          rm -f "${job}.status"
+          (
+            set +e
+            "$@" > "${job}.log" 2>&1
+            echo $? > "${job}.status.new"
+            mv "${job}.status.new" "${job}.status"
+          ) > /dev/null 2>&1 < /dev/null &
+          SCRIPT
+          cat > "${RUNNER_TEMP}/bg-wait" <<'SCRIPT'
+          #!/usr/bin/env bash
+          # bg-wait <name> <seconds>: fails unless <name> exited 0 in time.
+          set -euo pipefail
+          job="${RUNNER_TEMP:?}/$1"
+          for _ in $(seq 1 $(( $2 * 5 ))); do
+            test -s "${job}.status" && break
+            sleep 0.2
+          done
+          cat "${job}.log" 2>/dev/null || true
+          status=$(cat "${job}.status" 2>/dev/null || echo "not finished after $2 s")
+          if [ "${status}" != 0 ]; then
+            echo "$1 failed: ${status}"
+            exit 1
+          fi
+          SCRIPT
+          chmod +x "${RUNNER_TEMP}/bg-start" "${RUNNER_TEMP}/bg-wait"
+          # A tmpfs for the data directory changed nothing: the seed step took
+          # 84-130 s with it and 110-130 s without (four runs each, 13.11.2026).
+          # Operator login enrolls MFA and reads the code back out of mailpit's
+          # REST API, so the seeder cannot authenticate without a mail sink.
+          cat > "${RUNNER_TEMP}/start-services" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          docker pull --quiet "${POSTGRES_IMAGE}" & postgres_pull=$!
+          docker pull --quiet "${MAILPIT_IMAGE}" & mailpit_pull=$!
+          wait "${postgres_pull}"
+          wait "${mailpit_pull}"
+          docker run --detach --name seed-postgres --publish 5432:5432 \
+            --env POSTGRES_DB=phoenix_seed --env POSTGRES_USER=postgres \
+            --env POSTGRES_PASSWORD=postgres --env TZ=Europe/Berlin \
+            "${POSTGRES_IMAGE}" > /dev/null
+          docker run --detach --name seed-mailpit --publish 1025:1025 --publish 8025:8025 \
+            "${MAILPIT_IMAGE}" > /dev/null
+          # Over TCP: the image's first-start server listens on the socket only.
+          pg_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' seed-postgres)
+          for _ in $(seq 1 300); do
+            if pg_isready -q -h "${pg_ip}" -p 5432 -U postgres && curl -fsS http://localhost:8025/readyz > /dev/null 2>&1; then
+              echo "Postgres and Mailpit ready"
+              exit 0
+            fi
+            sleep 0.2
+          done
+          echo "Postgres or Mailpit not ready 60 s after start"
+          exit 1
+          SCRIPT
+          chmod +x "${RUNNER_TEMP}/start-services"
+          "${RUNNER_TEMP}/bg-start" services "${RUNNER_TEMP}/start-services"
+
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Every DSN points at the Postgres container's bridge IP instead of
-      # localhost:5432. localhost resolves to [::1], which Docker serves
-      # through its userland port proxy. Three runs (36190757699,
-      # 36197414192, 36197521464) hung one pooled connection for the full
-      # 10 s read timeout on a millisecond query, and Postgres logged neither
-      # the query, a lock wait, nor the EOF of the closed connection: that
-      # connection's bytes never reached the server. The direct address
-      # takes the proxy out of the path.
-      - name: Resolve Postgres container address
-        run: |
-          pg_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${{ job.services.postgres.id }}")
-          test -n "${pg_ip}"
-          echo "Postgres container address: ${pg_ip}"
-          {
-            echo "DB_DSN=postgres://postgres:postgres@${pg_ip}:5432/phoenix_seed?sslmode=disable"
-            echo "DEMO_DB_DSN=postgres://phoenix_demo@${pg_ip}:5432/phoenix_seed?sslmode=disable"
-            echo "SEED_COVERAGE_DSN=postgres://postgres:postgres@${pg_ip}:5432/phoenix_seed?sslmode=disable"
-          } >> "${GITHUB_ENV}"
-
+      # No setup-go cache: its entry held the module cache and a Go build
+      # cache, and the seed smoke build cache below overwrote that build cache
+      # right after (314 and 243 MB). The seed smoke cache carries the modules.
       - name: Setup Go
         id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
-          cache: true
-          cache-dependency-path: backend/go.sum
+          cache: false
 
-      # setup-go's go.sum-only key is immutable. All scenarios build the same
-      # binaries, so they share one source-keyed layer with the last source
-      # build as a warm fallback. Only nightly.yml saves it, on development:
-      # a ~330 MB save per pull request push filled the 10 GB repository
-      # cache and evicted the development entry that pull requests restore.
+      # All scenarios build the same binaries, so they share one source-keyed
+      # layer with the last source build as a warm fallback. Only
+      # backend-build-cache.yml and nightly.yml save it, on development: a
+      # ~330 MB save per pull request push filled the 10 GB repository cache
+      # and evicted the development entry that pull requests restore. The
+      # source hash comes from the git index; hashFiles over the Go files took
+      # 2-5 s. Key and path must match backend-build-cache.yml.
       - name: Compute seed smoke build cache key
         id: build-cache-key
         env:
           SEED_CACHE_PREFIX: seed-smoke-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum') }}-
-          SEED_SOURCE_HASH: ${{ hashFiles('backend/**/*.go') }}
         run: |
+          source_hash=$(git ls-files --stage -- 'backend/*.go' | sha256sum | cut -d' ' -f1)
           echo "prefix=$SEED_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
-          echo "key=$SEED_CACHE_PREFIX$SEED_SOURCE_HASH" >> "$GITHUB_OUTPUT"
+          echo "key=$SEED_CACHE_PREFIX$source_hash" >> "$GITHUB_OUTPUT"
       - name: Restore seed smoke build cache
         id: build-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/go-build
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
           key: ${{ steps.build-cache-key.outputs.key }}
           restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
 
+      # Building the dev tools in the background beside the migrations gained
+      # nothing measurable (three runs per scenario, 13.11.2026), and with a
+      # stale cache both builds compiled the same packages at once.
       - name: Build backend and dev tools binaries
         working-directory: backend
         run: |
@@ -666,33 +770,52 @@ jobs:
       # Downloading the test modules and compiling the coverage ratchet took
       # 12 s after the seed, for a test that runs 0.1 s. It compiles now while
       # the seeder waits on the server; the ratchet step waits for it. The
-      # modules download first, before the next step moves the clock.
+      # modules download first, before the clock moves.
       - name: Compile the seed coverage ratchet in the background
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
           go list -deps -test ./internal/devtools/seedapi/ > /dev/null
-          (
-            if go test -c -o "${RUNNER_TEMP}/seed-coverage.test" ./internal/devtools/seedapi/ \
-              > "${RUNNER_TEMP}/seed-coverage-build.log" 2>&1; then
-              echo ok > "${RUNNER_TEMP}/seed-coverage-build.status"
-            else
-              echo failed > "${RUNNER_TEMP}/seed-coverage-build.status"
-            fi
-          ) > /dev/null 2>&1 &
+          "${RUNNER_TEMP}/bg-start" seed-coverage-build go test -c -o "${RUNNER_TEMP}/seed-coverage.test" ./internal/devtools/seedapi/
+
+      # The image pulls end here, before the clock moves.
+      #
+      # Every DSN points at the Postgres container's bridge IP instead of
+      # localhost:5432. localhost resolves to [::1], which Docker serves
+      # through its userland port proxy. Three runs (36190757699,
+      # 36197414192, 36197521464) hung one pooled connection for the full
+      # 10 s read timeout on a millisecond query, and Postgres logged neither
+      # the query, a lock wait, nor the EOF of the closed connection: that
+      # connection's bytes never reached the server. The direct address
+      # takes the proxy out of the path.
+      - name: Wait for Postgres and Mailpit
+        run: |
+          "${RUNNER_TEMP}/bg-wait" services 180
+          pg_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' seed-postgres)
+          test -n "${pg_ip}"
+          echo "Postgres container address: ${pg_ip}"
+          {
+            echo "DB_DSN=postgres://postgres:postgres@${pg_ip}:5432/phoenix_seed?sslmode=disable"
+            echo "DEMO_DB_DSN=postgres://phoenix_demo@${pg_ip}:5432/phoenix_seed?sslmode=disable"
+            echo "SEED_COVERAGE_DSN=postgres://postgres:postgres@${pg_ip}:5432/phoenix_seed?sslmode=disable"
+          } >> "${GITHUB_ENV}"
 
       # Server, seed, simulation and Postgres read the clock of this VM, and the
       # server keeps attendance, shifts and blocks per Berlin day. A run that
       # crossed Berlin midnight checked a child in on one day and failed to
       # pick it up on the next (runs 41359665512, 42422930038, 42532710545;
-      # #5511). The job therefore starts at the next 07:20 Berlin, before the
-      # first wave of the simulated day, and the simulation moves the clock
-      # through the day with --clock-command up to 12:50. Seed and simulation
-      # then share one Berlin day whenever the job starts. The clock only moves
-      # forward, after every download: TLS certificates stay valid. set-clock
-      # records the shift; "Restore the runner clock" undoes it before the
-      # cache upload.
-      - name: Move the runner clock to the next 07:20 Berlin
+      # #5511). The job therefore starts at 07:20 Berlin, before the first wave
+      # of the simulated day, and the simulation moves the clock through the
+      # day with --clock-command up to 12:50. Seed and simulation then share
+      # one Berlin day whenever the job starts. It is the next 07:20 of a care
+      # day, a weekday that is no NRW holiday (scripts/seed-smoke-clock.mjs):
+      # from Friday morning to Sunday the next 07:20 was a weekend day, and
+      # every run checked a day without shifts or staff at work (#6962). The
+      # clock only moves forward, after every download, at most five days (a
+      # Maundy Thursday to the Tuesday after Easter): TLS certificates stay
+      # valid. set-clock records the shift; "Restore the runner clock" undoes
+      # it before the cache upload.
+      - name: Move the runner clock to the next 07:20 Berlin of a care day
         run: |
           cat > "${RUNNER_TEMP}/set-clock" <<'SCRIPT'
           #!/usr/bin/env bash
@@ -707,14 +830,7 @@ jobs:
           mv "${shift_file}.new" "${shift_file}"
           SCRIPT
           chmod +x "${RUNNER_TEMP}/set-clock"
-          # Count in calendar days, not seconds: a day of the clock change
-          # has 23 or 25 hours.
-          now=$(date +%s)
-          today=$(TZ=Europe/Berlin date -d "@${now}" +%F)
-          target=$(TZ=Europe/Berlin date -d "${today} 07:20" +%s)
-          if [ "${target}" -le "${now}" ]; then
-            target=$(TZ=Europe/Berlin date -d "$(TZ=Europe/Berlin date -d "${today} +1 day" +%F) 07:20" +%s)
-          fi
+          target=$(node scripts/seed-smoke-clock.mjs "$(date +%s)")
           # Without time synchronisation, which would set the clock back.
           sudo timedatectl set-ntp false
           sudo systemctl stop chrony.service systemd-timesyncd.service 2>/dev/null || true
@@ -790,11 +906,22 @@ jobs:
           echo "server did not become healthy in 60s"
           exit 1
 
-      - name: Seed all four profiles and verify enrollment, withdrawal, web and NFC flows
+      # The standing demo school (#3461) seeds beside the four profiles: one
+      # after the other took about a minute longer (#6962). It has a Träger
+      # of its own, so the Träger steps of either seed see only their own
+      # schools. The demo starts once the seed has invited its caterer:
+      # - by then the seed's operator login is done; both sign in as the
+      #   same operator, and a new MFA challenge voids the open one;
+      # - the outbox sends in order, and the demo's mail queued before the
+      #   caterer's invitation held it back past the seed's minute of waiting
+      #   (local run, caterer tables empty).
+      # The simulation moves the clock and starts after both.
+      - name: Seed all four profiles and the standing demo school, verify enrollment, withdrawal, web and NFC flows
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/devtools" seed \
+          started=$(date +%s)
+          "${RUNNER_TEMP}/bg-start" seed "${RUNNER_TEMP}/devtools" seed \
             --email "${OPERATOR_EMAIL}" \
             --password "${OPERATOR_PASSWORD}" \
             --pin "${OGS_DEVICE_PIN}" \
@@ -802,6 +929,41 @@ jobs:
             --tenant-slug vollbetrieb \
             --staff-password 'SeedSmoke1234%' \
             --admin-email ines.lindner@ganztag-nord.example
+          invited='^  caterer .* invited$'
+          for _ in $(seq 1 1500); do
+            grep -q "${invited}" "${RUNNER_TEMP}/seed.log" 2>/dev/null && break
+            test -s "${RUNNER_TEMP}/seed.status" && break
+            sleep 0.2
+          done
+          demo_started=$(date +%s)
+          if ! grep -q "${invited}" "${RUNNER_TEMP}/seed.log"; then
+            echo "the seed has not invited its caterer; the standing demo does not start"
+            "${RUNNER_TEMP}/bg-wait" seed 900 || true
+            exit 1
+          fi
+          # Reset only consumed challenge fixtures in this disposable CI
+          # database; keep production limits unchanged.
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
+            'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
+          "${RUNNER_TEMP}/bg-start" standing-demo "${RUNNER_TEMP}/devtools" demo \
+            --url http://localhost:8080 --uploads-root public/uploads --once --demo-standing-school
+          failed=0
+          echo "::group::Seed of the four profiles"
+          "${RUNNER_TEMP}/bg-wait" seed 900 || failed=1
+          echo "::endgroup::"
+          echo "::group::Standing demo school"
+          "${RUNNER_TEMP}/bg-wait" standing-demo 900 || failed=1
+          echo "::endgroup::"
+          echo "standing demo started $((demo_started - started))s after the seed"
+          for job in seed standing-demo; do
+            if test -s "${RUNNER_TEMP}/${job}.status"; then
+              echo "${job}: $(( $(stat -c %Y "${RUNNER_TEMP}/${job}.status") - started ))s after the start"
+            fi
+          done
+          test "${failed}" = 0
+          traeger=$(psql "${DB_DSN}" -At -c "SELECT o.slug FROM platform.schools s JOIN platform.organizations o ON o.id = s.organization_id WHERE s.slug = 'messe-demo'")
+          echo "Träger of the standing demo school: ${traeger}"
+          test "${traeger}" = demo-traeger-messe
 
       - name: Simulate a full care day
         if: ${{ matrix.scenario == 'profiles' }}
@@ -865,16 +1027,14 @@ jobs:
             test "${datev}" -gt 0
           done
 
-      - name: Provision and restart the standing demo school
+      # The standing school is the fallback of #3463 and keeps its coverage:
+      # provisioned beside the seed, restarted here from its stored state
+      # without an operator login. Its login's challenge stays for the
+      # coverage ratchet.
+      - name: Restart the standing demo school
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          # Reset only consumed challenge fixtures in this disposable CI
-          # database; keep production limits unchanged.
-          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
-            'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
-          # The standing school is the fallback of #3463 and keeps its coverage.
-          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once --demo-standing-school
           "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once --demo-standing-school
 
       # One demo school per demo access (#3463): queue what the serving backend
@@ -1003,16 +1163,7 @@ jobs:
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend/internal/devtools/seedapi
         run: |
-          status_file="${RUNNER_TEMP}/seed-coverage-build.status"
-          for _ in $(seq 1 300); do
-            test -s "${status_file}" && break
-            sleep 1
-          done
-          if [ "$(cat "${status_file}" 2>/dev/null)" != ok ]; then
-            echo "compiling the seed coverage ratchet failed or did not finish in 300 s"
-            cat "${RUNNER_TEMP}/seed-coverage-build.log" || true
-            exit 1
-          fi
+          "${RUNNER_TEMP}/bg-wait" seed-coverage-build 300
           "${RUNNER_TEMP}/seed-coverage.test" -test.run TestSeedCoverageRatchet -test.v
 
       # Before any upload: the cache service and TLS expect the real time.
@@ -1033,7 +1184,9 @@ jobs:
         if: ${{ github.event_name != 'pull_request' && matrix.scenario == 'profiles' && steps.build-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/go-build
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
           key: ${{ steps.build-cache-key.outputs.key }}
 
       - name: Postgres activity and socket queues
@@ -1050,3 +1203,11 @@ jobs:
       - name: Stop server
         if: always()
         run: kill "$(cat "${RUNNER_TEMP}/server.pid")" 2>/dev/null || true
+
+      # What the runner printed for the former service containers.
+      - name: Postgres and Mailpit logs
+        if: always()
+        run: |
+          docker logs --details seed-postgres 2>&1 || true
+          echo "--- mailpit"
+          docker logs --details seed-mailpit 2>&1 || true

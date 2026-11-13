@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/encoding/charmap"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The DATEV booking batch of a released run (#4694) through the finance
@@ -28,7 +28,13 @@ func newFinanceExportsForTest(store FinanceExportStore, post parentbilling.Invoi
 
 func newFinanceExportsWithDatev(store FinanceExportStore, post parentbilling.InvoiceHistoryPost, datev parentbilling.DatevBillingSettings,
 ) *FinanceExports {
-	return NewFinanceExports(store, post, datev,
+	return newFinanceExportsWith(store, post, &actorNamesDouble{}, datev)
+}
+
+func newFinanceExportsWith(store FinanceExportStore, post parentbilling.InvoiceHistoryPost, names parentbilling.ExportActorNames,
+	datev parentbilling.DatevBillingSettings,
+) *FinanceExports {
+	return NewFinanceExports(store, post, names, datev,
 		func() calendar.Date { return calendar.NewDate(2026, time.November, 9) },
 		func() time.Time { return time.Date(2026, time.November, 9, 10, 0, 0, 0, calendar.Berlin) })
 }

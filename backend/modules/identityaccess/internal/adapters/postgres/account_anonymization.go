@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 func (s *Store) AnonymizeAccountForDeletion(ctx context.Context, accountID int64, email string) (domain.OperationStats, error) {

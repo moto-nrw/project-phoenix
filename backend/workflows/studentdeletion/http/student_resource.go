@@ -2,11 +2,11 @@ package studentdeletionhttp
 
 import (
 	chi "github.com/go-chi/chi/v5"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	studentdeletion "github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	studentdeletion "github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
 )
 
 type ResourceConfig struct {

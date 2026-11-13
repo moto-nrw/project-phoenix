@@ -1,7 +1,7 @@
 package careplan
 
 import (
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Today is the Berlin calendar day in the owner's vocabulary. Compositions

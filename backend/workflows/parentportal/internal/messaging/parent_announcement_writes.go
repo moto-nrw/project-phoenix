@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 )
 
 func (s *Service) answerableAnnouncement(adminCtx context.Context, announcementID, accountID, studentID int64) (*ParentAnnouncement, error) {

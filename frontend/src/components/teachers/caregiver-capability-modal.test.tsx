@@ -144,7 +144,6 @@ vi.mock("~/components/ui/detail-modal-components", async () => {
       ),
     DetailIcons: {
       person: createElement("span", null, "person"),
-      briefcase: createElement("span", null, "briefcase"),
       group: createElement("span", null, "group"),
       x: createElement("span", null, "x"),
     },

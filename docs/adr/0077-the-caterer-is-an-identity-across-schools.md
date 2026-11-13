@@ -4,8 +4,8 @@ status: accepted
 
 # The caterer is an identity across schools
 
-Decision for [#3873](https://github.com/moto-nrw/project-phoenix/issues/3873)
-under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580).
+Decision for [#3873](https://github.com/moto-ogs/project-phoenix/issues/3873)
+under [#2580](https://github.com/moto-ogs/project-phoenix/issues/2580).
 
 ## Context
 

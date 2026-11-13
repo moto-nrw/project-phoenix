@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentAPI "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // TestParentHolidayRegistrationLinksNameTheLinksTraegerOnly pins the root

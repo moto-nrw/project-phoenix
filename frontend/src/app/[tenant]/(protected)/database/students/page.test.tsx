@@ -5,6 +5,7 @@ import {
   fireEvent,
   waitFor,
 } from "@testing-library/react";
+import type { TenantPageSearchRowProps } from "~/components/ui/tenant-page-search-row";
 import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StudentsPage from "./page";
@@ -84,59 +85,63 @@ vi.mock("~/contexts/ToastContext", () => ({
 }));
 
 // Mock UI components
-vi.mock("~/components/database/database-page-layout", () => ({
-  DatabasePageLayout: ({
-    children,
-    loading,
-    intro,
-    search,
-    error,
-    empty,
-    overlays,
-  }: {
-    children: React.ReactNode;
-    loading: boolean;
-    intro?: {
-      title: string;
-      description?: React.ReactNode;
-      actions?: React.ReactNode;
-    };
-    search?: React.ReactNode;
-    error?: string | null;
-    empty?: {
-      title: string;
-      description?: string;
-      icon?: React.ReactNode;
-      action?: React.ReactNode;
-    } | null;
-    overlays?: React.ReactNode;
-  }) => (
-    <div data-testid="database-layout" data-loading={loading}>
-      {intro ? (
-        <div data-testid="page-intro">
-          <h1>{intro.title}</h1>
-          {intro.description}
-          {intro.actions}
-          {search}
-        </div>
-      ) : null}
-      {/* Fehler und Leerzustand liefert das Geruest, nicht die Seite. */}
-      {error ? <div data-testid="page-error">{error}</div> : null}
-      {!error && empty ? (
-        <div data-testid="page-empty">
-          <p>{empty.title}</p>
-          {empty.description ? <p>{empty.description}</p> : null}
-          {empty.action}
-        </div>
-      ) : null}
-      {!error && !empty ? children : null}
-      {overlays}
-    </div>
-  ),
-}));
+vi.mock("~/components/database/database-page-layout", async () => {
+  const { TenantPageSearchRow } =
+    await import("~/components/ui/tenant-page-search-row");
+  return {
+    DatabasePageLayout: ({
+      children,
+      loading,
+      intro,
+      searchRow,
+      error,
+      empty,
+      overlays,
+    }: {
+      children: React.ReactNode;
+      loading: boolean;
+      intro?: {
+        title: string;
+        description?: React.ReactNode;
+        actions?: React.ReactNode;
+      };
+      searchRow?: TenantPageSearchRowProps;
+      error?: string | null;
+      empty?: {
+        title: string;
+        description?: string;
+        icon?: React.ReactNode;
+        action?: React.ReactNode;
+      } | null;
+      overlays?: React.ReactNode;
+    }) => (
+      <div data-testid="database-layout" data-loading={loading}>
+        {intro ? (
+          <div data-testid="page-intro">
+            <h1>{intro.title}</h1>
+            {intro.description}
+            {intro.actions}
+            {searchRow ? <TenantPageSearchRow {...searchRow} /> : null}
+          </div>
+        ) : null}
+        {/* Fehler und Leerzustand liefert das Geruest, nicht die Seite. */}
+        {error ? <div data-testid="page-error">{error}</div> : null}
+        {!error && empty ? (
+          <div data-testid="page-empty">
+            <p>{empty.title}</p>
+            {empty.description ? <p>{empty.description}</p> : null}
+            {empty.action}
+          </div>
+        ) : null}
+        {!error && !empty ? children : null}
+        {overlays}
+      </div>
+    ),
+  };
+});
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: ({
     search,
     filters,
     onClearAllFilters,

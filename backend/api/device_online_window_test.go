@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // deviceOnlineWindowMinutesKey is the Settings Platform registry key the

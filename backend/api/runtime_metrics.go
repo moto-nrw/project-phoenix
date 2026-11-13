@@ -13,8 +13,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/observability"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/observability"
 )
 
 type httpMetrics struct {

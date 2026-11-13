@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // demoRequestWindow admits at most limit requests per key within any

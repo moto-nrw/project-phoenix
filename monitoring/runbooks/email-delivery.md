@@ -46,6 +46,70 @@ Mail belasten. Die Lücke wird nach dem Staging-Test (#5935) neu bewertet.
 Nach einem Webhook-Ausfall deshalb die Beschwerden der Ausfallzeit im Dashboard von
 Lettermint ansehen.
 
+## Drosselung durch den Anbieter
+
+Antwortet der Mailserver mit einem SMTP-4xx-Code (zum Beispiel `421 4.7.0`
+oder `450 4.7.1`), soll moto später erneut senden. Bei Lettermint heißt das
+meist: Drosselung oder aufgebrauchtes Kontingent. moto behandelt jeden 4xx so,
+auch einen vorübergehenden Fehler oder ein volles Postfach. moto verschiebt die
+Mail dann, ohne einen Versuch zu verbrauchen (#6737). Die
+Wartezeit wächst mit dem Alter der Mail: eine Minute bei einer neuen Mail,
+höchstens eine Stunde. So schickt moto bei einem leeren Tageskontingent nicht
+jede Minute alle Mails erneut los.
+
+Das gilt 48 Stunden nach dem Einreihen der Mail. Danach zählt jede Drosselung
+wieder als Versuch, und die Mail scheitert spätestens nach ihren normalen
+Versuchen (etwa 15 Stunden). Eine Mail scheitert also spätestens etwa 63
+Stunden nach dem Einreihen.
+
+Gedrosselte Sendungen zählt `phoenix_delivery_operations_total` mit
+`operation="throttled"`. Die Logzeile `email send failed` (ERROR) nennt den
+Code im Feld `error`, nie die Adresse. Eine Drosselung kann deshalb auch
+„Server error spike“ auslösen.
+
+Die 48 Stunden zählen ab dem ersten Einreihen. Wiederholt der Träger eine
+gescheiterte Mail, die älter ist, zählt jede Drosselung sofort als Versuch. Das
+Alter dieser Mail löst „Outbox mail waiting too long“ aus, bis sie raus ist.
+
+Sign-in-Codes gehen sofort raus, nicht über die Warteschlange. Bei ihnen zählt
+jede Drosselung als Versuch; nach drei Versuchen ist der Code gescheitert, und
+die ERROR-Zeile meldet es.
+
+## Alarm „Outbox mail waiting too long“
+
+Die älteste wartende Mail oder Push (`phoenix_delivery_oldest_pending_age_seconds`)
+wartet seit über einer Stunde. 200 Mails auf einmal brauchen etwa 10 Minuten,
+das löst den Alarm nicht aus.
+
+1. `phoenix_delivery_operations_total` nach `operation` ansehen:
+   - `throttled` steigt: Der Anbieter drosselt. Kontingent und Status bei
+     Lettermint prüfen. Die Mails gehen von selbst raus, sobald der Anbieter
+     wieder annimmt.
+   - `retry` steigt: Senden schlägt fehl. Logzeilen `email send failed` lesen.
+   - Nichts steigt: Der Worker läuft nicht. Logzeilen `outbox worker tick`
+     prüfen.
+2. Eine einzelne Mail mit wiederholten Fehlern hält den Alarm bis zu 15 Stunden
+   an. Sie endet dann als `dead_letter` und löst „Outbox mails failed for good“
+   aus.
+
+Der Wert stammt aus dem letzten Lauf des Workers. Steht der Worker, bleibt der
+Wert stehen; dann hilft nur die Logzeile `outbox worker tick complete`.
+
+## Alarm „Outbox mails failed for good“
+
+Ein Lauf des Workers hat Mails oder Pushes endgültig aufgegeben: alle Versuche
+verbraucht, eine endgültige Ablehnung, oder ein Versand mit unbekanntem Ausgang
+(`dispatch fence expired`). Die Logzeile `outbox worker tick failed` nennt im
+Feld `error` Art, Vorlage, ID und Grund, nie die Adresse.
+
+1. Grund lesen. Viele Mails mit demselben Grund (zum Beispiel Anmeldedaten,
+   Zertifikat, `5.7.x`): Konfiguration oder Anbieter prüfen.
+2. Betroffene Personen erfahren es dort, wo die Mail entstanden ist:
+   Schulen in ihren Ansichten, der Träger bei der Ferienanmeldung
+   („E-Mail prüfen“), bei Briefen der Abrechnung und bei Verträgen.
+3. Mails mit unbekanntem Ausgang nie blind erneut senden: Sie können schon
+   angekommen sein.
+
 ## Warnung `email webhook body could not be read`
 
 Die Verbindung von Lettermint ist beim Lesen des Webhook-Bodys abgebrochen oder in

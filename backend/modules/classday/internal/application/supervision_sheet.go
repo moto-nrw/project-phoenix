@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SupervisionStudentSheet builds the per-child sheet a supervisor opens from

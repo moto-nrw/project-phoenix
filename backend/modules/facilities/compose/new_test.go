@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant/tenanttest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -40,7 +40,7 @@ func buildModule(t *testing.T, db *bun.DB, observe func(Observation)) facilities
 	t.Helper()
 	module, err := New(Dependencies{
 		DB: db, DeletionLock: func(context.Context) error { return nil },
-		Usage: roomUsageFunc(func(context.Context) bool { return false }), Observe: observe,
+		Usage: roomUsageFunc(func(context.Context) bool { return false }), References: noReferences, Observe: observe,
 	})
 	require.NoError(t, err)
 	return module

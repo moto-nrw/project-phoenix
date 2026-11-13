@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -40,9 +41,7 @@ func monitorBackfillLocks(ctx context.Context, db *bun.DB, pid int) (func() (tim
 				var waiting bool
 				err := conn.NewRaw(`SELECT coalesce(wait_event_type = 'Lock', false) FROM pg_stat_activity WHERE pid = ?`, pid).Scan(sampleCtx, &waiting)
 				if err != nil {
-					if sampleCtx.Err() == nil {
-						observed.err = fmt.Errorf("sample backfill lock waits: %w", err)
-					}
+					observed.err = sampleFailure(sampleCtx, err)
 					result <- observed
 					return
 				}
@@ -60,4 +59,14 @@ func monitorBackfillLocks(ctx context.Context, db *bun.DB, pid int) (func() (tim
 		return final.wait, final.err
 	}
 	return stop, poolWait, nil
+}
+
+// sampleFailure is what a failed sample reports. The cancellation that stop
+// caused is no failure; a sample that failed on its own while stop was
+// cancelling still is (#6808).
+func sampleFailure(sampleCtx context.Context, err error) error {
+	if cause := sampleCtx.Err(); cause != nil && errors.Is(err, cause) {
+		return nil
+	}
+	return fmt.Errorf("sample backfill lock waits: %w", err)
 }

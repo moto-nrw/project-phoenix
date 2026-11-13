@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // parentBillingLetterMailRenderer binds the Elternabrechnung's mail of a

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 func (r *exportRun) allowedObject(key string, accountReference bool) bool {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // prepareInvitationReset captures the old number before reinstatement can

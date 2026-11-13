@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The rule chain of the monthly care contribution (#4685, ADR 0164): income

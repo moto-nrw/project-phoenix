@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )

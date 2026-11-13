@@ -1,6 +1,6 @@
 package compose
 
-import app "github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
+import app "github.com/moto-ogs/project-phoenix/modules/classday/internal/application"
 
 type CallerReader interface{ app.CallerReader }
 type SchoolWriteScope interface{ app.SchoolWriteScope }

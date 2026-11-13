@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // parseScheduleID parses schedule ID from URL param "scheduleId".

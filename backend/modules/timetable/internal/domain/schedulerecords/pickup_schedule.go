@@ -5,7 +5,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Common validation error messages for pickup schedule models.

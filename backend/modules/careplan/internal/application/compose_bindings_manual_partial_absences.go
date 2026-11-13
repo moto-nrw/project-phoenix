@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanBindingPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanBindingPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
 )
 
 // ManualPartialAbsences projects the dates owned by staff-entered partial excusals.

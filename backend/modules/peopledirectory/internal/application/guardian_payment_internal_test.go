@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 func paymentStrPtr(v string) *string { return &v }

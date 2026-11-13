@@ -5,11 +5,11 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/planexport"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/planning"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
