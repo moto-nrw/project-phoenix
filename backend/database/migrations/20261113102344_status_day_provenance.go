@@ -8,16 +8,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const statusDayProvenanceVersion = "20261113095911"
+const statusDayProvenanceVersion = "20261113102344"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     statusDayProvenanceVersion,
 		Description: "Status-Tage behalten Quelle und Meldezeit beim Aufheben und erneuten Melden; der Verlauf hält Quelle und Konto fest (#6842)",
 		DependsOn: []string{
-			traegerExportRecipientsVersion, // the newest migration on development (1.15.963)
-			schoolAbsenceReportsVersion,    // the source check the clearing source mirrors
-			mealAbsenceHistoryVersion,      // the history trigger this migration extends
+			schoolAbsenceReportsVersion, // the source check the clearing source mirrors
+			mealAbsenceHistoryVersion,   // the history trigger this migration extends
 		},
 	})
 	Migrations.MustRegister(statusDayProvenanceUp, statusDayProvenanceDown)
