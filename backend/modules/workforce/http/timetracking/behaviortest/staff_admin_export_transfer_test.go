@@ -1,4 +1,4 @@
-package timetracking
+package behaviortest
 
 import (
 	"net/http"

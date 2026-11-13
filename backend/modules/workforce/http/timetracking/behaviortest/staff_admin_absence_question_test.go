@@ -3,7 +3,7 @@
 //
 // Requests flow through the production middleware chain (JWT → tenant →
 // permission → tenant tx). Fixtures via testpkg helpers + direct row inserts.
-package timetracking
+package behaviortest
 
 import (
 	"bytes"

@@ -1,6 +1,6 @@
 // Router-level tests for GET /api/time-tracking/absence-allowances (#4971):
 // the staff member's own Kontingente, read-only.
-package timetracking
+package behaviortest
 
 import (
 	"context"
@@ -19,6 +19,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/api/testutil"
 	"github.com/moto-ogs/project-phoenix/modules/workforce"
 	"github.com/moto-ogs/project-phoenix/modules/workforce/http/absencetypes"
+	timetracking "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking"
 	"github.com/moto-ogs/project-phoenix/modules/workforce/workforcetest"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
@@ -41,7 +42,7 @@ func setupOwnAllowancesRoute(t *testing.T) *ownAllowancesRoute {
 	clock := func() time.Time { return ownAllowancesNow }
 	db, capabilities := workforcetest.ComposeAdmin(t, clock)
 	capability := newWorkforceCapability(t, db, clock)
-	resource := NewResource(Dependencies{
+	resource := timetracking.NewResource(timetracking.Dependencies{
 		WorkSessions:  capabilities.WorkSessions,
 		StaffAbsences: capabilities.StaffAbsences,
 		AbsenceWrites: capabilities.AbsenceWrites,
@@ -55,7 +56,7 @@ func setupOwnAllowancesRoute(t *testing.T) *ownAllowancesRoute {
 	})
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
-	router.Mount("/time-tracking", resource.Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache))))
+	router.Mount("/time-tracking", resource.Router(timetracking.ScopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache))))
 	return &ownAllowancesRoute{db: db, capability: capability, router: router}
 }
 

@@ -1,4 +1,4 @@
-package timetracking
+package behaviortest
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-ogs/project-phoenix/modules/workforce"
 	"github.com/moto-ogs/project-phoenix/modules/workforce/http/absencetypes"
+	timetracking "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking"
 	"github.com/moto-ogs/project-phoenix/modules/workforce/workforcetest"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/uptrace/bun"
@@ -27,12 +28,12 @@ func newWorkforce20OwnRouter(t *testing.T) (*bun.DB, http.Handler) {
 	testpkg.SetupTestDB(t)
 	db, caps := workforcetest.ComposeAdmin(t)
 	capability := newWorkforceCapability(t, db)
-	resource := NewResource(Dependencies{WorkSessions: caps.WorkSessions, StaffAbsences: caps.StaffAbsences, AbsenceWrites: caps.AbsenceWrites, Staff: caps.Staff, WorkTimeMonth: caps.WorkTimeMonth, Allowances: capability, AllowanceResponses: func(accounts []workforce.AbsenceTypeAllowanceAccount) any {
+	resource := timetracking.NewResource(timetracking.Dependencies{WorkSessions: caps.WorkSessions, StaffAbsences: caps.StaffAbsences, AbsenceWrites: caps.AbsenceWrites, Staff: caps.Staff, WorkTimeMonth: caps.WorkTimeMonth, Allowances: capability, AllowanceResponses: func(accounts []workforce.AbsenceTypeAllowanceAccount) any {
 		return absencetypes.ToOwnAllowanceResponses(accounts)
 	}, Identity: testIdentity, WithinTenant: testWithinTenant(db)})
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
-	router.Mount("/time-tracking", resource.Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache))))
+	router.Mount("/time-tracking", resource.Router(timetracking.ScopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache))))
 	return db, router
 }
 

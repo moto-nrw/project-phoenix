@@ -1,7 +1,7 @@
 // Router-level tests for GET/PUT /api/staff/{id}/payroll-number (#1417):
 // the Personalnummer feeds payroll, so it sits behind time_tracking:manage —
 // deliberately NOT the users:read/users:update directory tier.
-package timetracking
+package behaviortest
 
 import (
 	"fmt"

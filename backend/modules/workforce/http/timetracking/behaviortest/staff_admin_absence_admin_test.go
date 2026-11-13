@@ -5,7 +5,7 @@
 // Requests flow through the production middleware chain (JWT → tenant →
 // permission → tenant tx), so these also prove the cascade commits/reverts
 // inside the request transaction. Fixtures via testpkg helpers.
-package timetracking
+package behaviortest
 
 import (
 	"bytes"

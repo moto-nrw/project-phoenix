@@ -1,7 +1,7 @@
 // Router-level tests for GET /api/staff/time-tracking/audit-log (#1417):
 // the whole feed is personal data (affected person, acting person, free-text
 // reasons), so it sits behind time_tracking:manage with no users:read tier.
-package timetracking
+package behaviortest
 
 import (
 	"net/http"

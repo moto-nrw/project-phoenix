@@ -1,4 +1,4 @@
-package timetracking
+package behaviortest
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
 	"github.com/moto-ogs/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	timetracking "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking"
 	"github.com/moto-ogs/project-phoenix/modules/workforce/workforcetest"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -35,19 +36,19 @@ func (d isoDay) String() string { return string(d) }
 // testContext holds shared test dependencies of the workforce routes.
 type testContext struct {
 	db       *bun.DB
-	resource *StaffAdminResource
+	resource *timetracking.StaffAdminResource
 	router   chi.Router
 }
 
 // testIdentity reads the caller the request options or the signed token
 // injected, the way the composition root derives it from the session claims.
-func testIdentity(ctx context.Context) Identity {
+func testIdentity(ctx context.Context) timetracking.Identity {
 	claims, permissions := testutil.AuthenticationContext(ctx)
 	name := strings.TrimSpace(claims.FirstName + " " + claims.LastName)
 	if name == "" {
 		name = claims.Username
 	}
-	return Identity{AccountID: int64(claims.ID), Roles: claims.Roles, Permissions: permissions, DisplayName: name}
+	return timetracking.Identity{AccountID: int64(claims.ID), Roles: claims.Roles, Permissions: permissions, DisplayName: name}
 }
 
 // The typed root composes the workforce graph these route suites run over. It
@@ -75,6 +76,13 @@ func newWorkforceCapability(t *testing.T, db *bun.DB, clocks ...func() time.Time
 // TenantTxMiddleware) exactly as the real server does, mounted at /staff.
 func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()
+	return setupStaffRouteWith(t, nil, clocks...)
+}
+
+// setupStaffRouteWith is setupStaffRoute with the resource dependencies
+// adjusted by adjust before the resource is built.
+func setupStaffRouteWith(t *testing.T, adjust func(*bun.DB, *timetracking.StaffAdminDependencies), clocks ...func() time.Time) *testContext {
+	t.Helper()
 
 	db, capabilities := workforcetest.ComposeAdmin(t, clocks...)
 	cleanup, err := workforceCompose.NewDocumentCleanup(db, nil)
@@ -85,7 +93,7 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	qualifications, err := workforceCompose.NewQualifications(db, qualificationStaffStub{}, workforce.QualificationReminderPorts{}, nil)
 	require.NoError(t, err)
 
-	resource := NewStaffAdminResource(StaffAdminDependencies{
+	deps := timetracking.StaffAdminDependencies{
 		Uploads:            nativeUploads.UploadFiles{},
 		PayrollDispatch:    payrollDispatchOff{},
 		PayrollRules:       workforcetest.ComposePayrollRules(t, db),
@@ -109,11 +117,15 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		QualificationTypes: qualifications,
 		Qualifications:     qualifications,
 		Logger:             slog.Default(),
-	})
+	}
+	if adjust != nil {
+		adjust(db, &deps)
+	}
+	resource := timetracking.NewStaffAdminResource(deps)
 
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
-	router.Mount("/staff", resource.Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache))))
+	router.Mount("/staff", resource.Router(timetracking.ScopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache))))
 
 	return &testContext{
 		db:       db,

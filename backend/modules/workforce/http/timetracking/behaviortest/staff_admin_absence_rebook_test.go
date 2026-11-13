@@ -1,7 +1,7 @@
 // Router-level tests for POST /api/staff/{id}/absences/rebook (#3258): the
 // Leitung turns past Freizeitausgleich days into days of a school-defined
 // type with an allowance, as in the Wissingen call of 16.09.2026.
-package timetracking
+package behaviortest
 
 import (
 	"encoding/json"

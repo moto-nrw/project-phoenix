@@ -1,4 +1,4 @@
-package timetracking_test
+package behaviortest_test
 
 import (
 	"context"

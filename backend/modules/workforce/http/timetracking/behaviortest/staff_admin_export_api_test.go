@@ -2,7 +2,7 @@
 // GET /api/staff/time-tracking/export. They pin the permission gate (a bulk
 // export of per-person working-time data must not be reachable with
 // users:read), the parameter validation, and the download response shape.
-package timetracking
+package behaviortest
 
 import (
 	"net/http"

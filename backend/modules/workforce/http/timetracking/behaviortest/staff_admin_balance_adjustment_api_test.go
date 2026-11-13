@@ -1,7 +1,7 @@
 // Router-level tests for the Stundenkonto lifecycle endpoints (#1420):
 // payout/comp-time adjustments, the school-year reset with its double-click
 // guard, and their effect on the month-summary carry chain.
-package timetracking
+package behaviortest
 
 import (
 	"encoding/json"

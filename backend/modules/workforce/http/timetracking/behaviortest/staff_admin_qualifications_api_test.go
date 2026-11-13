@@ -1,7 +1,7 @@
 // Router-level tests for the Nachweise (#4808): kinds and the list sit behind
 // staff:stammdaten, a qualification row can be assigned a kind, and a kind of
 // another school stays invisible.
-package timetracking
+package behaviortest
 
 import (
 	"context"
@@ -14,14 +14,16 @@ import (
 
 	"github.com/moto-ogs/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	timetracking "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 type qualificationTypesBody struct {
-	Data []QualificationTypeResponse `json:"data"`
+	Data []timetracking.QualificationTypeResponse `json:"data"`
 }
 
 func TestQualificationTypesAPI_RequiresStammdatenAndStaysInTheSchool(t *testing.T) {
@@ -64,15 +66,20 @@ func TestQualificationTypesAPI_RequiresStammdatenAndStaysInTheSchool(t *testing.
 
 func TestQualificationsAPI_AssignKindAndReadStatus(t *testing.T) {
 	t.Parallel()
-	ctx := setupOverviewAPI(t)
+	// The staff list is read per request, so the members can follow once the
+	// fixture created them.
+	staff := &qualificationStaffStub{}
+	ctx := setupOverviewAPIWith(t, func(db *bun.DB, deps *timetracking.StaffAdminDependencies) {
+		qualifications, err := workforceCompose.NewQualifications(db, staff, workforce.QualificationReminderPorts{}, nil)
+		require.NoError(t, err)
+		deps.QualificationTypes = qualifications
+		deps.Qualifications = qualifications
+	})
 	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Nachweis", fmt.Sprintf("API-%d", time.Now().UnixNano()))
-	qualifications, err := workforceCompose.NewQualifications(ctx.tc.db, qualificationStaffStub{members: []workforce.QualificationStaffMember{
+	staff.members = []workforce.QualificationStaffMember{
 		{StaffID: target.ID},
 		{StaffID: ctx.staffID},
-	}}, workforce.QualificationReminderPorts{}, nil)
-	require.NoError(t, err)
-	ctx.tc.resource.qualificationTypes = qualifications
-	ctx.tc.resource.qualifications = qualifications
+	}
 
 	rec := ctx.get("/staff/qualification-types", "staff:stammdaten")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -103,34 +110,6 @@ func TestQualificationsAPI_AssignKindAndReadStatus(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, "every signed-in person reads their own Nachweise: "+rec.Body.String())
 }
 
-func TestQualificationIDsStayDecimalStringsOnTheWire(t *testing.T) {
-	t.Parallel()
-
-	largeID := int64(9007199254740993)
-	typeID := largeID + 1
-	kindEncoded, err := json.Marshal(toQualificationTypeResponse(workforce.QualificationType{ID: largeID}))
-	require.NoError(t, err)
-	assert.Contains(t, string(kindEncoded), `"id":"9007199254740993"`)
-
-	entry := toQualificationEntryResponse(workforce.QualificationEntry{
-		StaffID:         largeID,
-		QualificationID: &largeID,
-		TypeID:          &typeID,
-	})
-	encoded, err := json.Marshal(entry)
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"staff_id":"9007199254740993","qualification_id":"9007199254740993","type_id":"9007199254740994","name":"","acquired_on":null,"expires_on":null,"status":"","mandatory":false}`, string(encoded))
-
-	var request StammdatenQualifikationenRequest
-	require.NoError(t, json.Unmarshal([]byte(`{"qualifikationen":[{"id":"9007199254740993","type_id":"9007199254740994","name":"Erste Hilfe"}]}`), &request))
-	require.NotNil(t, request.Qualifikationen[0].ID)
-	require.NotNil(t, request.Qualifikationen[0].TypeID)
-	assert.Equal(t, largeID, request.Qualifikationen[0].ID.Int64())
-	assert.Equal(t, typeID, request.Qualifikationen[0].TypeID.Int64())
-}
-
-// Rule 15 (#2940): the Nachweise list and the kinds read one batch each,
-// however many people and qualifications exist.
 func TestQualificationsAPI_ListQueryBudgets(t *testing.T) {
 	t.Parallel()
 	ctx := setupOverviewAPI(t)

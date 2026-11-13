@@ -155,6 +155,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/workforce/http/timetracking/behaviortest",
+      "owner": "workforce",
+      "role": "test-support",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/workforce/internal/planning",
       "owner": "workforce",
       "role": "application",

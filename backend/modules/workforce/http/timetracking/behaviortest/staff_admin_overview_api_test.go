@@ -2,7 +2,7 @@
 // GET /api/staff/dashboard-summary and GET /api/staff/time-tracking/overview,
 // plus the Monatsabschluss routes. They pin the permission split, the query
 // validation, and the response field names the frontend will consume.
-package timetracking
+package behaviortest
 
 import (
 	"bytes"
@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"github.com/moto-ogs/project-phoenix/api/testutil"
+	timetracking "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // overviewAPIContext wires a router plus an editor account whose permissions the
@@ -31,7 +33,14 @@ type overviewAPIContext struct {
 
 func setupOverviewAPI(t *testing.T) *overviewAPIContext {
 	t.Helper()
-	tc := setupStaffRoute(t)
+	return setupOverviewAPIWith(t, nil)
+}
+
+// setupOverviewAPIWith is setupOverviewAPI over a resource whose dependencies
+// adjust changes first.
+func setupOverviewAPIWith(t *testing.T, adjust func(*bun.DB, *timetracking.StaffAdminDependencies)) *overviewAPIContext {
+	t.Helper()
+	tc := setupStaffRouteWith(t, adjust)
 	suffix := time.Now().UnixNano()
 
 	person, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Overview", fmt.Sprintf("Editor-%d", suffix))

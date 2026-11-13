@@ -4,7 +4,7 @@
 // router comment and #2906), the bank & tax section sits exclusively behind
 // staff:financial, and the reveal endpoint serves plaintext only after the
 // audited POST.
-package timetracking
+package behaviortest
 
 import (
 	"bytes"

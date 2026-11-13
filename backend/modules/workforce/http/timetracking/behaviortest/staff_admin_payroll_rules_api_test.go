@@ -2,7 +2,7 @@
 // /payroll (#4807): config:manage like the fixed Lohnart settings, IDs as
 // strings on the wire, stable error codes, and a settings audit row per
 // change.
-package timetracking
+package behaviortest
 
 import (
 	"encoding/json"

@@ -1,7 +1,9 @@
-package timetracking
+package behaviortest
 
 import (
 	"context"
+
+	timetracking "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking"
 )
 
 // A stub Export Transfer port for the workforce route tests (#3050).
@@ -15,13 +17,13 @@ import (
 // these tests check is the route surface, not the transfer.
 type stubExportTransfer struct{}
 
-func (stubExportTransfer) Status(context.Context) (ExportTransferStatus, error) {
-	return ExportTransferStatus{}, nil
+func (stubExportTransfer) Status(context.Context) (timetracking.ExportTransferStatus, error) {
+	return timetracking.ExportTransferStatus{}, nil
 }
 
-func (stubExportTransfer) Transfer(_ context.Context, request ExportTransferRequest) (ExportTransferOutcome, error) {
-	return ExportTransferOutcome{
+func (stubExportTransfer) Transfer(_ context.Context, request timetracking.ExportTransferRequest) (timetracking.ExportTransferOutcome, error) {
+	return timetracking.ExportTransferOutcome{
 		Filename: request.Filename,
-		Reason:   exportTransferReasonNotConfigured,
+		Reason:   timetracking.ExportTransferReasonNotConfiguredForTest,
 	}, nil
 }

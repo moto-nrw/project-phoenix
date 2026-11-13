@@ -1,6 +1,6 @@
 // Router-level test for GET /api/staff/{id}/time-tracking/month-summary
 // (#1842): pins auth wiring, query validation, and the response envelope.
-package timetracking
+package behaviortest
 
 import (
 	"fmt"
