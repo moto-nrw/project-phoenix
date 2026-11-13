@@ -120,8 +120,8 @@ export function KpiCards({
   /** Wechselt zum Reiter „Arbeitszeitmodell“, wenn das Soll fehlt (#6887). */
   readonly onSetTarget?: () => void;
   // Every figure is date-valid, straight from the backend month model
-  // (usePeriodMetrics, #1842). Never computeStaffMetrics: that one prices
-  // historical days at the CURRENT schedule and contradicts the Monatskarte
+  // (usePeriodMetrics, #1842, #6847). Never price days in the browser: the
+  // removed computeStaffMetrics priced historical days at the CURRENT schedule and contradicts the Monatskarte
   // and the daily rows below it after a contract change. null = loading.
   readonly metrics: PeriodMetrics;
 }) {
