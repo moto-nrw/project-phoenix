@@ -607,11 +607,32 @@ jobs:
         with:
           # Ratchets need historical source blobs, not unrelated refs/tags.
           fetch-depth: 1
-      - name: Fetch architecture comparison history
+      # A pull request is checked against its event's base commit
+      # (pull_request.base.sha), not against a merge-base: the check reads
+      # only that commit's tree (rev-parse, ls-tree, cat-file, show, grep,
+      # archive, diff against the working tree). That one commit replaces the
+      # full history, which took 30 to 45 s (#6962). Pushes compute the
+      # merge-base with development and the release check proves ancestry, so
+      # both keep the history. A failed fetch fails here, and a base without
+      # its tree fails the check step; neither passes without the comparison.
+      - name: Fetch architecture comparison base
         env:
+          EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
         run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]] \
+            && ! [[ "$BASE_REF" == "main" && "$HEAD_REF" == "development" && "$HEAD_REPO" == "$REPOSITORY" ]]; then
+            if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "Pull request base '$BASE_SHA' is not a full commit SHA."
+              exit 1
+            fi
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+            exit 0
+          fi
           refs=("$(git rev-parse HEAD)" "+refs/heads/development:refs/remotes/origin/development")
           if [ -n "$BASE_REF" ] && [ "$BASE_REF" != development ]; then
             refs+=("+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF")
@@ -620,17 +641,18 @@ jobs:
             refs+=("$BASE_SHA")
           fi
           git fetch --no-tags --unshallow origin "${refs[@]}"
-      - name: Setup Go with cache
+      # The modules come from the architecture cache below. setup-go's own
+      # cache loaded a second build cache of 1.2 GB beside it (#6962).
+      - name: Setup Go
         id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
-          cache: true
-          # The development cache build.yml saves under this key. The
-          # architecture module pins the same golang.org/x versions.
-          cache-dependency-path: backend/go.sum
-      # setup-go's go.sum-only key is immutable. The ratchet loads packages
-      # through go list -export, so it restores a source-keyed build layer.
+          cache: false
+      # The ratchet loads packages through go list -export, so it restores a
+      # source-keyed build layer with the module cache. go.sum of both modules
+      # is part of the prefix, so a restored module cache never carries old
+      # versions forward.
       # "Warm architecture build cache" (backend-build-cache.yml) is its only
       # writer: it checks each development commit, the base of the next pull
       # requests, and the ratchet's -trimpath lets the extracted base reuse
@@ -648,34 +670,20 @@ jobs:
       - name: Restore architecture build cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/go-build
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
           key: ${{ steps.build-cache-key.outputs.key }}
           restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
-      - name: Check deterministic architecture ratchet
-        env:
-          BASE_REF: ${{ github.base_ref }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          EVENT_NAME: ${{ github.event_name }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          GH_TOKEN: ${{ github.token }}
-          HEAD_REF: ${{ github.head_ref }}
-          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-          REPOSITORY: ${{ github.repository }}
+      # The projections load the head graph a second time (22 s on four
+      # cores). They run beside the check instead of after it; the step
+      # "Generate and validate current architecture projections" waits for
+      # them, prints their output and fails with their exit status.
+      - name: Start architecture projections in the background
         run: |
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            if [[ "$BASE_REF" == "main" && "$HEAD_REF" == "development" && "$HEAD_REPO" == "$REPOSITORY" ]]; then
-              node scripts/check-release-architecture.mjs
-            elif git cat-file -e "$BASE_SHA:backend/architecture/legacy.jsonl" 2>/dev/null; then
-              scripts/backend-architecture.sh check --base-ref "$BASE_SHA"
-            else
-              echo "Base commit $BASE_SHA has no architecture baseline; rebase onto the cutover."
-              exit 1
-            fi
-          else
-            scripts/backend-architecture.sh check
-          fi
-      - name: Generate and validate current architecture projections
-        run: |
+          cat > "$RUNNER_TEMP/architecture-projections" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -eo pipefail
           output_directory=$(mktemp -d)
           cleanup() {
             rm -rf -- "$output_directory"
@@ -704,6 +712,51 @@ jobs:
                       f"{filename}: root element is {root.tag}, expected {svg_tag}"
                   )
           PY
+          SCRIPT
+          chmod +x "$RUNNER_TEMP/architecture-projections"
+          rm -f "$RUNNER_TEMP/architecture-projections.status"
+          (
+            set +e
+            "$RUNNER_TEMP/architecture-projections" > "$RUNNER_TEMP/architecture-projections.log" 2>&1
+            echo $? > "$RUNNER_TEMP/architecture-projections.status.new"
+            mv "$RUNNER_TEMP/architecture-projections.status.new" "$RUNNER_TEMP/architecture-projections.status"
+          ) > /dev/null 2>&1 < /dev/null &
+      - name: Check deterministic architecture ratchet
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            if [[ "$BASE_REF" == "main" && "$HEAD_REF" == "development" && "$HEAD_REPO" == "$REPOSITORY" ]]; then
+              node scripts/check-release-architecture.mjs
+            elif git cat-file -e "$BASE_SHA:backend/architecture/legacy.jsonl" 2>/dev/null; then
+              scripts/backend-architecture.sh check --base-ref "$BASE_SHA"
+            else
+              echo "Base commit $BASE_SHA has no architecture baseline; rebase onto the cutover."
+              exit 1
+            fi
+          else
+            scripts/backend-architecture.sh check
+          fi
+      - name: Generate and validate current architecture projections
+        run: |
+          status_file="$RUNNER_TEMP/architecture-projections.status"
+          for _ in $(seq 1 3000); do
+            test -s "$status_file" && break
+            sleep 0.2
+          done
+          cat "$RUNNER_TEMP/architecture-projections.log" 2>/dev/null || true
+          if [[ ! -s "$status_file" ]]; then
+            echo "Architecture projections did not finish within 600 s."
+            exit 1
+          fi
+          exit "$(cat "$status_file")"
       - name: Audit open migration issues
         env:
           GITHUB_TOKEN: ${{ github.token }}
