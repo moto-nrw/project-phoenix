@@ -94,6 +94,7 @@ export function HolidayRegistrationProofCard({
               className="gap-2"
               isLoading={uploading}
               loadingText="Lädt hoch …"
+              tooltip="Wählt eine PDF oder ein Foto und lädt es sofort als Nachweis hoch."
               onClick={() => fileRef.current?.click()}
             >
               <Upload className="h-4 w-4" aria-hidden="true" />

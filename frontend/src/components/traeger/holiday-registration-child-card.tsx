@@ -145,6 +145,7 @@ export function HolidayRegistrationChildCard({
         type="button"
         variant="outline"
         size="md"
+        tooltip="Öffnet die gebuchten Wochen des Kindes zum Umbuchen."
         onClick={() => {
           setDraft(rebookingDraft(period, child));
           setDraftDays(rebookingDays(child));
@@ -160,6 +161,7 @@ export function HolidayRegistrationChildCard({
         variant="outline"
         size="md"
         aria-label={`Angaben von ${child.firstName} ${child.lastName} ändern`}
+        tooltip="Öffnet die Angaben des Kindes zum Bearbeiten."
         onClick={onEdit}
       >
         Ändern
@@ -228,6 +230,7 @@ export function HolidayRegistrationChildCard({
                   variant="ghost_tone"
                   size="compact"
                   aria-label={`Schule von ${child.firstName} ${child.lastName} ändern`}
+                  tooltip="Öffnet die Angaben des Kindes, dort wählen Sie die Schule."
                   onClick={onEdit}
                 >
                   Schule ändern
@@ -259,6 +262,7 @@ export function HolidayRegistrationChildCard({
                     )}
                     variant="link_tone"
                     size="compact"
+                    tooltip="Öffnet die andere Anmeldung mit dem gleichen Kind."
                   >
                     Anmeldung Nr. {id} öffnen
                   </ButtonLink>

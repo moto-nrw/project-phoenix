@@ -6235,6 +6235,28 @@ const TOOLTIP_SCOPE = [
   "src/components/traeger/sepa-mandate-status-card.tsx",
   "src/components/traeger/sepa-mandates-card.tsx",
   "src/components/traeger/soll-mapping-editor.tsx",
+  // Träger: Ferienbetreuung und Elternbriefe (#6763).
+  "src/components/traeger/holiday-allocation-decision-modal.tsx",
+  "src/components/traeger/holiday-allocation-mode-field.tsx",
+  "src/components/traeger/holiday-allocation-week.tsx",
+  "src/components/traeger/holiday-bulk-confirm-modal.tsx",
+  "src/components/traeger/holiday-criteria-editor.tsx",
+  "src/components/traeger/holiday-form-editor.tsx",
+  "src/components/traeger/holiday-period-form.tsx",
+  "src/components/traeger/holiday-period-publish-card.tsx",
+  "src/components/traeger/holiday-registration-child-card.tsx",
+  "src/components/traeger/holiday-registration-criteria-card.tsx",
+  "src/components/traeger/holiday-registration-edit.tsx",
+  "src/components/traeger/holiday-registration-proof-card.tsx",
+  "src/components/traeger/holiday-registration-status-card.tsx",
+  "src/components/traeger/holiday-week-editor.tsx",
+  "src/components/traeger/holiday-week-places.tsx",
+  "src/components/traeger/holiday-wish.tsx",
+  "src/components/traeger/letter-file-view.tsx",
+  "src/components/traeger/traeger-account-history.tsx",
+  "src/components/traeger/traeger-bank-accounts-card.tsx",
+  "src/components/traeger/traeger-document-upload-modal.tsx",
+  "src/components/traeger/traeger-logo-card.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

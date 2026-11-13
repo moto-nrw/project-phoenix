@@ -26,6 +26,7 @@ import {
   useDraftDocuments,
   type DraftDocumentSave,
 } from "~/components/enrollment/draft-documents";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Alert } from "~/components/ui/alert";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
@@ -279,6 +280,14 @@ export function HolidayFormEditor({
                   variant="outline"
                   size="md"
                   disabled={saving || uploading || missingTemplateFields === 0}
+                  disabledReason={
+                    missingTemplateFields === 0 && !saving && !uploading
+                      ? form.template.length === 0
+                        ? "Für dieses Formular gibt es keine Standardvorlage."
+                        : "Alle Fragen der Standardvorlage sind schon im Formular."
+                      : undefined
+                  }
+                  tooltip="Fügt die fehlenden Fragen der Standardvorlage unten im Formular an."
                   onClick={() =>
                     setFields((current) =>
                       insertTemplateFields(current, form.template),
@@ -289,16 +298,18 @@ export function HolidayFormEditor({
                 </Button>
                 {/* Below xl the preview stands after all questions: the
                     way there is one tap, not a long scroll. */}
-                <a
-                  href="#holiday-form-preview"
-                  className={buttonClassName({
-                    variant: "ghost",
-                    size: "md",
-                    className: "xl:hidden",
-                  })}
-                >
-                  Zur Vorschau
-                </a>
+                <ActionHint text="Springt nach unten zur Vorschau des Formulars.">
+                  <a
+                    href="#holiday-form-preview"
+                    className={buttonClassName({
+                      variant: "ghost",
+                      size: "md",
+                      className: "xl:hidden",
+                    })}
+                  >
+                    Zur Vorschau
+                  </a>
+                </ActionHint>
               </div>
             }
           >
@@ -368,6 +379,7 @@ export function HolidayFormEditor({
                   size="md"
                   disabled={saving || uploading}
                   className="inline-flex items-center gap-2"
+                  tooltip="Fügt eine leere Frage an, die Eltern beantworten."
                   onClick={() =>
                     addField({
                       ...blankField(fields.length),
@@ -385,6 +397,7 @@ export function HolidayFormEditor({
                   size="md"
                   disabled={saving || uploading}
                   className="inline-flex items-center gap-2"
+                  tooltip="Fügt einen Text an, den Eltern nur lesen."
                   onClick={() => addField(blankInfoField(fields.length))}
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
