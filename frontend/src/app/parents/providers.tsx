@@ -15,7 +15,7 @@ import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
 import { ModulePortalProvider } from "~/lib/module-portal-context";
 import { ParentLocaleProvider } from "~/lib/parent-locale-context";
-import { KitLocaleFromIntl } from "~/components/ui/kit-locale";
+import { KitLocaleFromIntl } from "~/components/ui/kit-locale-intl";
 
 // Where a page lands that still showed another account (#5000).
 const parentsHome = () => parentPath("/parents");

@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
-import { useLocale } from "next-intl";
 
 /**
  * Sprache der Fläche für die Standardtexte der Kit-Bausteine (#6744). Die
@@ -17,13 +16,6 @@ export function KitLocaleProvider({
   children,
 }: Readonly<{ locale: string; children: ReactNode }>) {
   return <KitLocaleContext value={locale}>{children}</KitLocaleContext>;
-}
-
-/** Übernimmt die Sprache von `NextIntlClientProvider` für das Kit. */
-export function KitLocaleFromIntl({
-  children,
-}: Readonly<{ children: ReactNode }>) {
-  return <KitLocaleProvider locale={useLocale()}>{children}</KitLocaleProvider>;
 }
 
 /**

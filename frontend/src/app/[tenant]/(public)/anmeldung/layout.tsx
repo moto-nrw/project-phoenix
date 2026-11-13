@@ -1,5 +1,5 @@
 import { NextIntlClientProvider } from "next-intl";
-import { KitLocaleFromIntl } from "~/components/ui/kit-locale";
+import { KitLocaleFromIntl } from "~/components/ui/kit-locale-intl";
 
 /**
  * Public enrollment is the only parent-facing surface on a tenant subdomain,
