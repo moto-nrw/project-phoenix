@@ -1248,13 +1248,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (p *OperatorProvisioning) RevokeOperatorInvitationByActor(ctx context.Context, invitationID, actorID int64, ipAddress string) error {\n\tif p == nil {\n\t\treturn errOperatorProvisioningUnavailable\n\t}\n\tctx = bindRuntime(p.attach, ctx)\n\tif err := p.tokens.RevokeInvitation(ctx, invitationID); err != nil {\n\t\treturn operatorProvisioningError(err)\n\t}\n\tp.record(ctx, domain.OperatorAuditEntry{OperatorID: actorID, Action: domain.OperatorAuditActionInvitationRevoked, ResourceType: domain.OperatorAuditResourceInvitation, ResourceID: \u0026invitationID, IPAddress: ipAddress}, \"invitation revocation\")\n\treturn nil\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/OperatorProvisioning.RevokeOperatorInvitationByActor",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
       "evidence": "func (p *OperatorProvisioning) ValidateOperatorInvitation(ctx context.Context, token string) (identityaccess.OperatorInvitationPreview, error) {\n\treturn runFlow(ctx, p.flow(), func(ctx context.Context) (identityaccess.OperatorInvitationPreview, error) {\n\t\tinvitation, err := p.tokens.FindRedeemableInvitation(ctx, token)\n\t\tif err != nil {\n\t\t\treturn identityaccess.OperatorInvitationPreview{}, err\n\t\t}\n\t\treturn identityaccess.OperatorInvitationPreview{Email: invitation.Email, DisplayName: invitation.DisplayName, ExpiresAt: invitation.ExpiresAt}, nil\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorProvisioning.ValidateOperatorInvitation",

@@ -33,7 +33,9 @@ func TestMFAService_EnrollDisableLifecycle(t *testing.T) {
 
 	require.ErrorIs(t, enrollMFA(ctx, t, db, svc, acc.ID), identityaccess.ErrMFAAlreadyEnrolled)
 
-	require.NoError(t, svc.DisableMFA(ctx, acc.ID))
+	// Disable runs from an authenticated school request, whose ledger
+	// files the event (#6989).
+	require.NoError(t, svc.DisableMFA(testpkg.Ctx(t), acc.ID))
 	enrolled, err = svc.HasMFAEnrollment(ctx, acc.ID)
 	require.NoError(t, err)
 	assert.False(t, enrolled)

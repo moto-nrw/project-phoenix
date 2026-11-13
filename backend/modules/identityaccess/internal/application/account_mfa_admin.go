@@ -75,18 +75,18 @@ func (f *AccountMFAFlows) adminDisable(ctx context.Context, actorType string, ac
 		f.recordAdminFailure(ctx, failure)
 		return domain.ErrMFAReasonRequired
 	}
-	if err := f.disableForAdmin(ctx, actorType, actorID, targetTenantID, targetAccountID); err != nil {
-		failure.Reason, failure.ErrMsg = reason, err.Error()
-		f.recordAdminFailure(ctx, failure)
-		return err
-	}
-	f.recordAuthEvent(ctx, domain.AuthEvent{
+	overridden := domain.AuthEvent{
 		AccountID: targetAccountID, TenantID: targetTenantID, Type: domain.AuthEventMFAAdminOverride,
 		Success: true, IPAddress: domain.MFAAuditFallbackIP,
 		MFA: &domain.MFAEvidence{Admin: &domain.MFAAdminEvidence{
 			ActorType: actorType, ActorAccountID: actorID, Action: "disable", Reason: reason,
 		}},
-	})
+	}
+	if err := f.disableForAdmin(ctx, actorType, actorID, targetTenantID, targetAccountID, overridden); err != nil {
+		failure.Reason, failure.ErrMsg = reason, err.Error()
+		f.recordAdminFailure(ctx, failure)
+		return err
+	}
 	return nil
 }
 
@@ -148,24 +148,25 @@ func (f *AccountMFAFlows) setTenantOverride(ctx context.Context, actorType strin
 			return err
 		}
 		if actorType == actorTypeOperator {
-			return f.recordOperatorMFAChange(txCtx, actorID, targetAccountID, domain.OperatorMFAOverrideEvidence{SchoolID: targetTenantID, Action: "set_override", Scope: "tenant", Override: override, PreviousOverride: previous})
+			if err := f.recordOperatorMFAChange(txCtx, actorID, targetAccountID, domain.OperatorMFAOverrideEvidence{SchoolID: targetTenantID, Action: "set_override", Scope: "tenant", Override: override, PreviousOverride: previous}); err != nil {
+				return err
+			}
 		}
-		return nil
+		// The school's ledger row commits with the override or not at all.
+		return f.appendAuthEvent(txCtx, domain.AuthEvent{
+			AccountID: targetAccountID, TenantID: targetTenantID, Type: domain.AuthEventMFAAdminOverride,
+			Success: true, IPAddress: domain.MFAAuditFallbackIP,
+			MFA: &domain.MFAEvidence{Admin: &domain.MFAAdminEvidence{
+				ActorType: actorType, ActorAccountID: actorID, Action: "set_override", Written: true,
+				Scope: "tenant", Override: override, PreviousOverride: previous, Reason: reason,
+			}},
+		})
 	})
 	if txErr != nil {
 		failure.ErrMsg = txErr.Error()
 		f.recordAdminFailure(ctx, failure)
 		return txErr
 	}
-
-	f.recordAuthEvent(ctx, domain.AuthEvent{
-		AccountID: targetAccountID, TenantID: targetTenantID, Type: domain.AuthEventMFAAdminOverride,
-		Success: true, IPAddress: domain.MFAAuditFallbackIP,
-		MFA: &domain.MFAEvidence{Admin: &domain.MFAAdminEvidence{
-			ActorType: actorType, ActorAccountID: actorID, Action: "set_override", Written: true,
-			Scope: "tenant", Override: override, PreviousOverride: previous, Reason: reason,
-		}},
-	})
 	return nil
 }
 

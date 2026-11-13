@@ -7730,14 +7730,6 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.LogoutWithAudit",
-      "binding_digest": "9ee77074247ace930eb9d786d2c9ee3a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.LogoutWithAudit",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.LogoutWithAudit",
       "binding_digest": "88113579b0fcf9cb756a23768c428619",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.LogoutWithAudit",
       "source_owner": "identity-access",
@@ -8802,7 +8794,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.RevokeOperatorInvitationByActor",
-      "binding_digest": "320226bfa8a6488747b6798147203eb9",
+      "binding_digest": "88113579b0fcf9cb756a23768c428619",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.RevokeOperatorInvitationByActor",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -13018,14 +13010,6 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.LogoutWithAudit",
-      "binding_digest": "9ee77074247ace930eb9d786d2c9ee3a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LogoutWithAudit",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.LogoutWithAudit",
       "binding_digest": "88113579b0fcf9cb756a23768c428619",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LogoutWithAudit",
       "source_owner": "identity-access",
@@ -15730,7 +15714,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/api.operatorIdentityCapabilities.RevokeOperatorInvitationByActor",
-      "binding_digest": "320226bfa8a6488747b6798147203eb9",
+      "binding_digest": "88113579b0fcf9cb756a23768c428619",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/operator.OperatorAccess.RevokeOperatorInvitationByActor",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",

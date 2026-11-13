@@ -463,13 +463,12 @@ func (s *AccountAuthentication) LogoutWithAudit(ctx context.Context, refreshToke
 			}
 			sessions = revokedChain
 			revoked = &presented
-			return nil
+			return s.auditLogout(txCtx, presented, revokedChain, claims.TenantID, ipAddress, userAgent)
 		})
 		if err == nil && revoked != nil {
 			// Every revoked family drops its push subscriptions, the families of
 			// the switch lineage included (#5422).
 			s.queuePushCleanup(ctx, revoked.AccountID, append([]domain.AccountSession{*revoked}, sessions...), "family")
-			s.auditLogout(ctx, *revoked, sessions, claims.TenantID, ipAddress, userAgent)
 		}
 		return err
 	})
@@ -504,12 +503,15 @@ func (s *AccountAuthentication) logoutStart(ctx context.Context, claims domain.R
 	return start, true, nil
 }
 
-// auditLogout appends the audit rows after the family deletion committed;
-// logout must never leave a usable session because the audit store is down.
-// A switch lineage spans schools (#5422): each school's ledger records the
-// revocation of its own sessions in its own tenant transaction, and the
+// auditLogout appends the audit rows in the transaction that deletes the
+// families (#6989): a revocation never commits without its evidence. When
+// the ledger refuses a row, the logout fails as a whole and the browser
+// keeps the session until the retry succeeds (#5194); during such an outage
+// the presented token cannot renew either, because the refresh is audited
+// in its rotation (#6844). A switch lineage spans schools (#5422): each
+// school's ledger records the revocation of its own sessions, and the
 // school of the presented session records the logout itself.
-func (s *AccountAuthentication) auditLogout(ctx context.Context, revoked domain.AccountSession, sessions []domain.AccountSession, claimTenantID int64, ipAddress, userAgent string) {
+func (s *AccountAuthentication) auditLogout(txCtx context.Context, revoked domain.AccountSession, sessions []domain.AccountSession, claimTenantID int64, ipAddress, userAgent string) error {
 	// A Träger session belongs to no school, and the authentication ledger
 	// is school-scoped (ADR 0084); the Träger audit arrives with #4655. The
 	// school sessions its Absprung opened are audited at their schools.
@@ -520,27 +522,21 @@ func (s *AccountAuthentication) auditLogout(ctx context.Context, revoked domain.
 	if !revoked.KeptAtSchool() {
 		tenantID = 0
 	} else if tenantID == 0 {
-		s.logger.Error("failed to audit logout",
-			slog.Int64("account_id", revoked.AccountID),
-			slog.String("error", "tenant is required"))
-		return
+		return fmt.Errorf("audit logout: school is required")
 	}
 	bySchool := sessionsBySchool(sessions, tenantID)
 	for _, schoolID := range slices.Sorted(maps.Keys(bySchool)) {
 		if schoolID == 0 {
 			continue
 		}
-		auditCtx := s.runtime.WithTenantID(ctx, schoolID)
-		err := s.ledgerUnit(auditCtx, schoolID, func(txCtx context.Context) error {
-			return s.auditLogoutAtSchool(txCtx, revoked.AccountID, bySchool[schoolID], schoolID == tenantID, ipAddress, userAgent)
-		})
-		if err != nil {
-			s.logger.Error("failed to audit logout",
-				slog.Int64("account_id", revoked.AccountID),
-				slog.Int64("tenant_id", schoolID),
-				slog.Any("error", err))
+		// Naming the school on the context files a legacy session without
+		// one at the presented session's school, as its own transaction did.
+		schoolCtx := s.runtime.WithTenantID(txCtx, schoolID)
+		if err := s.auditLogoutAtSchool(schoolCtx, revoked.AccountID, schoolID, bySchool[schoolID], schoolID == tenantID, ipAddress, userAgent); err != nil {
+			return fmt.Errorf("audit logout at school %d: %w", schoolID, err)
 		}
 	}
+	return nil
 }
 
 // sessionsBySchool groups the revoked sessions by school. A session without
@@ -557,15 +553,18 @@ func sessionsBySchool(sessions []domain.AccountSession, presentedTenantID int64)
 	return bySchool
 }
 
-// auditLogoutAtSchool writes one school's rows inside its tenant transaction.
-func (s *AccountAuthentication) auditLogoutAtSchool(txCtx context.Context, accountID int64, sessions []domain.AccountSession, presented bool, ipAddress, userAgent string) error {
+// auditLogoutAtSchool writes one school's rows in the logout's transaction.
+func (s *AccountAuthentication) auditLogoutAtSchool(txCtx context.Context, accountID, schoolID int64, sessions []domain.AccountSession, presented bool, ipAddress, userAgent string) error {
 	if err := s.auditRevokedSessions(txCtx, sessions, "logout", ipAddress, userAgent); err != nil {
 		return err
 	}
 	if !presented || ipAddress == "" {
 		return nil
 	}
-	return s.logAuthEvent(txCtx, accountID, domain.AuthEventLogout, true, ipAddress, userAgent, "")
+	return s.audit.RecordAuthEvent(txCtx, domain.AuthEvent{
+		AccountID: accountID, TenantID: schoolID, Type: domain.AuthEventLogout, Success: true,
+		IPAddress: ipAddress, UserAgent: userAgent,
+	})
 }
 
 // sameAccountSessionLineage holds when next continues current's family.

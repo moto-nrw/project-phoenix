@@ -60,7 +60,10 @@ func TestLogoutPersistsRevocationAuditWithoutRawFamilyID(t *testing.T) {
 	assert.NotContains(t, event.Metadata["family_fingerprint"], persisted.FamilyID)
 }
 
-func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
+// A logout commits only with its evidence (#6989): when the ledger refuses
+// the rows, the revocation rolls back and the call fails, so the browser
+// keeps the session and retries (#5194). The retry revokes it.
+func TestLogoutFailsWithItsAuditAndKeepsTheSession(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -82,10 +85,22 @@ func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
 	}, testpkg.TenantRuntime(t, db), failingAuditCommand{}, testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
 
-	require.NoError(t, service.LogoutWithAudit(ctx, refreshToken, "192.0.2.10", "logout-test"))
-	count, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)
-	require.NoError(t, err)
-	assert.Zero(t, count, "logout must revoke tokens even when audit append fails")
+	sessions := func() int64 {
+		count, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)
+		require.NoError(t, err)
+		return count
+	}
+	before := sessions()
+	require.Positive(t, before)
+
+	require.Error(t, service.LogoutWithAudit(ctx, refreshToken, "192.0.2.10", "logout-test"),
+		"a logout whose evidence cannot be written fails")
+	assert.Equal(t, before, sessions(), "the revocation rolls back with its evidence")
+
+	require.NoError(t, workingService.LogoutWithAudit(ctx, refreshToken, "192.0.2.10", "logout-test"),
+		"the retry with a working ledger revokes the session")
+	assert.Zero(t, sessions())
+	requireAuthEventEventually(t, db, account.ID, tenantID, "logout")
 }
 
 func TestRevocationAuditFailureRollsBackAndRetryIsIdempotent(t *testing.T) {
