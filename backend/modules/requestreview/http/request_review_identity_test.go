@@ -1,4 +1,4 @@
-package requestreviewhttp
+package requestreviewhttp_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	reviewidentity "github.com/moto-ogs/project-phoenix/modules/identityaccess/requestreview"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 
+	requestreviewhttp "github.com/moto-ogs/project-phoenix/modules/requestreview/http"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,8 +30,8 @@ func TestRequestReviewIdentityPreservesEffectivePermissions(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.WithValue(context.Background(), sessiontoken.CtxPermissions, tc.grants)
-			require.Equal(t, tc.want, RequestReviewPrincipal(ctx))
-			access, err := reviewbindings.NewAccess(RequestReviewPrincipal, nil)
+			require.Equal(t, tc.want, requestreviewhttp.RequestReviewPrincipal(ctx))
+			access, err := reviewbindings.NewAccess(requestreviewhttp.RequestReviewPrincipal, nil)
 			require.NoError(t, err)
 			caller, err := access.Caller(ctx)
 			require.NoError(t, err)
@@ -45,20 +46,20 @@ func TestRequestReviewIdentityPreservesEffectivePermissions(t *testing.T) {
 func TestCorrectionAccessDoesNotTreatAdminClaimAsWildcard(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, sessiontoken.AppClaims{IsAdmin: true})
-	require.True(t, RequestReviewPrincipal(ctx).Admin)
-	require.False(t, RequestReviewCorrectionAccess(ctx, nil))
+	require.True(t, requestreviewhttp.RequestReviewPrincipal(ctx).Admin)
+	require.False(t, requestreviewhttp.RequestReviewCorrectionAccess(ctx, nil))
 	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"users:update"})
-	require.False(t, RequestReviewCorrectionAccess(ctx, nil))
-	require.True(t, RequestReviewCorrectionAccess(ctx, func(context.Context) (bool, error) { return true, nil }))
+	require.False(t, requestreviewhttp.RequestReviewCorrectionAccess(ctx, nil))
+	require.True(t, requestreviewhttp.RequestReviewCorrectionAccess(ctx, func(context.Context) (bool, error) { return true, nil }))
 	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"admin:*"})
-	require.True(t, RequestReviewCorrectionAccess(ctx, nil))
+	require.True(t, requestreviewhttp.RequestReviewCorrectionAccess(ctx, nil))
 }
 
 func TestRequestReviewAccessPreservesAbsenceOnlyCapability(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.Background(), sessiontoken.CtxPermissions, []string{"users:read", "users:absence"})
 	for _, level := range []string{"team", "group_leader", "none", "admin"} {
-		access, err := reviewbindings.NewAccess(RequestReviewPrincipal, func(received context.Context) (string, error) {
+		access, err := reviewbindings.NewAccess(requestreviewhttp.RequestReviewPrincipal, func(received context.Context) (string, error) {
 			require.Equal(t, ctx, received)
 			return level, nil
 		})
@@ -71,7 +72,7 @@ func TestRequestReviewAccessPreservesAbsenceOnlyCapability(t *testing.T) {
 		require.False(t, caller.ReviewsWriteQueues, "absence review must not grant access to other queues")
 	}
 	failure := errors.New("review setting unavailable")
-	access, err := reviewbindings.NewAccess(RequestReviewPrincipal, func(context.Context) (string, error) {
+	access, err := reviewbindings.NewAccess(requestreviewhttp.RequestReviewPrincipal, func(context.Context) (string, error) {
 		return "", failure
 	})
 	require.NoError(t, err)
