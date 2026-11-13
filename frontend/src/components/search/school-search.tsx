@@ -157,7 +157,10 @@ function childSubtitle(child: SchoolSearchChild): string {
     parts.push(`Elternnotiz: ${match.text}`);
   }
   if (match.field === "enrollment_answer") {
-    parts.push(`Anmeldung: ${match.label ?? ""}: ${match.text ?? ""}`);
+    // "Mein Kind darf schwimmen." / "Seepferdchen?" lose their own end mark
+    // before the answer follows.
+    const question = (match.label ?? "").replace(/[\s.:?!]+$/, "");
+    parts.push(`Anmeldung: ${question}: ${match.text ?? ""}`);
   }
   return parts.join(" · ");
 }
@@ -387,14 +390,18 @@ export function SchoolSearchDialog({
     );
   }
 
+  // „Alle Kinder“ searches names only: the link fits when a name matched.
+  const nameMatched = (result?.children ?? []).some(
+    (child) => child.match.field === "name",
+  );
   const footer =
-    searching && !isPhone && readsChildren ? (
+    searching && !isPhone && readsChildren && nameMatched ? (
       <NavigationLink
         href={`/students/search?search=${encodeURIComponent(term)}`}
         onClick={close}
         className="font-medium text-gray-700 underline-offset-4 hover:underline focus-visible:underline"
       >
-        In „Alle Kinder“ weitersuchen
+        Alle Treffer in „Alle Kinder“
       </NavigationLink>
     ) : (
       <span className="text-gray-500">
