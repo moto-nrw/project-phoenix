@@ -311,11 +311,25 @@ type UpdateAppointmentRequest struct {
 	SendEmailSet       bool               `json:"-"`
 }
 
+// AppointmentOverview lists who is invited and how they answered. Staff get
+// every attendee by name; a parent gets the staff and their own entries only,
+// because other parents' names and answers are not theirs to see (#6846).
+// Counts always cover every recipient, listed or not.
 type AppointmentOverview struct {
-	AppointmentID      string                `json:"appointment_id"`
-	DeliveryMode       string                `json:"delivery_mode"`
-	OverviewVisibility string                `json:"overview_visibility"`
-	Attendees          []AppointmentAttendee `json:"attendees"`
+	AppointmentID      string                    `json:"appointment_id"`
+	DeliveryMode       string                    `json:"delivery_mode"`
+	OverviewVisibility string                    `json:"overview_visibility"`
+	Counts             AppointmentResponseCounts `json:"counts"`
+	Attendees          []AppointmentAttendee     `json:"attendees"`
+}
+
+// AppointmentResponseCounts sums the answers of all recipients. Total also
+// counts informational recipients, who never answer.
+type AppointmentResponseCounts struct {
+	Accepted int `json:"accepted"`
+	Declined int `json:"declined"`
+	Pending  int `json:"pending"`
+	Total    int `json:"total"`
 }
 
 type AppointmentAttendee struct {

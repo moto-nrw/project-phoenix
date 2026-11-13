@@ -21,9 +21,11 @@ import {
   CheckCircleIcon,
   ClockIcon,
   MapPinIcon,
+  RepeatIcon,
   XIcon,
 } from "@phosphor-icons/react/ssr";
 import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
+import { ParentResponseSummary } from "~/components/parent/calendar/parent-response-summary";
 import {
   ParentPage,
   ParentPageHeader,
@@ -557,7 +559,9 @@ function CalendarListEvent({
       {pending ? (
         <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
           <span className="text-moto-orange-strong text-xs leading-5 font-medium">
-            {t("responseRequired")}
+            {event.recurring
+              ? t("responseRequiredSeries")
+              : t("responseRequired")}
           </span>
           <div className="ms-auto flex items-center gap-2">
             <Button
@@ -999,12 +1003,19 @@ function CalendarEventDetails({
             {event.description}
           </p>
         ) : null}
+        <ParentResponseSummary event={event} />
       </div>
       {state === "needsResponse" ? (
         <div
           className={`border-t border-gray-100 px-4 py-3 ${mobile ? "pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : ""}`}
         >
           <FormErrorAlert message={respondError} className="mb-3" />
+          {event.recurring ? (
+            <p className="mb-3 flex items-center gap-1.5 text-xs leading-5 text-gray-500">
+              <RepeatIcon size={14} className="shrink-0" aria-hidden="true" />
+              {t("seriesAnswer")}
+            </p>
+          ) : null}
           <div className="flex items-center justify-end gap-2">
             <Button
               type="button"

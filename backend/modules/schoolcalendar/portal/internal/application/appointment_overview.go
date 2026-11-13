@@ -39,11 +39,13 @@ func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID
 	if !canStaffViewOverview(appointment, staff.ID, recipientID != nil) {
 		return nil, ErrForbidden
 	}
-	return s.buildAppointmentOverview(ctx, appointment, recipients)
+	return s.buildAppointmentOverview(ctx, appointment, recipients, recipients)
 }
 
-func (s *service) buildAppointmentOverview(ctx context.Context, appointment *appointmentcap.Appointment, recipients []*appointmentcap.AppointmentRecipient) (*AppointmentOverview, error) {
-	staffIDs, guardianIDs := recipientPersonIDs(recipients)
+// buildAppointmentOverview counts the answers of all recipients and names only
+// the listed ones, so names of unlisted recipients are never loaded.
+func (s *service) buildAppointmentOverview(ctx context.Context, appointment *appointmentcap.Appointment, recipients, listed []*appointmentcap.AppointmentRecipient) (*AppointmentOverview, error) {
+	staffIDs, guardianIDs := recipientPersonIDs(listed)
 	staffByID, err := s.cfg.StaffRepo.FindWithPersonByIDs(ctx, staffIDs)
 	if err != nil {
 		return nil, err
@@ -53,8 +55,8 @@ func (s *service) buildAppointmentOverview(ctx context.Context, appointment *app
 		return nil, err
 	}
 
-	attendees := make([]AppointmentAttendee, 0, len(recipients))
-	for _, recipient := range recipients {
+	attendees := make([]AppointmentAttendee, 0, len(listed))
+	for _, recipient := range listed {
 		attendees = append(attendees, AppointmentAttendee{
 			RecipientID:   formatID(recipient.ID),
 			RecipientType: recipient.RecipientType,
@@ -74,8 +76,54 @@ func (s *service) buildAppointmentOverview(ctx context.Context, appointment *app
 		AppointmentID:      formatID(appointment.ID),
 		DeliveryMode:       appointment.DeliveryMode,
 		OverviewVisibility: appointment.OverviewVisibility,
+		Counts:             countResponses(recipients),
 		Attendees:          attendees,
 	}, nil
+}
+
+func countResponses(recipients []*appointmentcap.AppointmentRecipient) AppointmentResponseCounts {
+	counts := AppointmentResponseCounts{Total: len(recipients)}
+	for _, recipient := range recipients {
+		switch recipient.Status {
+		case appointmentcap.ResponseStatusAccepted:
+			counts.Accepted++
+		case appointmentcap.ResponseStatusDeclined:
+			counts.Declined++
+		case appointmentcap.ResponseStatusPending:
+			counts.Pending++
+		}
+	}
+	return counts
+}
+
+// parentListedRecipients keeps the recipients a parent may see by name: every
+// staff member and the parent's own guardian entries for their visible
+// children. Other parents stay in the counts only (#6846).
+func parentListedRecipients(recipients []*appointmentcap.AppointmentRecipient, guardianProfileIDs, studentIDs []int64) []*appointmentcap.AppointmentRecipient {
+	ownProfiles := int64Set(guardianProfileIDs)
+	visibleStudents := int64Set(studentIDs)
+	listed := make([]*appointmentcap.AppointmentRecipient, 0, len(recipients))
+	for _, recipient := range recipients {
+		if recipient.StaffID != nil || isOwnGuardianRecipient(recipient, ownProfiles, visibleStudents) {
+			listed = append(listed, recipient)
+		}
+	}
+	return listed
+}
+
+func isOwnGuardianRecipient(recipient *appointmentcap.AppointmentRecipient, ownProfiles, visibleStudents map[int64]struct{}) bool {
+	if recipient.GuardianProfileID == nil {
+		return false
+	}
+	if _, ok := ownProfiles[*recipient.GuardianProfileID]; !ok {
+		return false
+	}
+	for _, studentID := range recipient.StudentIDs {
+		if _, ok := visibleStudents[studentID]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // recipientPersonIDs splits the recipients into the staff and guardian

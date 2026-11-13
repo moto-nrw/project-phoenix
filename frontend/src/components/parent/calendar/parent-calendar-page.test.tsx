@@ -9,6 +9,7 @@ import { BELOW_LG } from "~/lib/hooks/use-media-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 import {
+  getParentAppointmentOverview,
   getParentCalendar,
   respondParentCalendar,
 } from "~/lib/personal-calendar-api";
@@ -38,11 +39,13 @@ vi.mock("~/components/calendar/calendar-subscribe-panel", () => ({
 }));
 
 vi.mock("~/lib/personal-calendar-api", () => ({
+  getParentAppointmentOverview: vi.fn(),
   getParentCalendar: vi.fn(),
   respondParentCalendar: vi.fn(),
 }));
 
 const mockedCalendar = vi.mocked(getParentCalendar);
+const mockedOverview = vi.mocked(getParentAppointmentOverview);
 const mockedRespond = vi.mocked(respondParentCalendar);
 const MONDAY = new Date(2026, 7, 17, 9, 0, 0);
 
@@ -339,6 +342,61 @@ describe("ParentCalendarPage", () => {
       within(dialog).queryByRole("button", { name: "Zusagen" }),
     ).not.toBeInTheDocument();
     expect(toastSuccess).toHaveBeenCalledWith("Termin zugesagt.");
+  });
+
+  // #6846: Eltern sehen nur Zahlen, keine Namen anderer Eltern; bei einer
+  // Reihe steht, dass die Antwort für alle Termine gilt.
+  it("zeigt die Rückmeldungen als Zahlen und sagt, dass die Antwort für die Reihe gilt", async () => {
+    mockedCalendar.mockResolvedValue(
+      calendarResponse([
+        event({
+          can_respond: true,
+          can_view_overview: true,
+          delivery_mode: "rsvp_required",
+          recurring: true,
+          response_status: "pending",
+          recipient_id: "77",
+        }),
+      ]),
+    );
+    mockedOverview.mockResolvedValue({
+      appointment_id: "appointment-1",
+      delivery_mode: "rsvp_required",
+      overview_visibility: "all",
+      counts: { accepted: 12, declined: 3, pending: 5, total: 20 },
+      attendees: [],
+    });
+    renderPage();
+
+    const row = await screen.findByRole("article", { name: "Elternabend" });
+    expect(
+      within(row).getByText("Antwort für alle Termine der Reihe"),
+    ).toBeInTheDocument();
+
+    const monthGrid = screen.getByTestId("parent-calendar-month-grid");
+    fireEvent.click(
+      within(monthGrid).getByRole("button", { name: /Elternabend, 18:00/ }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Elternabend" });
+    const responses = await within(dialog).findByRole("region", {
+      name: "Rückmeldungen",
+    });
+    expect(await within(responses).findByText("12")).toBeInTheDocument();
+    expect(within(responses).getByText("3")).toBeInTheDocument();
+    expect(within(responses).getByText("5")).toBeInTheDocument();
+    expect(
+      within(responses).getByText("Namen anderer Eltern sehen Sie nicht."),
+    ).toBeInTheDocument();
+    expect(mockedOverview).toHaveBeenCalledWith("appointment-1");
+    expect(
+      within(dialog).getByText(
+        "Ihre Antwort gilt für alle Termine dieser Reihe.",
+      ),
+    ).toBeInTheDocument();
+
+    // Die eigene Antwort ändert die Zahlen, also laden sie neu.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zusagen" }));
+    await waitFor(() => expect(mockedOverview).toHaveBeenCalledTimes(2));
   });
 
   it("speichert eine Rückmeldung direkt in der Terminzeile", async () => {

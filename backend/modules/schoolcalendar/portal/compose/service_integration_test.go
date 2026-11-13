@@ -1493,6 +1493,7 @@ func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Overview", "Organizer")
 	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Overview", "Teacher")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	otherParentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	detail, err := testpkg.TenantQuery1(t, calendarContext(t, organizerAccount.ID), db, service.CreateStaffAppointment, calendarSvc.CreateAppointmentRequest{
 		Title:              "Overview visible to all",
@@ -1505,30 +1506,49 @@ func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 		Targets: []calendarSvc.AppointmentTarget{
 			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &otherParentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
 
 	staffRecipientID := findRecipientByStaff(t, detail, invitedStaff.ID)
 	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, appointments.ResponseStatusAccepted))
+	otherGuardianRecipientID := findRecipientByGuardian(t, detail, otherParentChain.GuardianProfileID)
+	require.NoError(t, service.RespondToParentInvitation(testpkg.Ctx(t), otherParentChain.AccountID, otherGuardianRecipientID, appointments.ResponseStatusDeclined))
 
 	staffOverview, err := testpkg.TenantQuery1(t, calendarContext(t, invitedAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, staffOverview)
 	assert.Equal(t, appointments.OverviewVisibilityAll, staffOverview.OverviewVisibility)
 	assert.Equal(t, appointments.DeliveryModeRSVPRequired, staffOverview.DeliveryMode)
-	require.Len(t, staffOverview.Attendees, 2)
+	// Staff see every invited person by name.
+	require.Len(t, staffOverview.Attendees, 3)
 	assert.Equal(t, appointments.RecipientTypeGuardianProfile, staffOverview.Attendees[0].RecipientType)
 	assert.Contains(t, staffOverview.Attendees[0].Name, "Schneider")
-	assert.Equal(t, appointments.ResponseStatusPending, staffOverview.Attendees[0].Status)
-	assert.Equal(t, appointments.RecipientTypeStaff, staffOverview.Attendees[1].RecipientType)
-	assert.Contains(t, staffOverview.Attendees[1].Name, "Teacher")
-	assert.Equal(t, appointments.ResponseStatusAccepted, staffOverview.Attendees[1].Status)
-	require.NotNil(t, staffOverview.Attendees[1].RespondedAt)
+	assert.Equal(t, appointments.RecipientTypeGuardianProfile, staffOverview.Attendees[1].RecipientType)
+	assert.ElementsMatch(t,
+		[]string{appointments.ResponseStatusPending, appointments.ResponseStatusDeclined},
+		[]string{staffOverview.Attendees[0].Status, staffOverview.Attendees[1].Status})
+	assert.Equal(t, appointments.RecipientTypeStaff, staffOverview.Attendees[2].RecipientType)
+	assert.Contains(t, staffOverview.Attendees[2].Name, "Teacher")
+	assert.Equal(t, appointments.ResponseStatusAccepted, staffOverview.Attendees[2].Status)
+	require.NotNil(t, staffOverview.Attendees[2].RespondedAt)
+	wantCounts := calendarSvc.AppointmentResponseCounts{Accepted: 1, Declined: 1, Pending: 1, Total: 3}
+	assert.Equal(t, wantCounts, staffOverview.Counts)
 
+	// A parent sees the staff and their own entry by name, never another
+	// parent's name or answer (#6846); the counts still cover everyone.
 	parentOverview, err := service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, detail.Appointment.ID)
 	require.NoError(t, err)
 	require.Len(t, parentOverview.Attendees, 2)
+	ownGuardianRecipientID := findRecipientByGuardian(t, detail, parentChain.GuardianProfileID)
+	listed := make([]string, 0, len(parentOverview.Attendees))
+	for _, attendee := range parentOverview.Attendees {
+		listed = append(listed, attendee.RecipientID)
+	}
+	assert.ElementsMatch(t, []string{strconv.FormatInt(ownGuardianRecipientID, 10), strconv.FormatInt(staffRecipientID, 10)}, listed)
+	assert.NotContains(t, listed, strconv.FormatInt(otherGuardianRecipientID, 10))
+	assert.Equal(t, wantCounts, parentOverview.Counts)
 
 	staffEvents, err := testpkg.TenantQuery2(t, calendarContext(t, invitedAccount.ID), db, service.ListMyStaffEvents, portalDate(2026, 2, 10), portalDate(2026, 2, 10))
 	require.NoError(t, err)

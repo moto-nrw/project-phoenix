@@ -340,3 +340,26 @@ func TestParentRecipientSearchSendsTheTypedQuery(t *testing.T) {
 		assert.Equal(t, []string{strings.TrimSpace(typed)}, guardians.queries)
 	}
 }
+
+func TestParentOverviewListsStaffAndOwnEntriesButCountsEveryone(t *testing.T) {
+	t.Parallel()
+
+	ownProfile, otherProfile := int64(11), int64(12)
+	recipients := []*appointmentcap.AppointmentRecipient{
+		{ID: 1, RecipientType: appointmentcap.RecipientTypeStaff, StaffID: ptrtest.Ptr(int64(5)), Status: appointmentcap.ResponseStatusAccepted},
+		{ID: 2, RecipientType: appointmentcap.RecipientTypeGuardianProfile, GuardianProfileID: &ownProfile, StudentIDs: []int64{100}, Status: appointmentcap.ResponseStatusPending},
+		{ID: 3, RecipientType: appointmentcap.RecipientTypeGuardianProfile, GuardianProfileID: &otherProfile, StudentIDs: []int64{200}, Status: appointmentcap.ResponseStatusDeclined},
+		// Own profile, but through a child this parent cannot see here.
+		{ID: 4, RecipientType: appointmentcap.RecipientTypeGuardianProfile, GuardianProfileID: &ownProfile, StudentIDs: []int64{300}, Status: appointmentcap.ResponseStatusAccepted},
+		{ID: 5, RecipientType: appointmentcap.RecipientTypeGuardianProfile, GuardianProfileID: &otherProfile, StudentIDs: []int64{200}, Status: appointmentcap.ResponseStatusInfo},
+	}
+
+	listed := parentListedRecipients(recipients, []int64{ownProfile}, []int64{100})
+	ids := make([]int64, 0, len(listed))
+	for _, recipient := range listed {
+		ids = append(ids, recipient.ID)
+	}
+	assert.Equal(t, []int64{1, 2}, ids)
+
+	assert.Equal(t, AppointmentResponseCounts{Accepted: 2, Declined: 1, Pending: 1, Total: 5}, countResponses(recipients))
+}
