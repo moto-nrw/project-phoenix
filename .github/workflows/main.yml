@@ -498,7 +498,7 @@ jobs:
         if: matrix.suite == 'unit'
         run: |
           node scripts/check-agent-context.mjs
-          node --test scripts/check-migration-versions.test.mjs scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/seed-smoke-clock.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs scripts/test-perf.test.mjs scripts/ci-failures.test.mjs scripts/check-changed.test.mjs scripts/backend-package-budgets.test.mjs scripts/query-budget-scoreboard.test.mjs scripts/capture-query-budget-routes.test.mjs .github/actions/ci-cost/ci-cost.test.mjs .agents/skills/security-audit/validate-coverage-ledger.test.cjs .agents/skills/security-audit/validate-findings.test.cjs
+          node --test scripts/check-migration-versions.test.mjs scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/seed-smoke-clock.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs scripts/test-perf.test.mjs scripts/ci-failures.test.mjs scripts/check-changed.test.mjs scripts/backend-package-budgets.test.mjs scripts/architecture-build-cache.test.mjs scripts/query-budget-scoreboard.test.mjs scripts/capture-query-budget-routes.test.mjs .github/actions/ci-cost/ci-cost.test.mjs .agents/skills/security-audit/validate-coverage-ledger.test.cjs .agents/skills/security-audit/validate-findings.test.cjs
           node scripts/check-caddyfile.mjs deploy/caddy/Caddyfile
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py scripts/check_runtime_env_test.py scripts/normalize_ci_needs_test.py
 
@@ -630,8 +630,13 @@ jobs:
           # architecture module pins the same golang.org/x versions.
           cache-dependency-path: backend/go.sum
       # setup-go's go.sum-only key is immutable. The ratchet loads packages
-      # through go list -export, so keep a source-keyed build layer with the
-      # last source build as a warm fallback, as test.yml does.
+      # through go list -export, so it restores a source-keyed build layer.
+      # "Warm architecture build cache" (backend-build-cache.yml) is its only
+      # writer: it checks each development commit, the base of the next pull
+      # requests, and the ratchet's -trimpath lets the extracted base reuse
+      # those compile actions. The key, path, GOFLAGS and runner image must
+      # match that job (scripts/architecture-build-cache.test.mjs). A miss only
+      # makes the check compile cold.
       - name: Compute architecture build cache key
         id: build-cache-key
         env:
@@ -641,7 +646,7 @@ jobs:
           echo "prefix=$ARCH_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
           echo "key=$ARCH_CACHE_PREFIX$ARCH_SOURCE_HASH" >> "$GITHUB_OUTPUT"
       - name: Restore architecture build cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/go-build
           key: ${{ steps.build-cache-key.outputs.key }}

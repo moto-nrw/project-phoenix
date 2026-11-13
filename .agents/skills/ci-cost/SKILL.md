@@ -73,9 +73,13 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
 - **One writer on development.** A cache saved by a pull request serves
   that pull request alone; save shared entries on development pushes (the
   default branch every pull request reads) and let pull requests only
-  restore: `backend-build-cache.yml` (#6784), `frontend-bundle-base.yml`
-  (#7023). Writer and readers need the same runner, env and key, so a test
-  ties the two jobs together.
+  restore: `backend-build-cache.yml` (#6784, architecture ratchet #6962),
+  `frontend-bundle-base.yml` (#7023). Writer and readers need the same
+  runner, env and key, so a test ties the two jobs together
+  (`scripts/architecture-build-cache.test.mjs`).
+- **`-trimpath` for a tree in a temporary directory.** Without it the
+  directory enters every Go action ID: the architecture ratchet extracted its
+  base into a new directory per run and compiled it cold every time (#6962).
 - **Cached test results need verification.** t3code caches per test file and
   reruns one hit per shard uncached. Here `go test -count=1` stays: database
   tests depend on state outside Go's cache key.
@@ -127,7 +131,9 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   long job selects for itself, as t3code's does.
 - Blacksmith jobs keep `actions/cache` entries in Blacksmith's own store,
   with GitHub's branch scoping: they are missing from `gh cache list`, do not
-  count against the 10 GB, and a GitHub-hosted job cannot read them.
+  count against the 10 GB, and a GitHub-hosted job cannot read them. That
+  store holds 25 GB and evicts entries unused for seven days; `gh cache
+  delete` cannot reach them, so bound them with `scripts/go-cache-sweep.sh`.
 - Two cold `next experimental-analyze` builds of one tree differed by 1-4 B
   on 256 of 257 routes in 16 of 33 pairs (13.11.), identical otherwise;
   the ratchet tolerance is 2 % or 10 KiB.
