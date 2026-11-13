@@ -34,7 +34,7 @@ export interface SchoolSearchChild {
   readonly match: SchoolSearchMatch;
 }
 
-export interface SchoolSearchContactChild {
+interface SchoolSearchContactChild {
   readonly id: string;
   readonly firstName: string;
   readonly lastName: string;
@@ -50,19 +50,19 @@ export interface SchoolSearchContact {
   readonly children: readonly SchoolSearchContactChild[];
 }
 
-export interface SchoolSearchStaff {
+interface SchoolSearchStaff {
   readonly id: string;
   readonly firstName: string;
   readonly lastName: string;
 }
 
-export interface SchoolSearchRoom {
+interface SchoolSearchRoom {
   readonly id: string;
   readonly name: string;
   readonly building?: string;
 }
 
-export interface SchoolSearchGroup {
+interface SchoolSearchGroup {
   readonly id: string;
   readonly name: string;
 }
