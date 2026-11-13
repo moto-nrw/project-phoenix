@@ -397,6 +397,43 @@ func TestCleanupAbandonedSessions_OfflineDevice(t *testing.T) {
 	assert.Equal(t, 1, cleanedCount, "Should have cleaned up 1 abandoned session")
 }
 
+// TestCleanupAbandonedSessions_KeepsSessionWithChildrenInRoom verifies that a
+// terminal outage alone does not end a supervision while children are checked
+// into its room: the team may still need it as a target in the app (#6977).
+func TestCleanupAbandonedSessions_KeepsSessionWithChildrenInRoom(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
+	service := setupSessionService(t, db)
+
+	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Outage")
+	device := testpkg.CreateTestDevice(t, db, "device-outage-children")
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Activity Outage")
+	room := testpkg.CreateTestRoom(t, db, "Room Outage")
+	student := testpkg.CreateTestStudent(t, db, "Kind", "Raum", "2a")
+
+	session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
+	require.NoError(t, err)
+	testpkg.CreateTestVisit(t, db, student.ID, session.ID, time.Now().Add(-3*time.Hour), nil)
+
+	// The terminal is offline and nobody used the session for two hours.
+	oldTime := time.Now().Add(-2 * time.Hour)
+	_, err = db.NewUpdate().Table("iot.devices").Set("last_seen = ?", oldTime).Where("id = ?", device.ID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewUpdate().Table("active.groups").Set("last_activity = ?", oldTime).Where("id = ?", session.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	cleanedCount, err := service.CleanupAbandonedSessions(ctx, time.Hour)
+
+	require.NoError(t, err)
+	assert.Zero(t, cleanedCount, "a session with children in the room is not abandoned")
+	group, err := service.GetActiveGroup(ctx, session.ID)
+	require.NoError(t, err)
+	assert.Nil(t, group.EndTime, "the supervision keeps running")
+}
+
 // TestCleanupAbandonedSessions_OnlineDevice verifies session NOT cleaned when device online
 func TestCleanupAbandonedSessions_OnlineDevice(t *testing.T) {
 	t.Parallel()
