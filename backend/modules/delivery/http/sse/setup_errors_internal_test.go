@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -80,4 +81,25 @@ type cancellingSubscriptionResolver struct{ cancel context.CancelFunc }
 func (c cancellingSubscriptionResolver) ResolveSSETopics(ctx context.Context) (int64, []string, []string, []string, error) {
 	c.cancel()
 	return 0, nil, nil, nil, ctx.Err()
+}
+
+// The school stream's role check fails with the request when the client goes
+// away: 499, not 500. On a live request the failure stays a server error.
+func TestSchoolAccessCheck_ClientGoneIsNoServerError(t *testing.T) {
+	t.Parallel()
+	for _, gone := range []bool{true, false} {
+		ctx, cancel := context.WithCancel(t.Context())
+		if gone {
+			cancel()
+		}
+		resource := &Resource[realtime.Event, *realtime.Client]{schoolAccess: &stubSchoolAccess{err: context.Canceled}}
+		rr := httptest.NewRecorder()
+		require.False(t, resource.verifySchoolAccess(ctx, rr, 1, 1, slog.Default()))
+		cancel()
+		if gone {
+			assert.Equal(t, statusClientClosedRequest, rr.Code)
+		} else {
+			assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		}
+	}
 }
