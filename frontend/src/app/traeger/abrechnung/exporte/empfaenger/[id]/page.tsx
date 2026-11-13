@@ -11,6 +11,8 @@ import {
   EXPORT_RECIPIENT_PATH,
   formatsText,
   HANDOVER_STATE_LABELS,
+  HANDOVER_UNKNOWN_TEXT,
+  handoverReasonText,
   missingFieldsText,
 } from "~/components/traeger/export-handover-format";
 import {
@@ -71,6 +73,24 @@ function RecipientStateNotice({
         title="Der Empfänger bekommt noch keine Datei"
         message="Wählen Sie in der Übersicht, welche Dateien an ihn gehen."
         action={assign}
+      />
+    );
+  }
+  const last = recipient.lastHandover;
+  if (last?.state === "failed" || last?.state === "unknown") {
+    return (
+      <Alert
+        type="warning"
+        title={
+          last.state === "failed"
+            ? `Die letzte Übergabe ist nicht angekommen: ${last.fileName}`
+            : `Ob die letzte Übergabe angekommen ist, ist unklar: ${last.fileName}`
+        }
+        message={
+          last.state === "failed"
+            ? `${handoverReasonText(last.reason)} Prüfen Sie die Angaben unten und übergeben Sie die Datei bei den Exporten noch einmal.`
+            : HANDOVER_UNKNOWN_TEXT
+        }
       />
     );
   }

@@ -501,11 +501,17 @@ export function ExportRecipientListCard({
               <ListRowLink
                 key={recipient.id}
                 href={traegerPath(exportRecipientPath(recipient.id))}
-                icon={<IconTile icon={<Inbox aria-hidden />} size="sm" />}
+                icon={
+                  <IconTile
+                    icon={<Inbox aria-hidden />}
+                    size="sm"
+                    className="max-sm:hidden"
+                  />
+                }
                 title={recipient.name}
                 subtitle={
                   <>
-                    <span className="block break-words">
+                    <span className="block">
                       {recipient.host
                         ? destinationText(
                             recipient.host,

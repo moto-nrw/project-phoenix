@@ -75,7 +75,7 @@ export default function TraegerExportRecipientsPage() {
           size="md"
           tooltip="Öffnet das Formular für einen neuen Empfänger."
         >
-          <Plus className="h-4 w-4" aria-hidden />
+          <Plus className="mr-2 h-4 w-4" aria-hidden />
           Empfänger hinzufügen
         </ButtonLink>
       }

@@ -156,9 +156,7 @@ it("shows every recipient with its state and the files it receives", async () =>
   ).toBeInTheDocument();
   expect(within(kaemmerei).getByText("Bereit")).toBeInTheDocument();
   const steuerbuero = screen.getByRole("link", { name: /Steuerbüro/ });
-  expect(
-    within(steuerbuero).getByText("Letzte Übergabe nicht angekommen"),
-  ).toBeInTheDocument();
+  expect(within(steuerbuero).getByText("Nicht angekommen")).toBeInTheDocument();
   expect(
     within(steuerbuero).getByText("Bekommt noch keine Datei"),
   ).toBeInTheDocument();

@@ -98,8 +98,8 @@ export function formatsText(formats: readonly HandoverFormat[]): string {
 }
 
 /**
- * The state of a recipient in one pill: whether it can take a file, and
- * otherwise what blocks it or how its last handover ended.
+ * The state of a recipient in one short pill: whether it can take a file,
+ * and otherwise what blocks it or how its last handover ended.
  */
 export function recipientStatus(recipient: ExportRecipient): {
   readonly label: string;
@@ -108,9 +108,9 @@ export function recipientStatus(recipient: ExportRecipient): {
   if (!recipient.enabled) return { label: "Ausgeschaltet", tone: "gray" };
   if (!recipient.ready) return { label: "Angaben fehlen", tone: "warning" };
   if (recipient.lastHandover?.state === "failed")
-    return { label: "Letzte Übergabe nicht angekommen", tone: "red" };
+    return { label: "Nicht angekommen", tone: "red" };
   if (recipient.lastHandover?.state === "unknown")
-    return { label: "Letzte Übergabe unklar", tone: "warning" };
+    return { label: "Ergebnis unklar", tone: "warning" };
   return { label: "Bereit", tone: "green" };
 }
 

@@ -194,3 +194,34 @@ it("removes the recipient only after the question and names what goes back to th
     ),
   );
 });
+
+it("keeps a failed last handover in view until the next one", async () => {
+  api.fetchExportRecipient.mockResolvedValue({
+    recipient: {
+      ...READY,
+      lastHandover: {
+        id: "1",
+        createdAt: "2026-11-12T08:30:00Z",
+        format: "sollstellung",
+        fileName: "sollstellung-110.csv",
+        byteSize: 120,
+        targetHost: "dateien.kaemmerei-beispiel.de",
+        targetDirectory: "/eingang",
+        recipientId: "7",
+        recipientName: "Kämmerei",
+        state: "failed",
+        reason: "authentication_rejected",
+      },
+    },
+    handovers: [],
+  });
+  renderPage();
+  expect(
+    await screen.findByText(
+      "Die letzte Übergabe ist nicht angekommen: sollstellung-110.csv",
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText("Der Empfänger ist bereit"),
+  ).not.toBeInTheDocument();
+});
