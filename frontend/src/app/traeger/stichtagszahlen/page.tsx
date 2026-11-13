@@ -13,10 +13,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import NavigationLink from "~/components/ui/navigation-link";
 import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
-import {
-  SearchBarDraftProvider,
-  SharedSearchBar,
-} from "~/components/ui/page-header/SearchBar";
+import { SearchBar } from "~/components/ui/page-header/SearchBar";
 import { StatCard } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
@@ -83,7 +80,7 @@ function FigureWithChange({
     <span className="inline-flex items-baseline gap-2 text-sm tabular-nums">
       <span className="font-semibold text-gray-900">{value}</span>
       {change !== null && previousMonth ? (
-        <span className="text-xs text-gray-500">
+        <span className="text-sm text-gray-500">
           {formatKeyDateChange(change)}
           <span className="sr-only"> gegenüber {previousMonth}</span>
         </span>
@@ -157,7 +154,7 @@ function schoolColumns(
     },
     {
       key: "terminals",
-      header: "Aktive Terminals",
+      header: "Aktive Geräte",
       align: "right",
       render: (row) =>
         row.count ? (
@@ -250,7 +247,7 @@ const MONTH_COLUMNS: DataTableColumn<KeyDateMonthRow>[] = [
   },
   {
     key: "terminals",
-    header: "Aktive Terminals",
+    header: "Aktive Geräte",
     align: "right",
     render: (month) => (
       <span className="text-sm font-semibold text-gray-900 tabular-nums">
@@ -291,13 +288,13 @@ function MonthFigures({
           changeHint(
             keyDateChange(month.activeStudents, previous?.activeStudents),
             previous,
-          ) ?? "Kinder, die moto am Stichtag betreut hat."
+          ) ?? "Kinder, die Ihre Schulen am Stichtag betreut haben."
         }
         icon={<MotoConceptIcon concept={childrenConcept} />}
         tone="neutral"
       />
       <StatCard
-        label="Aktive Terminals"
+        label="Aktive Geräte"
         value={month.activeTerminals}
         hint={
           changeHint(
@@ -425,20 +422,13 @@ export default function TraegerKeyDateCountsPage() {
             todayLabel="Neuester Monat"
             actions={
               schools.length > 1 ? (
-                <SearchBarDraftProvider
+                <SearchBar
                   value={search}
                   onChange={setSearch}
-                  debounceMs={undefined}
-                  resetKey={undefined}
-                >
-                  <SharedSearchBar
-                    value={search}
-                    onChange={setSearch}
-                    placeholder="Schule oder Ort suchen…"
-                    inputProps={{ "aria-label": "Schule oder Ort suchen" }}
-                    className="min-w-0 md:w-64"
-                  />
-                </SearchBarDraftProvider>
+                  placeholder="Schule oder Ort suchen…"
+                  inputProps={{ "aria-label": "Schule oder Ort suchen" }}
+                  className="min-w-0 md:w-72"
+                />
               ) : undefined
             }
           />
@@ -458,6 +448,7 @@ export default function TraegerKeyDateCountsPage() {
                 ? `Zahlen je Schule am ${formatDate(singleKeyDate)}`
                 : `Zahlen je Schule im ${formatKeyDateMonth(selection.month.period)}`,
               count: rows.length,
+              level: 2,
             }}
             columns={columns}
             rows={[...rows]}
@@ -473,7 +464,7 @@ export default function TraegerKeyDateCountsPage() {
             }
           />
           <DataTable
-            heading={{ title: "Alle Monate", count: months.length }}
+            heading={{ title: "Alle Monate", count: months.length, level: 2 }}
             columns={MONTH_COLUMNS}
             rows={[...months]}
             getRowKey={(month) => month.period}

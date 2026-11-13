@@ -5,8 +5,8 @@ package communicationtest
 import (
 	"io"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 func NewParentDeliveryPolicy() devices.ParentDeliveryPolicy { return devices.ParentDeliveryPolicy{} }

@@ -1,6 +1,6 @@
 package presence
 
-import "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+import "github.com/moto-ogs/project-phoenix/modules/studentpresence"
 
 // The records, results and status-day values below are the owner's public
 // contract; the application names them locally so the service code reads the

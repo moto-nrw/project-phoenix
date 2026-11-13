@@ -7,8 +7,8 @@ import (
 	"regexp"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 var parentNotificationTypePattern = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Who gets an invoice, how it is paid and by when (#4689, spec #4611 user
@@ -76,7 +76,8 @@ const (
 	// MaxDueDay is the latest day of a month a family's invoices may be due
 	// on, so the day exists in every month.
 	MaxDueDay = 28
-	// MaxBillingNameLength is the longest name of a second parent or payer.
+	// MaxBillingNameLength is the longest name of a second parent, a payer
+	// or the parent a holiday registration names for its family (#6692).
 	MaxBillingNameLength = 100
 )
 
@@ -173,8 +174,20 @@ type FamilyBilling struct {
 	DueDay          *int           `json:"due_day"`
 	// DebtorNumber is the number of the family in the finance system of
 	// the Träger (#4693); the release copies it onto the monthly invoice.
-	DebtorNumber string    `json:"debtor_number"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	DebtorNumber string `json:"debtor_number"`
+	// HolderFirstName and HolderLastName name the parent who registered the
+	// family for the holiday care last (#6692). LastUsedOn is the latest day
+	// a holiday registration needs the number; a family without a contract
+	// keeps its row until 1 January of the fourth year after it, or longer
+	// while a document of the family is kept.
+	HolderFirstName string         `json:"holder_first_name"`
+	HolderLastName  string         `json:"holder_last_name"`
+	LastUsedOn      *calendar.Date `json:"last_used_on"`
+	// DebtorNumberRegistrationID is the holiday registration the family has
+	// its number from, 0 when the office set it in the list of families:
+	// only that registration corrects the number without a choice (#6692).
+	DebtorNumberRegistrationID int64     `json:"-"`
+	UpdatedAt                  time.Time `json:"updated_at"`
 }
 
 // FamilyBillingInput is a deviation as the Abrechnung writes it: for the

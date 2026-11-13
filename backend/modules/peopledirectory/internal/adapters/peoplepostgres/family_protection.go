@@ -6,8 +6,8 @@ import (
 
 	"github.com/uptrace/bun"
 
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	userModels "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 const familyProtectionTable = "users.student_family_protection_events"

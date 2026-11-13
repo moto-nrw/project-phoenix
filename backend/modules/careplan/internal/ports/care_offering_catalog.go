@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrCatalogRowNotFound marks a phase, activity group or calendar period the
@@ -133,4 +133,16 @@ type SourcedTemplateResyncer interface {
 // pickup projection after an offering edit.
 type PickupResyncer interface {
 	ReconcileOfferingPickupForOffering(ctx context.Context, offeringID int64) error
+}
+
+// CatalogCopyReferences reads copy locks and booking references owned by Care Plan.
+type CatalogCopyReferences interface {
+	TraegerOfferingCopyStates(context.Context, []int64, bool) ([]careplan.TraegerOfferingCopyState, error)
+	BookedOfferingIDs(context.Context, []int64) (map[int64]bool, error)
+}
+
+// CatalogCopyWrites saves owner-validated copy batches without widening the
+// ordinary catalog-record facade.
+type CatalogCopyWrites interface {
+	SaveTraegerOfferingRows(context.Context, []careplan.TraegerOfferingWrite, []int64) ([]careplan.CareOffering, error)
 }

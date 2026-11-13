@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.billing_family_debtor_number",
+  "max": 7,
+  "exact": true,
+  "description": "modules/parentbilling — PUT /traeger/billing-families/debtor-number (#6692, #6675), every\nstatement: the Träger transaction and its binding, the Träger's debtor number format\nin one settings read, the family's row, one upsert of the number and one insert into\nthe family's trail. Flat in the number of families of the Träger.",
+  "route": "PUT /traeger/billing-families/debtor-number"
+}

@@ -6,7 +6,7 @@ status: proposed
 
 **Status: Vorgeschlagen.** Vorschlag vom 10.11.2026 zu #3838. Setzt die
 Entscheidung „Data Act Option B“ vom 10.11.2026 um
-([Issue-Kommentar](https://github.com/moto-nrw/project-phoenix/issues/3838#issuecomment-6776609298))
+([Issue-Kommentar](https://github.com/moto-ogs/project-phoenix/issues/3838#issuecomment-6776609298))
 und ergänzt [ADR 0097](0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md),
 [ADR 0192](0192-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md) und
 [ADR 0193](0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md).

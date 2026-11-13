@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	internalports "github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
+	internalports "github.com/moto-ogs/project-phoenix/modules/timetable/internal/ports"
 )
 
 type ClassArrivalRecords interface {

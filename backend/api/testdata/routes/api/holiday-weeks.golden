@@ -1,4 +1,5 @@
 GET /api/holiday-weeks/
+GET /api/holiday-weeks/home-school-children
 GET /api/holiday-weeks/students/{studentId}/health
 GET /api/holiday-weeks/students/{studentId}/registration
 GET /api/holiday-weeks/{weekId}/own-children

@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // schoolVacationStub records what the vacation routes (#5345) ask for.

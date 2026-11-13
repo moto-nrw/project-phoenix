@@ -3,7 +3,7 @@ package common
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // ShouldExposeSeedInvitationToken reports whether the request may receive

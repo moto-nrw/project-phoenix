@@ -37,11 +37,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/delivery/internal/application/fixtureIntentStore.Claim",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/delivery/internal/emailoutbox/DurableEmails.CancelEmail",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

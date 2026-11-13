@@ -55,11 +55,13 @@ export const PORTAL_PAGES = {
   ],
   traeger: [
     "/abrechnung",
+    "/anmeldephasen",
     "/belegung",
     "/dokumente",
     "/einstellungen",
     "/ferien",
     "/invite",
+    "/konto",
     "/login",
     "/reset-password",
     "/schliesstage",

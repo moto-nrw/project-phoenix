@@ -4,8 +4,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
 
 import { Button } from "~/components/ui/button";
+import { HEAD_CONTROL_HEIGHT_SELF } from "~/components/ui/control-geometry";
 import { StatusDot } from "~/components/ui/status-dot";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { PLANNING_COLORS } from "./planning-colors";
 import { cn } from "~/lib/utils";
 
 /**
@@ -54,12 +55,17 @@ import { cn } from "~/lib/utils";
 const PRIMARY_ROW_MIN_H = "min-h-10";
 const CONTEXT_ROW_MIN_H = "min-h-9";
 const DAY_CHIP_SCROLL_MARGIN_PX = 4;
+const TODAY_TOOLTIP = "Springt zum Zeitraum mit dem heutigen Tag.";
 
 interface PlanningContextBarProps {
   readonly onPrevious?: () => void;
   readonly onNext?: () => void;
   readonly previousLabel?: string;
   readonly nextLabel?: string;
+  /** What the back arrow shows (#6744), e.g. „Zeigt die Woche davor.“ */
+  readonly previousTooltip?: string;
+  /** What the forward arrow shows (#6744), e.g. „Zeigt die Woche danach.“ */
+  readonly nextTooltip?: string;
   /** Sichtbare Überschrift der Fläche, z. B. "KW 31 · 27.07.–02.08.2026". */
   readonly dateLabel?: string;
   /** Beliebiger Inhalt anstelle des Datums, falls eine Fläche etwas anderes
@@ -99,6 +105,8 @@ export function PlanningContextBar({
   onNext,
   previousLabel = "Zurück",
   nextLabel = "Weiter",
+  previousTooltip = "Zeigt den Zeitraum davor.",
+  nextTooltip = "Zeigt den Zeitraum danach.",
   dateLabel,
   navigationSlot,
   onToday,
@@ -143,7 +151,7 @@ export function PlanningContextBar({
             steht der Slot selbst zwischen den Pfeilen und die Gruppe füllt
             unter md die Zeile. */}
         <div
-          className={`inline-flex h-10 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white max-sm:h-11 md:order-1 ${
+          className={`inline-flex ${HEAD_CONTROL_HEIGHT_SELF} shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white md:order-1 ${
             navigationInGroup ? "w-full md:w-auto" : ""
           }`}
         >
@@ -154,6 +162,7 @@ export function PlanningContextBar({
             onClick={onPrevious}
             disabled={!onPrevious}
             aria-label={previousLabel}
+            tooltip={previousTooltip}
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -168,6 +177,7 @@ export function PlanningContextBar({
               variant="segment"
               onClick={onToday}
               disabled={!onToday}
+              tooltip={TODAY_TOOLTIP}
             >
               {todayLabel}
             </Button>
@@ -179,6 +189,7 @@ export function PlanningContextBar({
             onClick={onNext}
             disabled={!onNext}
             aria-label={nextLabel}
+            tooltip={nextTooltip}
           >
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -194,6 +205,7 @@ export function PlanningContextBar({
             variant="ghost"
             className="md:order-2"
             onClick={onToday}
+            tooltip={TODAY_TOOLTIP}
           >
             {todayLabel}
           </Button>
@@ -286,9 +298,6 @@ interface PlanningDayChipProps {
   readonly today?: boolean;
 }
 
-/** Punktfarbe des Zählers: dieselbe Lückenfarbe wie im CoverageIndicator. */
-const COUNT_DOT_COLOR = MOTO_COLOR_PALETTE.orange.base;
-
 /**
  * PlanningDayChip is the building block of a week strip in the context row
  * (Wochentagskürzel + Datum + optionale Zähler-Ziffer). It holds no date logic
@@ -353,6 +362,7 @@ export function PlanningDayChip({
       onClick={onClick}
       aria-label={ariaLabel}
       aria-pressed={selected}
+      noTooltip="Ein Tag der Leiste wählt nur den Tag der Ansicht, er steht auf dem Knopf."
       // Unter dem Telefon teilen sich die Tage die Breite gleichmäßig.
       // `scroll-mx-1` hält beim automatischen Heranscrollen den Rand frei
       // (#2031).
@@ -397,7 +407,7 @@ export function PlanningDayChip({
               <span
                 aria-hidden
                 className="h-1.5 w-1.5 rounded-full"
-                style={{ backgroundColor: COUNT_DOT_COLOR }}
+                style={{ backgroundColor: PLANNING_COLORS.gap }}
               />
               {count}
             </span>

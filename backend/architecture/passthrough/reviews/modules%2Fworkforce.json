@@ -572,16 +572,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.ApproveAbsence",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.CancelAbsence",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.DeleteVacationOpening",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

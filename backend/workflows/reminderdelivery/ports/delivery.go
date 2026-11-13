@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
 )
 
 type GuardianProfile struct {

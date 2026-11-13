@@ -8,10 +8,10 @@ import (
 	slices "slices"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	absencerecords "github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	absencerecords "github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PartialAbsenceReplacer is Student Presence's port onto Care Plan's command

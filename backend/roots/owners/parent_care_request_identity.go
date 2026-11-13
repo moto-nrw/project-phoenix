@@ -3,10 +3,10 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // NewParentCareRequestReads binds the owner's decoded lookup to the workflow's

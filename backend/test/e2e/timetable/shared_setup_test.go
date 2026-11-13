@@ -16,22 +16,23 @@ import (
 	"io"
 	"log/slog"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Each scenario owns two tenants (#2419): the primary one every fixture lands
@@ -55,6 +56,7 @@ type scenario struct {
 	cleanup        func(context.Context) (*timetable.TimetableCleanupResult, error)
 	router         timetableTestRouter
 	today          func() calendar.Date
+	nonWorkingDays timetable.NonWorkingDayCalendar
 
 	primaryTenant   int64
 	secondaryTenant int64
@@ -97,6 +99,7 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 		previewCleanup:  factory.TimetableCleanup.PreviewExpiredTimetableData,
 		cleanup:         factory.TimetableCleanup.CleanupExpiredTimetableData,
 		today:           calendar.CalendarDateClock(clocks...),
+		nonWorkingDays:  schoolCalendar,
 		primaryTenant:   primaryTenant,
 		secondaryTenant: secondaryTenant,
 	}
@@ -388,6 +391,41 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 		studentIDs:   spec.studentIDs,
 		validFromUTC: validFrom,
 	}
+}
+
+// plannableWeekday returns the first date at least minDaysAhead days after
+// the scenario's today that falls on isoWeekday (1=Mon...7=Sun) and on which
+// materialization plans an occurrence. It asks the School Calendar the
+// materializer plans over and applies the materializer's own decision
+// (timetable.LoadNonWorkingDays, NonWorkingDays.Skip), so a statutory holiday
+// or closing day of the tenant never becomes a flow's target day. Every date
+// laterDays after the result must be plannable too, for flows that also plan
+// a later week of the same series.
+func (s *scenario) plannableWeekday(isoWeekday, minDaysAhead int, laterDays ...int) calendar.Date {
+	s.t.Helper()
+	const searchWeeks = 53
+	first := nextWeekday(s.today(), isoWeekday, minDaysAhead)
+	lastCandidate := first.AddDays(7 * (searchWeeks - 1))
+	windowEnd := lastCandidate
+	for _, offset := range laterDays {
+		windowEnd = max(windowEnd, lastCandidate.AddDays(offset))
+	}
+	var days timetable.NonWorkingDays
+	err := testpkg.WithinTenantContext(s.t, context.Background(), s.db, s.primaryTenant, func(ctx context.Context) error {
+		var err error
+		days, err = timetable.LoadNonWorkingDays(ctx, s.nonWorkingDays, first.String(), windowEnd.String())
+		return err
+	})
+	require.NoError(s.t, err, "load the tenant's holidays and closing days")
+	plannable := func(day calendar.Date) bool { return days.Skip(day.String(), false) == timetable.SkipNone }
+	for candidate := first; !candidate.After(lastCandidate); candidate = candidate.AddDays(7) {
+		blocked := func(offset int) bool { return !plannable(candidate.AddDays(offset)) }
+		if plannable(candidate) && !slices.ContainsFunc(laterDays, blocked) {
+			return candidate
+		}
+	}
+	s.t.Fatalf("no plannable weekday %d within %d weeks after %s", isoWeekday, searchWeeks, first)
+	return ""
 }
 
 // nextWeekday returns the next occurrence of the given ISO weekday (1=Mon...7=Sun)

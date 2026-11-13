@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 )
 
 // letterCurrentAddressSQL is where another mail of a delivery row would go.

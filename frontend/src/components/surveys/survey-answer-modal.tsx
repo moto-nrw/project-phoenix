@@ -37,7 +37,7 @@ export function SurveyAnswerModal({
       title={survey.title}
       isDismissDisabled={busy}
       isBackdropDismissDisabled
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
+      size="lg"
       footer={
         <Button
           type="button"

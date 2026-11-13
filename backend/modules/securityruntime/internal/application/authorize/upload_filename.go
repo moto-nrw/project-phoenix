@@ -1,6 +1,6 @@
 package authorize
 
-import "github.com/moto-nrw/project-phoenix/internal/randstr"
+import "github.com/moto-ogs/project-phoenix/internal/randstr"
 
 // UploadFilenameSuffix is the collision-resistant suffix of an uploaded file.
 func UploadFilenameSuffix() (string, error) {

@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"testing"
 
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -72,7 +72,7 @@ func TestRequestApprovalPreservesNativePlanAndAuditSnapshots(t *testing.T) {
 			}
 			directory := &requestPlanDirectory{RequestPeople: f.persons, student: student}
 			audit := &requestPlanAudit{}
-			service := api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+			service := api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(nil,
 				f.reposCare.CarePlan(), directory, f.schedules.Arrivals, f.schedules.Pickups,
 				nil, f.autoExcusal, nil, f.caller, nil, nil,
 				testpkg.RequestReviewPolicy[*peopledirectory.StudentState]{UserContext: f.caller}, testpkg.PermissionsFromContext, nil, slog.Default(), audit,

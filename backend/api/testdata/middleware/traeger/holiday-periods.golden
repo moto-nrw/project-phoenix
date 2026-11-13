@@ -11,6 +11,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /traeger/holiday-periods/{id}/form/documents/{documentId}
 	GET /traeger/holiday-periods/{id}/places
 	GET /traeger/holiday-periods/{id}/registrations
+	GET /traeger/holiday-periods/{id}/registrations/mail-problems
 	GET /traeger/holiday-periods/{id}/registrations/{registrationId}
 	GET /traeger/holiday-periods/{id}/registrations/{registrationId}/proofs/{proofId}
 	POST /traeger/holiday-periods/

@@ -3,7 +3,7 @@ package audit
 import (
 	"context"
 
-	auditModel "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditModel "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 	"github.com/uptrace/bun"
 )
 

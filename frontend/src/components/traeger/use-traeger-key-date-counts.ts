@@ -25,7 +25,11 @@ export function useTraegerKeyDateCounts() {
     revalidateOnFocus: true,
     ...guard.callbacks,
   });
-  const counts = useConfirmedResource(response, guard, "die Stichtagszahlen");
+  const counts = useConfirmedResource(
+    response,
+    guard,
+    "die Übersicht der Stichtagszahlen",
+  );
   return {
     counts: counts.data,
     error: metadataLoadError(

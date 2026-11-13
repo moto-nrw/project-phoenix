@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // CareOfferingsResponse is the parent-facing view of a child's booked care

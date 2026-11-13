@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -215,6 +215,20 @@ func TestProvisioningListDevices(t *testing.T) {
 
 func TestProvisioningCreateDevice(t *testing.T) {
 	t.Parallel()
+
+	t.Run("audit failure fails the transaction", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		seedDeviceSchools(h)
+		h.secrets.keys = []string{"dev_generated-key-1"}
+		h.audit.err = errBoom
+
+		device, err := h.svc.CreateDevice(context.Background(), 10, "BURBACH-1", "terminal", nil, nil, testOperatorID, operatorIP)
+
+		require.ErrorIs(t, err, errBoom)
+		assert.Nil(t, device)
+		assert.ErrorIs(t, h.tx.lastErr, errBoom)
+	})
 
 	t.Run("generates a key when none is given", func(t *testing.T) {
 		t.Parallel()

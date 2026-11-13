@@ -4,7 +4,7 @@ status: accepted
 
 # Träger-Büro lädt ein und vergibt Rollen in Identity & Access
 
-Entscheidung vom 25.10.2026 zu [#4650](https://github.com/moto-nrw/project-phoenix/issues/4650),
+Entscheidung vom 25.10.2026 zu [#4650](https://github.com/moto-ogs/project-phoenix/issues/4650),
 zweiter Schnitt von [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md)
 Abschnitt 4. ADR 0084 legt fest: Mitgliedschaft bei Organisation & Tenancy,
 Rollen und Rechte bei Identity & Access, Einladung „über das bestehende

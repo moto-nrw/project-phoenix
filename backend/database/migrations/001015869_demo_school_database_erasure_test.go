@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -120,23 +120,25 @@ var demoErasureSchoolTablesOutsideThePlan = map[string]struct {
 	retained bool
 	reason   string
 }{
-	"care_contract.contracts":            {false, "care contracts of a retired demo school go with its visitor (#4684)"},
-	"care_contract.contract_events":      {false, "the trail goes with its contract (#4684)"},
-	"parent_billing.care_invoices":       {false, "monthly invoices of a retired demo school go with its visitor (#4684)"},
-	"parent_billing.care_meal_positions": {false, "meal positions go with their invoice (#4686)"},
-	"parent_billing.care_notices":        {false, "annual notices of a retired demo school go with its visitor (#4685)"},
-	"schedule.meal_billing_months":       {false, "meal billing months of a retired demo school go with its visitor (#4686)"},
-	"care_contract.contract_templates":   {true, "Träger contract terms of an offering, no person; stay with the Träger like after any school erasure"},
-	"parent_billing.care_meal_tariffs":   {true, "Träger meal price per school, no person"},
-	"parent_billing.care_price_lists":    {true, "Träger price list head per school, no person"},
-	"parent_billing.care_run_schools":    {true, "school, month and run state of a Träger billing run, no person"},
-	"parent_billing.care_tariffs":        {true, "Träger price per care module and weekday, no person"},
-	"platform.billing_key_date_counts":   {true, "school and Träger name with sums for billing, no person; its own 10-year deadline (ADR 0092)"},
-	"platform.school_erasures":           {true, "evidence of an operator's school erasure; IDs and counts only"},
-	"platform.traeger_document_reads":    {true, "Träger document reads keep their own three-year deadline; the visitor account is anonymized (#4048)"},
-	"platform.traeger_document_releases": {true, "a Träger release goes with its document or the Träger (ADR 0157)"},
-	"platform.demo_school_file_erasures": {true, "the #5544 file marker carries the database erasure evidence: time and row counts per table (ADR 0148, ADR 0189)"},
-	"platform.demo_school_origins":       {true, "the demo origin: school ID and time only; it keeps a reused ID from ever looking like a real school (ADR 0148)"},
+	"care_contract.contracts":                  {false, "care contracts of a retired demo school go with its visitor (#4684)"},
+	"care_contract.contract_events":            {false, "the trail goes with its contract (#4684)"},
+	"parent_billing.care_invoices":             {false, "monthly invoices of a retired demo school go with its visitor (#4684)"},
+	"parent_billing.care_meal_positions":       {false, "meal positions go with their invoice (#4686)"},
+	"parent_billing.care_notices":              {false, "annual notices of a retired demo school go with its visitor (#4685)"},
+	"schedule.meal_billing_months":             {false, "meal billing months of a retired demo school go with its visitor (#4686)"},
+	"care_contract.contract_templates":         {true, "Träger contract terms of an offering, no person; stay with the Träger like after any school erasure"},
+	"parent_billing.care_meal_tariffs":         {true, "Träger meal price per school, no person"},
+	"parent_billing.care_price_lists":          {true, "Träger price list head per school, no person"},
+	"enrollment.traeger_phase_schools":         {true, "Träger phase selection and outcome per school (ADR 0195), no person; stays with the Träger like after any school erasure"},
+	"enrollment.traeger_care_offering_schools": {true, "Träger offering outcome per school (ADR 0195), no person; stays with the Träger like after any school erasure"},
+	"parent_billing.care_run_schools":          {true, "school, month and run state of a Träger billing run, no person"},
+	"parent_billing.care_tariffs":              {true, "Träger price per care module and weekday, no person"},
+	"platform.billing_key_date_counts":         {true, "school and Träger name with sums for billing, no person; its own 10-year deadline (ADR 0092)"},
+	"platform.school_erasures":                 {true, "evidence of an operator's school erasure; IDs and counts only"},
+	"platform.traeger_document_reads":          {true, "Träger document reads keep their own three-year deadline; the visitor account is anonymized (#4048)"},
+	"platform.traeger_document_releases":       {true, "a Träger release goes with its document or the Träger (ADR 0157)"},
+	"platform.demo_school_file_erasures":       {true, "the #5544 file marker carries the database erasure evidence: time and row counts per table (ADR 0148, ADR 0189)"},
+	"platform.demo_school_origins":             {true, "the demo origin: school ID and time only; it keeps a reused ID from ever looking like a real school (ADR 0148)"},
 }
 
 // TestRetiredDemoSchoolIsErasedFromTheDatabaseAfterNinetyDaysOnly is the

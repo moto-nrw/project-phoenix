@@ -5,8 +5,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	substitutionsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/substitutions"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	substitutionsHTTP "github.com/moto-ogs/project-phoenix/modules/workforce/http/substitutions"
 )
 
 // newSubstitutionsResource wires /api/substitutions over the substitution

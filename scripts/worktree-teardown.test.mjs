@@ -7,7 +7,7 @@ import test from 'node:test';
 
 const script = new URL('./worktree-teardown.sh', import.meta.url).pathname;
 const wtconfig = new URL('../.wtconfig', import.meta.url).pathname;
-const project = 'wt-fix-1-moto-nrw-project-phoenix';
+const project = 'wt-fix-1-moto-ogs-project-phoenix';
 
 // Docker state as "kind name compose-project" lines: this worktree's project,
 // the main checkout's stack, the shared test database server and caches with

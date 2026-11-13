@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,11 +47,12 @@ func TestCareRequestHistory_ServesFrozenDecisionDiff(t *testing.T) {
 	pending, err := testpkg.TenantQuery3(t, tenantCtx, tc.db, tc.careRequests.CreateRequest, chain.StudentID, chain.AccountID, json.RawMessage(`{"weekdays":[{"weekday":1,"pickup":"16:00"}]}`))
 	require.NoError(t, err)
 
-	// Approve through the production decide route.
-	// #2267: reason policy defaults to "both"
+	// Approve through the production decide route, naming the diff the open
+	// queue showed (#6843). #2267: reason policy defaults to "both"
+	impact, _ := openWeeklyImpact(t, tc, testutil.AdminTestClaims(int(staffAccount.ID)), chain.StudentID, pending.ID)
 	decideReq, err := http.NewRequest(http.MethodPost,
 		fmt.Sprintf("/care-schedule-change-requests/%d/decide", pending.ID),
-		strings.NewReader(`{"approve":true,"reason":"Passt so"}`))
+		strings.NewReader(fmt.Sprintf(`{"approve":true,"reason":"Passt so","impact_token":%q}`, impact)))
 	require.NoError(t, err)
 	decideReq.Header.Set("Content-Type", "application/json")
 	rr := authExec(t, tc, decideReq, testutil.AdminTestClaims(int(staffAccount.ID)), []string{"admin:*"})

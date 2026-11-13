@@ -5,7 +5,7 @@ package api
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 )
 
 // StudentHTTPTestRepositoryNotFound is the retained repositories' not-found

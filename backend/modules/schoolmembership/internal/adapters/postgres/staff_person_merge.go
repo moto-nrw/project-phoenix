@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 func (s *Store) StaffMergeMemberships(ctx context.Context, schoolID int64, lock bool) ([]schoolmembership.Staff, error) {

@@ -5,7 +5,7 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // TimetableTestStaffAccountPeople resolves every account to the person

@@ -5,18 +5,20 @@ import (
 	"fmt"
 	"log/slog"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
+
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // CarePlanOfferings are Care Plan's care-offering catalog and its booking
@@ -80,7 +82,7 @@ func careOfferingCatalogDependencies(
 		Phases:                 CareOfferingCatalogPhases{Phases: enrollment.Bookings},
 		Timetable:              CareOfferingCatalogTimetable{Timetable: timetableOwner},
 		Calendar:               CareOfferingCatalogCalendar{Calendar: calendar},
-		Bookings:               CareOfferingCatalogBookings{Bookings: enrollment.Bookings},
+		Bookings:               CareOfferingCatalogBookings{Bookings: enrollment.Bookings, OfferingSelectionReferences: enrollmentCompose.NewOfferingSelectionReferences()},
 		Settings:               CareOfferingCatalogSettings{Settings: settings},
 		Translations:           CareOfferingCatalogTranslations{},
 		SourceRules:            CareOfferingSourceRules{},

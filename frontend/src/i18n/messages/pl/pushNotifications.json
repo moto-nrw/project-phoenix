@@ -49,5 +49,6 @@
   "installTooltip": "Rozpoczyna instalację moto jako aplikacji na tym urządzeniu.",
   "checkAgainTooltip": "Sprawdza ponownie, czy moto może wysyłać powiadomienia na to urządzenie.",
   "sendTestDescription": "Od razu wysyła Ci powiadomienie na próbę.",
-  "restartDescription": "Jeszcze raz prowadzi przez kroki włączania."
+  "restartDescription": "Jeszcze raz prowadzi przez kroki włączania.",
+  "moreActionsHint": "Pokazuje więcej działań."
 }

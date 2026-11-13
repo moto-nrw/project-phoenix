@@ -1,0 +1,138 @@
+package operator_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	settingsoperator "github.com/moto-ogs/project-phoenix/modules/settings/inbound/operator"
+)
+
+// The handler tests below drive the routes over a fake capability: they pin
+// how the HTTP adapter maps the capability's results, independent of the
+// settings rows the integration tests write.
+
+const fakeSchoolID int64 = 4711
+
+// testOperatorID is the operator the routes record as the author of a write.
+func testOperatorID(context.Context) int64 { return 815 }
+
+type setValueCall struct {
+	schoolID  int64
+	key       string
+	value     any
+	changedBy int64
+	force     bool
+}
+
+type fakeOperatorSchoolSettings struct {
+	schema   json.RawMessage
+	setErr   error
+	setCalls []setValueCall
+}
+
+func (f *fakeOperatorSchoolSettings) CheckOperatorWritable(string) error { return nil }
+
+func (f *fakeOperatorSchoolSettings) Schema(context.Context, int64) (json.RawMessage, error) {
+	return f.schema, nil
+}
+
+func (f *fakeOperatorSchoolSettings) Reveal(context.Context, int64, string) (any, error) {
+	return nil, nil
+}
+
+func (f *fakeOperatorSchoolSettings) SetValue(_ context.Context, schoolID int64, key string, value any, changedBy int64, force bool) error {
+	f.setCalls = append(f.setCalls, setValueCall{schoolID: schoolID, key: key, value: value, changedBy: changedBy, force: force})
+	return f.setErr
+}
+
+func (f *fakeOperatorSchoolSettings) ResetValue(context.Context, int64, string, int64) error {
+	return nil
+}
+
+func fakeSettingsRouter(fake *fakeOperatorSchoolSettings) chi.Router {
+	resource := settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{Settings: fake, OperatorID: testOperatorID})
+	router := chi.NewRouter()
+	router.Get("/schools/{id}/settings/schema", resource.GetSchoolSettingsSchema)
+	router.Put("/schools/{id}/settings/values/{key}", resource.SetSchoolSettingValue)
+	return router
+}
+
+func fakeSchoolPath(suffix string) string {
+	return fmt.Sprintf("/schools/%d%s", fakeSchoolID, suffix)
+}
+
+func TestOperatorSettingsRoutes_SchemaRendersCapabilityJSON(t *testing.T) {
+	t.Parallel()
+	fake := &fakeOperatorSchoolSettings{schema: json.RawMessage(`{"tabs":[{"key":"operations"}]}`)}
+
+	req := newOperatorRequest(t, http.MethodGet, fakeSchoolPath("/settings/schema"), nil)
+	rr := testutil.ExecuteRequest(fakeSettingsRouter(fake), req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	assert.Equal(t, map[string]any{"tabs": []any{map[string]any{"key": "operations"}}}, response["data"])
+}
+
+func TestNewSettingsResourceRequiresTheOperator(t *testing.T) {
+	t.Parallel()
+	assert.Panics(t, func() {
+		settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{Settings: &fakeOperatorSchoolSettings{}})
+	})
+}
+
+func TestOperatorSettingsRoutes_SetValuePassesOperatorAndForce(t *testing.T) {
+	t.Parallel()
+	fake := &fakeOperatorSchoolSettings{}
+
+	req := newOperatorRequest(t, http.MethodPut,
+		fakeSchoolPath("/settings/values/")+settings.KeyPresenceMode+"?force=true",
+		map[string]any{"value": presenceModeBinary})
+	rr := testutil.ExecuteRequest(fakeSettingsRouter(fake), req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	require.Len(t, fake.setCalls, 1)
+	assert.Equal(t, setValueCall{
+		schoolID:  fakeSchoolID,
+		key:       settings.KeyPresenceMode,
+		value:     presenceModeBinary,
+		changedBy: testOperatorID(context.Background()),
+		force:     true,
+	}, fake.setCalls[0])
+}
+
+func TestOperatorSettingsRoutes_SetValueConflicts(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		sentinel error
+		code     string
+	}{
+		"presence mode switch blocked": {settings.ErrPresenceModeSwitchBlocked, "settings.presence_mode_switch_blocked"},
+		"booking authority blocked": {
+			&settings.BookingAuthorityBlockedError{Reason: errors.New("Der Buchungsmodus kann nicht aktiviert werden.")},
+			"settings.booking_authority_blocked",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake := &fakeOperatorSchoolSettings{setErr: fmt.Errorf("wrapped: %w", tc.sentinel)}
+
+			req := newOperatorRequest(t, http.MethodPut, fakeSchoolPath("/settings/values/checkout.wc_enabled"),
+				map[string]any{"value": true})
+			rr := testutil.ExecuteRequest(fakeSettingsRouter(fake), req)
+
+			testutil.AssertErrorResponse(t, rr, http.StatusConflict)
+			assert.Contains(t, rr.Body.String(), tc.sentinel.Error())
+			// #2519: the operator portal shows the conflict by its code.
+			assert.Equal(t, tc.code, testutil.ParseJSONResponse(t, rr.Body.Bytes())["code"])
+		})
+	}
+}

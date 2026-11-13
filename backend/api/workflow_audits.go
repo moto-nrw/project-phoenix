@@ -1,12 +1,12 @@
 package api
 
 import (
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
-	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/workflows/gradetransition"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
+	"github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
 )
 
 // The workflows append their audit records through the Audit owner's command;

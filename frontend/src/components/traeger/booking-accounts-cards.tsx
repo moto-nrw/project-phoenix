@@ -27,7 +27,10 @@ import { InsetPanel } from "~/components/ui/inset-panel";
 import { Input } from "~/components/ui/input";
 import { ListGroupHeader } from "~/components/ui/list-group-header";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -45,8 +48,6 @@ const logger = createLogger({ component: "BookingAccountsCards" });
 
 type SubmitLike = { preventDefault: () => void };
 
-const ROW =
-  "flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center";
 const ACTIONS =
   "flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end";
 
@@ -165,7 +166,7 @@ function RevenueRow({
     );
   }
   return (
-    <li className={ROW}>
+    <ResponsiveActionRow>
       <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-6">
         <div className="min-w-0 sm:w-64">
           <p className="text-sm font-semibold text-gray-900">{title}</p>
@@ -185,7 +186,7 @@ function RevenueRow({
           Ändern
         </Button>
       </div>
-    </li>
+    </ResponsiveActionRow>
   );
 }
 
@@ -213,7 +214,7 @@ export function RevenueAccountsCard({
       description="Auf diese Sachkonten bucht moto die Beiträge. Hat eine Leistung oder ein Angebot kein eigenes Konto, gilt das Konto darüber."
     >
       <ResponsiveActionList>
-        <li className={ROW}>
+        <ResponsiveActionRow>
           <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-6">
             <div className="min-w-0 sm:w-64">
               <p className="text-sm font-semibold text-gray-900">
@@ -239,7 +240,7 @@ export function RevenueAccountsCard({
               DATEV-Werte
             </ButtonLink>
           </div>
-        </li>
+        </ResponsiveActionRow>
         {REVENUE_SERVICES.map((service) => (
           <RevenueRow
             key={service.scope}
@@ -419,7 +420,7 @@ function CostCenterRow({
   const timeline = costCenterTimeline(page.costCenters, scope, scopeId);
   const label = scope === "offering" ? "KOST2" : "KOST1";
   return (
-    <li className={ROW}>
+    <ResponsiveActionRow>
       <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-6">
         <div className="min-w-0 sm:w-64">
           <p className="text-sm font-semibold text-gray-900">{title}</p>
@@ -521,7 +522,7 @@ function CostCenterRow({
           </ol>
         </InsetPanel>
       ) : null}
-    </li>
+    </ResponsiveActionRow>
   );
 }
 

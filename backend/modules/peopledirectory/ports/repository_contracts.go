@@ -3,12 +3,12 @@ package ports
 import (
 	"context"
 
-	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	peopleBirthday "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The repository contracts of the retained People Directory persistence

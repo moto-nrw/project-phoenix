@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The SEPA direct debit file of an issued run (#4697, ADR 0181). moto
@@ -174,6 +174,8 @@ type SEPADebitFile struct {
 	Filename    string
 	ContentType string
 	Data        []byte
+	// ExportFileID is the protocol entry the download recorded.
+	ExportFileID int64
 }
 
 // SEPADebits lets the Abrechnung of a Träger download the PAIN.008 file of

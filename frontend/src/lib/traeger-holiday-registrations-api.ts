@@ -12,6 +12,11 @@ import {
  * here as strings.
  */
 
+import {
+  type BackendDebtorNumberFormat,
+  type DebtorNumberFormat,
+  debtorNumberFormatOf,
+} from "~/lib/debtor-number-format";
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
 import {
@@ -124,6 +129,21 @@ export interface HolidayRegistrationChild {
   readonly holidayWishCheck: boolean;
 }
 
+/** Which mail of a registration to the parents (#6737). */
+export type HolidayRegistrationMailKind =
+  "holiday_registration_received" | "holiday_registration_accepted";
+
+/**
+ * What became of a mail that did not reach the parents (#6737): moto gave it
+ * up or it came back, the address is blocked, or the outcome is unknown.
+ */
+type HolidayRegistrationMailState = "failed" | "blocked" | "unknown";
+
+export interface HolidayRegistrationMailProblem {
+  readonly kind: HolidayRegistrationMailKind;
+  readonly state: HolidayRegistrationMailState;
+}
+
 export interface HolidayRegistrationSummary {
   readonly id: string;
   readonly status: HolidayRegistrationStatus;
@@ -146,6 +166,8 @@ export interface HolidayRegistrationSummary {
    */
   readonly deletesOn: string | null;
   readonly healthDeletesOn: string | null;
+  /** Receipt and acceptance mails that did not reach the parents (#6737). */
+  readonly mailProblems: readonly HolidayRegistrationMailProblem[];
   readonly children: readonly HolidayRegistrationChild[];
 }
 
@@ -370,6 +392,7 @@ interface BackendSummary {
   debtor_number?: string;
   deletes_on?: string | null;
   health_deletes_on?: string | null;
+  mail_problems?: HolidayRegistrationMailProblem[] | null;
   children?: BackendChild[] | null;
 }
 
@@ -484,6 +507,10 @@ function summaryFromBackend(
     debtorNumber: registration.debtor_number ?? "",
     deletesOn: registration.deletes_on ?? null,
     healthDeletesOn: registration.health_deletes_on ?? null,
+    mailProblems: (registration.mail_problems ?? []).map((problem) => ({
+      kind: problem.kind,
+      state: problem.state,
+    })),
     children: (registration.children ?? []).map((child) => ({
       id: String(child.id),
       firstName: child.first_name,
@@ -727,6 +754,35 @@ export async function fetchHolidayKnownChildren(
     (known?.children ?? []).map((child) => [
       String(child.child_id),
       String(child.school_id),
+    ]),
+  );
+}
+
+/**
+ * The registrations of a period whose receipt or acceptance mail did not reach
+ * the parents (#6737): registration ID to its mail problems. A registration
+ * without a problem has no key.
+ */
+export async function fetchHolidayRegistrationMailProblems(
+  periodId: string,
+): Promise<ReadonlyMap<string, readonly HolidayRegistrationMailProblem[]>> {
+  const answer = await traegerRequest<{
+    registrations?:
+      | {
+          registration_id: number;
+          mail_problems?: HolidayRegistrationMailProblem[] | null;
+        }[]
+      | null;
+  } | null>(
+    `/api/traeger/holiday-periods/${encodeURIComponent(periodId)}/registrations/mail-problems`,
+  );
+  return new Map(
+    (answer?.registrations ?? []).map((registration) => [
+      String(registration.registration_id),
+      (registration.mail_problems ?? []).map((problem) => ({
+        kind: problem.kind,
+        state: problem.state,
+      })),
     ]),
   );
 }
@@ -1069,6 +1125,8 @@ export interface CostBearerChoice {
 export interface HolidayConfirmationSettings {
   /** The Träger asks for the debtor number of the family. */
   readonly debtorNumberRequired: boolean;
+  /** The format the number must have (#6675); none without the setting. */
+  readonly debtorNumberFormat?: DebtorNumberFormat;
   /** The active cost bearers of the Träger, by name (#5627). */
   readonly costBearers?: readonly CostBearerChoice[];
 }
@@ -1076,10 +1134,12 @@ export interface HolidayConfirmationSettings {
 export async function fetchHolidayConfirmationSettings(): Promise<HolidayConfirmationSettings> {
   const settings = await traegerRequest<{
     debtor_number_required: boolean;
+    debtor_number_format?: BackendDebtorNumberFormat | null;
     cost_bearers?: { id: number; name: string }[] | null;
   }>("/api/traeger/holiday-contributions/confirmation-settings");
   return {
     debtorNumberRequired: settings.debtor_number_required,
+    debtorNumberFormat: debtorNumberFormatOf(settings.debtor_number_format),
     costBearers: (settings.cost_bearers ?? []).map((bearer) => ({
       id: String(bearer.id),
       name: bearer.name,

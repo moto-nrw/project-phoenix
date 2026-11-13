@@ -3,7 +3,7 @@ package careplan
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
 )
 
 // The student excused-absence request workflow (#3093) is declared in the

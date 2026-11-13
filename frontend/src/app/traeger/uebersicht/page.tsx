@@ -18,11 +18,15 @@ import {
 } from "lucide-react";
 import { CheckCircleIcon } from "@phosphor-icons/react/ssr";
 import { useSession } from "next-auth/react";
+import { emptySearchText } from "~/components/traeger/empty-search";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -36,6 +40,8 @@ import {
   useOpenTraegerSchool,
 } from "~/components/traeger/use-open-traeger-school";
 import { useTraegerSchoolsAlerts } from "~/components/traeger/use-traeger-schools-alerts";
+import { SpinnerIcon } from "~/components/ui/icons";
+import { between, useMediaQuery } from "~/lib/hooks/use-media-query";
 import {
   ALERT_LABELS,
   alertSentence,
@@ -132,10 +138,10 @@ function matchesSearch(school: TraegerSchoolToday, search: string): boolean {
  * die Kachel daneben für die anwesenden Kinder braucht.
  */
 function childrenTotalHint(schoolCount: number): string {
-  if (schoolCount === 1) return "Alle Kinder, die Ihre Schule betreut.";
+  if (schoolCount === 1) return "Alle betreuten Kinder Ihrer Schule.";
   if (schoolCount > 1)
-    return `Alle Kinder, die Ihre ${schoolCount} Schulen betreuen.`;
-  return "Alle Kinder, die Ihre Schulen betreuen.";
+    return `Alle betreuten Kinder in Ihren ${schoolCount} Schulen.`;
+  return "Alle betreuten Kinder in Ihren Schulen.";
 }
 
 function TotalFigures({
@@ -167,7 +173,7 @@ function TotalFigures({
           hint={
             loading
               ? undefined
-              : `${percentFormat.format(share)} aller Kinder sind gerade in der Schule.`
+              : `${percentFormat.format(share)} aller Kinder sind da.`
           }
           progressPct={loading ? undefined : share * 100}
           icon={<MotoConceptIcon concept={presentConcept} />}
@@ -179,7 +185,7 @@ function TotalFigures({
         <StatCard
           label="Heute krank"
           value={total?.childrenSick ?? 0}
-          hint="Kinder mit einer Krankmeldung für heute."
+          hint="Kinder mit Krankmeldung für heute."
           icon={<MotoConceptIcon concept={sickConcept} />}
           loading={loading}
           tone="neutral"
@@ -189,7 +195,7 @@ function TotalFigures({
         <StatCard
           label="Betreuungskräfte anwesend"
           value={total ? `${total.staffPresent} von ${total.staffTotal}` : 0}
-          hint="Zählt, wer in der Zeiterfassung angemeldet ist. Homeoffice zählt nicht."
+          hint="Angemeldet in der Zeiterfassung. Homeoffice zählt nicht."
           icon={<MotoConceptIcon concept={staffConcept} />}
           loading={loading}
           tone="neutral"
@@ -204,7 +210,7 @@ function TotalFigures({
               ? undefined
               : ratio === null
                 ? "Gerade ist an keiner Schule eine Betreuungskraft in der Zeiterfassung angemeldet."
-                : "Eine anwesende Betreuungskraft kommt im Schnitt auf so viele anwesende Kinder."
+                : "Anwesende Kinder je anwesender Betreuungskraft."
           }
           icon={<MotoConceptIcon concept={supervisionConcept} />}
           loading={loading}
@@ -226,7 +232,10 @@ function figureColumns(
       // Der Link ist der Weg per Tastatur und Vorlesehilfe; die Zeile hat eigene
       // Bedienelemente und wird deshalb selbst kein Knopf.
       render: (school) => (
-        <div className="min-w-0">
+        // Room for a hyphenated word („Demo-Schule“): the name breaks at its
+        // spaces, not at the hyphen, beside six figure columns. On a laptop
+        // a usual name keeps one line.
+        <div className="min-w-28 xl:min-w-40">
           <NavigationLink
             href={schoolPath(school)}
             className="font-medium text-gray-900 hover:underline"
@@ -463,6 +472,10 @@ export default function TraegerDashboardPage() {
   );
   const canChangeThresholds = hasPermission(session, SETTINGS_RIGHT);
 
+  // Between md and xl the table has no room for the action's words: the
+  // figures would slide under the pinned column. The icon keeps its full
+  // name for screen readers and as a tooltip.
+  const iconAction = useMediaQuery(between("md", "xl"));
   const columns = useMemo<DataTableColumn<TraegerSchoolToday>[]>(() => {
     const figures = figureColumns(alertsBySchool, alerts !== null);
     return canOpen
@@ -470,7 +483,8 @@ export default function TraegerDashboardPage() {
           ...figures,
           {
             key: "actions",
-            header: "",
+            // Over the icons the header names their action in full.
+            header: iconAction ? "Schul-App öffnen" : "",
             align: "right",
             stacked: "meta",
             stackedLabel: false,
@@ -478,7 +492,9 @@ export default function TraegerDashboardPage() {
               <Button
                 type="button"
                 variant="surface"
-                size="compact"
+                size={iconAction ? "icon" : "compact"}
+                // One line: the action keeps its word whole in the table.
+                className="whitespace-nowrap"
                 aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
                 tooltip={TRAEGER_HANDOFF_OPEN_HINT}
                 disabled={opening !== null}
@@ -489,7 +505,13 @@ export default function TraegerDashboardPage() {
                 }}
               >
                 {opening === school.id ? (
-                  "Wird geöffnet …"
+                  iconAction ? (
+                    <SpinnerIcon />
+                  ) : (
+                    "Wird geöffnet …"
+                  )
+                ) : iconAction ? (
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
                 ) : (
                   <>
                     {TRAEGER_HANDOFF_OPEN}
@@ -501,7 +523,7 @@ export default function TraegerDashboardPage() {
           },
         ]
       : figures;
-  }, [alerts, alertsBySchool, canOpen, open, opening]);
+  }, [alerts, alertsBySchool, canOpen, iconAction, open, opening]);
 
   return (
     <TenantPage
@@ -551,6 +573,8 @@ export default function TraegerDashboardPage() {
               type="button"
               variant="ghost_tone"
               size="compact"
+              // Under the message on a phone: the label starts with the text.
+              className="max-sm:-ml-2.5"
               tooltip="Holt die Zahlen aller Schulen noch einmal."
               onClick={reload}
             >
@@ -601,7 +625,7 @@ export default function TraegerDashboardPage() {
                   setAlertsExpanded(false);
                 }}
                 ariaLabel="Auffälligkeiten nach Schule filtern"
-                controlSize="compact"
+                controlSize="dense"
                 searchable={alerts.schools.length > 8}
                 searchPlaceholder="Schule suchen"
                 className="w-full sm:w-64"
@@ -610,15 +634,17 @@ export default function TraegerDashboardPage() {
           }
         >
           {alerts ? (
-            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+            // The same flat button as the actions of each school below,
+            // and on a phone the same full width.
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
               <p className="text-sm text-gray-600">
                 {thresholdsSentence(alerts.thresholds)}
               </p>
               <ButtonLink
                 href={traegerPath(ALERT_SETTINGS_PATH)}
-                variant="link"
-                size="md"
-                className="shrink-0 self-start sm:self-auto"
+                variant="surface"
+                size="compact"
+                className="w-full shrink-0 min-[480px]:w-auto min-[480px]:self-start sm:self-auto"
                 tooltip="Öffnet Ihre Grenzen für Auffälligkeiten in den Einstellungen."
               >
                 {canChangeThresholds ? "Grenzen ändern" : "Grenzen ansehen"}
@@ -638,10 +664,7 @@ export default function TraegerDashboardPage() {
           {visible.length > 0 ? (
             <ResponsiveActionList id={listId}>
               {visible.map((school) => (
-                <li
-                  key={school.id}
-                  className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-                >
+                <ResponsiveActionRow key={school.id}>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900">
                       {school.name}
@@ -676,6 +699,32 @@ export default function TraegerDashboardPage() {
                     </ul>
                   </div>
                   <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
+                    {canOpen && school.alerts.includes("open_enrollments") ? (
+                      // The school decides on its registrations in its own
+                      // app; the school view has no list of them.
+                      <Button
+                        type="button"
+                        variant="surface"
+                        size="compact"
+                        className="whitespace-nowrap"
+                        aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
+                        tooltip={TRAEGER_HANDOFF_OPEN_HINT}
+                        disabled={opening !== null}
+                        onClick={() => void open(school)}
+                      >
+                        {opening === school.id ? (
+                          "Wird geöffnet …"
+                        ) : (
+                          <>
+                            {TRAEGER_HANDOFF_OPEN}
+                            <ExternalLink
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
+                          </>
+                        )}
+                      </Button>
+                    ) : null}
                     <ButtonLink
                       href={traegerPath(`/traeger/schulen/${school.id}`)}
                       variant="surface"
@@ -686,7 +735,7 @@ export default function TraegerDashboardPage() {
                       Zur Schule
                     </ButtonLink>
                   </div>
-                </li>
+                </ResponsiveActionRow>
               ))}
             </ResponsiveActionList>
           ) : null}
@@ -716,14 +765,22 @@ export default function TraegerDashboardPage() {
           ) : null}
         </SectionCard>
       )}
+
       <DataTable
-        heading={{ title: "Zahlen je Schule", count: rows.length }}
+        heading={{
+          title: "Zahlen je Schule",
+          count: loading ? undefined : rows.length,
+          level: 2,
+        }}
         columns={columns}
         rows={rows}
         getRowKey={(school) => school.id}
         isLoading={loading}
         loadingRowCount={3}
         defaultSortKey="name"
+        // Six figures and the action beside the school: narrower cells keep
+        // the name whole and every column in view on a laptop.
+        dense
         stackedOnMobile
         rowHasInteractiveControls
         onRowClick={(school) => router.push(schoolPath(school))}
@@ -738,7 +795,24 @@ export default function TraegerDashboardPage() {
             <EmptyState
               icon={<School className="h-12 w-12" aria-hidden="true" />}
               title="Keine Schule passt zu Ihrer Suche."
-              description="Prüfen Sie den Namen oder suchen Sie nach dem Ort."
+              description={
+                emptySearchText(
+                  search,
+                  [],
+                  "Prüfen Sie den Namen oder suchen Sie nach dem Ort.",
+                ).description
+              }
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  tooltip="Leert die Suche und zeigt wieder alle Schulen."
+                  onClick={() => setSearch("")}
+                >
+                  Suche zurücksetzen
+                </Button>
+              }
             />
           )
         }

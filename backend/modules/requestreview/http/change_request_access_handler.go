@@ -6,8 +6,8 @@ import (
 	slices "slices"
 	strconv "strconv"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // changeRequestAccessResponse is the caller's parent-request capability. With

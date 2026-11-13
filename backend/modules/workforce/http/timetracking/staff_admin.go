@@ -10,17 +10,19 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 )
 
 // AdminAbsenceWrites are the manager's absence writes on a staff member's
-// behalf that may cascade a sick report into the plans (#1843). The root
-// binds the shift-plan-sync workflow's entry (#4825).
+// behalf that may cascade an absence into the plans (#1843), the approval of
+// a request among them (#6847). The root binds the shift-plan-sync
+// workflow's entry (#4825).
 type AdminAbsenceWrites interface {
+	ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforce.StaffAbsenceResponse, error)
 	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
 	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
 }
@@ -183,6 +185,11 @@ func (rs *StaffAdminResource) RegisterStaffRoutes(r chi.Router, withTx common.Mi
 func (rs *StaffAdminResource) registerOverviewRoutes(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/dashboard-summary", rs.getDashboardSummary)
 	r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/overview", rs.getTimeTrackingOverview)
+	// The Vollständigkeit of /payroll (#6890), which config:manage opens: how
+	// many staff have no Soll in the month. Counts only, like the personnel
+	// numbers there; the names stay behind time_tracking:manage.
+	r.With(common.RequiresAnyPermission(permissions.TimeTrackingManage, permissions.ConfigManage), withTx).
+		Get("/time-tracking/target-coverage", rs.getTargetCoverage)
 }
 
 // registerPersonnelRoutes serves the Personalnummer (#1417) and the

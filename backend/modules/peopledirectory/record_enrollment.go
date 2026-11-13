@@ -1,8 +1,8 @@
 package peopledirectory
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func AccompaniedWeekdays(allowed AllowedDepartureModes, days DepartureDays) map[string]bool {

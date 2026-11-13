@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // CareBoundReader projects the last care day of a set of children. Narrow on
@@ -14,9 +14,10 @@ type CareBoundReader interface {
 	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]calendar.Date, error)
 }
 
-// SickReportReader lists the sick reports in force that overlap [from, to]
-// (#6292). Reports that never take a plan effect (half-day reports, declined
-// or cancelled entries) are left out. Workforce owns them; the composition
+// SickReportReader lists the absences in force that overlap [from, to]
+// (#6292): sick reports and, since #6847, every other absence type. Entries
+// that never take a plan effect (single half days, pending, declined or
+// cancelled requests) are left out. Workforce owns them; the composition
 // root binds this port.
 type SickReportReader interface {
 	OpenSickReports(ctx context.Context, from, to calendar.Date) ([]timetable.SickReport, error)

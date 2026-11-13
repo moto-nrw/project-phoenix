@@ -1,0 +1,7 @@
+{
+  "scenario": "workforce.staff_growth.target_coverage",
+  "max": 17,
+  "exact": true,
+  "description": "Payroll Soll check (#6890): full protected resource request, paired positive N=3/N=8 staff and sessions, constant across both. Overview prefetch and month math without vacation reads; counts only.",
+  "route": "GET /api/staff/time-tracking/target-coverage"
+}

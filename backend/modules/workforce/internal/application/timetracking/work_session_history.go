@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int64) (*WorkSession, error) {
@@ -127,6 +127,7 @@ func sessionHistoryResponses(sessions []*WorkSession, breaksBySession map[int64]
 		// block's cache as complete — and a break still running across the
 		// limit would be booked as work (#2402).
 		asOf := BalanceSessionEnd(session, now)
+		credit := sessionCredit(session)
 		responses[i] = &SessionResponse{
 			WorkSession: session,
 			// A running break is NOT in the BreakMinutes cache, so netMinutes
@@ -135,7 +136,9 @@ func sessionHistoryResponses(sessions []*WorkSession, breaksBySession map[int64]
 			// deduct it) stand still (#1842). The breaks are already loaded
 			// above — no extra query.
 			BreakMinutes:     totalBreakMinutes(session, breaks, asOf),
-			NetMinutes:       netMinutesWithBreaks(session, breaks, asOf),
+			NetMinutes:       creditedNetMinutes(session, breaks, asOf),
+			PackUpMinutes:    credit.PackUpMinutes,
+			RoundingMinutes:  credit.RoundingMinutes,
 			IsOvertime:       isOvertime(session, breaks, asOf),
 			IsBreakCompliant: isBreakCompliant(session, breaks, asOf),
 			Breaks:           breaks,
@@ -159,12 +162,18 @@ func sessionHistoryResponses(sessions []*WorkSession, breaksBySession map[int64]
 func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetsByWeek map[summaryWeekKey]int, from, to calendar.Date) []WeeklySummary {
 	weeks := weeklySummaryAccumulator{weekMap: make(map[summaryWeekKey]*WeeklySummary), targetsByWeek: targetsByWeek}
 	now := time.Now()
+	stampedMinutesByWeek := make(map[summaryWeekKey]int)
 
 	for _, session := range sessions {
 		end := BalanceSessionEnd(session.WorkSession, now)
 		countedWeeks := make(map[summaryWeekKey]struct{})
 		firstDay, lastDay := summarySessionDays(session.CheckInTime, end, from, to)
 		for day, minutes := range netMinutesByDate(session.WorkSession, session.Breaks, end, firstDay, lastDay) {
+			year, week := day.UTCMidnight().ISOWeek()
+			key := summaryWeekKey{Year: year, Week: week}
+			stampedMinutesByWeek[key] += minutes
+		}
+		for day, minutes := range creditedNetMinutesByDate(session.WorkSession, session.Breaks, end, firstDay, lastDay) {
 			year, week := day.UTCMidnight().ISOWeek()
 			key := summaryWeekKey{Year: year, Week: week}
 
@@ -177,7 +186,7 @@ func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, t
 		}
 	}
 
-	return weeklySummaryValues(weeks.weekMap, weeks.weekOrder)
+	return weeklySummaryValues(weeks.weekMap, weeks.weekOrder, stampedMinutesByWeek)
 }
 
 // summarySessionDays returns the days a block contributes to, clamped to the
@@ -227,13 +236,13 @@ func (w *weeklySummaryAccumulator) week(key summaryWeekKey) *WeeklySummary {
 }
 
 // weeklySummaryValues keeps the encountered week order and derives the limit and target deltas.
-func weeklySummaryValues(weekMap map[summaryWeekKey]*WeeklySummary, weekOrder []summaryWeekKey) []WeeklySummary {
+func weeklySummaryValues(weekMap map[summaryWeekKey]*WeeklySummary, weekOrder []summaryWeekKey, stampedMinutesByWeek map[summaryWeekKey]int) []WeeklySummary {
 	// Convert to sorted slice and compute derived fields
 	const maxWeeklyMinutes = 48 * 60 // §3 ArbZG
 	summaries := make([]WeeklySummary, 0, len(weekOrder))
 	for _, key := range weekOrder {
 		ws := weekMap[key]
-		ws.IsOverWeeklyMax = ws.TotalNetMinutes > maxWeeklyMinutes
+		ws.IsOverWeeklyMax = stampedMinutesByWeek[key] > maxWeeklyMinutes
 
 		if ws.TargetMinutes != nil {
 			delta := ws.TotalNetMinutes - *ws.TargetMinutes

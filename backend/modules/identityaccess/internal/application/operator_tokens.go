@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // staleEmailChangeAge keeps used and expired e-mail change links for the
@@ -111,11 +111,22 @@ func (t *OperatorTokens) RedeemInvitation(ctx context.Context, token string) (re
 	return result, err
 }
 
-func (t *OperatorTokens) RevokeInvitation(ctx context.Context, id int64) error {
+// RevokeInvitation spends the link. A record runs in the same
+// administrative unit, so the revocation commits only with its evidence
+// (#6989).
+func (t *OperatorTokens) RevokeInvitation(ctx context.Context, id int64, record ...func(context.Context) error) error {
 	return t.run(ctx, "revoke_operator_invitation", func(txCtx context.Context, stats *domain.OperationStats) error {
 		changed, queryStats, err := t.store.RevokeOperatorInvitation(txCtx, id, t.now())
 		stats.Add(queryStats)
-		return stateChange(changed, err, identityaccess.ErrOperatorInvitationNotFound)
+		if err := stateChange(changed, err, identityaccess.ErrOperatorInvitationNotFound); err != nil {
+			return err
+		}
+		for _, fn := range record {
+			if err := fn(txCtx); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 

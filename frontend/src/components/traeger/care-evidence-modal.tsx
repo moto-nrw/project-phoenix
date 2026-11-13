@@ -136,7 +136,7 @@ export function CareEvidenceModal({
           error: err instanceof Error ? err.message : String(err),
         });
         if (!op.isCurrent()) return;
-        void formErrors.show(err, { object: "den Nachweis" });
+        void formErrors.show(err, { object: "die Angabe zum Nachweis" });
       }
     });
   };
@@ -189,6 +189,7 @@ export function CareEvidenceModal({
           />
         ) : null}
         <Input
+          controlSize="touch"
           id="care-evidence-proof"
           name="evidence"
           label="Geprüfter Nachweis"

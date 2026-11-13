@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // careExceptionTimeLayout is the wall-clock layout parents send (HH:MM).

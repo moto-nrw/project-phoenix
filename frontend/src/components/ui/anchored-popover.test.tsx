@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AnchoredPopover } from "./anchored-popover";
 import { OverflowMenu } from "./page-header/OverflowMenu";
+import { CustomSelect } from "./custom-select";
+import { MultiSelect } from "./multi-select";
 
 function TestPopover({
   scoped = false,
@@ -151,6 +153,40 @@ describe("AnchoredPopover", () => {
 
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(onAction).toHaveBeenCalledOnce();
+  });
+
+  it("lies on the popover level, above a coach mark, with its menus above it", () => {
+    render(
+      <AnchoredPopover
+        open
+        onOpenChange={vi.fn()}
+        ariaLabel="Testauswahl"
+        renderTrigger={({ ref }) => (
+          <button ref={ref} type="button">
+            Öffnen
+          </button>
+        )}
+      >
+        {({ overflowMenuPortal }) => (
+          <OverflowMenu
+            items={[{ label: "Bearbeiten", onClick: vi.fn() }]}
+            portalOwnerId={overflowMenuPortal.ownerId}
+            portalZIndex={overflowMenuPortal.zIndex}
+          />
+        )}
+      </AnchoredPopover>,
+    );
+
+    const panel = screen.getByRole("dialog", { name: "Testauswahl" });
+    // Die Tour-Markierung liegt auf 10000; ein Popover darf nicht gleichauf
+    // liegen, sonst entscheidet die DOM-Reihenfolge.
+    expect(panel).toHaveStyle({ zIndex: "10001" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    const menu = screen
+      .getByRole("menuitem", { name: "Bearbeiten" })
+      .closest<HTMLElement>("[data-overflow-menu-owner]");
+    expect(menu).toHaveStyle({ zIndex: "10002" });
   });
 
   it("uses a preferred panel width independently from the trigger", () => {
@@ -355,5 +391,51 @@ describe("AnchoredPopover", () => {
     fireEvent.touchStart(behind);
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens a nested select's menu above the popover", () => {
+    render(
+      <AnchoredPopover
+        open
+        onOpenChange={vi.fn()}
+        ariaLabel="Filter"
+        renderTrigger={({ ref }) => (
+          <button ref={ref} type="button">
+            Filter
+          </button>
+        )}
+      >
+        {() => (
+          <>
+            <CustomSelect
+              ariaLabel="Gruppe"
+              value=""
+              options={[{ value: "a", label: "Sterne" }]}
+              onChange={vi.fn()}
+            />
+            <MultiSelect
+              ariaLabel="Klassen"
+              value={[]}
+              options={[{ value: "1a", label: "1a" }]}
+              onChange={vi.fn()}
+            />
+          </>
+        )}
+      </AnchoredPopover>,
+    );
+    const panel = screen.getByRole("dialog", { name: "Filter" });
+    const panelZ = Number(panel.style.zIndex);
+
+    for (const trigger of [
+      screen.getByRole("combobox", { name: "Gruppe" }),
+      screen.getByRole("combobox", { name: /Klassen/ }),
+    ]) {
+      fireEvent.click(trigger);
+      const menu = screen
+        .getByRole("listbox")
+        .closest<HTMLElement>('[style*="z-index"]');
+      expect(Number(menu?.style.zIndex)).toBeGreaterThan(panelZ);
+      fireEvent.click(trigger);
+    }
   });
 });

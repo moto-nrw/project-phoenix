@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // GroupRoutePeople binds the People Directory port of the group routes

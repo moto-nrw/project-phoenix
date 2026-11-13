@@ -9,7 +9,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
 )
 
 // SchoolRows reads the rows of a school set; the Postgres adapter serves it.

@@ -1,0 +1,77 @@
+package enrollmenthttp_test
+
+import (
+	"context"
+
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/moto-ogs/project-phoenix/api"
+	owner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+)
+
+func TestOwnerOffering_CountMaxActiveByCareOfferingInRange_IncludesFutureBookings(t *testing.T) {
+	t.Parallel()
+
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
+	from := calendar.NewDate(2026, 8, 24)
+	futureFrom := from.AddDays(30)
+	until := from.AddDays(90)
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
+			RequestChildID: childID,
+			CareOfferingID: offeringID,
+			ValidFrom:      offeringDatePointer(futureFrom),
+		})
+	}))
+
+	var activeToday, peak int
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		activeToday, err = repo.OfferingCapacityPeak(ctx, offeringID, nil, owner.Date(from), owner.Date(from.AddDays(1)))
+		if err != nil {
+			return err
+		}
+		peak, err = repo.OfferingCapacityPeak(ctx, offeringID, nil, owner.Date(from), owner.Date(until))
+		return err
+	}))
+
+	assert.Zero(t, activeToday, "a future booking is not active on the range start")
+	assert.Equal(t, 1, peak, "a future booking must reserve its later capacity")
+}
+
+func TestOwnerOffering_CountMaxActiveByCareOfferingInRangeExcludingRequestChild_ExcludesReplacedIntervals(t *testing.T) {
+	t.Parallel()
+
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
+	from := calendar.NewDate(2026, 8, 24)
+	until := from.AddDays(90)
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
+			RequestChildID: childID,
+			CareOfferingID: offeringID,
+		})
+	}))
+
+	var peak int
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		peak, err = repo.OfferingCapacityPeak(ctx, offeringID, []int64{childID}, owner.Date(from), owner.Date(until))
+		return err
+	}))
+
+	assert.Zero(t, peak, "the replacing child's old interval must not consume a second slot")
+}
+
+func offeringDatePointer(date calendar.Date) *owner.Date {
+	value := owner.Date(date)
+	return &value
+}

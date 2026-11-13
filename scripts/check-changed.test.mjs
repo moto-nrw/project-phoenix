@@ -194,6 +194,9 @@ test('source ratchets include data, policy, manifests and configuration read out
   const cases = [
     ['backend/test/database_slots.go', 'TestIsolatedDatabaseSlotsBreakParallelSubtestSaturation'],
     ['backend/test/database_scope.go', 'TestIsolatedDatabaseSlotsBoundWaitAndRelease'],
+    ['backend/database/audits/phase_edit_stale_pending_activations.sql', 'TestPhaseEditAudits'],
+    ['backend/database/audits/phase_edit_stale_class_switches.sql', 'TestPhaseEditAudits'],
+    ['backend/database/audits/booking_led_care_without_source_or_task.sql', 'TestPhaseEditAudits'],
     ['backend/architecture/policy/new-owner.json', 'TestTransactionBoundaryRatchet'],
     ['backend/architecture/composition.json', 'TestCompositionInventory'],
     ['backend/architecture/passthrough/reviews/owner.json', 'TestMethodPassthroughRatchet'],

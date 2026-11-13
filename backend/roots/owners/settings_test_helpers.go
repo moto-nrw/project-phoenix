@@ -7,12 +7,12 @@ import (
 	"log/slog"
 	"time"
 
-	snapshotRecords "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	snapshotRecords "github.com/moto-ogs/project-phoenix/modules/settings/records"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // SettingsTestModule contains only the settings application capabilities.

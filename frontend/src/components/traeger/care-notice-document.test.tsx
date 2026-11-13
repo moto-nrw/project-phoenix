@@ -99,7 +99,14 @@ describe("CareNoticeDocument", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Am Bach 3")).toBeInTheDocument();
     expect(
-      screen.getByText(/Bankverbindung: Gemeindekasse Hardt · IBAN/),
+      // IBAN and BIC stand in their own spans: match the whole line.
+      screen.getByText(
+        (_, element) =>
+          element?.tagName === "P" &&
+          /Bankverbindung: Gemeindekasse Hardt · IBAN/.test(
+            element.textContent ?? "",
+          ),
+      ),
     ).toBeInTheDocument();
 
     const calculation = screen

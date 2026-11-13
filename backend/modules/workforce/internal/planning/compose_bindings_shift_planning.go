@@ -1,8 +1,8 @@
 package planning
 
 import (
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ShiftOptions binds the shift service's optional collaborators: the series

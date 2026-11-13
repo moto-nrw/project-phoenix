@@ -7,12 +7,12 @@ import (
 	"slices"
 	"time"
 
-	directoryPorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	directoryPorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	enrollmentProvenanceView "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	enrollmentProvenanceView "github.com/moto-ogs/project-phoenix/modules/timetableenrollmentprovenance/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 type TestTimetableTB interface {

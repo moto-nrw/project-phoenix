@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	presenceprojectionhttp "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/grouplive"
+	presenceprojectionhttp "github.com/moto-ogs/project-phoenix/modules/presenceprojection/http"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/supervisiondashboard"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The OGS views (Gruppe, Kindersuche, Aufsicht) show today's handover of a

@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // maxShiftRangeDays caps date-range queries so a malformed request cannot
@@ -198,10 +198,23 @@ func (s *staffShiftService) ensureShiftTypeAssignable(ctx context.Context, id *i
 	if err != nil {
 		return err
 	}
-	if !shiftType.IsActive && !allowedInactive[*id] {
-		return ErrShiftTypeInactive
+	if allowedInactive[*id] {
+		return nil
 	}
-	return nil
+	return shiftTypeOfferable(shiftType)
+}
+
+// shiftTypeOfferable refuses a type the school no longer offers: an
+// archived one (#6845) or a deactivated one.
+func shiftTypeOfferable(shiftType *workforce.ShiftTypeRecord) error {
+	switch {
+	case shiftType.ArchivedAt != nil:
+		return ErrShiftTypeArchived
+	case !shiftType.IsActive:
+		return ErrShiftTypeInactive
+	default:
+		return nil
+	}
 }
 
 // sameShiftTypeID reports whether two nullable shift-type ids refer to the same

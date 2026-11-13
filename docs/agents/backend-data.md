@@ -71,11 +71,52 @@ callers use public capabilities bound to consumer-owned ports.
 
 ## Migration System
 
-One file per migration, named with the **zero-padded numeric version prefix** — `001015124_my_feature.go` for version `1.15.124` (the collision scanner in `00_migrations.go` only recognizes `000`/`001`-prefixed filenames; never use the dotted version in the filename):
+One file per migration, named after its **UTC timestamp**:
+`20261113142530_my_feature.go`, from `date -u +%Y%m%d%H%M%S`
+([ADR 0223](../adr/0223-migrationen-heissen-nach-zeitstempeln-funktionen-haben-eine-definition.md)).
+Its `Version` is that prefix; `Register` panics on any other. The migrations up
+to `001015963` keep their packed version (`1.15.963`) and are never renamed.
 
 Use [migration registration](../../backend/database/migrations/00_migrations.go)
-and an existing migration in `backend/database/migrations/` as the pattern.
-Choose an unused version and explicit dependencies; do not copy example versions.
+and an existing migration in `backend/database/migrations/` for `Up` and
+`Down`. The existing files show the old dotted `Version`; a new one registers
+its file prefix:
+
+```go
+// 20261113142530_traeger_export_recipient_notes.go
+const traegerExportRecipientNotesVersion = "20261113142530"
+
+func init() {
+	MigrationRegistry.Register(&Migration{
+		Version:     traegerExportRecipientNotesVersion,
+		Description: "Notiz je Empfänger der Träger-Exporte (#1234)",
+		DependsOn:   []string{traegerExportRecipientsVersion}, // "1.15.963": the table it alters
+	})
+	Migrations.MustRegister(traegerExportRecipientNotesUp, traegerExportRecipientNotesDown)
+}
+```
+
+`DependsOn` names the migrations this one needs to have run, not the newest one.
+
+- **No number to agree on.** Two branches add migrations without renumbering.
+  `scripts/check-migration-versions.mjs` rejects a name that is no timestamp
+  or is already taken.
+- **Changing a function.** The current definition of a function lives in one
+  `repeatable_<schema>_<name>.go` file (`RegisterRepeatable`, rules in
+  [`repeatable.go`](../../backend/database/migrations/repeatable.go)). Every
+  migrate run installs all of them after the numbered migrations. Change the
+  function there. A migration may create a new function; the check rejects one
+  that defines an existing function again. To change a function that has no
+  repeatable file yet, add the file with the full new definition.
+- **Late migrations.** A migration that sorts below the newest one of the base
+  reaches deployed databases after it; bun applies whatever is missing.
+  `TestLateMigrationsYieldTheFreshSchema` replays that order and fails when
+  the schema differs from a fresh database or the migrations do not run. The
+  fix is a rename to a current timestamp. CI and `scripts/test-changed.sh`
+  name the late migrations in `PHX_LATE_MIGRATIONS`; to run it by hand:
+  `PHX_LATE_MIGRATIONS=$(node ../scripts/check-migration-versions.mjs --late) ../scripts/run-go-toolchain.sh go test -tags=testhooks -count=1 ./database/migrations -run TestLateMigrationsYieldTheFreshSchema`.
+  The check compares schemas, not rows: a backfill that needs another
+  migration's data names it in `DependsOn`.
 
 The runner logs one `slog` line per applied migration — version, description and `duration_ms`, resolved from `MigrationRegistry` (#3300). A migration does not print its own progress; the `Description` it registers is what the log shows, and output that carries content (row counts, repairs) goes through `migrationLog()` in `database/migrations/migration_logging.go`, which scopes the process logger to `component=migrations`. A failed deferred rollback goes to `logRollbackFailure(ctx, err)` in the same file.
 

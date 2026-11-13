@@ -1,6 +1,6 @@
 package studentpresencehttp
 
-import "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+import "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 
 // StatisticsReportPermissions are the permissions the caller of the Statistik
 // report and its export must hold all of: config:read (the report gate of

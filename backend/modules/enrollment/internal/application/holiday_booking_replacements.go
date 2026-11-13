@@ -3,7 +3,7 @@ package application
 import (
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // holidayBookingReplacements projects the durable rebooking history onto

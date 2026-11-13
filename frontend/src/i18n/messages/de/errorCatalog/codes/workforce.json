@@ -55,6 +55,7 @@
   "shift_series_no_occurrences": "Für {object} gibt es keine Termine mehr. Bitte prüfen Sie Wochentage und „Gültig bis“.",
   "shift_series_outside_period": "Die Serie liegt außerhalb des Kalenderzeitraums. Bitte prüfen Sie „Gültig ab“ und „Gültig bis“.",
   "shift_series_week_cycle_missing": "Dieser Kalenderzeitraum hat keine Woche A und B. Bitte wählen Sie „Jede Woche“.",
+  "shift_type_archived": "Diese Dienstart wurde entfernt. Bitte wählen Sie eine andere.",
   "shift_type_inactive": "Diese Dienstart ist ausgeschaltet. Bitte wählen Sie eine andere.",
   "staff_profile_missing": "Für Ihr Konto gibt es keinen Personaldatensatz. Diese Einstellung gilt nur für Personal.",
   "stammdaten_invalid": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
@@ -75,5 +76,6 @@
   "payroll_wage_type_in_use": "Diese Lohnart wird noch genutzt. Ändern Sie zuerst die Zuschlagsregel oder Abwesenheitsart, die sie nutzt.",
   "payroll_wage_type_name_taken": "Eine Lohnart mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
   "qualification_type_name_taken": "Es gibt schon eine Nachweisart mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
-  "qualification_type_not_found": "Diese Nachweisart gibt es nicht mehr. Bitte laden Sie die Seite neu."
+  "qualification_type_not_found": "Diese Nachweisart gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "work_time_model_archived": "Diese Vorlage wird nicht mehr angeboten. Bitte wählen Sie eine andere Vorlage."
 }

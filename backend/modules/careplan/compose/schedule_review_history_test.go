@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,6 +39,7 @@ func TestScheduleHistoryCursorUsesLastDatabaseRowBeforeScopeFiltering(t *testing
 		People:           directory, Bookings: scheduleReviewBookingsFixture{}, Classes: scheduleReviewClassesFixture{},
 		Scope:                 func(context.Context) (ReviewScope, error) { return ReviewScope{GroupIDs: []int64{group.ID}}, nil },
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil }, Today: func() careplan.Date { return "2026-09-20" },
+		Fingerprint: func(content []byte) string { return string(content) },
 	})
 	require.NoError(t, err)
 	items, cursor, err := query.ListHistory(ctx, careplan.RequestQueueFilter{Limit: 1})

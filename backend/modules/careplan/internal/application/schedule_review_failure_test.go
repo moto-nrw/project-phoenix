@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +32,7 @@ func TestListPendingFallsBackToRequestedWhenPickupPlanReadFails(t *testing.T) {
 		Scope: func(context.Context) (careplan.ReviewScope, error) {
 			return careplan.ReviewScope{SchoolWide: true}, nil
 		},
-		Today: func() careplan.Date { return "2026-09-20" },
+		Today: func() careplan.Date { return "2026-09-20" }, Fingerprint: rawFingerprint,
 	})
 	items, _, err := query.ListPending(ctx, careplan.RequestQueueFilter{})
 	require.NoError(t, err)

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 	"github.com/stretchr/testify/require"
 )
 

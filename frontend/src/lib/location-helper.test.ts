@@ -2,12 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   LOCATION_STATUSES,
   LOCATION_COLORS,
-  MOTO_COLOR_PALETTE,
   parseLocation,
   normalizeLocation,
   getLocationColor,
-  getLocationBadgeTone,
-  getAccessibleTextColor,
+  getRoomBadgeColor,
   getLocationDisplay,
   canSeeDetailedLocation,
   isPresentLocation,
@@ -18,9 +16,15 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
   isCheckedInLocation,
-  countedDayStatus,
+  dayStatusPresentation,
   type StudentLocationContext,
 } from "./location-helper";
+import { countedDayStatus } from "./presence-status";
+import {
+  MOTO_COLOR_PALETTE,
+  getPillTone,
+  getAccessibleTextColor,
+} from "~/lib/kit-palette";
 
 // =============================================================================
 // CONSTANTS TESTS
@@ -79,6 +83,8 @@ describe("MOTO_COLOR_PALETTE", () => {
         active: "#6DB118",
         strong: "#3F6F12",
         fill: "#4A7F14",
+        fillHover: "#3F6F12",
+        fillActive: "#386410",
       },
       blue: {
         soft: "#EDF3FC",
@@ -185,6 +191,7 @@ describe("MOTO_COLOR_PALETTE", () => {
         light: "#9CA3AF",
         base: "#6B7280",
         strong: "#374151",
+        pillText: "#4B5563",
       },
       stone: {
         soft: "#F5F5F4",
@@ -192,53 +199,59 @@ describe("MOTO_COLOR_PALETTE", () => {
         base: "#78716C",
         strong: "#44403C",
       },
-      roomCategory: {
-        group: "#10B981",
-        theme: "#8B5CF6",
-        sport: "#EC4899",
-      },
+      emerald: { base: "#10B981" },
+      violet: { base: "#8B5CF6" },
+      pink: { base: "#EC4899" },
     });
   });
 });
 
-describe("getLocationBadgeTone", () => {
+describe("getPillTone", () => {
+  it("has a pill tone of its own for every location colour", () => {
+    // A LOCATION_COLORS value without a pill tone would fall back to the
+    // gray-50 pill of an arbitrary room colour.
+    for (const [key, color] of Object.entries(LOCATION_COLORS)) {
+      expect(getPillTone(color).backgroundColor, key).not.toBe("#F9FAFB");
+    }
+  });
+
   it("maps brand colors to soft surfaces and strong text colors", () => {
-    expect(getLocationBadgeTone(LOCATION_COLORS.GROUP_ROOM)).toEqual({
+    expect(getPillTone(LOCATION_COLORS.GROUP_ROOM)).toEqual({
       backgroundColor: MOTO_COLOR_PALETTE.green.soft,
       textColor: MOTO_COLOR_PALETTE.green.strong,
     });
-    expect(getLocationBadgeTone(LOCATION_COLORS.HOME)).toEqual({
+    expect(getPillTone(LOCATION_COLORS.HOME)).toEqual({
       backgroundColor: MOTO_COLOR_PALETTE.neutral.soft,
       textColor: "#4B5563",
     });
   });
 
   it("keeps holiday and public-holiday colors in their semantic tones", () => {
-    expect(getLocationBadgeTone(MOTO_COLOR_PALETTE.gold.base)).toEqual({
+    expect(getPillTone(MOTO_COLOR_PALETTE.gold.base)).toEqual({
       backgroundColor: MOTO_COLOR_PALETTE.gold.soft,
       textColor: MOTO_COLOR_PALETTE.gold.strong,
     });
-    expect(getLocationBadgeTone(MOTO_COLOR_PALETTE.teal.base)).toEqual({
+    expect(getPillTone(MOTO_COLOR_PALETTE.teal.base)).toEqual({
       backgroundColor: MOTO_COLOR_PALETTE.teal.soft,
       textColor: MOTO_COLOR_PALETTE.teal.strong,
     });
   });
 
   it("keeps a custom room color's hue in the label", () => {
-    // Room colors (#1324) can never match a LOCATION_BADGE_TONES row: the
+    // Room colors (#1324) can never match a PILL_TONES entry: the
     // backend reserves exactly the status hexes, so an admin-picked color is
     // always something else. A flat neutral label would collapse every custom
     // room onto one pill, which is the differentiation the feature exists for. #5b7842 is #A3D977
     // darkened to 4.77:1 on the gray-50 pill.
-    expect(getLocationBadgeTone("#A3D977")).toEqual({
+    expect(getPillTone("#A3D977")).toEqual({
       backgroundColor: "#F9FAFB",
       textColor: "#5b7842",
     });
   });
 
   it("gives two different room colors two different labels", () => {
-    const a = getLocationBadgeTone("#A3D977");
-    const b = getLocationBadgeTone("#D97AA3");
+    const a = getPillTone("#A3D977");
+    const b = getPillTone("#D97AA3");
 
     expect(a.textColor).not.toBe(b.textColor);
   });
@@ -300,6 +313,21 @@ describe("normalizeLocation", () => {
 // =============================================================================
 
 describe("getLocationColor", () => {
+  // #6573: #FF3130 was the Zuhause colour before the palette move. The
+  // backend still reserves it, so older rooms can carry it, and their badge
+  // label has always been #c62826. The kit no longer knows that hex.
+  it("keeps the label of a room in the retired red #FF3130", () => {
+    for (const location of ["Anwesend - Raum 101", "Schulhof"]) {
+      const color = getLocationColor(location, false, [], "#FF3130");
+      expect(getPillTone(color), location).toEqual({
+        backgroundColor: "#F9FAFB",
+        textColor: "#c62826",
+      });
+    }
+    expect(getPillTone(getRoomBadgeColor("#ff3130")).textColor).toBe("#c62826");
+    expect(getRoomBadgeColor("#A3D977")).toBe("#A3D977");
+  });
+
   it("returns HOME color for Zuhause", () => {
     expect(getLocationColor("Zuhause")).toBe(LOCATION_COLORS.HOME);
   });
@@ -570,7 +598,7 @@ describe("location check helpers", () => {
     it("colours Schule in its own tone, not the home gray", () => {
       expect(getLocationColor("Schule")).toBe(LOCATION_COLORS.AT_SCHOOL);
       expect(LOCATION_COLORS.AT_SCHOOL).not.toBe(LOCATION_COLORS.HOME);
-      expect(getLocationBadgeTone(LOCATION_COLORS.AT_SCHOOL)).toEqual({
+      expect(getPillTone(LOCATION_COLORS.AT_SCHOOL)).toEqual({
         backgroundColor: MOTO_COLOR_PALETTE.petrol.soft,
         textColor: MOTO_COLOR_PALETTE.petrol.strong,
       });
@@ -657,6 +685,44 @@ describe("location check helpers", () => {
         countedDayStatus({ excused: true, current_location: "Schule" }),
       ).toBe("excused");
       expect(countedDayStatus({ current_location: "Zuhause" })).toBeNull();
+    });
+
+    // #5710: Eine erfasste Abmeldung zum Unterricht schlägt den Tagesstatus;
+    // das nur abgeleitete „Schule“ nicht.
+    it("ignores the status of a child staff checked out to class", () => {
+      expect(
+        countedDayStatus({ sick: true, current_location: "Im Unterricht" }),
+      ).toBeNull();
+      expect(
+        countedDayStatus({ excused: true, current_location: "Im Unterricht" }),
+      ).toBeNull();
+      expect(
+        countedDayStatus({
+          class_trip: true,
+          current_location: "Im Unterricht",
+        }),
+      ).toBeNull();
+      expect(countedDayStatus({ sick: true, current_location: "Schule" })).toBe(
+        "sick",
+      );
+    });
+  });
+
+  describe("dayStatusPresentation (#5710)", () => {
+    it("shows only Im Unterricht after a recorded checkout to class", () => {
+      expect(dayStatusPresentation("Im Unterricht")).toBe("none");
+    });
+
+    it("replaces a location without check-in, also the derived Schule", () => {
+      for (const location of ["Zuhause", "Schule", "", null, undefined]) {
+        expect(dayStatusPresentation(location)).toBe("replace");
+      }
+    });
+
+    it("keeps the status as a hint for a checked-in child", () => {
+      for (const location of ["Anwesend - Raum 101", "Schulhof", "Unterwegs"]) {
+        expect(dayStatusPresentation(location)).toBe("hint");
+      }
     });
   });
 
@@ -818,7 +884,7 @@ describe("Im Unterricht", () => {
   it("does not take the color of home or the expected child", () => {
     expect(LOCATION_COLORS.IN_CLASS).not.toBe(LOCATION_COLORS.HOME);
     expect(LOCATION_COLORS.IN_CLASS).not.toBe(LOCATION_COLORS.AT_SCHOOL);
-    expect(getLocationBadgeTone(LOCATION_COLORS.IN_CLASS).backgroundColor).toBe(
+    expect(getPillTone(LOCATION_COLORS.IN_CLASS).backgroundColor).toBe(
       MOTO_COLOR_PALETTE.indigo.soft,
     );
   });

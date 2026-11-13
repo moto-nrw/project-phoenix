@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	models "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 // NativeStudentSnapshot converts the owner's existing, already-hydrated read

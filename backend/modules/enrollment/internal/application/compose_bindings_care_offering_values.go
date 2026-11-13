@@ -3,7 +3,7 @@ package application
 import (
 	context "context"
 
-	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // CareOfferingValues serves Care Plan's catalog administration to the

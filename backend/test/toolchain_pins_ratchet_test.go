@@ -25,7 +25,26 @@ var (
 	// fixes the exact version, which this test cannot read: it checks Go's
 	// minor line through the attribute name and nothing for the linter.
 	nixpkgsPinPattern = regexp.MustCompile(`^github:NixOS/nixpkgs/[0-9a-f]{40}#(.+)$`)
+	// The postgres image carries the exact minor and alpine release plus the
+	// index digest. A floating tag such as 17-alpine moved to 17.12 overnight
+	// and turned every pull request red (#6916).
+	postgresPinPattern = regexp.MustCompile(`^postgres:[0-9]+\.[0-9]+-alpine[0-9]+\.[0-9]+@sha256:[0-9a-f]{64}$`)
+	// Compose and workflow image lines, tagged or not, and versioned references
+	// in commands; "postgres:5432" host-port pairs have no dot or dash.
+	postgresImageLinePattern = regexp.MustCompile(`(?m)^[\t ]*image:[\t ]*["']?(postgres(?:[:@][^\s"']*)?)["']?[\t ]*(?:#.*)?$`)
+	postgresVersionedPattern = regexp.MustCompile("postgres:[0-9]+[.-][^\\s\"'`)]*")
 )
+
+// postgresImageFiles are the files that start a postgres container: the
+// deployed environments, CI, local development and the script tests.
+var postgresImageFiles = []string{
+	".github/workflows/*.yml",
+	"docker-compose.example.yml",
+	"environments/*.compose.yml",
+	"docs/operations/*.compose.yml",
+	"scripts/*.mjs",
+	"scripts/test-support/*.mjs",
+}
 
 var supportedToolchainSystems = []string{"aarch64-darwin", "aarch64-linux", "x86_64-linux"}
 
@@ -84,6 +103,7 @@ func TestToolchainPinsRatchet(t *testing.T) {
 	assertDockerAirVersion(t, filepath.Join(repoRoot, "backend/Dockerfile.dev"), airVersion)
 
 	assertCIUsesMainGoMod(t, filepath.Join(repoRoot, ".github/workflows"))
+	assertPostgresImagePins(t, repoRoot)
 	assertLocalHooksUsePinnedRunner(t, repoRoot)
 	assertRunnerResolvesExactBinary(t, filepath.Join(repoRoot, "scripts/run-go-toolchain.sh"))
 }
@@ -419,6 +439,51 @@ func assertCIUsesMainGoMod(t *testing.T, workflowDir string) {
 			t.Errorf("%s hardcodes go-version; use go-version-file: backend/go.mod", path)
 		}
 	}
+}
+
+// assertPostgresImagePins requires every postgres container to run the image
+// production pins, so CI tests the version production serves.
+func assertPostgresImagePins(t *testing.T, repoRoot string) {
+	t.Helper()
+	const source = "environments/production.compose.yml"
+	distinct := map[string]bool{}
+	for _, ref := range postgresImageRefs(string(readToolchainFile(t, filepath.Join(repoRoot, source)))) {
+		distinct[ref] = true
+	}
+	if len(distinct) != 1 {
+		t.Fatalf("%s names %d distinct postgres images; want exactly one", source, len(distinct))
+	}
+	var pin string
+	for ref := range distinct {
+		pin = ref
+	}
+	if !postgresPinPattern.MatchString(pin) {
+		t.Fatalf("%s uses %s; want postgres:<major>.<minor>-alpine<x>.<y>@sha256:<digest>", source, pin)
+	}
+	for _, pattern := range postgresImageFiles {
+		paths, err := filepath.Glob(filepath.Join(repoRoot, pattern))
+		if err != nil {
+			t.Fatalf("list %s: %v", pattern, err)
+		}
+		for _, path := range paths {
+			reported := map[string]bool{}
+			for _, ref := range postgresImageRefs(string(readToolchainFile(t, path))) {
+				if ref != pin && !reported[ref] {
+					reported[ref] = true
+					relative, _ := filepath.Rel(repoRoot, path)
+					t.Errorf("%s uses %s; want %s from %s", relative, ref, pin, source)
+				}
+			}
+		}
+	}
+}
+
+func postgresImageRefs(content string) []string {
+	var refs []string
+	for _, match := range postgresImageLinePattern.FindAllStringSubmatch(content, -1) {
+		refs = append(refs, match[1])
+	}
+	return append(refs, postgresVersionedPattern.FindAllString(content, -1)...)
 }
 
 func readToolchainFile(t *testing.T, path string) []byte {

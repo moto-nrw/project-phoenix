@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	audit "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 )
 
 const enrollmentOfferingAdjustmentTableExpr = `audit.enrollment_offering_adjustments AS "enrollment_offering_adjustment"`

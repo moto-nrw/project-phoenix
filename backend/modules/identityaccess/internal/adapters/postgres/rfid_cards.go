@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 func (s *Store) LookupRFIDCard(ctx context.Context, tag string, tenantID int64) (domain.RFIDCard, bool, domain.OperationStats, error) {

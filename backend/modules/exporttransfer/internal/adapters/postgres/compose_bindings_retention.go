@@ -4,7 +4,7 @@ import (
 	context "context"
 	time "time"
 
-	domain "github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
+	domain "github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/domain"
 )
 
 type JournalRetention struct {

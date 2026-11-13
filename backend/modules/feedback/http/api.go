@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	feedbackModule "github.com/moto-ogs/project-phoenix/modules/feedback"
 )
 
 type Middleware = func(http.Handler) http.Handler

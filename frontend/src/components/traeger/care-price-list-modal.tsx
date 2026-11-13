@@ -236,7 +236,7 @@ export function CarePriceListModal({
           error: err instanceof Error ? err.message : String(err),
         });
         if (!op.isCurrent()) return;
-        void formErrors.show(err, { object: "die Preise" });
+        void formErrors.show(err, { object: "die Preisliste" });
       }
     });
   };
@@ -283,7 +283,7 @@ export function CarePriceListModal({
             value={month}
             options={[...months].reverse().map((value) => ({
               value,
-              label: `1. ${formatMonth(value)}`,
+              label: formatMonth(value),
             }))}
             onChange={setMonth}
             error={formErrors.fieldError("valid_from")}
@@ -300,13 +300,15 @@ export function CarePriceListModal({
         >
           <div className="flex flex-wrap gap-2">
             {MONTHS.map((value) => (
+              // The name comes from content: the full month for the
+              // screen reader, the short form for the eye.
               <ToggleChip
                 key={value}
                 pressed={freeMonths.includes(value)}
                 onPressedChange={(pressed) => toggleFreeMonth(value, pressed)}
-                ariaLabel={`${monthName(value)} beitragsfrei`}
               >
-                {monthShort(value)}
+                <span aria-hidden="true">{monthShort(value)}</span>
+                <span className="sr-only">{`${monthName(value)} beitragsfrei`}</span>
               </ToggleChip>
             ))}
           </div>

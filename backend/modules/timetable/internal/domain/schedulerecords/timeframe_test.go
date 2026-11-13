@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
+	"github.com/moto-ogs/project-phoenix/internal/ptrtest"
 )
 
 func TestTimeframe_Validate(t *testing.T) {

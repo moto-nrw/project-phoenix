@@ -112,7 +112,7 @@ export function MealAllergenSelect({
           .map((option) => mealAllergenLetter(option.value as MealAllergen))
           .join(", ")
       }
-      controlSize="compact"
+      controlSize="dense"
       className={cn("text-xs", className)}
       menuClassName="w-72"
       menuAlign={menuAlign}

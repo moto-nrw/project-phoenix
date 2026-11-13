@@ -6,6 +6,7 @@ import type {
   StaffWeeklySummary,
 } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
+import { contrastOnWhite } from "~/test/contrast";
 
 import { DienstplanHoursCard } from "./dienstplan-hours-card";
 
@@ -216,6 +217,26 @@ describe("DienstplanHoursCard", () => {
         name: "Unbekannte Dienstart",
       }),
     ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["Unterdeckung", -30, "−0,5 h"],
+    ["Überdeckung", 120, "+2 h"],
+  ])("keeps the Differenz of a %s readable on white", (_, delta, text) => {
+    renderCard([
+      summary("7", {
+        plannedMinutes: 1200 + delta,
+        targetMinutes: 1200,
+        deltaMinutes: delta,
+        plannedByShiftType: [
+          { shiftTypeId: "2", plannedMinutes: 1200 + delta },
+        ],
+      }),
+    ]);
+
+    const value = within(tableRow("Müller, Anna")).getByText(text);
+    expect(value.style.color).not.toBe("");
+    expect(contrastOnWhite(value.style.color)).toBeGreaterThanOrEqual(4.5);
   });
 
   it("renders nothing for a week without summaries", () => {

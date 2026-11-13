@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 )
 
 type ScheduleReviewSchedules interface {
@@ -90,13 +90,7 @@ func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.Reque
 			items = append(items, item)
 			continue
 		}
-		if err := s.careRequestDiff(ctx, row, student, item, today, plans); err != nil {
-			s.deps.Logger.Warn("schedule: build care request diff failed",
-				"request_id", row.ID,
-				"error", err.Error(),
-			)
-			item.Diff = requestedCareSummary(row.Payload)
-		}
+		s.reviewDiff(ctx, row, student, item, today, plans)
 		items = append(items, item)
 	}
 	return items, next, nil
@@ -188,7 +182,8 @@ func (s *ScheduleReviews) careRequestDiff(ctx context.Context, row *careplan.Car
 	if err != nil {
 		return err
 	}
-	item.Diff = careplan.WeeklyCareDiff(payload.Weekdays, current)
+	// Mark the fields the plan changed in since the family submitted (#6990).
+	item.Diff = carerequests.MarkSubmittedBaseline(careplan.WeeklyCareDiff(payload.Weekdays, current), row.Payload)
 	return nil
 }
 

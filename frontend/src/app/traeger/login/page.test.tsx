@@ -255,6 +255,45 @@ describe("TraegerLoginPage", () => {
     expect(mockLogin).not.toHaveBeenCalled();
   });
 
+  it("opens the reset dialog when a reset link without token leads here", async () => {
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "passwort-vergessen" ? "1" : null,
+    );
+    render(<TraegerLoginPage />);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.querySelector("#reset-email")).not.toBeNull();
+  });
+
+  // An empty field is named before anything is sent.
+  it("names the empty fields without sending the login", async () => {
+    render(<TraegerLoginPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+
+    expect(
+      await screen.findByText(
+        "Bitte geben Sie E-Mail-Adresse und Passwort ein.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte geben Sie Ihre E-Mail-Adresse ein."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte geben Sie Ihr Passwort ein."),
+    ).toBeInTheDocument();
+    expect(mockLogin).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByTestId("input-email"), {
+      target: { value: "buero@traeger.example" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+    expect(
+      (await screen.findAllByText("Bitte geben Sie Ihr Passwort ein."))[0],
+    ).toBeInTheDocument();
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
+
   it("keeps a refused password in the form instead of redirecting", async () => {
     const assign = vi
       .spyOn(window.location, "assign")

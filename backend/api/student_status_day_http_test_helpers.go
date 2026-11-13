@@ -5,11 +5,11 @@ package api
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
 
-	projection "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
-	presence "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
+	projection "github.com/moto-ogs/project-phoenix/modules/presenceprojection/http"
+	presence "github.com/moto-ogs/project-phoenix/modules/studentpresence/http"
 )
 
 func NewStudentStatusDayReadHTTPForTests(writer *presence.Resource) http.HandlerFunc {

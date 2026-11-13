@@ -3,10 +3,10 @@ package api
 import (
 	"context"
 
-	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
+	scanBindings "github.com/moto-ogs/project-phoenix/roots/devicescanbinding"
 
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
+	devicescanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove"
 )
 
 // newDeviceOpenRoomMover binds the device-scan workflow's open-room port to

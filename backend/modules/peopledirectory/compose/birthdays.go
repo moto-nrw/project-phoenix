@@ -4,10 +4,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
+	internalports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/ports"
 )
 
 // The birthday display reads persons, students and staff through a store the

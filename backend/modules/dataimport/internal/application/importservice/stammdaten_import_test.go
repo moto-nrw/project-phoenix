@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	dataImportCompose "github.com/moto-ogs/project-phoenix/modules/dataimport/compose"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

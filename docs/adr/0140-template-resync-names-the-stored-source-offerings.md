@@ -4,10 +4,10 @@ status: accepted
 
 # Template resync names the stored source offerings
 
-Issue [#5313](https://github.com/moto-nrw/project-phoenix/issues/5313) lets a
+Issue [#5313](https://github.com/moto-ogs/project-phoenix/issues/5313) lets a
 school save a Regeltermin whose stored source offering turned inactive: the
 inactive source contributes nothing from today on, as on every resync since
-[#5305](https://github.com/moto-nrw/project-phoenix/issues/5305), while a
+[#5305](https://github.com/moto-ogs/project-phoenix/issues/5305), while a
 newly selected inactive offering stays refused. Care Plan's resync can only
 tell the two apart when it knows which source ids the template stored before
 the save. Timetable writes the new ids before the resync, so it has to pass
