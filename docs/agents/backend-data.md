@@ -78,7 +78,24 @@ Its `Version` is that prefix; `Register` panics on any other. The migrations up
 to `001015963` keep their packed version (`1.15.963`) and are never renamed.
 
 Use [migration registration](../../backend/database/migrations/00_migrations.go)
-and an existing migration in `backend/database/migrations/` as the pattern.
+and an existing migration in `backend/database/migrations/` for `Up` and
+`Down`. The existing files show the old dotted `Version`; a new one registers
+its file prefix:
+
+```go
+// 20261113142530_traeger_export_recipient_notes.go
+const traegerExportRecipientNotesVersion = "20261113142530"
+
+func init() {
+	MigrationRegistry.Register(&Migration{
+		Version:     traegerExportRecipientNotesVersion,
+		Description: "Notiz je Empfänger der Träger-Exporte (#1234)",
+		DependsOn:   []string{traegerExportRecipientsVersion}, // "1.15.963": the table it alters
+	})
+	Migrations.MustRegister(traegerExportRecipientNotesUp, traegerExportRecipientNotesDown)
+}
+```
+
 `DependsOn` names the migrations this one needs to have run, not the newest one.
 
 - **No number to agree on.** Two branches add migrations without renumbering.
