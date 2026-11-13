@@ -6021,6 +6021,14 @@ const TOOLTIP_SCOPE = [
   "src/components/settings/",
   // Kit-Bausteine bringen ihre Standardtexte selbst mit (#6744).
   "src/components/ui/",
+  // Kinder – Seiten Kinderliste und Eltern (#6748).
+  "src/app/[tenant]/(protected)/eltern/bankverbindungen/page.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/page.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/room-history/page.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/unfallanzeigen/[reportId]/page.tsx",
+  "src/app/[tenant]/(protected)/students/search/page.tsx",
+  "src/app/[tenant]/(protected)/students/search/use-child-scope-tabs.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
