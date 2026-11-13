@@ -746,6 +746,24 @@
         "count"
       ],
       "legacy": "parent_billing.sollstellung_revenue_account_missing"
+    },
+    {
+      "code": "parent_billing.export_recipient_not_ready",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.export_recipient_not_ready"
+    },
+    {
+      "code": "parent_billing.export_already_handed_over",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.export_already_handed_over"
+    },
+    {
+      "code": "parent_billing.export_recipient_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.export_recipient_invalid"
     }
   ]
 }

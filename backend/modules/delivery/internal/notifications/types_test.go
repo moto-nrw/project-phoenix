@@ -3,7 +3,7 @@ package notifications_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +31,7 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 
 	t.Run("staff catalogue is grouped and ordered", func(t *testing.T) {
 		defs := notifications.TypesForPortal(notifications.PortalStaff)
-		require.Len(t, defs, 13)
+		require.Len(t, defs, 15)
 
 		keys := make([]string, len(defs))
 		for i, def := range defs {
@@ -40,11 +40,13 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 		assert.Equal(t, []string{
 			notifications.TypePickupUpcoming,
 			notifications.TypePickupOverdue,
+			notifications.TypeStudentPickupChanged,
 			notifications.TypeActivityStart,
 			notifications.TypeActivityOverdue,
 			notifications.TypeActivityRunningOver,
 			notifications.TypeMyActivityStarting,
 			notifications.TypeStudentAbsenceReported,
+			notifications.TypeStaffStudentNoteShared,
 			notifications.TypeStaffParentMessage,
 			notifications.TypeStaffMessage,
 			notifications.TypeStaffSurvey,

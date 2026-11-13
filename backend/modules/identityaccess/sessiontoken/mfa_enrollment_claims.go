@@ -1,6 +1,6 @@
 package sessiontoken
 
-import "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+import "github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
 
 // MFAEnrollmentClaims represents a short-lived JWT issued to an account that
 // passed the password check but has no MFA credential on a tenant that

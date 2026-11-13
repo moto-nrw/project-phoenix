@@ -1,9 +1,9 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewChildQuotaCounts composes the cross-school Kontingentzahl of the

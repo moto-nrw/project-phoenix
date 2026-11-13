@@ -3,8 +3,8 @@ package audit
 import (
 	"testing"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	audit "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

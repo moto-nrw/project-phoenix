@@ -3,7 +3,7 @@ package application
 import (
 	"testing"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -3,8 +3,8 @@ package owners
 import (
 	"testing"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -1,6 +1,6 @@
 package application
 
-import "github.com/moto-nrw/project-phoenix/modules/communication"
+import "github.com/moto-ogs/project-phoenix/modules/communication"
 
 // The leadership conversation vocabulary (#5200) the staff side uses through
 // this package; the values are Communication's public contract.

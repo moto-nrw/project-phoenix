@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/ports"
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 type targets struct {

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // PortalService is the guardian portal as these handlers consume it: the

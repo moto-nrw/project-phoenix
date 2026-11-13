@@ -29,17 +29,27 @@ const COLUMNS: DataTableColumn<DocumentTemplateSummary>[] = [
   {
     key: "kind",
     header: "Dokument",
+    // From the tablet on a name keeps one line; the purpose beside it wraps.
     render: (template) => (
-      <div className="min-w-0">
-        <p className="font-medium text-gray-900">
-          {DOCUMENT_TEMPLATE_KIND_LABELS[template.kind]}
-        </p>
-        <p className="text-sm text-gray-600">
-          {DOCUMENT_TEMPLATE_KIND_USE[template.kind]}
-        </p>
-      </div>
+      <span className="font-medium text-gray-900 md:whitespace-nowrap">
+        {DOCUMENT_TEMPLATE_KIND_LABELS[template.kind]}
+      </span>
     ),
     stacked: "title",
+  },
+  {
+    // Its own column, so a phone shows the whole sentence under the name
+    // and its state, across the full width of the row.
+    key: "use",
+    header: "Wofür",
+    render: (template) => (
+      <span className="text-sm text-pretty text-gray-600">
+        {DOCUMENT_TEMPLATE_KIND_USE[template.kind]}
+      </span>
+    ),
+    // On a phone the whole sentence too: its condition („wenn unter
+    // Dokumentarten …“) is what tells two templates apart.
+    stackedLabel: false,
   },
   {
     key: "state",
@@ -58,9 +68,12 @@ const COLUMNS: DataTableColumn<DocumentTemplateSummary>[] = [
   {
     key: "updated",
     header: "Gespeichert am",
+    headerClassName: "whitespace-nowrap",
     render: (template) =>
       template.updatedAt ? formatDate(template.updatedAt) : "–",
-    stacked: "meta",
+    // On a phone name, state and purpose make the row; the date stays in
+    // the template itself, as before.
+    stacked: "hidden",
   },
 ];
 
@@ -81,7 +94,7 @@ export default function TraegerVorlagenPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Vorlagen",
+        object: "die Liste der Vorlagen",
         retry: () => void load(),
       });
     }
@@ -96,6 +109,9 @@ export default function TraegerVorlagenPage() {
   return (
     <TenantPage
       title="Vorlagen"
+      back
+      backHref={traegerPath("/traeger/einstellungen/briefkopf")}
+      backLabel="Zurück zu Briefkopf und Vorlagen"
       info="Hier legen Sie fest, was in den Briefen Ihres Trägers steht. Platzhalter wie {{familienname}} füllt moto für jede Familie aus. Logo, Absender und Fußzeile kommen aus dem Briefkopf."
       stats={
         templates ? (
@@ -120,7 +136,9 @@ export default function TraegerVorlagenPage() {
           rows={templates}
           getRowKey={(template) => template.kind}
           stackedOnMobile
-          stackedLayout="row"
+          // Name and state in the head line, the purpose below them across
+          // the full width: beside the state it took four to six lines.
+          stackedLayout="lines"
           onRowClick={(template) =>
             router.push(
               traegerPath(

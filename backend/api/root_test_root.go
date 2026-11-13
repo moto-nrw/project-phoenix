@@ -6,45 +6,45 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	carePlanModule "github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	communicationModule "github.com/moto-ogs/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	devicefleetModule "github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	filestorageModule "github.com/moto-ogs/project-phoenix/modules/filestorage"
+	filestorageCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	schoolMembershipModule "github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	arrivalTimetable "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
 )
 
 // composeTestRoot builds the owners of the server root for a test, as local
@@ -329,7 +329,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		},
 		func() (err error) {
 			requests, err = owners.BuildCarePlanRequests(db, env, hub, carePlan, persons, people, schedules, offerings, enrollment,
-				timetableOwner, settings.Service, audit, services, emitter, caller, reviewPolicy, tokens.Permissions, notifications.AbsenceNotifier, documentPermissions)
+				timetableOwner, settings.Service, audit, services, emitter, caller, reviewPolicy, tokens.Permissions, notifications.AbsenceNotifier, owners.NewPickupChangeTeamReach(notifications), documentPermissions)
 			return
 		},
 		func() (err error) {

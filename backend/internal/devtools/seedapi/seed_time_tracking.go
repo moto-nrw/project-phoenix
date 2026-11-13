@@ -313,7 +313,7 @@ func (seedWorkSessionBreakStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 	day := breakSessionDay(today, holidays)
-	if err := seedSessionWithBreakViaAPI(client, rng); err != nil {
+	if err := withSeedPackUpTime(rt, func() error { return seedSessionWithBreakViaAPI(client, rng) }); err != nil {
 		return fmt.Errorf("seed live break session: %w", err)
 	}
 	admin := NewClientWithAdapter(rt.Adapter, rt.Verbose)
@@ -433,38 +433,6 @@ func buildStaffOrder(fs *FixedSeeder) ([]StaffCredentials, map[string]int64) {
 		return emailToStaff[ordered[i].Email] < emailToStaff[ordered[j].Email]
 	})
 	return ordered, emailToStaff
-}
-
-func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail map[string]int64, validFrom time.Time) (int, error) {
-	rt.Client.BindAuth(rt.TenantAuth)
-	entries := make([]map[string]any, 0, 4-0+1)
-	for d := 0; d <= 4; d++ {
-		entries = append(entries, map[string]any{
-			"week_index":     0,
-			"day_of_week":    d,
-			"target_minutes": timeTrackingDailyTargetMin,
-		})
-	}
-
-	count := 0
-	for _, cred := range staff {
-		if cred.Position == "Extern" {
-			continue
-		}
-		staffID := staffIDByEmail[cred.Email]
-		path := fmt.Sprintf("/api/staff/%d/schedule", staffID)
-		body := map[string]any{
-			"mode":            "custom",
-			"rotation_length": 1,
-			"valid_from":      toDateKey(validFrom),
-			"entries":         entries,
-		}
-		if _, err := rt.Client.Put(path, body); err != nil {
-			return count, fmt.Errorf("put schedule for staff %d: %w", staffID, err)
-		}
-		count += len(entries)
-	}
-	return count, nil
 }
 
 func loginVacationApprover(rt *Runtime, staff []StaffCredentials) (AuthRef, error) {

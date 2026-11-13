@@ -5,7 +5,7 @@ status: accepted
 # Meal ordering raises the Meal Plan compose budgets
 
 Decision of 2026-10-18 under
-[#3873](https://github.com/moto-nrw/project-phoenix/issues/3873). It raises
+[#3873](https://github.com/moto-ogs/project-phoenix/issues/3873). It raises
 registers that [ADR 0057](0057-only-the-target-is-a-rule.md) point 5 lets only
 fall.
 

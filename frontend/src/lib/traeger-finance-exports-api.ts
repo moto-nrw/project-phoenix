@@ -14,6 +14,10 @@ export type ExportRunPathKind = "care-runs" | "holiday-runs" | "notice-months";
 type ExportRunKind = "care" | "holiday" | "notice";
 export type ExportFormat = "sollstellung" | "pain008" | "datev";
 
+/** The outcome of a handover, as the journal and the protocol name it. */
+export type HandoverState =
+  "transferred" | "failed" | "in_progress" | "unknown";
+
 export type SollField =
   | "invoice_number"
   | "invoice_date"
@@ -129,8 +133,20 @@ export interface ExportProtocolEntry {
   readonly costCenterFallbacks: readonly CostCenterFallback[];
   readonly exportedByYou: boolean;
   readonly exportedByAccount: boolean;
+  /** Name of the exporting account; empty without one (#4693). */
+  readonly exportedByName: string;
   readonly exportedAt: string;
   readonly submittedAt: string | null;
+  /** The handover to the recipient of the Träger (ADR 0218), null for a download. */
+  readonly handover?: ProtocolHandover | null;
+}
+
+/** Where a file of the protocol went and whether it arrived. */
+export interface ProtocolHandover {
+  readonly state: HandoverState;
+  readonly reason: string;
+  readonly targetHost: string;
+  readonly targetDirectory: string;
 }
 
 /** Why a holiday position booked on the cost center of the holiday care. */
@@ -169,6 +185,8 @@ export interface InvoiceStep {
   readonly at: string;
   readonly byYou: boolean;
   readonly byAccount: boolean;
+  /** Name of the account of the step; empty without one (#4693). */
+  readonly accountName: string;
   readonly positions: number;
   readonly note: string;
   readonly file: ExportProtocolEntry | null;
@@ -226,8 +244,15 @@ interface BackendEntry {
   cost_center_fallbacks?: BackendCostCenterFallback[] | null;
   exported_by_account_id: number | null;
   exported_by_you: boolean;
+  exported_by_name?: string | null;
   exported_at: string;
   submitted_at: string | null;
+  handover?: {
+    state: HandoverState;
+    reason?: string;
+    target_host: string;
+    target_directory: string;
+  } | null;
 }
 
 interface BackendCostCenterFallback {
@@ -257,6 +282,7 @@ interface BackendHistory {
         kind: InvoiceStepKind;
         at: string;
         account_id: number | null;
+        account_name?: string | null;
         by_you: boolean;
         positions?: number;
         note?: string;
@@ -346,8 +372,17 @@ function entryFromBackend(entry: BackendEntry): ExportProtocolEntry {
     ),
     exportedByYou: entry.exported_by_you,
     exportedByAccount: entry.exported_by_account_id !== null,
+    exportedByName: entry.exported_by_name ?? "",
     exportedAt: entry.exported_at,
     submittedAt: entry.submitted_at,
+    handover: entry.handover
+      ? {
+          state: entry.handover.state,
+          reason: entry.handover.reason ?? "",
+          targetHost: entry.handover.target_host,
+          targetDirectory: entry.handover.target_directory,
+        }
+      : null,
   };
 }
 
@@ -641,6 +676,7 @@ export async function fetchInvoiceHistory(
       at: entry.at,
       byYou: entry.by_you,
       byAccount: entry.account_id !== null,
+      accountName: entry.account_name ?? "",
       positions: entry.positions ?? 0,
       note: entry.note ?? "",
       file: entry.file ? entryFromBackend(entry.file) : null,

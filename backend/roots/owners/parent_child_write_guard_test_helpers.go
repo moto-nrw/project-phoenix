@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // The hooks below let the root's route tests of the child write guard (#6529)

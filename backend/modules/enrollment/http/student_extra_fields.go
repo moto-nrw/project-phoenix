@@ -8,13 +8,13 @@ import (
 	"strconv"
 	"time"
 
-	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCapability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 )
 
 type StudentEnrollmentExtraFieldGroup struct {

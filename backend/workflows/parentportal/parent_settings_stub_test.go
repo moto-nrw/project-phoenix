@@ -4,7 +4,7 @@ import (
 	"context"
 	"strconv"
 
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // parentSettingsStub answers ResolveBoolForTenant / ResolveStringForTenant

@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	settingsRecords "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	settingsRecords "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // KeyHandler runs in the same tenant transaction as the setting write. The

@@ -4,9 +4,9 @@ package api
 
 import (
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/classday"
-	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
+	classdayhttp "github.com/moto-ogs/project-phoenix/modules/classday/http"
 )
 
 // NewSlotListTestRouter mounts the supplied class-day composition behind the

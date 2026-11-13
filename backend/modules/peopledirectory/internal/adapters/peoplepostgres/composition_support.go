@@ -1,7 +1,7 @@
 package users
 
 import (
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The helpers below serve the legacy composition seam

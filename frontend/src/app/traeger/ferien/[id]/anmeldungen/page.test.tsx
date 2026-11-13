@@ -93,6 +93,10 @@ vi.mock("~/lib/file-download", () => ({
 }));
 
 import TraegerHolidayRegistrationsPage from "./page";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 function renderPage() {
   return render(
@@ -555,6 +559,35 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
     expect(mockMerge).not.toHaveBeenCalled();
   });
 
+  // A parent calls: the office finds the registration by name or number;
+  // a registration the search hides drops out of the selection.
+  it("finds a registration by parent or number and keeps only shown rows selected", async () => {
+    renderPage();
+    const table = within(await screen.findByRole("table"));
+    fireEvent.click(
+      await table.findByRole("checkbox", {
+        name: "Anmeldung Nr. 7 von Eva Muster auswählen",
+      }),
+    );
+
+    const [field] = screen.getAllByPlaceholderText("Eltern, Kind, Nummer");
+    fireEvent.change(field!, { target: { value: "ute" } });
+
+    const row = (id: string, name: string) =>
+      table.queryByRole("checkbox", {
+        name: `Anmeldung Nr. ${id} von ${name} auswählen`,
+      });
+    await waitFor(() => expect(row("9", "Ute Muster")).toBeInTheDocument());
+    expect(row("7", "Eva Muster")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Ausgewählte Anmeldungen" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(field!, { target: { value: "nr. 8" } });
+    await waitFor(() => expect(row("8", "Tom Muster")).toBeInTheDocument());
+    expect(row("9", "Ute Muster")).not.toBeInTheDocument();
+  });
+
   it("selects two registrations and merges them as siblings", async () => {
     mockMerge.mockResolvedValue({ id: "3", registrationIds: ["7", "8"] });
     renderPage();
@@ -565,10 +598,18 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
         name: "Anmeldung Nr. 7 von Eva Muster auswählen",
       }),
     );
+    const bar = within(
+      screen.getByRole("region", { name: "Ausgewählte Anmeldungen" }),
+    );
     // One registration can be confirmed, not merged (#6674).
-    expect(screen.getByText("1 Anmeldung ausgewählt")).toBeInTheDocument();
+    expect(bar.getByText("1 Anmeldung ausgewählt.")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Ausgewählte bestätigen" }),
+      bar.getByText(
+        "Zum Zusammenführen als Geschwister wählen Sie eine weitere Anmeldung derselben Familie.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      bar.getByRole("button", { name: "Ausgewählte bestätigen" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Als Geschwister zusammenführen" }),
@@ -737,7 +778,7 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
   // #6652: after a confirmed merge a failed reload is a load error above the
   // list, not a failed merge or a page error that replaces the rows.
   describe("reload after a write (#6652)", () => {
-    it("discards registrations and sibling groups after a refused merge reload", async () => {
+    it("loads the page anew after a refused merge reload", async () => {
       mockMerge.mockResolvedValue({ id: "3", registrationIds: ["7", "8"] });
       renderPage();
       const table = within(await screen.findByRole("table"));
@@ -751,6 +792,7 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
           name: "Anmeldung Nr. 8 von Tom Muster auswählen",
         }),
       );
+      resetPageReloads();
       mockFetchList.mockRejectedValueOnce(new ApiError("refused", 403));
       mockFetchGroups.mockResolvedValue([
         { id: "3", registrationIds: ["7", "8"] },
@@ -758,24 +800,9 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
       fireEvent.click(
         screen.getByRole("button", { name: "Als Geschwister zusammenführen" }),
       );
-      expect(
-        await screen.findByText(
-          `${catalogText("general.permission", "die Anzeige der Ferienanmeldungen")} ${SAVED_BUT_STALE_SUFFIX}`,
-        ),
-      ).toBeVisible();
-      expect(
-        screen.queryByText("Es ist noch keine Anmeldung eingegangen."),
-      ).not.toBeInTheDocument();
-      expect(screen.queryByRole("table")).not.toBeInTheDocument();
-      expect(screen.queryByText("Eva Muster")).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("checkbox", { name: /Anmeldung Nr/ }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", {
-          name: "Als Geschwister zusammenführen",
-        }),
-      ).not.toBeInTheDocument();
+      // #6801: the page loads anew; its first load shows the refusal.
+      await expectPageReloadedAfterRefusal();
+      expect(mockMerge).toHaveBeenCalledTimes(1);
     });
 
     it("keeps merged siblings merged when the reload fails", async () => {
@@ -815,7 +842,7 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
       expect(screen.getByText("Ute Muster")).toBeInTheDocument();
       expect(
         screen.queryByText(
-          catalogText("general.unavailable", "die Geschwister"),
+          catalogText("general.unavailable", "die Geschwistergruppe"),
         ),
       ).not.toBeInTheDocument();
       expect(
@@ -1217,7 +1244,7 @@ describe("TraegerHolidayRegistrationsPage bulk confirmation (#6674)", () => {
     const loads = mockFetchList.mock.calls.length;
     fireEvent.click(result.getByRole("button", { name: "Fertig" }));
     // Nothing changed: the selection stays for another try.
-    expect(screen.getByText("2 Anmeldungen ausgewählt")).toBeInTheDocument();
+    expect(screen.getByText("2 Anmeldungen ausgewählt.")).toBeInTheDocument();
     expect(mockFetchList.mock.calls.length).toBe(loads);
   });
 

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 func (s *settingsService) SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error {

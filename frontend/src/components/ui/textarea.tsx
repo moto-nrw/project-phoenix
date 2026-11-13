@@ -104,13 +104,13 @@ export function Textarea({
           [describedBy, hintId, errorId].filter(Boolean).join(" ") || undefined
         }
         className={cn(
-          "aria-[invalid=true]:ring-moto-red block w-full resize-none rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 read-only:bg-gray-50 read-only:text-gray-500 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200",
+          "aria-[invalid=true]:ring-moto-red block w-full resize-none rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 read-only:bg-gray-50 read-only:text-gray-500 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-600 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 pointer-coarse:text-base",
           autoGrow && "max-h-40 overflow-hidden",
           className,
         )}
       />
       {hint && (
-        <p id={hintId} className="mt-1 text-xs text-gray-600">
+        <p id={hintId} className="mt-1 text-sm text-gray-600">
           {hint}
         </p>
       )}
@@ -118,7 +118,7 @@ export function Textarea({
         <p
           id={errorId}
           role={errorLive ? "alert" : undefined}
-          className="text-moto-red-strong mt-1 text-xs"
+          className="text-moto-red-strong mt-1 text-sm"
         >
           {error}
         </p>

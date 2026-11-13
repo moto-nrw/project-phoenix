@@ -206,7 +206,10 @@ export function MultiSelect({
       invalid={invalid}
       disabled={disabled || unavailable}
       placeholder={placeholder}
-      triggerRole="button"
+      // A select-only combobox (ARIA APG): named by its label, its text is
+      // the value, and the highlighted option is aria-activedescendant also
+      // while a dialog's focus trap keeps focus on the trigger.
+      triggerRole="combobox"
       testId={testId}
       size={controlSize}
       className={cn("w-full", className)}

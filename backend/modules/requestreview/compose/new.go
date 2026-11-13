@@ -1,6 +1,6 @@
 package compose
 
-import "github.com/moto-nrw/project-phoenix/modules/requestreview"
+import "github.com/moto-ogs/project-phoenix/modules/requestreview"
 
 type ProjectionDependencies = requestreview.Dependencies
 type Queues = requestreview.Queues

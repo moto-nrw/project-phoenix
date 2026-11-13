@@ -1,7 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type {
+  CareInvoice,
   CareLetterMailing,
   CareLetters,
   CareRunDetail,
@@ -12,6 +13,11 @@ const { api } = vi.hoisted(() => ({
     fetchCareRun: vi.fn(),
     fetchCareLetters: vi.fn(),
   },
+}));
+// The recipient of the handover (ADR 0218) is tested on its own.
+vi.mock("~/lib/traeger-export-handovers-api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  fetchExportRecipient: () => new Promise(() => undefined),
 }));
 vi.mock("~/lib/traeger-care-billing-api", async (original) => ({
   ...(await original<typeof import("~/lib/traeger-care-billing-api")>()),
@@ -173,6 +179,101 @@ describe("monthly run page letters card", () => {
       screen.queryByRole("heading", { name: "Schreiben an die Familien" }),
     ).toBeNull();
     expect(api.fetchCareLetters).not.toHaveBeenCalled();
+  });
+
+  // The release numbers the invoices for good: what the preview still asks
+  // to check stands in the release question, and the button says so.
+  it("names the open points in the release question", async () => {
+    api.fetchCareRun.mockResolvedValue({
+      ...RUN,
+      status: "calculated",
+      releasedAt: null,
+      issuedOn: null,
+      uncountedFamilies: 2,
+      mealGaps: [
+        {
+          schoolId: "3",
+          schoolName: "OGS Am Lindenhof",
+          month: "2026-12-01",
+          expired: false,
+        },
+      ],
+    });
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Lauf freigeben" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Monatslauf freigeben?",
+    });
+    expect(within(dialog).getByText("Noch offen")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("2 Familien ohne bestätigte Kinderzahl."),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "1 Mensa-Monat ohne Freigabe der Schule. Ein späterer Lauf rechnet ihn ab.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Trotzdem freigeben" }),
+    ).toBeInTheDocument();
+  });
+
+  // The release refuses a direct debit without mandate: the question names
+  // it and offers no button that would fail.
+  it("holds the release back while a direct debit lacks its mandate", async () => {
+    const invoice: CareInvoice = {
+      id: "",
+      number: "",
+      issuedOn: null,
+      contractId: "11",
+      service: "care",
+      schoolId: "3",
+      schoolName: "OGS Am Lindenhof",
+      childFirstName: "Mia",
+      childLastName: "Beispiel",
+      recipient: {
+        firstName: "Eva",
+        lastName: "Beispiel",
+        email: "eva@example.org",
+      },
+      payment: {
+        method: "direct_debit",
+        dueOn: "2027-01-15",
+        dueSource: "run",
+        debitGap: "mandate_missing",
+      },
+      positions: [],
+      reductions: [],
+      mealPositions: [],
+      costShares: [],
+      totalCents: 9600,
+    };
+    api.fetchCareRun.mockResolvedValue({
+      ...RUN,
+      status: "calculated",
+      releasedAt: null,
+      issuedOn: null,
+      invoices: [invoice],
+    });
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Lauf freigeben" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Monatslauf freigeben?",
+    });
+    expect(
+      within(dialog).getByText(
+        "1 Familie ohne gültiges Mandat: Die Freigabe ist angehalten.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Freigeben" }),
+    ).toBeDisabled();
   });
 });
 

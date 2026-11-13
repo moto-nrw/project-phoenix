@@ -294,6 +294,10 @@ export interface ChildFeatures {
   // Frist vorbei ist; der Server entscheidet das, der Client rechnet nicht nach.
   readonly pickup_change_cutoff_time?: string;
   readonly pickup_change_today_closed?: boolean;
+  // Die Betreuung ist für heute zu Ende (operations.session_end_time, #5710):
+  // Eltern ändern die heutige Abholzeit nicht mehr, auch wenn das Kind noch
+  // im Unterricht ist. Der Server entscheidet das.
+  readonly pickup_change_care_day_ended?: boolean;
   readonly pickup_manage_allowed?: boolean;
   readonly guardian_contact_manage_allowed: boolean;
   // Ob die Person ihre eigenen offenen Abwesenheitsanfragen ändern darf

@@ -5,8 +5,8 @@ status: accepted
 # Principle: owners meet through contracts and write together in workflows
 
 Principle ADR of 2026-10-19 under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), written for
-[#4091](https://github.com/moto-nrw/project-phoenix/issues/4091). It states the
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), written for
+[#4091](https://github.com/moto-ogs/project-phoenix/issues/4091). It states the
 rules for contracts, workflows and transactions that still hold. The ADRs it
 cites keep their context and history; this ADR changes none of them.
 The [#4538 addendum](#addendum-2026-10-23-command-participation-and-coordination-4538)
@@ -56,7 +56,7 @@ extends exception E3 to batch forms of the data import.
    was committed, also when the caller died before dispatch; each feature
    keeps its own retry policy. An after-commit callback is a
    losable hint, never the authority for durable work (ADR 0013, ADR 0016,
-   [#4087](https://github.com/moto-nrw/project-phoenix/issues/4087)). The
+   [#4087](https://github.com/moto-ogs/project-phoenix/issues/4087)). The
    exact, shrink-only register `backend/test/durable_side_effect_notices.json`
    (`TestDurableSideEffectsRatchet`) names every remaining `go`, `Dispatch` and
    `AfterCommit` in HTTP, application and composition roles with the harmless
@@ -91,7 +91,7 @@ The full rule map is the
 
 ## Addendum 2026-10-23: command participation and coordination (#4538)
 
-Accepted for [#4538](https://github.com/moto-nrw/project-phoenix/issues/4538).
+Accepted for [#4538](https://github.com/moto-ogs/project-phoenix/issues/4538).
 This replaces the unconditional reading of point 4, not ownership, dependency
 directions, the lock order in point 5 or durable effects in point 6. The
 [edge inventory](../architecture/4538-cross-owner-write-inventory.md) records
@@ -316,11 +316,11 @@ lock/end round trip; it did not move `EndCare` or `ResumeCare` into a workflow.
 ## Addendum 2026-11-08: Datenimport schreibt je Chunk gebündelt (#5552, #5827, #5887)
 
 Vorgeschlagen am 08.11.2026 für
-[#5552](https://github.com/moto-nrw/project-phoenix/issues/5552),
-[#5827](https://github.com/moto-nrw/project-phoenix/issues/5827) und
-[#5887](https://github.com/moto-nrw/project-phoenix/issues/5887); gilt mit
+[#5552](https://github.com/moto-ogs/project-phoenix/issues/5552),
+[#5827](https://github.com/moto-ogs/project-phoenix/issues/5827) und
+[#5887](https://github.com/moto-ogs/project-phoenix/issues/5887); gilt mit
 dem Merge. Grundlage ist der Entwurf in
-[#5552](https://github.com/moto-nrw/project-phoenix/issues/5552#issuecomment-6711342905),
+[#5552](https://github.com/moto-ogs/project-phoenix/issues/5552#issuecomment-6711342905),
 geprüft am Code von `development` @ `82fed4f213`. Das Addendum ändert keinen
 Code und kein Register. Es legt fest, in welcher Form der Datenimport die
 Owner-Kommandos eines Chunks gebündelt aufrufen darf und was dabei für IDs,
@@ -452,7 +452,7 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    `ORDER BY tenant_id IS NULL ASC LIMIT 1` (`:52–53`) legt zwischen ihnen
    keine Ordnung fest. Haben sie verschiedene Rechte, hängen `RoleID` und
    `role_grant_not_permitted` an dieser Wahl. Einen festen Tie-Break legt
-   [#6234](https://github.com/moto-nrw/project-phoenix/issues/6234) fest,
+   [#6234](https://github.com/moto-ogs/project-phoenix/issues/6234) fest,
    nicht dieses Addendum.
 6. **Update-Werte sind nicht mit dem Entwurf vergleichbar.** Der Entwurf
    nennt für das Update 332/3539, ohne die geänderten Spalten festzuhalten.
@@ -933,7 +933,7 @@ aus der Messung abgeleitet, nicht gemessen.
 | Schritt | Issue | Umfang | Erwartet | Risiko |
 |---|---|---|---|---|
 | 1 | #5552 | Budget-Szenarien N10/N110 für alle Configs und Modi (`test/query-budgets/modules/dataimport/`, `max`, Vorschau `exact`); keine Verhaltensänderung | 0 | gering |
-| 2 | #5887 | Rollen aus `ListSchoolRoles` mit SQL-Schlüssel `LOWER(name)`, Tenant- vor Systemrolle, exakter Name vor Alias; der Batch wählt exakt dieselbe Rolle wie der heutige Einzel-Read `FindSchoolRoleByName`. Hat ein Name mehr als einen Kandidaten gleichen Rangs, löst der Batch ihn mit diesem Einzel-Read auf, denn dessen Wahl ist heute nicht festgelegt (Befund 5); einen festen Tie-Break legt [#6234](https://github.com/moto-nrw/project-phoenix/issues/6234) fest. `FindRolePermissionsByRoleIDs` einmal in `ValidateBatch` | Staff-Vorschau auf etwa 10 je N | gering |
+| 2 | #5887 | Rollen aus `ListSchoolRoles` mit SQL-Schlüssel `LOWER(name)`, Tenant- vor Systemrolle, exakter Name vor Alias; der Batch wählt exakt dieselbe Rolle wie der heutige Einzel-Read `FindSchoolRoleByName`. Hat ein Name mehr als einen Kandidaten gleichen Rangs, löst der Batch ihn mit diesem Einzel-Read auf, denn dessen Wahl ist heute nicht festgelegt (Befund 5); einen festen Tie-Break legt [#6234](https://github.com/moto-ogs/project-phoenix/issues/6234) fest. `FindRolePermissionsByRoleIDs` einmal in `ValidateBatch` | Staff-Vorschau auf etwa 10 je N | gering |
 | 3 | #5552 | kein Zeilen-Savepoint im Batchpfad | −2 je Zeile | gering |
 | 4 | #5827 | Chunk-Executor: Segmente, `ResolveChunk`, Chunk-Savepoint, Replay; erster Nutzer Klassenliste | Klassenliste N110 auf etwa 25 | mittel |
 | 5 | #5552 | Student-Create, Leafs: Personen, Guardians, Telefone, Link, Consent, Schedules, Consent-Verlauf | etwa −8 je Zeile | mittel |

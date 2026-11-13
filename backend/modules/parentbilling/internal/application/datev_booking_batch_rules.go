@@ -3,7 +3,7 @@ package application
 import (
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The checks of the DATEV booking batch (#4694). They follow the

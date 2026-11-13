@@ -106,7 +106,7 @@ werktags geplant und per `workflow_dispatch`. PR #4862 trifft diese Pfadfilter.
 
 Bereits am Head `9876f3baa147b45dab76b16a4b66de9e2e81b2e7` wurde die
 CI-Ausführung bestätigt, nicht nur aus der YAML abgeleitet:
-[Joblog, Run 40019687870](https://github.com/moto-nrw/project-phoenix/actions/runs/40019687870/job/120640704783).
+[Joblog, Run 40019687870](https://github.com/moto-ogs/project-phoenix/actions/runs/40019687870/job/120640704783).
 Der Log zeigt am 23.10.2026 um 20:32:43 UTC `pnpm run test:network`,
 danach `Running 11 tests using 1 worker` und um 20:34:05 UTC
 `11 passed (1.4m)`. Auch Artefakt-Upload und nachfolgender E2E-Schritt waren
@@ -421,7 +421,7 @@ which measures with Umami, not PostHog. So does the intake form behind
 
 ## Privacy policy (website, `moto-ogs.de/datenschutz`)
 
-The website lives in `moto-nrw/website`, not in this repository. The demo
+The website lives in `moto-ogs/website`, not in this repository. The demo
 notice links to its privacy page. The paragraphs below are a draft for that
 page and need legal review before they go live; the Analyse-Freigabe also
 needs the school's or Träger's written consent (AVV addendum) before the moto

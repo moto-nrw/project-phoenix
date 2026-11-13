@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // Care Plan's booking materialization (#3560) reads and writes the Timetable,

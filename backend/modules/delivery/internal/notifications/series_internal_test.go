@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	deliveryModels "github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

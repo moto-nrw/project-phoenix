@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	educationRepo "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 type ClassTeacherRepositoryBinding struct{ Membership schoolmembership.Capability }

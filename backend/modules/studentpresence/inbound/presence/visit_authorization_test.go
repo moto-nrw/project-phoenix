@@ -3,10 +3,10 @@ package presence_test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	presenceAPI "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func authorizeVisitForTest(ctx context.Context, accountID int64, readAll bool, visitID int64, facts presenceAPI.VisitAccessQuery) (bool, error) {

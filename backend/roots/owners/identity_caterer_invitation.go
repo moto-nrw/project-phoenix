@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // Payload fields of the queued caterer invitation.

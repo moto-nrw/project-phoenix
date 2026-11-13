@@ -5,8 +5,8 @@ status: accepted
 # Pass-throughs are counted per owner
 
 Decision of 2026-10-16 under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), for
-[#4084](https://github.com/moto-nrw/project-phoenix/issues/4084).
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), for
+[#4084](https://github.com/moto-ogs/project-phoenix/issues/4084).
 
 ## Context
 

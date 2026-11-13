@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"html/template"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,6 +37,24 @@ func TestHolidayRegistrationReceivedTemplate_Renders(t *testing.T) {
 		"OGS Süd, bis 13 Uhr", "Das ist noch keine Zusage.", "Die Anmeldung ist verbindlich."} {
 		assert.Contains(t, body, template.HTMLEscapeString(want))
 	}
+	assert.NotContains(t, body, "Stand ansehen", "without a status link the mail shows no button")
+}
+
+// TestHolidayRegistrationReceivedTemplate_LinksTheStatusPage pins the status
+// link of the receipt (#6676): a button and the plain link to copy.
+func TestHolidayRegistrationReceivedTemplate_LinksTheStatusPage(t *testing.T) {
+	t.Parallel()
+	tpl, err := template.ParseGlob(filepath.Join(".", "*.html"))
+	require.NoError(t, err, "parse all email templates")
+	var out bytes.Buffer
+	require.NoError(t, tpl.ExecuteTemplate(&out, "holiday-registration-received.html", map[string]any{
+		"GuardianName": "Eva Muster", "SchoolName": "Träger Bissendorf", "PeriodName": "Winterferien 2027",
+		"Children":  []map[string]any{{"Name": "Lia Muster", "Weeks": []string{"04.01.2027 bis 08.01.2027"}}},
+		"StatusURL": "https://eltern.example.org/ferienanmeldung/status/abc",
+	}))
+	body := out.String()
+	assert.Contains(t, body, "Stand ansehen")
+	assert.Equal(t, 3, strings.Count(body, "https://eltern.example.org/ferienanmeldung/status/abc"), "the button and the link to copy")
 }
 
 // TestHolidayRegistrationReceivedTemplate_RendersTheDeclaration pins the

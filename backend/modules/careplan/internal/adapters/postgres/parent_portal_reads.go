@@ -3,9 +3,9 @@ package postgres
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	parentModels "github.com/moto-ogs/project-phoenix/modules/careplan/internal/rows"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // NewParentChildQueries adapts retained query records to public projections.

@@ -1,6 +1,6 @@
 package devices
 
-import "github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/locales"
+import "github.com/moto-ogs/project-phoenix/modules/delivery/internal/application/locales"
 
 // LocaleCatalog is Delivery's language catalog for portal preferences.
 type LocaleCatalog struct{}

@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // ensureStudentHasNoActiveVisit checks that the student doesn't already have an active visit
@@ -106,11 +106,10 @@ func (s *service) createAttendanceRecord(ctx context.Context, visit *studentpres
 	return nil
 }
 
-// syncAttendanceForVisitRevision keeps the matching daily attendance session
-// aligned with a visit edit. Each boundary moves only when it still matches
-// the old visit boundary: a room exit need not be the end of the whole stay.
-// Entry times are stamped from the same source when
-// visits are created, so the previous entry time is the session identity.
+// syncAttendanceForVisitRevision keeps the daily attendance session that holds
+// the visit aligned with a visit edit. Each boundary moves only when it still
+// matches the old visit boundary: a room exit need not be the end of the whole
+// stay, and a stay can begin before its first room visit (#5710).
 func (s *service) syncAttendanceForVisitRevision(
 	ctx context.Context, previous, updated *studentpresence.Visit,
 ) error {
@@ -125,30 +124,66 @@ func (s *service) syncAttendanceForVisitRevision(
 	if err != nil {
 		return err
 	}
-	for _, row := range rows {
-		if !row.CheckInTime.Equal(previous.EntryTime) {
-			continue
-		}
+	row, found := attendanceHoldingVisit(rows, previous)
+	if !found {
+		return nil
+	}
+	changed := false
+	if row.CheckInTime.Equal(previous.EntryTime) && !row.CheckInTime.Equal(updated.EntryTime) {
 		row.Date = calendar.DateFromTime(updated.EntryTime).String()
 		row.CheckInTime = updated.EntryTime
-		s.reviseMatchingCheckout(ctx, &row, previous.ExitTime, updated.ExitTime)
-		_, err := s.SchoolPresence.ReviseAttendance(ctx, row)
-		return err
+		changed = true
 	}
-	return nil
+	if s.reviseMatchingCheckout(ctx, &row, previous.ExitTime, updated.ExitTime) {
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	// Moving only a matching boundary must not invert the stay's interval.
+	// Independent boundaries belong to the school stay, not to this visit.
+	if row.CheckOutTime != nil && row.CheckOutTime.Before(row.CheckInTime) {
+		return ErrInvalidTimeRange
+	}
+	_, err = s.SchoolPresence.ReviseAttendance(ctx, row)
+	return err
+}
+
+// attendanceHoldingVisit finds the stay a visit belongs to. A stay that began
+// with the visit matches exactly; otherwise it is the latest stay that began
+// before the visit and had not ended when the visit began.
+func attendanceHoldingVisit(rows []studentpresence.Attendance, visit *studentpresence.Visit) (studentpresence.Attendance, bool) {
+	var holding *studentpresence.Attendance
+	for i := range rows {
+		row := &rows[i]
+		if row.CheckInTime.Equal(visit.EntryTime) {
+			return *row, true
+		}
+		if row.CheckInTime.After(visit.EntryTime) || (row.CheckOutTime != nil && row.CheckOutTime.Before(visit.EntryTime)) {
+			continue
+		}
+		if holding == nil || row.CheckInTime.After(holding.CheckInTime) {
+			holding = row
+		}
+	}
+	if holding == nil {
+		return studentpresence.Attendance{}, false
+	}
+	return *holding, true
 }
 
 // reviseMatchingCheckout leaves a checkout belonging to another visit intact.
-func (s *service) reviseMatchingCheckout(ctx context.Context, row *studentpresence.Attendance, previousExit, updatedExit *time.Time) {
-	if !sameVisitBoundary(row.CheckOutTime, previousExit) {
-		return
+// It reports whether it changed the row.
+func (s *service) reviseMatchingCheckout(ctx context.Context, row *studentpresence.Attendance, previousExit, updatedExit *time.Time) bool {
+	if !sameVisitBoundary(row.CheckOutTime, previousExit) || sameVisitBoundary(previousExit, updatedExit) {
+		return false
 	}
 	row.CheckOutTime = updatedExit
 	if updatedExit == nil {
 		row.CheckedOutBy = nil
 		row.CheckedOutDeviceID = nil
 		row.CheckOutReason = nil
-		return
+		return true
 	}
 	if row.CheckedOutBy == nil && row.CheckedOutDeviceID == nil {
 		_, staffID := s.extractContextIDs(ctx)
@@ -156,6 +191,7 @@ func (s *service) reviseMatchingCheckout(ctx context.Context, row *studentpresen
 			row.CheckedOutBy = &staffID
 		}
 	}
+	return true
 }
 
 func sameVisitBoundary(a, b *time.Time) bool {

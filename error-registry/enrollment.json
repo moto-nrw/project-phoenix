@@ -630,6 +630,12 @@
       "legacy": "enrollment.holiday_registration_state_conflict"
     },
     {
+      "code": "enrollment.holiday_registration_status_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_registration_status_not_found"
+    },
+    {
       "code": "enrollment.holiday_week_booked",
       "class": "business_rejection",
       "parameters": [],

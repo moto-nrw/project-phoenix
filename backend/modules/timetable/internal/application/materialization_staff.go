@@ -4,11 +4,11 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	schedule "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // materializationStaffRoster lets the replan lock its old and new people in

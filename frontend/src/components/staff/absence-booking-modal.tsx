@@ -22,6 +22,10 @@ import {
   CompTimePreviewPanel,
   useCompTimePreview,
 } from "~/components/staff/comp-time-preview";
+import {
+  MissingTargetDialogNotice,
+  type MissingTargetHint,
+} from "~/components/staff/missing-target-notice";
 import type { SickReportStaff } from "~/components/staff/sick-report-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -543,6 +547,7 @@ export function AbsenceBookingModal({
   onClose,
   onSaved,
   initialDate,
+  targetHint,
 }: {
   readonly staff: SickReportStaff;
   readonly types: readonly AbsenceType[];
@@ -551,6 +556,9 @@ export function AbsenceBookingModal({
   readonly onSaved: RefreshAfterWrite;
   /** Vorbelegter Tag, z. B. ein vergangener Tag ohne Eintrag (#3258). */
   readonly initialDate?: string;
+  /** Warnt, wenn die Person kein Soll hat (#6887); nur mit
+   *  `time_tracking:manage`. */
+  readonly targetHint?: MissingTargetHint;
 }) {
   const toast = useToast();
   const options = useMemo(() => bookingOptions(types), [types]);
@@ -804,6 +812,17 @@ export function AbsenceBookingModal({
         ) : null}
         {selected ? (
           <p className="text-sm text-gray-600">{effectLine(selected.kind)}</p>
+        ) : null}
+        {/* Freizeitausgleich schreibt ohnehin nichts gut; nur die übrigen
+            Arten verlieren ohne Soll ihre Gutschrift (#6887). */}
+        {targetHint && !isCompTime ? (
+          <MissingTargetDialogNotice
+            staffId={staff.id}
+            staffName={`${staff.firstName} ${staff.lastName}`}
+            date={dateStart}
+            entryLabel="Die Abwesenheit"
+            canSetTarget={targetHint.canSetTarget}
+          />
         ) : null}
         {selected?.kind === "quota" && projections.length > 0 ? (
           <QuotaSummary label={selected.label} projections={projections} />

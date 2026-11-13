@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // StaffRecipientRequest describes a child-related staff notification. The
@@ -139,6 +139,28 @@ func (r *staffRecipientResolver) Resolve(ctx context.Context, request StaffRecip
 	}
 
 	return staffRecipientScopes(visibleByAccount, optedIn), nil
+}
+
+// ResponsibleStaffAccountIDs lists the staff responsible for one child who
+// may hear about the type, without the excluded accounts. Unlike Resolve it
+// applies neither the personal choice nor the on-duty rule: an unread marker
+// in moto reaches everyone responsible, and the device notification filters
+// the people who switched the type off (#6855).
+func (r *staffRecipientResolver) ResponsibleStaffAccountIDs(ctx context.Context, studentID int64, notificationType string, excludedAccountIDs []int64) ([]int64, error) {
+	if !r.configured() || studentID <= 0 {
+		return nil, nil
+	}
+	visibleByAccount, err := r.resolveVisibility(ctx, []int64{studentID})
+	if err != nil {
+		return nil, err
+	}
+	for _, accountID := range excludedAccountIDs {
+		delete(visibleByAccount, accountID)
+	}
+	if len(visibleByAccount) == 0 {
+		return nil, nil
+	}
+	return r.preferences.FilterPermitted(ctx, notificationType, sortedAccountIDs(visibleByAccount))
 }
 
 func (r *staffRecipientResolver) configured() bool {

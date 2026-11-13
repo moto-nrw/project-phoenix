@@ -35,6 +35,10 @@ vi.mock("~/lib/file-download", () => ({ downloadBlob: vi.fn() }));
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { catalogText } from "~/test/error-catalog-text";
 import TraegerCareRunLettersPage from "./page";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const RUN: CareRunDetail = {
   id: "7",
@@ -141,7 +145,7 @@ describe("monthly invoice reissue", () => {
   });
 
   it.each([403, 503])(
-    "handles a %s letters reload after printing without exposing refused letters",
+    "handles a %s letters reload after printing without exposing refused letters (#6801)",
     async (status) => {
       api.fetchCareLetters.mockResolvedValue({
         ...letters([]),
@@ -158,6 +162,7 @@ describe("monthly invoice reissue", () => {
       });
       renderPage();
       expect(await screen.findByText("Privater Hinweis")).toBeVisible();
+      resetPageReloads();
       api.fetchCareLetters.mockRejectedValueOnce(
         new ApiError("failed", status),
       );
@@ -167,26 +172,20 @@ describe("monthly invoice reissue", () => {
       fireEvent.click(
         await screen.findByRole("menuitem", { name: /Alle Schreiben drucken/ }),
       );
+      if (status === 403) {
+        // #6801: the page loads anew and shows the refusal without letters.
+        await expectPageReloadedAfterRefusal();
+        expect(api.printCareLetters).toHaveBeenCalledTimes(1);
+        return;
+      }
       expect(
         await screen.findByText(
-          `${catalogText(status === 403 ? "general.permission" : "general.unavailable", "die Anzeige der Schreiben")} ${SAVED_BUT_STALE_SUFFIX}`,
+          `${catalogText("general.unavailable", "die Anzeige der Schreiben")} ${SAVED_BUT_STALE_SUFFIX}`,
         ),
       ).toBeVisible();
-      if (status === 403) {
-        expect(screen.queryByText("Privater Hinweis")).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("button", { name: "An alle senden" }),
-        ).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("button", { name: "Schreiben drucken" }),
-        ).not.toBeInTheDocument();
-      } else {
-        expect(screen.getByText("Privater Hinweis")).toBeVisible();
-      }
-      if (status === 503) {
-        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
-        expect(await screen.findByText("Privater Hinweis")).toBeVisible();
-      }
+      expect(screen.getByText("Privater Hinweis")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(await screen.findByText("Privater Hinweis")).toBeVisible();
       expect(api.printCareLetters).toHaveBeenCalledTimes(1);
     },
   );

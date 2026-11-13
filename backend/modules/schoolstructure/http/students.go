@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // The children of a group and where they are: the group's student list and
@@ -140,6 +140,10 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		if response != nil {
 			responses = append(responses, *response)
 		}
+	}
+	if err := rs.endInClassAfterCareDay(r.Context(), responses); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, fmt.Sprintf("Found %d students in group", len(responses)))

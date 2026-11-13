@@ -4,8 +4,8 @@ status: accepted
 
 # Shared fixtures reach the security and settings contracts
 
-Accepted for [#3944](https://github.com/moto-nrw/project-phoenix/issues/3944)
-(part of [#2748](https://github.com/moto-nrw/project-phoenix/issues/2748)) in
+Accepted for [#3944](https://github.com/moto-ogs/project-phoenix/issues/3944)
+(part of [#2748](https://github.com/moto-ogs/project-phoenix/issues/2748)) in
 the policy epoch that registers the rules, following ADR 0039. The pull
 request review is where it can still be rejected; the exception activates
 only in the epoch that review merges.
@@ -130,7 +130,7 @@ longer wait for #2750. Waiting closed a cycle: #2748 waited on #2750, #2750 is
 blocked by #2749, and #2749 by #2748. The fixtures and the composition root
 build the same Postgres tenant runtime (unit of work, lock-wait hook, retry
 classification, detacher and the audit context adapters), so
-[#3970](https://github.com/moto-nrw/project-phoenix/issues/3970) gives that
+[#3970](https://github.com/moto-ogs/project-phoenix/issues/3970) gives that
 bootstrap an owner seam and moves `test` onto it first; #2750 later moves
 `api` and `cmd` onto the same seam. The edge #2749 ← #2748 stays. If the seam
 needs a fixture target beyond `tenant-runtime/public`, #3970 registers it in a

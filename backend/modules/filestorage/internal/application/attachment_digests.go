@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/moto-nrw/project-phoenix/modules/filestorage"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/domain"
 )
 
 // AttachmentDigests reads every live attachment of an announcement through

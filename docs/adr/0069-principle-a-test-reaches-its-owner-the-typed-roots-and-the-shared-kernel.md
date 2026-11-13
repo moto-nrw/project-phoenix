@@ -5,8 +5,8 @@ status: accepted
 # Principle: a test reaches its owner, the typed roots and the shared kernel
 
 Principle ADR of 2026-10-19 under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), written for
-[#4091](https://github.com/moto-nrw/project-phoenix/issues/4091). It states the
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), written for
+[#4091](https://github.com/moto-ogs/project-phoenix/issues/4091). It states the
 test boundaries and the shared-kernel rules that still hold. The ADRs it cites
 keep their context and history; this ADR changes none of them.
 
@@ -59,7 +59,7 @@ keep their context and history; this ADR changes none of them.
    `TestModuleContractInventoryRatchet` checks the signatures and the
    observable assertions and rejects empty, success-only and
    method-presence-only tests; a missing entry has a zero ceiling
-   ([#4090](https://github.com/moto-nrw/project-phoenix/issues/4090)). An entry
+   ([#4090](https://github.com/moto-ogs/project-phoenix/issues/4090)). An entry
    proves a named contract test, not exhaustive API coverage.
 8. **Every role may import the shared kernel.** `sharedkernel/calendar` is
    `shared-kernel`/`contract` and holds the closed list `Date`, `WallClock`,
@@ -68,7 +68,7 @@ keep their context and history; this ADR changes none of them.
    type and no other role, and a `same_owner` rule never selects it
    ([ADR 0040](0040-every-role-may-import-the-shared-kernel.md)). The
    `internal/timezone` wrapper is deleted
-   ([#4081](https://github.com/moto-nrw/project-phoenix/issues/4081)).
+   ([#4081](https://github.com/moto-ogs/project-phoenix/issues/4081)).
 
 ## Consequences
 

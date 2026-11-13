@@ -39,7 +39,7 @@ else if (args[0] === 'inspect') {
     format.includes('.Mounts') ? 'test-uploads' :
     // Tag-created containers, and a frontend a rollback created from a digest.
     format.includes('.Config.Image') ? ({ postgres: 'postgres:17-alpine',
-      frontend: `ghcr.io/moto-nrw/phoenix-frontend@sha256:${'2'.repeat(64)}` }[args.at(-1)] ?? 'ghcr.io/moto-nrw/phoenix-server:aaaaaaa') :
+      frontend: `ghcr.io/moto-ogs/phoenix-frontend@sha256:${'2'.repeat(64)}` }[args.at(-1)] ?? 'ghcr.io/moto-ogs/phoenix-server:aaaaaaa') :
     `sha256:${'1'.repeat(64)}`);
 } else if (args[0] === 'image' && args.includes('--format')) console.log(`postgres@sha256:${'1'.repeat(64)}`);
 else if (isCompose && args.includes('--services')) console.log(`postgres\nserver\nfrontend\nmigrate${sidecar ? '\ndemo-runtime' : ''}${rekey ? '\nbank-data-rekey' : ''}`);

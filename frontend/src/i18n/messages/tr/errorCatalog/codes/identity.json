@@ -52,6 +52,7 @@
   "account_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "tenant_access_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "account_not_in_school": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "account_shared_across_schools": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
   "lehrkraft_role_immutable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "access_name_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "caterer_address_taken": "Bu e-posta adresi zaten başka bir moto hesabına ait. Lütfen başka bir adres kullanın.",

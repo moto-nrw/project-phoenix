@@ -11,24 +11,24 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
-	parentBillingHTTP "github.com/moto-nrw/project-phoenix/modules/parentbilling/http"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryRuntime "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/templates"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationTenancyCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	parentBillingCompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	parentBillingHTTP "github.com/moto-ogs/project-phoenix/modules/parentbilling/http"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // mountParentBillingRoutes serves the Elternabrechnung (ADR 0088, #4664, ADR
@@ -72,6 +72,7 @@ func mountParentBillingRoutes(root, publicLink chi.Router, organizations Holiday
 	root.Mount("/traeger/number-ranges", runs.NumberRangeRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/billing-document-kinds", documentKinds.Router(ProtectedTraegerRoutes))
 	billingFamilies, financeExports, bookingAccounts := parentBillingCompose.NewBillingFamilies(parentBillingLetterPost{delivery: delivery},
+		parentBillingActorNames{names: owners.NewTraegerMemberNames()},
 		parentBillingSettings{settings: settings}, parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings}, careContractCompose.NewContractVersions())
 	families := parentBillingHTTP.NewBillingFamilyResource(billingFamilies, common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 	root.Mount("/traeger/billing-families", families.Router(ProtectedTraegerRoutes))
@@ -91,19 +92,17 @@ func mountParentBillingRoutes(root, publicLink chi.Router, organizations Holiday
 	mandates := NewSEPAMandateHTTP(settings, bankData)
 	root.Mount("/traeger/sepa-creditor", mandates.CreditorRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/sepa-mandates", mandates.MandateRouter(ProtectedTraegerRoutes))
-	root.Mount("/traeger/sepa-debits", NewSEPADebitHTTP(settings, bankData).Router(ProtectedTraegerRoutes))
+	debits := parentBillingCompose.NewSEPADebits(newParentBillingLetterheads(settings), bankData, securityruntime.Fingerprint)
+	root.Mount("/traeger/sepa-debits", newSEPADebitResource(debits).Router(ProtectedTraegerRoutes))
 	root.Mount("/traeger/datev-export", datev.Router(ProtectedTraegerRoutes))
 	root.Mount("/traeger/finance-exports", NewFinanceExportHTTP(financeExports, bookingAccounts).Router(ProtectedTraegerRoutes))
+	transfers := NewTraegerExportTransfers(bankData, logger)
+	root.Mount("/traeger/finance-handovers", NewExportHandoverHTTP(financeExports, debits, transfers).Router(ProtectedTraegerRoutes))
+	root.Mount("/traeger/export-recipient", NewExportRecipientHTTP(transfers).Router(ProtectedTraegerRoutes))
 }
 
-// NewSEPADebitHTTP binds the SEPA direct debit file of the issued runs
-// (#4697, ADR 0181) to the right "Abrechnung", to the letterhead with the
-// default bank account of the Träger, whose read the master data of
-// Organisation & Tenancy logs, and to the field cipher that sealed the
-// account of each mandate.
-func NewSEPADebitHTTP(settings TraegerBrandingSettings, cipher parentbilling.BankDataCipher) *parentBillingHTTP.SEPADebitResource {
-	return parentBillingHTTP.NewSEPADebitResource(parentBillingCompose.NewSEPADebits(newParentBillingLetterheads(settings), cipher, securityruntime.Fingerprint),
-		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+func newSEPADebitResource(debits parentbilling.SEPADebits) *parentBillingHTTP.SEPADebitResource {
+	return parentBillingHTTP.NewSEPADebitResource(debits, common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }
 
 // NewSEPAMandateHTTP binds the SEPA mandates and the creditor of the Träger
@@ -169,6 +168,25 @@ func NewCareNoticeHTTP(organizations HolidayOrganizations, settings TraegerBrand
 
 // parentBillingCareSchools lists the schools of the Träger at Organisation
 // & Tenancy that are not deleted, by name, for the price list (#4684).
+// parentBillingActorNames names the people of the Träger-Büro in the export
+// protocol and the history of an invoice (#4693) through the names of the
+// Träger memberships of Organisation & Tenancy.
+type parentBillingActorNames struct {
+	names organizationtenancy.TraegerMemberNames
+}
+
+func (n parentBillingActorNames) TraegerActorNames(ctx context.Context, organizationID int64, accountIDs []int64) (map[int64]string, error) {
+	names, err := n.names.ListTraegerMemberNames(ctx, organizationID, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]string, len(names))
+	for _, name := range names {
+		result[name.AccountID] = name.Name
+	}
+	return result, nil
+}
+
 type parentBillingCareSchools struct {
 	organizations HolidayOrganizations
 }

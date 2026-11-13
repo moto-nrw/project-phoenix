@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 // dailyCheckoutTime parses the tenant's daily checkout gate as today's

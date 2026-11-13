@@ -9,7 +9,7 @@ package audittest
 import (
 	"context"
 
-	auditapp "github.com/moto-nrw/project-phoenix/modules/auditlog/internal/application"
+	auditapp "github.com/moto-ogs/project-phoenix/modules/auditlog/internal/application"
 )
 
 // TenantIDFromContext returns the tenant the Audit adapters read, or zero.

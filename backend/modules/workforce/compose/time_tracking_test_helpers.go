@@ -6,8 +6,8 @@ import (
 	"context"
 	"errors"
 
-	postgresNative "github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
-	workforcePostgres "github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/workforcepostgres"
+	postgresNative "github.com/moto-ogs/project-phoenix/modules/workforce/internal/adapters/postgres"
+	workforcePostgres "github.com/moto-ogs/project-phoenix/modules/workforce/internal/adapters/workforcepostgres"
 	"github.com/uptrace/bun"
 )
 

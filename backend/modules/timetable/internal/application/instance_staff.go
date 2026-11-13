@@ -5,9 +5,9 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func (s *Service) FindInstanceStaff(ctx context.Context, id int64) (result timetable.InstanceStaff, err error) {

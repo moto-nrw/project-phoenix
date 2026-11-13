@@ -5,17 +5,17 @@ import (
 	"log/slog"
 	"net/http"
 
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 
-	emailWebhooksHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/webhooks"
-	dataReturnHTTP "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/datareturn"
+	emailWebhooksHTTP "github.com/moto-ogs/project-phoenix/modules/delivery/http/webhooks"
+	dataReturnHTTP "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/datareturn"
 
 	"github.com/go-chi/chi/v5"
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // mountPublicRoutes registers unauthenticated root-level routes: the

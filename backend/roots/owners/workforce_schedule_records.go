@@ -3,9 +3,10 @@ package owners
 import (
 	"context"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // WorkSessionScheduleRecords is the retained staff-work-schedule repository
@@ -126,6 +127,7 @@ func (r *ScheduleTargetRows) FindStaffIDsWithScheduleHistory(ctx context.Context
 }
 
 func workScheduleTargets(rows []*config.StaffWorkSchedule) workforceCompose.WorkScheduleTargets {
+	versions := workScheduleRows(rows)
 	return workforceCompose.WorkScheduleTargets{HasEntries: len(rows) > 0, DailyTarget: func(anchor *timezone.Date, date timezone.Date) (int, bool) {
 		var legacyAnchor *config.CalendarDate
 		if anchor != nil {
@@ -133,6 +135,8 @@ func workScheduleTargets(rows []*config.StaffWorkSchedule) workforceCompose.Work
 			legacyAnchor = &value
 		}
 		return config.DailyTargetFromSchedule(rows, legacyAnchor, config.CalendarDate(date))
+	}, Covers: func(date timezone.Date) bool {
+		return workforce.ScheduleCoversDate(versions, date)
 	}}
 }
 

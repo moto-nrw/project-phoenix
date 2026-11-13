@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
 )
 
 type effectBase struct {
@@ -17,7 +17,12 @@ type effectBase struct {
 
 // CompareCommandEffects checks reviewed effects against the immutable PR base.
 // New leaves need exact evidence; expanded exceptions need a newly added ADR.
-func CompareCommandEffects(project, ref string) error {
+//
+// It reads the base register through rewrite. A non-nil
+// rewrite is an approved module rename whose Go diff is proven to be the pure
+// rename (ADR 0217): base digests of the same identity then hash the same
+// sources under the old path, so the candidate digest replaces them.
+func CompareCommandEffects(project, ref string, rewrite *baseRewrite) error {
 	candidate, err := loadCommandEffects(project)
 	if err != nil {
 		return err
@@ -26,9 +31,12 @@ func CompareCommandEffects(project, ref string) error {
 	if err != nil {
 		return err
 	}
-	base, bootstrap, err := loadBaseCommandEffects(project, context)
+	base, bootstrap, err := loadBaseCommandEffects(project, context, rewrite)
 	if err != nil {
 		return err
+	}
+	if rewrite != nil {
+		adoptRenamedDigests(base, candidate)
 	}
 	if bootstrap {
 		context.addedADRs["0083"] = true
@@ -140,7 +148,7 @@ func adrStatus(source string) string {
 const commandEffectDecision = "docs/adr/0083-ratchets-protect-invariants-and-expose-command-effects.md"
 const commandEffectAddendum = "\n## Implementation addendum 2026-10-23 (#4739)\n"
 
-func loadBaseCommandEffects(project string, base effectBase) (*commandEffectManifest, bool, error) {
+func loadBaseCommandEffects(project string, base effectBase, rewrite *baseRewrite) (*commandEffectManifest, bool, error) {
 	relative, err := repositoryRelativePath(base.root, project, commandEffectInventory)
 	if err != nil {
 		return nil, false, err
@@ -160,8 +168,20 @@ func loadBaseCommandEffects(project string, base effectBase) (*commandEffectMani
 	if err != nil {
 		return nil, false, err
 	}
-	manifest, err := decodeCommandEffects(stored.Document)
+	manifest, err := decodeCommandEffects(rewrite.apply(stored.Document))
 	return manifest, false, err
+}
+
+func adoptRenamedDigests(base, candidate *commandEffectManifest) {
+	digests := make(map[string]string, len(candidate.Entries))
+	for _, entry := range candidate.Entries {
+		digests[entry.key()] = entry.BindingDigest
+	}
+	for index, entry := range base.Entries {
+		if digest, ok := digests[entry.key()]; ok {
+			base.Entries[index].BindingDigest = digest
+		}
+	}
 }
 
 // Only the first register may cite the new implementation addendum. Once a
@@ -296,7 +316,7 @@ func (entry commandEffectEntry) changedBindingFailures(was commandEffectEntry, i
 	return failures
 }
 
-func compareCommandEffectsIfEnabled(project, ref string, policy *Policy) error {
+func compareCommandEffectsIfEnabled(project, ref string, policy *Policy, rewrite *baseRewrite) error {
 	if !commandEffectsEnabled(policy) {
 		return nil
 	}
@@ -305,7 +325,7 @@ func compareCommandEffectsIfEnabled(project, ref string, policy *Policy) error {
 	if _, err := os.Stat(filepath.Join(project, commandEffectInventory)); os.IsNotExist(err) {
 		return nil
 	}
-	return CompareCommandEffects(project, ref)
+	return CompareCommandEffects(project, ref, rewrite)
 }
 
 func (manifest *commandEffectManifest) unresolvedCount() int {

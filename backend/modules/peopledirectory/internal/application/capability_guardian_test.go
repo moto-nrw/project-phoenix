@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // stubProvider answers every guardian operation with canned values and

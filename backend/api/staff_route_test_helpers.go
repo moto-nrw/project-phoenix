@@ -6,20 +6,20 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
 
-	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
+	birthdaysAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/birthdays"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	devicefleetCompose "github.com/moto-ogs/project-phoenix/modules/devicefleet/compose"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func newStaffIdentityForTests(db transactionruntime.Database) (*owners.CallerRows, owners.MembershipTestRepositories, error) {

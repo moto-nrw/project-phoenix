@@ -12,14 +12,14 @@ import (
 	strings "strings"
 	time "time"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	absencerecords "github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	absencerecords "github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	securityruntime "github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 const (

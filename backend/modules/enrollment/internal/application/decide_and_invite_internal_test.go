@@ -8,8 +8,8 @@ import (
 	"log/slog"
 	"testing"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

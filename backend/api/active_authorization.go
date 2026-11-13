@@ -3,12 +3,12 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth"
 
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
+	devicescanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	presenceAPI "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence"
 )
 
 func authorizeActiveVisit(ctx context.Context, accountID int64, readAll bool, visitID int64, facts presenceAPI.VisitAccessQuery) (bool, error) {

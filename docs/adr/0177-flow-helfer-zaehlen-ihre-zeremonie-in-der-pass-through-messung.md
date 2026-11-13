@@ -5,7 +5,7 @@ status: accepted
 # Flow-Helfer zählen ihre Zeremonie in der Pass-through-Messung
 
 Entscheidung vom 08.11.2026 für Punkt 1 von
-[#6178](https://github.com/moto-nrw/project-phoenix/issues/6178). Sie ergänzt
+[#6178](https://github.com/moto-ogs/project-phoenix/issues/6178). Sie ergänzt
 Bedingung 3 von `TestModulePassthroughRatchet` und das gemeinsame Prädikat
 `internal/passthrough.IsDelegation` ([ADR 0075](0075-pass-throughs-keep-a-per-owner-floor.md),
 [ADR 0090](0090-exact-method-evidence-supplements-pass-through-floors.md)). Kein Budget,

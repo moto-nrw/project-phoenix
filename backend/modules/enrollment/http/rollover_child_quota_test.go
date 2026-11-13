@@ -5,16 +5,16 @@ import (
 	"testing"
 	"time"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The automatic approval at the school-year change keeps the Kinderkontingent

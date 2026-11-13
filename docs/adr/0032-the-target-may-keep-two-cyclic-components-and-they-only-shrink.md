@@ -8,10 +8,10 @@ status: superseded by ADR 0058
 > 2026-10-15: the target graph is acyclic, without member lists. The cut of
 > `organization-tenancy -> delivery-platform` below still stands (#4072).
 
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580) names the
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580) names the
 cycle among the backend package families as a problem and then only requires an
 acyclic ticket plan.
-[#3417](https://github.com/moto-nrw/project-phoenix/issues/3417) added the
+[#3417](https://github.com/moto-ogs/project-phoenix/issues/3417) added the
 `cycles` report and left two decisions to a human: what happens to the platform
 triangle, and which cycle degree the end state permits. We decide both here. A
 cyclic component is a strongly connected component of the owner graph with at
@@ -61,7 +61,7 @@ reverse edge exists only through `settings-platform.http.delivery-public`, by
 which the operator school settings routes broadcast a settings change through
 the Delivery producer. Its own description marks it as a compatibility
 permission of
-[#2736](https://github.com/moto-nrw/project-phoenix/issues/2736), to be
+[#2736](https://github.com/moto-ogs/project-phoenix/issues/2736), to be
 converted to exact debt. It stays temporary and must not be rewritten into a
 permanent rule. When #2736 removes it, the two platforms no longer form a
 cycle on their own. `settings-platform.http.organization-public` stays;

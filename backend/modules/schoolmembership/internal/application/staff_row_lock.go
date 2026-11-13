@@ -4,9 +4,9 @@ import (
 	"context"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // findStaffRow is the one read of a staff row and, with a lock, the one

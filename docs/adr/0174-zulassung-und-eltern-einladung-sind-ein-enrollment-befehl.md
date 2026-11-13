@@ -5,7 +5,7 @@ status: accepted
 # Zulassung und Eltern-Einladung sind ein Enrollment-Befehl
 
 Status: Angenommen. Entschieden am 08.11.2026 im umsetzenden PR zu
-[#6093](https://github.com/moto-nrw/project-phoenix/issues/6093); Review und
+[#6093](https://github.com/moto-ogs/project-phoenix/issues/6093); Review und
 Merge dieses PRs sind die Freigabe. Die Entscheidung wendet
 [ADR 0067](0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md)
 (Addendum #4538, Ausnahme E1) an. Sie führt keinen Owner, keine Policy-Regel

@@ -3,9 +3,9 @@ package timetracking_test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func recordAbsenceAudit(ctx context.Context, records timetracking.AbsenceAuditRecords, audit *timetracking.StaffAbsenceAudit) error {

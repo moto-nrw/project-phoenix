@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/stretchr/testify/require"
 )
 

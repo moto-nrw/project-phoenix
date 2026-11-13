@@ -4,8 +4,8 @@ import (
 	errors "errors"
 	http "net/http"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // parseAndGetStudent parses the student ID from the URL and fetches the student

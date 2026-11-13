@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // #5206: a kiosk start that joins a device-less room stay moves the open

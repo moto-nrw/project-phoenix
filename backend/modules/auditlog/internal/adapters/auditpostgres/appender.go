@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog/classlist"
-	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
-	auditImports "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog/classlist"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog/consents"
+	auditImports "github.com/moto-ogs/project-phoenix/modules/auditlog/imports"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 	"github.com/uptrace/bun"
 )
 

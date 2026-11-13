@@ -242,6 +242,7 @@ export function PersonFields({
       <ISODateInput
         label="Geburtsdatum"
         id="stammdaten-birthday"
+        autoComplete="bday"
         value={draft.birthday}
         onChange={(value) => onChange({ birthday: value })}
         onValidityChange={onBirthdayValidityChange}

@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	parentaudience "github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	parentaudience "github.com/moto-ogs/project-phoenix/modules/parentannouncementaudience/contract"
 )
 
 type projectionAnnouncementAudienceReads interface {

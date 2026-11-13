@@ -4,7 +4,7 @@ status: proposed
 
 # Offboarding liest nur den Kontoerhalt durch Trägermitgliedschaft
 
-Für [#5974](https://github.com/moto-nrw/project-phoenix/issues/5974) bleibt eine
+Für [#5974](https://github.com/moto-ogs/project-phoenix/issues/5974) bleibt eine
 Trägermitgliedschaft mit Status `pending` oder `active` beim Schul-Offboarding
 ein Grund, das Konto aktiv zu halten. Der Zustand des Trägers ändert daran
 nichts, analog `auth.account_is_unused`. Die Anmeldung prüft weiterhin die

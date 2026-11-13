@@ -3,10 +3,10 @@
 package api
 
 import (
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // ClassListTestModule is the School Membership owner with its class-list

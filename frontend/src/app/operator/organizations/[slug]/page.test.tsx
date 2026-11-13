@@ -222,6 +222,11 @@ vi.mock("~/components/teachers/caregiver-capability-modal", () => ({
 
 import OperatorOrganizationDetailPage from "./page";
 import { revalidateTenantCache } from "~/lib/operator/provisioning-api";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
+import { reloadDocument } from "~/lib/reload-document";
 
 const mockOrg = {
   id: "1",
@@ -1746,33 +1751,32 @@ describe("OperatorOrganizationDetailPage", () => {
         });
         fireEvent.click(await screen.findByText("Bearbeiten"));
         const modal = await screen.findByTestId("modal");
+        resetPageReloads();
         mockListOrganizationSummaries.mockRejectedValueOnce(
           new ApiError("failed", status),
         );
         fireEvent.click(
           within(modal).getByRole("button", { name: "Speichern" }),
         );
+        if (status === 403) {
+          await expectPageReloadedAfterRefusal();
+          expect(mockUpdateOrganization).toHaveBeenCalledTimes(1);
+          return;
+        }
         expect(
           await screen.findByText(
-            `${catalogText(status === 403 ? "general.permission" : "general.unavailable", "die Anzeige des Trägers")} ${SAVED_BUT_STALE_SUFFIX}`,
+            `${catalogText("general.unavailable", "die Anzeige des Trägers")} ${SAVED_BUT_STALE_SUFFIX}`,
           ),
         ).toBeVisible();
         expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
         expect(mockUpdateOrganization).toHaveBeenCalledTimes(1);
-        if (status === 403) {
-          expect(screen.queryAllByText("Test Org")).toHaveLength(0);
-          const entry = [...cache.entries()].find(([key]) =>
-            key.endsWith(":operator-organization-summaries"),
-          )?.[1];
-          expect(entry?.data).toBeUndefined();
-        } else {
-          expect(screen.getAllByText("Test Org").length).toBeGreaterThan(0);
-          fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
-          await waitFor(() =>
-            expect(mockListOrganizationSummaries).toHaveBeenCalledTimes(3),
-          );
-          expect(mockUpdateOrganization).toHaveBeenCalledTimes(1);
-        }
+        expect(screen.getAllByText("Test Org").length).toBeGreaterThan(0);
+        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+        await waitFor(() =>
+          expect(mockListOrganizationSummaries).toHaveBeenCalledTimes(3),
+        );
+        expect(mockUpdateOrganization).toHaveBeenCalledTimes(1);
+        expect(reloadDocument).not.toHaveBeenCalled();
       },
     );
 

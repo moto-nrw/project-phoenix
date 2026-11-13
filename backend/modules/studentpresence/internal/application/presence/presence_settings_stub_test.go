@@ -3,7 +3,7 @@ package presence_test
 import (
 	"context"
 
-	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	active "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
 )
 
 // presenceSettingsStub answers the presence settings questions with scripted

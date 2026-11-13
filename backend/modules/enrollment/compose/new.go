@@ -1,10 +1,10 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
-	applicationNative "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/adapters/postgres"
+	applicationNative "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // New binds Enrollment to the ambient transaction, never to an unscoped pool when a caller forgot its transaction.

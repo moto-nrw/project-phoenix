@@ -9,7 +9,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Registered error codes (error-registry/) the simulation expects from

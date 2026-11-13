@@ -35,20 +35,50 @@ import {
   weekdayList,
 } from "./care-billing-format";
 import { formatEuro } from "./contribution-format";
+import { schoolsConcept } from "~/lib/concepts/schools";
 
-/** A price with the price for every further child under it. */
+type SiblingPricesApply = (careOfferingId: string) => boolean;
+const defaultSiblingPricesApply: SiblingPricesApply = () => true;
+
+/** Whether a row of the list names a sibling price. */
+function hasSiblingPrices(row: PriceRow): boolean {
+  return (
+    Object.keys(row.siblingPrices).length > 0 ||
+    Object.keys(row.siblingSteps).length > 0
+  );
+}
+
+/**
+ * A price with the price for every further child under it. A stored sibling
+ * price that no rule bills stays visible, muted, so the office can check what
+ * is saved; the line above the table says once that it does not apply. From
+ * md on the row's label column names the two lines once („1. Kind“ /
+ * „ab 2. Kind“); a phone row names the second line in the cell.
+ */
 function PriceCell({
   cents,
   sibling,
+  siblingApplies,
   booked,
-}: Readonly<{ cents?: number; sibling?: number; booked: boolean }>) {
+}: Readonly<{
+  cents?: number;
+  sibling?: number;
+  siblingApplies: boolean;
+  booked: boolean;
+}>) {
   if (cents !== undefined) {
     return (
       <span className="inline-flex flex-col items-end leading-tight">
         <span className="text-gray-900 tabular-nums">{formatEuro(cents)}</span>
         {sibling !== undefined && sibling !== cents ? (
-          <span className="text-xs text-gray-600 tabular-nums">
-            weitere {formatEuro(sibling)}
+          <span
+            className={`text-sm tabular-nums ${siblingApplies ? "text-gray-600" : "text-gray-500"}`}
+          >
+            <span className="md:sr-only">ab 2. Kind </span>
+            {formatEuro(sibling)}
+            {siblingApplies ? null : (
+              <span className="sr-only"> (gilt zurzeit nicht)</span>
+            )}
           </span>
         ) : null}
       </span>
@@ -66,11 +96,53 @@ function PriceCell({
   );
 }
 
+/** Whether a cell of the row shows a second line for the 2nd child on. */
+function rowHasSiblingLine(row: PriceRow): boolean {
+  const differs = (
+    prices: Partial<Record<string, number>>,
+    siblings: Partial<Record<string, number>>,
+  ) =>
+    Object.entries(siblings).some(
+      ([key, cents]) =>
+        prices[key] !== undefined &&
+        cents !== undefined &&
+        cents !== prices[key],
+    );
+  return (
+    differs(row.prices, row.siblingPrices) ||
+    differs(row.steps, row.siblingSteps)
+  );
+}
+
+/**
+ * Names the two lines of the price cells once per row, from the tablet on:
+ * the cells then carry only amounts and the module keeps its width.
+ */
+function siblingLabelColumn(): DataTableColumn<PriceRow> {
+  return {
+    key: "price-for",
+    header: "Preis für",
+    headerSrOnly: true,
+    align: "right",
+    stacked: "hidden",
+    className: "align-top",
+    render: (row) =>
+      rowHasSiblingLine(row) ? (
+        <span className="inline-flex flex-col items-end leading-tight whitespace-nowrap text-gray-500">
+          <span>1. Kind</span>
+          <span className="text-sm">ab 2. Kind</span>
+        </span>
+      ) : null,
+  };
+}
+
 function moduleColumn(): DataTableColumn<PriceRow> {
   return {
     key: "module",
     header: "Modul",
     stacked: "title",
+    // Top-aligned like the price cells, whose second line may be empty.
+    className: "align-top",
     render: (row) => (
       <div className="min-w-0">
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-gray-900">
@@ -84,7 +156,7 @@ function moduleColumn(): DataTableColumn<PriceRow> {
             />
           ) : null}
         </p>
-        <p className="mt-0.5 text-xs text-gray-600">
+        <p className="mt-0.5 text-sm text-gray-600">
           {[
             endsAtLabel(row.endsAt),
             row.contractCount > 0
@@ -101,21 +173,26 @@ function moduleColumn(): DataTableColumn<PriceRow> {
 
 function weekdayColumns(
   weekdays: readonly CareWeekday[],
+  siblings: SiblingPricesApply,
+  labels: boolean,
 ): DataTableColumn<PriceRow>[] {
   const cell = (row: PriceRow, weekday: CareWeekday) => (
     <PriceCell
       cents={row.prices[weekday]}
       sibling={row.siblingPrices[weekday]}
+      siblingApplies={siblings(row.careOfferingId)}
       booked={row.bookedWeekdays.includes(weekday)}
     />
   );
   return [
     moduleColumn(),
+    ...(labels ? [siblingLabelColumn()] : []),
     ...weekdays.map((weekday): DataTableColumn<PriceRow> => ({
       key: weekday,
       header: WEEKDAY_SHORT[weekday],
       align: "right",
       stacked: "field",
+      className: "align-top",
       stackedRender: (row) => (
         <span>
           <span className="text-gray-600">{WEEKDAY_LONG[weekday]}: </span>
@@ -127,21 +204,27 @@ function weekdayColumns(
   ];
 }
 
-function scaleColumns(): DataTableColumn<PriceRow>[] {
+function scaleColumns(
+  siblings: SiblingPricesApply,
+  labels: boolean,
+): DataTableColumn<PriceRow>[] {
   const cell = (row: PriceRow, days: number) => (
     <PriceCell
       cents={row.steps[days]}
       sibling={row.siblingSteps[days]}
+      siblingApplies={siblings(row.careOfferingId)}
       booked={row.bookedDaysPerWeek.includes(days)}
     />
   );
   return [
     moduleColumn(),
+    ...(labels ? [siblingLabelColumn()] : []),
     ...SCALE_STEPS.map((days): DataTableColumn<PriceRow> => ({
       key: `days-${days}`,
       header: daysLabel(days),
       align: "right",
       stacked: "field",
+      className: "align-top",
       stackedRender: (row) => (
         <span>
           <span className="text-gray-600">{daysLabel(days)} je Woche: </span>
@@ -162,9 +245,16 @@ export function CarePriceListCard({
   onShownMonthChange,
   onEdit,
   onDelete,
+  siblingPricesApply = defaultSiblingPricesApply,
 }: Readonly<{
   data: CareTariffs;
   school: { id: string; name: string };
+  /**
+   * Whether a sibling rule bills the sibling prices of each module
+   * („Preis laut Preisliste“). Without one they are never charged: the cells
+   * show them muted and the line above each table says so once.
+   */
+  siblingPricesApply?: SiblingPricesApply;
   /** The price list the card shows, "YYYY-MM-01"; empty without one. */
   shownMonth: string;
   currentMonth: string;
@@ -201,7 +291,7 @@ export function CarePriceListCard({
       ? `Im ${freeMonthsLabel(freeMonths)} zahlen Familien keinen Beitrag.`
       : null,
     billedUntil
-      ? `Abgerechnet bis ${formatMonth(billedUntil)}. Preise, mit denen schon abgerechnet ist, bleiben. Fehlende Preise können Sie ergänzen.`
+      ? `Abgerechnet bis ${formatMonth(billedUntil)}. Abgerechnete Preise bleiben, fehlende können Sie ergänzen.`
       : null,
   ]
     .filter(Boolean)
@@ -211,30 +301,43 @@ export function CarePriceListCard({
     groupRows: PriceRow[],
     columns: DataTableColumn<PriceRow>[],
     label: string,
-  ) =>
-    groupRows.length === 0 ? null : (
+    basis: string,
+  ) => {
+    const inactiveModules = groupRows.filter(
+      (row) => hasSiblingPrices(row) && !siblingPricesApply(row.careOfferingId),
+    );
+    return groupRows.length === 0 ? null : (
       <div className="space-y-2">
         {weekdayRows.length > 0 && scaleRows.length > 0 ? (
           <SectionLabel as="h3">{label}</SectionLabel>
         ) : null}
+        {/* What the amounts are stays right above them, whatever the card
+            says about free months or billing; so does whether the prices
+            from the 2nd child on apply. */}
+        <p className="text-sm text-gray-600">
+          {basis}
+          {inactiveModules.length > 0
+            ? ` Die Preise ab dem 2. Kind gelten hier zurzeit nicht: ${inactiveModules.map((row) => `„${row.moduleName}“`).join(", ")}. Prüfen Sie die Regel unter „Ermäßigungen“.`
+            : null}
+        </p>
         <DataTable
           columns={columns}
           rows={groupRows}
           getRowKey={(row) => row.careOfferingId}
+          // Five or more price columns: narrower cells keep the price from
+          // the 2nd child on one line from the laptop on.
+          dense
           stackedOnMobile
         />
       </div>
     );
+  };
 
   return (
     <SectionCard
+      concept={schoolsConcept}
       title={school.name}
-      description={
-        description ||
-        (scaleRows.length > 0 && weekdayRows.length === 0
-          ? "Monatspreis nach Zahl der gebuchten Tage je Woche."
-          : "Monatspreis je gebuchtem Wochentag.")
-      }
+      description={description || undefined}
       actions={
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" size="md" onClick={onEdit}>
@@ -283,10 +386,23 @@ export function CarePriceListCard({
           <>
             {table(
               weekdayRows,
-              weekdayColumns(weekdays),
+              weekdayColumns(
+                weekdays,
+                siblingPricesApply,
+                weekdayRows.some(rowHasSiblingLine),
+              ),
               PRICE_FORM_LABELS.weekday,
+              "Jeder Betrag ist der Monatspreis für einen gebuchten Wochentag.",
             )}
-            {table(scaleRows, scaleColumns(), PRICE_FORM_LABELS.days_per_week)}
+            {table(
+              scaleRows,
+              scaleColumns(
+                siblingPricesApply,
+                scaleRows.some(rowHasSiblingLine),
+              ),
+              PRICE_FORM_LABELS.days_per_week,
+              "Jeder Betrag ist der Monatspreis bei so vielen gebuchten Tagen je Woche.",
+            )}
           </>
         )}
         {gaps.length > 0 ? (

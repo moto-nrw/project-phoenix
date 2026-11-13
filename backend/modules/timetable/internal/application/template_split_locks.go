@@ -5,9 +5,9 @@ import (
 	"errors"
 	"slices"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Lock old and successor people together before capping any supervisor or

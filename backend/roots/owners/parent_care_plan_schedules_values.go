@@ -1,9 +1,9 @@
 package owners
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 func parentCarePlanFromOwnerArrivalException(value careplan.ArrivalException) parentportal.ArrivalExceptionSnapshot {

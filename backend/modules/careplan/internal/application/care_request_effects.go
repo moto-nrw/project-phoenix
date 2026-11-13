@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
 )
 
 // CareRequestEffectPorts are the owners a care request transition reports
@@ -25,7 +25,10 @@ type CareRequestEffectPorts struct {
 	Ledger      ports.RequestLedger
 	Shares      ports.ShareVisibility
 	Broadcaster ports.CareScheduleBroadcaster
-	Logger      *slog.Logger
+	// PickupChanges tells the child's team about an approved one-day pickup
+	// time (#6855); nil skips it.
+	PickupChanges ports.PickupChangeNotifier
+	Logger        *slog.Logger
 }
 
 // CareRequestEffects tells the families and the staff tabs about a care
@@ -104,6 +107,9 @@ func (e *CareRequestEffects) RegisterDecision(ctx context.Context, req *carerequ
 	if input.Approve {
 		e.hooks.AfterCommit(ctx, func() { e.recordApplyAudit(req, input.ReviewedBy) })
 		e.broadcastCareScheduleChanges(ctx, e.hooks.TenantID(ctx), req.StudentID, companionsChanged)
+		if err := e.notifyPickupChange(ctx, req, input.ReviewedBy, false); err != nil {
+			return err
+		}
 	} else {
 		e.hooks.AfterCommit(ctx, func() {
 			e.deps.Logger.Info("care request rejected",
@@ -131,6 +137,24 @@ func (e *CareRequestEffects) RegisterDecision(ctx context.Context, req *carerequ
 	}
 	e.WakeGuardians(ctx, req)
 	return nil
+}
+
+// notifyPickupChange tells the child's team the pickup time an approved
+// one-day request made current, or that a corrected decision took it back.
+// A request that only changes the Abholart or the collector names no new
+// time and stays silent.
+func (e *CareRequestEffects) notifyPickupChange(ctx context.Context, req *carerequests.Request, reviewerAccountID int64, withdrawn bool) error {
+	if e.deps.PickupChanges == nil || req.RequestKind != "pickup_change" {
+		return nil
+	}
+	terms := carerequests.StoredPickupTerms(req.Payload)
+	if terms == nil || terms.PickupTime == "" {
+		return nil
+	}
+	return e.deps.PickupChanges.NotifyPickupChangeApproved(ctx, ports.PickupChangeNotice{
+		TenantID: e.tenantOf(ctx, req.TenantID), StudentID: req.StudentID, Date: terms.Date,
+		PickupTime: terms.PickupTime, Withdrawn: withdrawn, ReviewerAccountID: reviewerAccountID, RequestID: req.ID,
+	})
 }
 
 // ReloadDecision reads the decided request back as the review item the
@@ -176,8 +200,15 @@ func (e *CareRequestEffects) RecordCorrection(ctx context.Context, req *carerequ
 	return e.record(ctx, req, careplan.ParentRequestEventCorrected, actorID, payload)
 }
 
-// NotifyCorrection posts the "Entscheidung geändert" pill.
+// NotifyCorrection posts the "Entscheidung geändert" pill and tells the
+// child's team when the correction makes a one-day pickup time current or
+// takes it back (#6855).
 func (e *CareRequestEffects) NotifyCorrection(ctx context.Context, req *carerequests.Request, actorID int64, approve bool, reason string) error {
+	if approve || req.Status == carerequests.StatusApproved {
+		if err := e.notifyPickupChange(ctx, req, actorID, !approve); err != nil {
+			return err
+		}
+	}
 	status, body := correctedCarePill(req, approve)
 	return e.emitPill(ctx, req, ports.RequestEvent{
 		EventType: careplan.ParentMessageEventRequestStatus, ActorKind: careplan.ParentMessageActorStaff,

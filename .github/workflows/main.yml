@@ -61,6 +61,7 @@ jobs:
       # release pull requests are always full because they revalidate the whole
       # tree, not just what the change touched.
       full-backend-suite: ${{ steps.backend-size.outputs.full == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
+      small-backend-suite: ${{ steps.backend-size.outputs.small == 'true' }}
       full-frontend-suite: ${{ steps.frontend-mode.outputs.mode == 'full' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
       # Pull requests test what changed against the base branch. Protected-branch
       # pushes and release pull requests run the full suites.
@@ -72,11 +73,15 @@ jobs:
       base-ref: ${{ github.base_ref }}
       # The script suites, the env sync and the error-code registry check only
       # files their own filter lists. Docs-only pull requests skip all three.
-      run-ci-scripts: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.tooling == 'true' || steps.filter.outputs.quality-scripts == 'true' || steps.filter.outputs.hooks == 'true' || steps.filter.outputs.toolchain == 'true' || steps.filter.outputs.script-tests == 'true' }}
+      run-ci-scripts: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.tooling == 'true' || steps.filter.outputs.quality-scripts == 'true' || steps.filter.outputs.hooks == 'true' || steps.filter.outputs.toolchain == 'true' || steps.filter.outputs.script-tests == 'true' || steps.filter.outputs.backend-local-test-scripts == 'true' || steps.backend-size.outputs.full == 'true' || steps.filter.outputs.backend-test-infra == 'true' }}
       run-env-check: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.env == 'true' }}
       run-error-codes: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.error-codes == 'true' }}
       tooling-changed: ${{ steps.filter.outputs.tooling == 'true' }}
-      toolchain-changed: ${{ steps.filter.outputs.toolchain == 'true' }}
+      # The ratchets suite also runs the self-tests of the backend test
+      # scripts: for a change to the local wrappers, and whenever the backend
+      # suite is full. They ran inside "Backend tests" on full runs and took
+      # 44-76 s of the job that sets the wall-clock time (13.11.2026).
+      toolchain-changed: ${{ steps.filter.outputs.toolchain == 'true' || steps.filter.outputs.backend-local-test-scripts == 'true' || steps.backend-size.outputs.full == 'true' || steps.filter.outputs.backend-test-infra == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
     steps:
       # paths-filter reads PR files through the API. Ordinary frontend PRs
       # check out only the shared classifier below; pushes compare commits.
@@ -122,6 +127,7 @@ jobs:
               - 'backend/architecture/passthrough/**'
               - 'backend/test/query-budgets/**'
               - 'backend/**/testdata/**'
+              - 'backend/database/audits/*.sql'
               # Shrink-only ratchet registers, read by ./test.
               - 'backend/test/*.json'
               # Read by path from tests in ./test, ./cmd and identityaccess.
@@ -209,18 +215,26 @@ jobs:
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'
               - 'scripts/backend-lint-packages.sh'
-              - 'scripts/test-backend.sh'
-              - 'scripts/go-test-link-cache.sh'
-              - 'scripts/go-test-link-key.go'
-              - 'scripts/go-test-link-cache_test.sh'
               - 'scripts/backend-test-matrix.sh'
               - 'scripts/backend-test-matrix_test.sh'
               - 'scripts/backend-package-budgets.mjs'
               - 'scripts/backend-package-budgets.json'
               - 'scripts/backend-package-budgets.test.mjs'
+              - 'scripts/test-run-id.sh'
+            # The local test wrappers and their self-tests. No CI job runs the
+            # backend tests through them, so a change here cannot alter what
+            # test-backend runs: ci-scripts runs their self-tests instead of
+            # the full backend suite (#6784: a frontend pull request ran
+            # 42,000 backend tests for an edit of test-changed_test.sh).
+            backend-local-test-scripts:
+              - 'scripts/test-backend.sh'
+              - 'scripts/go-test-link-cache.sh'
+              - 'scripts/go-test-link-key.go'
+              - 'scripts/go-test-link-cache_test.sh'
+              - 'scripts/go-cache-sweep.sh'
+              - 'scripts/go-cache-sweep_test.sh'
               - 'scripts/test-changed.sh'
               - 'scripts/test-changed_test.sh'
-              - 'scripts/test-run-id.sh'
               - 'scripts/go-package-workers.sh'
               - 'scripts/total-memory-gb.sh'
             frontend-test-infra:
@@ -422,6 +436,14 @@ jobs:
           full=$(jq 'any(.[]; . == "backend/go.mod" or . == "backend/go.sum") or
             (map(select(endswith(".go")) | split("/")[:-1] | join("/")) | unique | length >= 64)' <<< "$CHANGED_FILES")
           echo "full=$full" >> "$GITHUB_OUTPUT"
+          # The backend test job selects its packages itself and needs its
+          # runner before that. A changed test file selects only its own
+          # package, so test files in at most 15 directories plus ./test stay
+          # within the 16 packages four vCPUs are sized for. Every other
+          # change may reach any number of importers and gets eight.
+          small=$(jq 'length > 0 and all(.[]; endswith("_test.go")) and
+            (map(split("/")[:-1] | join("/")) | unique | length <= 15)' <<< "$CHANGED_FILES")
+          echo "small=$small" >> "$GITHUB_OUTPUT"
 
   ci-scripts:
     name: CI and release script suites (${{ matrix.suite }})
@@ -514,11 +536,21 @@ jobs:
         working-directory: backend
         run: go test -tags=testhooks -count=1 -run Ratchet ./test
 
-      # The selector suite also pins contracts in main.yml and lint.yml. A
-      # lint.yml-only change does not start test-backend, which runs it too.
+      # The selector suite also pins contracts in main.yml and lint.yml.
       - name: Verify workflow selection contracts
         if: matrix.suite == 'ratchets'
         run: scripts/backend-affected-packages_test.sh
+
+      # Not in "Backend tests": that job sets the wall-clock time. This suite
+      # starts whenever the backend suite is full or one of these scripts
+      # changed (toolchain-changed in detect-changes).
+      - name: Verify backend test scripts
+        if: matrix.suite == 'ratchets'
+        run: |
+          scripts/backend-test-matrix_test.sh
+          scripts/test-changed_test.sh
+          scripts/go-test-link-cache_test.sh
+          scripts/go-cache-sweep_test.sh
 
   lint:
     name: Lint
@@ -670,6 +702,7 @@ jobs:
       changed-scope: ${{ needs.detect-changes.outputs.changed-scope == 'true' }}
       base_ref: ${{ needs.detect-changes.outputs.base-ref }}
       full-backend-suite: ${{ needs.detect-changes.outputs.full-backend-suite == 'true' }}
+      backend-small-runner: ${{ needs.detect-changes.outputs.small-backend-suite == 'true' && needs.detect-changes.outputs.full-backend-suite != 'true' }}
       full-frontend-suite: ${{ needs.detect-changes.outputs.full-frontend-suite == 'true' }}
       frontend-guards-only: ${{ needs.detect-changes.outputs.frontend-guards-only == 'true' }}
       run-frontend-runner-tests: ${{ needs.detect-changes.outputs.run-frontend-runner-tests == 'true' }}

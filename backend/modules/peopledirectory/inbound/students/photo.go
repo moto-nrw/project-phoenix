@@ -9,9 +9,9 @@ import (
 
 	chi "github.com/go-chi/chi/v5"
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // publicPhotoBaseDir + StudentPhotoStoredURLPrefix must stay aligned —

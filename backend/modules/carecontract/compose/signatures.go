@@ -3,10 +3,10 @@ package compose
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/adapters/rendering"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/internal/adapters/rendering"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/internal/application"
 )
 
 // SignaturePorts bind the signature of a contract (#4679).

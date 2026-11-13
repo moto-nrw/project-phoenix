@@ -15,20 +15,24 @@
 import { Pencil, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { MouseEvent } from "react";
 import {
   BillingAmountCards,
   sumAmounts,
 } from "~/components/traeger/billing-amount-cards";
 import {
-  PAYMENT_TONES,
+  billingAreaTitle,
   billingTabs,
   familyMatches,
   familyName,
   familySortName,
+  PAYMENT_TONES,
   paymentLabel,
 } from "~/components/traeger/billing-family-format";
 import { paymentMethodsText } from "~/components/traeger/billing-payment-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
+import { emptySearchText } from "~/components/traeger/empty-search";
+import { EmailText } from "~/components/traeger/email-text";
 import { DEBTOR_NUMBER_TEXT_CLASS } from "~/components/traeger/family-debtor-number";
 import { FamilyDebtorNumberModal } from "~/components/traeger/family-debtor-number-modal";
 import { useDebtorNumberFormat } from "~/components/traeger/use-debtor-number-format";
@@ -43,6 +47,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
+import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { parentsConcept } from "~/lib/concepts/parents";
@@ -71,7 +76,7 @@ const NUMBER_FILTER_LABELS: Record<Exclude<NumberFilter, "">, string> = {
 
 function euroCell(cents: number) {
   return cents === 0 ? (
-    <span className="text-gray-400 tabular-nums">{formatEuro(0)}</span>
+    <span className="text-gray-500 tabular-nums">{formatEuro(0)}</span>
   ) : (
     <span className="tabular-nums">{formatEuro(cents)}</span>
   );
@@ -176,7 +181,9 @@ function familyColumns(
                 <NavigationLink
                   href={familyHref(family)}
                   className="truncate font-medium text-gray-900 hover:underline"
-                  onClick={(event) => event.stopPropagation()}
+                  onClick={(event: MouseEvent<HTMLAnchorElement>) =>
+                    event.stopPropagation()
+                  }
                 >
                   {familyName(family) || family.familyEmail}
                 </NavigationLink>
@@ -191,8 +198,11 @@ function familyColumns(
                 </span>
               ) : null}
             </span>
-            <span className="block truncate text-sm text-gray-500">
-              {family.recipientEmail}
+            {/* The address gives way first: on a tablet all four sums stay
+                in view beside it. There it wraps after its „@“ instead of
+                being cut, so the whole address stays readable. */}
+            <span className="block max-w-56 truncate text-sm text-gray-500 md:max-xl:max-w-36 md:max-xl:whitespace-normal">
+              <EmailText email={family.recipientEmail} />
             </span>
           </span>
         </span>
@@ -279,7 +289,7 @@ function familyColumns(
             {formatEuro(family.openCents)}
           </span>
         ) : (
-          <span className="text-gray-400 tabular-nums">{formatEuro(0)}</span>
+          <span className="text-gray-500 tabular-nums">{formatEuro(0)}</span>
         ),
       stacked: "meta",
     },
@@ -318,7 +328,7 @@ export default function TraegerBillingFamiliesPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Familien",
+        object: "die Liste der Familien",
         retry: () => void load(),
       });
     }
@@ -398,10 +408,14 @@ export default function TraegerBillingFamiliesPage() {
     setOpenFilter("");
     setNumberFilter("");
   };
+  const emptySearch = emptySearchText(
+    search,
+    activeFilters.map((filter) => filter.label),
+  );
 
   return (
     <TenantPage
-      title="Abrechnung"
+      title={billingAreaTitle("familien")}
       info="Hier sehen Sie je Familie alle Rechnungen, Stornos und Gutschriften und ihre Debitorennummer. Eine Familie ist eine E-Mail-Adresse. Familien aus der Ferienbetreuung stehen hier schon nach dem Bestätigen der Anmeldung. Die offene Forderung ist, was die Rechnungen nach Storno und Gutschrift noch verlangen. Zahlungen sieht moto nicht. Ob eine Familie schon gezahlt hat, prüfen Sie in Ihrer Buchhaltung."
       tabs={billingTabs("familien")}
       stats={
@@ -432,7 +446,7 @@ export default function TraegerBillingFamiliesPage() {
       search={{
         value: search,
         onChange: setSearch,
-        placeholder: "Name, E-Mail oder Debitorennummer",
+        placeholder: "Name, E-Mail, Debitorennummer",
       }}
       filters={filters}
       activeFilters={activeFilters}
@@ -441,7 +455,14 @@ export default function TraegerBillingFamiliesPage() {
         setNumberFilter("");
       }}
       error={pageLoad.error}
-      loading={!pageLoad.error && !families}
+      // A list loads in the shape of its rows.
+      loading={
+        !pageLoad.error && !families ? (
+          <ListSkeleton rows={6} avatar={false} />
+        ) : (
+          false
+        )
+      }
       overlays={
         <FamilyDebtorNumberModal
           family={changing}
@@ -453,12 +474,26 @@ export default function TraegerBillingFamiliesPage() {
     >
       {families ? (
         <>
-          <BillingAmountCards amounts={sumAmounts(shown)} />
+          {/* Die Summen folgen Suche und Filter; die erste Kachel sagt, für
+              wen. Ohne Treffer steht die Meldung direkt unter der Suche. */}
+          {filtered && shown.length === 0 ? null : (
+            <BillingAmountCards
+              amounts={sumAmounts(shown)}
+              scope={
+                filtered
+                  ? `Rechnungen der ${shown.length} gefundenen ${shown.length === 1 ? "Familie" : "Familien"}.`
+                  : undefined
+              }
+            />
+          )}
           <DataTable
             columns={columns}
             rows={shown}
             getRowKey={(family) => family.familyEmail || family.id}
             defaultSortKey="family"
+            // Seven columns with four sums: narrower cells keep the open
+            // claim in view beside the family on a laptop and a tablet.
+            dense
             stackedOnMobile
             stackedLayout="row"
             stackedDetailKey="debtor"
@@ -469,7 +504,7 @@ export default function TraegerBillingFamiliesPage() {
               filtered ? (
                 <EmptyState
                   title="Keine Familie passt zur Suche."
-                  description="Ändern Sie die Suche oder den Filter."
+                  description={emptySearch.description}
                   action={
                     <Button
                       type="button"
@@ -477,7 +512,7 @@ export default function TraegerBillingFamiliesPage() {
                       size="md"
                       onClick={resetFilters}
                     >
-                      Filter zurücksetzen
+                      {emptySearch.actionLabel}
                     </Button>
                   }
                 />

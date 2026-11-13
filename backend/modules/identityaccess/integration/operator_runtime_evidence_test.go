@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	identityCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestOperatorRuntimeEvidence records the flow-specific runtime evidence for

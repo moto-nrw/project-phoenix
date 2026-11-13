@@ -6,9 +6,9 @@ import (
 	http "net/http"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	carerequests "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	carerequests "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // DecideCareRequestBody is the body of POST

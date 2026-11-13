@@ -1,10 +1,10 @@
 package api
 
 import (
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // The roots below compose Student Presence, its session records and the

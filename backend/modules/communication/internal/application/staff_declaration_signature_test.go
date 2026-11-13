@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	declarations "github.com/moto-nrw/project-phoenix/modules/communication"
+	declarations "github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // A signed answer is intact only with its stored, unchanged signature given

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 )
 
 type StudentDeletionRepository struct {

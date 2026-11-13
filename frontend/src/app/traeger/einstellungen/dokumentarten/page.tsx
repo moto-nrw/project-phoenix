@@ -54,7 +54,7 @@ function useDocumentKinds(enabled: boolean) {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Dokumentarten",
+        object: "die Liste der Dokumentarten",
         retry: () => void load(),
       });
     }
@@ -81,7 +81,7 @@ export default function TraegerDocumentKindsPage() {
   );
   const remedyInstruction = canEditTemplates
     ? "Tragen Sie sie zuerst in der Vorlage ein."
-    : "Bitten Sie eine Person mit dem Recht „Einstellungen“, sie einzutragen.";
+    : "Bitten Sie eine Person mit der Rolle „Verwaltung“, sie einzutragen.";
   const { overview, setOverview, error } = useDocumentKinds(canBill);
   const notice = overview?.services.some(
     (service) => service.documentKind === "fee_notice",
@@ -106,6 +106,7 @@ export default function TraegerDocumentKindsPage() {
             <DocumentKindCard
               key={service.service}
               service={service}
+              legalRemedyMissing={!overview.legalRemedySet}
               concept={
                 service.service === "holiday"
                   ? holidayWeeksConcept
@@ -120,7 +121,7 @@ export default function TraegerDocumentKindsPage() {
           ))}
           <SectionCard
             title="Rechtsbehelfsbelehrung"
-            description="Steht auf jedem Gebührenbescheid. Den Text ändert, wer das Recht „Einstellungen“ hat."
+            description="Steht auf jedem Gebührenbescheid. Den Text ändert, wer die Rolle „Verwaltung“ hat."
             concept={documentTemplatesConcept}
             action={
               <ButtonLink

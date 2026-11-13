@@ -5,7 +5,7 @@ status: accepted
 # The operator status lifecycle raises the Identity & Access compose budget
 
 Decision of 2026-10-16 under
-[#4047](https://github.com/moto-nrw/project-phoenix/issues/4047). It raises two
+[#4047](https://github.com/moto-ogs/project-phoenix/issues/4047). It raises two
 registers that [ADR 0057](0057-only-the-target-is-a-rule.md) point 5 lets only
 fall.
 

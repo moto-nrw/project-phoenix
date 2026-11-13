@@ -12,7 +12,7 @@ const OPTIONS = [
 ];
 
 function trigger() {
-  return screen.getByRole("button", { name: "Auswahl" });
+  return screen.getByRole("combobox", { name: "Auswahl" });
 }
 
 function openMenu() {

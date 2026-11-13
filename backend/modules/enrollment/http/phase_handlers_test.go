@@ -11,16 +11,16 @@ import (
 	"testing"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 type mockPhaseService struct {

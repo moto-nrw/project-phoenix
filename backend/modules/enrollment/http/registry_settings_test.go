@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // The Settings Platform registry keys and values these suites write. The

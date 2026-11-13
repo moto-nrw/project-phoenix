@@ -11,12 +11,12 @@ import (
 	unicode "unicode"
 	utf8 "unicode/utf8"
 
-	lists "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	departure "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	lists "github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	departure "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // exportSortMode resolves the ordering a request asks for. Calendar order is

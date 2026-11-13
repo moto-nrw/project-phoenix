@@ -5,9 +5,16 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { parseISODate } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useId,
+} from "react";
 import { createPortal } from "react-dom";
-import type { DateRange, Matcher } from "react-day-picker";
+import type { DateRange, Matcher, Modifiers } from "react-day-picker";
 import { addDays } from "date-fns/addDays";
 import { addMonths } from "date-fns/addMonths";
 import { format } from "date-fns/format";
@@ -51,13 +58,42 @@ interface DateRangePickerProps {
 // on each month has a fixed one; the single month on a phone fills the panel.
 // The cells touch: the range band runs through them without a gap.
 const RANGE_MONTHS_CLASS = "flex flex-col gap-4 sm:flex-row";
-const RANGE_MONTH_CLASS = "w-full sm:w-56";
+// By finger a month gets 7 × 44 px and every day 44 px of height.
+const RANGE_MONTH_CLASS = "w-full sm:w-56 pointer-coarse:sm:w-80";
 const RANGE_CLASSNAMES = {
   ...DAY_PICKER_CLASSNAMES,
   months: RANGE_MONTHS_CLASS,
   month: RANGE_MONTH_CLASS,
-  day: "flex-1 min-w-0 h-9 p-0 text-center text-sm relative",
+  day: "flex-1 min-w-0 h-9 p-0 text-center text-sm relative pointer-coarse:h-11",
+  // The range paints itself (rangeStart, rangeEnd, rangeMiddle, singlePick);
+  // `selected` only carries the semantics for assistive tech.
+  selected: "",
 };
+
+/** Every calendar day from `from` to `to`, both included. */
+function daysOfRange(from: Date | undefined, to: Date | undefined): Date[] {
+  if (!from) return [];
+  const days: Date[] = [];
+  for (
+    let day = from;
+    day <= (to ?? from) && days.length < 3700;
+    day = addDays(day, 1)
+  ) {
+    days.push(day);
+  }
+  return days;
+}
+
+/** The German name of a day button, with its place in the range. */
+function rangeDayLabel(date: Date, modifiers?: Modifiers): string {
+  const day = format(date, "EEEE, d. MMMM yyyy", { locale: de });
+  const named = modifiers?.today ? `Heute, ${day}` : day;
+  if (modifiers?.rangeStart) return `${named}, Beginn des Zeitraums`;
+  if (modifiers?.rangeEnd) return `${named}, Ende des Zeitraums`;
+  if (modifiers?.rangeMiddle) return `${named}, im Zeitraum`;
+  if (modifiers?.singlePick) return `${named}, gewählt`;
+  return named;
+}
 
 // The look of `DAY_PICKER_CLASSNAMES.selected`. Important because the day marks
 // a caller adds (`modifiersClassNames`) are too.
@@ -84,6 +120,13 @@ export function DateRangePicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+  // Closing from inside the panel (Escape, a finished range, a preset) hands
+  // focus back to the trigger; the panel would otherwise take it along.
+  const closeToTrigger = useCallback(() => {
+    setIsOpen(false);
+    triggerRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -107,6 +150,9 @@ export function DateRangePicker({
       <button
         ref={triggerRef}
         type="button"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? panelId : undefined}
         onClick={() => setIsOpen((v) => !v)}
         // Fetch the calendar module before the click, so opening does not
         // wait for it.
@@ -155,6 +201,8 @@ export function DateRangePicker({
         <RangeCalendar
           triggerRef={triggerRef}
           panelRef={panelRef}
+          panelId={panelId}
+          onEscape={closeToTrigger}
           value={value}
           presets={presets}
           fromMin={fromMin}
@@ -163,7 +211,7 @@ export function DateRangePicker({
             onChange(range);
             // Close only when both bounds are picked (or when a preset fires).
             if (range?.from && range.to) {
-              setIsOpen(false);
+              closeToTrigger();
             }
           }}
         />
@@ -207,10 +255,14 @@ function formatRangeLabel(range: DateRange | undefined): string {
 function RangeCalendar({
   triggerRef,
   panelRef,
+  panelId,
+  onEscape,
   ...props
 }: RangeCalendarProps & {
   readonly triggerRef: React.RefObject<HTMLElement | null>;
   readonly panelRef: React.RefObject<HTMLDivElement | null>;
+  readonly panelId: string;
+  readonly onEscape: () => void;
 }) {
   const [geometry, setGeometry] = useState<PanelGeometry | null>(null);
   const [isNarrowViewport, setIsNarrowViewport] = useState<boolean | null>(
@@ -249,6 +301,24 @@ function RangeCalendar({
     setMounted(true);
   }, []);
 
+  // Opening moves focus into the panel: onto the chosen start day when there
+  // is one, else onto the first control. The panel is portaled after the
+  // page, so keyboard users would otherwise not reach it.
+  useEffect(() => {
+    if (!mounted) return;
+    const frame = requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel || panel.contains(document.activeElement)) return;
+      const target =
+        panel.querySelector<HTMLElement>('[aria-selected="true"] button') ??
+        panel.querySelector<HTMLElement>(
+          "button:not([disabled]), [tabindex='0']",
+        );
+      target?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [mounted, panelRef]);
+
   useEffect(() => {
     sync();
     window.addEventListener("resize", sync);
@@ -272,7 +342,16 @@ function RangeCalendar({
   return createPortal(
     <div
       ref={panelRef}
+      id={panelId}
+      role="dialog"
+      aria-label="Zeitraum wählen"
       data-range-panel
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          onEscape();
+        }
+      }}
       className={`fixed ${Z_LAYER.popover} moto-popover-surface max-h-[calc(100vh-6rem)] w-max max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border sm:max-h-none sm:overflow-visible`}
       style={
         isNarrowViewport || !geometry
@@ -307,12 +386,12 @@ function formatDraftRangeLabel(
   draftFrom: Date | undefined,
   draftTo: Date | undefined,
 ): string {
-  if (!draftFrom) return "Klicke ein Startdatum";
-  if (!draftTo) return "Klicke ein Enddatum";
+  if (!draftFrom) return "Startdatum wählen";
+  if (!draftTo) return "Enddatum wählen";
   if (isSameCalendarDay(draftFrom, draftTo)) {
     return format(draftFrom, "d. MMM yyyy", { locale: de });
   }
-  return `${format(draftFrom, "d. MMM yyyy", { locale: de })} - ${format(
+  return `${format(draftFrom, "d. MMM yyyy", { locale: de })} – ${format(
     draftTo,
     "d. MMM yyyy",
     { locale: de },
@@ -341,7 +420,7 @@ export function RangeCalendarInline({
   const today = useBerlinToday();
   const [month, setMonth] = useState(value?.from ?? parseISODate(today));
   const isSingleMonth = useIsSingleMonthCalendar();
-  // Manual draft state. We use `mode="single"` on the underlying DayPicker
+  // Manual draft state. We use `mode="multiple"` on the underlying DayPicker
   // and manage the two-click range logic ourselves, react-day-picker v10's
   // mode="range" calls onSelect with surprising payloads (sometimes a complete
   // {from, to} pair on first click), which would cause the picker to close
@@ -376,19 +455,22 @@ export function RangeCalendarInline({
 
   const hasPresets = presets && presets.length > 0;
   const draftLabel = formatDraftRangeLabel(draftFrom, draftTo);
+  const selectedDays = daysOfRange(draftFrom, draftTo);
 
   return (
     <div
       className={`flex flex-col sm:flex-row ${hasPresets ? "" : "justify-center"}`}
     >
       {hasPresets && (
-        <div className="flex max-w-[calc(100vw-2rem)] gap-1 overflow-x-auto border-b border-gray-100 p-2 text-sm sm:max-w-none sm:flex-col sm:overflow-visible sm:border-r sm:border-b-0 sm:p-3">
+        // On a phone the presets wrap into rows: a scrolled row cut the last
+        // one at the edge without a cue.
+        <div className="flex flex-wrap gap-1 border-b border-gray-100 p-2 text-sm sm:flex-col sm:flex-nowrap sm:border-r sm:border-b-0 sm:p-3">
           {presets.map((preset) => (
             <button
               key={preset.label}
               type="button"
               onClick={() => handlePreset(preset)}
-              className="shrink-0 rounded-md px-3 py-2 text-left text-gray-700 hover:bg-gray-100"
+              className="shrink-0 rounded-md px-3 py-2 text-left text-gray-700 hover:bg-gray-100 pointer-coarse:min-h-11"
             >
               {preset.label}
             </button>
@@ -396,7 +478,12 @@ export function RangeCalendarInline({
         </div>
       )}
       <div className="p-3 sm:p-4">
-        <div className="mb-3 text-center text-sm font-medium text-gray-700">
+        {/* Announced as it changes: after the first day „Enddatum wählen“,
+            after the second the chosen range. */}
+        <div
+          role="status"
+          className="mb-3 text-center text-sm font-medium text-gray-700"
+        >
           {draftLabel}
         </div>
         <div className="mb-3 flex items-center justify-between">
@@ -404,7 +491,8 @@ export function RangeCalendarInline({
             type="button"
             onClick={() => setMonth(subMonths(month, 1))}
             aria-label="Vorheriger Monat"
-            className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+            // By finger the hit area grows to 44 px around the 28-px arrow.
+            className="relative rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
           >
             <svg
               className="h-4 w-4"
@@ -422,14 +510,17 @@ export function RangeCalendarInline({
           </button>
           <span className="text-sm font-medium text-gray-900">
             {format(month, "MMMM yyyy", { locale: de })}
-            {" - "}
-            {format(addMonths(month, 1), "MMMM yyyy", { locale: de })}
+            {/* A phone shows one month, so the heading names only that one. */}
+            {isSingleMonth
+              ? null
+              : ` – ${format(addMonths(month, 1), "MMMM yyyy", { locale: de })}`}
           </span>
           <button
             type="button"
             onClick={() => setMonth(addMonths(month, 1))}
             aria-label="Nächster Monat"
-            className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+            // By finger the hit area grows to 44 px around the 28-px arrow.
+            className="relative rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
           >
             <svg
               className="h-4 w-4"
@@ -460,9 +551,17 @@ export function RangeCalendarInline({
         >
           <LazyDayPicker
             today={parseISODate(today)}
-            mode="single"
-            selected={undefined}
-            onDayClick={handleDayClick}
+            // The chosen days are the grid's selection, so a screen reader
+            // hears them; the two-click logic stays in handleDayClick.
+            mode="multiple"
+            selected={selectedDays}
+            labels={{
+              labelDayButton: rangeDayLabel,
+              labelGridcell: rangeDayLabel,
+            }}
+            // onSelect keeps `selected` controlled in react-day-picker.
+            // Ignore its toggle result and keep our two-click range logic.
+            onSelect={(_selected, day) => handleDayClick(day)}
             month={month}
             onMonthChange={setMonth}
             numberOfMonths={isSingleMonth ? 1 : 2}

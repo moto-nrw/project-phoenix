@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/delivery/internal/ports"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

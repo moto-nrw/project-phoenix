@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

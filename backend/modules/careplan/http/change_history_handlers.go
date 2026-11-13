@@ -5,9 +5,9 @@ import (
 	slog "log/slog"
 	strings "strings"
 
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	departure "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	departure "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // recordStudentChanges appends the per-child change history for an update.

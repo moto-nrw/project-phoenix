@@ -7,10 +7,10 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/selection"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // offeringDecisionDiff is a request's review diff plus the override

@@ -99,6 +99,7 @@ import {
   type PlannedStatusSubmitOptions,
 } from "~/components/students/planned-status-days-modal";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
+import { StudentPickupChanges } from "~/components/students/pickup-change-alert";
 import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
 import { fetchArrivalData } from "~/lib/student-arrival-api";
 import {
@@ -568,7 +569,7 @@ function StudentDetailPageContent() {
       .sort((a, b) => a.label.localeCompare(b.label, "de"));
   });
   const refreshDataAndHistory = useCallback(async () => {
-    refreshData();
+    await refreshData();
     // Best effort: the change history reloads with its own load error path
     // when it is opened; a failed background refresh only leaves it stale.
     await tenantMutate(studentKeys.changeHistory(studentId)).catch((err) => {
@@ -1808,6 +1809,13 @@ function StudentDetailPageContent() {
         </div>
       ) : null}
 
+      {!isHolidayGuest && hasFullAccess ? (
+        <StudentPickupChanges
+          studentId={studentId}
+          exceptions={pickupData?.exceptions}
+          today={berlinToday}
+        />
+      ) : null}
       {isHolidayGuest && (
         <HolidayGuestSection
           studentId={studentId}
@@ -2270,6 +2278,7 @@ function FullAccessView({
         {notesTabSeen && tabs.includes("notizen") ? (
           <StudentNotizenTab
             studentId={studentId}
+            active={activeTab === "notizen"}
             educationGroupId={student.group_id ?? ""}
             educationGroupName={student.group_name ?? ""}
           />

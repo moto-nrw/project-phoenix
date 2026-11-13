@@ -5,10 +5,10 @@ status: accepted
 # Anmeldungswerte reisen dekodiert als Formularwerte im Vertrag
 
 Entscheidung vom 08.11.2026 für
-[#6092](https://github.com/moto-nrw/project-phoenix/issues/6092). Sie ersetzt
+[#6092](https://github.com/moto-ogs/project-phoenix/issues/6092). Sie ersetzt
 für die Anmeldung (`enrollment.Request`, `enrollment.RequestChild`) und die
 Eingaben der Anmeldestrecke die Festlegung E4 aus
-[#3565](https://github.com/moto-nrw/project-phoenix/issues/3565), die Antworten,
+[#3565](https://github.com/moto-ogs/project-phoenix/issues/3565), die Antworten,
 Zustimmungen und Herkunftsdaten der Familie als rohes JSON
 (`json.RawMessage`) im öffentlichen Vertrag zu führen. Kein neuer Owner, kein
 neues Datenobjekt, keine Policy-Regel, keine Migration;

@@ -5,9 +5,9 @@ status: proposed
 # Phasenänderungen verschieben offene Pläne und schützen wirksame Buchungen
 
 **Status: Vorgeschlagen.** Vorschlag vom 10.11.2026 zu
-[#6505](https://github.com/moto-nrw/project-phoenix/issues/6505) (EC-4, EC-5,
+[#6505](https://github.com/moto-ogs/project-phoenix/issues/6505) (EC-4, EC-5,
 EC-6). Grundlage ist die
-[Recherche mit Optionen A bis C](https://github.com/moto-nrw/project-phoenix/issues/6505#issuecomment-6774472458)
+[Recherche mit Optionen A bis C](https://github.com/moto-ogs/project-phoenix/issues/6505#issuecomment-6774472458)
 und Yannicks Entscheidung vom 10.11.2026 für B: offene Pläne atomar
 mitverschieben und den Buchungsabschluss schützen, analog zur Wochenplanlogik
 aus [ADR 0162](0162-zukuenftige-wiederanmeldung-uebernimmt-den-wochenplan-zum-start.md).

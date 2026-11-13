@@ -93,7 +93,7 @@ describe("BillingTermsCard", () => {
     saveServiceTerms.mockResolvedValue(data);
     const { onChanged, table } = renderCard();
     fireEvent.click(table.getByText("Mittagessen"));
-    fireEvent.click(screen.getByRole("button", { name: "Eigene Rechnung" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Eigene Rechnung" }));
     fireEvent.change(screen.getByLabelText(/Zahlungsziel in Tagen/), {
       target: { value: "30" },
     });

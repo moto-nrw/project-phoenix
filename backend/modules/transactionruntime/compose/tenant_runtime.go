@@ -10,10 +10,10 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/internal/adapters/database"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/internal/adapters/database"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewTenantRuntime binds tenant, Träger and admin transactions under their database roles,
@@ -51,7 +51,7 @@ func bindTenantRuntime(unitOfWork *postgres.PostgresUnitOfWork, err error, retry
 	if err != nil {
 		return tenant.UnitOfWork{}, err
 	}
-	runtime = runtime.WithTransactionDetacher(unitOfWork.ContextWithoutTransaction).WithStatementBound(unitOfWork.BoundStatements)
+	runtime = runtime.WithTransactionDetacher(unitOfWork.ContextWithoutTransaction).WithStatementBound(unitOfWork.BoundStatements).WithLockBound(unitOfWork.BoundLocks)
 	return runtime.WithContextAdapters(auditlog.ContextWithTenant, auditlog.ContextWithTransaction), nil
 }
 

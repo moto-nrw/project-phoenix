@@ -104,6 +104,10 @@ import { ApiError } from "~/lib/api-error";
 import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const phase = {
   id: "1",
@@ -240,7 +244,7 @@ async function renderPhase() {
   // Seitengerüsts; der Angebotsfilter steht, sobald die Phase geladen ist.
   await waitFor(() => {
     expect(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     ).toBeVisible();
   });
 }
@@ -348,7 +352,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
       await renderPhase();
 
       expect(
-        screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+        screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
       ).toBeVisible();
       expect(
         screen.queryByRole("link", { name: "Elternansicht öffnen" }),
@@ -367,7 +371,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     );
     expect(screen.getByRole("button", { name: "Alle Status" })).toBeVisible();
     expect(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     ).toHaveTextContent("2 Angebote");
     expect(screen.getAllByText("OGS Ganztag").length).toBeGreaterThan(0);
     expect(screen.getByText("Mo, Mi, Fr")).toBeVisible();
@@ -378,7 +382,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
       ),
     ).toBeVisible();
     fireEvent.click(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     );
     const offeringMenu = screen.getByRole("listbox", {
       name: /Berücksichtigte Angebote/,
@@ -403,7 +407,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     await renderPhase();
 
     fireEvent.click(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     );
     fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
 
@@ -437,7 +441,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     await renderPhase();
 
     fireEvent.click(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     );
     fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
 
@@ -450,7 +454,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     // Während die Auswertung neu lädt, ist der Angebotsfilter deaktiviert und
     // schließt sein Menü. Danach lässt sich die letzte Option erneut öffnen.
     fireEvent.click(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     );
     fireEvent.click(screen.getByRole("option", { name: /Kurzbetreuung/ }));
 
@@ -460,7 +464,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
       );
     });
     expect(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     ).toHaveTextContent("Keine Angebote");
 
     fireEvent.click(
@@ -632,7 +636,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     );
     fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
 
@@ -686,21 +690,13 @@ describe("AdminEnrollmentPhaseDetail", () => {
 
   // #6652: the decision holds once the write is through; a failed reload
   // keeps the table and says the change is saved, and only reloads.
-  it("discards protected phase data and actions after a refused decision reload", async () => {
+  it("loads the page anew after a refused decision reload", async () => {
+    resetPageReloads();
     await renderPhase();
     mocks.listAdminRequests.mockRejectedValueOnce(new ApiError("refused", 403));
     fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
-    expect(
-      await screen.findByText(
-        `${catalogText("general.permission", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
-      ),
-    ).toBeVisible();
-    expect(screen.queryAllByText("eva@example.test")).toHaveLength(0);
-    expect(
-      screen.queryByRole("button", { name: "Bestätigen" }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // #6801: the page loads anew; its first load shows the refusal.
+    await expectPageReloadedAfterRefusal();
     expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
   });
 
@@ -708,29 +704,25 @@ describe("AdminEnrollmentPhaseDetail", () => {
     "handles a %s report reload after a successful decision and data reload",
     async (status) => {
       await renderPhase();
+      resetPageReloads();
       mocks.getCareUsageReport.mockRejectedValueOnce(
         new ApiError("failed", status),
       );
       fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+      expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
+      if (status === 403) {
+        // #6801: the page loads anew; its first load shows the refusal.
+        await expectPageReloadedAfterRefusal();
+        return;
+      }
       expect(
         await screen.findByText(
-          `${catalogText(status === 403 ? "general.permission" : "general.unavailable", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
+          `${catalogText("general.unavailable", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
         ),
       ).toBeVisible();
-      if (status === 403) {
-        expect(screen.queryAllByText("eva@example.test")).toHaveLength(0);
-        expect(screen.queryByRole("table")).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("button", { name: "Bestätigen" }),
-        ).not.toBeInTheDocument();
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      } else {
-        expect(screen.getByRole("table")).toBeVisible();
-      }
-      if (status === 503) {
-        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
-        expect(await screen.findByRole("table")).toBeVisible();
-      }
+      expect(screen.getByRole("table")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(await screen.findByRole("table")).toBeVisible();
       expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
     },
   );
@@ -768,7 +760,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
       `${catalogText("general.unavailable", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     );
     fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
     await waitFor(() =>
@@ -806,7 +798,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
         }),
       );
       fireEvent.click(
-        screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+        screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
       );
       fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
       expect(await screen.findByText("Aktuell Muster")).toBeInTheDocument();

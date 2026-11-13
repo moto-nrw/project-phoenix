@@ -3,11 +3,11 @@ package compose
 import (
 	"context"
 
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	facilitiesService "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	facilitiesService "github.com/moto-ogs/project-phoenix/modules/facilities/internal/application/roomservice"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 func NewAttendanceRooms(records facilitiesService.AttendanceRoomRecords) interface {

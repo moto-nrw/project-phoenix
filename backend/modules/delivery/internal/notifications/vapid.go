@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 )
 
 // VAPIDConfig carries the Voluntary Application Server Identification keys

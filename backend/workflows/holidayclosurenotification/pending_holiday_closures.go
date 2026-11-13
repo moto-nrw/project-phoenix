@@ -3,8 +3,8 @@ package holidayclosurenotification
 import (
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
 )
 
 // appendPendingNotices builds the office view and its approval scope from the shared plans.

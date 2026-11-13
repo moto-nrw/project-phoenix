@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/domain"
 )
 
 // Store is the persistence port over config.work_time_models,
@@ -86,7 +86,7 @@ type WorkSessionStore interface {
 	SetWorkSessionBreakMinutes(ctx context.Context, id int64, minutes int) (int64, domain.OperationStats, error)
 	// CloseWorkSession stamps the check-out on a still open block; closed
 	// reports whether a row was actually closed.
-	CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool) (bool, domain.OperationStats, error)
+	CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool, credit workforce.WorkSessionCreditRule) (bool, domain.OperationStats, error)
 
 	FindWorkSessionBreak(context.Context, int64) (workforce.WorkSessionBreak, bool, domain.OperationStats, error)
 	ListWorkSessionBreaks(context.Context, workforce.WorkSessionBreakFilter) ([]workforce.WorkSessionBreak, domain.OperationStats, error)

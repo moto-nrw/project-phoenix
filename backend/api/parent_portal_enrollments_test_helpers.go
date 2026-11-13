@@ -3,8 +3,8 @@
 package api
 
 import (
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // NewParentPortalEnrollments binds the guardian portal's enrollment views to

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // eventContract.ChildEvent describes one notification pill appended to a child's parent-OGS

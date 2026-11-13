@@ -48,6 +48,11 @@ printf 'package localization\n\nconst Value = 1\n' >"$fixture/backend/modules/de
 printf 'package listrenderer\n\nconst Value = 1\n' >"$fixture/backend/modules/documentrendering/internal/application/listrenderer/service.go"
 printf 'package email\n' >"$fixture/backend/templates/email/template_test.go"
 printf 'package test\n' >"$fixture/backend/test/test.go"
+mkdir -p "$fixture/backend/database/audits"
+audit_names=(phase_edit_stale_pending_activations phase_edit_stale_class_switches booking_led_care_without_source_or_task)
+for audit in "${audit_names[@]}"; do
+  printf 'SELECT 1;\n' >"$fixture/backend/database/audits/$audit.sql"
+done
 # The query-budget register is its own package: only packages asserting budgets
 # depend on it, while ordinary importers of the shared test package do not.
 mkdir -p "$fixture/backend"/{test/query-budgets/api/students,budgetuser,fixtureuser}
@@ -267,6 +272,22 @@ printf 'template\n' >"$fixture/backend/templates/email/probe.html"
 assert_output $'example.test/project/templates/email\nexample.test/project/test'
 rm "$fixture/backend/templates/email/probe.html"
 
+# Audit SQL has no import edge. CI selects its test package, while --direct
+# leaves the targeted source-test selection to test-changed.sh.
+for audit in "${audit_names[@]}"; do
+  audit_path="backend/database/audits/$audit.sql"
+  printf '\n-- changed\n' >>"$fixture/$audit_path"
+  assert_output 'example.test/project/test'
+  assert_output_direct ''
+  git -C "$fixture" restore "$audit_path"
+  rm "$fixture/$audit_path"
+  assert_output 'example.test/project/test'
+  git -C "$fixture" restore "$audit_path"
+done
+printf 'SELECT 1;\n' >"$fixture/backend/database/audits/new_audit.sql"
+assert_output 'example.test/project/test'
+rm "$fixture/backend/database/audits/new_audit.sql"
+
 printf '{}\n' >"$fixture/backend/modules/delivery/internal/adapters/localization/locales.json"
 assert_output $'example.test/project/modules/delivery/internal/adapters/localization\nexample.test/project/modules/delivery/localeconsumer\nexample.test/project/test'
 rm "$fixture/backend/modules/delivery/internal/adapters/localization/locales.json"
@@ -395,6 +416,7 @@ if select_packages >/dev/null 2>&1; then
 fi
 
 assert_workflow_filter backend-tests 'backend/**/testdata/**' present
+assert_workflow_filter backend-tests 'backend/database/audits/*.sql' present
 assert_workflow_filter backend-tests 'backend/architecture/policy.json' present
 assert_workflow_filter error-codes 'frontend/src/lib/error-codes/*.generated.ts' present
 assert_workflow_filter backend-production 'backend/**/testdata/**' absent
@@ -406,6 +428,23 @@ assert_workflow_filter backend-test-infra 'scripts/test-run-id.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix_test.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-source-ratchets.mjs' present
+# Local wrappers start their self-tests in ci-scripts, not the full backend suite.
+for path in 'scripts/test-changed.sh' 'scripts/test-changed_test.sh' 'scripts/test-backend.sh' 'scripts/go-test-link-cache.sh'; do
+  assert_workflow_filter backend-test-infra "$path" absent
+  assert_workflow_filter backend-local-test-scripts "$path" present
+done
+assert_workflow_output_contains run-ci-scripts "steps.filter.outputs.backend-local-test-scripts == 'true'"
+assert_workflow_output_contains toolchain-changed "steps.filter.outputs.backend-local-test-scripts == 'true'"
+# The script self-tests left the backend test job: the ratchets suite must
+# start wherever that job ran them, on every full backend suite.
+for output in run-ci-scripts toolchain-changed; do
+  assert_workflow_output_contains "$output" "steps.backend-size.outputs.full == 'true'"
+  assert_workflow_output_contains "$output" "steps.filter.outputs.backend-test-infra == 'true'"
+  assert_workflow_output_contains "$output" "github.event_name == 'push'"
+  assert_workflow_output_contains "$output" "steps.scope.outputs.release == 'true'"
+done
+grep -qF 'scripts/backend-test-matrix_test.sh' <(sed -n '/- name: Verify backend test scripts/,/^  [a-z-]*:$/p' "$repo_root/.github/workflows/main.yml") ||
+  { echo 'the ratchets suite must run the test matrix self-test' >&2; exit 1; }
 for path in 'scripts/backend-source-ratchets.mjs' 'backend/test/*_test.go'; do
   assert_workflow_filter script-tests "$path" present
   # Do not buy the release-restore or extra toolchain-ratchet jobs for these.
@@ -525,6 +564,25 @@ for manifest in go.mod go.sum; do
   grep -qx 'full=true' "$fixture/scope-size"
   rm "$fixture/scope-size"
 done
+# The runner is sized before the import graph is known: only test files in at
+# most 15 directories prove a selection of at most 16 packages (with ./test).
+assert_small_runner() {
+  expected=$1
+  files=$2
+  CHANGED_COUNT=$(jq length <<<"$files") CHANGED_FILES="$files" GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
+  grep -qx "small=$expected" "$fixture/scope-size" ||
+    { echo "backend runner size: expected small=$expected for $files" >&2; exit 1; }
+  rm "$fixture/scope-size"
+}
+assert_small_runner false '[]'
+assert_small_runner true '["backend/api/a_test.go","backend/api/b_test.go"]'
+assert_small_runner true "$(jq -cn '[range(0; 15) | "backend/package\(.)/source_test.go"]')"
+assert_small_runner false "$(jq -cn '[range(0; 16) | "backend/package\(.)/source_test.go"]')"
+assert_small_runner false '["backend/api/a_test.go","backend/api/a.go"]'
+assert_small_runner false '["backend/api/a_test.go","backend/api/testdata/a.json"]'
+assert_small_runner false '["backend/go.sum"]'
+grep -qF "backend-small-runner: \${{ needs.detect-changes.outputs.small-backend-suite == 'true' && needs.detect-changes.outputs.full-backend-suite != 'true' }}" "$repo_root/.github/workflows/main.yml" ||
+  { echo 'a full backend suite must not run on the small runner' >&2; exit 1; }
 # A release-sized list never reaches the environment (128 KiB per value), so
 # the guard decides from the count alone and must not read the empty list.
 for count in 499 500; do

@@ -8,6 +8,8 @@ import {
   emptyChild,
   emptyContact,
   emptyRegistration,
+  HOLIDAY_HEALTH_NONE,
+  hasHealthInfo,
   hasRoomForKnownChild,
   knownChildRefused,
   OTHER_SCHOOL,
@@ -250,6 +252,7 @@ describe("known children of a parent account (#4662)", () => {
     birthDate: "2018-03-01",
     holidayWish: "",
     holidayWishProof: "",
+    contacts: [],
   };
   const known = (studentId: string): HolidayKnownChild => ({
     ...felix,
@@ -263,6 +266,7 @@ describe("known children of a parent account (#4662)", () => {
         lastName: "Schneider",
         email: "s@example.org",
         phone: "0151",
+        address: null,
       },
       children: [felix],
       accountProof: "",
@@ -392,7 +396,7 @@ describe("optional second guardian", () => {
     ).toBeUndefined();
     expect(
       registrationFromFamily({
-        guardian: draft.guardian,
+        guardian: { ...draft.guardian, address: null },
         children: [],
         accountProof: "",
       }).secondGuardian,
@@ -632,6 +636,7 @@ describe("holiday care wish of a known child (#4703)", () => {
     birthDate: "2018-03-01",
     holidayWish: "yes",
     holidayWishProof: "sealed",
+    contacts: [],
   };
   const withMode = (
     holidayWishMode: HolidayRegistrationOffer["holidayWishMode"],
@@ -814,6 +819,7 @@ describe("parent account in the payload (#6673)", () => {
         lastName: "Schneider",
         email: "s@example.org",
         phone: "0151",
+        address: null,
       },
       children: [],
       accountProof: "sealed",
@@ -832,10 +838,91 @@ describe("parent account in the payload (#6673)", () => {
     expect(payload.parent_account_requested).toBe(false);
     expect(
       registrationFromFamily({
-        guardian: draft.guardian,
+        guardian: { ...draft.guardian, address: null },
         children: [],
         accountProof: "",
       }).parentAccountProof,
     ).toBeUndefined();
+  });
+});
+
+describe("required health fields (#6686)", () => {
+  const requiring = (healthRequirement: "optional" | "required") => ({
+    ...offer,
+    form: { ...offer.form, healthRequirement },
+  });
+  const withChild = (patch: Partial<ChildDraft>): RegistrationDraft => {
+    const draft = complete();
+    return {
+      ...draft,
+      healthConsent: true,
+      children: draft.children.map((child) => ({ ...child, ...patch })),
+    };
+  };
+
+  it("keeps allergies and medication optional unless the form requires them", () => {
+    expect(validateRegistration(complete(), requiring("optional"))).toEqual({});
+    expect(validateRegistration(complete(), offer)).toEqual({});
+    const payload = payloadFromDraft(complete(), requiring("optional"), "t");
+    expect(payload.children[0]).toMatchObject({
+      allergies: "",
+      medication: "",
+    });
+  });
+
+  it("asks for a choice per field when the form requires them", () => {
+    expect(validateRegistration(complete(), requiring("required"))).toEqual({
+      "children.0.allergies": "yesNo",
+      "children.0.medication": "yesNo",
+    });
+  });
+
+  it("sends Keine for a child without any and needs the health consent", () => {
+    const none = withChild({
+      allergiesChoice: "none",
+      medicationChoice: "none",
+      allergies: "stale text",
+    });
+    expect(validateRegistration(none, requiring("required"))).toEqual({});
+    expect(
+      payloadFromDraft(none, requiring("required"), "t").children[0],
+    ).toMatchObject({
+      allergies: HOLIDAY_HEALTH_NONE,
+      medication: HOLIDAY_HEALTH_NONE,
+    });
+    expect(hasHealthInfo(none, requiring("required").form)).toBe(true);
+    expect(
+      validateRegistration(
+        { ...none, healthConsent: false },
+        requiring("required"),
+      ),
+    ).toEqual({ health_consent: "healthRequired" });
+  });
+
+  it("needs the text when the parent answers yes", () => {
+    const some = withChild({
+      allergiesChoice: "some",
+      medicationChoice: "some",
+      allergies: "  ",
+      medication: " Asthmaspray ",
+    });
+    expect(validateRegistration(some, requiring("required"))).toEqual({
+      "children.0.allergies": "required",
+    });
+    expect(
+      payloadFromDraft(
+        { ...some, children: [{ ...some.children[0]!, allergies: "Nüsse" }] },
+        requiring("required"),
+        "t",
+      ).children[0],
+    ).toMatchObject({ allergies: "Nüsse", medication: "Asthmaspray" });
+  });
+
+  it("ignores the choices of an optional form", () => {
+    const draft = withChild({ allergiesChoice: "none", allergies: "Nüsse" });
+    expect(
+      payloadFromDraft(draft, requiring("optional"), "t").children[0]
+        ?.allergies,
+    ).toBe("Nüsse");
   });
 });

@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // People Directory records the decision flow reads and writes. The root

@@ -3,7 +3,7 @@ package audience
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience/contract"
+	"github.com/moto-ogs/project-phoenix/modules/staffannouncementaudience/contract"
 )
 
 // Rows maps the projection's rows onto the consumer's values and the

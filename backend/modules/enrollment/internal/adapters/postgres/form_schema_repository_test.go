@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	ownerCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	ownerCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // uniqueSchemaName builds a per-test schema name so concurrent tests

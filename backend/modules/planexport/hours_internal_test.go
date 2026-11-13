@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	listexport "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 )
 
 // stubHours serves the weekly figures and records the window it was asked for.

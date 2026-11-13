@@ -61,6 +61,7 @@ export const PORTAL_PAGES = {
     "/einstellungen",
     "/ferien",
     "/invite",
+    "/konto",
     "/login",
     "/reset-password",
     "/schliesstage",

@@ -7,7 +7,7 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/domain"
 )
 
 // TargetResolver reads the school's counterpart configuration.
@@ -41,6 +41,13 @@ type ReasonedError interface {
 	error
 	// TransferReason returns one of the domain reason codes.
 	TransferReason() string
+}
+
+// UncertainError marks a failure after which the file may still have
+// arrived: the counterpart did not answer the step that makes it visible.
+type UncertainError interface {
+	error
+	OutcomeUncertain() bool
 }
 
 // Journal holds one durable, one-shot transfer intent and its audit evidence.

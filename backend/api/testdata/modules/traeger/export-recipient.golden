@@ -1,0 +1,3 @@
+DELETE /traeger/export-recipient/ -> basis
+GET /traeger/export-recipient/ -> basis
+PUT /traeger/export-recipient/ -> basis

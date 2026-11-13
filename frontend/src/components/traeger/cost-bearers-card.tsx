@@ -7,7 +7,7 @@
 // lässt sich nur ausschalten, nicht löschen. Neu angelegt wird im Dialog;
 // „Ändern“ macht die Zeile selbst zum Formular (Bauart 2, kein Overlay).
 
-import { Building2, Plus } from "lucide-react";
+import { Building2, Pencil, Plus, Trash2 } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -115,7 +115,7 @@ function CostBearerFields({
   return (
     <>
       <Input
-        controlSize="compact"
+        controlSize="touch"
         id={`${idPrefix}-name`}
         name="name"
         label="Name"
@@ -136,7 +136,7 @@ function CostBearerFields({
         onChange={(event) => onChange({ address: event.target.value })}
       />
       <Input
-        controlSize="compact"
+        controlSize="touch"
         id={`${idPrefix}-file-reference`}
         name="file_reference"
         label="Ihr Aktenzeichen beim Kostenträger (freiwillig)"
@@ -394,9 +394,12 @@ export function CostBearersCard({
                 </div>
                 <OverflowMenu
                   ariaLabel={`Aktionen für ${bearer.name}`}
-                  triggerSize="sm"
                   items={[
-                    { label: "Ändern", onClick: () => setEditingId(bearer.id) },
+                    {
+                      icon: <Pencil className="size-4" aria-hidden />,
+                      label: "Ändern",
+                      onClick: () => setEditingId(bearer.id),
+                    },
                     {
                       label: bearer.active ? "Ausschalten" : "Einschalten",
                       onClick: () => void switchActive(bearer),
@@ -406,6 +409,7 @@ export function CostBearersCard({
                       : [
                           {
                             label: "Löschen",
+                            icon: <Trash2 className="size-4" aria-hidden />,
                             destructive: true,
                             onClick: () => setDeleting(bearer),
                           },

@@ -1,8 +1,8 @@
 package careplanhttp_test
 
 import (
-	"github.com/moto-nrw/project-phoenix/api"
-	subject "github.com/moto-nrw/project-phoenix/modules/careplan/http"
+	"github.com/moto-ogs/project-phoenix/api"
+	subject "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 func init() {

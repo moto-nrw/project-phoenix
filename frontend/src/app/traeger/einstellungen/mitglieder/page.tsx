@@ -1,13 +1,15 @@
 "use client";
 
 // Personen des Träger-Büros (#4650): wer im Träger-Portal arbeitet, mit
-// welcher Rolle, wer eingeladen ist und der Verlauf der Änderungen (#5474).
+// Namen (#4693) und Rolle, wer eingeladen ist und der Verlauf der Änderungen
+// (#5474).
 // Nur mit dem Recht „Konten verwalten“ (Rolle Leitung, #5471).
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
-import { UserPlus, Users } from "lucide-react";
+import { Pencil, Trash2, Undo2, UserPen, UserPlus, Users } from "lucide-react";
 import {
+  ChangeTraegerMemberNameModal,
   ChangeTraegerRolesModal,
   InviteTraegerAccountModal,
 } from "~/components/traeger/traeger-account-modals";
@@ -68,6 +70,7 @@ export default function TraegerAccountsPage() {
   const [accessRefused, setAccessRefused] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState<TraegerMember | null>(null);
+  const [naming, setNaming] = useState<TraegerMember | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [confirming, setConfirming] = useState(false);
   // Every change on the page reads the history again.
@@ -96,6 +99,7 @@ export default function TraegerAccountsPage() {
         setAccessRefused(true);
         setInviting(false);
         setEditing(null);
+        setNaming(null);
         setPending(null);
       }
       throw error;
@@ -111,7 +115,7 @@ export default function TraegerAccountsPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Personen des Träger-Büros",
+        object: "die Liste der Personen",
         messageSuffix: loadedRef.current ? STALE_DATA_SUFFIX : undefined,
         retry: () => void load(),
       });
@@ -174,25 +178,64 @@ export default function TraegerAccountsPage() {
     await afterWrite.refresh();
   };
 
+  // The Träger-Büro keeps at least one Leitung; the server refuses to remove
+  // the last one, so its row does not offer it.
+  const leaders = buero.members.filter((member) =>
+    member.roles.includes("leadership"),
+  ).length;
+  const isLastLeader = (member: TraegerMember) =>
+    leaders === 1 && member.roles.includes("leadership");
+  // The saved name shows at once, also when the reload after it fails.
+  const showSavedMember = (saved: TraegerMember) =>
+    setBuero((current) => ({
+      ...current,
+      members: current.members.map((member) =>
+        member.accountId === saved.accountId ? saved : member,
+      ),
+    }));
+
   const memberColumns: DataTableColumn<TraegerMember>[] = [
     {
-      key: "email",
-      header: "E-Mail",
+      key: "name",
+      header: "Name",
       render: (member) => (
-        <span className="font-medium wrap-anywhere text-gray-900">
-          {member.email}
+        <span className="wrap-anywhere">
+          {member.name ? (
+            <span className="font-medium text-gray-900">{member.name}</span>
+          ) : (
+            <span className="text-gray-500">Kein Name</span>
+          )}
           {member.email === ownEmail ? (
-            <span className="ml-1 font-normal text-gray-500">(Sie)</span>
+            <span className="ml-1 text-gray-500">(Sie)</span>
           ) : null}
         </span>
       ),
-      sortValue: (member) => member.email,
+      // Persons without a name come last.
+      sortValue: (member) => member.name.toLocaleLowerCase("de") || null,
       stacked: "title",
+    },
+    {
+      key: "email",
+      header: "E-Mail",
+      render: (member) => <span className="wrap-anywhere">{member.email}</span>,
+      sortValue: (member) => member.email,
+      stacked: "field",
     },
     {
       key: "roles",
       header: "Rolle",
-      render: (member) => roleNames(member.roles),
+      render: (member) => (
+        <>
+          {roleNames(member.roles)}
+          {isLastLeader(member) ? (
+            // text-balance: two even lines break after the comma, not
+            // inside „Träger-Büro“ at its hyphen.
+            <span className="block text-sm text-balance text-gray-600">
+              Einzige Leitung, bleibt im Träger-Büro
+            </span>
+          ) : null}
+        </>
+      ),
       stacked: "field",
     },
     {
@@ -201,14 +244,27 @@ export default function TraegerAccountsPage() {
       render: (member) => (
         <OverflowMenu
           ariaLabel={`Aktionen für ${member.email}`}
-          triggerSize="sm"
           items={[
-            { label: "Rollen ändern", onClick: () => setEditing(member) },
             {
-              label: "Aus dem Träger-Büro entfernen",
-              destructive: true,
-              onClick: () => setPending({ kind: "remove", member }),
+              icon: <UserPen className="size-4" aria-hidden />,
+              label: member.name ? "Namen ändern" : "Namen eintragen",
+              onClick: () => setNaming(member),
             },
+            {
+              icon: <Pencil className="size-4" aria-hidden />,
+              label: "Rollen ändern",
+              onClick: () => setEditing(member),
+            },
+            ...(isLastLeader(member)
+              ? []
+              : [
+                  {
+                    label: "Aus dem Träger-Büro entfernen",
+                    icon: <Trash2 className="size-4" aria-hidden />,
+                    destructive: true,
+                    onClick: () => setPending({ kind: "remove", member }),
+                  },
+                ]),
           ]}
         />
       ),
@@ -248,10 +304,10 @@ export default function TraegerAccountsPage() {
       render: (invitation) => (
         <OverflowMenu
           ariaLabel={`Aktionen für die Einladung an ${invitation.email}`}
-          triggerSize="sm"
           items={[
             {
               label: "Einladung zurücknehmen",
+              icon: <Undo2 className="size-4" aria-hidden />,
               destructive: true,
               onClick: () => setPending({ kind: "revoke", invitation }),
             },
@@ -269,7 +325,7 @@ export default function TraegerAccountsPage() {
   return (
     <TenantPage
       title="Mitglieder und Rollen"
-      info="Wer im Träger-Büro arbeitet und welche Rolle die Person hat."
+      info="Wer im Träger-Büro arbeitet, mit Namen und Rolle."
       stats={
         memberCount > 0 ? (
           <TenantPageStats
@@ -321,6 +377,12 @@ export default function TraegerAccountsPage() {
             member={editing}
             members={buero.members}
             onClose={() => setEditing(null)}
+            onChanged={afterWrite.refresh}
+          />
+          <ChangeTraegerMemberNameModal
+            member={naming}
+            onClose={() => setNaming(null)}
+            onSaved={showSavedMember}
             onChanged={afterWrite.refresh}
           />
           <ConfirmDeleteModal
@@ -381,7 +443,7 @@ export default function TraegerAccountsPage() {
         rowHasInteractiveControls
         isLoading={loading}
         loadingRowCount={3}
-        defaultSortKey="email"
+        defaultSortKey="name"
         stackedOnMobile
         emptyState={
           <EmptyState

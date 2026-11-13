@@ -56,7 +56,7 @@ export function useTraegerHolidayPeriod(id: string) {
   );
   const error = useSwrLoadError(
     response.error,
-    "den Ferienzeitraum",
+    "die Übersicht des Ferienzeitraums",
     response.mutate,
   );
   return {

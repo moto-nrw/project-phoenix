@@ -2,11 +2,11 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/adapters/rendering"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/application"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling/internal/adapters/rendering"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling/internal/application"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // NewContributionRules builds the rules and cost bearers (#5627) of a Träger in its Träger transaction (ADR 0105).
@@ -42,9 +42,9 @@ func NewParentDocuments() *application.ParentDocuments {
 	return application.NewParentDocuments(postgres.NewStore())
 }
 
-// NewBillingFamilies builds the invoices and amounts per family (#4691), checking a debtor number in the format of the Träger (#6675), and the finance exports with their protocol (#4693), whose DATEV booking batch (#4694) reads the DATEV settings of the Träger.
-func NewBillingFamilies(post parentbilling.InvoiceHistoryPost, datev parentbilling.DatevBillingSettings, schools parentbilling.CareSchools, formats parentbilling.DebtorNumberFormats, contracts parentbilling.FamilyContracts) (parentbilling.BillingFamilies, parentbilling.FinanceExports, parentbilling.BookingAccountService) {
-	return application.NewBillingFamilies(postgres.NewStore(), contracts, formats, calendar.TodayDate), application.NewFinanceExports(postgres.NewStore(), post, datev, calendar.TodayDate, calendar.Now), application.NewBookingAccounts(postgres.NewStore(), datev, schools)
+// NewBillingFamilies builds the invoices and amounts per family (#4691), checking a debtor number in the format of the Träger (#6675), and the finance exports with their protocol (#4693), which names the people of the Träger-Büro through names, whose DATEV booking batch (#4694) reads the DATEV settings of the Träger.
+func NewBillingFamilies(post parentbilling.InvoiceHistoryPost, names parentbilling.ExportActorNames, datev parentbilling.DatevBillingSettings, schools parentbilling.CareSchools, formats parentbilling.DebtorNumberFormats, contracts parentbilling.FamilyContracts) (parentbilling.BillingFamilies, parentbilling.FinanceExports, parentbilling.BookingAccountService) {
+	return application.NewBillingFamilies(postgres.NewStore(), contracts, formats, calendar.TodayDate), application.NewFinanceExports(postgres.NewStore(), post, names, datev, calendar.TodayDate, calendar.Now), application.NewBookingAccounts(postgres.NewStore(), datev, schools)
 }
 
 // MonthlyBilling is the monthly run with its Mensa prices (#4684, #4686) and the discard of an empty open run (#6626).
@@ -121,4 +121,9 @@ func NewBelegRetention(contracts parentbilling.RetainedContracts, today func() c
 // NewParentSEPAMandates builds the SEPA mandate the parents give in the parents portal (#4696) over the contract parties, the bank-data cipher and the Träger's online mandate setting the root binds.
 func NewParentSEPAMandates(contracts parentbilling.ContractParties, cipher parentbilling.BankDataCipher, terms parentbilling.OnlineMandateSettings, sums parentbilling.ContentFingerprints) parentbilling.ParentSEPAMandates {
 	return application.NewParentMandates(postgres.NewStore(), contracts, cipher, terms, sums, calendar.TodayDate)
+}
+
+// NewExportHandovers builds the handover of finance exports to the recipient of the Träger (ADR 0218) over the producers of the downloads and the transport the root binds.
+func NewExportHandovers(exports parentbilling.FinanceExports, debits parentbilling.SEPADebits, transfer parentbilling.FinanceExportTransfer) parentbilling.FinanceExportHandovers {
+	return application.NewExportHandovers(exports, debits, postgres.NewStore(), transfer)
 }

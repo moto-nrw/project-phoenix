@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 )
 
 func RequireActiveGroupRead() Middleware   { return RequiresPermission(permissions.GroupsRead) }

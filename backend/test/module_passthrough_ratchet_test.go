@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/passthrough"
+	"github.com/moto-ogs/project-phoenix/internal/passthrough"
 )
 
 // TestModulePassthroughRatchet enforces .claude/rules/backend-conventions.md
@@ -268,7 +268,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // workflow of modules/parentbilling (+1).
 // Lowered by ADR 0196: the holiday closure notices leave School Calendar two
 // pass-throughs fewer (-2).
-const modulePassthroughOwnerBudgetTotal = 1404
+const modulePassthroughOwnerBudgetTotal = 1403
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -291,7 +291,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Raised by ADR 0079: the facade observes the reachable-children read.
 	"modules/communication": 55,
 	"modules/dataimport":    1,
-	"modules/delivery":      5,
+	"modules/delivery":      4,
 	"modules/devicefleet":   33,
 	"modules/devicescan":    35,
 	// Raised by ADR 0105: the holiday period reads of the Träger-Portal; by

@@ -29,37 +29,37 @@ zeigen den späteren Stand, nicht zusätzliche Ursachen des historischen Zuwachs
 
 | PR / gemessener Feature-Head | Module und Zweck | Delta Start / Hilfe / Eltern-Login | Linux-Run |
 |---|---|---:|---|
-| #5227, `d4742c5ed3` | Fehlercodes/-texte für Leitungsnachrichten | +283 / +283 / +370 B | [40874459376](https://github.com/moto-nrw/project-phoenix/actions/runs/40874459376) |
-| #5249, `05a6eaef97` | Nachrichtenstatus, Mitlesende, Hilfe | 0 / +526 / +1027 B | [40874487582](https://github.com/moto-nrw/project-phoenix/actions/runs/40874487582) |
-| #5276, `38203a072f` | Nachweis-Upload in Ferienanmeldungen und zugehörige Hilfe | 0 / +179 / 0 B | [40883123180](https://github.com/moto-nrw/project-phoenix/actions/runs/40883123180) |
-| #5288, `1611e5f9dd` | Passwort-Zurücksetzen im Träger-Portal, Fehlertexte und Hilfe | +51 / +80 / +91 B | [40866854951](https://github.com/moto-nrw/project-phoenix/actions/runs/40866854951) |
-| #5292, `ab891e83a7` | Belegung nach Uhrzeit und zugehörige Hilfe | 0 / +197 / 0 B | [40880423418](https://github.com/moto-nrw/project-phoenix/actions/runs/40880423418) |
-| #5298, `1946a9d92c` | Betreuungsplan-Auswirkung mit UI-Kit-Bausteinen | 0 / +11 / 0 B | [40885705026](https://github.com/moto-nrw/project-phoenix/actions/runs/40885705026) |
-| #5315, `c9d10d4d15` | Soll-/Ist-Betreuungszeiten und zugehörige Hilfe | 0 / +643 / +30 B | [41013625443](https://github.com/moto-nrw/project-phoenix/actions/runs/41013625443) |
-| #5339, `7a22749894` | Unfallanzeige: Fehlerkatalog, Hilfeartikel, FirstAidKit-Icon | +321 / +1673 / +344 B | [40971185508](https://github.com/moto-nrw/project-phoenix/actions/runs/40971185508) |
-| #5259, `796eee6b24` | gemeinsame Kontoprüfung, `session-account-binding` | +781 / +234 / +1046 B | [41081035949](https://github.com/moto-nrw/project-phoenix/actions/runs/41081035949) |
-| #5376, `e8da421c1f` | Lohnbüro-Versand und zugehörige Hilfe | +125 / +585 / +107 B | [41092916445](https://github.com/moto-nrw/project-phoenix/actions/runs/41092916445) |
-| #5377, `9b7d8bb876` | Wochenprotokolle: Hilfe, Notebook-Icon in der damaligen vollständigen Konzept-Registry, Fehlertexte | +243 / +1600 / +324 B | [41193004602](https://github.com/moto-nrw/project-phoenix/actions/runs/41193004602) |
-| #5132, `621cf148ca` | Fehlzeitenliste und zugehörige Hilfe | +120 / +685 / +143 B | [41198465692](https://github.com/moto-nrw/project-phoenix/actions/runs/41198465692) |
-| #5109, `3f18a6ca23` | Elternsprechtag: Fehlercodes/-texte und Hilfe | +843 / +1788 / +1045 B | [41206397194](https://github.com/moto-nrw/project-phoenix/actions/runs/41206397194) |
-| #5258, `2898931d59` | gemeinsame SWR-Key-Factories und geschlossene Cache-Zugriffe | +612 / +20 / +1496 B | [41206620338](https://github.com/moto-nrw/project-phoenix/actions/runs/41206620338) |
-| #5413, `c5f1145ffd` | Optimistisches Senden von Nachrichten und SWR-Generationsgrenzen | +160 / 0 / +184 B | [41217148254](https://github.com/moto-nrw/project-phoenix/actions/runs/41217148254) |
-| #5414, `bf18105151` | Listendaten als Detail-Vorschau und paralleles Nachladen | +115 / 0 / +115 B | [41218795958](https://github.com/moto-nrw/project-phoenix/actions/runs/41218795958) |
-| #5421, `7e2f468f9f` | Nachrichtenstatus bei ausgeschaltetem Elternnachrichten-Modul | +216 / +270 / +216 B | [41235802160](https://github.com/moto-nrw/project-phoenix/actions/runs/41235802160) |
-| #5425, `ea39911c95` | Optimistische Alltagsaktionen und zugehörige Hilfe | 0 / +57 / -101 B | [41245601351](https://github.com/moto-nrw/project-phoenix/actions/runs/41245601351) |
-| #5403, `db6099854c` | sitzungsgebundene Antwortsperre, `session-end-barrier`, Portal-Provider | +345 / +176 / +1357 B | [41251067700](https://github.com/moto-nrw/project-phoenix/actions/runs/41251067700) |
-| #5427, `800e119579` | Vorabladen von Nachrichtendetails und Vorschau-Wechsel | 0 / 0 / 0 B | [41242468797](https://github.com/moto-nrw/project-phoenix/actions/runs/41242468797) |
-| #5433, `156f45c6d9` | Gemeinsamer Ressourcen-Cache im Eltern-Portal, nach #5408 | +55 / 0 / +1990 B | [41277751229](https://github.com/moto-nrw/project-phoenix/actions/runs/41277751229) |
-| #5456, `1eec6b529f` | SSE-/Polling-Abgleich und Zeitfenstergrenzen, nach #5408 | +1320 / 0 / +629 B | [41276170050](https://github.com/moto-nrw/project-phoenix/actions/runs/41276170050) |
+| #5227, `d4742c5ed3` | Fehlercodes/-texte für Leitungsnachrichten | +283 / +283 / +370 B | [40874459376](https://github.com/moto-ogs/project-phoenix/actions/runs/40874459376) |
+| #5249, `05a6eaef97` | Nachrichtenstatus, Mitlesende, Hilfe | 0 / +526 / +1027 B | [40874487582](https://github.com/moto-ogs/project-phoenix/actions/runs/40874487582) |
+| #5276, `38203a072f` | Nachweis-Upload in Ferienanmeldungen und zugehörige Hilfe | 0 / +179 / 0 B | [40883123180](https://github.com/moto-ogs/project-phoenix/actions/runs/40883123180) |
+| #5288, `1611e5f9dd` | Passwort-Zurücksetzen im Träger-Portal, Fehlertexte und Hilfe | +51 / +80 / +91 B | [40866854951](https://github.com/moto-ogs/project-phoenix/actions/runs/40866854951) |
+| #5292, `ab891e83a7` | Belegung nach Uhrzeit und zugehörige Hilfe | 0 / +197 / 0 B | [40880423418](https://github.com/moto-ogs/project-phoenix/actions/runs/40880423418) |
+| #5298, `1946a9d92c` | Betreuungsplan-Auswirkung mit UI-Kit-Bausteinen | 0 / +11 / 0 B | [40885705026](https://github.com/moto-ogs/project-phoenix/actions/runs/40885705026) |
+| #5315, `c9d10d4d15` | Soll-/Ist-Betreuungszeiten und zugehörige Hilfe | 0 / +643 / +30 B | [41013625443](https://github.com/moto-ogs/project-phoenix/actions/runs/41013625443) |
+| #5339, `7a22749894` | Unfallanzeige: Fehlerkatalog, Hilfeartikel, FirstAidKit-Icon | +321 / +1673 / +344 B | [40971185508](https://github.com/moto-ogs/project-phoenix/actions/runs/40971185508) |
+| #5259, `796eee6b24` | gemeinsame Kontoprüfung, `session-account-binding` | +781 / +234 / +1046 B | [41081035949](https://github.com/moto-ogs/project-phoenix/actions/runs/41081035949) |
+| #5376, `e8da421c1f` | Lohnbüro-Versand und zugehörige Hilfe | +125 / +585 / +107 B | [41092916445](https://github.com/moto-ogs/project-phoenix/actions/runs/41092916445) |
+| #5377, `9b7d8bb876` | Wochenprotokolle: Hilfe, Notebook-Icon in der damaligen vollständigen Konzept-Registry, Fehlertexte | +243 / +1600 / +324 B | [41193004602](https://github.com/moto-ogs/project-phoenix/actions/runs/41193004602) |
+| #5132, `621cf148ca` | Fehlzeitenliste und zugehörige Hilfe | +120 / +685 / +143 B | [41198465692](https://github.com/moto-ogs/project-phoenix/actions/runs/41198465692) |
+| #5109, `3f18a6ca23` | Elternsprechtag: Fehlercodes/-texte und Hilfe | +843 / +1788 / +1045 B | [41206397194](https://github.com/moto-ogs/project-phoenix/actions/runs/41206397194) |
+| #5258, `2898931d59` | gemeinsame SWR-Key-Factories und geschlossene Cache-Zugriffe | +612 / +20 / +1496 B | [41206620338](https://github.com/moto-ogs/project-phoenix/actions/runs/41206620338) |
+| #5413, `c5f1145ffd` | Optimistisches Senden von Nachrichten und SWR-Generationsgrenzen | +160 / 0 / +184 B | [41217148254](https://github.com/moto-ogs/project-phoenix/actions/runs/41217148254) |
+| #5414, `bf18105151` | Listendaten als Detail-Vorschau und paralleles Nachladen | +115 / 0 / +115 B | [41218795958](https://github.com/moto-ogs/project-phoenix/actions/runs/41218795958) |
+| #5421, `7e2f468f9f` | Nachrichtenstatus bei ausgeschaltetem Elternnachrichten-Modul | +216 / +270 / +216 B | [41235802160](https://github.com/moto-ogs/project-phoenix/actions/runs/41235802160) |
+| #5425, `ea39911c95` | Optimistische Alltagsaktionen und zugehörige Hilfe | 0 / +57 / -101 B | [41245601351](https://github.com/moto-ogs/project-phoenix/actions/runs/41245601351) |
+| #5403, `db6099854c` | sitzungsgebundene Antwortsperre, `session-end-barrier`, Portal-Provider | +345 / +176 / +1357 B | [41251067700](https://github.com/moto-ogs/project-phoenix/actions/runs/41251067700) |
+| #5427, `800e119579` | Vorabladen von Nachrichtendetails und Vorschau-Wechsel | 0 / 0 / 0 B | [41242468797](https://github.com/moto-ogs/project-phoenix/actions/runs/41242468797) |
+| #5433, `156f45c6d9` | Gemeinsamer Ressourcen-Cache im Eltern-Portal, nach #5408 | +55 / 0 / +1990 B | [41277751229](https://github.com/moto-ogs/project-phoenix/actions/runs/41277751229) |
+| #5456, `1eec6b529f` | SSE-/Polling-Abgleich und Zeitfenstergrenzen, nach #5408 | +1320 / 0 / +629 B | [41276170050](https://github.com/moto-ogs/project-phoenix/actions/runs/41276170050) |
 
 Zusätzliche Messnachweise außerhalb dieser 22 Feature-Paare:
 
 - #5182 (`81a68c7792`, `86dd587225`): Der direkte Vergleich der
   aufeinanderfolgenden Merges `7d898cb22d` → `a3a1d0de26` misst
   +4164 / −26 / +3949 B. Beide archivierten Quellbäume stimmen exakt mit
-  diesen Merges überein ([40754352528](https://github.com/moto-nrw/project-phoenix/actions/runs/40754352528)).
+  diesen Merges überein ([40754352528](https://github.com/moto-ogs/project-phoenix/actions/runs/40754352528)).
 - #5445 (`ec26ae4be1`): +18 / 0 / +18 B eigenes PR-Delta, nicht die Altlast
-  ([41256428322](https://github.com/moto-nrw/project-phoenix/actions/runs/41256428322)).
+  ([41256428322](https://github.com/moto-ogs/project-phoenix/actions/runs/41256428322)).
 
 Für die 22 Feature-Paare enthält die Evidenzdatei beide Quellidentitäten,
 Revisionen und die Deltas aller 17 Routen. Die Tabelle nennt die gemessenen
@@ -124,7 +124,7 @@ Chunk-ID-Änderungen dürfen nicht als isolierte Featurekosten interpretiert wer
 `76b331c2ce` (#5408) ersetzt den gemeinsamen Laufzeitimport von
 `MOTO_CONCEPTS` durch direkt importierte Konzeptdefinitionen. Das beseitigt
 den vermeidbaren gemeinsamen Icon-Anteil. Der kalte Linux-Run
-[41254911890](https://github.com/moto-nrw/project-phoenix/actions/runs/41254911890)
+[41254911890](https://github.com/moto-ogs/project-phoenix/actions/runs/41254911890)
 misst 643841 B auf der Tenant-Startseite und 763236 B auf dem Eltern-Login.
 Der heutige Baum enthält zusätzlich #5433 und #5456. Folgende Werte stammen
 aus dem kalten ARM64-Build von `20ef1e283b`; sie sind Diagnosewerte, keine
@@ -151,9 +151,9 @@ Linux-x64-Budgetreferenzen. Die zugehörige finale PR-CI prüft die absoluten We
 | `/parents/settings` | +17119 | 779307 | 825731 | Unverändert; historischer Zuwachs nach #5408 ausgeglichen. |
 
 Für die Hilfe ist 731013 B bereits durch den kalten Linux-x64-Run
-[41276170050](https://github.com/moto-nrw/project-phoenix/actions/runs/41276170050)
+[41276170050](https://github.com/moto-ogs/project-phoenix/actions/runs/41276170050)
 auf `1eec6b529f` belegt; #5433 trägt dort 0 B bei
-([41277751229](https://github.com/moto-nrw/project-phoenix/actions/runs/41277751229)).
+([41277751229](https://github.com/moto-ogs/project-phoenix/actions/runs/41277751229)).
 Die neue Obergrenze ist `Math.round(731013 * 1.02) = 745633` B.
 `/help/nfc/erste-schritte` im gleichen Budgetdokument bleibt unverändert.
 

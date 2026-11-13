@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/stretchr/testify/require"
 )
 
@@ -307,6 +307,10 @@ func (s *fakeStore) FindLoginAccount(_ context.Context, id int64, forUpdate bool
 func (s *fakeStore) RecordAccountLogin(_ context.Context, id int64, _ time.Time) (bool, domain.OperationStats, error) {
 	s.record("RecordAccountLogin")
 	return s.recordLoginErr == nil && !s.erasedBeforeMint, stats(), s.recordLoginErr
+}
+
+func (s *fakeStore) HoldsTraegerParentAccess(context.Context, int64) (bool, error) {
+	return false, nil
 }
 
 func (s *fakeStore) ListActiveTenantIDs(_ context.Context, accountID int64) ([]int64, domain.OperationStats, error) {

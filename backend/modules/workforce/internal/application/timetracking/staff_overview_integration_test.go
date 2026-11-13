@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/application/timetracking"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -222,10 +222,13 @@ func TestTimeTrackingOverview_MatchesMonthSummary(t *testing.T) {
 	createdTimeRecord2, err := f.workforce.CreateStaffBalanceAdjustment(f.ctx, timetracking.StaffBalanceAdjustmentToCapability(adjustment))
 	require.NoError(t, err)
 	*adjustment = *balanceAdjustmentRecord(createdTimeRecord2)
+	// A fourth staff member without any Soll maintained (#6887).
+	withoutTarget := testpkg.CreateTestStaffForTenant(t, f.db, f.tenantID, "Ohne", "Soll")
+	f.staff = append(f.staff, withoutTarget.ID)
 
 	overview, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{})
 	require.NoError(t, err)
-	require.Len(t, overview.Rows, 3)
+	require.Len(t, overview.Rows, 4)
 
 	byStaff := make(map[int64]timetracking.TimeTrackingOverviewRow, len(overview.Rows))
 	for _, row := range overview.Rows {
@@ -240,6 +243,8 @@ func TestTimeTrackingOverview_MatchesMonthSummary(t *testing.T) {
 		assert.Equal(t, expected.TargetMinutesToDate, row.SollMinutes, "soll for staff %d", staffID)
 		assert.Equal(t, expected.ActualMinutes, row.IstMinutes, "ist for staff %d", staffID)
 		assert.Equal(t, expected.ClosingBalanceMinutes, row.BalanceMinutes, "saldo for staff %d", staffID)
+		assert.Equal(t, expected.HasTarget, row.HasTarget, "has_target for staff %d", staffID)
+		assert.Equal(t, staffID != withoutTarget.ID, row.HasTarget, "has_target for staff %d", staffID)
 	}
 }
 
