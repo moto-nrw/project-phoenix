@@ -7,7 +7,10 @@ import { runInNewContext } from "node:vm";
 import { parse } from "yaml";
 
 import { readBaseComparison } from "./perf/bundle-measurement.mjs";
-import { compareBundles, GROWTH_APPROVAL_LABEL } from "./perf/bundle-policy.mjs";
+import {
+  compareBundles,
+  GROWTH_APPROVAL_LABEL,
+} from "./perf/bundle-policy.mjs";
 
 function workflow(name) {
   return parse(
@@ -158,6 +161,49 @@ test("one regular build of the synthetic merge runs beside the head-only analysi
   assert.match(steps[selectHead].run, /pnpm install --frozen-lockfile/);
 });
 
+test("a merge-base measurement is restored by its identity before the build and saved only after a cold build", () => {
+  const steps = workflow("lint.yml").jobs["frontend-build"].steps;
+  const index = (predicate) => steps.findIndex(predicate);
+  const identify = index((step) => step.id === "bundle-key");
+  const restore = index((step) => step.id === "bundle-base-cache");
+  const build = index(
+    (step) =>
+      step.run === "node scripts/perf/bundle-measurement.mjs --build-base",
+  );
+  const save = index((step) => step.uses?.startsWith("actions/cache/save@"));
+  const ratchet = index((step) => step.run === "pnpm run perf:bundle-ratchet");
+  assert.ok(
+    identify >= 0 &&
+      identify < restore &&
+      restore < build &&
+      build < save &&
+      save < ratchet,
+  );
+  assert.match(steps[restore].uses, /^actions\/cache\/restore@/);
+  const key = "${{ steps.bundle-key.outputs.base-measurement-key }}";
+  for (const step of [steps[restore], steps[save]]) {
+    assert.equal(step.with.key, key);
+    assert.equal(step.with.path, "frontend/perf-results/bundle-base.json");
+    assert.equal(step.with["restore-keys"], undefined, "exact identity only");
+  }
+  // The script decides whether a restored file counts, so the build step
+  // never skips on a cache hit; only the save does.
+  assert.equal(steps[build].if, steps[restore].if);
+  assert.equal(
+    steps[save].if,
+    `${steps[restore].if} && steps.bundle-base-cache.outputs.cache-hit != 'true'`,
+  );
+  for (const baseRef of ["development", "feature/stack-base"])
+    assert.equal(
+      expression(steps[restore].if, bundleContext("pull_request", baseRef)),
+      true,
+    );
+  assert.equal(
+    expression(steps[restore].if, bundleContext("pull_request", "main")),
+    false,
+  );
+});
+
 test("a lint.yml-only PR selects frontend checks and the reusable frontend build", () => {
   const main = workflow("main.yml");
   const filter = main.jobs["detect-changes"].steps.find(
@@ -293,7 +339,10 @@ test("the approval label is read fresh on feature PRs only and reaches the ratch
     (step) => step.run === "pnpm run perf:bundle-ratchet",
   );
   assert.ok(approval.run.includes(`'${GROWTH_APPROVAL_LABEL}'`));
-  assert.match(approval.run, /gh api "repos\/\$REPOSITORY\/issues\/\$PR_NUMBER\/labels"/);
+  assert.match(
+    approval.run,
+    /gh api "repos\/\$REPOSITORY\/issues\/\$PR_NUMBER\/labels"/,
+  );
   for (const baseRef of ["development", "feature/stack-base"])
     assert.equal(
       expression(approval.if, bundleContext("pull_request", baseRef)),

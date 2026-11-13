@@ -18,6 +18,7 @@ import {
   measurementKey,
   readBaseComparison,
   readMeasurement,
+  reusableMeasurement,
   validateMeasurement,
   writeMeasurement,
 } from "./bundle-measurement.mjs";
@@ -229,8 +230,41 @@ test("valid cached observations preserve route bytes and deterministic route ord
     );
   }));
 
-// Artifact lookup no longer exists: an unavailable observation cannot disable
-// the mandatory freshly built feature-PR comparison.
+test("only a measurement of exactly this source tree and configuration is reused; anything else is built again", () =>
+  inDirectory((directory) => {
+    const file = join(directory, "perf-results/bundle-base.json");
+    assert.equal(reusableMeasurement(file, identity), null, "nothing restored");
+    writeMeasurement(
+      file,
+      makeMeasurement(identity, revision, observations, "41"),
+    );
+    const reused = reusableMeasurement(file, identity);
+    assert.equal(reused.runId, "41");
+    assert.deepEqual(reused.routes, { "/parents/children": 100_000 });
+    assert.equal(
+      reusableMeasurement(file, makeIdentity("c".repeat(40), { node: "24" })),
+      null,
+      "another source tree",
+    );
+    assert.equal(
+      reusableMeasurement(file, makeIdentity(sourceTree, { node: "26" })),
+      null,
+      "another build configuration",
+    );
+    writeFileSync(file, "broken json");
+    assert.equal(reusableMeasurement(file, identity), null, "corrupt file");
+    writeFileSync(
+      file,
+      JSON.stringify({
+        ...makeMeasurement(identity, revision, observations),
+        routes: { "/parents/children": -1 },
+      }),
+    );
+    assert.equal(reusableMeasurement(file, identity), null, "invalid bytes");
+  }));
+
+// No lookup by age or by name: an unavailable observation cannot disable the
+// feature-PR comparison, it only means the merge-base is built cold again.
 test("removed --fetch-base command is rejected rather than contacting GitHub", () => {
   const result = spawnSync(
     process.execPath,
