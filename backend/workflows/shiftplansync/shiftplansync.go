@@ -63,4 +63,12 @@ type SickCascade interface {
 	// names its canonical absenceType; an existing absence keeps its stored
 	// type when absenceType is empty.
 	LockSickReportWrite(ctx context.Context, staffID, absenceID int64, absenceType, dateStart, dateEnd string) error
+	// AbsencePlanGaps lists the absences in force whose shifts and blocks
+	// from today on do not yet carry their effect (#7021): the dry run of
+	// MarkSickForRange over every such absence of the school.
+	AbsencePlanGaps(ctx context.Context) ([]workforce.AbsencePlanGap, error)
+	// MarkAbsenceInForce re-applies MarkSickForRange to one stored absence
+	// on the actor's behalf and reports false when it is no longer in
+	// force. The caller holds the absence's write locks.
+	MarkAbsenceInForce(ctx context.Context, absenceID, actorStaffID int64, actorAccountID *int64) (bool, error)
 }

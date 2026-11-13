@@ -9,6 +9,7 @@ DELETE /api/staff/{id}/time-tracking/adjustments/{adjustmentId} -> zeiterfassung
 DELETE /api/staff/{id}/vacation/opening -> zeiterfassung
 GET /api/staff/ -> basis
 GET /api/staff/absences/pending -> zeiterfassung
+GET /api/staff/absences/plan-gaps -> zeiterfassung
 GET /api/staff/absences/requests -> zeiterfassung
 GET /api/staff/available -> basis
 GET /api/staff/by-role -> basis
@@ -52,6 +53,7 @@ GET /api/staff/{id}/vacation/quota -> zeiterfassung
 POST /api/staff/ -> basis
 POST /api/staff/absences/{absenceId}/approve -> zeiterfassung
 POST /api/staff/absences/{absenceId}/deny -> zeiterfassung
+POST /api/staff/absences/{absenceId}/plan-sync -> zeiterfassung
 POST /api/staff/absences/{absenceId}/question -> zeiterfassung
 POST /api/staff/externals -> basis
 POST /api/staff/externals/{id}/invitation -> basis

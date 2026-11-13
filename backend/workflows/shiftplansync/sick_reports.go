@@ -90,6 +90,42 @@ func (r *SickReports) DeleteAbsenceFor(ctx context.Context, subjectStaffID, acto
 	})
 }
 
+// AbsencePlanGaps lists the absences in force whose plan rows from today on
+// still lack their effect (#7021), read in one tenant transaction.
+func (r *SickReports) AbsencePlanGaps(ctx context.Context) ([]workforce.AbsencePlanGap, error) {
+	var gaps []workforce.AbsencePlanGap
+	err := r.runInTx(ctx, func(ctx context.Context) error {
+		value, err := r.cascade.AbsencePlanGaps(ctx)
+		gaps = value
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return gaps, nil
+}
+
+// SyncAbsencePlan re-applies the cascade of one stored absence on the
+// actor's behalf (#7021), behind the locks of an absence write, in one tenant
+// transaction. It reports false and writes nothing when the absence is no
+// longer in force. One absence per unit of work: the locks of two absences
+// would break the canonical lock order of #6232.
+func (r *SickReports) SyncAbsencePlan(ctx context.Context, absenceID, actorStaffID int64, actorAccountID *int64) (bool, error) {
+	var applied bool
+	err := r.runInTx(ctx, func(ctx context.Context) error {
+		if err := r.lockFor(0, absenceID, "", "", "")(ctx); err != nil {
+			return err
+		}
+		value, err := r.cascade.MarkAbsenceInForce(ctx, absenceID, actorStaffID, actorAccountID)
+		applied = value
+		return err
+	})
+	if err != nil {
+		return false, err
+	}
+	return applied, nil
+}
+
 // lockFor takes the write's locks before Workforce writes (#6232).
 func (r *SickReports) lockFor(staffID, absenceID int64, absenceType, dateStart, dateEnd string) func(context.Context) error {
 	return func(ctx context.Context) error {

@@ -2,6 +2,13 @@
   "sites": [
     {
       "build": "production",
+      "evidence": "func (r *SickReports) AbsencePlanGaps(ctx context.Context) ([]workforce.AbsencePlanGap, error) {\n\tvar gaps []workforce.AbsencePlanGap\n\terr := r.runInTx(ctx, func(ctx context.Context) error {\n\t\tvalue, err := r.cascade.AbsencePlanGaps(ctx)\n\t\tgaps = value\n\t\treturn err\n\t})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn gaps, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/shiftplansync/SickReports.AbsencePlanGaps",
+      "owner": "workflows/shiftplansync"
+    },
+    {
+      "build": "production",
       "evidence": "func (r *SickReports) ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforce.StaffAbsenceResponse, error) {\n\treturn r.absence(ctx, r.lockFor(0, absenceID, \"\", \"\", \"\"), func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {\n\t\treturn r.absences.ApproveAbsence(ctx, absenceID, actorAccountID, decidedByStaffID, note)\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "workflows/shiftplansync/SickReports.ApproveAbsence",
