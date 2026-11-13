@@ -193,3 +193,93 @@ jobs:
             ~/.cache/go-build
             ~/.cache/golangci-lint
           key: ${{ steps.lint-cache-key.outputs.key }}
+
+  # The build cache "Seed and simulate smoke" restores in pull requests
+  # (test.yml). Only the nightly run saved it, so by the afternoon each of the
+  # three scenario jobs compiled a day of development: "Build backend and dev
+  # tools binaries" took 23-27 s right after a save and 78-86 s in the median
+  # of 36 jobs (12.11.2026), up to 132 s after a Go update.
+  #
+  # The key, the cached path, GOFLAGS and the runner image must match
+  # "Restore seed smoke build cache" in test.yml. That job runs on a hosted
+  # runner, so this entry lives in the repository's 10 GB GitHub cache: the
+  # sweep keeps it to one build and the last step deletes its predecessors.
+  warm-seed-smoke:
+    name: Warm seed smoke build cache
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # Deletes the superseded entries of this cache.
+      actions: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Go
+        id: go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Compute seed smoke build cache key
+        id: build-cache-key
+        env:
+          SEED_CACHE_PREFIX: seed-smoke-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum') }}-
+          SEED_SOURCE_HASH: ${{ hashFiles('backend/**/*.go') }}
+        run: |
+          echo "prefix=$SEED_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "key=$SEED_CACHE_PREFIX$SEED_SOURCE_HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Restore seed smoke build cache
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
+          restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
+
+      - name: Mark restored build cache entries
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: scripts/go-cache-sweep.sh mark "$RUNNER_TEMP/seed-cache-marker" ~/.cache/go-build
+
+      # What the three scenarios build: both binaries and the coverage ratchet.
+      - name: Build the seed smoke binaries
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        working-directory: backend
+        run: |
+          go build -o "$RUNNER_TEMP/phoenix" .
+          go build -o "$RUNNER_TEMP/devtools" ./cmd/devtools
+          go test -c -o "$RUNNER_TEMP/seed-coverage.test" ./internal/devtools/seedapi/
+
+      - name: Drop build cache entries this build did not use
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: scripts/go-cache-sweep.sh sweep "$RUNNER_TEMP/seed-cache-marker" ~/.cache/go-build
+
+      - name: Save seed smoke build cache
+        id: save
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
+
+      # Pull requests restore the newest entry by prefix; an older one only
+      # takes room other caches need.
+      - name: Delete superseded seed smoke build caches
+        if: steps.save.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREFIX: ${{ steps.build-cache-key.outputs.prefix }}
+          KEY: ${{ steps.build-cache-key.outputs.key }}
+        run: |
+          gh cache list --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF" --key "$PREFIX" --limit 100 --json id,key \
+            --jq ".[] | select(.key != \"$KEY\") | .id" |
+            while IFS= read -r id; do
+              gh cache delete "$id" --repo "$GITHUB_REPOSITORY"
+            done

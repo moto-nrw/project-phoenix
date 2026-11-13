@@ -30,8 +30,9 @@ env:
 # the job's time in half or more. frontend-build sets it for frontend pull
 # requests: eight vCPUs took 142 s instead of 185 s (10/2026), but bill three
 # minutes at twice the rate where four vCPUs bill four; four vCPUs cost a third
-# less per run. Its per-commit Next.js cache would churn the 10 GB GitHub cache
-# on a hosted runner. backend-lint took 6-8 minutes on a hosted runner; a cold
+# less per run. Its two cold bundle builds keep four cores busy: started side
+# by side they took 207 s against 210 s one after the other (11/2026).
+# backend-lint took 6-8 minutes on a hosted runner; a cold
 # full lint took 195 s on four vCPUs and 101 s on eight, at the same cost.
 # nightly.yml runs this workflow on development to keep the caches warm.
 
@@ -231,6 +232,34 @@ jobs:
       - name: Frontend quality (shared with pre-push)
         run: bash scripts/check-quality.sh frontend
 
+      # The regular build of the tested tree: on pull requests GitHub's
+      # synthetic merge, which this job checks out by default. It ran in
+      # "Frontend build" before the two cold bundle builds and took 76-138 s
+      # there, on the job that set the wall-clock time of frontend pull
+      # requests (306-458 s, 13.11.2026). The bundle comparison reads nothing
+      # from it. Without a Next.js cache: a hosted runner would save it into
+      # the repository's 10 GB GitHub cache on every push.
+      - name: Build frontend merge integration
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: "http://localhost:8080"
+          SKIP_ENV_VALIDATION: "true"
+          API_URL: "http://localhost:8080"
+          NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
+          NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
+          NEXT_PUBLIC_APP_ENV: test
+          NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000"
+          NEXT_PUBLIC_CATERER_HOSTNAME: "caterer.localhost:3000"
+          NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.localhost:3000"
+          TENANT_DOMAIN: "localhost"
+          NEXT_PUBLIC_TENANT_DOMAIN: "localhost"
+          NEXTAUTH_URL: "http://localhost:3000"
+          NEXTAUTH_SECRET: "ci-bundle-ratchet-throwaway-secret"
+          AUTH_JWT_EXPIRY: "15m"
+          AUTH_JWT_REFRESH_EXPIRY: "168h"
+          METRICS_BEARER_TOKEN: "ci-bundle-ratchet-token"
+        run: pnpm run build
+
       # Storybook supplies its own mock environment and needs no Next build.
       # Keep it off the serial Next.js/bundle-ratchet critical path.
       - name: Build Storybook
@@ -311,8 +340,8 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Keep the default synthetic merge for the regular integration build.
-          # Feature bundle measurements switch to the PR head afterwards.
+          # Feature bundle measurements switch to the PR head below; release
+          # pull requests and pushes measure the checked-out tree.
           fetch-depth: 0
           filter: blob:none
           persist-credentials: false
@@ -327,25 +356,6 @@ jobs:
           cache: "pnpm"
           cache-dependency-path: "frontend/pnpm-lock.yaml"
 
-      # Actions re-evaluates cache inputs in the post step. Compute these once,
-      # before node_modules and build outputs exist: the same glob cost 24s
-      # after Storybook, even on an exact cache hit with no upload.
-      - name: Compute Next.js cache key
-        id: next-cache-key
-        env:
-          CACHE_KEY: ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-${{ hashFiles('frontend/**/*.js', 'frontend/**/*.jsx', 'frontend/**/*.ts', 'frontend/**/*.tsx') }}
-          CACHE_PREFIX: ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-
-        run: |
-          echo "key=$CACHE_KEY" >> "$GITHUB_OUTPUT"
-          echo "prefix=$CACHE_PREFIX" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Next.js build
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: frontend/.next/cache
-          key: ${{ steps.next-cache-key.outputs.key }}
-          restore-keys: ${{ steps.next-cache-key.outputs.prefix }}
-
       - name: Install dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
@@ -353,10 +363,6 @@ jobs:
       - name: Verify bundle budget and observation contracts
         working-directory: frontend
         run: node --test scripts/bundle-workflow-permissions.node-test.mjs scripts/perf/bundle-policy.node-test.mjs scripts/perf/bundle-measurement.node-test.mjs scripts/perf/bundle-base.node-test.mjs
-
-      - name: Build frontend merge integration
-        working-directory: frontend
-        run: pnpm run build
 
       - name: Select feature PR head for bundle delta measurements
         if: github.event_name == 'pull_request' && github.base_ref != 'main'
@@ -388,10 +394,10 @@ jobs:
       # Feature PRs enforce their own delta against a cold merge-base build;
       # the approval label turns it into a warning. Release PRs into main and
       # nightly enforce only the few absolute ceilings: release-cycle growth is
-      # not a feature PR regression. The regular merge build above still
-      # catches semantic integration failures before merging. Keep the regular
-      # build: experimental-analyze's cold compilation is not assumed to cover
-      # every Next.js build/type/route-validation contract.
+      # not a feature PR regression. The regular merge build in "Frontend
+      # quality" still catches semantic integration failures before merging.
+      # Keep that build: experimental-analyze's cold compilation is not assumed
+      # to cover every Next.js build/type/route-validation contract.
       - name: Bundle size ratchet
         working-directory: frontend
         env:

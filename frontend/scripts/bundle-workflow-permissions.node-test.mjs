@@ -114,9 +114,34 @@ test("feature and stacked PRs retain delta checks; nightly has only absolute bud
   }
 });
 
-test("regular merge build precedes the head-only analysis without buying another Next build", () => {
-  const steps = workflow("lint.yml").jobs["frontend-build"].steps;
-  const build = steps.findIndex((step) => step.run === "pnpm run build");
+test("one regular build of the synthetic merge runs beside the head-only analysis, not before it", () => {
+  const jobs = workflow("lint.yml").jobs;
+  const isBuild = (step) => step.run === "pnpm run build";
+  const quality = jobs["frontend-quality"];
+  assert.equal(quality.steps.filter(isBuild).length, 1);
+  assert.equal(quality.if, jobs["frontend-build"].if);
+  const qualityCheckout = quality.steps.find((step) =>
+    step.uses?.startsWith("actions/checkout@"),
+  );
+  assert.equal(
+    qualityCheckout.with?.ref,
+    undefined,
+    "the regular build must retain GitHub's synthetic merge",
+  );
+  assert.ok(
+    quality.steps.findIndex(isBuild) >
+      quality.steps.findIndex((step) => step.run?.includes("pnpm install")),
+  );
+  // Both builds see the same public build environment.
+  const buildEnv = quality.steps.find(isBuild).env;
+  for (const [key, value] of Object.entries(jobs["frontend-build"].env))
+    assert.equal(buildEnv[key], value, key);
+  for (const [name, job] of Object.entries(jobs)) {
+    if (name !== "frontend-quality")
+      assert.equal(job.steps.filter(isBuild).length, 0, name);
+  }
+
+  const steps = jobs["frontend-build"].steps;
   const selectHead = steps.findIndex(
     (step) =>
       step.name === "Select feature PR head for bundle delta measurements",
@@ -125,13 +150,7 @@ test("regular merge build precedes the head-only analysis without buying another
   const analyze = steps.findIndex(
     (step) => step.run === "pnpm run perf:bundle-ratchet",
   );
-  assert.ok(
-    build >= 0 &&
-      build < selectHead &&
-      selectHead < identify &&
-      identify < analyze,
-  );
-  assert.equal(steps.filter((step) => step.run === "pnpm run build").length, 1);
+  assert.ok(selectHead >= 0 && selectHead < identify && identify < analyze);
   assert.match(
     steps[selectHead].run,
     /git checkout --detach "\$HEAD_REVISION"/,
@@ -206,7 +225,7 @@ test("bundle builds need no artifact-read token and do not persist checkout cred
   assert.equal(
     checkout.with.ref,
     undefined,
-    "the regular build must retain GitHub's synthetic merge",
+    "the contract tests run on GitHub's synthetic merge",
   );
   assert.equal(checkout.with["fetch-depth"], 0);
   assert.ok(
