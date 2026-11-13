@@ -12,6 +12,7 @@ import React, {
   type RefObject,
 } from "react";
 import { useFormError, type FormErrorDetail } from "~/components/ui/form-error";
+import { KitLocaleProvider } from "~/components/ui/kit-locale";
 import { TOAST_FADE_MS } from "~/components/ui/motion";
 import { Toast } from "~/components/ui/toast";
 import { clientEnv } from "~/env.client";
@@ -341,35 +342,37 @@ function ToastRow({
   };
 
   return (
-    <Toast
-      type={item.type}
-      message={item.message}
-      accessibleLabel={`${labels.typeTitles[item.type]}: ${item.message}`}
-      closeLabel={labels.close}
-      closeTooltip={labels.closeHint}
-      onClose={dismissWithExitAnimation}
-      requestId={item.requestId}
-      requestIdLabel={item.requestIdLabel}
-      copyRequestIdLabel={labels.copyRequestId}
-      copySucceededLabel={labels.copySucceeded}
-      copyFailedLabel={labels.copyFailed}
-      action={
-        item.action
-          ? {
-              label: item.action.label,
-              accessibleLabel: isMobile
-                ? labels.actionInstruction(item.action.label)
-                : item.action.label,
-              onClick: handleAction,
-            }
-          : undefined
-      }
-      visible={visible && !exiting}
-      reducedMotion={reducedMotion}
-      touchFriendly={isMobile}
-      onMouseEnter={pauseIfDesktop}
-      onMouseLeave={resumeIfDesktop}
-    />
+    <KitLocaleProvider locale={locale}>
+      <Toast
+        type={item.type}
+        message={item.message}
+        accessibleLabel={`${labels.typeTitles[item.type]}: ${item.message}`}
+        closeLabel={labels.close}
+        closeTooltip={labels.closeHint}
+        onClose={dismissWithExitAnimation}
+        requestId={item.requestId}
+        requestIdLabel={item.requestIdLabel}
+        copyRequestIdLabel={labels.copyRequestId}
+        copySucceededLabel={labels.copySucceeded}
+        copyFailedLabel={labels.copyFailed}
+        action={
+          item.action
+            ? {
+                label: item.action.label,
+                accessibleLabel: isMobile
+                  ? labels.actionInstruction(item.action.label)
+                  : item.action.label,
+                onClick: handleAction,
+              }
+            : undefined
+        }
+        visible={visible && !exiting}
+        reducedMotion={reducedMotion}
+        touchFriendly={isMobile}
+        onMouseEnter={pauseIfDesktop}
+        onMouseLeave={resumeIfDesktop}
+      />
+    </KitLocaleProvider>
   );
 }
 
