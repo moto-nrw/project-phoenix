@@ -47,3 +47,37 @@ func TestStaffEvents_TechnicalSetupFailures(t *testing.T) {
 		})
 	}
 }
+
+// A client that disconnects while the subscription resolves is no server
+// fault: the stream answers 499, never 500 (Sentry BACKEND-1B).
+func TestStaffEvents_ClientGoneDuringSetupIsNoServerError(t *testing.T) {
+	t.Parallel()
+	runtime := Runtime[realtime.Event, *realtime.Client]{
+		TokenDeadline: func(ctx context.Context) (context.Context, context.CancelFunc, bool) {
+			ctx, cancel := context.WithCancel(ctx)
+			return ctx, cancel, true
+		},
+		Identity:     func(context.Context) Identity { return Identity{} },
+		WithinTenant: func(ctx context.Context, _ int64, fn func(context.Context) error) error { return fn(ctx) },
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	resolver := cancellingSubscriptionResolver{cancel: cancel}
+	resource := NewResource[realtime.Event, *realtime.Client](nil, resolver, runtime, nil)
+	rr := httptest.NewRecorder()
+	resource.StaffEvents(rr, httptest.NewRequest(http.MethodGet, "/events", nil).WithContext(ctx))
+	require.Equal(t, statusClientClosedRequest, rr.Code)
+	var problem struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &problem))
+	assert.Equal(t, "general.unavailable", problem.Code)
+}
+
+// cancellingSubscriptionResolver plays the browser closing the tab while the
+// topics are read: the request context ends and the read fails with it.
+type cancellingSubscriptionResolver struct{ cancel context.CancelFunc }
+
+func (c cancellingSubscriptionResolver) ResolveSSETopics(ctx context.Context) (int64, []string, []string, []string, error) {
+	c.cancel()
+	return 0, nil, nil, nil, ctx.Err()
+}

@@ -68,6 +68,7 @@ GRANT SELECT, INSERT ON public.cancelled_commit_probe TO phoenix_tenant, phoenix
 						err = tenant.WithinTenant(ctx, schoolID, body)
 					}
 					require.ErrorIs(t, err, target)
+					require.Equal(t, tenant.UnitOfWorkRolledBack, tenant.TransactionResult(err), "the rolled-back unit has a known outcome: %v", err)
 					if hookRan {
 						t.Fatal("a cancelled transaction ran its after-commit hook")
 					}

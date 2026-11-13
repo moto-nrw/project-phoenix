@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -175,7 +176,8 @@ func TestClientErrorsAndCanceledRequestsProduceNoSentryEvent(t *testing.T) {
 // owner wants every one in Sentry. It arrives as a warning tagged
 // client_canceled, so it can be filtered and does not page like a defect.
 // Production answered these with the cause the unit of work gave for the
-// commit it could no longer finish, or with context.Canceled itself.
+// commit it could no longer finish. A 5xx carrying context.Canceled itself is
+// no longer one: TestClientCanceledRenderErrorAnswers499.
 func TestClientCanceledServerErrorsBecomeOneWarningEvent(t *testing.T) {
 	t.Parallel()
 
@@ -188,11 +190,6 @@ func TestClientCanceledServerErrorsBecomeOneWarningEvent(t *testing.T) {
 			name:    "commit outcome unknown",
 			cause:   fmt.Errorf("unit of work: commit outcome unknown: %w", sql.ErrTxDone),
 			message: "unit of work: commit outcome unknown: sql: transaction has already been committed or rolled back",
-		},
-		{
-			name:    "context canceled",
-			cause:   context.Canceled,
-			message: "context canceled",
 		},
 		{
 			name: "no recorded cause",
@@ -231,6 +228,46 @@ func TestClientCanceledServerErrorsBecomeOneWarningEvent(t *testing.T) {
 			assert.Equal(t, tc.message, event.Exception[len(event.Exception)-1].Value)
 		})
 	}
+}
+
+// A server error whose cause is the client's own cancellation is the
+// disconnect, not a fault: RenderError answers 499, which reaches neither
+// Sentry nor the ERROR log, and still rolls the request transaction back.
+// Production answered the parents-portal booking gate and the SSE stream
+// with 500 here (Sentry BACKEND-1B, BACKEND-1C).
+func TestClientCanceledRenderErrorAnswers499(t *testing.T) {
+	t.Parallel()
+
+	cause := fmt.Errorf("parents portal booking could not be read: %w", context.Canceled)
+	ctx, cancel := context.WithCancel(context.Background())
+	var rollback bool
+	req := httptest.NewRequest(http.MethodGet, "/api/parent-sse/events", nil).WithContext(tenant.WithRollbackMarker(ctx))
+	code, events := serveWithRecordingSentry(t, func(router chi.Router) {
+		router.Get("/api/parent-sse/events", func(w http.ResponseWriter, r *http.Request) {
+			cancel()
+			common.RenderError(w, r, common.ErrorInternalServer(cause))
+			rollback = tenant.RollbackRequested(r.Context())
+		})
+	}, req)
+
+	require.Equal(t, 499, code)
+	assert.Empty(t, events)
+	assert.True(t, rollback, "the 499 rolls back what the replaced 5xx rolled back")
+}
+
+// A context.Canceled cause on a live request is not the client's
+// disconnect; it stays a server error.
+func TestCanceledCauseOnLiveRequestStaysServerError(t *testing.T) {
+	t.Parallel()
+
+	code, events := serveWithRecordingSentry(t, func(router chi.Router) {
+		router.Get("/api/sse/events", func(w http.ResponseWriter, r *http.Request) {
+			common.RenderError(w, r, common.ErrorInternalServer(context.Canceled))
+		})
+	}, httptest.NewRequest(http.MethodGet, "/api/sse/events", nil))
+
+	require.Equal(t, http.StatusInternalServerError, code)
+	require.Len(t, events, 1)
 }
 
 // Issue #3645: the error-report relay's 502 for an unreachable Sentry is the

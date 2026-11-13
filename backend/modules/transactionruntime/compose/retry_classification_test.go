@@ -244,6 +244,10 @@ func TestRetryAfterConnectionLossOrContextEnd(t *testing.T) {
 			t.Logf("CELL B3 %s %s", unit.name, got)
 			require.Equal(t, failedOnce, got, "error: %v", err)
 			require.ErrorIs(t, err, context.Canceled)
+			// A cancelled unit rolled back: its outcome is known.
+			var outcome interface{ CommitOutcomeUnknown() }
+			require.False(t, errors.As(err, &outcome), "commit outcome unknown: %v", err)
+			require.Equal(t, tenant.UnitOfWorkRolledBack, tenant.TransactionResult(err))
 		})
 		t.Run(unit.name+"/B4_request_deadline_in_savepoint", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(rig.ctx, 300*time.Millisecond)

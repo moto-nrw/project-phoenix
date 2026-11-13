@@ -74,6 +74,9 @@ func (rs *Resource[E, C]) SchoolEvents(w http.ResponseWriter, r *http.Request) {
 
 	allowed, err := rs.schoolAccess.HasSchoolPortalAccess(ctx, accountID, tenantID)
 	if err != nil {
+		if writeClientGone(ctx, w) {
+			return
+		}
 		logger.ErrorContext(ctx, "school SSE failed to verify portal access",
 			slog.String("error", err.Error()))
 		writeSSEProblem(w, http.StatusInternalServerError, codeGeneralServer, "Failed to verify access")
