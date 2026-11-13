@@ -218,30 +218,37 @@ func (s *Service) processCheckin(ctx context.Context, student *ports.Student, pe
 // ended while the scan waited for that lock. The scan then resolves the room
 // once more and gets the answer a scan after the end gets (#7024).
 func (s *Service) recordInRoomSession(ctx context.Context, room facilities.Room, studentID, deviceID int64) (int64, *selectedSession, error) {
-	for attempt := 0; ; attempt++ {
-		selection, err := s.findOrCreateSessionForRoom(ctx, room, studentID, deviceID)
-		if err != nil {
-			return 0, nil, err
-		}
-		if err := validateActivitySession(&selection.Session); err != nil {
-			return 0, nil, err
-		}
-		s.logger.DebugContext(ctx, "creating visit for student",
-			slog.Int64("student_id", studentID),
-			slog.Int64("active_group_id", selection.Session.ID),
-		)
-		visitID, err := s.visits.Record(ctx, studentID, selection.Session.ID)
-		if err == nil {
-			return visitID, selection, nil
-		}
-		if attempt > 0 || !errors.Is(err, ports.ErrSessionEnded) {
-			return 0, nil, s.classifyRecordFailure(ctx, studentID, selection, err)
-		}
+	visitID, selection, err := s.recordInSelectedSession(ctx, room, studentID, deviceID)
+	if selection != nil && errors.Is(err, ports.ErrSessionEnded) {
 		s.logger.InfoContext(ctx, "check-in session ended before the visit, resolving the room again",
 			slog.Int64("student_id", studentID),
 			slog.Int64("active_group_id", selection.Session.ID),
 		)
+		visitID, selection, err = s.recordInSelectedSession(ctx, room, studentID, deviceID)
 	}
+	if err != nil && selection != nil {
+		return 0, nil, s.classifyRecordFailure(ctx, studentID, selection, err)
+	}
+	return visitID, selection, err
+}
+
+// recordInSelectedSession selects the room's session and records the visit.
+// A selection failure comes without a selection and is already classified;
+// a refused visit comes with its selection and the raw port error.
+func (s *Service) recordInSelectedSession(ctx context.Context, room facilities.Room, studentID, deviceID int64) (int64, *selectedSession, error) {
+	selection, err := s.findOrCreateSessionForRoom(ctx, room, studentID, deviceID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if err := validateActivitySession(&selection.Session); err != nil {
+		return 0, nil, err
+	}
+	s.logger.DebugContext(ctx, "creating visit for student",
+		slog.Int64("student_id", studentID),
+		slog.Int64("active_group_id", selection.Session.ID),
+	)
+	visitID, err := s.visits.Record(ctx, studentID, selection.Session.ID)
+	return visitID, selection, err
 }
 
 // classifyRecordFailure maps a refused visit to the kiosk contract: a full

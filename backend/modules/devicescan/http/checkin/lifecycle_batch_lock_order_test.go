@@ -75,8 +75,15 @@ func TestOpenRoomWorkflowAndAdminAmendmentDoNotDeadlock(t *testing.T) {
 func TestTimeoutCohortAndScanDoNotDeadlock(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupTestDB(t)
-	for _, first := range []string{"cleanup_first", "cleanup_first_room_has_another_session", "scan_first"} {
-		t.Run(first, func(t *testing.T) {
+	for _, tc := range []struct {
+		name                       string
+		cleanupFirst, otherSession bool
+	}{
+		{name: "cleanup_first", cleanupFirst: true},
+		{name: "cleanup_first_room_has_another_session", cleanupFirst: true, otherSession: true},
+		{name: "scan_first"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			testpkg.OwnTenant(t)
 			f, _ := newSessionEndScanFixture(t)
@@ -90,7 +97,7 @@ func TestTimeoutCohortAndScanDoNotDeadlock(t *testing.T) {
 			testpkg.LinkDeviceToActiveGroup(t, f.k.db, source, testpkg.CreateTestDevice(t, f.k.db, "cohort-b-device").ID)
 			require.Less(t, f.scanStay, source, "the sweep locks A before B")
 			var another int64
-			if first == "cleanup_first_room_has_another_session" {
+			if tc.otherSession {
 				// In use, so the sweep keeps it; the scan prefers A, linked to its device.
 				another = testpkg.CreateTestActiveGroup(t, f.k.db, testpkg.CreateTestActivityGroup(t, f.k.db, "Timeout Cohort Other").ID, f.scanRoom).ID
 				testpkg.CreateTestVisit(t, f.k.db, testpkg.CreateTestStudent(t, f.k.db, "Other", "Session", "3a").ID, another, time.Now().Add(-time.Hour), nil)
@@ -106,7 +113,7 @@ func TestTimeoutCohortAndScanDoNotDeadlock(t *testing.T) {
 			}
 			var ended <-chan error
 			var scanned <-chan *httptest.ResponseRecorder
-			if first != "scan_first" {
+			if tc.cleanupFirst {
 				// The sweep holds A and waits for B; the scan queues on A.
 				holder := holdRow(t, f.k.db, "SELECT id FROM active.groups WHERE id = ? FOR UPDATE", source)
 				ended = startLockOrderCommand(t, cleanup)
@@ -131,13 +138,13 @@ func TestTimeoutCohortAndScanDoNotDeadlock(t *testing.T) {
 			require.Len(t, groups, 2)
 			visits, err := f.k.presence(t).ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{source, f.scanStay}, OpenOnly: true})
 			require.NoError(t, err)
-			if first != "scan_first" {
+			if tc.cleanupFirst {
 				require.Equal(t, 2, count)
 				for _, group := range groups {
 					require.NotNil(t, group.EndTime)
 				}
 				require.Empty(t, visits)
-				if another == 0 {
+				if !tc.otherSession {
 					testutil.AssertErrorResponse(t, response, 404)
 					require.Equal(t, devicescan.CodeNoGroupsInRoom, testutil.ParseJSONResponse(t, response.Body.Bytes())["code"])
 					return
