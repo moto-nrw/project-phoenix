@@ -9,8 +9,8 @@ Current rules here supersede historical test-lifecycle examples in ADR 0004.
 All backend tests use real database fixtures, never hardcoded IDs. The CI gate `TestHermeticTestPatterns` (`backend/test/hermetic_verification_test.go`) fails on `int64(1)`-style IDs; mock-based test files must be added to its `skipPatterns` allowlist.
 
 Use the real fixture setup and behavior tests as examples:
-[package lifecycle](../../backend/modules/studentpresence/internal/application/presence/main_test.go),
-[parallel behavior tests](../../backend/modules/studentpresence/internal/application/presence/broadcast_test.go),
+[package lifecycle](../../backend/modules/studentpresence/internal/application/presence/behaviortest/main_test.go),
+[parallel behavior tests](../../backend/modules/studentpresence/internal/application/presence/behaviortest/broadcast_test.go),
 and [fixture helpers](../../backend/test/fixtures.go).
 Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
 
