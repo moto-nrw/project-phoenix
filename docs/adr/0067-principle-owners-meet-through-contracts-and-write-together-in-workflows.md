@@ -196,9 +196,12 @@ from this correction. Other E5 best-effort/post-commit paths stay unchanged.
 
 #6844 applies the same rule to school creation, update and restore, device
 creation and the school-admin invitation: each returns its audit failure from
-its administrative transaction. The school-account creation keeps its
-post-commit audit, because its tenant unit cannot hold the administrative
-append (#6984).
+its administrative transaction. The school-account creation cannot hold the
+administrative append in its tenant unit; since #6984 it commits the entry in
+an administrative unit of its own while the school unit is still open, and
+an audit failure rolls the account back. Only a failing commit of the school
+unit after that leaves an entry for an account that does not exist.
+`TestOperatorAuditFailureRollsBackSchoolAccount` covers the rejected append.
 
 ### E2 lock-order correction (#4636)
 

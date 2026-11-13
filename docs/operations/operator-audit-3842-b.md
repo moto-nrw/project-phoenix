@@ -66,8 +66,9 @@ Provisioning und MFA melden den Fehler mit fester Aktionskategorie, ohne
 Anfrageinhalt. Andere bisherige best-effort-Änderungs-Audits werden nicht
 pauschal umgestellt. #6844 stellt Schule anlegen, ändern und wiederherstellen,
 Gerät anlegen, Schuladmin einladen und die Schulzugänge eines Kontos auf
-denselben Abbruch um; nur das Anlegen eines Schulkontos bleibt best-effort
-(#6984). CLI-Zugriffe und endgültige Mandantenlöschung sind nicht
+denselben Abbruch um. Das Anlegen eines Schulkontos schreibt seinen Eintrag
+in einer eigenen Admin-Transaktion vor dem Commit der Schul-Transaktion;
+scheitert der Eintrag, rollt das Konto zurück (#6984). CLI-Zugriffe und endgültige Mandantenlöschung sind nicht
 Gegenstand dieser Operator-Routeninventur; deren gesonderte Nachweise werden
 hier nicht behauptet.
 

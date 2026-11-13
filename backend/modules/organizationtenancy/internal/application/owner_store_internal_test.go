@@ -18,6 +18,9 @@ func (ownerTestTransaction) RunAdmin(ctx context.Context, fn func(context.Contex
 func (ownerTestTransaction) RunAdminRetry(ctx context.Context, fn func(context.Context) error) error {
 	return fn(ctx)
 }
+func (ownerTestTransaction) RunAdminDetached(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
 func (ownerTestTransaction) RunRead(ctx context.Context, fn func(context.Context) error) error {
 	return fn(ctx)
 }

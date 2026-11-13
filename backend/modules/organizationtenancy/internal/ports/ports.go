@@ -64,6 +64,10 @@ type Transaction interface {
 	// RunAdminRetry runs a retry-safe administrative command and replays the
 	// whole transaction after a deadlock or serialization failure.
 	RunAdminRetry(context.Context, func(context.Context) error) error
+	// RunAdminDetached runs fn in an administrative transaction of its own
+	// that commits on return, even when called inside a school transaction.
+	// The school transaction stays open and commits only afterwards.
+	RunAdminDetached(context.Context, func(context.Context) error) error
 	RunRead(context.Context, func(context.Context) error) error
 	// RunTenant runs fn in one transaction scoped to the school tenantID.
 	RunTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error
