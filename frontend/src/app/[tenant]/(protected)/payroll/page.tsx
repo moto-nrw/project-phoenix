@@ -1334,7 +1334,14 @@ function WageTypesCard({
       render: (wageType) => (
         <OverflowMenu
           ariaLabel={`Aktionen für ${wageType.name}`}
-          items={[{ label: "Archivieren", onClick: () => onArchive(wageType) }]}
+          items={[
+            {
+              label: "Archivieren",
+              description:
+                "Nimmt die Lohnart aus dem Export. moto fragt vorher nach.",
+              onClick: () => onArchive(wageType),
+            },
+          ]}
         />
       ),
     },
@@ -1350,6 +1357,7 @@ function WageTypesCard({
           variant="outline"
           size="compact"
           onClick={onCreate}
+          tooltip="Öffnet ein Fenster für eine neue Lohnart Ihres Lohnbüros."
         >
           Lohnart anlegen
         </Button>
@@ -1539,7 +1547,14 @@ function SurchargeRulesCard({
       render: (rule) => (
         <OverflowMenu
           ariaLabel={`Aktionen für ${SURCHARGE_KIND_LABELS[rule.kind]}`}
-          items={[{ label: "Archivieren", onClick: () => onArchive(rule) }]}
+          items={[
+            {
+              label: "Archivieren",
+              description:
+                "Beendet die Regel ab jetzt. moto fragt vorher nach.",
+              onClick: () => onArchive(rule),
+            },
+          ]}
         />
       ),
     },
@@ -1557,6 +1572,8 @@ function SurchargeRulesCard({
           size="compact"
           onClick={onCreate}
           disabled={noWageType}
+          disabledReason="Legen Sie zuerst oben eine eigene Lohnart an."
+          tooltip="Öffnet ein Fenster für eine neue Zuschlagsregel."
         >
           Zuschlagsregel anlegen
         </Button>

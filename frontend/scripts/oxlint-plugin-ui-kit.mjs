@@ -6098,6 +6098,16 @@ const TOOLTIP_SCOPE = [
   "src/components/staff/admin-session-edit-modal.tsx",
   "src/components/staff/allowance-card.tsx",
   "src/components/staff/arbeitszeitmodell-tab.tsx",
+  // Zeiterfassung, Lohn und Abwesenheiten (#6752).
+  "src/app/[tenant]/(protected)/absences/page.tsx",
+  "src/app/[tenant]/(protected)/payroll/page.tsx",
+  "src/app/[tenant]/(protected)/time-tracking/page.tsx",
+  "src/components/payroll/payroll-rule-modals.tsx",
+  "src/components/time-tracking/edit-history-accordion.tsx",
+  "src/components/time-tracking/leave-requests-card.tsx",
+  "src/components/time-tracking/monatskarte.tsx",
+  "src/components/time-tracking/own-dienstplan-view.tsx",
+  "src/components/time-tracking/vacation-request-modal.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

@@ -968,9 +968,9 @@ describe("TimeTrackingPage", () => {
       setupDefaultMocks();
       render(<TimeTrackingPage />);
       const btn = screen.getByLabelText("Einstempeln");
-      expect(btn).toBeDisabled();
+      expect(btn).toHaveAttribute("aria-disabled", "true");
       selectPresentMode();
-      expect(btn).not.toBeDisabled();
+      expect(btn).not.toHaveAttribute("aria-disabled");
     });
 
     it("shows Abwesenheit melden label when absent mode selected", () => {
@@ -3102,7 +3102,7 @@ describe("TimeTrackingPage", () => {
         );
         const saveButtons = screen.getAllByText("Speichern");
         const saveBtn = saveButtons[saveButtons.length - 1]!;
-        expect(saveBtn).toBeDisabled();
+        expect(saveBtn).toHaveAttribute("aria-disabled", "true");
         await act(async () => {
           fireEvent.click(saveBtn);
         });
@@ -3126,7 +3126,10 @@ describe("TimeTrackingPage", () => {
         "true",
       );
       const saveButtons = screen.getAllByText("Speichern");
-      expect(saveButtons[saveButtons.length - 1]!).toBeDisabled();
+      expect(saveButtons[saveButtons.length - 1]!).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
     });
 
     it("explains instead of silently keeping a cleared end", async () => {
@@ -3148,7 +3151,7 @@ describe("TimeTrackingPage", () => {
       );
       const saveButtons = screen.getAllByText("Speichern");
       const saveBtn = saveButtons[saveButtons.length - 1]!;
-      expect(saveBtn).toBeDisabled();
+      expect(saveBtn).toHaveAttribute("aria-disabled", "true");
       await act(async () => {
         fireEvent.click(saveBtn);
       });
@@ -3397,7 +3400,7 @@ describe("TimeTrackingPage", () => {
       // Notes should be empty by default
       const saveButtons = screen.getAllByText("Speichern");
       const saveBtn = saveButtons[saveButtons.length - 1]!;
-      expect(saveBtn).toBeDisabled();
+      expect(saveBtn).toHaveAttribute("aria-disabled", "true");
     });
 
     it("save button is enabled when notes are provided", async () => {
@@ -3428,7 +3431,7 @@ describe("TimeTrackingPage", () => {
 
       const saveButtons = screen.getAllByText("Speichern");
       const saveBtn = saveButtons[saveButtons.length - 1]!;
-      expect(saveBtn).toBeDisabled();
+      expect(saveBtn).toHaveAttribute("aria-disabled", "true");
 
       await act(async () => {
         fireEvent.click(saveBtn);
@@ -5507,7 +5510,10 @@ describe("deviation-reason gate (F9)", () => {
       screen.getByText(/nach Ihrem geplanten Dienstende/),
     ).toBeInTheDocument();
     // Confirm stays disabled until a reason is entered.
-    expect(screen.getByText("Mit Begründung ausstempeln")).toBeDisabled();
+    expect(screen.getByText("Mit Begründung ausstempeln")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("retries the check-out with the entered reason", async () => {
