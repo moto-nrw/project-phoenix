@@ -291,7 +291,7 @@ func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWr
 			return err
 		}
 
-		if err := s.repo.MarkClearedByID(ctx, row.ID, now, absencerecords.StudentStatusSourceManual); err != nil {
+		if err := s.repo.MarkClearedByID(ctx, row.ID, now, absencerecords.StudentStatusSourceManual, wc.ActorAccountID); err != nil {
 			return err
 		}
 		if row.Date == today {
@@ -308,17 +308,18 @@ func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWr
 
 func (s *StudentStatusDayService) writeStatusForStudent(ctx context.Context, wc StatusDayWriteContext, fresh *StudentRecord, status string, dates []calendar.Date, notePtr *string, now time.Time, today calendar.Date) (bool, error) {
 	notifyAbsence := isNewReportableAbsence(fresh, status, dates, today)
-	if err := s.clearOtherStatusDaysForDates(ctx, fresh.ID, status, dates, now); err != nil {
+	if err := s.clearOtherStatusDaysForDates(ctx, fresh.ID, status, dates, now, wc.ActorAccountID); err != nil {
 		return false, err
 	}
 	for _, date := range dates {
 		if err := s.repo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
-			StudentID:  fresh.ID,
-			Date:       date,
-			Status:     status,
-			ReportedAt: now,
-			Source:     statusDayWriteSource(wc),
-			Note:       notePtr,
+			StudentID:           fresh.ID,
+			Date:                date,
+			Status:              status,
+			ReportedAt:          now,
+			Source:              statusDayWriteSource(wc),
+			Note:                notePtr,
+			ReportedByAccountID: wc.ActorAccountID,
 		}); err != nil {
 			return false, err
 		}
@@ -355,9 +356,9 @@ func isNewReportableAbsence(student *StudentRecord, status string, dates []calen
 	}
 }
 
-func (s *StudentStatusDayService) clearOtherStatusDaysForDates(ctx context.Context, studentID int64, status string, dates []calendar.Date, now time.Time) error {
+func (s *StudentStatusDayService) clearOtherStatusDaysForDates(ctx context.Context, studentID int64, status string, dates []calendar.Date, now time.Time, accountID *int64) error {
 	for _, otherStatus := range absencerecords.StudentStatusDayStatusesExcept(status) {
-		if err := s.repo.MarkClearedForDates(ctx, studentID, otherStatus, dates, now, absencerecords.StudentStatusSourceManual); err != nil {
+		if err := s.repo.MarkClearedForDates(ctx, studentID, otherStatus, dates, now, absencerecords.StudentStatusSourceManual, accountID); err != nil {
 			return err
 		}
 	}

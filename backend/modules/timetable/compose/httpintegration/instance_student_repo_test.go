@@ -705,14 +705,14 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	require.NotNil(t, got.StudentStatusDayID)
 	assert.Equal(t, newer.ID, *got.StudentStatusDayID, "the newest active status must take provenance immediately")
 
-	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), absencerecords.StudentStatusSourceManual))
+	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), absencerecords.StudentStatusSourceManual, nil))
 	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.StudentStatusDayID)
 	assert.Equal(t, older.ID, *got.StudentStatusDayID, "clearing the newest status must restore the older active status")
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, newer))
 
-	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, older.ID, time.Now(), absencerecords.StudentStatusSourceManual))
+	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, older.ID, time.Now(), absencerecords.StudentStatusSourceManual, nil))
 	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, fixtures.AttendanceStatusAbsent(), got.Status)
@@ -721,7 +721,7 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	require.NotNil(t, got.StudentStatusDayID)
 	assert.Equal(t, newer.ID, *got.StudentStatusDayID)
 
-	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), absencerecords.StudentStatusSourceManual))
+	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), absencerecords.StudentStatusSourceManual, nil))
 	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, fixtures.AttendanceStatusExpected(), got.Status)
@@ -734,7 +734,7 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	}
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, completedStatus))
 	testpkg.SetActivityInstanceLifecycle(t, ctx, db, inst.ID, fixtures.InstanceStatusCompleted())
-	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, completedStatus.ID, time.Now(), absencerecords.StudentStatusSourceManual))
+	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, completedStatus.ID, time.Now(), absencerecords.StudentStatusSourceManual, nil))
 	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, fixtures.AttendanceStatusAbsent(), got.Status, "completed slots remain historical absences")

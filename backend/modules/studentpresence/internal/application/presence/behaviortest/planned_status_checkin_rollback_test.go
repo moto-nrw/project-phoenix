@@ -40,8 +40,8 @@ func (r *plannedStatusFault) FindActiveByStudentIDsAndDate(ctx context.Context, 
 	return r.StudentStatusDayRepository.FindActiveByStudentIDsAndDate(ctx, ids, day)
 }
 
-func (r *plannedStatusFault) MarkClearedByID(ctx context.Context, id int64, at time.Time, source string) error {
-	if err := r.StudentStatusDayRepository.MarkClearedByID(ctx, id, at, source); err != nil {
+func (r *plannedStatusFault) MarkClearedByID(ctx context.Context, id int64, at time.Time, source string, accountID *int64) error {
+	if err := r.StudentStatusDayRepository.MarkClearedByID(ctx, id, at, source, accountID); err != nil {
 		return err
 	}
 	r.writes++
@@ -305,8 +305,8 @@ func (r *plannedStatusFault) UpsertReported(ctx context.Context, row *absencerec
 	r.upserts++
 	return r.upsertErr
 }
-func (r *plannedStatusFault) MarkCleared(ctx context.Context, id int64, status string, day calendar.Date, at time.Time, source string) error {
-	if err := r.StudentStatusDayRepository.MarkCleared(ctx, id, status, day, at, source); err != nil {
+func (r *plannedStatusFault) MarkCleared(ctx context.Context, id int64, status string, day calendar.Date, at time.Time, source string, accountID *int64) error {
+	if err := r.StudentStatusDayRepository.MarkCleared(ctx, id, status, day, at, source, accountID); err != nil {
 		return err
 	}
 	r.clears++

@@ -16498,7 +16498,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence.StatusDays.MarkCleared",
-      "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: student-presence reaches modules/careplan.Capability.ClearStudentStatusDays (care-plan) through modules/studentpresence/internal/application/presence.statusDays.MarkCleared. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098).",
+      "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: student-presence reaches modules/careplan.Capability.ClearStudentStatusDays (care-plan) through modules/studentpresence/internal/application/presence.statusDays.MarkCleared. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
       "target_owner": "care-plan"
@@ -16509,7 +16509,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence.StatusDays.MarkCleared",
-      "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: student-presence reaches modules/careplan.Owner.ClearStudentStatusDays (care-plan) through modules/studentpresence/internal/application/presence.statusDays.MarkCleared. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098).",
+      "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: student-presence reaches modules/careplan.Owner.ClearStudentStatusDays (care-plan) through modules/studentpresence/internal/application/presence.statusDays.MarkCleared. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDays",
       "target_owner": "care-plan"
@@ -24201,7 +24201,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.MarkCleared",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDays; modules/careplan.Capability (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDays; modules/careplan.Capability (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
       "target_owner": "care-plan"
@@ -24212,7 +24212,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.MarkCleared",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDays; modules/careplan.Owner (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDays; modules/careplan.Owner (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDays",
       "target_owner": "care-plan"
@@ -24223,7 +24223,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.MarkClearedByID",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDayByID; modules/careplan.Capability (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDayByID; modules/careplan.Capability (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDayByID",
       "target_owner": "care-plan"
@@ -24234,7 +24234,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.MarkClearedByID",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDayByID; modules/careplan.Owner (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDayByID; modules/careplan.Owner (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDayByID",
       "target_owner": "care-plan"
@@ -24245,7 +24245,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.MarkClearedForDates",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDays; modules/careplan.Capability (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDays; modules/careplan.Capability (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
       "target_owner": "care-plan"
@@ -24256,7 +24256,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.MarkClearedForDates",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDays; modules/careplan.Owner (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDays; modules/careplan.Owner (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDays",
       "target_owner": "care-plan"
@@ -24441,7 +24441,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkCleared",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDays; modules/careplan.Capability (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDays; modules/careplan.Capability (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
       "target_owner": "care-plan"
@@ -24452,7 +24452,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkCleared",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDays; modules/careplan.Owner (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDays; modules/careplan.Owner (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDays",
       "target_owner": "care-plan"
@@ -24463,7 +24463,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkClearedByID",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDayByID; modules/careplan.Capability (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDayByID; modules/careplan.Capability (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDayByID",
       "target_owner": "care-plan"
@@ -24474,7 +24474,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkClearedByID",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDayByID; modules/careplan.Owner (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDayByID; modules/careplan.Owner (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDayByID",
       "target_owner": "care-plan"
@@ -24485,7 +24485,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkClearedForDates",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDays; modules/careplan.Capability (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDays; modules/careplan.Capability (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
       "target_owner": "care-plan"
@@ -24496,7 +24496,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkClearedForDates",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDays; modules/careplan.Owner (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDays; modules/careplan.Owner (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDays",
       "target_owner": "care-plan"
@@ -24674,7 +24674,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.statusDayRecords.MarkCleared",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDays; modules/careplan.Capability (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Capability.ClearStudentStatusDays; modules/careplan.Capability (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
       "target_owner": "care-plan"
@@ -24685,7 +24685,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.statusDayRecords.MarkCleared",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDays; modules/careplan.Owner (supplied contract method). ",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/careplan.Owner.ClearStudentStatusDays; modules/careplan.Owner (supplied contract method).  Re-reviewed for #6842: the digest moved because the Care Plan status-day clearing signature gained the clearing account; this binding's effect, target and transaction boundary are unchanged.",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDays",
       "target_owner": "care-plan"

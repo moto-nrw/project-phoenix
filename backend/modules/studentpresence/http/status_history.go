@@ -4,6 +4,7 @@ import (
 	context "context"
 	time "time"
 
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 
 	absencerecords "github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
@@ -63,7 +64,18 @@ type statusTransition struct {
 	clearRequested bool
 }
 
+// requestAccountID is the signed-in account of the request, nil without one.
+func requestAccountID(ctx context.Context) *int64 {
+	claims := sessiontoken.ClaimsFromCtx(ctx)
+	if claims.ID <= 0 {
+		return nil
+	}
+	accountID := int64(claims.ID)
+	return &accountID
+}
+
 func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID int64, status string, transition statusTransition, reportedAt time.Time, date calendar.Date, now time.Time, note *string) error {
+	accountID := requestAccountID(ctx)
 	if transition.isActive && transition.wasActive && note == nil {
 		// The status stands unchanged: a day that already shows it keeps the
 		// report that set it, with its source and report time (#6291).
@@ -74,25 +86,35 @@ func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID in
 	}
 	if transition.isActive {
 		return rs.StudentStatusDayService.UpsertReported(ctx, &absencerecords.StudentStatusDay{
-			StudentID:  studentID,
-			Date:       date,
-			Status:     status,
-			ReportedAt: reportedAt,
-			Source:     absencerecords.StudentStatusSourceManual,
-			Note:       note,
+			StudentID:           studentID,
+			Date:                date,
+			Status:              status,
+			ReportedAt:          reportedAt,
+			Source:              absencerecords.StudentStatusSourceManual,
+			Note:                note,
+			ReportedByAccountID: accountID,
 		})
 	}
 	if transition.wasActive {
-		if err := rs.StudentStatusDayService.UpsertReported(ctx, &absencerecords.StudentStatusDay{
-			StudentID:  studentID,
-			Date:       date,
-			Status:     status,
-			ReportedAt: reportedAt,
-			Source:     absencerecords.StudentStatusSourceManual,
-		}); err != nil {
+		// Lifting the flag clears the day's report and keeps who made it
+		// (#6842); only a flag without a row gets one first.
+		standing, err := rs.statusStandsOn(ctx, studentID, status, date)
+		if err != nil {
 			return err
 		}
-		return rs.StudentStatusDayService.MarkCleared(ctx, studentID, status, date, now, absencerecords.StudentStatusSourceManual)
+		if !standing {
+			if err := rs.StudentStatusDayService.UpsertReported(ctx, &absencerecords.StudentStatusDay{
+				StudentID:           studentID,
+				Date:                date,
+				Status:              status,
+				ReportedAt:          reportedAt,
+				Source:              absencerecords.StudentStatusSourceManual,
+				ReportedByAccountID: accountID,
+			}); err != nil {
+				return err
+			}
+		}
+		return rs.StudentStatusDayService.MarkCleared(ctx, studentID, status, date, now, absencerecords.StudentStatusSourceManual, accountID)
 	}
 	if transition.clearRequested {
 		// Today's row can be active without the live flag: a parent's
@@ -100,7 +122,7 @@ func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID in
 		// profile shows those rows as the same status, so lifting it must clear
 		// them too, whoever entered them (#3854). Without an active row this is
 		// a no-op.
-		return rs.StudentStatusDayService.MarkCleared(ctx, studentID, status, date, now, absencerecords.StudentStatusSourceManual)
+		return rs.StudentStatusDayService.MarkCleared(ctx, studentID, status, date, now, absencerecords.StudentStatusSourceManual, accountID)
 	}
 	return nil
 }

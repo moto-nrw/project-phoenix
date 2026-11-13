@@ -81,6 +81,12 @@ type StudentStatusDay struct {
 	// Note carries an optional free-text reason supplied alongside the
 	// status (currently only parent sick notes set it). Nullable.
 	Note *string `json:"note,omitempty"`
+	// ReportedByAccountID is the account that reported the day, nil for a
+	// device or an automatic run (#6842). It is never serialized.
+	ReportedByAccountID *int64 `json:"-"`
+	// ClearedSource is the source that cleared the day; Source stays the
+	// report's (#6842). Nil while the day stands. It is never serialized.
+	ClearedSource *string `json:"-"`
 }
 
 // StudentStatusCounts is the effective dashboard absence buckets of one day.

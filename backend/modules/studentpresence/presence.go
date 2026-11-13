@@ -260,7 +260,7 @@ type StatusDayWrites interface {
 	// student lock and roll back the surrounding transaction on failure.
 	ValidateProfileStatusChange(context.Context, int64, calendar.Date, *bool, *bool) error
 	UpsertReported(ctx context.Context, entry *absencerecords.StudentStatusDay) error
-	MarkCleared(ctx context.Context, studentID int64, status string, date calendar.Date, clearedAt time.Time, source string) error
+	MarkCleared(ctx context.Context, studentID int64, status string, date calendar.Date, clearedAt time.Time, source string, accountID *int64) error
 	CreateForDates(ctx context.Context, wc StatusDayWriteContext, studentID int64, status, reason string, dates []calendar.Date) error
 	BulkCreateForDates(ctx context.Context, wc StatusDayWriteContext, studentIDs []int64, status, reason string, dates []calendar.Date) error
 	// DeleteStatusDay removes one of the student's status days inside the

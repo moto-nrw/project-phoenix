@@ -30,7 +30,7 @@ type statusDays struct {
 // publishes unchanged.
 type statusDayRecords interface {
 	studentpresence.StatusDayReads
-	MarkCleared(ctx context.Context, studentID int64, status string, date calendar.Date, clearedAt time.Time, source string) error
+	MarkCleared(ctx context.Context, studentID int64, status string, date calendar.Date, clearedAt time.Time, source string, accountID *int64) error
 }
 
 func (s statusDays) DeleteStatusDay(ctx context.Context, wc studentpresence.StatusDayWriteContext, statusDayID, studentID int64) error {

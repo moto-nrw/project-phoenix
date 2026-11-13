@@ -326,7 +326,7 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 	require.NoError(t, err)
 	require.Len(t, historyRows, 2, "history and exports must retain one row per care slot")
 
-	require.NoError(t, statusRepo.MarkClearedByID(s.ctx, statusDay.ID, morningCheckOut.Add(time.Minute), absencerecords.StudentStatusSourceManual))
+	require.NoError(t, statusRepo.MarkClearedByID(s.ctx, statusDay.ID, morningCheckOut.Add(time.Minute), absencerecords.StudentStatusSourceManual, nil))
 	gotMorning, err = s.Participants.FindByID(s.ctx, morning.ID)
 	require.NoError(t, err)
 	assert.Equal(t, studentpresence.SessionAttendancePresent, gotMorning.Status)
