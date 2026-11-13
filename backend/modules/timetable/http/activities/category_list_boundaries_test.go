@@ -110,10 +110,16 @@ func TestActivityCategoriesListFailurePaths(t *testing.T) {
 			response := testutil.ExecuteWithAuth(t, router, request, caregiverClaims())
 			logCatalogQueries(t, scenario.name, 0, counter.Measurement(counter.Queries()).Statements)
 			t.Logf("response=%s write_rows=%d", response.Body.String(), counter.WriteRows())
-			require.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+			// A read the client canceled is no server error: 499, never a
+			// buffered success.
+			wantStatus, wantCode := http.StatusInternalServerError, "general.server"
+			if scenario.cancelAfter {
+				wantStatus, wantCode = 499, "general.unavailable"
+			}
+			require.Equal(t, wantStatus, response.Code, response.Body.String())
 			body := testutil.ParseJSONResponse(t, response.Body.Bytes())
-			require.Equal(t, "general.server", body["code"])
-			require.Equal(t, float64(http.StatusInternalServerError), body["status"])
+			require.Equal(t, wantCode, body["code"])
+			require.Equal(t, float64(wantStatus), body["status"])
 			require.NotContains(t, body, "data", "failed/cancelled reads must never publish a buffered success")
 			if scenario.cancelAfter {
 				require.Equal(t, "activity error during category usage counts: timetable postgres: count category usage: context canceled", body["detail"], "retain the original usage failure instead of a generic commit failure")

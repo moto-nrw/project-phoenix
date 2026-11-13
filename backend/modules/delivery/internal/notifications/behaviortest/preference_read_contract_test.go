@@ -153,9 +153,10 @@ func TestNotificationPreferencesGateCancellationHTTPContract(t *testing.T) {
 			def, known := notifications.GetType(firstType)
 			require.True(t, known)
 			require.Equal(t, []string{"notifications.dispatch_enabled", def.TenantGate}, calls)
-			require.Equal(t, http.StatusInternalServerError, response.Code)
+			// The client went away: 499, no server error, no buffered success.
+			require.Equal(t, 499, response.Code)
 			require.Equal(t, "application/json", response.Header().Get("Content-Type"))
-			require.JSONEq(t, fmt.Sprintf(`{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler","title":"Internal Server Error","status":500,"detail":"resolve %s: context canceled","instance":"","code":"general.server"}`, def.TenantGate), response.Body.String())
+			require.JSONEq(t, fmt.Sprintf(`{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar","title":"Client Closed Request","status":499,"detail":"resolve %s: context canceled","instance":"","code":"general.unavailable"}`, def.TenantGate), response.Body.String())
 			notificationBudgetReadOnly(t, counter)
 		})
 	}
