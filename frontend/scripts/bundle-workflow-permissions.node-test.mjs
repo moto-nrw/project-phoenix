@@ -117,27 +117,27 @@ test("feature and stacked PRs retain delta checks; nightly has only absolute bud
 test("one regular build of the synthetic merge runs beside the head-only analysis, not before it", () => {
   const jobs = workflow("lint.yml").jobs;
   const isBuild = (step) => step.run === "pnpm run build";
-  const quality = jobs["frontend-quality"];
-  assert.equal(quality.steps.filter(isBuild).length, 1);
-  assert.equal(quality.if, jobs["frontend-build"].if);
-  const qualityCheckout = quality.steps.find((step) =>
+  const mergeBuild = jobs["frontend-merge-build"];
+  assert.equal(mergeBuild.steps.filter(isBuild).length, 1);
+  assert.equal(mergeBuild.if, jobs["frontend-build"].if);
+  const mergeCheckout = mergeBuild.steps.find((step) =>
     step.uses?.startsWith("actions/checkout@"),
   );
   assert.equal(
-    qualityCheckout.with?.ref,
+    mergeCheckout.with?.ref,
     undefined,
     "the regular build must retain GitHub's synthetic merge",
   );
   assert.ok(
-    quality.steps.findIndex(isBuild) >
-      quality.steps.findIndex((step) => step.run?.includes("pnpm install")),
+    mergeBuild.steps.findIndex(isBuild) >
+      mergeBuild.steps.findIndex((step) => step.run?.includes("pnpm install")),
   );
   // Both builds see the same public build environment.
-  const buildEnv = quality.steps.find(isBuild).env;
+  const buildEnv = mergeBuild.steps.find(isBuild).env;
   for (const [key, value] of Object.entries(jobs["frontend-build"].env))
     assert.equal(buildEnv[key], value, key);
   for (const [name, job] of Object.entries(jobs)) {
-    if (name !== "frontend-quality")
+    if (name !== "frontend-merge-build")
       assert.equal(job.steps.filter(isBuild).length, 0, name);
   }
 

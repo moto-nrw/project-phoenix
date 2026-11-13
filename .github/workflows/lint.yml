@@ -232,13 +232,45 @@ jobs:
       - name: Frontend quality (shared with pre-push)
         run: bash scripts/check-quality.sh frontend
 
-      # The regular build of the tested tree: on pull requests GitHub's
-      # synthetic merge, which this job checks out by default. It ran in
-      # "Frontend build" before the two cold bundle builds and took 76-138 s
-      # there, on the job that set the wall-clock time of frontend pull
-      # requests (306-458 s, 13.11.2026). The bundle comparison reads nothing
-      # from it. Without a Next.js cache: a hosted runner would save it into
-      # the repository's 10 GB GitHub cache on every push.
+      # Storybook supplies its own mock environment and needs no Next build.
+      # Keep it off the serial Next.js/bundle-ratchet critical path.
+      - name: Build Storybook
+        working-directory: frontend
+        run: pnpm run build-storybook
+
+  # The regular build of the tested tree: on pull requests GitHub's synthetic
+  # merge, which this job checks out by default. It ran in "Frontend build"
+  # before the two cold bundle builds and took 76-138 s there, on the job that
+  # set the wall-clock time of frontend pull requests (306-458 s, 13.11.2026).
+  # The bundle comparison reads nothing from it. Inside "Frontend quality" it
+  # took 154 s and brought that job to 273-294 s, so it has its own hosted
+  # runner, which is free for this repository. Without a Next.js cache: a
+  # hosted runner would save it into the repository's 10 GB GitHub cache on
+  # every push.
+  frontend-merge-build:
+    name: Frontend merge build
+    if: ${{ inputs.run-frontend }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: "pnpm"
+          cache-dependency-path: "frontend/pnpm-lock.yaml"
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
       - name: Build frontend merge integration
         working-directory: frontend
         env:
@@ -259,12 +291,6 @@ jobs:
           AUTH_JWT_REFRESH_EXPIRY: "168h"
           METRICS_BEARER_TOKEN: "ci-bundle-ratchet-token"
         run: pnpm run build
-
-      # Storybook supplies its own mock environment and needs no Next build.
-      # Keep it off the serial Next.js/bundle-ratchet critical path.
-      - name: Build Storybook
-        working-directory: frontend
-        run: pnpm run build-storybook
 
   frontend-react-doctor:
     name: Frontend React Doctor
@@ -394,8 +420,8 @@ jobs:
       # Feature PRs enforce their own delta against a cold merge-base build;
       # the approval label turns it into a warning. Release PRs into main and
       # nightly enforce only the few absolute ceilings: release-cycle growth is
-      # not a feature PR regression. The regular merge build in "Frontend
-      # quality" still catches semantic integration failures before merging.
+      # not a feature PR regression. The regular build in "Frontend merge
+      # build" still catches semantic integration failures before merging.
       # Keep that build: experimental-analyze's cold compilation is not assumed
       # to cover every Next.js build/type/route-validation contract.
       - name: Bundle size ratchet
