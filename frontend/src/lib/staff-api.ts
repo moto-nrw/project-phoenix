@@ -1152,6 +1152,42 @@ export interface StaffAbsenceRequestRow extends Omit<
   updated_at?: string;
 }
 
+// Eine Abwesenheit in Kraft, deren Schichten und Betreuungsblöcke ab heute
+// noch nicht als abwesend im Plan stehen (#7021): eingetragen oder genehmigt,
+// bevor jede Art in die Pläne wirkte. Die Zahlen sind, was die Übernahme
+// ändern würde; von Hand abgesagte Schichten zählen nicht.
+export interface AbsencePlanGap {
+  absenceId: string;
+  staffId: string;
+  absenceType: string;
+  dateStart: string;
+  dateEnd: string;
+  openShifts: number;
+  openBlocks: number;
+}
+
+interface AbsencePlanGapWire {
+  absence_id: number;
+  staff_id: number;
+  absence_type: string;
+  date_start: string;
+  date_end: string;
+  open_shifts: number;
+  open_blocks: number;
+}
+
+export function mapAbsencePlanGap(row: AbsencePlanGapWire): AbsencePlanGap {
+  return {
+    absenceId: String(row.absence_id),
+    staffId: String(row.staff_id),
+    absenceType: row.absence_type,
+    dateStart: row.date_start,
+    dateEnd: row.date_end,
+    openShifts: row.open_shifts,
+    openBlocks: row.open_blocks,
+  };
+}
+
 // Vacation takeover at the moto introduction (#2132): days already taken
 // before the Stichtag in the previous system. The row is its own audit
 // record (Stichtag, entered Resturlaub, note, actor).
@@ -1420,6 +1456,42 @@ class StaffAbsenceService {
     if (!response.ok) {
       throw await readStaffAPIError(response, "Genehmigung fehlgeschlagen");
     }
+  }
+
+  // Abwesenheiten, die noch nicht im Plan stehen (#7021).
+  async listPlanGaps(): Promise<AbsencePlanGap[]> {
+    const response = await sessionFetch(`/api/staff/absences/plan-gaps`);
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch absence plan gaps: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as {
+      data: AbsencePlanGapWire[] | null;
+    };
+    return (json.data ?? []).map(mapAbsencePlanGap);
+  }
+
+  // Übernimmt eine Abwesenheit in Dienstplan und Betreuungsplan (#7021).
+  // false: Sie gilt nicht mehr (zurückgezogen oder gelöscht).
+  async syncPlan(absenceId: string): Promise<boolean> {
+    const response = await sessionFetch(
+      `/api/staff/absences/${encodeURIComponent(absenceId)}/plan-sync`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      },
+    );
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to sync absence plan: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as { data: { applied: boolean } };
+    return json.data.applied;
   }
 
   // Tenant-wide open requests (status requested + question) for the /staff
