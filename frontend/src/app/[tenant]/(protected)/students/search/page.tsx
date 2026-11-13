@@ -54,7 +54,13 @@ import type {
   FilterSection,
 } from "~/components/ui/page-header/types";
 import { DetailIcons } from "~/components/ui/detail-modal-components";
-import { fetchSchoolClasses } from "~/lib/student-api";
+import {
+  fetchEnrollmentAnswerFilters,
+  fetchSchoolClasses,
+} from "~/lib/student-api";
+import type { EnrollmentAnswerFilter } from "~/lib/student-helpers";
+import { hasPermission } from "~/lib/auth-utils";
+import { createLogger } from "~/lib/logger";
 import type { Student } from "~/lib/student-helpers";
 import type { Group, Room } from "~/lib/api";
 import { Button } from "~/components/ui/button";
@@ -317,6 +323,7 @@ const FILTER_QUERY_PARAMS = [
   "pickup_status",
   "pickup_time",
   "arrival_time",
+  "enrollment_answer",
   "day_status",
   "status",
   "tracking",
@@ -325,6 +332,8 @@ const FILTER_QUERY_PARAMS = [
 ] as const;
 
 const SEARCH_QUERY_PARAM = "search";
+
+const studentSearchLogger = createLogger({ component: "StudentSearchPage" });
 
 type FilterQueryParam = (typeof FILTER_QUERY_PARAMS)[number];
 type PersistedSearchFilters = Partial<Record<FilterQueryParam, string>>;
@@ -583,6 +592,7 @@ function normalizeStoredFilters(
       parsePickupTimeParam(params.get("pickup_time")),
     ),
     arrival_time: params.get("arrival_time") ?? "",
+    enrollment_answer: params.get("enrollment_answer") ?? "",
     day_status:
       validQueryValue(
         params.get("day_status"),
@@ -1173,6 +1183,11 @@ function SearchPageContent() {
   const [arrivalTimeFilter, setArrivalTimeFilter] = useState(
     initialFilterParams.get("arrival_time") ?? "all",
   );
+  // An answer to a question of the registration form, "<key>=<value>"
+  // (#6954). Empty = off.
+  const [enrollmentAnswerFilter, setEnrollmentAnswerFilter] = useState(
+    initialFilterParams.get("enrollment_answer") ?? "",
+  );
   const [trackingFilter, setTrackingFilter] = useState<TrackingFilter>(
     initialTrackingFilter,
   );
@@ -1260,6 +1275,7 @@ function SearchPageContent() {
       );
       setPickupTimeFilter(parsePickupTimeParam(params.get("pickup_time")));
       setArrivalTimeFilter(params.get("arrival_time") ?? "all");
+      setEnrollmentAnswerFilter(params.get("enrollment_answer") ?? "");
       setBusFilter(
         validQueryValue(params.get("bus"), BOOLEAN_FILTER_VALUES, "all"),
       );
@@ -1567,6 +1583,35 @@ function SearchPageContent() {
   // attendance included) — without the mode in the key SWR would keep
   // serving the stale future-planning response under live controls (#1939).
   //
+  // The registration answer filter (#6954) needs users:read, like the answers
+  // on the child's page; the backend refuses it otherwise.
+  const canUseEnrollmentAnswerFilter = hasPermission(session, "users:read");
+  const effectiveEnrollmentAnswer = canUseEnrollmentAnswerFilter
+    ? enrollmentAnswerFilter
+    : "";
+  const [enrollmentAnswerQuestions, setEnrollmentAnswerQuestions] = useState<
+    readonly EnrollmentAnswerFilter[]
+  >([]);
+  useEffect(() => {
+    if (!canUseEnrollmentAnswerFilter) return;
+    let cancelled = false;
+    fetchEnrollmentAnswerFilters()
+      .then((questions) => {
+        if (!cancelled) setEnrollmentAnswerQuestions(questions);
+      })
+      .catch((error: unknown) => {
+        // The filter is an extra choice: without its questions the list
+        // still works and an active filter keeps its chip. The log names no
+        // child and no answer.
+        studentSearchLogger.warn("enrollment_answer_filters_load_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseEnrollmentAnswerFilter]);
+
   // The group filter leads the key as a fixed `g{id}`/`gall` scope segment
   // (#2097) so the SSE flush can read it back and skip a refetch when a
   // check-in event names a group this view does not show. It has to sit BEFORE
@@ -1586,6 +1631,7 @@ function SearchPageContent() {
     companions: wantsCompanions,
     years: selectedYears,
     pickupStatus: pickupStatusFilter,
+    enrollmentAnswer: effectiveEnrollmentAnswer,
   } satisfies StudentSearchFilterInput & { photoState: string };
   const studentsCacheKey = studentKeys.search(studentSearchParams);
 
@@ -1729,6 +1775,15 @@ function SearchPageContent() {
     [updateUrlParams],
   );
 
+  const updateEnrollmentAnswerFilter = useCallback(
+    (value: string) => {
+      const next = value === "all" ? "" : value;
+      setEnrollmentAnswerFilter(next);
+      updateUrlParams({ enrollment_answer: next });
+    },
+    [updateUrlParams],
+  );
+
   const updatePickupStatusFilter = useCallback(
     (value: PickupStatusFilter) => {
       setPickupStatusFilter(value);
@@ -1800,6 +1855,7 @@ function SearchPageContent() {
     setPickupStatusFilter("all");
     setPickupTimeFilter([]);
     setArrivalTimeFilter("all");
+    setEnrollmentAnswerFilter("");
     setDayStatusFilter("all");
     setTrackingFilter("all");
     setSortMode("name");
@@ -2019,6 +2075,30 @@ function SearchPageContent() {
     [rooms, myGroupRooms, mySupervisedRooms],
   );
 
+  // The answers of the registration form as one choice each (#6954):
+  // "Seepferdchen vorhanden: Ja (12)". An active answer the list no longer
+  // offers (no child gave it any more) stays selectable so it can be undone.
+  const enrollmentAnswerOptions = useMemo(() => {
+    const options = enrollmentAnswerQuestions.flatMap((question) =>
+      question.options.map((option) => ({
+        value: `${question.key}=${option.value}`,
+        label: `${question.label}: ${option.label} (${option.count})`,
+        chip: `${question.label}: ${option.label}`,
+      })),
+    );
+    if (
+      effectiveEnrollmentAnswer &&
+      !options.some((option) => option.value === effectiveEnrollmentAnswer)
+    ) {
+      options.push({
+        value: effectiveEnrollmentAnswer,
+        label: "Gewählte Angabe aus der Anmeldung",
+        chip: "Angabe aus der Anmeldung",
+      });
+    }
+    return options;
+  }, [enrollmentAnswerQuestions, effectiveEnrollmentAnswer]);
+
   // Grouping for the quiet filter popover. Lives here, not in the shared
   // panel: which student filters belong together is this page's domain
   // knowledge. Any id not listed falls into a trailing "Weitere" section.
@@ -2044,6 +2124,11 @@ function SearchPageContent() {
           "bus",
           "photoConsent",
         ],
+      },
+      {
+        title: "Anmeldung",
+        icon: DetailIcons.document,
+        filterIds: ["enrollmentAnswer"],
       },
       {
         title: "Darstellung",
@@ -2295,6 +2380,25 @@ function SearchPageContent() {
             },
           ]
         : []),
+      ...(enrollmentAnswerOptions.length > 0
+        ? [
+            {
+              id: "enrollmentAnswer",
+              label: "Angabe aus der Anmeldung",
+              type: "dropdown" as const,
+              value: effectiveEnrollmentAnswer || "all",
+              onChange: (value: string | string[]) =>
+                updateEnrollmentAnswerFilter(value as string),
+              options: [
+                { value: "all", label: "Alle Angaben" },
+                ...enrollmentAnswerOptions.map(({ value, label }) => ({
+                  value,
+                  label,
+                })),
+              ],
+            },
+          ]
+        : []),
       {
         id: "pickupStatus",
         label: "Abholregelung",
@@ -2357,6 +2461,9 @@ function SearchPageContent() {
       photoConsentFilter,
       pickupStatusFilter,
       canUsePhotoConsentFilter,
+      enrollmentAnswerOptions,
+      effectiveEnrollmentAnswer,
+      updateEnrollmentAnswerFilter,
       dayStatusFilter,
       trackingFilter,
       trackingLabels,
@@ -2512,6 +2619,17 @@ function SearchPageContent() {
       });
     }
 
+    if (effectiveEnrollmentAnswer) {
+      filters.push({
+        id: "enrollmentAnswer",
+        label:
+          enrollmentAnswerOptions.find(
+            (option) => option.value === effectiveEnrollmentAnswer,
+          )?.chip ?? "Angabe aus der Anmeldung",
+        onRemove: () => updateEnrollmentAnswerFilter(""),
+      });
+    }
+
     if (dayStatusFilter !== "all") {
       filters.push({
         id: "dayStatus",
@@ -2587,6 +2705,9 @@ function SearchPageContent() {
     busFilter,
     effectivePhotoConsentFilter,
     pickupStatusFilter,
+    effectiveEnrollmentAnswer,
+    enrollmentAnswerOptions,
+    updateEnrollmentAnswerFilter,
     dayStatusFilter,
     pickupTimeFilter,
     arrivalTimeFilter,
@@ -2635,6 +2756,7 @@ function SearchPageContent() {
       bus: busFilter,
       photo_consent: effectivePhotoConsentFilter,
       pickup_status: pickupStatusFilter,
+      enrollment_answer: effectiveEnrollmentAnswer,
       day_status: dayStatusFilter,
       ...(isToday ? {} : { date: selectedDate }),
       pickup_time: encodeMultiValueParam(pickupTimeFilter),
@@ -2651,6 +2773,7 @@ function SearchPageContent() {
       busFilter,
       effectivePhotoConsentFilter,
       pickupStatusFilter,
+      effectiveEnrollmentAnswer,
       dayStatusFilter,
       isToday,
       selectedDate,
@@ -2988,6 +3111,8 @@ function SearchPageContent() {
       qs.set("photo_consent", effectivePhotoConsentFilter);
     if (pickupStatusFilter !== "all")
       qs.set("pickup_status", pickupStatusFilter);
+    if (effectiveEnrollmentAnswer)
+      qs.set("enrollment_answer", effectiveEnrollmentAnswer);
     if (dayStatusFilter !== "all") qs.set("day_status", dayStatusFilter);
     if (!isToday) qs.set("date", selectedDate);
     if (pickupTimeFilter.length > 0)
@@ -3011,6 +3136,7 @@ function SearchPageContent() {
     busFilter,
     effectivePhotoConsentFilter,
     pickupStatusFilter,
+    effectiveEnrollmentAnswer,
     dayStatusFilter,
     isToday,
     selectedDate,
