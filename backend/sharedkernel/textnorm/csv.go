@@ -37,36 +37,68 @@ func DecodeCSVText(content []byte) (string, string, error) {
 
 // QuoteNULDelimiters reads a NUL character in the role of the quote
 // character as a quote (#7009): some programs, OGS Connect among them,
-// write \x00Name\x00 where a CSV has "Name". A NUL counts as a quote only
-// at the start of a field (start of the file or line, after a delimiter)
-// and at its end (before a delimiter, line break or the end of the file);
-// a quote inside such a field is doubled. Any other NUL stays, so
-// DecodeCSVText still refuses the file as no text. A file without NUL is
+// write \x00Name\x00 where a CSV has "Name". With the file's delimiter it
+// follows the fields: a NUL opens a field only as its first character and
+// closes it only before the delimiter, a line break or the end of the file;
+// a quote inside such a field is doubled. A NUL anywhere else, also inside
+// an ordinary quoted field, stays, so DecodeCSVText still refuses the file
+// as no text. A file without NUL, or with a NUL field that never closes, is
 // answered unchanged.
-func QuoteNULDelimiters(content []byte) []byte {
-	if !bytes.Contains(content, []byte{0}) {
+func QuoteNULDelimiters(content []byte, comma rune) []byte {
+	if !bytes.Contains(content, []byte{0}) || comma <= 0 || comma >= utf8.RuneSelf {
 		return content
 	}
 	content = bytes.TrimPrefix(content, []byte("\xEF\xBB\xBF"))
-	boundary := func(b byte) bool { return b == ';' || b == ',' || b == '\t' || b == '\n' || b == '\r' }
+	delimiter := byte(comma)
+	ends := func(i int) bool {
+		return i == len(content) || content[i] == delimiter || content[i] == '\n' || content[i] == '\r'
+	}
+	const (
+		plain = iota
+		nulQuoted
+		quoted
+	)
 	out := make([]byte, 0, len(content)+16)
-	quoted := false
-	for i, b := range content {
+	state, fieldStart := plain, true
+	for i := 0; i < len(content); i++ {
+		b := content[i]
+		switch state {
+		case nulQuoted:
+			switch {
+			case b == 0 && ends(i+1):
+				state = plain
+				out = append(out, '"')
+			case b == '"':
+				out = append(out, '"', '"')
+			default:
+				out = append(out, b)
+			}
+			continue
+		case quoted:
+			out = append(out, b)
+			if b == '"' {
+				if i+1 < len(content) && content[i+1] == '"' {
+					out = append(out, '"')
+					i++
+				} else {
+					state = plain
+				}
+			}
+			continue
+		}
 		switch {
-		case b == 0 && !quoted && (i == 0 || boundary(content[i-1])):
-			quoted = true
+		case fieldStart && b == 0:
+			state = nulQuoted
 			out = append(out, '"')
-		case b == 0 && quoted && (i == len(content)-1 || boundary(content[i+1])):
-			quoted = false
-			out = append(out, '"')
-		case b == '"' && quoted:
-			out = append(out, '"', '"')
+		case fieldStart && b == '"':
+			state = quoted
+			out = append(out, b)
 		default:
 			out = append(out, b)
 		}
+		fieldStart = b == delimiter || b == '\n' || b == '\r'
 	}
-	if quoted {
-		// An unclosed field: the NUL was no quote, the file stays refused.
+	if state == nulQuoted {
 		return content
 	}
 	return out

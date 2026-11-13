@@ -107,9 +107,11 @@ func TestReadImportTableReadsTheOGSConnectMasterData(t *testing.T) {
 func TestReadImportTableRefusesANULOutsideTheRoleOfAQuote(t *testing.T) {
 	t.Parallel()
 	for name, content := range map[string]string{
-		"inside a cell":   "Mandatsreferenz;IBAN\nSJR\x001;DE89370400440532013000\n",
-		"never closed":    "\x00Mandatsreferenz\x00;\x00IBAN\nSJR-1;x\n",
-		"after the start": "Mandatsreferenz;IBAN\nSJR-1;D\x00E\x00\n",
+		"inside a cell":                       "Mandatsreferenz;IBAN\nSJR\x001;DE89370400440532013000\n",
+		"never closed":                        "\x00Mandatsreferenz\x00;\x00IBAN\nSJR-1;x\n",
+		"after the start":                     "Mandatsreferenz;IBAN\nSJR-1;D\x00E\x00\n",
+		"inside a field of another delimiter": "Mandatsreferenz;Notiz\nSJR-1;a,\x00b\x00,c\n",
+		"inside a quoted field":               "Mandatsreferenz;Notiz\nSJR-1;\"a\x00\x00b\"\n",
 	} {
 		_, err := readImportTable([]byte(content), "")
 		require.ErrorIs(t, err, parentbilling.ErrImportFileInvalid, name)

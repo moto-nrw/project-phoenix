@@ -42,11 +42,14 @@ func readImportTable(content []byte, delimiter string) (importTable, error) {
 	if len(content) > parentbilling.MaxImportFileBytes {
 		return importTable{}, parentbilling.ErrImportFileTooLarge
 	}
-	text, encoding, err := textnorm.DecodeCSVText(textnorm.QuoteNULDelimiters(content))
+	// The delimiter comes first: a NUL is a quote only at the edge of a
+	// field of that delimiter (#7009). The delimiters are ASCII, so the
+	// bytes tell them in UTF-8 and Windows-1252 alike.
+	comma, err := textnorm.CSVDelimiter(string(content), delimiter)
 	if err != nil {
 		return importTable{}, parentbilling.ErrImportFileInvalid
 	}
-	comma, err := textnorm.CSVDelimiter(text, delimiter)
+	text, encoding, err := textnorm.DecodeCSVText(textnorm.QuoteNULDelimiters(content, comma))
 	if err != nil {
 		return importTable{}, parentbilling.ErrImportFileInvalid
 	}
