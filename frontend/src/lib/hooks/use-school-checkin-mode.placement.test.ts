@@ -6,10 +6,10 @@ import { placementMessage, placementOutcome } from "./use-school-checkin-mode";
 // school check-in batch, so retry and failure handling stay one path.
 
 describe("placementOutcome", () => {
-  it("counts placed, already present and refused children", () => {
-    const outcome = placementOutcome(["1", "2", "3"], ["9"], {
+  it("counts placed, kept and refused children from the server's answer", () => {
+    const outcome = placementOutcome(["1", "2", "3", "9"], {
       moved: [1, 2],
-      unchanged: [],
+      unchanged: [9],
       skipped: [{ student_id: 3, reason: "not_found" }],
       checked_in: [1],
     });
@@ -19,7 +19,7 @@ describe("placementOutcome", () => {
       { studentId: "1", ok: true, changed: true, location: "Anwesend" },
       { studentId: "2", ok: true, changed: false, location: "Anwesend" },
       { studentId: "3", ok: false, changed: false, error: "not_found" },
-      { studentId: "9", ok: true, changed: false },
+      { studentId: "9", ok: true, changed: false, location: "Anwesend" },
     ]);
   });
 });

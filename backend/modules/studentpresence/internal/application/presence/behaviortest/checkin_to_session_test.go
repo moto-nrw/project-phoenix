@@ -21,8 +21,8 @@ import (
 // checkInPresence is the surface the HTTP adapter and the open-room workflow
 // bind to.
 type checkInPresence interface {
-	CheckInStudentsToSessionAuthorized(ctx context.Context, studentIDs []int64, activeGroupID, staffID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error)
-	CheckInStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID, staffID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error)
+	CheckInStudentsToSessionAuthorized(ctx context.Context, studentIDs []int64, activeGroupID, staffID int64, auth activeSvc.StudentMoveAuthorization, keepPresent bool) (*activeSvc.StudentMoveResult, error)
+	CheckInStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID, staffID int64, auth activeSvc.StudentMoveAuthorization, keepPresent bool) (*activeSvc.StudentMoveResult, error)
 }
 
 type checkInFixture struct {
@@ -64,7 +64,7 @@ func openAttendanceCount(t *testing.T, db *testpkg.DB, studentIDs []int64) int {
 	t.Helper()
 	count, err := db.NewSelect().
 		Table("active.attendance").
-		Where("student_id IN (?) AND check_out_time IS NULL", bun.In(studentIDs)).
+		Where("student_id IN (?) AND check_out_time IS NULL", bun.List(studentIDs)).
 		Count(context.Background())
 	require.NoError(t, err)
 	return int(count)
@@ -82,7 +82,7 @@ func TestCheckInToSessionPlacesArrivalsInASupervisedRoom(t *testing.T) {
 	first := testpkg.CreateTestStudent(t, db, "Mia", "Anmelden", "2a").ID
 	second := testpkg.CreateTestStudent(t, db, "Ben", "Anmelden", "2a").ID
 
-	result, err := f.checkIn.CheckInStudentsToSessionAuthorized(ctx, []int64{first, second, first}, f.target, f.staff, f.staffAuth())
+	result, err := f.checkIn.CheckInStudentsToSessionAuthorized(ctx, []int64{first, second, first}, f.target, f.staff, f.staffAuth(), false)
 
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []int64{first, second}, result.CheckedIn)
@@ -103,7 +103,7 @@ func TestCheckInToSessionRejectsAnUnsupervisedRoomAndKeepsChildrenAbsent(t *test
 	ctx := testpkg.Ctx(t)
 	child := testpkg.CreateTestStudent(t, db, "Lea", "Ohne Aufsicht", "2b").ID
 
-	_, err := f.checkIn.CheckInStudentsToSessionAuthorized(ctx, []int64{child}, f.target, f.staff, f.staffAuth())
+	_, err := f.checkIn.CheckInStudentsToSessionAuthorized(ctx, []int64{child}, f.target, f.staff, f.staffAuth(), false)
 
 	require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden,
 		"a room without a responsible adult is no target; the app starts no supervision")
@@ -123,7 +123,7 @@ func TestCheckInToSessionKeepsTheMoveRulesForPresentChildren(t *testing.T) {
 	// grant.
 	present := presentChild(t, db, "Fremder Raum", f.staff, f.device, f.source)
 
-	_, err := f.checkIn.CheckInStudentsToSessionAuthorized(ctx, []int64{arriving, present}, f.target, f.staff, f.staffAuth())
+	_, err := f.checkIn.CheckInStudentsToSessionAuthorized(ctx, []int64{arriving, present}, f.target, f.staff, f.staffAuth(), false)
 
 	require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
 	assert.Zero(t, openAttendanceCount(t, db, []int64{arriving}), "the whole unit rolls back")
@@ -141,7 +141,7 @@ func TestCheckInToSessionPullsPresentChildrenWithTheirSourceRights(t *testing.T)
 	arriving := testpkg.CreateTestStudent(t, db, "Ida", "Neu", "3b").ID
 	present := presentChild(t, db, "Schon da", f.staff, f.device, f.source)
 
-	result, err := f.checkIn.CheckInStudentsToSessionAuthorized(ctx, []int64{arriving, present}, f.target, f.staff, f.staffAuth())
+	result, err := f.checkIn.CheckInStudentsToSessionAuthorized(ctx, []int64{arriving, present}, f.target, f.staff, f.staffAuth(), false)
 
 	require.NoError(t, err)
 	assert.Equal(t, []int64{arriving}, result.CheckedIn, "only the absent child is a new check-in")
@@ -165,7 +165,7 @@ func TestCheckInToSessionSkipsChildrenItCannotCheckIn(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	result, err := f.checkIn.CheckInStudentsToSessionAuthorized(ctx, []int64{graduate, child}, f.target, f.staff, f.staffAuth())
+	result, err := f.checkIn.CheckInStudentsToSessionAuthorized(ctx, []int64{graduate, child}, f.target, f.staff, f.staffAuth(), false)
 
 	require.NoError(t, err)
 	assert.Equal(t, []int64{child}, result.CheckedIn)
@@ -187,11 +187,47 @@ func TestCheckInToOpenRoomSessionNeedsNoSupervision(t *testing.T) {
 	require.NoError(t, err)
 	child := testpkg.CreateTestStudent(t, db, "Paul", "Hof", "1a").ID
 
-	result, err := f.checkIn.CheckInStudentsToOpenRoomSessionAuthorized(ctx, []int64{child}, session.ID, f.staff, f.staffAuth())
+	result, err := f.checkIn.CheckInStudentsToOpenRoomSessionAuthorized(ctx, []int64{child}, session.ID, f.staff, f.staffAuth(), false)
 
 	require.NoError(t, err)
 	assert.Equal(t, []int64{child}, result.CheckedIn)
 	assert.Equal(t, []int64{child}, result.Moved)
 	sessions := openVisitSessions(t, testSchoolPresence(t, db), []int64{child})
 	assert.Equal(t, session.ID, sessions[child])
+}
+
+func TestCheckInToSessionKeepsPresentChildrenWhereTheyAre(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	f := newCheckInFixture(t, db)
+	ctx := testpkg.Ctx(t)
+	testpkg.CreateTestGroupSupervisor(t, db, f.staff, f.target, "supervisor")
+	arriving := testpkg.CreateTestStudent(t, db, "Lina", "Neu", "3c").ID
+	// The card still showed this child as absent while a terminal checked it
+	// in elsewhere: the check-in mode must not move it.
+	present := presentChild(t, db, "Terminal", f.staff, f.device, f.source)
+
+	result, err := f.checkIn.CheckInStudentsToSessionAuthorized(ctx, []int64{arriving, present}, f.target, f.staff, f.staffAuth(), true)
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{arriving}, result.CheckedIn)
+	assert.Equal(t, []int64{arriving}, result.Moved)
+	assert.Equal(t, []int64{present}, result.Unchanged)
+	sessions := openVisitSessions(t, testSchoolPresence(t, db), []int64{arriving, present})
+	assert.Equal(t, map[int64]int64{arriving: f.target, present: f.source}, sessions)
+}
+
+func TestCheckInToSessionNeedsASupervisionEvenForAdministrators(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	f := newCheckInFixture(t, db)
+	ctx := testpkg.Ctx(t)
+	child := testpkg.CreateTestStudent(t, db, "Tom", "Admin", "4b").ID
+
+	_, err := f.checkIn.CheckInStudentsToSessionAuthorized(ctx, []int64{child}, f.target, f.staff,
+		activeSvc.StudentMoveAuthorization{StaffID: f.staff, BypassResourceChecks: true}, false)
+
+	require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden,
+		"no arriving child goes into a room without an adult")
+	assert.Zero(t, openAttendanceCount(t, db, []int64{child}))
 }

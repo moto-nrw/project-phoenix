@@ -9,6 +9,7 @@
 import type { Session } from "next-auth";
 
 import type { ActiveGroup } from "~/lib/active-helpers";
+import { activeService, type StudentMoveResult } from "~/lib/active-service";
 import type { Room } from "~/lib/room-helpers";
 
 /**
@@ -47,6 +48,29 @@ export type TargetRoomOption =
  * - `own`: everyone else may only pull into rooms they supervise themselves.
  */
 export type TargetScope = "all" | "supervised" | "own";
+
+/**
+ * Checks the children in and places them in the target in one request
+ * (#6953). `keepPresent` leaves children who are already present where they
+ * are; without it they move under the ordinary move rules.
+ */
+export function checkInToTarget(
+  studentIds: string[],
+  target: TargetRoomOption,
+  keepPresent: boolean,
+): Promise<StudentMoveResult> {
+  return target.kind === "openRoom"
+    ? activeService.checkInStudentsToOpenRoom(
+        studentIds,
+        target.roomId,
+        keepPresent,
+      )
+    : activeService.checkInStudentsToActiveGroup(
+        studentIds,
+        target.activeGroupId,
+        keepPresent,
+      );
+}
 
 /** Admins may target any running module; everyone else follows the scope. */
 export function canUseAllMoveTargets(session: Session | null): boolean {

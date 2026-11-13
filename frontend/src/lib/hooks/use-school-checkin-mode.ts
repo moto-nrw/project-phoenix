@@ -15,8 +15,8 @@ import {
   parseLocation,
 } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
-import { activeService, type StudentMoveResult } from "~/lib/active-service";
-import type { TargetRoomOption } from "~/lib/move-targets";
+import type { StudentMoveResult } from "~/lib/active-service";
+import { checkInToTarget, type TargetRoomOption } from "~/lib/move-targets";
 import {
   schoolCheckinStudent,
   schoolCheckinStudentsBatch,
@@ -102,28 +102,14 @@ export function checkoutConfirmationRoom(
  */
 const CHECKIN_OBJECT = "die Anwesenheit";
 
-/** Checks the children in and places them in the target in one request (#6953). */
-function checkInToTarget(
-  studentIds: string[],
-  target: TargetRoomOption,
-): Promise<StudentMoveResult> {
-  return target.kind === "openRoom"
-    ? activeService.checkInStudentsToOpenRoom(studentIds, target.roomId)
-    : activeService.checkInStudentsToActiveGroup(
-        studentIds,
-        target.activeGroupId,
-      );
-}
-
 /**
  * The batch outcome of a check-in into a target (#6953), in the shape of the
  * school check-in batch, so the page's retry and failure handling stays one.
- * `presentIds` were already present and were not sent: they count as done
- * and unchanged. A child the backend skipped failed.
+ * A child the server found present stays where it is and counts as done and
+ * unchanged; a child it skipped failed.
  */
 export function placementOutcome(
   sentIds: readonly string[],
-  presentIds: readonly string[],
   result: StudentMoveResult,
 ): SchoolCheckinBatchOutcome {
   const skipped = new Map(
@@ -142,11 +128,6 @@ export function placementOutcome(
             location: "Anwesend" as const,
           };
     }),
-    ...presentIds.map((studentId) => ({
-      studentId,
-      ok: true,
-      changed: false,
-    })),
   ];
   const failed = results.filter((item) => !item.ok).length;
   return {
@@ -332,12 +313,6 @@ interface UseSchoolCheckinModeResult {
     action: SchoolCheckinAction,
     onlyIds?: readonly string[],
     checkoutReason?: SchoolCheckoutReason,
-    /**
-     * Children of the run who are present already. With a target they keep
-     * their place: the check-in mode places only arriving children, so
-     * „Alle auswählen“ never pulls a whole school into one room (#6953).
-     */
-    presentIds?: ReadonlySet<string>,
   ) => Promise<SchoolCheckinBatchOutcome | null>;
 }
 
@@ -380,6 +355,7 @@ export function useSchoolCheckinMode(
   // class names the reason instead of offering a retry (#2220, #2513).
   const errors = useApiErrorDisplay();
   const showError = errors.show;
+  const showMessage = errors.showMessage;
   const latestToggleRef = useRef<
     (
       studentId: string,
@@ -479,16 +455,30 @@ export function useSchoolCheckinMode(
       const target = action === "in" ? targetRef.current : null;
 
       try {
-        await (target
-          ? checkInToTarget([studentId], target)
-          : checkoutReason
-            ? schoolCheckinStudent(
-                studentId,
-                action,
-                checkoutNote,
-                checkoutReason,
-              )
-            : schoolCheckinStudent(studentId, action, checkoutNote));
+        // With a target the server checks the child in and places it; a
+        // child it finds present already stays where it is (keepPresent), so
+        // a card that still showed it absent never moves it (#6953).
+        let placedNot = false;
+        if (target) {
+          const placement = await checkInToTarget([studentId], target, true);
+          placedNot = placement.skipped.length > 0;
+        } else if (checkoutReason) {
+          await schoolCheckinStudent(
+            studentId,
+            action,
+            checkoutNote,
+            checkoutReason,
+          );
+        } else {
+          await schoolCheckinStudent(studentId, action, checkoutNote);
+        }
+        if (target && placedNot) {
+          // The server answered, but did not take the child (no longer in
+          // care, or a stay it could not open): say so, it stays visible.
+          showMessage(
+            `Das Kind wurde nicht in ${target.roomName} angemeldet. Prüfen Sie die Angaben des Kindes.`,
+          );
+        }
 
         await globalMutate(
           (key) =>
@@ -504,7 +494,7 @@ export function useSchoolCheckinMode(
         // Bump the per-session counter so the ModeBar can surface "X
         // angemeldet" feedback. We count both directions equally — the
         // banner copy makes the direction unambiguous.
-        dispatchSession("increment");
+        if (!placedNot) dispatchSession("increment");
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error("school_checkin_toggle_failed", {
@@ -532,7 +522,7 @@ export function useSchoolCheckinMode(
         });
       }
     },
-    [pendingIds, showError],
+    [pendingIds, showError, showMessage],
   );
   useLayoutEffect(() => {
     latestToggleRef.current = toggle;
@@ -543,7 +533,6 @@ export function useSchoolCheckinMode(
       action: SchoolCheckinAction,
       onlyIds?: readonly string[],
       checkoutReason?: SchoolCheckoutReason,
-      presentIds?: ReadonlySet<string>,
     ): Promise<SchoolCheckinBatchOutcome | null> => {
       if (isBulkRunningRef.current) return null;
       const target = action === "in" ? targetRef.current : null;
@@ -568,22 +557,14 @@ export function useSchoolCheckinMode(
       let failedRunIds: ReadonlySet<string> = new Set(ids);
 
       try {
+        // A run into a room keeps present children where they are: the
+        // check-in mode places only the children it checks in, so „Alle
+        // auswählen“ never pulls a whole school into one room (#6953).
         let outcome: SchoolCheckinBatchOutcome;
+        let placement: StudentMoveResult | null = null;
         if (target) {
-          const present = ids.filter((id) => presentIds?.has(id));
-          const arriving = ids.filter((id) => !presentIds?.has(id));
-          outcome =
-            arriving.length > 0
-              ? placementOutcome(
-                  arriving,
-                  present,
-                  await checkInToTarget(arriving, target),
-                )
-              : placementOutcome([], present, {
-                  moved: [],
-                  unchanged: [],
-                  skipped: [],
-                });
+          placement = await checkInToTarget(ids, target, true);
+          outcome = placementOutcome(ids, placement);
         } else {
           outcome = await (checkoutReason
             ? schoolCheckinStudentsBatch(ids, action, checkoutReason)
@@ -596,14 +577,11 @@ export function useSchoolCheckinMode(
         // Clean run → summary toast right here (counts only, no names). A
         // partial failure is the caller's job: naming the failed children
         // needs the student list, which this hook does not hold.
-        if (outcome.failed === 0 && target) {
-          const alreadyPresent = outcome.results.filter(
-            (result) => presentIds?.has(result.studentId) ?? false,
-          ).length;
+        if (outcome.failed === 0 && target && placement) {
           toast.success(
             placementMessage(
-              outcome.succeeded - alreadyPresent,
-              alreadyPresent,
+              placement.moved.length,
+              placement.unchanged.length,
               target.roomName,
             ),
           );

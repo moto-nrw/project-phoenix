@@ -209,7 +209,9 @@ export function useCheckinTarget(enabled: boolean): CheckinTargetState {
       namedGroups,
       listOf(roomList.data),
       "",
-      showAllTargets ? "all" : "supervised",
+      // An arriving child needs a running supervision, also for admins
+      // (#6953): the app starts none. Admins still see every such session.
+      "supervised",
       own,
     );
   }, [
@@ -217,7 +219,6 @@ export function useCheckinTarget(enabled: boolean): CheckinTargetState {
     available,
     groups.data,
     roomList.data,
-    showAllTargets,
     supervisions.data,
   ]);
 

@@ -148,10 +148,11 @@ type StudentMoves interface {
 type SessionCheckIns interface {
 	// CheckInStudentsToSessionAuthorized places the children in a running
 	// session with supervision.
-	CheckInStudentsToSessionAuthorized(ctx context.Context, studentIDs []int64, activeGroupID, staffID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
+	// keepPresent leaves children who are already present where they are.
+	CheckInStudentsToSessionAuthorized(ctx context.Context, studentIDs []int64, activeGroupID, staffID int64, auth StudentMoveAuthorization, keepPresent bool) (*StudentMoveResult, error)
 	// CheckInStudentsToOpenRoomSessionAuthorized places them in the room
 	// session of a released room; the open-room workflow resolves it.
-	CheckInStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID, staffID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
+	CheckInStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID, staffID int64, auth StudentMoveAuthorization, keepPresent bool) (*StudentMoveResult, error)
 }
 
 // AttendanceCommands checks students in to and out of school.

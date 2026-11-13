@@ -51,7 +51,7 @@ type Moves interface {
 	MoveIntoRoomSession(ctx context.Context, roomSessionID int64, studentIDs []int64, actor openroommove.Actor) (MoveOutcome, error)
 	// CheckInIntoRoomSession checks the absent children in to the school and
 	// places every child in the room session, in the caller's unit (#6953).
-	CheckInIntoRoomSession(ctx context.Context, roomSessionID int64, studentIDs []int64, staffID int64, actor openroommove.Actor) (MoveOutcome, error)
+	CheckInIntoRoomSession(ctx context.Context, roomSessionID int64, studentIDs []int64, staffID int64, keepPresent bool, actor openroommove.Actor) (MoveOutcome, error)
 }
 
 // Runtime binds the workflow to the tenant UnitOfWork.

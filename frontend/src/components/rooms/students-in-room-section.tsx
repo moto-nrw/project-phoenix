@@ -18,6 +18,7 @@ import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { me as meKeys } from "~/lib/swr/me";
 import { rooms as roomsKeys } from "~/lib/swr/rooms";
+import { checkinTargetKeys } from "~/lib/swr/rooms-keys";
 import {
   useEffect,
   useLayoutEffect,
@@ -157,7 +158,7 @@ export function StudentsInRoomSection({
     }),
   );
   const { data: activeGroups = [] } = useSWRAuth<ActiveGroup[]>(
-    "room-bulk-active-groups",
+    checkinTargetKeys.activeGroups(),
     () => activeService.getActiveGroups({ active: true }),
   );
   const { data: currentStaff } = useSWRAuth<Staff>(
@@ -167,7 +168,7 @@ export function StudentsInRoomSection({
   const { data: activeSupervisions = [] } = useSWRAuth<Supervisor[]>(
     showAllTargets || !currentStaff?.id
       ? null
-      : `room-bulk-active-supervisions-${currentStaff.id}`,
+      : checkinTargetKeys.supervisions(currentStaff.id),
     () => activeService.getStaffActiveSupervisions(currentStaff?.id ?? ""),
   );
   const { data: rooms = [], mutate: refreshMoveRooms } = useSWRAuth<Room[]>(
@@ -247,14 +248,15 @@ export function StudentsInRoomSection({
       activeGroups,
       rooms,
       "",
-      showAllTargets ? "all" : "supervised",
+      // An arriving child needs a running supervision, also for admins.
+      "supervised",
       supervisedTargetGroupIds,
     ).filter((option) => option.roomId === roomId);
     return (
       here.find((option) => option.kind === "openRoom") ??
       (here.length === 1 ? (here[0] ?? null) : null)
     );
-  }, [activeGroups, rooms, roomId, showAllTargets, supervisedTargetGroupIds]);
+  }, [activeGroups, rooms, roomId, supervisedTargetGroupIds]);
   // Pulling present children out of their rooms needs the move rights over
   // them: an administrator, or the supervisor of this room's session.
   const canPullIntoRoom =

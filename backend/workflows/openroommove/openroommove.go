@@ -63,6 +63,8 @@ type CheckIn struct {
 	RoomID     int64
 	// CheckedInBy is the staff member the attendance names.
 	CheckedInBy int64
+	// KeepPresent leaves children who are already present where they are.
+	KeepPresent bool
 	Actor       Actor
 }
 

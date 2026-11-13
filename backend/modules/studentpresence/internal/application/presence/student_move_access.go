@@ -164,6 +164,32 @@ func (s *service) ensureMoveTargetIsSupervised(ctx context.Context, targetGroup 
 	return studentMoveForbidden(op)
 }
 
+// requireArrivalSupervision lets an arriving child into a session only when
+// it has a running supervision (#6953), for every caller: the app starts no
+// supervision. A released room is a shared destination and needs none (#3066).
+func (s *service) requireArrivalSupervision(ctx context.Context, plan *studentMovePlan, opts moveOptions) error {
+	if len(opts.arrivals) == 0 || opts.openRoomTarget {
+		return nil
+	}
+	return s.ensureSessionHasSupervisor(ctx, plan.target, opMoveStudents)
+}
+
+// ensureSessionHasSupervisor requires a running supervision in the target
+// session, under the session lock the move already holds.
+func (s *service) ensureSessionHasSupervisor(ctx context.Context, targetGroup *ports.ActiveGroup, op string) error {
+	supervisors, err := s.SupervisorRepo.FindByActiveGroupIDForUpdate(ctx, targetGroup.ID)
+	if err != nil {
+		return &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	now := time.Now()
+	for _, supervisor := range supervisors {
+		if supervisor != nil && IsSupervisorActive(supervisor, now) {
+			return nil
+		}
+	}
+	return studentMoveForbidden(op)
+}
+
 func studentMoveForbidden(op string) error {
 	return &ActiveError{Op: op, Err: ErrStudentMoveForbidden}
 }

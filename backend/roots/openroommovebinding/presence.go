@@ -19,7 +19,7 @@ type Presence interface {
 
 // CheckIns is the Student Presence check-in into the room session (#6953).
 type CheckIns interface {
-	CheckInStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID, staffID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error)
+	CheckInStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID, staffID int64, auth studentpresence.StudentMoveAuthorization, keepPresent bool) (*studentpresence.StudentMoveResult, error)
 }
 
 type roomSessions struct{ presence Presence }
@@ -45,8 +45,8 @@ func (m moves) MoveIntoRoomSession(ctx context.Context, roomSessionID int64, stu
 	return moveOutcome(result), nil
 }
 
-func (m moves) CheckInIntoRoomSession(ctx context.Context, roomSessionID int64, studentIDs []int64, staffID int64, actor openroommove.Actor) (ports.MoveOutcome, error) {
-	result, err := m.CheckInStudentsToOpenRoomSessionAuthorized(ctx, studentIDs, roomSessionID, staffID, moveAuthorization(actor))
+func (m moves) CheckInIntoRoomSession(ctx context.Context, roomSessionID int64, studentIDs []int64, staffID int64, keepPresent bool, actor openroommove.Actor) (ports.MoveOutcome, error) {
+	result, err := m.CheckInStudentsToOpenRoomSessionAuthorized(ctx, studentIDs, roomSessionID, staffID, moveAuthorization(actor), keepPresent)
 	if err != nil {
 		return ports.MoveOutcome{}, err
 	}

@@ -81,7 +81,7 @@ func (p *recordingPresence) MoveStudentsToOpenRoomSessionAuthorized(ctx context.
 	return &studentpresence.StudentMoveResult{Moved: studentIDs}, nil
 }
 
-func (p *recordingPresence) CheckInStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, sessionID, staffID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error) {
+func (p *recordingPresence) CheckInStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, sessionID, staffID int64, auth studentpresence.StudentMoveAuthorization, _ bool) (*studentpresence.StudentMoveResult, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.moveErr != nil {

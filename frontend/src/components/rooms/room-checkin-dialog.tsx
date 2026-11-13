@@ -22,7 +22,7 @@ import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { SkeletonRows } from "~/components/ui/skeleton";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import { activeService, type StudentMoveResult } from "~/lib/active-service";
+import type { StudentMoveResult } from "~/lib/active-service";
 import { deriveCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
@@ -31,7 +31,8 @@ import {
   parseLocation,
 } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
-import type { TargetRoomOption } from "~/lib/move-targets";
+import { checkInToTarget, type TargetRoomOption } from "~/lib/move-targets";
+import { statusLabel } from "~/components/class-day/status-labels";
 import { fetchStudents } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
@@ -41,11 +42,10 @@ const logger = createLogger({ component: "RoomCheckinDialog" });
 
 // The day status the child list shows, so a sick child reads „Krank“ here
 // too and not „Zuhause“.
-const DAY_STATUS_LABELS: Record<string, string> = {
-  sick: "Krank",
-  class_trip: "Klassenfahrt",
-  excused: "Entschuldigt",
-};
+function dayStatus(student: Student): string | null {
+  const status = countedDayStatus(student);
+  return status ? statusLabel(status) : null;
+}
 
 /** One child the dialog offers, with where it is now. */
 export interface RoomCheckinCandidate {
@@ -82,8 +82,7 @@ export function roomCheckinCandidates(
         : isTransitLocation(student.current_location)
           ? "Unterwegs"
           : status || "Anwesend"
-      : (DAY_STATUS_LABELS[countedDayStatus(student) ?? "none"] ??
-        (status || "Abwesend"));
+      : (dayStatus(student) ?? (status || "Abwesend"));
     candidates.push({ student, name, where, present });
   }
   return candidates.sort(
@@ -170,13 +169,9 @@ export function RoomCheckinDialog({
     formError.clear();
     let result: StudentMoveResult;
     try {
-      result =
-        target.kind === "openRoom"
-          ? await activeService.checkInStudentsToOpenRoom(ids, target.roomId)
-          : await activeService.checkInStudentsToActiveGroup(
-              ids,
-              target.activeGroupId,
-            );
+      // The room page pulls present children in: they move under the
+      // ordinary move rules (keepPresent false).
+      result = await checkInToTarget(ids, target, false);
     } catch (err) {
       logger.warn("room_checkin_failed", {
         selected_count: ids.length,
@@ -188,14 +183,26 @@ export function RoomCheckinDialog({
       return;
     }
     const placed = result.moved.length + result.unchanged.length;
-    const skipped = result.skipped.length;
-    toastSuccess(
-      `${placed} ${placed === 1 ? "Kind ist" : "Kinder sind"} jetzt in ${roomName}.` +
-        (skipped > 0
-          ? ` ${skipped} ${skipped === 1 ? "Kind konnte" : "Kinder konnten"} nicht angemeldet werden.`
-          : ""),
+    const skippedIds = new Set(
+      result.skipped.map((item) => String(item.student_id)),
     );
     setSaving(false);
+    if (skippedIds.size > 0) {
+      // Partly done: the placed children leave the list after the reload,
+      // the skipped ones stay selected and are named where the person looks.
+      const names = candidates
+        .filter((candidate) => skippedIds.has(candidate.student.id))
+        .map((candidate) => candidate.name);
+      setSelected(skippedIds);
+      formError.invalid(
+        `${placed} ${placed === 1 ? "Kind ist" : "Kinder sind"} jetzt in ${roomName}. Nicht angemeldet: ${names.join(", ")}. Prüfen Sie die Angaben dieser Kinder.`,
+      );
+      await onDone();
+      return;
+    }
+    toastSuccess(
+      `${placed} ${placed === 1 ? "Kind ist" : "Kinder sind"} jetzt in ${roomName}.`,
+    );
     setQuery("");
     setSelected(new Set());
     onClose();

@@ -54,7 +54,7 @@ type PresenceOperations interface {
 	MoveStudentsToTransit(context.Context, []int64, studentpresence.StudentMoveAuthorization) (studentpresence.StudentMoveResult, error)
 	// CheckInStudentsToSessionAuthorized checks children in and places them
 	// in a running session in one unit (#6953).
-	CheckInStudentsToSessionAuthorized(ctx context.Context, studentIDs []int64, activeGroupID, staffID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error)
+	CheckInStudentsToSessionAuthorized(ctx context.Context, studentIDs []int64, activeGroupID, staffID int64, auth studentpresence.StudentMoveAuthorization, keepPresent bool) (*studentpresence.StudentMoveResult, error)
 
 	// Reads
 	SessionVisitsWithDisplay(context.Context, int64) ([]studentpresence.VisitDisplay, error)

@@ -73,7 +73,7 @@ func (c *command) CheckInToOpenRoom(ctx context.Context, checkIn openroommove.Ch
 	started := time.Now()
 	move := openroommove.Move{StudentIDs: checkIn.StudentIDs, RoomID: checkIn.RoomID, Actor: checkIn.Actor}
 	result, err := c.move(ctx, move, func(txCtx context.Context, sessionID int64, studentIDs []int64) (ports.MoveOutcome, error) {
-		return c.deps.Moves.CheckInIntoRoomSession(txCtx, sessionID, studentIDs, checkIn.CheckedInBy, checkIn.Actor)
+		return c.deps.Moves.CheckInIntoRoomSession(txCtx, sessionID, studentIDs, checkIn.CheckedInBy, checkIn.KeepPresent, checkIn.Actor)
 	})
 	c.deps.Observe(ports.Observation{Operation: "check_in_to_open_room", Duration: time.Since(started), Err: err, Moved: len(result.Moved)})
 	return result, err

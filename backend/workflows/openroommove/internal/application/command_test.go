@@ -120,7 +120,7 @@ func (f *fakeMoves) MoveIntoRoomSession(_ context.Context, sessionID int64, stud
 	return f.outcome, f.err
 }
 
-func (f *fakeMoves) CheckInIntoRoomSession(_ context.Context, sessionID int64, studentIDs []int64, staffID int64, actor openroommove.Actor) (ports.MoveOutcome, error) {
+func (f *fakeMoves) CheckInIntoRoomSession(_ context.Context, sessionID int64, studentIDs []int64, staffID int64, _ bool, actor openroommove.Actor) (ports.MoveOutcome, error) {
 	if f.order != nil {
 		*f.order = append(*f.order, "CheckInIntoRoomSession")
 	}

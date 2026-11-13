@@ -35,6 +35,13 @@ type moveStudentsToOpenRoomRequest struct {
 	TargetRoomID int64   `json:"target_room_id"`
 }
 
+// checkInStudentsToOpenRoomRequest adds keep_present: the check-in mode of
+// „Alle Kinder“ leaves present children where they are (#6953).
+type checkInStudentsToOpenRoomRequest struct {
+	moveStudentsToOpenRoomRequest
+	KeepPresent bool `json:"keep_present"`
+}
+
 // moveStudentsToOpenRoom records that the children now use a released room
 // (#3066): an independent room stay, not participation in an activity there
 // and no supervision for the caller. The caller keeps every source-side right
@@ -77,7 +84,7 @@ func (rs *Resource) moveStudentsToOpenRoom(w http.ResponseWriter, r *http.Reques
 // in a released room in one unit (#6953). Children already present move with
 // every source-side right of moveStudentsToOpenRoom.
 func (rs *Resource) checkInStudentsToOpenRoom(w http.ResponseWriter, r *http.Request) {
-	var req moveStudentsToOpenRoomRequest
+	var req checkInStudentsToOpenRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
@@ -96,6 +103,7 @@ func (rs *Resource) checkInStudentsToOpenRoom(w http.ResponseWriter, r *http.Req
 		StudentIDs:  req.StudentIDs,
 		RoomID:      req.TargetRoomID,
 		CheckedInBy: staffID,
+		KeepPresent: req.KeepPresent,
 		Actor: openroommove.Actor{
 			StaffID:                      auth.StaffID,
 			BypassResourceChecks:         auth.BypassResourceChecks,

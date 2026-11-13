@@ -13,6 +13,15 @@ type moveStudentsToActiveGroupRequest struct {
 	TargetActiveGroupID int64   `json:"target_active_group_id"`
 }
 
+// checkInStudentsToSessionRequest is the move request plus keep_present: the
+// check-in mode of „Alle Kinder“ leaves present children where they are,
+// the room page pulls them in (#6953).
+type checkInStudentsToSessionRequest struct {
+	StudentIDs          []int64 `json:"student_ids"`
+	TargetActiveGroupID int64   `json:"target_active_group_id"`
+	KeepPresent         bool    `json:"keep_present"`
+}
+
 type moveStudentsToTransitRequest struct {
 	StudentIDs []int64 `json:"student_ids"`
 }
@@ -73,7 +82,7 @@ func (rs *Resource) moveStudentsToTransit(w http.ResponseWriter, r *http.Request
 // in a running session in one unit (#6953), so the app equals a scan at the
 // room's terminal. The request shape is the ordinary move's.
 func (rs *Resource) checkInStudentsToSession(w http.ResponseWriter, r *http.Request) {
-	var req moveStudentsToActiveGroupRequest
+	var req checkInStudentsToSessionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
@@ -88,7 +97,7 @@ func (rs *Resource) checkInStudentsToSession(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	result, err := rs.Operations.CheckInStudentsToSessionAuthorized(r.Context(), req.StudentIDs, req.TargetActiveGroupID, staffID, *auth)
+	result, err := rs.Operations.CheckInStudentsToSessionAuthorized(r.Context(), req.StudentIDs, req.TargetActiveGroupID, staffID, *auth, req.KeepPresent)
 	if err != nil {
 		rs.runtime.MarkRollback(r.Context())
 		common.RenderError(w, r, ErrorRenderer(err))

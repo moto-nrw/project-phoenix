@@ -37,6 +37,9 @@ func (s *service) MoveStudentsToOpenRoomSessionAuthorized(ctx context.Context, s
 type moveOptions struct {
 	// openRoomTarget marks the room session of a released room (#3066).
 	openRoomTarget bool
+	// keepPresent leaves the children already present where they are; only
+	// the children the check-in opens move (#6953).
+	keepPresent bool
 	// checkInBy is the staff member a check-in into the session names
 	// (#6953). When set, the unit checks the absent children in to the
 	// school before it moves them.
@@ -96,6 +99,9 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 		return nil, err
 	}
 	plan.guard.students = lockedStudents
+	if err := s.requireArrivalSupervision(ctx, plan, opts); err != nil {
+		return nil, err
+	}
 	if restricted {
 		if len(plan.studentIDs) == 0 {
 			return plan.staleResult(), nil

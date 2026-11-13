@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
   success: vi.fn(),
   show: vi.fn(),
+  showMessage: vi.fn(),
 }));
 
 vi.mock("~/lib/student-api", () => ({
@@ -27,7 +28,10 @@ vi.mock("~/lib/active-service", () => ({
 vi.mock("swr", () => ({ mutate: mocks.mutate }));
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: mocks.success, error: vi.fn() }),
-  useApiErrorDisplay: () => ({ show: mocks.show }),
+  useApiErrorDisplay: () => ({
+    show: mocks.show,
+    showMessage: mocks.showMessage,
+  }),
 }));
 
 import { useSchoolCheckinMode } from "./use-school-checkin-mode";
@@ -65,7 +69,7 @@ describe("useSchoolCheckinMode with a check-in target", () => {
       await result.current.toggle("5", "abwesend");
     });
 
-    expect(mocks.toRoom).toHaveBeenCalledWith(["5"], "9");
+    expect(mocks.toRoom).toHaveBeenCalledWith(["5"], "9", true);
     expect(mocks.single).not.toHaveBeenCalled();
   });
 
@@ -83,10 +87,10 @@ describe("useSchoolCheckinMode with a check-in target", () => {
     expect(mocks.toGroup).not.toHaveBeenCalled();
   });
 
-  it("places only arriving children and leaves present ones where they are", async () => {
+  it("lets the server keep present children where they are", async () => {
     mocks.toGroup.mockResolvedValue({
       moved: [1],
-      unchanged: [],
+      unchanged: [2],
       skipped: [],
       checked_in: [1],
     });
@@ -96,15 +100,10 @@ describe("useSchoolCheckinMode with a check-in target", () => {
 
     let outcome: Awaited<ReturnType<typeof result.current.runBulk>> = null;
     await act(async () => {
-      outcome = await result.current.runBulk(
-        "in",
-        ["1", "2"],
-        undefined,
-        new Set(["2"]),
-      );
+      outcome = await result.current.runBulk("in", ["1", "2"]);
     });
 
-    expect(mocks.toGroup).toHaveBeenCalledWith(["1"], "12");
+    expect(mocks.toGroup).toHaveBeenCalledWith(["1", "2"], "12", true);
     expect(mocks.batch).not.toHaveBeenCalled();
     expect(outcome).toMatchObject({ succeeded: 2, failed: 0 });
     expect(mocks.success).toHaveBeenCalledWith(
@@ -115,6 +114,26 @@ describe("useSchoolCheckinMode with a check-in target", () => {
     ) => boolean;
     expect(matcher("room-students-3")).toBe(true);
     expect(matcher("search-students-gall--")).toBe(true);
+  });
+
+  it("says when a tapped child was not placed", async () => {
+    mocks.toGroup.mockResolvedValue({
+      moved: [],
+      unchanged: [],
+      skipped: [{ student_id: 5, reason: "not_found" }],
+    });
+    const { result } = renderHook(() =>
+      useSchoolCheckinMode({ target: mensa }),
+    );
+
+    await act(async () => {
+      await result.current.toggle("5", "abwesend");
+    });
+
+    expect(mocks.showMessage).toHaveBeenCalledWith(
+      "Das Kind wurde nicht in Mensa angemeldet. Prüfen Sie die Angaben des Kindes.",
+    );
+    expect(result.current.successCount).toBe(0);
   });
 
   it("reloads the targets when the backend refuses the target", async () => {

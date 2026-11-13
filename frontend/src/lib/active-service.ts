@@ -491,6 +491,7 @@ export const activeService = {
   checkInStudentsToActiveGroup: async (
     studentIds: string[],
     activeGroupId: string,
+    keepPresent: boolean,
   ): Promise<StudentMoveResult> => {
     return coreFetch<StudentMoveResult>(
       "POST",
@@ -500,6 +501,7 @@ export const activeService = {
       {
         student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
         target_active_group_id: Number.parseInt(activeGroupId, 10),
+        keep_present: keepPresent,
       },
     );
   },
@@ -511,6 +513,7 @@ export const activeService = {
   checkInStudentsToOpenRoom: async (
     studentIds: string[],
     roomId: string,
+    keepPresent: boolean,
   ): Promise<StudentMoveResult> => {
     return coreFetch<StudentMoveResult>(
       "POST",
@@ -520,6 +523,7 @@ export const activeService = {
       {
         student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
         target_room_id: Number.parseInt(roomId, 10),
+        keep_present: keepPresent,
       },
     );
   },
