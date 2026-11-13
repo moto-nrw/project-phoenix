@@ -3,7 +3,7 @@ package projection
 import (
 	"time"
 
-	postgres "github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres"
+	postgres "github.com/moto-ogs/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres"
 )
 
 // New binds the projection constructor to its root-owned inputs.

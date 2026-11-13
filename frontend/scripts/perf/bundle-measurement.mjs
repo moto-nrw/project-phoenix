@@ -17,7 +17,7 @@ import { measureBase } from "./bundle-base.mjs";
 import { validBytes } from "./bundle-policy.mjs";
 
 const MEASUREMENT_FORMAT = "moto-bundle-measurement/v1";
-const PROJECT = "moto-nrw/project-phoenix/frontend";
+const PROJECT = "moto-ogs/project-phoenix/frontend";
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/;
 const CONFIG_SHA = /^[a-f0-9]{64}$/;
 const RESULTS = "perf-results";
@@ -244,8 +244,32 @@ function prepareCI(baseRevision) {
   if (process.env.GITHUB_OUTPUT)
     appendFileSync(process.env.GITHUB_OUTPUT, `measurement-key=${key}\n`);
   process.stdout.write(`Bundle measurement key: ${key}\n`);
-  if (baseRevision)
-    writeMeasurement(BASE_IDENTITY, identityForRevision(baseRevision));
+  if (baseRevision) {
+    const base = identityForRevision(baseRevision);
+    writeMeasurement(BASE_IDENTITY, base);
+    // CI restores an earlier measurement of exactly this base under this key.
+    if (process.env.GITHUB_OUTPUT)
+      appendFileSync(
+        process.env.GITHUB_OUTPUT,
+        `base-measurement-key=${measurementKey(base.identity)}\n`,
+      );
+  }
+}
+
+/**
+ * An earlier measurement of exactly this source tree and build configuration,
+ * or null. Two cold builds of one tree are byte-identical (#2939), so the key
+ * alone decides. Anything else in the file counts as not measured: the caller
+ * builds cold instead of trusting or failing on it.
+ */
+export function reusableMeasurement(file, identity) {
+  if (!existsSync(file)) return null;
+  try {
+    readMeasurement(file, identity);
+    return JSON.parse(readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 function buildBase() {
@@ -253,6 +277,14 @@ function buildBase() {
   const current = identityForRevision(requested.sourceRevision);
   if (measurementKey(current.identity) !== measurementKey(requested.identity))
     throw new Error("Base source/configuration changed since preparation");
+  const earlier = reusableMeasurement(BASE_MEASUREMENT, current.identity);
+  if (earlier) {
+    process.stdout.write(
+      `Merge-base measurement reused: source tree ${current.identity.sourceTree}, measured ${earlier.measuredAt} in run ${earlier.runId ?? "unknown"}, ${Object.keys(earlier.routes).length} routes.\n`,
+    );
+    return;
+  }
+  rmSync(BASE_MEASUREMENT, { force: true });
   const routes = measureBase(current.sourceRevision);
   writeMeasurement(
     BASE_MEASUREMENT,

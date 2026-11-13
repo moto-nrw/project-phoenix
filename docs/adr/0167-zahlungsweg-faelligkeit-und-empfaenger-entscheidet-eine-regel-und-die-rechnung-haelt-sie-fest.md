@@ -6,8 +6,8 @@ status: proposed
 
 **Status: Vorgeschlagen.**
 
-Vorschlag vom 08.11.2026 zu [#4689](https://github.com/moto-nrw/project-phoenix/issues/4689),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611)
+Vorschlag vom 08.11.2026 zu [#4689](https://github.com/moto-ogs/project-phoenix/issues/4689),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611)
 (User Stories 74, 76, 77). Er folgt
 [ADR 0119](0119-abrechnungslauf-stellt-unveraenderliche-rechnungen-aus-einem-nummernkreis-aus.md)
 (ausgestellte Rechnungen ändern sich nie),

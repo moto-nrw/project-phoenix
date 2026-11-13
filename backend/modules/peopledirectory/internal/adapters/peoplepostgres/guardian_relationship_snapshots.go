@@ -6,8 +6,8 @@ import (
 
 	"github.com/uptrace/bun"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	models "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 func nativeGuardianRelationship(row *models.StudentGuardian) (*directory.GuardianRelationshipSnapshot, error) {

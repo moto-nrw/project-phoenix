@@ -12,10 +12,10 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	capability "github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // HolidayResource serves the holiday contribution (#4664, ADR 0115): in the
@@ -64,6 +64,7 @@ func (rs *HolidayResource) TraegerRouter(protectedTraegerRoutes func(chi.Router,
 		manage.Put("/{periodId}/registrations/{registrationId}/children/{childId}/bookings", rs.rebookChild)
 		manage.Put("/{periodId}/weeks/{weekId}/capacity", rs.setWeekCapacity)
 		manage.Put("/{periodId}/registrations/{registrationId}/debtor-number", rs.changeDebtorNumber)
+		manage.Get("/{periodId}/registrations/{registrationId}/family-debtor-number", rs.familyDebtorNumber)
 		manage.Get("/{periodId}/sibling-groups", rs.listSiblingGroups)
 		manage.Post("/{periodId}/sibling-groups", rs.mergeSiblings)
 		manage.Delete("/{periodId}/sibling-groups/registrations/{registrationId}", rs.splitSibling)
@@ -85,26 +86,58 @@ func (rs *HolidayResource) QuoteRouter() chi.Router {
 // benefits_exemption applies the exemption for families receiving benefits;
 // cost_bearer_id lets that cost bearer of the Träger pay instead (#5627);
 // debtor_number is the number of the family in the finance system of the
-// Träger (#5621). An empty body confirms without any of them.
+// Träger (#5621). family_debtor_number says which number applies when it
+// differs from the number the family has (#6692): "keep" or "replace". An
+// empty body confirms without any of them.
 type HolidayConfirmRequest struct {
-	BenefitsExemption bool   `json:"benefits_exemption"`
-	CostBearerID      int64  `json:"cost_bearer_id"`
-	DebtorNumber      string `json:"debtor_number"`
+	BenefitsExemption  bool   `json:"benefits_exemption"`
+	CostBearerID       int64  `json:"cost_bearer_id"`
+	DebtorNumber       string `json:"debtor_number"`
+	FamilyDebtorNumber string `json:"family_debtor_number"`
 }
 
-// Bind accepts the body; the owners check the debtor number.
-func (req *HolidayConfirmRequest) Bind(*http.Request) error { return nil }
+// Bind checks the choice for the family; the owners check the number.
+func (req *HolidayConfirmRequest) Bind(*http.Request) error {
+	return familyChoiceOf(req.FamilyDebtorNumber)
+}
 
 // HolidayDebtorNumberRequest is the body of PUT
 // /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/debtor-number
 // (#5621): the new debtor number; an empty one removes it where the Träger
 // does not ask for it.
 type HolidayDebtorNumberRequest struct {
-	DebtorNumber string `json:"debtor_number"`
+	DebtorNumber       string `json:"debtor_number"`
+	FamilyDebtorNumber string `json:"family_debtor_number"`
 }
 
-// Bind accepts the body; the owners check the debtor number.
-func (req *HolidayDebtorNumberRequest) Bind(*http.Request) error { return nil }
+// Bind checks the choice for the family; the owners check the number.
+func (req *HolidayDebtorNumberRequest) Bind(*http.Request) error {
+	return familyChoiceOf(req.FamilyDebtorNumber)
+}
+
+// familyChoiceOf accepts no choice, "keep" or "replace" (#6692).
+func familyChoiceOf(choice string) error {
+	switch choice {
+	case "", capability.FamilyDebtorNumberKeep, capability.FamilyDebtorNumberReplace:
+		return nil
+	}
+	return errors.New(`family_debtor_number must be "keep" or "replace"`)
+}
+
+// familyDebtorNumber answers the number the family of the registration has
+// (#6692), which the confirmation proposes.
+func (rs *HolidayResource) familyDebtorNumber(w http.ResponseWriter, r *http.Request) {
+	reviewer, periodID, registrationID, ok := registrationKey(w, r)
+	if !ok {
+		return
+	}
+	number, err := rs.contributions.HolidayFamilyDebtorNumber(r.Context(), reviewer, periodID, registrationID)
+	if err != nil {
+		renderHolidayError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, number, "Family debtor number retrieved successfully")
+}
 
 type holidayQuoteBookingRequest struct {
 	WeekID      int64           `json:"week_id"`
@@ -206,7 +239,7 @@ func (rs *HolidayResource) confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	confirmation, err := rs.contributions.ConfirmHolidayRegistration(r.Context(), reviewer, periodID, registrationID,
-		req.BenefitsExemption, req.CostBearerID, req.DebtorNumber)
+		req.BenefitsExemption, req.CostBearerID, req.DebtorNumber, req.FamilyDebtorNumber)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		renderHolidayError(w, r, err)
@@ -359,7 +392,8 @@ func (rs *HolidayResource) changeDebtorNumber(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	changed, err := rs.contributions.ChangeHolidayDebtorNumber(r.Context(), reviewer, periodID, registrationID, req.DebtorNumber)
+	changed, err := rs.contributions.ChangeHolidayDebtorNumber(r.Context(), reviewer, periodID, registrationID, req.DebtorNumber,
+		req.FamilyDebtorNumber)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		renderHolidayError(w, r, err)
@@ -413,6 +447,9 @@ func renderHolidayError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
 	var dayLimit *capability.HolidayChildDayLimitRefusal
 	var noCareDay *capability.HolidayWeekNoCareDayRefusal
+	if renderDebtorNumberRefusal(w, r, err) {
+		return
+	}
 	switch {
 	case errors.As(err, &dayLimit):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentHolidayChildDayLimit,

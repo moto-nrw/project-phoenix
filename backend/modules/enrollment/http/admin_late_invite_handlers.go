@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type AdminCreateLateInviteRequest struct {
@@ -330,6 +330,8 @@ func (rs *Resource) mapManualEnrollmentError(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentDecisionAlreadyFinal))
 	case errors.Is(err, capability.ErrDecisionInvalidData):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentApprovalDataInvalid))
+	case errors.Is(err, capability.ErrDecisionReviewerStaffRequired):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentApprovalStaffProfileRequired))
 	case errors.Is(err, capability.ErrDecisionInvalidStatus):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, capability.ErrGuardianAccountMismatch):

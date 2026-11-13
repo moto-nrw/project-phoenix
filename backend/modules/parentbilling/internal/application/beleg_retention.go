@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // BelegDeletionLogRetentionYears keeps an entry of the deletion log as long
@@ -43,6 +43,9 @@ type BelegRetentionStore interface {
 	DueContracts(ctx context.Context, today calendar.Date) ([]parentbilling.DueContract, error)
 	LogContractDeletions(ctx context.Context, organizationID int64, today calendar.Date, contractIDs []int64) error
 	DeleteExpiredBelegDeletions(ctx context.Context, years int) (int, error)
+	// DeleteExpiredFamilies deletes the families without a care contract
+	// whose own period ended and no document of which is kept (#6692).
+	DeleteExpiredFamilies(ctx context.Context, today calendar.Date) (int, error)
 	BelegRetentionOverview(ctx context.Context, organizationID int64, today calendar.Date) (parentbilling.BelegRetentionOverview, error)
 }
 
@@ -171,11 +174,17 @@ func (r *BelegRetention) ApplyBelegRetention(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	// A family without a contract keeps its number while a document of it
+	// is kept, so it goes after the Belege of this day (#6692).
+	families, err := r.store.DeleteExpiredFamilies(ctx, today)
+	if err != nil {
+		return 0, err
+	}
 	logged, err := r.store.DeleteExpiredBelegDeletions(ctx, BelegDeletionLogRetentionYears)
 	if err != nil {
 		return 0, err
 	}
-	return deleted + contracts + logged, nil
+	return deleted + contracts + families + logged, nil
 }
 
 // evaluate writes today's record of every Beleg of one Träger or of all.

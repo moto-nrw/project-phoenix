@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // traegerLevelKeys returns the requested keys whose definitions admit a Träger

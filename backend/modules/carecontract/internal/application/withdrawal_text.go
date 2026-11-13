@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
 )
 
 // The withdrawal notice of a distance contract (#4682, § 312g, § 356 BGB,

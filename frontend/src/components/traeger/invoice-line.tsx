@@ -21,7 +21,7 @@ export function InvoiceLine({
     <li className="flex items-baseline justify-between gap-4 py-1.5">
       <div className="min-w-0">
         <p className="text-sm text-gray-900">{title}</p>
-        <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-600">
+        <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-gray-600">
           {detail}
         </div>
       </div>

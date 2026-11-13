@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/api/common/imagemeta"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/api/common/imagemeta"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // AllowedImageTypes maps MIME types detected by http.DetectContentType to allowed image formats.

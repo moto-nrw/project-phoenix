@@ -539,6 +539,26 @@ export function EnrollmentForm({
   const captchaRef = useRef<TurnstileInstance>(undefined);
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaRequired = !skipCaptcha && captchaConfig?.enabled === true;
+  // A failed attempt used up its captcha response, so "Wiederholen" waits
+  // for the next one instead of sending without it (#6739).
+  const [retryPending, setRetryPending] = useState(false);
+  const captchaSectionRef = useRef<HTMLElement>(null);
+  const retrySubmit = () => {
+    setRetryPending(true);
+    // A challenge the parent has to answer sits below the form: show it,
+    // or "Wiederholen" seems to do nothing.
+    if (captchaRequired) {
+      captchaSectionRef.current?.scrollIntoView?.({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  };
+  useEffect(() => {
+    if (!retryPending || (captchaRequired && !captchaToken)) return;
+    setRetryPending(false);
+    formRef.current?.requestSubmit();
+  }, [retryPending, captchaRequired, captchaToken]);
   // Which legal block text the parent is currently viewing in the modal.
   const [openLegalDoc, setOpenLegalDoc] = useState<PublicLegalBlock | null>(
     null,
@@ -825,6 +845,7 @@ export function EnrollmentForm({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setRetryPending(false);
     formError.clear();
     setChildOfferingErrors({});
     setOfferingDayErrors({});
@@ -951,7 +972,7 @@ export function EnrollmentForm({
       // sees now, not the draft of the failed attempt.
       const presentation = await formError.show(err, {
         object: tr("errorObject"),
-        retry: () => formRef.current?.requestSubmit(),
+        retry: retrySubmit,
       });
       if (
         presentation &&
@@ -1857,7 +1878,11 @@ export function EnrollmentForm({
           above blocks the form: failing closed beats letting bots through.
           The hidden input sends the token with the form. */}
         {captchaRequired && captchaConfig.site_key && (
-          <section aria-labelledby="captcha-heading" className="space-y-2">
+          <section
+            ref={captchaSectionRef}
+            aria-labelledby="captcha-heading"
+            className="space-y-2"
+          >
             <h2 id="captcha-heading" className="sr-only">
               Sicherheitsprüfung
             </h2>

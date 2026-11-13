@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups"
-	supervision "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups"
+	supervision "github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/application/groups"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 type DirectoryRoom = groups.DirectoryRoom

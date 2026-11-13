@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/statistics"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 )
 

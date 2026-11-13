@@ -60,7 +60,7 @@ function invalidSourceSentence(names: readonly string[]): string | null {
 }
 
 const TARGETS_SENTENCE =
-  "Klasse, Jahrgang oder Gruppe gelten nur für neu erzeugte Termine.";
+  "Wechselt ein Kind Klasse oder Gruppe, passt moto die kommenden Termine an. Neue Kinder stehen erst in später geplanten Terminen.";
 
 export function describeRosterMaintenance(
   state: TemplateRosterMaintenance,

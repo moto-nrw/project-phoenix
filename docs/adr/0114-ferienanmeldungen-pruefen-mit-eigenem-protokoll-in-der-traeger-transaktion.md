@@ -4,8 +4,8 @@ status: accepted
 
 # Ferienanmeldungen prüfen mit eigenem Protokoll in der Träger-Transaktion
 
-Entscheidung vom 25.10.2026 zu [#4663](https://github.com/moto-nrw/project-phoenix/issues/4663),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 25.10.2026 zu [#4663](https://github.com/moto-ogs/project-phoenix/issues/4663),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 35 und 36. Sie baut auf
 [ADR 0105](0105-ferienzeitraum-liegt-beim-traeger-in-der-traeger-transaktion.md)
 und [ADR 0110](0110-oeffentliche-ferienanmeldung-schreibt-in-der-traeger-transaktion.md)

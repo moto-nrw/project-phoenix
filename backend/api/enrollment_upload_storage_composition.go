@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	fileCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	fileCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
 )
 
 // NewEnrollmentUploadStorage opens the private store of the files parents

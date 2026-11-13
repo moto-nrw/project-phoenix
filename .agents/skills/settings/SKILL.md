@@ -2,7 +2,7 @@
 name: settings
 description: Use when adding, editing, deleting, or debugging tenant-scoped settings. Triggers on mentions of per-school config, settings registry, setting keys, HasTenantOverride, or config.setting_values.
 metadata:
-  author: moto-nrw
+  author: moto-ogs
   version: "1.0.0"
 ---
 

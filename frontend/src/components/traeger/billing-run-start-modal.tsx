@@ -5,6 +5,7 @@
 // Liste, starten den Lauf und öffnen danach seine Vorschau.
 
 import { useEffect, useRef, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
@@ -26,6 +27,18 @@ interface RunStartOption {
 }
 
 /**
+ * Choices that cannot start a run now because one of their runs is still a
+ * preview: the dialog says so and opens that run instead.
+ */
+interface BlockedChoices {
+  readonly values: readonly string[];
+  readonly hint: string;
+  /** The button that opens the run in preview, named after it. */
+  readonly openLabel: (value: string) => string;
+  readonly onOpen: (value: string) => void;
+}
+
+/**
  * The dialog that starts a run: one choice from a list, a line that says
  * what the run bills, and the start. `onStart` starts the run; a refusal
  * shows at the top of the form. `onStarted` closes and opens the run, only
@@ -39,6 +52,7 @@ function RunStartModal({
   initialValue,
   hint,
   object,
+  blocked,
   onClose,
   onStart,
   onStarted,
@@ -54,11 +68,15 @@ function RunStartModal({
     readonly missing: string;
   };
   options: readonly RunStartOption[];
-  /** Preselected when it is one of the options, else the first option. */
+  /**
+   * Preselected when it is one of the options, else the first option that
+   * can start, else the first option.
+   */
   initialValue?: string;
   hint: string;
   /** The run in the error text, e.g. „der Lauf“. */
   object: string;
+  blocked?: BlockedChoices;
   onClose: () => void;
   /** Starts the run; may refresh data, but must not close or navigate. */
   onStart: (value: string) => Promise<BillingRun>;
@@ -73,16 +91,19 @@ function RunStartModal({
 
   // The options are built on every render; their values decide the choice.
   const optionValues = options.map((option) => option.value).join("\n");
+  const blockedValues = (blocked?.values ?? []).join("\n");
   useEffect(() => {
     if (!isOpen) return;
     const values = optionValues ? optionValues.split("\n") : [];
+    const taken = new Set(blockedValues ? blockedValues.split("\n") : []);
     setValue(
       initialValue && values.includes(initialValue)
         ? initialValue
-        : (values[0] ?? ""),
+        : (values.find((option) => !taken.has(option)) ?? values[0] ?? ""),
     );
     clearErrors();
-  }, [isOpen, optionValues, initialValue, clearErrors]);
+  }, [isOpen, optionValues, blockedValues, initialValue, clearErrors]);
+  const isBlocked = !!value && !!blocked?.values.includes(value);
 
   const submit = async () => {
     formErrors.clear();
@@ -117,14 +138,20 @@ function RunStartModal({
       pending={save}
       isBackdropDismissDisabled
       title={title}
+      // Opened from the page head: the title follows the page's h1.
+      titleLevel={2}
       size="md"
       error={formErrors.error}
       footer={
         <EditActions
           onCancel={onClose}
-          onSave={() => formRef.current?.requestSubmit()}
+          onSave={() =>
+            isBlocked
+              ? blocked?.onOpen(value)
+              : formRef.current?.requestSubmit()
+          }
           saving={saving}
-          saveLabel="Lauf starten"
+          saveLabel={isBlocked && blocked ? blocked.openLabel(value) : title}
         />
       }
     >
@@ -145,9 +172,19 @@ function RunStartModal({
           placeholder={field.placeholder}
           value={value}
           options={options}
-          onChange={setValue}
+          onChange={(next) => {
+            setValue(next);
+            formErrors.clear();
+          }}
+          wrapLabels
         />
-        <p className="text-sm text-gray-600">{hint}</p>
+        {/* A choice with a run in preview is a state to see, not a hint
+            to read past: a notice, as in the monthly start dialog. */}
+        {isBlocked && blocked ? (
+          <Alert type="info" message={blocked.hint} />
+        ) : (
+          <p className="text-sm text-gray-600">{hint}</p>
+        )}
       </form>
     </FormModal>
   );
@@ -157,6 +194,8 @@ export function BillingRunStartModal({
   isOpen,
   periods,
   initialPeriodId,
+  openRunIds,
+  onOpenRun,
   onClose,
   onStarted,
 }: Readonly<{
@@ -164,9 +203,13 @@ export function BillingRunStartModal({
   periods: readonly BillingPeriod[];
   /** Vorgewählt, wenn die Liste auf diesen Zeitraum gefiltert ist (#5688). */
   initialPeriodId?: string;
+  /** The run still in preview per holiday period: no second one starts. */
+  openRunIds?: ReadonlyMap<string, string>;
+  onOpenRun?: (runId: string) => void;
   onClose: () => void;
   onStarted: (run: BillingRun) => void;
 }>) {
+  const open = openRunIds ?? new Map<string, string>();
   return (
     <RunStartModal
       isOpen={isOpen}
@@ -180,9 +223,24 @@ export function BillingRunStartModal({
       }}
       options={periods.map((period) => ({
         value: period.id,
-        label: `${period.name} (${formatDateRange(period.startsOn, period.endsOn)})`,
+        label: `${period.name} (${formatDateRange(period.startsOn, period.endsOn)})${open.has(period.id) ? " · Vorschau offen" : ""}`,
       }))}
       initialValue={initialPeriodId}
+      blocked={
+        onOpenRun
+          ? {
+              values: [...open.keys()],
+              hint: "Für diesen Ferienzeitraum ist schon ein Lauf in der Vorschau. Öffnen Sie ihn, statt einen neuen zu starten.",
+              // The select above names the period; a long period name
+              // would push the action under „Abbrechen“.
+              openLabel: () => "Lauf öffnen",
+              onOpen: (periodId) => {
+                const runId = open.get(periodId);
+                if (runId) onOpenRun(runId);
+              },
+            }
+          : undefined
+      }
       hint="Der Lauf rechnet alle bestätigten Anmeldungen ab, die noch keine Rechnung haben. Sie prüfen zuerst die Vorschau."
       object="der Lauf"
       onClose={onClose}

@@ -366,28 +366,64 @@ const MAX_STATS_ITEMS = 3;
 export function TenantPageStats({
   items,
 }: Readonly<{
-  items: readonly { readonly value: ReactNode; readonly label: string }[];
+  items: readonly {
+    readonly value: ReactNode;
+    readonly label: string;
+    /**
+     * Filtert die Seite auf genau diese Zahl („0 ohne Debitorennummer“).
+     * Nur, wo die Seite den passenden Filter hat; das Paar wird dann ein
+     * Textknopf, der Rest der Zeile bleibt Anzeige.
+     */
+    readonly onSelect?: () => void;
+    /** Was der Knopf tut, etwa „Familien ohne Debitorennummer zeigen“. */
+    readonly selectLabel?: string;
+  }[];
 }>) {
+  const shown = items.slice(0, MAX_STATS_ITEMS);
   return (
     <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
-      {items.slice(0, MAX_STATS_ITEMS).map((item, index) => (
-        // Paare ohne Label (nur ein Wert) teilen sich das leere Label; erst
-        // die Position macht den Schlüssel eindeutig.
-        <span
-          key={`${index}-${item.label}`}
-          className="inline-flex items-center gap-1.5"
-        >
-          {index > 0 && (
-            <span aria-hidden="true" className="text-gray-300">
-              ·
+      {shown.map((item, index) => {
+        const pair = (
+          <>
+            <span className="font-medium text-gray-900 tabular-nums">
+              {item.value}
             </span>
-          )}
-          <span className="font-medium text-gray-900 tabular-nums">
-            {item.value}
+            <span>{item.label}</span>
+          </>
+        );
+        return (
+          // Paare ohne Label (nur ein Wert) teilen sich das leere Label; erst
+          // die Position macht den Schlüssel eindeutig.
+          <span
+            key={`${index}-${item.label}`}
+            className="inline-flex items-center gap-1.5"
+          >
+            {item.onSelect ? (
+              <Button
+                type="button"
+                variant="link"
+                size="md"
+                // Unterstrichen auch ohne Maus: sonst liest sich der Knopf
+                // wie die übrigen Zahlen der Zeile, die nur Anzeige sind.
+                className="gap-1.5 underline decoration-gray-300 underline-offset-4"
+                aria-label={item.selectLabel}
+                onClick={item.onSelect}
+              >
+                {pair}
+              </Button>
+            ) : (
+              pair
+            )}
+            {/* Der Punkt hängt am Paar davor: bricht die Zeile um, endet sie
+                mit dem Punkt, statt die nächste damit zu beginnen. */}
+            {index < shown.length - 1 && (
+              <span aria-hidden="true" className="text-gray-300">
+                ·
+              </span>
+            )}
           </span>
-          <span>{item.label}</span>
-        </span>
-      ))}
+        );
+      })}
     </span>
   );
 }
@@ -706,6 +742,9 @@ function TenantPageView({
               // Titel-/Statuszeile, die ihr Text füllt.
               "max-sm:contents",
               "max-sm:[&>*:not([data-icon-only])]:order-last max-sm:[&>*:not([data-icon-only])]:basis-full",
+              // A menu behind a text button („Herunterladen ⌄“) sits in a
+              // wrapper: the row is full, so its button fills it too.
+              "max-sm:[&>div:not([data-icon-only])>button]:w-full",
               CONTROL_HEIGHT,
             )}
           >
@@ -809,13 +848,22 @@ function TenantPageTabs({
   // ganz hinausgescrollter Reiter wäre unsichtbar, ohne dass etwas auf ihn
   // zeigt.
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
 
   const updateScrollHint = useCallback(() => {
     const tablist = tablistRef.current;
     if (!tablist) return;
+    // The band's inner padding scrolls with it: a rest no wider than the
+    // padding hides no tab. Without this, the centred last tab sat under the
+    // fade although nothing followed it.
+    const style = getComputedStyle(tablist);
+    const padStart = Number.parseFloat(style.paddingLeft) || 0;
+    const padEnd = Number.parseFloat(style.paddingRight) || 0;
     setCanScrollRight(
-      tablist.scrollWidth - tablist.clientWidth - tablist.scrollLeft > 1,
+      tablist.scrollWidth - tablist.clientWidth - tablist.scrollLeft >
+        padEnd + 1,
     );
+    setCanScrollLeft(tablist.scrollLeft > padStart + 1);
   }, []);
 
   const measure = useCallback(() => {
@@ -881,13 +929,15 @@ function TenantPageTabs({
   }, [measure, updateScrollHint, items]);
 
   // Auf dem Telefon rueckt der aktive Reiter ins Sichtfenster des Bandes,
-  // sonst steht die Seite auf einem Bereich, den man nicht sieht.
+  // sonst steht die Seite auf einem Bereich, den man nicht sieht. Mittig,
+  // nicht an den Rand: am rechten Rand laege er unter dem Verlauf, der
+  // weitere Reiter ankuendigt.
   useEffect(() => {
     const active = tablistRef.current?.querySelector<HTMLElement>(
       '[role="tab"][aria-selected="true"]',
     );
     if (typeof active?.scrollIntoView !== "function") return;
-    active.scrollIntoView({ inline: "nearest", block: "nearest" });
+    active.scrollIntoView({ inline: "center", block: "nearest" });
   }, [value]);
 
   const visible = items.slice(0, visibleCount);
@@ -921,7 +971,8 @@ function TenantPageTabs({
       // Auf dem Telefon Pillen statt Grundlinie: eine graue Schrift mit
       // 3-px-Strich liest sich in einer 390-px-Spalte als Text, nicht als
       // Navigation. Die gefüllte Pille ist erkennbar ein Bedienelement.
-      "max-sm:rounded-full max-sm:border-0 max-sm:px-3 max-sm:py-1.5 max-sm:pb-1.5 max-sm:text-sm",
+      // 44 px high like every control under sm (spec rule 17).
+      "max-sm:min-h-11 max-sm:rounded-full max-sm:border-0 max-sm:px-3 max-sm:py-1.5 max-sm:pb-1.5 max-sm:text-sm",
       active
         ? "border-moto-green font-semibold text-gray-900 max-sm:bg-gray-900 max-sm:text-white"
         : "border-transparent font-medium text-gray-500 hover:border-gray-300 hover:text-gray-900 max-sm:bg-gray-100 max-sm:text-gray-700",
@@ -995,7 +1046,11 @@ function TenantPageTabs({
   const moreTrigger = (measuring = false) => (
     <OverflowMenu
       key="__mehr__"
-      ariaLabel={MORE_LABEL}
+      // Steht der aktive Reiter unter „Mehr", zeigt der Auslöser dessen
+      // Namen; der Name für die Vorlesehilfe enthält ihn dann auch.
+      ariaLabel={
+        hiddenActive ? `${MORE_LABEL}: ${hiddenActive.label}` : MORE_LABEL
+      }
       triggerRole="tab"
       triggerAriaSelected={Boolean(hiddenActive)}
       triggerTabIndex={measuring ? -1 : rovingValue === "__mehr__" ? 0 : -1}
@@ -1124,6 +1179,14 @@ function TenantPageTabs({
           <div
             aria-hidden
             className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-white to-transparent sm:hidden"
+          />
+        )}
+        {/* Reiter, die links hinausgescrollt sind, kündigt derselbe Verlauf
+            an der linken Kante an. */}
+        {canScrollLeft && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-white to-transparent sm:hidden"
           />
         )}
 

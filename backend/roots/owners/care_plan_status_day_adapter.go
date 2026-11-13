@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // StudentStatusDayRepository serves the retained status-day rows over the Care
@@ -17,13 +17,13 @@ import (
 type StudentStatusDayRepository struct{ Capability careplan.Capability }
 
 func statusDayFromPublic(value careplan.StudentStatusDay) *absencerecords.StudentStatusDay {
-	row := &absencerecords.StudentStatusDay{StudentID: value.StudentID, Date: absencerecords.Date(value.Date), Status: value.Status, ReportedAt: value.ReportedAt, ClearedAt: value.ClearedAt, Source: value.Source, GuardianAccountID: value.GuardianAccountID, Note: value.Note}
+	row := &absencerecords.StudentStatusDay{StudentID: value.StudentID, Date: absencerecords.Date(value.Date), Status: value.Status, ReportedAt: value.ReportedAt, ClearedAt: value.ClearedAt, Source: value.Source, GuardianAccountID: value.GuardianAccountID, Note: value.Note, ReportedByAccountID: value.ReportedByAccountID, ClearedSource: value.ClearedSource}
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row
 }
 
 func statusDayToPublic(row *absencerecords.StudentStatusDay) careplan.StudentStatusDay {
-	return careplan.StudentStatusDay{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, Date: careplan.Date(row.Date), Status: row.Status, ReportedAt: row.ReportedAt, ClearedAt: row.ClearedAt, Source: row.Source, GuardianAccountID: row.GuardianAccountID, Note: row.Note}
+	return careplan.StudentStatusDay{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, Date: careplan.Date(row.Date), Status: row.Status, ReportedAt: row.ReportedAt, ClearedAt: row.ClearedAt, Source: row.Source, GuardianAccountID: row.GuardianAccountID, Note: row.Note, ReportedByAccountID: row.ReportedByAccountID, ClearedSource: row.ClearedSource}
 }
 
 func NewStudentStatusDayRepository(capability careplan.Capability) *StudentStatusDayRepository {
@@ -53,20 +53,20 @@ func (r StudentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context.
 	return &absencerecords.StudentStatusCounts{SickIDs: value.SickIDs, ExcusedIDs: value.ExcusedIDs, Total: value.Total, UnaccountedIDs: value.UnaccountedIDs}, nil
 }
 
-func (r StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID int64, status string, date absencerecords.Date, at time.Time, source string) error {
-	return r.Capability.ClearStudentStatusDays(ctx, studentID, status, []careplan.Date{careplan.Date(date)}, at, source)
+func (r StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID int64, status string, date absencerecords.Date, at time.Time, source string, accountID *int64) error {
+	return r.Capability.ClearStudentStatusDays(ctx, studentID, status, []careplan.Date{careplan.Date(date)}, at, source, accountID)
 }
 
-func (r StudentStatusDayRepository) MarkClearedByID(ctx context.Context, id int64, at time.Time, source string) error {
-	return r.Capability.ClearStudentStatusDayByID(ctx, id, at, source)
+func (r StudentStatusDayRepository) MarkClearedByID(ctx context.Context, id int64, at time.Time, source string, accountID *int64) error {
+	return r.Capability.ClearStudentStatusDayByID(ctx, id, at, source, accountID)
 }
 
-func (r StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []absencerecords.Date, at time.Time, source string) error {
+func (r StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []absencerecords.Date, at time.Time, source string, accountID *int64) error {
 	publicDates := make([]careplan.Date, len(dates))
 	for i := range dates {
 		publicDates[i] = careplan.Date(dates[i])
 	}
-	return r.Capability.ClearStudentStatusDays(ctx, studentID, status, publicDates, at, source)
+	return r.Capability.ClearStudentStatusDays(ctx, studentID, status, publicDates, at, source, accountID)
 }
 
 func (r StudentStatusDayRepository) FindActiveByID(ctx context.Context, id int64) (*absencerecords.StudentStatusDay, error) {

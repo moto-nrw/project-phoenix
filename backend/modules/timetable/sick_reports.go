@@ -1,6 +1,6 @@
 package timetable
 
-import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 // SickBlockAbsenceReason is the neutral label a sick report writes on the
 // block assignments it marks absent (#1843). The absence note never reaches

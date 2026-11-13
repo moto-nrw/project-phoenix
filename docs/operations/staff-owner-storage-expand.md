@@ -32,10 +32,10 @@ there. A profile-only unique index would reject valid reuse after offboarding.
 An index cannot use the membership table's deletion predicate.
 
 The implementation owner approved deferring target enforcement to
-[Cutover #2753](https://github.com/moto-nrw/project-phoenix/issues/2753).
+[Cutover #2753](https://github.com/moto-ogs/project-phoenix/issues/2753).
 Cutover must preserve concurrent duplicate rejection and reuse after
 offboarding before enabling target writes. Expand leaves the authoritative
-old-table constraint intact. [Backfill #2752](https://github.com/moto-nrw/project-phoenix/issues/2752)
+old-table constraint intact. [Backfill #2752](https://github.com/moto-ogs/project-phoenix/issues/2752)
 (runbook: [staff-owner-storage-backfill.md](staff-owner-storage-backfill.md))
 and Cutover remain separate work.
 

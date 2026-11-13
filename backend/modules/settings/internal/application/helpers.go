@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	settingsRecords "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	settingsRecords "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // The Resolve*OrDefault helpers accept narrow per-type interfaces instead of

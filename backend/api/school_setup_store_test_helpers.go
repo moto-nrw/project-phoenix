@@ -3,9 +3,9 @@
 package api
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
-	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolsetup"
+	schoolSetupCompose "github.com/moto-ogs/project-phoenix/modules/schoolsetup/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
 )
 
 func NewSchoolSetupTestService(settings schoolsetup.Settings) (schoolsetup.Service, error) {

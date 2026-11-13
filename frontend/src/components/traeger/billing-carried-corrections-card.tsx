@@ -5,6 +5,7 @@
 // vor der Freigabe, ändert oder entfernt sie. Gutschriften der stornierten
 // Rechnung sind eigene Dokumente: Sie stehen nur als Hinweis hier.
 
+import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -99,7 +100,7 @@ export function BillingCarriedCorrectionsCard({
       {rows.length > 0 ? (
         <SectionCard
           title="Übernommene Korrekturen"
-          description="Diese Korrekturen stammen aus der stornierten Rechnung und zählen schon in der neuen. Prüfen Sie jede vor der Freigabe."
+          description="Diese Korrekturen stammen aus der stornierten Rechnung und zählen schon in der neuen. Stimmt ein Betrag nicht, ändern Sie ihn im Menü der Zeile."
         >
           <ResponsiveActionList>
             {rows.map((row) => (
@@ -122,14 +123,15 @@ export function BillingCarriedCorrectionsCard({
                 </div>
                 <OverflowMenu
                   ariaLabel={`Aktionen für die Korrektur von ${row.child.firstName} über ${formatEuro(row.carried.amountCents)}`}
-                  triggerSize="sm"
                   items={[
                     {
                       label: "Ändern",
+                      icon: <Pencil className="size-4" aria-hidden />,
                       onClick: () => onChange(row.child, row.carried),
                     },
                     {
                       label: "Entfernen",
+                      icon: <Trash2 className="size-4" aria-hidden />,
                       onClick: () => setRemoving(row),
                     },
                   ]}

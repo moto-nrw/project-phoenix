@@ -3,7 +3,7 @@ package timetracking
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PreviewCompTimeBalance projects what a comp_time absence over [start, end]

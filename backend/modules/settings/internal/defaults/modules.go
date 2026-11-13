@@ -1,6 +1,6 @@
 package defaults
 
-import config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+import config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 
 // Module switches (#4892, decisions in #4812 of 24.10.2026): one per
 // additional module, per school. The moto team books them by contract

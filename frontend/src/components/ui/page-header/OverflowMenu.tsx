@@ -156,12 +156,19 @@ interface OverflowMenuProps {
   readonly portalOwnerId?: string;
   /** Stacking level for a document-level menu owned by an overlay. */
   readonly portalZIndex?: number;
+  /**
+   * Side the menu opens on when it fits on both. `above` suits a trigger at
+   * the top of a phone row: the menu then leaves the row's own details in
+   * view. Without room above it opens below, as by default.
+   */
+  readonly preferredSide?: "below" | "above";
 }
 
 /**
  * Generic kebab (⋮) overflow menu. Anchored bottom-right of the trigger by
  * default; flips to bottom-left if the page edge is too close on the right, and
- * flips ABOVE the trigger when it sits too close to the viewport bottom.
+ * flips ABOVE the trigger when it sits too close to the viewport bottom (or
+ * opens above first with `preferredSide="above"`).
  *
  * Closes on outside click, Escape key, or item activation. Built without a
  * popover library to avoid adding a Radix dep just for one use site — the
@@ -183,6 +190,7 @@ export function OverflowMenu({
   matchContainerSelector,
   portalOwnerId,
   portalZIndex,
+  preferredSide = "below",
 }: OverflowMenuProps) {
   // Size variant: the "default" values are byte-for-byte the previous hardcoded
   // ones, so unchanged callers keep the exact 36px trigger + 20px icon +
@@ -321,7 +329,12 @@ export function OverflowMenu({
         0,
         window.innerHeight - rect.bottom - gap - viewportInset,
       );
-      const flipUp = roomBelow < estimatedMenuHeight && roomAbove > roomBelow;
+      const fitsBelow = roomBelow >= estimatedMenuHeight;
+      const flipUp =
+        preferredSide === "above"
+          ? roomAbove >= estimatedMenuHeight ||
+            (!fitsBelow && roomAbove > roomBelow)
+          : !fitsBelow && roomAbove > roomBelow;
       const vertical: CSSProperties = flipUp
         ? {
             bottom: scopeRect
@@ -480,7 +493,7 @@ export function OverflowMenu({
         className={
           triggerButton
             ? buttonClassName({ ...triggerButton, className: triggerClassName })
-            : `inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} focus-visible:ring-moto-blue/50 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none ${triggerClassName}`
+            : `inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none ${triggerClassName}`
         }
       >
         {triggerContent ?? (
@@ -542,9 +555,11 @@ export function OverflowMenu({
                           : "menuitemcheckbox"
                       }
                       aria-checked={entry.checked}
+                      // Name from content (the title), the second line as
+                      // description: it is aria-hidden so it stays out of
+                      // the name, and aria-describedby still reads it.
                       {...(entry.kind === "radio" && entry.description
                         ? {
-                            "aria-labelledby": `${menuId}-${index}-label`,
                             "aria-describedby": `${menuId}-${index}-description`,
                           }
                         : {})}
@@ -570,6 +585,7 @@ export function OverflowMenu({
                           </span>
                           <span
                             id={`${menuId}-${index}-description`}
+                            aria-hidden="true"
                             className="text-xs font-normal text-gray-500"
                           >
                             {entry.description}
@@ -603,11 +619,11 @@ export function OverflowMenu({
                   ? "cursor-not-allowed opacity-50"
                   : "hover:bg-gray-50 active:bg-gray-100";
                 const itemClassName = `flex w-full ${item.description ? "items-start" : "items-center"} gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`;
+                // Name from content (the title), the second line as
+                // description: aria-hidden keeps it out of the name and
+                // aria-describedby still reads it (WCAG 2.5.3, label in name).
                 const describedProps = item.description
-                  ? {
-                      "aria-labelledby": `${menuId}-${index}-label`,
-                      "aria-describedby": `${menuId}-${index}-description`,
-                    }
+                  ? { "aria-describedby": `${menuId}-${index}-description` }
                   : {};
 
                 const inner = (
@@ -626,6 +642,7 @@ export function OverflowMenu({
                         </span>
                         <span
                           id={`${menuId}-${index}-description`}
+                          aria-hidden="true"
                           className="text-xs font-normal text-gray-500"
                         >
                           {item.description}

@@ -66,22 +66,23 @@ than 30 s.
 **Too slow, in this order:**
 
 1. Make it faster: shared setup, the package pool instead of an isolated
-   database slot, fewer writes or uploads per case, `t.Parallel()`.
+   database slot, fewer writes or uploads per case, `t.Parallel()`. Tests
+   on an isolated clone queue for the package's two slots: their hold
+   times add up to the package's wall time.
 2. Question the form: thin the matrix to representative cases, merge cases,
    move the check to a unit test, or delete what another test covers. This is
    a test change the [test rule](no-test-modifications.md) allows.
-3. Keep the go test `-timeout`, `isolatedTestDatabaseDeadlineReserve`, the
-   slot limit and job `timeout-minutes` where they are; raising them makes a
-   slow package pass without making it fast.
+3. Keep the go test `-timeout`, `isolatedTestDatabaseDeadlineReserve` and
+   job `timeout-minutes` where they are; raising them makes a slow package
+   pass without making it fast. The slot limit changes only with a
+   suite measurement on base and branch.
 
 **Lesson of #6784 (November 2026).** No single pull request went red; the
 creep did. In four days the median of `api` grew from 39 s to 313 s,
 `dataimport/importtest` from 4 s to 310 s, and the backend job from 244 s
-to 504 s. Matrices merged without a runtime check drove it (#6510: seven
-`TestParentMealMessageWriteMatrix*` tests; #6514, #6307: about 5000 uploads
-at 0.15 s), an Actions cache over the 10 GB limit evicted the Go build cache
-(cold compile 574 s instead of 314 s), and one isolated slot per package
-(#6517) turned slow into red past 7 min 25 s. The repair stalled when an
+to 504 s. Matrices merged without a runtime check drove it (#6510, #6514,
+#6307: about 5000 uploads), pull requests compiled cold, and #6517
+turned slow into red. The repair stalled when an
 agent read the test rule as forbidding to thin those matrices.
 
 ## New or changed tests

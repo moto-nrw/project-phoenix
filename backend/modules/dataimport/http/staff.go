@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // DownloadStaffTemplate handles the staff template download (CSV or Excel).

@@ -48,9 +48,10 @@ const BASE_CLASS =
   "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors";
 
 const FOCUS_CLASS: Record<"label" | "button" | "div", string> = {
-  label: "cursor-pointer focus-within:ring-2 focus-within:ring-gray-300",
+  label:
+    "cursor-pointer has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-gray-600",
   button:
-    "focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none",
+    "focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none",
   div: "",
 };
 

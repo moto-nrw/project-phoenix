@@ -116,6 +116,43 @@ describe("LocationBadge", () => {
   // ===========================================================================
 
   describe("sick status display", () => {
+    // #5710: hat das Personal das Kind zum Unterricht abgemeldet, zeigt das
+    // Badge nur „Im Unterricht“; das abgeleitete „Schule“ weicht weiter „Krank“.
+    it("shows only Im Unterricht for a sick child checked out to class", () => {
+      render(
+        <LocationBadge
+          student={createStudent({
+            current_location: "Im Unterricht",
+            sick: true,
+            excused: true,
+          })}
+          displayMode="roomName"
+        />,
+      );
+
+      expect(screen.getByText(LOCATION_STATUSES.IN_CLASS)).toBeInTheDocument();
+      expect(
+        screen.queryByText(LOCATION_STATUSES.SICK),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(LOCATION_STATUSES.EXCUSED),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps Krank before the derived Schule", () => {
+      render(
+        <LocationBadge
+          student={createStudent({ current_location: "Schule", sick: true })}
+          displayMode="roomName"
+        />,
+      );
+
+      expect(screen.getByText(LOCATION_STATUSES.SICK)).toBeInTheDocument();
+      expect(
+        screen.queryByText(LOCATION_STATUSES.AT_SCHOOL),
+      ).not.toBeInTheDocument();
+    });
+
     describe("when student is sick AND at home", () => {
       it("shows Krank badge instead of Zuhause", () => {
         const student = createStudent({

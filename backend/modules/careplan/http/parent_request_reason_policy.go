@@ -4,7 +4,7 @@ import (
 	slog "log/slog"
 	http "net/http"
 
-	parentrequests "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	parentrequests "github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
 )
 
 // staffReasonRequired resolves operations.parent_request_reason_policy for the

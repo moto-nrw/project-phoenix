@@ -472,13 +472,15 @@ describe("TenantPage", () => {
       const tablist = screen.getByRole("tablist", {
         name: "Seitenbereiche",
       });
-      const moreButton = screen.getByRole("tab", { name: "Mehr" });
+      // The active tab sits under „Mehr“: the trigger shows its label, so
+      // its name carries that label too (WCAG 2.5.3, label in name).
+      const moreButton = screen.getByRole("tab", { name: "Mehr: Personal" });
 
       expect(moreButton).toHaveAttribute("role", "tab");
       expect(moreButton).toHaveAttribute("aria-selected", "true");
       expect(moreButton).toHaveAttribute("tabindex", "0");
 
-      expect(within(tablist).getByRole("tab", { name: "Mehr" })).toBe(
+      expect(within(tablist).getByRole("tab", { name: "Mehr: Personal" })).toBe(
         moreButton,
       );
       moreButton.focus();
@@ -513,6 +515,31 @@ describe("TenantPage", () => {
     expect(screen.getByText("116")).toBeInTheDocument();
     expect(screen.getByText("krank")).toBeInTheDocument();
     expect(screen.getByText("·")).toBeInTheDocument();
+  });
+
+  it("macht ein Paar mit onSelect zum Textknopf und lässt die übrigen Anzeige", () => {
+    const onSelect = vi.fn();
+    render(
+      <TenantPageStats
+        items={[
+          { value: 12, label: "Familien" },
+          {
+            value: 3,
+            label: "ohne Debitorennummer",
+            onSelect,
+            selectLabel: "Familien ohne Debitorennummer zeigen",
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Familien ohne Debitorennummer zeigen",
+      }),
+    );
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 
   it("zeigt mehrere Werte ohne Label ohne doppelten Schlüssel", () => {

@@ -680,19 +680,9 @@ function DesktopSearchSection({
           <div className="mb-3 flex items-center gap-3">
             {inlineDesktopFilters}
 
-            {!showFilterPopover &&
-            activeFilterCountForBadge !== undefined &&
-            activeFilterCountForBadge > 0 ? (
-              <span
-                className="bg-moto-blue-soft text-moto-blue-strong ring-moto-blue/20 inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ring-1 ring-inset"
-                aria-label={`${activeFilterCountForBadge} Filter aktiv`}
-              >
-                <span className="tabular-nums">
-                  {activeFilterCountForBadge}
-                </span>
-                <span>aktiv</span>
-              </span>
-            ) : null}
+            {/* Count mode with filters in the row: the controls show their
+                values, so no count pill beside them (the filter button of
+                a phone or of quiet filters carries the count). */}
 
             <DesktopSearchAction
               hasTabs={hasTabs}
@@ -748,17 +738,7 @@ function DesktopSearchSection({
             </>
           )}
 
-          {!showFilterPopover &&
-          activeFilterCountForBadge !== undefined &&
-          activeFilterCountForBadge > 0 ? (
-            <span
-              className="bg-moto-blue-soft text-moto-blue-strong ring-moto-blue/20 inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ring-1 ring-inset"
-              aria-label={`${activeFilterCountForBadge} Filter aktiv`}
-            >
-              <span className="tabular-nums">{activeFilterCountForBadge}</span>
-              <span>aktiv</span>
-            </span>
-          ) : null}
+          {/* No count pill beside filters that stand in the row. */}
 
           <DesktopSearchAction
             hasTabs={hasTabs}

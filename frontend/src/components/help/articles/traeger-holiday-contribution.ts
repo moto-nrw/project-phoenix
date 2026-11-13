@@ -29,7 +29,7 @@ export function traegerHolidayContributionTopic(): HelpTopic {
         steps: [
           "Wählen Sie unten in der Navigation `Einstellungen`.",
           "Wählen Sie `Abrechnungsvorgaben`.",
-          "Wählen Sie bei `Geschwister` den Knopf `Geschwisterregel hinzufügen`.",
+          "Wählen Sie bei `Geschwister` den Knopf `Geschwisterregel anlegen`.",
           "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
           "Wählen Sie `ab dem 2. Kind` oder `ab dem 3. Kind`.",
           "Wählen Sie `Anteil in Prozent` oder `Betrag in Euro` und tragen Sie den Wert ein. Zum Beispiel 50 für die Hälfte.",
@@ -41,7 +41,7 @@ export function traegerHolidayContributionTopic(): HelpTopic {
         description:
           "Die Regel gilt für alle Familien mit Leistungsbezug. Sie legen damit keine einzelne Familie an. Welche Familie befreit ist, wählen Sie beim Bestätigen der Anmeldung.",
         steps: [
-          "Wählen Sie bei `Befreiung bei Leistungsbezug` den Knopf `Befreiungsregel hinzufügen`.",
+          "Wählen Sie bei `Befreiung bei Leistungsbezug` den Knopf `Befreiungsregel anlegen`.",
           "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
           "Schreiben Sie den `Vermerk auf dem Beitrag`. Er steht bei jeder befreiten Familie.",
           "Wählen Sie `Speichern`.",

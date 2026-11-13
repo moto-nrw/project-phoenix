@@ -3,8 +3,8 @@ package compose
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/staffgroups"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/adapters/staffgroups"
 )
 
 // TeachingAssignments and GroupSubstitutions are the consumer-owned reads the

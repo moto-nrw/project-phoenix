@@ -19,6 +19,7 @@ func transactionScopeSubset(current, previous map[string]string, moves map[strin
 	current = withoutReviewedTransactionFrameBundles(current)
 	current = withoutReviewedBelegRetentionTransactions(current)
 	current = withoutReviewedVisitRetentionTransaction(current)
+	current = withoutReviewedTraegerExportTransferTransactions(current)
 	current = withoutReviewedHolidayClosureNotificationTransactions(withoutReviewedEnrollmentFamilyChildrenTransactions(withoutReviewedEnrollmentFormLabelsTransactions(withoutReviewedSchoolVacationTransactions(withoutReviewedPayrollDispatchTransactions(withoutReviewedParentDocumentInboxTransactions(withoutReviewedHolidayContributionTransactions(withoutReviewedHolidayRegistrationPrefillTransactions(withoutReviewedHolidayParentSetupTransactions(withoutReviewedHolidayParentRegistrationTransactions(withoutReviewedHolidayRegistrationTransactions(withoutReviewedTraegerTransactions(withoutReviewedTraegerViewTransactions(withoutReviewedTenantExportTransaction(withoutReviewedCaregiverDisableTransaction(withoutReviewedBillingKeyDateTransactions(current))))))))))))))))
 	for key, reason := range current {
 		if old, retained := previous[key]; retained {

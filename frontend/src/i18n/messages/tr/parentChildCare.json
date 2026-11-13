@@ -75,6 +75,7 @@
     "cutoffHint": "Bugünkü alma saatini {time} saatine kadar değiştirebilirsiniz.",
     "cutoffClosed": "Bugün için değişiklik yalnızca saat {time} kadar mümkündür. Lütfen {careTerm}'ye başvurun. Diğer günleri değiştirmeye devam edebilirsiniz.",
     "cutoffClosedGeneric": "Bugün için artık değişiklik yapılamaz. Lütfen {careTerm}'ye başvurun. Diğer günleri değiştirmeye devam edebilirsiniz.",
+    "careDayEnded": "Bugünkü bakım süresi sona erdi. Bugünün teslim alma saati artık değiştirilemez. Diğer günleri değiştirmeye devam edebilirsiniz.",
     "reset": "Değişikliği geri al",
     "resetTitle": "Değişiklik geri alınsın mı?",
     "resetDescription": "{date} için farklı teslim alma saati kaldırılır. Yeniden normal haftalık plan geçerli olur.",

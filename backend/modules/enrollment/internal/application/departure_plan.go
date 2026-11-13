@@ -1,6 +1,6 @@
 package application
 
-import "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+import "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 
 // enrollmentRebaseUntouchedDeparturePlan preserves the legacy field
 // precedence while rebasing untouched hydrated fields onto the state read

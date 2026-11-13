@@ -160,6 +160,12 @@ export const studentKeys = {
     `student-note-activities-${encodeURIComponent(id)}`,
   permanentNotes: (id: string) =>
     `student-permanent-notes-${encodeURIComponent(id)}`,
+  /** The reader's notes the team shared and they have not read (#6854). */
+  teamNotices: (accountId: string) =>
+    `student-note-team-notices:${encodeURIComponent(accountId)}`,
+  /** The reader's unseen changed pickup times (#6855). */
+  pickupChangeNotices: (accountId: string) =>
+    `student-pickup-change-notices:${encodeURIComponent(accountId)}`,
   enrollments: (id: string) => `student-enrollments-${encodeURIComponent(id)}`,
   holidayGuest: (id: string) => `holiday-guest:${encodeURIComponent(id)}`,
   carePlanDay: (id: string, date: string) =>
@@ -258,6 +264,7 @@ export const payrollKeys = {
   dispatch: () => "payroll-dispatch",
   sftpStatus: () => "payroll-sftp-status",
   rules: () => "payroll-rules",
+  targetCoverage: () => "payroll-target-coverage",
 } as const;
 
 export const databaseKeys = {
@@ -346,6 +353,12 @@ export const traegerKeys = {
   // Geteilte Dokumente (#4692): Titel, Dateiname und Freigaben, keine Inhalte.
   documents: () => "traeger-document-list",
   documentAudiences: () => "traeger-document-audiences",
+  // Anmeldephasen und Angebote des Trägers (#4704): Entwürfe, Versionen und
+  // das Ergebnis je Schule, keine Personendaten.
+  catalogFamily: "traeger-catalog-phase-",
+  catalogPhases: () => "traeger-catalog-phase-list",
+  catalogPhase: (id: string) =>
+    `traeger-catalog-phase-detail-${encodeURIComponent(id)}`,
   periodPreview(data: unknown, id: string): ListPreview | undefined {
     const row = previewRow(data, id);
     const name = previewText(row?.name);
@@ -421,6 +434,8 @@ export const holidayKeys = {
   /** Zuordnung der eigenen Kinder einer Ferienwoche (#6678). */
   ownChildren: (weekId: string) =>
     `holiday-own-children:${encodeURIComponent(weekId)}`,
+  /** Eigene Kinder in Ferienwochen anderer OGS (#6679). */
+  homeSchoolBookings: () => "holiday-home-school-bookings",
   /** Feriengruppen, deren Woche noch nicht begonnen hat (#6680). */
   guestGroupHints: () => "holiday-guest-group-hints",
   /** Die Feriengruppen der Gruppenverwaltung (ADR 0120, Nachtrag 2026-11-11). */

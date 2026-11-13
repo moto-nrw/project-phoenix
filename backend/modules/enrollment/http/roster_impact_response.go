@@ -3,7 +3,7 @@ package enrollmenthttp
 import (
 	"strconv"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // rosterImpactResponse is the wire form of a booking change's effect on the

@@ -8,12 +8,12 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/internal/application"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/ports"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/workflows/shiftplansync"
+	"github.com/moto-ogs/project-phoenix/workflows/shiftplansync/internal/application"
+	"github.com/moto-ogs/project-phoenix/workflows/shiftplansync/ports"
 )
 
 // SickCascadeDependencies are the surfaces the #1843 cascade writes across:

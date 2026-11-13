@@ -56,11 +56,13 @@ export function BrandTraegerLine({
 
 /**
  * Tailwind kennt keine zusammengesetzten Klassennamen zur Laufzeit, deshalb
- * beide Varianten als vollständige Literale.
+ * beide Varianten als vollständige Literale. Unterhalb der Breite ist der
+ * Text nur unsichtbar, nicht entfernt: das Logo-Bild hat keinen Alternativtext,
+ * und ohne den Text hätte der Link keinen Namen für die Vorlesehilfe.
  */
 const HIDE_LABEL_CLASS = {
-  md: "hidden md:flex",
-  lg: "hidden lg:flex",
+  md: "sr-only md:not-sr-only md:flex",
+  lg: "sr-only lg:not-sr-only lg:flex",
 } as const;
 
 /**

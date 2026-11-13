@@ -3,8 +3,8 @@ package presence
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 func (rs *Resource) BulkStudentMoveAuthorization(w http.ResponseWriter, r *http.Request) (*studentpresence.StudentMoveAuthorization, bool) {

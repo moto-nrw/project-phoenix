@@ -1,6 +1,6 @@
 package defaults
 
-import config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+import config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 
 var mealWeekdayOptions = &config.SelectOptions{Static: []config.SelectOption{
 	{Label: "Montag", Value: config.MealWeekdayMonday},

@@ -6208,7 +6208,10 @@ const buttonNeedsTooltip = {
 // Überschrift: sie sagen, was sie sind) und rein navigierende Einträge mit
 // `selected`, etwa die „Mehr“-Leiste der Navigation; ein statisch falscher
 // Wert wie `false` oder `undefined` ist keine Navigation und befreit nicht.
-// Ein unbekannter Wert bleibt als Navigation ausgenommen. Verlangt wird
+// Ein unbekannter Wert bleibt als Navigation ausgenommen. Objekte mit
+// `tooltip` oder `noTooltip` sind Knöpfe, etwa `moreAction` der DataTable;
+// sie erklärt `ui-kit/button-needs-tooltip`, ein Menüeintrag hat kein
+// `tooltip`. Verlangt wird
 // `description` oder ein begründetes `noDescription: "<Grund>"`; ein leerer
 // oder `undefined` gesetzter Wert ist ein Fehler. Wie bei
 // `ui-kit/button-needs-tooltip` gilt ein unbekannter Spread ohne Erklärung als
@@ -6268,6 +6271,8 @@ const menuItemNeedsDescription = {
         const selected = staticObjectProperty(node, "selected");
         if (
           staticObjectProperty(node, "kind") ||
+          staticObjectProperty(node, "tooltip") ||
+          staticObjectProperty(node, "noTooltip") ||
           (selected && !isStaticallyFalsy(selected.value))
         ) {
           return;

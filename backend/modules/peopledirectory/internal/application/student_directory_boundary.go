@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // StudentDirectoryRows supplies directory operations directly from the native services.

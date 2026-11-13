@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
 )
 
 // NewGroupEvents binds School Structure's event port to Delivery.

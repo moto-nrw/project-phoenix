@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // GuardianAbsenceRecords is the owner persistence a guardian absence report
@@ -12,7 +12,7 @@ import (
 type GuardianAbsenceRecords interface {
 	LockStudentAndExceptionDay(context.Context, int64, string) error
 	ListPickupExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.PickupException, error)
-	ClearStudentStatusDays(context.Context, int64, string, []careplan.Date, time.Time, string) error
+	ClearStudentStatusDays(context.Context, int64, string, []careplan.Date, time.Time, string, *int64) error
 	UpsertStudentStatusDay(context.Context, careplan.StudentStatusDay) (careplan.StudentStatusDay, error)
 	ListStudentStatusDays(context.Context, careplan.StudentStatusDayFilter) ([]careplan.StudentStatusDay, error)
 }

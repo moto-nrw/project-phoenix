@@ -4828,7 +4828,7 @@ describe.concurrent("ui-kit/menu-item-needs-description", () => {
     export const items = [${items}];`;
 
   // Alle gültigen Fälle in einem Lauf: jeder Lauf startet oxlint neu.
-  it("accepts a description, a reason, toggles and selected navigation", async () => {
+  it("accepts a description, a reason, toggles, selected navigation and tooltip buttons", async () => {
     const { output } = await lintSource(
       probe(
         [
@@ -4841,6 +4841,8 @@ describe.concurrent("ui-kit/menu-item-needs-description", () => {
           `{ label: "Mehr", ...extra, onClick: go }`,
           `{ ...extra, label: "Leeren", description: "Löscht sofort.", onClick: go }`,
           `{ label: "Nur Text" }`,
+          `{ label: "Weitere laden", onClick: go, tooltip: "Zeigt weitere Einträge." }`,
+          `{ label: "Neu laden", onClick: go, noTooltip: "Das Wort sagt schon alles." }`,
         ].join(",\n"),
       ),
       IN_SCOPE,

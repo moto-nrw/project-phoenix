@@ -28,7 +28,7 @@ export function parentPickupChangeTopic(): HelpTopic {
       "Tippen Sie auf `Anfrage senden`.",
     ],
     result:
-      "Die Änderung gilt erst, nachdem die OGS sie bestätigt hat. Der reguläre Wochenplan bleibt unverändert. Eine gewählte Person darf nur an diesem Tag abholen.",
+      "Die Änderung gilt erst, nachdem die OGS sie bestätigt hat. Danach bekommt das Team Ihres Kindes einen Hinweis. Der reguläre Wochenplan bleibt unverändert. Eine gewählte Person darf nur an diesem Tag abholen.",
     differences: [
       "Steht dort `Abholung für ... ändern`? Dann können Sie auch die Abholart ändern. Wählen Sie bei `Abholart an diesem Tag` zum Beispiel `Wird abgeholt`. Lassen Sie `Abholzeit` leer, wenn die Uhrzeit gleich bleibt.",
       "Hat die OGS die Abholart für den Tag schon festgelegt? Dann steht sie im Fenster. Für eine Änderung schreiben Sie der OGS.",
@@ -43,6 +43,7 @@ export function parentPickupChangeTopic(): HelpTopic {
     troubleshootingDetails: [
       "moto sagt, das Ändern der Abholzeit sei für diese OGS nicht aktiviert? Dann schreiben Sie der OGS eine Nachricht.",
       "`Wer holt ab?` fehlt? Dann haben Sie noch keine weitere Person bei den Kontakten eingetragen.",
+      "moto sagt, die Betreuung ist für heute schon zu Ende? Dann ändern Sie die Abholzeit für heute nicht mehr, auch wenn Ihr Kind noch im Unterricht ist. Andere Tage können Sie weiter ändern.",
     ],
     related: [
       HELP_TOPICS.parentCareChange,

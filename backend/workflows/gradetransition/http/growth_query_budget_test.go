@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
-	gradehttp "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
+	"github.com/moto-ogs/project-phoenix/api"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
+	gradehttp "github.com/moto-ogs/project-phoenix/workflows/gradetransition/http"
 	"github.com/stretchr/testify/require"
 )
 

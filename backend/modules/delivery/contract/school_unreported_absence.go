@@ -3,7 +3,7 @@ package contract
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SchoolOffice lists the accounts of the school that hold

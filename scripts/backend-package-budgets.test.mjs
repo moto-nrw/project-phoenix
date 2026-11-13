@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { budgetOf, check, loadBudgets, packageTimes } from "./backend-package-budgets.mjs";
 
-const M = "github.com/moto-nrw/project-phoenix/";
+const M = "github.com/moto-ogs/project-phoenix/";
 const budgets = {
   defaultSeconds: 90,
   packages: { "modules/dataimport/importtest": { seconds: 300, reason: "r" }, api: { seconds: 200, reason: "r" } },

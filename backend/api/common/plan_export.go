@@ -1,8 +1,8 @@
 package common
 
 import (
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // CanExportInternalPlan reports whether a caller may receive plan details

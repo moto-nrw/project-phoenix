@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
 )
 
 // EnrollmentGuardianAutofill binds the autofill profile the enrollment form

@@ -40,7 +40,7 @@ var moduleComposeAliasBudgets = map[string]int{}
 // moduleComposeAliasBudgetTotal is the sum of moduleComposeAliasBudgets.
 const moduleComposeAliasBudgetTotal = 0
 
-const backendModulePath = "github.com/moto-nrw/project-phoenix/"
+const backendModulePath = "github.com/moto-ogs/project-phoenix/"
 
 func TestModuleComposeAliasRatchet(t *testing.T) {
 	t.Parallel()
@@ -229,9 +229,9 @@ func TestModuleComposeAliasScanCountsForeignAliasesOnly(t *testing.T) {
 	source := `package vocabulary
 
 import (
-	users "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
-	importService "github.com/moto-nrw/project-phoenix/services/import"
+	users "github.com/moto-ogs/project-phoenix/models/users"
+	"github.com/moto-ogs/project-phoenix/modules/settings/internal/application"
+	importService "github.com/moto-ogs/project-phoenix/services/import"
 	"time"
 )
 

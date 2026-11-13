@@ -1,8 +1,8 @@
 package schoolstructurehttp
 
 import (
-	"github.com/moto-nrw/project-phoenix/api/common"
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
 )
 
 // errorRules map education-service sentinels to HTTP responses.

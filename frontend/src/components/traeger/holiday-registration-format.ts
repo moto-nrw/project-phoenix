@@ -19,7 +19,8 @@ export const HOLIDAY_REGISTRATION_STATUS_LABELS: Readonly<
 export const HOLIDAY_REGISTRATION_STATUS_TONES: Readonly<
   Record<HolidayRegistrationStatus, StatusBadgeTone>
 > = {
-  received: "blue",
+  // Waits for the office's decision: orange like every open task.
+  received: "orange",
   confirmed: "green",
   cancelled: "gray",
 };

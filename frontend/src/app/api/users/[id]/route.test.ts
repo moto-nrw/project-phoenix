@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GET, PUT, DELETE } from "./route";
+import { GET, PUT } from "./route";
 import {
   type ExtendedSession,
   createMockContext,
@@ -11,11 +11,10 @@ import {
 // Mocks (using vi.hoisted for proper hoisting)
 // ============================================================================
 
-const { mockAuth, mockApiGet, mockApiPut, mockApiDelete } = vi.hoisted(() => ({
+const { mockAuth, mockApiGet, mockApiPut } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
   mockApiGet: vi.fn(),
   mockApiPut: vi.fn(),
-  mockApiDelete: vi.fn(),
 }));
 
 vi.mock("~/server/auth", async () =>
@@ -29,7 +28,6 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
   apiGet: mockApiGet,
   apiPost: vi.fn(),
   apiPut: mockApiPut,
-  apiDelete: mockApiDelete,
   handleApiError: vi.fn(
     (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
   ),
@@ -170,22 +168,5 @@ describe("PUT /api/users/[id]", () => {
     const json = await parseJsonResponse<{ detail: string }>(response);
     expect(json.detail).toBe("Internal Server Error");
     expect(JSON.stringify(json)).not.toContain("Last name cannot be blank");
-  });
-});
-
-describe("DELETE /api/users/[id]", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("deletes user via backend and returns 204", async () => {
-    mockApiDelete.mockResolvedValueOnce(undefined);
-
-    const request = createMockRequest("/api/users/1", { method: "DELETE" });
-    const response = await DELETE(request, createMockContext({ id: "1" }));
-
-    expect(mockApiDelete).toHaveBeenCalledWith("/api/users/1", "test-token");
-    expect(response.status).toBe(204);
   });
 });

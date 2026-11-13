@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/templates"
 )
 
 // Document templates of a Träger (#4677, spec #4611 user stories 91 and 92,

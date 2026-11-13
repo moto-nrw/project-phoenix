@@ -3,19 +3,19 @@ package api
 import (
 	"log/slog"
 
-	endbinding "github.com/moto-nrw/project-phoenix/roots/sessionendbinding"
+	endbinding "github.com/moto-ogs/project-phoenix/roots/sessionendbinding"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
-	sessionEndCompose "github.com/moto-nrw/project-phoenix/workflows/sessionend/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/observability"
+	"github.com/moto-ogs/project-phoenix/workflows/sessionend"
+	sessionEndCompose "github.com/moto-ogs/project-phoenix/workflows/sessionend/compose"
 )
 
 // newSessionEnd composes the session end workflow (#2697) over the owner

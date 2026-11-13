@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"

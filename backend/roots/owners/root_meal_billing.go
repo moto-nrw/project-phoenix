@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	mealplanModule "github.com/moto-ogs/project-phoenix/modules/mealplan"
+	mealplanCompose "github.com/moto-ogs/project-phoenix/modules/mealplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // mealBillingAttendance is the attendance of Student Presence the

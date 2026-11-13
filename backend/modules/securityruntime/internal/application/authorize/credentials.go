@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"regexp"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/userpass"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime/internal/domain/userpass"
 )
 
 // The credential decisions Security Runtime owns: what a stored password

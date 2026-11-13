@@ -135,7 +135,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (a attendance) Toggle(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (string, error) {\n\tresult, err := a.active.ToggleStudentAttendance(ctx, studentID, staffID, deviceID, skipAuthCheck)\n\tif err != nil {\n\t\treturn \"\", classifyPresence(err)\n\t}\n\treturn result.Action, nil\n}",
+      "evidence": "func (a attendance) Toggle(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (string, error) {\n\tresult, err := a.active.ToggleStudentAttendance(ctx, studentID, staffID, deviceID, skipAuthCheck)\n\tif err != nil {\n\t\tclassified := classifyPresence(err)\n\t\tif errors.Is(err, studentpresence.ErrNoActiveSession) {\n\t\t\tclassified = mapError(classified, ports.ErrNoActiveSession)\n\t\t}\n\t\treturn \"\", classified\n\t}\n\treturn result.Action, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/devicescanbinding/attendance.Toggle",
       "owner": "modules/devicescan"

@@ -6,7 +6,7 @@ status: proposed
 
 **Status: Vorgeschlagen.** Vorschlag vom 10.11.2026 zu #3838. Zweiter Teil der
 Entscheidung „Data Act Option B“ vom 10.11.2026
-([Issue-Kommentar](https://github.com/moto-nrw/project-phoenix/issues/3838#issuecomment-6776609298));
+([Issue-Kommentar](https://github.com/moto-ogs/project-phoenix/issues/3838#issuecomment-6776609298));
 der erste Teil, das Register, ist
 [ADR 0201](0201-mandantenrueckgabe-hat-ein-register-und-einen-abrufweg.md).
 Ergänzt [ADR 0097](0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md).
@@ -119,7 +119,7 @@ so sensibel wie das Paket selbst.
    desselben Subjekts laufen so nie aneinander vorbei.
 
 **Trägerpaket und Schullöschung** (entschieden am 11.11.2026,
-[#6644](https://github.com/moto-nrw/project-phoenix/issues/6644)): Ein
+[#6644](https://github.com/moto-ogs/project-phoenix/issues/6644)): Ein
 offenes Paket des Trägers sperrt die Löschung einer seiner Schulen **nicht**,
 weder bis zum Ende des Abrufzeitraums noch bis zur Bereinigung. Es bleibt
 abrufbar, bis es bereinigt oder der Träger gelöscht wird; nur die

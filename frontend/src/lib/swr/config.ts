@@ -8,6 +8,7 @@
 import type { SWRConfiguration } from "swr";
 import { errorLogFields } from "~/lib/error-log";
 import { createLogger } from "~/lib/logger";
+import { isAccessRefusal } from "~/lib/access-refusal";
 import { swrDataEqual } from "~/lib/swr/compare";
 import {
   isRateLimitError,
@@ -15,14 +16,6 @@ import {
 } from "~/lib/rate-limit-backoff";
 
 const logger = createLogger({ component: "useSWRAuth" });
-
-function isRefusal(error: unknown): boolean {
-  const status =
-    error && typeof error === "object"
-      ? (error as { status?: unknown }).status
-      : undefined;
-  return status === 401 || status === 403;
-}
 
 /**
  * Default error handler for useSWRAuth.
@@ -76,7 +69,7 @@ export const swrConfig: SWRConfiguration = {
     if (options.retryCount >= 3) return;
     // A refusal stays a refusal: a retry only repeats the request, and after
     // a 401 the auth-failure handling, three more times (#5007).
-    if (isRefusal(error)) return;
+    if (isAccessRefusal(error)) return;
     if (isRateLimitError(error)) {
       setTimeout(
         () => revalidate({ retryCount: options.retryCount }),

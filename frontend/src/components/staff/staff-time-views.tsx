@@ -5,7 +5,12 @@
 // time-tracking-helpers formatters, so the visual treatment stays consistent
 // regardless of where the cards or calendar are rendered.
 
+import {
+  MISSING_TARGET_OWNER,
+  SetTargetAction,
+} from "~/components/staff/missing-target-notice";
 import { OriginChip } from "~/components/ui/planning/origin-chip";
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   SegmentedControl,
   type SegmentedControlItem,
@@ -58,12 +63,43 @@ export function KpiCard({
 }
 
 // Herkunfts-Chip am Soll-Wert (Planung-Redesign, docs/04 6.2). Gilt in der
-// laufenden Woche eine Sonderarbeitszeit (#3259), nennt er auch sie.
+// laufenden Woche eine Sonderarbeitszeit (#3259), nennt er auch sie. Ohne
+// gepflegtes Soll (#6887) behauptet er kein Arbeitszeitmodell, sondern sagt,
+// was fehlt, was daraus folgt und wer es ändert.
 export function TargetOriginChip({
   hasTargetOverride,
+  hasTarget = true,
+  setTargetHref,
+  onSetTarget,
 }: {
   readonly hasTargetOverride?: boolean;
+  /** False, wenn im Monat kein Soll gepflegt ist; fehlt solange es lädt. */
+  readonly hasTarget?: boolean;
+  /** Führt zum Reiter „Arbeitszeitmodell“; nur für Personen, die das Soll
+   *  setzen dürfen. Ohne Link und Handler steht da, wer es einträgt. */
+  readonly setTargetHref?: string;
+  /** Wechselt auf derselben Seite zum Reiter „Arbeitszeitmodell“. */
+  readonly onSetTarget?: () => void;
 }) {
+  if (!hasTarget) {
+    return (
+      <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-right">
+        <StatusBadge tone="warning" compact label="Kein Soll hinterlegt" />
+        <span className="text-xs text-gray-600">
+          Krankheit und Urlaub zählen deshalb 0 Stunden.
+        </span>
+        {setTargetHref || onSetTarget ? (
+          <SetTargetAction
+            href={setTargetHref}
+            onClick={onSetTarget}
+            variant="link"
+          />
+        ) : (
+          <span className="text-xs text-gray-600">{MISSING_TARGET_OWNER}</span>
+        )}
+      </div>
+    );
+  }
   return hasTargetOverride ? (
     <OriginChip
       label="Soll mit Sonderarbeitszeit"
@@ -79,7 +115,10 @@ export function TargetOriginChip({
 
 export function KpiCards({
   metrics,
+  onSetTarget,
 }: {
+  /** Wechselt zum Reiter „Arbeitszeitmodell“, wenn das Soll fehlt (#6887). */
+  readonly onSetTarget?: () => void;
   // Every figure is date-valid, straight from the backend month model
   // (usePeriodMetrics, #1842). Never computeStaffMetrics: that one prices
   // historical days at the CURRENT schedule and contradicts the Monatskarte
@@ -115,7 +154,11 @@ export function KpiCards({
       {/* Herkunfts-Chip am Soll-Wert (Planung-Redesign, docs/04 6.2): genau
           einer pro Oberfläche, solange die Soll-Quellen-Frage offen ist. */}
       <div className="flex justify-end">
-        <TargetOriginChip hasTargetOverride={metrics.hasTargetOverride} />
+        <TargetOriginChip
+          hasTargetOverride={metrics.hasTargetOverride}
+          hasTarget={metrics.hasTarget}
+          onSetTarget={onSetTarget}
+        />
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard

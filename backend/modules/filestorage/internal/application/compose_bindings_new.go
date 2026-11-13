@@ -4,7 +4,7 @@ import (
 	context "context"
 	io "io"
 
-	ports "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
+	ports "github.com/moto-ogs/project-phoenix/modules/filestorage/internal/ports"
 )
 
 type ObjectStore struct {

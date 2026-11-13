@@ -8,7 +8,10 @@
 // Lesen steht im Zugriffsprotokoll des Vertrags.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import {
   checkReason,
   childrenLabel,
@@ -20,7 +23,7 @@ import {
   validityLabel,
 } from "~/components/traeger/family-children-format";
 import { FamilyChildrenModal } from "~/components/traeger/family-children-modal";
-import { ChevronDown, ChevronUp, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, TriangleAlert } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -65,10 +68,17 @@ function ContractChildrenCell({
       <p className="text-sm text-gray-900">
         {childrenLabel(family.children.length)}
       </p>
+      {/* A child with its school stays on one line; the list wraps between
+          children. */}
       <p className="mt-0.5 text-sm text-gray-600">
-        {family.children
-          .map((child) => `${child.childFirstName} (${child.schoolName})`)
-          .join(", ")}
+        {family.children.map((child, index) => (
+          <span key={child.contractId}>
+            {index > 0 ? ", " : null}
+            <span className="whitespace-nowrap">
+              {`${child.childFirstName} (${child.schoolName})`}
+            </span>
+          </span>
+        ))}
       </p>
     </div>
   );
@@ -81,10 +91,13 @@ function ConfirmedCell({ family }: Readonly<{ family: FamilyChildren }>) {
   }
   return (
     <div className="min-w-0">
-      <p className="text-sm font-semibold text-gray-900 tabular-nums">
+      <p className="text-sm font-semibold whitespace-nowrap text-gray-900 tabular-nums">
         {childrenLabel(count.confirmedChildren)}
       </p>
-      <p className="mt-0.5 text-sm text-gray-600">{validityLabel(count)}</p>
+      {/* A date stays with its „ab“; a range may break at „bis“. */}
+      <p className="mt-0.5 text-sm text-gray-600 tabular-nums">
+        {validityLabel(count).replace(/(ab|bis) /g, "$1\u00a0")}
+      </p>
     </div>
   );
 }
@@ -102,6 +115,38 @@ function StatedCell({ family }: Readonly<{ family: FamilyChildren }>) {
       <p className="mt-0.5 text-sm text-gray-600">am {statedOn(count)}</p>
     </div>
   );
+}
+
+/**
+ * What the Monatslauf counts until the office checks, per kind of entry: an
+ * expired number no longer counts, a changed or expiring one still does.
+ */
+function checkCardText(
+  toCheck: readonly FamilyChildren[],
+  missing: number,
+): string {
+  const expired = toCheck.some((family) => family.status === "expired");
+  const stillValid = toCheck.some(
+    (family) => family.status === "changed" || family.status === "expiring",
+  );
+  return [
+    stillValid
+      ? "Bei geänderten oder bald ablaufenden Zahlen zählt der Monatslauf bis zu Ihrer Prüfung die bisher bestätigte Zahl."
+      : null,
+    expired
+      ? "Eine abgelaufene Kinderzahl gilt nicht mehr. Bis Sie neu prüfen, zählen nur die Kinder mit Vertrag."
+      : null,
+    toCheck.some((family) => family.status === "stated")
+      ? "Eine neue Angabe der Eltern zählt erst, wenn Sie sie bestätigen."
+      : null,
+    missing > 0
+      ? expired
+        ? `Das gilt auch für ${missing === 1 ? "die Familie" : `die ${missing} Familien`} ohne Angabe.`
+        : `Bei ${missing === 1 ? "der Familie" : `den ${missing} Familien`} ohne Angabe zählen nur die Kinder mit Vertrag.`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 export default function TraegerKinderzahlPage() {
@@ -126,7 +171,7 @@ export default function TraegerKinderzahlPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Kinderzahlen",
+        object: "die Übersicht der Kinderzahlen",
         retry: () => void load(),
       });
     }
@@ -244,6 +289,7 @@ export default function TraegerKinderzahlPage() {
               ? [
                   {
                     label: "Kinderzahl entfernen",
+                    icon: <Trash2 className="size-4" aria-hidden />,
                     destructive: true,
                     onClick: () => setRemoving(family),
                   },
@@ -255,28 +301,41 @@ export default function TraegerKinderzahlPage() {
     },
   ];
 
-  const confirmed = families.filter(
-    (family) => family.count?.confirmedChildren,
-  ).length;
+  // Each figure of the status line counts one pill of the table.
+  const countStatus = (status: FamilyChildren["status"]) =>
+    families.filter((family) => family.status === status).length;
+  const expired = countStatus("expired");
+  const missing = countStatus("missing");
 
   return (
     <TenantPage
-      title="Abrechnung"
+      title={billingAreaTitle("kinderzahl")}
       info="Hier steht, wie viele Kinder eine Familie hat, auch Geschwister ohne Betreuungsvertrag. Eltern geben die Zahl im Vertrag an. Sie bestätigen oder ändern sie. Eine Geschwisterregel nutzt die Zahl nur, wenn Sie das unter „Ermäßigungen“ einschalten. moto speichert nur die Zahl, keine Namen der Geschwister. Jedes Öffnen dieser Seite steht im Zugriffsprotokoll."
       stats={
         families.length > 0 ? (
           <TenantPageStats
+            // How many families, then one figure per pill of the table. The
+            // line holds three figures: with expired numbers the total moves
+            // into the first one („1 von 7 bestätigt“), so „ohne Angabe“
+            // stays in view.
             items={[
+              ...(expired > 0
+                ? []
+                : [
+                    {
+                      value: families.length,
+                      label: families.length === 1 ? "Familie" : "Familien",
+                    },
+                  ]),
               {
-                value: families.length,
-                label: families.length === 1 ? "Familie" : "Familien",
+                value:
+                  expired > 0
+                    ? `${countStatus("confirmed")} von ${families.length}`
+                    : countStatus("confirmed"),
+                label: "bestätigt",
               },
-              { value: confirmed, label: "bestätigt" },
-              {
-                value: families.filter((family) => family.status === "missing")
-                  .length,
-                label: "ohne Angabe",
-              },
+              ...(expired > 0 ? [{ value: expired, label: "abgelaufen" }] : []),
+              { value: missing, label: "ohne Angabe" },
             ]}
           />
         ) : null
@@ -341,7 +400,7 @@ export default function TraegerKinderzahlPage() {
           titleBadge={
             <StatusBadge tone="warning" label={`${toCheck.length} offen`} />
           }
-          description="Bis Sie prüfen, zählt der Monatslauf die bisher bestätigte Zahl. Ohne sie zählen nur die Kinder mit Vertrag."
+          description={checkCardText(toCheck, missing)}
           leading={
             <TriangleAlert
               className="text-moto-orange-strong mt-0.5 size-5 shrink-0"
@@ -412,6 +471,9 @@ export default function TraegerKinderzahlPage() {
           columns={columns}
           rows={rows}
           getRowKey={(family) => family.recipientEmail}
+          // Six columns on a tablet: narrower cells keep the state pills
+          // whole beside the row menu.
+          dense
           stackedOnMobile
           emptyState={
             <EmptyState

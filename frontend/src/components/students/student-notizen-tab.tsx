@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { NotebookPen } from "lucide-react";
 
 import { FieldLabel } from "~/components/ui/field-label";
@@ -21,7 +28,12 @@ import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
-import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import {
@@ -47,6 +59,7 @@ import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { studentKeys } from "~/lib/swr/portal-keys";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { useStudentNoteTeamNotices } from "~/lib/hooks/use-student-note-team-notices";
 
 // Notizen tab (#3632): the chronicle of one child. The backend resolves who
 // may read which note and sends can_edit / can_delete with every entry, so
@@ -56,6 +69,25 @@ import { InsetPanel } from "~/components/ui/inset-panel";
 const logger = createLogger({ component: "StudentNotizenTab" });
 
 const MAX_BODY_LENGTH = 4000;
+
+// „Speichern und Team informieren“ (#6854): the second way to save. Plain
+// „Speichern“ stays as it was and tells nobody.
+const TEAM_INFORM_LABEL = "Speichern und Team informieren";
+const TEAM_INFORM_TOOLTIP =
+  "Speichert die Notiz. Alle im Team sehen sie danach als neu.";
+const TEAM_INFORM_NEEDS_ALL_STAFF =
+  "Wählen Sie bei „Wer sieht die Notiz?“ zuerst „Ganzes Team“.";
+
+/** What the author reads after the team was told. */
+function teamInformedMessage(informed: number): string {
+  if (informed === 0) {
+    return "Notiz gespeichert. Sonst darf niemand im Team Notizen lesen.";
+  }
+  if (informed === 1) {
+    return "Notiz gespeichert. 1 Person im Team sieht sie jetzt als neu.";
+  }
+  return `Notiz gespeichert. ${informed} Personen im Team sehen sie jetzt als neu.`;
+}
 
 const KIND_ITEMS = [
   { value: NOTE_KIND_JOURNAL, label: "Eintrag" },
@@ -249,9 +281,12 @@ function noteDay(note: StudentNote): string {
 function NoteMeta({
   note,
   names,
+  sharedWithMe = false,
 }: {
   readonly note: StudentNote;
   readonly names: ReferenceNames;
+  /** Jemand aus dem Team hat die Notiz mit dieser Person geteilt (#6854). */
+  readonly sharedWithMe?: boolean;
 }) {
   const parts: string[] = [];
   if (note.subjectDate !== "") {
@@ -278,6 +313,14 @@ function NoteMeta({
   }
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {sharedWithMe ? (
+        <StatusBadge
+          compact
+          tone="red"
+          label="Neu"
+          accessibleLabel="Neu: Diese Notiz wurde mit Ihnen geteilt."
+        />
+      ) : null}
       {parts.length > 0 ? (
         <span className="text-xs text-gray-500">{parts.join(" · ")}</span>
       ) : null}
@@ -309,6 +352,7 @@ function NoteForm({
   onChange,
   onCancel,
   onSave,
+  onSaveAndInform,
   saving,
   visibilityOptions,
   referenceChoices,
@@ -324,6 +368,8 @@ function NoteForm({
   readonly onChange: (draft: StudentNoteDraft) => void;
   readonly onCancel: () => void;
   readonly onSave: () => void;
+  /** „Speichern und Team informieren“ (#6854); only the author's form has it. */
+  readonly onSaveAndInform?: () => void;
   readonly saving: boolean;
   readonly visibilityOptions: readonly { value: string; label: string }[];
   readonly idPrefix: string;
@@ -422,6 +468,19 @@ function NoteForm({
         onSave={onSave}
         saving={saving}
         disabled={draft.body.trim() === "" || tooLong}
+        alsoSave={
+          onSaveAndInform
+            ? {
+                label: TEAM_INFORM_LABEL,
+                onClick: onSaveAndInform,
+                tooltip: TEAM_INFORM_TOOLTIP,
+                disabledReason:
+                  draft.visibility === NOTE_VISIBILITY_ALL_STAFF
+                    ? undefined
+                    : TEAM_INFORM_NEEDS_ALL_STAFF,
+              }
+            : undefined
+        }
       />
     </div>
   );
@@ -429,10 +488,12 @@ function NoteForm({
 
 export function StudentNotizenTab({
   studentId,
+  active = true,
   educationGroupId = "",
   educationGroupName = "",
 }: {
   readonly studentId: string;
+  readonly active?: boolean;
   /** The child's OGS group, so a note can refer to it. */
   readonly educationGroupId?: string;
   readonly educationGroupName?: string;
@@ -469,41 +530,46 @@ export function StudentNotizenTab({
   const tenantMutate = useTenantMutate();
   const discardRefused = useDiscardRefusedEntity();
 
-  const revalidateNotes = async (permanentNotesChanged: boolean) => {
-    const failedRead = (error: unknown): never => {
-      // Each direct read rejects and keeps SWR's refusal boundary, even if
-      // another concurrent read has already failed.
-      discardRefused(error, {
-        codes:
-          error instanceof ApiError && error.status === 404 && error.code
-            ? [error.code]
-            : ["general.permission"],
-        matches: (key) =>
-          [
-            studentKeys.notes(studentId),
+  const revalidateNotes = useCallback(
+    async (permanentNotesChanged: boolean) => {
+      const failedRead = (error: unknown): never => {
+        // Each direct read rejects and keeps SWR's refusal boundary, even if
+        // another concurrent read has already failed.
+        discardRefused(error, {
+          codes:
+            error instanceof ApiError && error.status === 404 && error.code
+              ? [error.code]
+              : ["general.permission"],
+          matches: (key) =>
+            [
+              studentKeys.notes(studentId),
+              studentKeys.permanentNotes(studentId),
+              studentKeys.noteActivities(studentId),
+            ].includes(key),
+          refusedKey: studentKeys.notes(studentId),
+        });
+        throw error;
+      };
+      const refreshedNotes = studentNotesService.list(studentId);
+      const revalidations: Promise<unknown>[] = [
+        mutate(refreshedNotes, {
+          revalidate: false,
+        }).catch(failedRead),
+      ];
+      if (permanentNotesChanged) {
+        revalidations.push(
+          tenantMutate(
             studentKeys.permanentNotes(studentId),
-            studentKeys.noteActivities(studentId),
-          ].includes(key),
-        refusedKey: studentKeys.notes(studentId),
-      });
-      throw error;
-    };
-    const revalidations: Promise<unknown>[] = [
-      mutate(studentNotesService.list(studentId), { revalidate: false }).catch(
-        failedRead,
-      ),
-    ];
-    if (permanentNotesChanged) {
-      revalidations.push(
-        tenantMutate(
-          studentKeys.permanentNotes(studentId),
-          studentNotesService.list(studentId, NOTE_KIND_PERMANENT),
-          { revalidate: false },
-        ).catch(failedRead),
-      );
-    }
-    await Promise.all(revalidations);
-  };
+            studentNotesService.list(studentId, NOTE_KIND_PERMANENT),
+            { revalidate: false },
+          ).catch(failedRead),
+        );
+      }
+      await Promise.all(revalidations);
+      return refreshedNotes;
+    },
+    [discardRefused, mutate, studentId, tenantMutate],
+  );
   // Nachladen nach Speichern oder Löschen: ein Fehler dabei ist ein
   // Ladefehler über den Notizen, kein Fehler des Formulars (#6652).
   const notesAfterWrite = useRefreshAfterWrite(
@@ -521,9 +587,64 @@ export function StudentNotizenTab({
   const formAreaRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formAreaRef);
   const deleteErrors = useApiFormError();
+  const toast = useToast();
+  const teamErrors = useApiErrorDisplay();
+
+  // Geteilte Notizen dieses Kindes (#6854): Öffnen heißt gelesen. Der rote
+  // Zähler im Header geht sofort zurück; „Neu“ bleibt an den Notizen stehen,
+  // solange der Reiter offen ist, damit man sie hier noch findet.
+  const teamNotices = useStudentNoteTeamNotices();
+  const markTeamNoticesRead = teamNotices.markRead;
+  const [sharedWithMe, setSharedWithMe] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const unreadHere = useMemo(
+    () =>
+      teamNotices.notices.filter((notice) => notice.studentId === studentId),
+    [teamNotices.notices, studentId],
+  );
+  const notesShown = data !== undefined;
+  useEffect(() => {
+    if (!active || !notesShown || unreadHere.length === 0) return;
+    let cancelled = false;
+    // The notice poll does not refresh the notes cache. Load the current
+    // content even for a repeat announcement before clearing its marker.
+    void revalidateNotes(true)
+      .then(async (refreshedNotes) => {
+        if (cancelled) return;
+        const loadedIDs = new Set(refreshedNotes.map((note) => note.id));
+        const observed = unreadHere.filter((notice) =>
+          loadedIDs.has(notice.noteId),
+        );
+        if (observed.length === 0) return;
+        setSharedWithMe(
+          (previous) =>
+            new Set([...previous, ...observed.map((notice) => notice.noteId)]),
+        );
+        await markTeamNoticesRead(studentId, observed);
+      })
+      .catch((caught: unknown) => {
+        // A failed refresh or acknowledgement leaves the header counter intact.
+        logger.warn("student_note_team_notices_read_failed", {
+          error: caught instanceof Error ? caught.message : String(caught),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    active,
+    notesShown,
+    unreadHere,
+    revalidateNotes,
+    markTeamNoticesRead,
+    studentId,
+  ]);
   const load = useApiLoadError();
   // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
   const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
+  // „Wiederholen“ wiederholt auch die gewählte Art zu speichern (#6854).
+  const informTeamRef = useRef(false);
 
   const showLoadError = load.show;
   const clearLoadError = load.clear;
@@ -614,16 +735,40 @@ export function StudentNotizenTab({
     });
   };
 
-  const saveNew = async () => {
+  // Teilen ist ein eigener Schritt nach dem Speichern (#6854): scheitert er,
+  // ist die Notiz gespeichert und das Team nicht informiert, und genau das
+  // steht in der Meldung.
+  const informTeamAbout = async (noteId: string) => {
+    try {
+      const informed = await studentNotesService.informTeam(studentId, noteId);
+      toast.success(teamInformedMessage(informed));
+    } catch (caught) {
+      logger.error("student_note_team_inform_failed", {
+        error: caught instanceof Error ? caught.message : String(caught),
+      });
+      await teamErrors.show(caught, {
+        object: "Die Nachricht an das Team",
+        messageSuffix:
+          "Die Notiz ist gespeichert. Das Team ist noch nicht informiert.",
+        retry: () => void informTeamAbout(noteId),
+      });
+    }
+  };
+
+  const saveNew = async (informTeam = false) => {
+    informTeamRef.current = informTeam;
     setSaving(true);
     formErrors.clear();
     try {
-      await studentNotesService.create(studentId, {
+      const note = await studentNotesService.create(studentId, {
         ...draft,
         body: draft.body.trim(),
       });
       setComposing(false);
       setDraft(emptyDraft());
+      if (informTeam) {
+        await informTeamAbout(note.id);
+      }
       await notesAfterWrite.refresh(draft.kind === NOTE_KIND_PERMANENT);
     } catch (caught) {
       logger.error("student_note_create_failed", {
@@ -638,18 +783,22 @@ export function StudentNotizenTab({
     }
   };
 
-  const saveEdit = async () => {
+  const saveEdit = async (informTeam = false) => {
     if (!editing) {
       return;
     }
+    informTeamRef.current = informTeam;
     setSaving(true);
     formErrors.clear();
     try {
-      await studentNotesService.update(studentId, editing.id, {
+      const note = await studentNotesService.update(studentId, editing.id, {
         ...editDraft,
         body: editDraft.body.trim(),
       });
       setEditing(null);
+      if (informTeam) {
+        await informTeamAbout(note.id);
+      }
       await notesAfterWrite.refresh(
         editing.kind === NOTE_KIND_PERMANENT ||
           editDraft.kind === NOTE_KIND_PERMANENT,
@@ -669,7 +818,9 @@ export function StudentNotizenTab({
 
   // Bearbeiten und Neu schließen sich aus; der Ref zeigt auf den offenen.
   useLayoutEffect(() => {
-    latestSaveRef.current = editing ? saveEdit : saveNew;
+    latestSaveRef.current = editing
+      ? () => saveEdit(informTeamRef.current)
+      : () => saveNew(informTeamRef.current);
   });
 
   const confirmDelete = async () => {
@@ -707,6 +858,7 @@ export function StudentNotizenTab({
             setEditing(null);
           }}
           onSave={() => void saveEdit()}
+          onSaveAndInform={() => void saveEdit(true)}
           saving={saving}
           fieldError={formErrors.fieldError}
           visibilityOptions={visibilityOptionsFor(note)}
@@ -717,7 +869,11 @@ export function StudentNotizenTab({
             <p className="text-sm whitespace-pre-line text-gray-900">
               {note.body}
             </p>
-            <NoteMeta note={note} names={referenceNames} />
+            <NoteMeta
+              note={note}
+              names={referenceNames}
+              sharedWithMe={sharedWithMe.has(note.id)}
+            />
           </div>
           {note.canEdit || note.canDelete ? (
             <OverflowMenu
@@ -785,6 +941,7 @@ export function StudentNotizenTab({
                 setComposing(false);
               }}
               onSave={() => void saveNew()}
+              onSaveAndInform={() => void saveNew(true)}
               saving={saving}
               fieldError={formErrors.fieldError}
               visibilityOptions={visibilityOptionsFor(draft)}

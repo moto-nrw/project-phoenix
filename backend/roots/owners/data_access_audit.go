@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 type dataAccessAudit struct {
@@ -161,6 +161,9 @@ func (a holidayGuestAccessLog) RecordHolidayGuestAccess(ctx context.Context, acc
 		studentID := access.StudentID
 		entry.ResourceType, entry.StudentID = auditModels.ResourceTypeHolidayStudentRegistration, &studentID
 		entry.Metadata = map[string]any{"week_ids": access.WeekIDs}
+	case enrollmentOwner.HolidayGuestAccessHomeSchool:
+		entry.ResourceType = auditModels.ResourceTypeHolidayHomeSchoolBookings
+		entry.Metadata = map[string]any{"week_ids": access.WeekIDs, "children": access.Guests}
 	default:
 		entry.ResourceType = auditModels.ResourceTypeHolidayGuestTransfer
 		entry.Metadata["guests"] = access.Guests

@@ -3,7 +3,7 @@ package emailtest
 import (
 	"context"
 
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 )
 
 // ReplyToResolverStub records the tenant lookup and returns a configured identity.

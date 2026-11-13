@@ -1,6 +1,6 @@
 package defaults
 
-import config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+import config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 
 func init() {
 	registerDefinitions(calendar_init_kalender_0Definitions)

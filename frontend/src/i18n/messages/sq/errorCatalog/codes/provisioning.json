@@ -28,5 +28,6 @@
   "device_same_school": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "person_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "person_has_supervisions": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "caregiver_capability_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+  "caregiver_capability_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "person_has_active_profile": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }

@@ -1,6 +1,6 @@
 package application
 
-import "github.com/moto-nrw/project-phoenix/modules/careplan"
+import "github.com/moto-ogs/project-phoenix/modules/careplan"
 
 func excusedHistoryParticipantIDs(rows []careplan.ExcusedAbsenceRequest) ([]int64, []int64) {
 	studentIDs := make([]int64, 0, len(rows))

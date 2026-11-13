@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 var germanNameAlter = regexp.MustCompile(`ALTER TABLE (\w+)\.(\w+) ALTER COLUMN (\w+) TYPE`)

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	listexport "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 )
 
 func TestBetreuungsplanRendersBlockRoomStaffAndChildren(t *testing.T) {

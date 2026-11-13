@@ -4,7 +4,7 @@ status: accepted
 
 # „Neue Nachricht“ markiert Kinder ohne erreichbare Eltern
 
-Entscheidung zu [#4362](https://github.com/moto-nrw/project-phoenix/issues/4362).
+Entscheidung zu [#4362](https://github.com/moto-ogs/project-phoenix/issues/4362).
 Die Kinderliste in „Neue Nachricht“ zeigt alle Kinder der Schule. Ob ein Kind
 Eltern mit App-Zugang hat, sah man bisher erst im zweiten Schritt. Kinder ohne
 erreichbare Eltern stehen weiter in der Liste, tragen aber „Kein

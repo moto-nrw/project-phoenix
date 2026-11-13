@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	devicefleet "github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	devicefleet "github.com/moto-ogs/project-phoenix/modules/devicefleet"
 )
 
 const (

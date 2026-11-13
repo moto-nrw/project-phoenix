@@ -15,12 +15,12 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/internal/application/importservice"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	importService "github.com/moto-ogs/project-phoenix/modules/dataimport/internal/application/importservice"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Chunk executor of the class-list import (#5827, ADR 0067 addendum of

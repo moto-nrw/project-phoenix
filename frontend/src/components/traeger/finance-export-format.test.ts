@@ -71,9 +71,12 @@ describe("finance export format", () => {
     expect(sollFileName(MAPPING.fileNamePattern, 110)).toBe(
       "csv-export-bewegungsdaten-110.csv",
     );
-    expect(byLabel(true, true)).toBe("von Ihnen");
-    expect(byLabel(false, true)).toBe("von einem anderen Konto");
-    expect(byLabel(false, false)).toBe("von einem gelöschten Konto");
+    // #4693: the name of the account, never its e-mail address.
+    expect(byLabel(true, true, "Eva Müller")).toBe("von Ihnen");
+    expect(byLabel(false, true, "Eva Müller")).toBe("von Eva Müller");
+    expect(byLabel(false, true, "")).toBe("von einem Konto ohne Namen");
+    expect(byLabel(false, true, "  ")).toBe("von einem Konto ohne Namen");
+    expect(byLabel(false, false, "")).toBe("von einem gelöschten Konto");
   });
 
   it("refuses what the backend would refuse, at the field", () => {

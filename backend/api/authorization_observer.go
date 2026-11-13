@@ -3,8 +3,8 @@ package api
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/observability"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/observability"
 )
 
 func AuthorizationObserverMiddleware(observer securityruntime.AuthorizationObserver) func(http.Handler) http.Handler {

@@ -1,28 +1,28 @@
 package api
 
 import (
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-	dataImportRetained "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/imports"
-	importPorts "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog/consents"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	dataImportCompose "github.com/moto-ogs/project-phoenix/modules/dataimport/compose"
+	dataImportRetained "github.com/moto-ogs/project-phoenix/modules/dataimport/compose/imports"
+	importPorts "github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type importIdentity interface {
@@ -65,7 +65,7 @@ func newStudentImport(
 	runtime importPorts.ImportRuntime, identity importIdentity, groups schoolstructure.GroupListing, rooms facilities.Query,
 	persons peopledirectory.Capability, personBatches importPorts.PersonBatches, guardians importPorts.GuardianDirectory,
 	carePlan careplan.Capability, presence studentpresence.Capability, consentHistory consents.ConsentTransitions,
-	today func() timezone.Date,
+	today func() timezone.Date, cohorts importCohorts,
 ) importModels.RowImporter[importModels.StudentImportRow] {
 	references := owners.NewReferences(groups, rooms)
 	resolver := dataImportRetained.NewRelationshipResolver(references.Groups, references.Rooms)
@@ -91,6 +91,8 @@ func newStudentImport(
 			// The owner's Kontingentzahl rule, so the preview counts what
 			// the membership write will count (#3571).
 			CountsTowardChildQuota: ImportChildQuotaRule(),
+			LockCohortWrites:       cohorts.Lock,
+			FollowCohortChanges:    cohorts.Follow,
 		},
 	), runtime)
 }
@@ -240,12 +242,13 @@ func newServeImports(
 	audit owners.AuditOwner, identity identityaccess.Owner, groups schoolstructure.GroupListing, rooms facilities.Query,
 	persons peopledirectory.Capability, carePlan careplan.Capability, presence owners.PresenceOwner, organizations organizationtenancy.Capability,
 	membership schoolmembership.Capability, workTime workforceModule.Capability, workforce owners.WorkforcePlanning,
+	cohorts importCohorts,
 ) imports {
 	runtime := newImportRuntime(audit.Command, observeDataImport)
 	return imports{
 		Student: newStudentImport(
 			runtime, identity, groups, rooms, persons, personBatches(persons), persons, carePlan, presence.Presence,
-			auditCompose.NewConsentRecorder(audit.Command), nil,
+			auditCompose.NewConsentRecorder(audit.Command), nil, cohorts,
 		),
 		Staff:     newStaffImport(runtime, identity, identity, organizations, persons, membership, workTime),
 		ClassList: newClassListImport(runtime, membership, persons, classListBatches(membership)),

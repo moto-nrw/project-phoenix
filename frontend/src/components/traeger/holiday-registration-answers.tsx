@@ -5,11 +5,7 @@
 // abgeschickt haben. Gesundheitsangaben sind gekennzeichnet; sie stehen nur
 // hier, nicht in Liste und Export.
 
-import {
-  DataField,
-  DataGrid,
-  InfoText,
-} from "~/components/ui/detail-modal-components";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { formatDate } from "~/lib/date-helpers";
 import type { HolidayFormField } from "~/lib/holiday-form-field";
 
@@ -51,19 +47,30 @@ export function answeredQuestions(
 export function HolidayRegistrationAnswers({
   questions,
   answers,
+  markHealth = true,
 }: Readonly<{
   questions: readonly HolidayFormField[];
   answers: Readonly<Record<string, unknown>>;
+  /** False inside the „Gesundheit“ box, whose title already marks them. */
+  markHealth?: boolean;
 }>) {
   return (
     <DataGrid>
       {questions.map((field) => (
         <DataField
           key={field.key}
-          label={field.health ? `${field.label} (Gesundheit)` : field.label}
+          label={
+            field.health && markHealth
+              ? `${field.label} (Gesundheit)`
+              : field.label
+          }
           fullWidth={field.type === "textarea"}
         >
-          <InfoText>{holidayAnswerText(field, answers[field.key])}</InfoText>
+          {/* The field's own value size on every width; a long answer
+              keeps its line breaks. */}
+          <span className="whitespace-pre-wrap">
+            {holidayAnswerText(field, answers[field.key])}
+          </span>
         </DataField>
       ))}
     </DataGrid>

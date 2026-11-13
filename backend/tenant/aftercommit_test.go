@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -46,7 +46,7 @@ func TestRegisterAfterCommit_NilFnIsNoop(t *testing.T) {
 // NOTE: integration coverage for the queue-and-drain behaviour (hook fires
 // after the OUTERMOST WithTenantTx commits, hook drops when fn returns an
 // error or middleware rolls back on 5xx) lives in
-// modules/settings/http/settings_integration_test.go::TestSettingsSetValue_PostCommit*.
+// modules/settings/http/behaviortest/settings_integration_test.go::TestSettingsSetValue_PostCommit*.
 // Those tests already exercise the full TenantTxMiddleware → handler →
 // WithTenantTx nesting path against a real DB, which is the only place the
 // drain semantics actually matter.

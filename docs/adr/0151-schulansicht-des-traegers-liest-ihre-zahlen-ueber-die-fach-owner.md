@@ -4,7 +4,7 @@ status: proposed
 
 # Schulansicht des Trägers liest ihre Zahlen über die Fach-Owner
 
-Vorschlag vom 04.11.2026 zu [#5686](https://github.com/moto-nrw/project-phoenix/issues/5686).
+Vorschlag vom 04.11.2026 zu [#5686](https://github.com/moto-ogs/project-phoenix/issues/5686).
 Er ändert [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md)
 Abschnitt 1 für diese Fläche und folgt dem Muster von
 [ADR 0109](0109-traeger-zugriffsprotokoll-liest-die-audit-spur-ueber-den-owner.md)
@@ -70,7 +70,7 @@ Preis dieser Entscheidung (siehe Folgen).
 - `Betreuungskräfte anwesend` hängt an der Zeiterfassung. Eine Schule ohne
   Zeiterfassung zeigt 0 und keinen Schlüssel; die Seite sagt das.
 
-## Nachtrag 06.11.2026: Stichtagszahlen ([#4673](https://github.com/moto-nrw/project-phoenix/issues/4673))
+## Nachtrag 06.11.2026: Stichtagszahlen ([#4673](https://github.com/moto-ogs/project-phoenix/issues/4673))
 
 Das Träger-Portal zeigt die festgehaltenen Stichtagszahlen je Schule. Es liest sie
 nach demselben Muster über ihren Owner: Organisation & Tenancy bietet
@@ -84,7 +84,7 @@ behält nur Zeilen der Schulmenge, die sie selbst aufgelöst hat. Dass beide Ans
 dieselben Zahlen zeigen, belegt `api/traeger_key_date_counts_test.go` mit einer
 echten Erfassung über zwei Monate und einer Schule eines anderen Trägers.
 
-## Nachtrag 10.11.2026: Fremde Schule antwortet mit 404 ([#6461](https://github.com/moto-nrw/project-phoenix/issues/6461))
+## Nachtrag 10.11.2026: Fremde Schule antwortet mit 404 ([#6461](https://github.com/moto-ogs/project-phoenix/issues/6461))
 
 Punkt 5 gab der Schulansicht 403, der Absprung (`POST /traeger/school-sessions`)
 antwortet für dieselbe Schule mit 404. Beide tragen `traeger.school_not_found`.

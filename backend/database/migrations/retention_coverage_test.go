@@ -7,7 +7,7 @@ import (
 	"sort"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -151,6 +151,9 @@ var tableRetentions = map[string]tableRetention{
 	"audit.enrollment_deletions":                            own("nightly retention step enrollment_deletion_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
 	"audit.enrollment_offering_adjustments":                 parent("users.student_profiles"),
 	"audit.enrollment_restorations":                         own("nightly retention step enrollment_restoration_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
+	"audit.traeger_export_transfers":                        own("the journal of the handovers of a Träger stays with the export protocol whose files it documents (ADR 0218 section 8); it goes with platform.organizations when the Träger is erased (#4657); actor_account_id SET NULL on account delete"),
+	"config.traeger_export_recipients":                      own("a recipient of a Träger is removed by the Träger itself (DELETE /traeger/export-recipient/{id}, ADR 0218, ADR 0222) and goes with platform.organizations when the Träger is erased (#4657); updated_by_account_id SET NULL on account delete"),
+	"config.traeger_export_recipient_formats":               own("the format of a Träger goes with its recipient (ON DELETE CASCADE) or back to the download when the Träger reassigns it (PUT /traeger/export-recipient/formats, ADR 0222), and with platform.organizations when the Träger is erased (#4657); updated_by_account_id SET NULL on account delete"),
 	"audit.export_transfers":                                own("nightly retention step export_transfer_retention, JournalRetention.DeleteExpiredTransfers -> SQL audit.delete_expired_export_transfers (end of the following year)"),
 	"audit.file_events":                                     own("nightly retention step file_event_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (end of the following year)"),
 	"audit.guardian_changes":                                parent("users.student_profiles"),
@@ -255,6 +258,12 @@ var tableRetentions = map[string]tableRetention{
 	"enrollment.holiday_allocation_decisions":               parent("enrollment.holiday_registrations"),
 	"enrollment.holiday_period_weeks":                       notPersonal("week of a Träger holiday period (#4659): dates and the host school ID, no person"),
 	"enrollment.holiday_periods":                            notPersonal("holiday period of a Träger (#4659): dates, hints and status, no person"),
+	"enrollment.traeger_care_offering_schools":              notPersonal("school a Träger care offering is copied into, with the last outcome (#4704, ADR 0195): IDs and codes, no person"),
+	"enrollment.traeger_care_offering_versions":             notPersonal("released version of a Träger care offering (#4704, ADR 0195): offering fields, prices and contract terms; released_by is an account reference set to NULL with the account"),
+	"enrollment.traeger_care_offerings":                     notPersonal("care offering a Träger keeps for its schools (#4704, ADR 0195): offering fields, prices and contract terms, no person"),
+	"enrollment.traeger_phase_schools":                      notPersonal("school a Träger phase is copied into, with the last outcome (#4704, ADR 0195): IDs and codes, no person"),
+	"enrollment.traeger_phase_versions":                     notPersonal("released version of a Träger phase (#4704, ADR 0195): phase fields; released_by is an account reference set to NULL with the account"),
+	"enrollment.traeger_phases":                             notPersonal("enrollment phase a Träger keeps for its schools (#4704, ADR 0195): phase fields and status, no person"),
 	"enrollment.holiday_guest_contacts":                     own("hourly holiday-guest-reconciliation -> HolidayGuestStore.PurgeContacts (7 days after the last day of the week) and EndGuest (cancelled guest, #4666, ADR 0120); otherwise with its guest"),
 	"enrollment.holiday_guests":                             parent("users.student_profiles"),
 	"enrollment.holiday_host_groups":                        own("goes with its group (FK CASCADE) or the school; the group choice of a hosted week holds no personal data besides the ID of the account that chose it (#4666, ADR 0120)"),
@@ -314,6 +323,7 @@ var tableRetentions = map[string]tableRetention{
 	"active.attendance_retention_marks":                     notPersonal("a school's day before which the attendance retention may have deleted (#4686, ADR 0168); a date only, removed with a demo school"),
 	"schedule.meal_billing_months":                          own("the Mensa-Monatsfreigabe of a school is the record of what the Träger bills (#4686, ADR 0168); it never changes, goes with platform.organizations when the Träger is erased (#4657) and with a retired demo school (1.15.811); the period follows with #4720"),
 	"schedule.meal_billing_month_children":                  parent("schedule.meal_billing_months"),
+	"schedule.pickup_change_team_notices":                   parent("schedule.care_schedule_change_requests"),
 	"schedule.traeger_closing_days":                         notPersonal("closing day of a Träger (#4702): dates, a reason and school IDs, no person; goes with platform.organizations"),
 	"parent_billing.care_invoices":                          own("an issued monthly invoice never changes and stays when its contract goes (§ 147 AO, ADR 0088 section 9, ADR 0119); it goes with platform.organizations when the Träger is erased after its export (#4657); the hourly Beleg retention deletes it after the period its Träger instructed and only then (SQL parent_billing.delete_due_belege, 1.15.862, #4720, ADR 0184); without an instruction it waits on the clarification list"),
 	"parent_billing.care_run_amendments":                    own("the changes of the review stay with the run whose release they document (ADR 0119 addendum 2026-11-08, #6197); a released run copies them onto its invoices, which keep them; they go with platform.organizations when the Träger is erased (#4657) and, in the demo erasure, with their contract; account_id SET NULL on account delete"),
@@ -337,13 +347,14 @@ var tableRetentions = map[string]tableRetention{
 	"parent_billing.document_positions":                     parent("parent_billing.documents"),
 	"parent_billing.documents":                              own("an issued invoice never changes and stays when its registration goes (§ 147 AO, ADR 0088 section 9, ADR 0119); it goes with platform.organizations when the Träger is erased after its export (#4657); the invoice of a holiday registration of a retired demo school goes with its visitor, the demo Träger keeps no books (SQL platform.erase_closed_demo_visitors, 1.15.797, #6015); the hourly Beleg retention deletes it after the period its Träger instructed and only then (SQL parent_billing.delete_due_belege, 1.15.862, #4720, ADR 0184); without an instruction it waits on the clarification list"),
 	"parent_billing.datev_booked_documents":                 parent("parent_billing.export_files"),
+	"parent_billing.export_file_transfers":                  parent("parent_billing.export_files"),
 	"parent_billing.export_file_invoices":                   parent("parent_billing.export_files"),
 	"parent_billing.export_files":                           own("the export protocol stays with the issued invoices whose files it documents (#4693, ADR 0119); it goes with platform.organizations when the Träger is erased (#4657); its invoice links go with their invoice (export_file_invoices, also in the demo erasure and the Beleg retention of 1.15.862); exported_by_account_id and submitted_by_account_id SET NULL on account delete"),
 	"parent_billing.export_mappings":                        notPersonal("field mapping of the Sollstellung of a Träger (#4693): columns, separators, date format and file name, no person"),
 	"parent_billing.revenue_accounts":                       notPersonal("revenue account of a Leistung or Angebot of a Träger (#4821), no person"),
 	"parent_billing.cost_centers":                           notPersonal("cost center of a school, the holiday care or an Angebot of a Träger (#4821), no person"),
-	"parent_billing.family_billing":                         parent("care_contract.contracts"),
-	"parent_billing.family_billing_events":                  parent("care_contract.contracts"),
+	"parent_billing.family_billing":                         own("a deviation goes with care_contract.contracts; a row a holiday registration used (last_used_on) loses only its contract and deviation (trg_family_billing_detach); a family without a contract (#6692) goes with the hourly Beleg retention, BelegRetention.ApplyBelegRetention -> Store.DeleteExpiredFamilies, on 1 January of the fourth year after last_used_on under the Träger's holiday_document instruction and without its deletion stop, unless a document of the family is kept, logged in parent_billing.beleg_deletions, and with platform.organizations; updated_by_account_id SET NULL on account delete"),
+	"parent_billing.family_billing_events":                  own("goes with care_contract.contracts; an entry without a contract (#6692) goes with the hourly Beleg retention, Store.DeleteExpiredFamilies, once its row is gone and it is three years old, and with platform.organizations; actor_account_id SET NULL on account delete"),
 	"parent_billing.holiday_contribution_lines":             parent("parent_billing.holiday_contributions"),
 	"parent_billing.holiday_contributions":                  parent("enrollment.holiday_registration_children"),
 	"parent_billing.holiday_sibling_group_members":          parent("enrollment.holiday_registrations"),
@@ -496,6 +507,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.student_family_protection_events":                parent("users.student_profiles"),
 	"users.student_guardian_pickup_permissions":             parent("users.student_guardian_relationships"),
 	"users.student_guardian_relationships":                  parent("users.student_profiles"),
+	"users.student_note_team_notices":                       parent("users.student_notes"),
 	"users.student_notes":                                   parent("users.student_profiles"),
 	"users.student_profiles":                                own("nightly retention step student_retention, Retention.DeleteExpiredStudents -> student deletion workflow (school window after the last care day, #3962)"),
 	"users.student_school_memberships":                      parent("users.student_profiles"),
@@ -514,13 +526,16 @@ func TestEveryTableHasARetentionPath(t *testing.T) {
 	ctx := context.Background()
 
 	var tables []string
+	// phx_test holds the test harness's leftover-gate start state
+	// (internal/testdb), which every clone inherits from the template; no
+	// migration creates it.
 	require.NoError(t, db.NewRaw(`
 		SELECT n.nspname || '.' || c.relname
 		FROM pg_class AS c
 		JOIN pg_namespace AS n ON n.oid = c.relnamespace
 		WHERE c.relkind IN ('r', 'p')
 		  AND NOT c.relispartition
-		  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+		  AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast', 'phx_test')
 		ORDER BY 1`).Scan(ctx, &tables))
 
 	var problems []string

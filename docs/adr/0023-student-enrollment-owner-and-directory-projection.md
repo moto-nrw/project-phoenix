@@ -16,13 +16,13 @@ status: accepted
 > source-booking lock/end round trip only. The historical section below is
 > superseded on these points, including its reversibility criterion.
 
-[#3386](https://github.com/moto-nrw/project-phoenix/issues/3386) asks where the
+[#3386](https://github.com/moto-ogs/project-phoenix/issues/3386) asks where the
 student enrollment queries and commands live after
-[#2759](https://github.com/moto-nrw/project-phoenix/issues/2759) split
+[#2759](https://github.com/moto-ogs/project-phoenix/issues/2759) split
 `users.students` into `users.student_profiles` (People Directory),
 `users.student_school_memberships` (School Membership) and
 `users.student_care_profiles` (Care Plan). The database half landed in
-[#3384](https://github.com/moto-nrw/project-phoenix/issues/3384); the
+[#3384](https://github.com/moto-ogs/project-phoenix/issues/3384); the
 application half could not follow, because the policy forbids one owner reading
 and writing another's columns and a domain adapter may not host a read
 projection.
@@ -131,7 +131,7 @@ live paths in parallel.
 So the columns survive: `guardian_*` is adopted into `users.student_profiles`
 and `sick`/`excused` into `users.student_care_profiles`, by a migration in
 #2759's window, before
-[#2760](https://github.com/moto-nrw/project-phoenix/issues/2760) drops
+[#2760](https://github.com/moto-ogs/project-phoenix/issues/2760) drops
 `users.students_legacy`. Neither addition changes the grant above, because both
 tables are already in it. `users.student_care_profiles` holds one row per
 enrollment regardless of the school's Betreuungsmodell, so this is not a
@@ -145,7 +145,7 @@ feature while its ownership is still moving means two uncertain things at once.
 ## Corrected evidence
 
 #3386's evidence predates
-[#3349](https://github.com/moto-nrw/project-phoenix/issues/3349) and overstates
+[#3349](https://github.com/moto-ogs/project-phoenix/issues/3349) and overstates
 the room available. The legacy `database/repositories/users` violation it
 records no longer exists: that file is a stub returning `errStudentWritesMoved`
 and the SQL already sits in the People Directory owner, so there is one
@@ -176,7 +176,7 @@ Each reads the compatibility view and needs a different table before #2760
 drops it. The current checker rejects their replacement even with an epoch
 bump. [ADR 0025](0025-replace-student-read-projection-grants.md) records the
 accepted, exact checker exception and three-table replacement that
-[#3432](https://github.com/moto-nrw/project-phoenix/issues/3432) must implement
+[#3432](https://github.com/moto-ogs/project-phoenix/issues/3432) must implement
 before #2760. This is a prerequisite ticket, not part of #2760's DDL, and does
 not make existing projection grants generally extensible.
 

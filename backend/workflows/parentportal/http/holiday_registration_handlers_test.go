@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // holidayLinksStub resolves one known link.
@@ -89,4 +89,30 @@ func TestGetHolidayRegistrationFamily_AnswersTheLinkedTraegersChildren(t *testin
 	assert.Equal(t, "21", body.Data.Children[0].SchoolID)
 	require.NotNil(t, body.Data.Children[0].BirthDate)
 	assert.Equal(t, birthDate, *body.Data.Children[0].BirthDate)
+}
+
+// The prefill of #6682 on the wire: the parent's address and the child's
+// other guardians with string IDs; empty contact data stays absent.
+func TestHolidayRegistrationFamilyResponse_CarriesAddressAndContacts(t *testing.T) {
+	t.Parallel()
+	response := holidayRegistrationFamilyResponse(sessiontoken.AppClaims{Sub: "eltern@example.org"}, &parentService.HolidayRegistrationFamily{
+		Guardian: &parentService.HolidayRegistrationGuardian{
+			FirstName: "Sabine", Address: &parentService.HolidayRegistrationAddress{Street: "Lindenweg 4", PostalCode: "49143", City: "Bissendorf"},
+		},
+		Children: []parentService.HolidayRegistrationChild{{StudentID: 11, SchoolID: 21, Contacts: []parentService.HolidayRegistrationContact{
+			{GuardianProfileID: 31, FirstName: "Erika", LastName: "Brandt", Phone: "+49 5402 9876", RelationshipType: "relative", Emergency: true, Pickup: true},
+			{GuardianProfileID: 32, FirstName: "Lena", LastName: "Vogt", RelationshipType: "parent", FullGuardian: true},
+		}}},
+	})
+	raw, err := json.Marshal(response)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{
+		"guardian": {"first_name": "Sabine", "last_name": "", "email": "eltern@example.org", "phone": "",
+			"address": {"street": "Lindenweg 4", "postal_code": "49143", "city": "Bissendorf"}},
+		"children": [{"student_id": "11", "school_id": "21", "first_name": "", "last_name": "", "contacts": [
+			{"guardian_profile_id": "31", "first_name": "Erika", "last_name": "Brandt", "phone": "+49 5402 9876",
+				"relationship_type": "relative", "full_guardian": false, "emergency": true, "pickup": true},
+			{"guardian_profile_id": "32", "first_name": "Lena", "last_name": "Vogt",
+				"relationship_type": "parent", "full_guardian": true, "emergency": false, "pickup": false}]}],
+		"account_proof": ""}`, string(raw))
 }

@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/encoding/charmap"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // sollInvoices are an invoice, its Storno and a holiday invoice whose
@@ -164,7 +164,8 @@ func TestImportDebtorNumbersPerFamily(t *testing.T) {
 	for i, family := range families {
 		candidates[i] = importCandidate{family: family, row: parentbilling.SEPAMandateImportRow{Line: i + 2, ContractID: int64(100 + i)}}
 	}
-	assignDebtorNumbers(candidates, table, columns, map[string]string{"anders@example.org": "20 9", "gleich@example.org": "40 1"})
+	assignDebtorNumbers(candidates, table, columns, map[string]string{"anders@example.org": "20 9", "gleich@example.org": "40 1"},
+		parentbilling.DebtorNumberFormat{})
 	statuses := make([]string, len(candidates))
 	for i, candidate := range candidates {
 		statuses[i] = candidate.row.DebtorNumberStatus
@@ -190,8 +191,25 @@ func TestImportDebtorNumberWithAnInvalidSibling(t *testing.T) {
 		{family: "zwei@example.org", row: parentbilling.SEPAMandateImportRow{Line: 2, ContractID: 1}},
 		{family: "zwei@example.org", row: parentbilling.SEPAMandateImportRow{Line: 3, ContractID: 2}},
 	}
-	assignDebtorNumbers(candidates, table, columns, map[string]string{})
+	assignDebtorNumbers(candidates, table, columns, map[string]string{}, parentbilling.DebtorNumberFormat{})
 	assert.Equal(t, parentbilling.DebtorNumberSiblingsDiffer, candidates[0].row.DebtorNumberStatus)
 	assert.Equal(t, parentbilling.DebtorNumberInvalid, candidates[1].row.DebtorNumberStatus)
 	assert.Empty(t, debtorNumbersToSet(candidates))
+}
+
+// A number of the file outside the Träger's format (#6675) is not taken
+// over; a number in the format is.
+func TestImportDebtorNumberInTheFormatOfTheTraeger(t *testing.T) {
+	t.Parallel()
+	table := importTable{rows: [][]string{{"20815"}, {"20 815"}}}
+	columns := importColumnIndex{fields: map[string]int{parentbilling.ImportFieldDebtorNumber: 0}}
+	candidates := []importCandidate{
+		{family: "fuenf@example.org", row: parentbilling.SEPAMandateImportRow{Line: 2, ContractID: 1}},
+		{family: "leerzeichen@example.org", row: parentbilling.SEPAMandateImportRow{Line: 3, ContractID: 2}},
+	}
+	assignDebtorNumbers(candidates, table, columns, map[string]string{}, parentbilling.NewDebtorNumberFormat(true, 5, 5))
+	assert.Equal(t, parentbilling.DebtorNumberNew, candidates[0].row.DebtorNumberStatus)
+	assert.Equal(t, parentbilling.DebtorNumberInvalid, candidates[1].row.DebtorNumberStatus)
+	assert.Equal(t, []parentbilling.FamilyDebtorNumber{{FamilyEmail: "fuenf@example.org", ContractID: 1, DebtorNumber: "20815"}},
+		debtorNumbersToSet(candidates))
 }

@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { deferred } from "~/test/helpers/form-modal-pending";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -53,6 +54,10 @@ vi.mock("next/navigation", () => ({
 }));
 
 import TraegerVertraegePage from "./page";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const DRAFT: CareContractSummary = {
   id: "7",
@@ -178,7 +183,9 @@ describe("TraegerVertraegePage", () => {
       });
     renderPage();
     fireEvent.click(
-      await screen.findByRole("button", { name: "Weitere Verträge laden" }),
+      await screen.findByRole("button", {
+        name: "Weitere Verträge laden (1 von 1101)",
+      }),
     );
     expect((await screen.findAllByText("Lina Muster"))[0]).toBeInTheDocument();
     expect(screen.getAllByText("Ben Muster")[0]).toBeInTheDocument();
@@ -280,7 +287,45 @@ describe("TraegerVertraegePage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "In den Einstellungen ändern" }),
-    ).toHaveAttribute("href", "/einstellungen");
+    ).toHaveAttribute("href", "/einstellungen?bereich=enrollment");
+  });
+
+  it("marks a school whose accepted children got no contract for lack of consent", async () => {
+    api.fetchConclusionModes.mockResolvedValue([
+      { schoolId: "3", schoolName: "OGS Am Lindenhof", mode: "bei_annahme" },
+      { schoolId: "4", schoolName: "OGS Nord", mode: "nachtraeglich" },
+    ]);
+    api.fetchContractCandidates.mockResolvedValue([
+      CANDIDATE,
+      {
+        ...CANDIDATE,
+        requestChildId: "44",
+        acceptanceIssue: "acceptance_missing",
+      },
+      {
+        ...CANDIDATE,
+        requestChildId: "45",
+        acceptanceIssue: "acceptance_changed",
+      },
+      {
+        ...CANDIDATE,
+        schoolId: "4",
+        requestChildId: "46",
+        acceptanceIssue: "acceptance_missing",
+      },
+    ]);
+    renderPage();
+
+    const list = await screen.findByRole("list", {
+      name: "Abschluss je Schule",
+    });
+    const [lindenhof, nord] = within(list).getAllByRole("listitem");
+    expect(lindenhof).toHaveTextContent(
+      "OGS Am Lindenhof2 Kinder ohne Zustimmung, kein VertragBei der Annahme",
+    );
+    // A school that sends its contracts later has no consent to miss.
+    expect(nord).toHaveTextContent("OGS NordSpäter verschicken");
+    expect(nord).not.toHaveTextContent(/kein Vertrag/);
   });
 
   it("does not offer manual drafts for schools concluding at acceptance and says why each child waits", async () => {
@@ -458,7 +503,7 @@ describe("TraegerVertraegePage", () => {
   // list, not a failed send or a page error that replaces the contracts.
   describe("reload after a write (#6652)", () => {
     it.each([401, 403])(
-      "discards contracts, candidates and overlays after reload refuses access (%s)",
+      "loads the page anew after the reload refuses access (%s)",
       async (status) => {
         renderPage();
         await screen.findAllByText("Lina Muster");
@@ -470,40 +515,16 @@ describe("TraegerVertraegePage", () => {
         );
         expect(await screen.findByRole("dialog")).toBeVisible();
         api.sendCareContracts.mockResolvedValue({ sent: ["7"], skipped: [] });
+        resetPageReloads();
         api.fetchCareContracts.mockRejectedValueOnce(
           new ApiError("refused", status),
         );
         fireEvent.click(
           screen.getByRole("button", { name: "1 Entwurf senden" }),
         );
-        // A 401 leaves through the login path and has no inline error.
-        await waitFor(() =>
-          expect(
-            screen.getByRole("button", { name: "Verträge erstellen" }),
-          ).toBeDisabled(),
-        );
-        if (status === 403) {
-          expect(
-            await screen.findByText(
-              `${catalogText("general.permission", "die Anzeige der Verträge")} ${SAVED_BUT_STALE_SUFFIX}`,
-            ),
-          ).toBeVisible();
-        }
-        expect(screen.queryByText("Lina Muster")).not.toBeInTheDocument();
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-        expect(
-          screen.getByRole("button", { name: "Verträge erstellen" }),
-        ).toBeDisabled();
-
-        fireEvent.change(
-          screen.getAllByPlaceholderText(
-            "Kind, Eltern oder Angebot suchen",
-          )[0]!,
-          { target: { value: "Lina" } },
-        );
-        await screen.findAllByText("Lina Muster");
-        expect(api.fetchContractCandidates).toHaveBeenCalledTimes(2);
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        // #6801: the page loads anew; its first load shows the refusal.
+        await expectPageReloadedAfterRefusal();
+        expect(api.sendCareContracts).toHaveBeenCalledTimes(1);
       },
     );
 

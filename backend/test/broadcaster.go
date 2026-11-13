@@ -1,6 +1,6 @@
 package test
 
-import "github.com/moto-nrw/project-phoenix/realtime/realtimetest"
+import "github.com/moto-ogs/project-phoenix/realtime/realtimetest"
 
 // The broadcaster test double lives with the Delivery Platform
 // (realtimetest); these aliases keep the suites that take it from the

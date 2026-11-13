@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	carePlanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/application"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ArrivalBaselineDependencies binds tenant-safe projections from People and

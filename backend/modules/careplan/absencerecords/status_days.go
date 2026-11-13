@@ -12,12 +12,17 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrSickExcusedConflict rejects a profile patch that leaves both statuses effective.
 var ErrSickExcusedConflict = errors.New("a student cannot be both sick and excused at the same time")
+
+// ErrStatusDayOccupied rejects a profile patch that reports a status on a day
+// a class trip already holds. The status-day write refuses such a day too,
+// with its own conflict listing.
+var ErrStatusDayOccupied = errors.New("the day already carries another student status")
 
 // Broad day statuses. The values are the persisted column values.
 const (
@@ -81,6 +86,12 @@ type StudentStatusDay struct {
 	// Note carries an optional free-text reason supplied alongside the
 	// status (currently only parent sick notes set it). Nullable.
 	Note *string `json:"note,omitempty"`
+	// ReportedByAccountID is the account that reported the day, nil for a
+	// device or an automatic run (#6842). It is never serialized.
+	ReportedByAccountID *int64 `json:"-"`
+	// ClearedSource is the source that cleared the day; Source stays the
+	// report's (#6842). Nil while the day stands. It is never serialized.
+	ClearedSource *string `json:"-"`
 }
 
 // StudentStatusCounts is the effective dashboard absence buckets of one day.

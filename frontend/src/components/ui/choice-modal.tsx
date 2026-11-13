@@ -77,7 +77,9 @@ export function ChoiceModal({
     <Modal isOpen={isOpen} onClose={handleClose} title={title} footer={footer}>
       <FormErrorAlert message={error} className="mb-4" />
       {description && (
-        <p className="mb-4 text-sm text-gray-600">{description}</p>
+        <p className="mb-4 text-sm wrap-anywhere text-gray-600">
+          {description}
+        </p>
       )}
       <div role="group" className="flex flex-col gap-2">
         {options.map((option) => (
@@ -90,7 +92,7 @@ export function ChoiceModal({
             onClick={() => onSelect(option.value)}
             className="w-full"
           >
-            <span className="flex w-full flex-col items-start text-left">
+            <span className="flex w-full min-w-0 flex-col items-start text-left wrap-anywhere">
               <span
                 className={`text-sm font-semibold ${option.primary ? "text-white" : "text-gray-900"}`}
               >

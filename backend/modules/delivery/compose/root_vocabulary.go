@@ -1,11 +1,11 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/emailbranding"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/realtimeevents"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/pwa"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/application/emailbranding"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/application/realtimeevents"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/emailoutbox"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/pwa"
 )
 
 // Delivery's services and DTOs for the typed root (ADR 0053 point 2).

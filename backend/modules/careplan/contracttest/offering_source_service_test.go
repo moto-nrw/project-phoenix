@@ -5,10 +5,10 @@ import (
 	"context"
 	"slices"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
 
 	"testing"
 	"time"
@@ -17,15 +17,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Offering-source integration tests (#2137): one Betreuungsangebot feeding
@@ -1329,13 +1329,12 @@ func TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled(t *testing.T) {
 		"with care offerings disabled the approval must not materialize the multi-source union")
 }
 
-// #2147 review round 11: deleting a phase cascades its care offerings away
-// (templates flip to manual via ON DELETE SET NULL) and erases the roster
-// rows' provenance with the request children. The delete flow must retire
-// the offering-derived enrollment rows and their materialized occurrence
-// rows FIRST — left behind, they would keep materializing children while
-// being invisible to every later resync.
-func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
+// #2147 review round 11 retired the offering-derived roster rows before the
+// phase cascade erased their provenance. Since #6836 a phase whose children
+// came from requests is not deleted at all: the refusal comes before the
+// detach, so the sourced roster rows, their occurrence rows and the
+// template's source stay exactly as they were.
+func TestPhaseDelete_WithRequestsLeavesSourcedRosterRows(t *testing.T) {
 	t.Parallel()
 
 	env := setupDecisionTest(t)
@@ -1384,15 +1383,16 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 		Today:                  func() calendar.Date { return offeringResyncToday },
 	})
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseSvc.DeletePhase, env.sourcePhase.ID))
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseSvc.DeletePhase, env.sourcePhase.ID)
+	require.ErrorIs(t, err, enrollmentTest.ErrPhaseHasRequests)
 
-	assert.Empty(t, loadTemplateEnrollments(t, env, template.ID),
-		"the not-yet-effective sourced rows must be retired with the phase")
-	assert.Empty(t, loadSourcedInstanceStudents(t, env, planned.ID),
-		"the child's still-planned occurrence row must be removed with the phase")
-	degraded, err := timetableCompose.NativeGroupRecords(timetableRepos.Timetable).FindByID(ctx, template.ID)
+	assert.Len(t, loadTemplateEnrollments(t, env, template.ID), 1,
+		"a refused delete leaves the sourced roster rows")
+	assert.Len(t, loadSourcedInstanceStudents(t, env, planned.ID), 1,
+		"a refused delete leaves the planned occurrence row")
+	kept, err := timetableCompose.NativeGroupRecords(timetableRepos.Timetable).FindByID(ctx, template.ID)
 	require.NoError(t, err)
-	assert.Empty(t, degraded.SourceCareOfferingIDs, "the cascade flips the now source-less template to a manual roster")
+	assert.Equal(t, []int64{offering.ID}, kept.SourceCareOfferingIDs, "the template keeps its source")
 }
 
 // createBoundedTemplateSchedule mirrors createCareOfferingTemplateSchedule but
