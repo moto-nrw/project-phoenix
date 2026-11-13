@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -249,8 +250,10 @@ func TestHolidayRegistrationStoresSiblingsAndAHolidayGuestWithItsReceipt(t *test
 	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements", "status_token"}, keysOf(receipt.Data), "the answer repeats no personal data")
 	statusToken, _ := receipt.Data["status_token"].(string)
 	require.Len(t, statusToken, 43, "32 random bytes, URL-safe")
-	assert.NotContains(t, rec.Body.String(), "Lia", "the placements name no child")
-	assert.NotContains(t, rec.Body.String(), "Muster", "the placements name no family")
+	// The random status token can spell a name by chance (#6974).
+	withoutToken := strings.ReplaceAll(rec.Body.String(), statusToken, "")
+	assert.NotContains(t, withoutToken, "Lia", "the placements name no child")
+	assert.NotContains(t, withoutToken, "Muster", "the placements name no family")
 
 	ctx := context.Background()
 	var children []struct {
@@ -325,7 +328,9 @@ func assertHolidayRegistrationStatus(t *testing.T, f holidayRegistrationFixture,
 	t.Helper()
 	rec := publicJSON(t, f.public, http.MethodGet, holidayStatusPath(token), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	for _, hidden := range []string{"Muster", "Erdnüsse", "2018-03-01", "0151", "Melle", "Oma", "example.org"} {
+	// The guardian's full phone number: its prefix alone also occurs in the
+	// microseconds of submitted_at (#6974).
+	for _, hidden := range []string{"Muster", "Erdnüsse", "2018-03-01", "0151 2345678", "Melle", "Oma", "example.org"} {
 		assert.NotContains(t, rec.Body.String(), hidden, "the status page shows no personal data beyond first names")
 	}
 	type week struct {
