@@ -93,7 +93,12 @@ func (s *Store) SaveChildDebtorNumbers(ctx context.Context, organizationID, acco
 	}
 	query := db.NewInsert().Model(&rows)
 	if onlyNew {
-		query = query.On("CONFLICT (organization_id, family_email, child_key) DO NOTHING")
+		// A child whose number was removed takes the new one.
+		query = query.On("CONFLICT (organization_id, family_email, child_key) DO UPDATE").
+			Set("debtor_number = EXCLUDED.debtor_number").
+			Set("last_used_on = GREATEST(child_debtor_number_row.last_used_on, EXCLUDED.last_used_on)").
+			Set("updated_by_account_id = EXCLUDED.updated_by_account_id").Set("updated_at = CURRENT_TIMESTAMP").
+			Where("child_debtor_number_row.debtor_number = ''")
 	} else {
 		query = query.On("CONFLICT (organization_id, family_email, child_key) DO UPDATE").
 			Set("debtor_number = EXCLUDED.debtor_number").Set("child_first_name = EXCLUDED.child_first_name").
@@ -108,16 +113,23 @@ func (s *Store) SaveChildDebtorNumbers(ctx context.Context, organizationID, acco
 	return childNumbersOfRows(saved), nil
 }
 
-// DeleteChildDebtorNumber removes the number of one child and answers it,
-// nil when the child had none.
-func (s *Store) DeleteChildDebtorNumber(ctx context.Context, organizationID int64, familyEmail, childKey string) (*parentbilling.ChildDebtorNumber, error) {
+// DeleteChildDebtorNumber removes the number of one child and answers the
+// child as it had it, nil when the child had none. The row stays with an
+// empty number: the child stays known, also without a contract (#7007).
+func (s *Store) DeleteChildDebtorNumber(ctx context.Context, organizationID, accountID int64, familyEmail, childKey string) (*parentbilling.ChildDebtorNumber, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	var removed []childDebtorNumberRow
-	if err := db.NewDelete().Model((*childDebtorNumberRow)(nil)).Where("organization_id = ?", organizationID).
-		Where("family_email = ?", familyEmail).Where("child_key = ?", childKey).Returning("*").Scan(ctx, &removed); err != nil {
+	if err := db.NewRaw(`UPDATE parent_billing.child_debtor_numbers AS child
+		SET debtor_number = '', updated_by_account_id = ?3, updated_at = CURRENT_TIMESTAMP
+		FROM (SELECT id, debtor_number FROM parent_billing.child_debtor_numbers
+			WHERE organization_id = ?0 AND family_email = ?1 AND child_key = ?2 AND debtor_number <> '' FOR UPDATE) AS before
+		WHERE child.id = before.id
+		RETURNING child.id, child.organization_id, child.family_email, child.child_key, child.child_first_name, child.child_last_name,
+			child.child_birth_date, before.debtor_number, child.last_used_on, child.updated_by_account_id, child.updated_at`,
+		organizationID, familyEmail, childKey, accountRef(accountID)).Scan(ctx, &removed); err != nil {
 		return nil, fmt.Errorf("delete the debtor number of the child: %w", err)
 	}
 	if len(removed) == 0 {

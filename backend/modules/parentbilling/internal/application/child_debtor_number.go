@@ -26,7 +26,8 @@ type ChildNumberStore interface {
 	// has a number keeps it.
 	SaveChildDebtorNumbers(ctx context.Context, organizationID, accountID int64, numbers []parentbilling.ChildDebtorNumber,
 		today calendar.Date, onlyNew bool) ([]parentbilling.ChildDebtorNumber, error)
-	DeleteChildDebtorNumber(ctx context.Context, organizationID int64, familyEmail, childKey string) (*parentbilling.ChildDebtorNumber, error)
+	// DeleteChildDebtorNumber empties the number; the child stays known.
+	DeleteChildDebtorNumber(ctx context.Context, organizationID, accountID int64, familyEmail, childKey string) (*parentbilling.ChildDebtorNumber, error)
 	InsertChildDebtorNumberEvents(ctx context.Context, organizationID, accountID int64, action string,
 		numbers []parentbilling.ChildDebtorNumber) error
 }
@@ -213,7 +214,7 @@ func (f *BillingFamilies) SetChildDebtorNumber(ctx context.Context, reviewer par
 	if number == "" {
 		// The answer is the child as stored now: without a number.
 		child.DebtorNumber = ""
-		removed, err := f.store.DeleteChildDebtorNumber(ctx, reviewer.OrganizationID, family, key)
+		removed, err := f.store.DeleteChildDebtorNumber(ctx, reviewer.OrganizationID, reviewer.AccountID, family, key)
 		if err != nil || removed == nil {
 			return child, err
 		}

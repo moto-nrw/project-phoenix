@@ -34,6 +34,9 @@ func init() {
 //     child at a holiday registration share it. child_first_name,
 //     child_last_name and child_birth_date keep the names as entered for the
 //     list of families.
+//   - debtor_number is empty once the office removed it: the child stays
+//     known to the list of families, also a child of the holiday care
+//     without a contract, so its number can be entered again.
 //   - last_used_on is the latest day a number was saved or an invoice took
 //     it. The Beleg retention deletes a row on 1 January of the fourth year
 //     after it, unless a document of the family is still kept, like a family
@@ -65,7 +68,7 @@ CREATE TABLE parent_billing.child_debtor_numbers (
 	CONSTRAINT chk_child_debtor_numbers_key CHECK (child_key <> '' AND char_length(child_key) <= 220),
 	CONSTRAINT chk_child_debtor_numbers_names CHECK (BTRIM(child_first_name) <> '' AND BTRIM(child_last_name) <> ''
 		AND char_length(child_first_name) <= 100 AND char_length(child_last_name) <= 100),
-	CONSTRAINT chk_child_debtor_numbers_number CHECK (BTRIM(debtor_number) <> '' AND char_length(debtor_number) <= 35)
+	CONSTRAINT chk_child_debtor_numbers_number CHECK (debtor_number = BTRIM(debtor_number) AND char_length(debtor_number) <= 35)
 );
 CREATE INDEX idx_child_debtor_numbers_last_used ON parent_billing.child_debtor_numbers (last_used_on);
 COMMENT ON TABLE parent_billing.child_debtor_numbers IS

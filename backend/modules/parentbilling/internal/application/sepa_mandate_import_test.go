@@ -425,3 +425,17 @@ func TestChildNumbersToSetKeepTheLatestContractEnd(t *testing.T) {
 	require.Len(t, set, 1)
 	assert.Equal(t, calendar.NewDate(2030, 7, 31), set[0].LastUsedOn)
 }
+
+// The import keeps a child's number until the end of its latest contract,
+// also one the file does not name (#7007).
+func TestImportPayersKeepTheLatestContractOfAChild(t *testing.T) {
+	t.Parallel()
+	payers := importPayers{byContract: map[int64]importPayer{}, byFamily: map[string]importPayer{}, children: map[string]map[string]bool{},
+		childUntil: map[string]calendar.Date{}}
+	child := parentbilling.FamilyChild{FirstName: "Mia", LastName: "Beispiel"}
+	payers.countChild(importPayer{contractID: 1, family: "eva@example.org", child: child, until: calendar.NewDate(2026, 7, 31)})
+	payers.countChild(importPayer{contractID: 2, family: "eva@example.org", child: child, until: calendar.NewDate(2030, 7, 31)})
+	key := parentbilling.ChildDebtorNumberKey("eva@example.org", parentbilling.ChildKey("Mia", "Beispiel", nil))
+	assert.Equal(t, calendar.NewDate(2030, 7, 31), payers.childUntil[key])
+	assert.Len(t, payers.children["eva@example.org"], 1, "one child with two contracts")
+}

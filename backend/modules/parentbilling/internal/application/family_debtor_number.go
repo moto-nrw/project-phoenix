@@ -352,7 +352,7 @@ func (h *HolidayContributions) holidayChildDebtorNumber(ctx context.Context, rev
 		return parentbilling.HolidayFamilyDebtorNumber{}, err
 	}
 	for _, number := range numbers {
-		if number.Key() != wanted {
+		if number.Key() != wanted || number.DebtorNumber == "" {
 			continue
 		}
 		if err := h.store.InsertChildDebtorNumberEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingRead,
@@ -406,9 +406,10 @@ func (h *HolidayContributions) rememberChildren(ctx context.Context, reviewer pa
 
 // knowFamilies adds a row without a contract and without a number for each
 // family of the registrations that has none, with the parent who registered
-// and how long the registration needs it. A family that has a row keeps it
-// as it is. The trail of every row without a number and a contract the
-// confirmation holds records it.
+// and how long the registration needs it. A row the family has keeps its
+// number and contract; a row without a contract takes the parent and the
+// later day, as RememberFamilies writes them. The trail of every row without
+// a number and a contract it writes records it.
 func (h *HolidayContributions) knowFamilies(ctx context.Context, reviewer parentbilling.HolidayReviewer,
 	registrations []parentbilling.HolidayRegistration,
 ) error {
@@ -416,11 +417,15 @@ func (h *HolidayContributions) knowFamilies(ctx context.Context, reviewer parent
 	for i := range memories {
 		memories[i].DebtorNumber = nil
 	}
-	held, err := h.store.LockFamilies(ctx, reviewer.OrganizationID, memories)
+	if _, err := h.store.LockFamilies(ctx, reviewer.OrganizationID, memories); err != nil {
+		return err
+	}
+	// A row the family had keeps the latest day a registration needs it.
+	written, err := h.store.RememberFamilies(ctx, reviewer.OrganizationID, reviewer.AccountID, memories)
 	if err != nil {
 		return err
 	}
-	known := slices.DeleteFunc(held, func(family parentbilling.FamilyBilling) bool {
+	known := slices.DeleteFunc(written, func(family parentbilling.FamilyBilling) bool {
 		return family.DebtorNumber != "" || family.ContractID != 0
 	})
 	if err := h.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingSave, known); err != nil {

@@ -40,6 +40,9 @@ type importPayers struct {
 	// children counts the children under contract of each family, by
 	// ChildKey: a family of one child names its child by its address too.
 	children map[string]map[string]bool
+	// childUntil is the last day of the latest contract of each child, by
+	// ChildDebtorNumberKey, over every contract the import can name.
+	childUntil map[string]calendar.Date
 }
 
 // importCandidate is a checked row with what the answer leaves out: the
@@ -240,7 +243,9 @@ func (c *importCheck) readPayer(candidate *importCandidate, cells []string) {
 	candidate.family = payer.family
 	// The contract names its child; the address only a family of one child.
 	if c.columns.payerKey == parentbilling.PayerByContract || len(c.payers.children[payer.family]) == 1 {
-		candidate.child, candidate.until = payer.child, payer.until
+		candidate.child = payer.child
+		candidate.until = c.payers.childUntil[parentbilling.ChildDebtorNumberKey(payer.family,
+			parentbilling.ChildKey(payer.child.FirstName, payer.child.LastName, payer.child.BirthDate))]
 	}
 }
 

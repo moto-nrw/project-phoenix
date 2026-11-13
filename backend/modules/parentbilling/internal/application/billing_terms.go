@@ -593,7 +593,10 @@ func readInvoicePayments(ctx context.Context, store paymentTermsReader, organiza
 		payments.children = make(map[string]*parentbilling.ChildDebtorNumber, len(children))
 		payments.usedChildren = map[int64]parentbilling.ChildDebtorNumber{}
 		for i := range children {
-			payments.children[children[i].Key()] = &children[i]
+			// A child whose number was removed has none (#7007).
+			if children[i].DebtorNumber != "" {
+				payments.children[children[i].Key()] = &children[i]
+			}
 		}
 	}
 	return payments, nil

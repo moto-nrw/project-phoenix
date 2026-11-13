@@ -149,6 +149,10 @@ func (m *SEPAMandates) assignImportedNumbers(ctx context.Context, reviewer paren
 	known := make(map[string]string, len(stored))
 	byKey := make(map[string]parentbilling.ChildDebtorNumber, len(stored))
 	for _, number := range stored {
+		// A child whose number was removed has none and takes the file's.
+		if number.DebtorNumber == "" {
+			continue
+		}
 		known[number.Key()] = number.DebtorNumber
 		byKey[number.Key()] = number
 	}

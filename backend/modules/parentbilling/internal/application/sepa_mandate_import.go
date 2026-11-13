@@ -267,7 +267,8 @@ func contractVersionsAround(ctx context.Context, contracts parentbilling.CareCon
 	return versions, nil
 }
 
-// countChild counts the child of the payer's contract under its family.
+// countChild counts the child of the payer's contract under its family and
+// keeps the latest end of its contracts.
 func (p importPayers) countChild(payer importPayer) {
 	key := parentbilling.ChildKey(payer.child.FirstName, payer.child.LastName, payer.child.BirthDate)
 	if payer.family == "" || key == "" {
@@ -277,6 +278,9 @@ func (p importPayers) countChild(payer importPayer) {
 		p.children[payer.family] = map[string]bool{}
 	}
 	p.children[payer.family][key] = true
+	if child := parentbilling.ChildDebtorNumberKey(payer.family, key); payer.until.After(p.childUntil[child]) {
+		p.childUntil[child] = payer.until
+	}
 }
 
 // importPayers indexes the contracts of the Träger in force in the import
@@ -305,7 +309,8 @@ func (m *SEPAMandates) importPayers(ctx context.Context, organizationID int64) (
 	if err != nil {
 		return importPayers{}, fmt.Errorf("parent billing: read the contract parties for the import: %w", err)
 	}
-	payers := importPayers{byContract: map[int64]importPayer{}, byFamily: map[string]importPayer{}, children: map[string]map[string]bool{}}
+	payers := importPayers{byContract: map[int64]importPayer{}, byFamily: map[string]importPayer{}, children: map[string]map[string]bool{},
+		childUntil: map[string]calendar.Date{}}
 	for _, id := range ids {
 		recipient := recipients[id]
 		payer := importPayer{contractID: id, family: parentbilling.FamilyKey(recipient.Email),

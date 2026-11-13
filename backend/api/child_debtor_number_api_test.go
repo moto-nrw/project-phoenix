@@ -271,3 +271,59 @@ func TestHolidayFamilyOfSeveralChildrenIsListedWithANumberPerChild(t *testing.T)
 	assert.Contains(t, rec.Body.String(), `"family_email":"eva.muster@example.org"`, "the family is listed before any invoice")
 	assert.Equal(t, "", f.familyNumber(t, "eva.muster@example.org"), "with no number of its own")
 }
+
+// A child of the holiday care without a contract stays known once its
+// number is removed, so the office can enter it again; a known family
+// without a number keeps the latest day a registration needs it.
+func TestHolidayChildStaysKnownWithoutItsNumber(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Kind ohne Vertrag")
+	setTraegerValue(t, f, configModels.KeyParentBillingDebtorNumberScope, "child")
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.again, map[string]any{"debtor_number": "80001"}).Code)
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	children := func() []struct {
+		FirstName    string  `json:"first_name"`
+		LastName     string  `json:"last_name"`
+		BirthDate    *string `json:"birth_date"`
+		DebtorNumber string  `json:"debtor_number"`
+	} {
+		rec := traegerJSON(t, f.traeger, billing, http.MethodGet, "/traeger/billing-families/children", nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		for _, family := range decodeSchoolPortalData[[]struct {
+			FamilyEmail string `json:"family_email"`
+			Children    []struct {
+				FirstName    string  `json:"first_name"`
+				LastName     string  `json:"last_name"`
+				BirthDate    *string `json:"birth_date"`
+				DebtorNumber string  `json:"debtor_number"`
+			} `json:"children"`
+		}](t, rec.Body.Bytes()) {
+			if family.FamilyEmail == "papa.muster@example.org" {
+				return family.Children
+			}
+		}
+		return nil
+	}
+	known := children()
+	require.Len(t, known, 1, "the confirmation gave the only child the number")
+	require.Equal(t, "80001", known[0].DebtorNumber)
+	set := func(number string) int {
+		return traegerJSON(t, f.traeger, billing, http.MethodPut, childDebtorNumberPath, map[string]any{
+			"family_email": "papa.muster@example.org", "child_first_name": known[0].FirstName, "child_last_name": known[0].LastName,
+			"child_birth_date": known[0].BirthDate, "debtor_number": number}).Code
+	}
+	require.Equal(t, http.StatusOK, set(""))
+	require.Len(t, children(), 1, "the child stays known without its number")
+	assert.Empty(t, children()[0].DebtorNumber)
+	assert.Equal(t, http.StatusOK, set("80002"), "and takes a number again")
+
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.siblings, map[string]any{"debtor_number": "70001"}).Code)
+	_, err := f.db.ExecContext(context.Background(), `UPDATE parent_billing.family_billing SET last_used_on = '2020-01-01'
+		WHERE organization_id = ? AND family_email = 'eva.muster@example.org'`, f.office.organization)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, f.changeDebtorNumber(t, f.office.token, f.siblings, "70002").Code)
+	var lastUsed string
+	require.NoError(t, f.db.NewRaw(`SELECT last_used_on::text FROM parent_billing.family_billing
+		WHERE organization_id = ? AND family_email = 'eva.muster@example.org'`, f.office.organization).Scan(context.Background(), &lastUsed))
+	assert.Greater(t, lastUsed, "2020-01-01", "the family without a number keeps the latest day a registration needs it")
+}
