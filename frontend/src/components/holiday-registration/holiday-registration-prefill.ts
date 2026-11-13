@@ -120,6 +120,10 @@ function formPhone(phone: string): string {
 interface KnownPerson extends HolidayKnownContact {
   /** One record per school; the first one names the person. */
   readonly ids: readonly string[];
+}
+
+/** A person of the family while its records are joined. */
+interface FamilyPerson extends KnownPerson {
   readonly schoolIds: readonly string[];
 }
 
@@ -127,10 +131,16 @@ function personName(contact: HolidayKnownContact): string {
   return `${contact.firstName} ${contact.lastName}`.trim().toLowerCase();
 }
 
-/** A number in one spelling: digits only, "+49" and "0049" as "0". */
+/**
+ * A number in one spelling: digits only, "00" as "+", and the German
+ * country code as the leading "0" ("+49 (0)5402", "0049 5402", "05402").
+ */
 function phoneDigits(phone: string): string {
-  const digits = phone.replace(/\(0\)/g, "").replace(/[^\d+]/g, "");
-  return digits.replace(/^(\+|00)49/, "0").replace(/\+/g, "");
+  const digits = phone
+    .replace(/\(0\)/g, "")
+    .replace(/[^\d+]/g, "")
+    .replace(/^00/, "+");
+  return digits.replace(/^\+490?/, "0").replace(/\+/g, "00");
 }
 
 /** Whether both hold a value and the values differ. */
@@ -147,7 +157,7 @@ function contradicts(a: string, b: string): boolean {
  * school has twice joins nothing, since it cannot say which one is meant.
  */
 function samePerson(
-  person: KnownPerson,
+  person: FamilyPerson,
   contact: HolidayKnownContact,
   schoolId: string,
   ambiguous: ReadonlySet<string>,
@@ -182,6 +192,62 @@ function ambiguousNames(family: HolidayKnownFamily): Set<string> {
   return names;
 }
 
+/** Adds a record to the person it belongs to, or as a new person. */
+function addRecord(
+  persons: FamilyPerson[],
+  contact: HolidayKnownContact,
+  schoolId: string,
+  ambiguous: ReadonlySet<string>,
+): void {
+  const index = persons.findIndex(
+    (person) =>
+      person.ids.includes(contact.guardianProfileId) ||
+      samePerson(person, contact, schoolId, ambiguous),
+  );
+  const seen = persons[index];
+  if (!seen) {
+    persons.push({
+      ...contact,
+      ids: [contact.guardianProfileId],
+      schoolIds: [schoolId],
+    });
+    return;
+  }
+  persons[index] = {
+    ...seen,
+    ids: seen.ids.includes(contact.guardianProfileId)
+      ? seen.ids
+      : [...seen.ids, contact.guardianProfileId],
+    schoolIds: seen.schoolIds.includes(schoolId)
+      ? seen.schoolIds
+      : [...seen.schoolIds, schoolId],
+    email: seen.email || contact.email,
+    phone: seen.phone || contact.phone,
+    fullGuardian: seen.fullGuardian || contact.fullGuardian,
+    emergency: seen.emergency || contact.emergency,
+    pickup: seen.pickup || contact.pickup,
+  };
+}
+
+/**
+ * The records of each person over all children of the family, so a person
+ * stays the same one whichever children the parent picks and in which order.
+ */
+function familyRecords(
+  family: HolidayKnownFamily,
+): Map<string, readonly string[]> {
+  const ambiguous = ambiguousNames(family);
+  const persons: FamilyPerson[] = [];
+  for (const child of family.children) {
+    for (const contact of child.contacts) {
+      addRecord(persons, contact, child.schoolId, ambiguous);
+    }
+  }
+  return new Map(
+    persons.flatMap((person) => person.ids.map((id) => [id, person.ids])),
+  );
+}
+
 /**
  * The other guardians of the picked children, one entry per person: the
  * first child names the order, the roles of all picked children add up.
@@ -190,45 +256,34 @@ function pickedContacts(
   draft: RegistrationDraft,
   family: HolidayKnownFamily,
 ): KnownPerson[] {
-  const persons: KnownPerson[] = [];
-  const ambiguous = ambiguousNames(family);
+  const records = familyRecords(family);
+  const byPerson = new Map<string, KnownPerson>();
   for (const child of draft.children) {
     const known = family.children.find(
       (candidate) => candidate.studentId === child.knownStudentId,
     );
-    if (!known) continue;
-    for (const contact of known.contacts) {
-      const index = persons.findIndex(
-        (person) =>
-          person.ids.includes(contact.guardianProfileId) ||
-          samePerson(person, contact, known.schoolId, ambiguous),
+    for (const contact of known?.contacts ?? []) {
+      const ids = records.get(contact.guardianProfileId) ?? [
+        contact.guardianProfileId,
+      ];
+      const key = ids[0] ?? contact.guardianProfileId;
+      const seen = byPerson.get(key);
+      byPerson.set(
+        key,
+        seen
+          ? {
+              ...seen,
+              email: seen.email || contact.email,
+              phone: seen.phone || contact.phone,
+              fullGuardian: seen.fullGuardian || contact.fullGuardian,
+              emergency: seen.emergency || contact.emergency,
+              pickup: seen.pickup || contact.pickup,
+            }
+          : { ...contact, ids },
       );
-      const seen = persons[index];
-      if (!seen) {
-        persons.push({
-          ...contact,
-          ids: [contact.guardianProfileId],
-          schoolIds: [known.schoolId],
-        });
-        continue;
-      }
-      persons[index] = {
-        ...seen,
-        ids: seen.ids.includes(contact.guardianProfileId)
-          ? seen.ids
-          : [...seen.ids, contact.guardianProfileId],
-        schoolIds: seen.schoolIds.includes(known.schoolId)
-          ? seen.schoolIds
-          : [...seen.schoolIds, known.schoolId],
-        email: seen.email || contact.email,
-        phone: seen.phone || contact.phone,
-        fullGuardian: seen.fullGuardian || contact.fullGuardian,
-        emergency: seen.emergency || contact.emergency,
-        pickup: seen.pickup || contact.pickup,
-      };
     }
   }
-  return persons;
+  return [...byPerson.values()];
 }
 
 /** The person of the picked children a row stands for, if any. */
@@ -398,18 +453,15 @@ export function withKnownContacts(
 ): RegistrationDraft {
   if (!family) return draft;
   const wanted = pickedContacts(draft, family);
-  // A removed person keeps out also under its record at another school.
-  const dismissed = new Set(draft.dismissedContacts);
-  for (const person of wanted) {
-    if (person.ids.some((id) => dismissed.has(id))) {
-      for (const id of person.ids) dismissed.add(id);
-    }
-  }
   return {
     ...draft,
     ...syncSecondGuardian(draft, wanted),
-    contacts: syncContacts(draft.contacts, wanted, dismissed, label),
-    ...(draft.dismissedContacts ? { dismissedContacts: [...dismissed] } : {}),
+    contacts: syncContacts(
+      draft.contacts,
+      wanted,
+      new Set(draft.dismissedContacts),
+      label,
+    ),
   };
 }
 

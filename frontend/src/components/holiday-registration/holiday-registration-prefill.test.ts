@@ -387,6 +387,47 @@ describe("prefill from the parent account (#6682)", () => {
     expect(draft.contacts.map((c) => c.knownGuardianId)).toEqual(["40", "92"]);
   });
 
+  it("knows a person of two schools also when the parent switches between the siblings", () => {
+    const twoSchools: HolidayKnownFamily = {
+      ...family,
+      children: [
+        child("10", [grandma]),
+        {
+          ...child("13", [{ ...grandma, guardianProfileId: "91" }]),
+          schoolId: "2",
+        },
+      ],
+    };
+    const [first, sibling] = twoSchools.children as [
+      HolidayKnownChild,
+      HolidayKnownChild,
+    ];
+    const toggle = (
+      draft: ReturnType<typeof registrationFromFamily>,
+      known: HolidayKnownChild,
+    ) =>
+      withKnownContacts(
+        toggleKnownChild(draft, known, offer),
+        twoSchools,
+        label,
+      );
+    // Removed with the first child, the person stays out with the sibling.
+    let removed = toggle(registrationFromFamily(twoSchools), first);
+    removed = withEditedContacts(removed, []);
+    removed = toggle(toggle(removed, first), sibling);
+    expect(removed.contacts.map((c) => c.knownGuardianId)).toEqual([undefined]);
+    // Changed with the first child, the row is not brought a second time.
+    let changed = toggle(registrationFromFamily(twoSchools), first);
+    changed = withEditedContacts(
+      changed,
+      changed.contacts.map((c) => ({ ...c, phone: "0170 99" })),
+    );
+    changed = toggle(toggle(changed, first), sibling);
+    expect(changed.contacts.map((c) => [c.name, c.phone])).toEqual([
+      ["Erika Muster", "0170 99"],
+    ]);
+  });
+
   it("joins one person of two schools whose number is written differently", () => {
     const twoSchools: HolidayKnownFamily = {
       ...family,
@@ -394,7 +435,7 @@ describe("prefill from the parent account (#6682)", () => {
         child("10", [{ ...grandma, phone: "+49 (0)5402 1234" }]),
         {
           ...child("13", [
-            { ...grandma, guardianProfileId: "91", phone: "05402 1234" },
+            { ...grandma, guardianProfileId: "91", phone: "0049 5402 1234" },
           ]),
           schoolId: "2",
         },
