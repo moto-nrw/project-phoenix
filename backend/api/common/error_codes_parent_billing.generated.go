@@ -74,9 +74,12 @@ const CodeParentBillingDocumentKindInvalid = "parent_billing.document_kind_inval
 const CodeParentBillingDueDatesInvalid = "parent_billing.due_dates_invalid"
 const CodeParentBillingExportAlreadyHandedOver = "parent_billing.export_already_handed_over"
 const CodeParentBillingExportFileNumberStartLocked = "parent_billing.export_file_number_start_locked"
+const CodeParentBillingExportFormatsInvalid = "parent_billing.export_formats_invalid"
 const CodeParentBillingExportInvoiceNotFound = "parent_billing.export_invoice_not_found"
 const CodeParentBillingExportMappingInvalid = "parent_billing.export_mapping_invalid"
 const CodeParentBillingExportRecipientInvalid = "parent_billing.export_recipient_invalid"
+const CodeParentBillingExportRecipientNameTaken = "parent_billing.export_recipient_name_taken"
+const CodeParentBillingExportRecipientNotFound = "parent_billing.export_recipient_not_found"
 const CodeParentBillingExportRecipientNotReady = "parent_billing.export_recipient_not_ready"
 const CodeParentBillingExportRunEmpty = "parent_billing.export_run_empty"
 const CodeParentBillingExportRunNotFound = "parent_billing.export_run_not_found"
@@ -201,9 +204,12 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingDueDatesInvalid, "input"},
 	{CodeParentBillingExportAlreadyHandedOver, "business_rejection"},
 	{CodeParentBillingExportFileNumberStartLocked, "business_rejection"},
+	{CodeParentBillingExportFormatsInvalid, "input"},
 	{CodeParentBillingExportInvoiceNotFound, "business_rejection"},
 	{CodeParentBillingExportMappingInvalid, "input"},
 	{CodeParentBillingExportRecipientInvalid, "input"},
+	{CodeParentBillingExportRecipientNameTaken, "business_rejection"},
+	{CodeParentBillingExportRecipientNotFound, "business_rejection"},
 	{CodeParentBillingExportRecipientNotReady, "business_rejection"},
 	{CodeParentBillingExportRunEmpty, "business_rejection"},
 	{CodeParentBillingExportRunNotFound, "business_rejection"},

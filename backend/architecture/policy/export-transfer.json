@@ -76,6 +76,10 @@
     {
       "name": "config.traeger_export_recipients",
       "write_owner": "export-transfer"
+    },
+    {
+      "name": "config.traeger_export_recipient_formats",
+      "write_owner": "export-transfer"
     }
   ],
   "rules": [

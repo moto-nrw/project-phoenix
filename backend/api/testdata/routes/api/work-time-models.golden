@@ -2,4 +2,6 @@ DELETE /api/work-time-models/{id}
 GET /api/work-time-models/
 GET /api/work-time-models/{id}
 POST /api/work-time-models/
+POST /api/work-time-models/{id}/archive
+POST /api/work-time-models/{id}/restore
 PUT /api/work-time-models/{id}

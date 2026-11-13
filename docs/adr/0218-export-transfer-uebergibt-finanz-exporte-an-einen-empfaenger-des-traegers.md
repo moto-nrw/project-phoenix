@@ -5,6 +5,9 @@ status: accepted
 # Export Transfer übergibt Finanz-Exporte an einen Empfänger des Trägers
 
 **Status: Akzeptiert.** Freigegeben von Yannick Wenger am 12.11.2026.
+Abschnitt 2 „Genau ein Empfänger je Träger“ ergänzt durch
+[ADR 0222](0222-traeger-uebergibt-jedes-finanz-exportformat-an-einen-eigenen-empfaenger.md):
+mehrere Empfänger, jedem Exportformat genau einer.
 
 Entscheidung vom 12.11.2026 zu
 [#6824](https://github.com/moto-ogs/project-phoenix/issues/6824), Teil von

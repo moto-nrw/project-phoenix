@@ -21,6 +21,7 @@ package workforce
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 const (
@@ -102,6 +103,9 @@ type WorkTimeModel struct {
 	RotationLength     int                  `json:"rotation_length"`
 	RotationAnchorDate string               `json:"rotation_anchor_date"`
 	Entries            []WorkTimeModelEntry `json:"entries,omitempty"`
+	// ArchivedAt is set while the school no longer offers the template for
+	// new assignments (#6891); staff already bound to it keep it.
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
 }
 
 // WorkTimeModelFields is the writable part of a template. The entries replace

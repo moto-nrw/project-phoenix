@@ -41,17 +41,22 @@ func (handoverDebits) SEPADebitFile(context.Context, parentbilling.HolidayReview
 
 type handoverStore struct {
 	repeated bool
+	// askedFor is the recipient the repeat check asked about.
+	askedFor []int64
 	inserted []int64
+	targets  []parentbilling.HandoverDestination
 	settled  map[int64]string
 	reasons  map[int64]string
 }
 
-func (s *handoverStore) SameContentHandedOver(context.Context, int64, int64) (bool, error) {
+func (s *handoverStore) SameContentHandedOver(_ context.Context, _, _, recipientID int64) (bool, error) {
+	s.askedFor = append(s.askedFor, recipientID)
 	return s.repeated, nil
 }
 
-func (s *handoverStore) InsertExportFileHandover(_ context.Context, _, fileID int64, _, _ string) error {
+func (s *handoverStore) InsertExportFileHandover(_ context.Context, _, fileID int64, destination parentbilling.HandoverDestination) error {
 	s.inserted = append(s.inserted, fileID)
+	s.targets = append(s.targets, destination)
 	return nil
 }
 
@@ -74,7 +79,7 @@ func (t *handoverTransport) Handover(ctx context.Context, request parentbilling.
 	if t.outcome.NotReady {
 		return t.outcome, nil
 	}
-	if _, _, err := request.Prepare(ctx, "kaemmerei.example.org", "/eingang"); err != nil {
+	if _, _, err := request.Prepare(ctx, steuerbuero); err != nil {
 		return parentbilling.FinanceHandoverOutcome{}, err
 	}
 	t.prepareOK = true
@@ -87,6 +92,9 @@ func (t *handoverTransport) Handover(ctx context.Context, request parentbilling.
 }
 
 var handoverReviewer = parentbilling.HolidayReviewer{OrganizationID: 7, AccountID: 9}
+
+// steuerbuero is the recipient the transport resolved for the format.
+var steuerbuero = parentbilling.HandoverDestination{RecipientID: 12, RecipientName: "Steuerbüro", Host: "steuerbuero.example.org", Directory: "/eingang"}
 
 func sollHandover(repeat bool) parentbilling.HandoverRequest {
 	return parentbilling.HandoverRequest{Format: parentbilling.ExportFormatSollstellung, RunKind: parentbilling.DebitRunCare, RunID: 3, Repeat: repeat}
@@ -108,8 +116,11 @@ func TestHandoverSettlesTheProtocolEntryOfItsFile(t *testing.T) {
 		require.NoError(t, err, name)
 		assert.Equal(t, tc.state, result.State, name)
 		assert.Equal(t, "sollstellung-110.csv", result.FileName, name)
-		assert.Equal(t, "kaemmerei.example.org", result.TargetHost, name)
+		assert.Equal(t, "steuerbuero.example.org", result.TargetHost, name)
+		assert.Equal(t, "Steuerbüro", result.RecipientName, name)
 		assert.Equal(t, []int64{41}, store.inserted, name)
+		assert.Equal(t, []parentbilling.HandoverDestination{steuerbuero}, store.targets, "the handover records the recipient the transport resolved")
+		assert.Equal(t, []int64{12}, store.askedFor, "the repeat check asks about that recipient")
 		assert.Equal(t, tc.state, store.settled[41], name)
 		assert.Equal(t, tc.reason, store.reasons[41], name)
 	}

@@ -27,6 +27,8 @@ type Store interface {
 	// A missing template reports found=false.
 	UpdateWorkTimeModel(context.Context, int64, domain.WorkTimeModelFields) (domain.WorkTimeModel, bool, domain.OperationStats, error)
 	DeleteWorkTimeModel(context.Context, int64) (bool, domain.OperationStats, error)
+	// SetWorkTimeModelArchived archives a template or offers it again.
+	SetWorkTimeModelArchived(ctx context.Context, id int64, archived bool) (domain.WorkTimeModel, bool, domain.OperationStats, error)
 	// StaffOnWorkTimeModel lists every membership bound to the template, live
 	// or retired; ReleaseWorkTimeModel detaches the given ones from it.
 	StaffOnWorkTimeModel(ctx context.Context, workTimeModelID int64) ([]int64, error)
@@ -279,6 +281,9 @@ type SubstitutionStore interface {
 type StaffAssignments interface {
 	// AssignedStaffIDs returns the live staff members assigned to a template.
 	AssignedStaffIDs(ctx context.Context, workTimeModelID int64) ([]int64, error)
+	// AssignedStaffByModel returns the live assignees of every template of
+	// the caller's school in one read; unused templates are absent.
+	AssignedStaffByModel(ctx context.Context) (map[int64][]int64, error)
 	// RebaseAnchor stamps the template's rotation anchor onto the given
 	// assignees, which the caller has already resolved.
 	RebaseAnchor(ctx context.Context, staffIDs []int64, anchorDate string) error

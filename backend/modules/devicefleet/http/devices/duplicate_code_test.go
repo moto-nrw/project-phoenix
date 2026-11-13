@@ -1,13 +1,11 @@
 package devices
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
 )
@@ -17,7 +15,11 @@ import (
 func TestRenderErrorNamesTakenDeviceID(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{runtime: testRuntime()}
+	var gotCode, gotField string
+	rs := &Resource{runtime: Runtime{ConflictOnField: func(w http.ResponseWriter, _ *http.Request, _ error, code, field string) {
+		gotCode, gotField = code, field
+		w.WriteHeader(http.StatusConflict)
+	}}}
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	rs.renderError(rr, req, &devicefleet.AdministrationError{
@@ -26,14 +28,6 @@ func TestRenderErrorNamesTakenDeviceID(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	var body struct {
-		Code   string `json:"code"`
-		Errors []struct {
-			Field string `json:"field"`
-		} `json:"errors"`
-	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	assert.Equal(t, codeDeviceIDTaken, body.Code)
-	require.Len(t, body.Errors, 1)
-	assert.Equal(t, "device_id", body.Errors[0].Field)
+	assert.Equal(t, codeDeviceIDTaken, gotCode)
+	assert.Equal(t, "device_id", gotField)
 }

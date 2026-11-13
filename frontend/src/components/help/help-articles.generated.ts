@@ -414,6 +414,8 @@ import type { workTimeHintsTopic as authored_workTimeHintsTopic } from "./articl
 
 import type { workTimeReviewTopic as authored_workTimeReviewTopic } from "./articles/work-time-review";
 
+import type { workTimeTemplatesTopic as authored_workTimeTemplatesTopic } from "./articles/work-time-templates";
+
 import { HELP_TOPICS } from "~/lib/help-topics";
 
 import type { HelpGroupMode, HelpPresenceMode, HelpTopic } from "./help-types";
@@ -8321,7 +8323,7 @@ export const staffRecordTopic = function staffRecordTopic(): HelpTopic {
         steps: [
           "Wählen Sie oben `Arbeitszeitmodell`.",
           "Wählen Sie rechts `Bearbeiten`.",
-          "Wählen Sie `Vorlage zuweisen` für ein Modell, das mehrere Personen teilen.",
+          "Wählen Sie `Vorlage zuweisen` für ein Modell, das mehrere Personen teilen. Vorlagen legen Sie unter `Datenverwaltung` › `Arbeitszeitmodelle` an.",
           "Oder wählen Sie `Eigenes Modell` nur für diese Person.",
           "Wählen Sie bei `Rotation` zum Beispiel `Standard (1 Woche)` oder `A/B-Wochen (2 Wochen)`.",
           "Tragen Sie je Wochentag die Stunden ein, zum Beispiel `4,45`.",
@@ -8360,6 +8362,7 @@ export const staffRecordTopic = function staffRecordTopic(): HelpTopic {
       "Ein Bereich fehlt Ihnen? Dann fehlt Ihrer Rolle das Recht dafür.",
     ],
     related: [
+      HELP_TOPICS.leadWorkTimeTemplates,
       HELP_TOPICS.leadTargetOverride,
       HELP_TOPICS.leadWorkTimeReview,
       HELP_TOPICS.leadInviteStaff,
@@ -11974,52 +11977,62 @@ export const traegerExportHandoverTopic =
   function traegerExportHandoverTopic(): HelpTopic {
     return {
       id: HELP_TOPICS.traegerExportHandover,
-      title: "Exporte an einen Empfänger übergeben",
-      question: "Wie schickt moto die Dateien direkt an die Kämmerei?",
+      title: "Exporte an Empfänger übergeben",
+      question:
+        "Wie schickt moto die Dateien direkt an Kämmerei oder Steuerbüro?",
       summary:
-        "moto kann die Sollstellung, die DATEV-Datei und die Lastschriftdatei selbst bei einem Empfänger ablegen, zum Beispiel bei Ihrer Kämmerei. Sie tragen den Empfänger einmal ein. Herunterladen können Sie die Dateien weiterhin.",
+        "moto kann die Sollstellung, die DATEV-Datei und die Lastschriftdatei selbst beim Empfänger ablegen. Jede Datei geht an genau einen Empfänger, zum Beispiel die Sollstellung an die Kämmerei und die DATEV-Datei an das Steuerbüro. Herunterladen können Sie die Dateien weiterhin.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "FolderOpen",
       requirements: [
         "Ihre Rolle im Träger-Büro ist Abrechnung.",
-        "Der Empfänger hat Ihnen Adresse, Benutzername, Passwort, Zielordner und Fingerabdruck genannt.",
+        "Jeder Empfänger hat Ihnen Adresse, Benutzername, Passwort, Zielordner und Fingerabdruck genannt.",
       ],
       steps: [],
       instructionGroups: [
         {
           title: "Empfänger eintragen",
-          description: "Das machen Sie nur einmal.",
+          description: "Das machen Sie einmal je Empfänger.",
           steps: [
             "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
-            "Wählen Sie oben rechts `Empfänger der Exporte`.",
-            "Schalten Sie `Übergabe einschalten` ein.",
+            "Wählen Sie oben rechts `Empfänger der Exporte`, dann `Empfänger hinzufügen`.",
+            "Geben Sie einen `Name` ein, zum Beispiel „Kämmerei“.",
             "Tragen Sie `Adresse`, `Port`, `Benutzername`, `Passwort`, `Zielordner` und `Fingerabdruck` ein.",
-            "Wählen Sie `Speichern`. Oben steht dann `Der Empfänger ist bereit`.",
+            "Wählen Sie `Empfänger anlegen`. In der Liste `Empfänger` steht er dann mit `Bereit`.",
+          ],
+        },
+        {
+          title: "Dateien zuordnen",
+          description: "So legen Sie fest, welche Datei an wen geht.",
+          steps: [
+            "Öffnen Sie `Empfänger der Exporte`.",
+            "Wählen Sie unter `Welche Datei geht wohin` bei jeder Datei einen Empfänger. `Nur herunterladen` heißt: moto übergibt diese Datei nicht.",
+            "Wählen Sie `Speichern`.",
           ],
         },
         {
           title: "Datei übergeben",
           steps: [
             "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
-            "Wählen Sie beim Lauf `Übergeben`, dann `Sollstellung übergeben` oder `DATEV-Datei übergeben`.",
-            "Kommt die Datei an, zeigt moto eine kurze Meldung mit dem Dateinamen.",
+            "Wählen Sie beim Lauf `Übergeben`, dann `Sollstellung übergeben` oder `DATEV-Datei übergeben`. Im Menü steht, an welchen Empfänger die Datei geht.",
+            "Kommt die Datei an, zeigt moto eine kurze Meldung mit dem Dateinamen und dem Empfänger.",
             "Die Lastschriftdatei übergeben Sie bei der Lastschrift des Laufs mit `Übergeben`.",
           ],
         },
       ],
       result:
-        "Die Datei steht im `Exportprotokoll` mit dem Vermerk `An Empfänger übergeben`. Unter `Letzte Übergaben` auf der Seite des Empfängers steht jeder Versuch mit seinem Ergebnis.",
+        "Die Datei steht im `Exportprotokoll` mit dem Vermerk `An Kämmerei übergeben` (mit dem Namen Ihres Empfängers). Unter `Letzte Übergaben` steht jeder Versuch mit Empfänger und Ergebnis. Ging die letzte Übergabe schief, zeigt die Liste `Empfänger` das beim Empfänger an.",
       notes: [
         "Jede Übergabe ist eine neue Datei mit neuer Nummer, wie ein Download.",
-        "Ist dieselbe Datei schon beim Empfänger, fragt moto vorher nach. So bucht die Kämmerei nichts doppelt.",
+        "Ist dieselbe Datei schon bei diesem Empfänger, fragt moto vorher nach. So bucht die Kämmerei nichts doppelt. Ein anderer Empfänger hatte die Datei noch nicht, dann fragt moto nicht.",
         "Hat der Empfänger eine DATEV-Datei verloren, wählen Sie beim Lauf `Übergeben`, dann `Alle DATEV-Buchungen erneut übergeben`. Kam eine DATEV-Datei nicht an, enthält die nächste ihre Buchungen wieder.",
         "Das Passwort speichert moto verschlüsselt. Es wird nie wieder angezeigt. Ändern Sie Adresse, Port, Benutzername oder Fingerabdruck, geben Sie es noch einmal ein.",
-        "Mit `Empfänger entfernen` löschen Sie Adresse und Passwort. Der Verlauf der Übergaben bleibt.",
+        "Mit `Empfänger entfernen` auf der Seite des Empfängers löschen Sie Adresse und Passwort. Seine Dateien können Sie danach nur herunterladen, bis Sie sie einem anderen Empfänger zuordnen. Der Verlauf der Übergaben bleibt.",
       ],
       differences: [
         "Beim Lauf fehlt `Übergeben`? Ihnen fehlt das Recht `Finanz-Export`, oder moto konnte den Empfänger nicht lesen. Laden Sie die Seite neu. Die Lastschriftdatei übergeben Sie auch ohne dieses Recht.",
-        "Im Menü steht nur `Empfänger eintragen`? Es fehlen noch Angaben, oder die Übergabe ist ausgeschaltet.",
+        "Im Menü steht `Empfänger einrichten` oder `Empfänger zuordnen`? Diese Datei hat noch keinen Empfänger, oder beim Empfänger fehlen Angaben oder die Übergabe ist ausgeschaltet. Das Menü nennt den Grund.",
       ],
       troubleshootingDetails: [
         "`Nicht angekommen` mit dem Hinweis auf den Fingerabdruck? Fragen Sie beim Empfänger nach dem Fingerabdruck für den RSA-Schlüssel.",
@@ -12079,7 +12092,7 @@ export const traegerFinanceExportsTopic =
           steps: [
             "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
             "Wählen Sie beim Lauf `Sollstellung`. Die Datei wird heruntergeladen.",
-            "Geben Sie die Datei an Ihre Kämmerei. Oder lassen Sie moto sie übergeben, siehe „Exporte an einen Empfänger übergeben“.",
+            "Geben Sie die Datei an Ihre Kämmerei. Oder lassen Sie moto sie übergeben, siehe „Exporte an Empfänger übergeben“.",
           ],
         },
       ],
@@ -13980,3 +13993,72 @@ export const workTimeReviewTopic = function workTimeReviewTopic(): HelpTopic {
     ],
   };
 } satisfies typeof authored_workTimeReviewTopic;
+
+/**
+ * `/database/work-time-models` (#6891): die Arbeitszeitmodell-Vorlagen der
+ * Schule. Vorher ließ sich eine Vorlage nur aus der Personalakte heraus
+ * anlegen. Zugeordnet wird weiter in der Personalakte.
+ */
+export const workTimeTemplatesTopic =
+  function workTimeTemplatesTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.leadWorkTimeTemplates,
+      title: "Vorlagen für Arbeitszeitmodelle verwalten",
+      question: "Wie lege ich ein Arbeitszeitmodell für viele Personen an?",
+      summary:
+        "Eine Vorlage legt die Soll-Stunden fest, die mehrere Mitarbeitende teilen.",
+      group: "personal",
+      audience: "lead",
+      icon: "Hourglass",
+      requirements: [
+        "Sie dürfen die Zeiterfassung aller Mitarbeitenden verwalten.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Eine Vorlage anlegen",
+          steps: [
+            "Öffnen Sie `Datenverwaltung` und danach `Arbeitszeitmodelle`.",
+            "Wählen Sie oben rechts `Vorlage`.",
+            "Geben Sie einen Namen ein, zum Beispiel `Teilzeit 30 Stunden`.",
+            "Wählen Sie bei `Rotation` zum Beispiel `Standard (1 Woche)` oder `A/B-Wochen (2 Wochen)`.",
+            "Tragen Sie je Wochentag die Stunden ein, zum Beispiel `6`.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Eine Vorlage zuordnen",
+          steps: [
+            "Klappen Sie in der Seitenleiste `Team` auf.",
+            "Öffnen Sie `Mitarbeiter` und wählen Sie die Person.",
+            "Wählen Sie oben `Arbeitszeitmodell` und rechts `Bearbeiten`.",
+            "Wählen Sie `Vorlage zuweisen` und die Vorlage.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Eine Vorlage ändern",
+          steps: [
+            "Wählen Sie die Vorlage in der Liste.",
+            "Ändern Sie die Stunden.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+      ],
+      result:
+        "In der Liste steht bei jeder Vorlage, wie viele Personen sie nutzen.",
+      notes: [
+        "Eine Änderung gilt ab heute für alle Personen mit dieser Vorlage. Die Seite zeigt vor dem Speichern, wie viele es sind.",
+        "Über die drei Punkte wählen Sie `Nicht mehr anbieten`. Wer die Vorlage schon nutzt, behält sie. Neu zuordnen lässt sie sich dann nicht mehr.",
+        "Löschen geht nur, wenn niemand die Vorlage nutzt.",
+      ],
+      differences: [
+        "Sie sehen `Arbeitszeitmodelle` nicht? Dann hat Ihre Schule die Zeiterfassung nicht gebucht, oder Ihnen fehlt das Recht dafür.",
+      ],
+      related: [
+        HELP_TOPICS.leadStaffRecord,
+        HELP_TOPICS.leadTargetOverride,
+        HELP_TOPICS.leadWorkTimeReview,
+      ],
+    };
+  } satisfies typeof authored_workTimeTemplatesTopic;

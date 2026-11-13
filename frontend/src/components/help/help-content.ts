@@ -150,6 +150,7 @@ function leadTopics(
     articles.staffRecordTopic(),
     articles.staffQualificationsTopic(),
     articles.targetOverrideTopic(),
+    articles.workTimeTemplatesTopic(),
     articles.staffPermissionsTopic(),
     articles.workTimeReviewTopic(),
     articles.payrollTopic(),

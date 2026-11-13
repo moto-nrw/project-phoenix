@@ -57,12 +57,13 @@ type Runtime struct {
 // Resource bundles the dependencies needed by the work-time-model handlers.
 type Resource struct {
 	models  workforce.Capability
+	catalog workforce.WorkTimeModelCatalog
 	runtime Runtime
 }
 
 // NewResource wires the dependencies.
-func NewResource(models workforce.Capability, runtime Runtime) *Resource {
-	return &Resource{models: models, runtime: runtime}
+func NewResource(models workforce.Capability, catalog workforce.WorkTimeModelCatalog, runtime Runtime) *Resource {
+	return &Resource{models: models, catalog: catalog, runtime: runtime}
 }
 
 // Router returns the chi sub-router for /api/work-time-models.
@@ -77,6 +78,8 @@ func (rs *Resource) Router() chi.Router {
 		r.With(manage, withTx).Post("/", rs.create)
 		r.With(manage, withTx).Put("/{id}", rs.update)
 		r.With(manage, withTx).Delete("/{id}", rs.delete)
+		r.With(manage, withTx).Post("/{id}/archive", rs.archive)
+		r.With(manage, withTx).Post("/{id}/restore", rs.restore)
 	})
 
 	return r
@@ -114,8 +117,17 @@ type ModelResponse struct {
 	RotationAnchorDate string          `json:"rotation_anchor_date"`
 	Entries            []EntryResponse `json:"entries"`
 	WeeklyTotals       []int           `json:"weekly_totals"`
+	// ArchivedAt is present while the template is not offered for new
+	// assignments (#6891).
+	ArchivedAt *string `json:"archived_at,omitempty"`
+	// AssignedStaffCount is present only on a list requested with
+	// with_usage=true: the live staff members a template edit reaches.
+	AssignedStaffCount *int `json:"assigned_staff_count,omitempty"`
 }
 
+// list returns every template of the school, archived ones included.
+// with_usage=true adds the number of live assignees per template, which costs
+// one more tenant-wide read; the staff editor's picker does not ask for it.
 func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 	models, err := rs.models.ListWorkTimeModels(r.Context())
 	if err != nil {
@@ -127,7 +139,56 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.Failure(w, r, FailureInternal, err)
 		return
 	}
+	if r.URL.Query().Get("with_usage") == "true" {
+		usage, usageErr := rs.catalog.WorkTimeModelUsage(r.Context())
+		if usageErr != nil {
+			rs.runtime.Failure(w, r, FailureInternal, usageErr)
+			return
+		}
+		attachUsage(out, usage)
+	}
 	rs.runtime.Success(w, r, http.StatusOK, out, "Work time models retrieved")
+}
+
+func attachUsage(models []ModelResponse, usage map[int64]int) {
+	for index := range models {
+		count := usage[models[index].ID]
+		models[index].AssignedStaffCount = &count
+	}
+}
+
+// archive stops offering the template for new assignments. Assignees and
+// their Soll stay unchanged, so no time-account view needs a refresh.
+func (rs *Resource) archive(w http.ResponseWriter, r *http.Request) {
+	rs.setArchived(w, r, rs.catalog.ArchiveWorkTimeModel, "Work time model archived")
+}
+
+func (rs *Resource) restore(w http.ResponseWriter, r *http.Request) {
+	rs.setArchived(w, r, rs.catalog.RestoreWorkTimeModel, "Work time model restored")
+}
+
+func (rs *Resource) setArchived(
+	w http.ResponseWriter,
+	r *http.Request,
+	write func(context.Context, int64) (workforce.WorkTimeModel, error),
+	message string,
+) {
+	id, err := rs.runtime.ParseID(r)
+	if err != nil {
+		rs.runtime.Failure(w, r, FailureInvalid, err)
+		return
+	}
+	saved, err := write(r.Context(), id)
+	if err != nil {
+		rs.renderCapabilityError(w, r, err)
+		return
+	}
+	response, err := toResponse(saved)
+	if err != nil {
+		rs.runtime.Failure(w, r, FailureInternal, err)
+		return
+	}
+	rs.runtime.Success(w, r, http.StatusOK, response, message)
 }
 
 func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
@@ -332,6 +393,11 @@ func toResponse(m workforce.WorkTimeModel) (ModelResponse, error) {
 			totals[e.WeekIndex] += e.TargetMinutes
 		}
 	}
+	var archivedAt *string
+	if m.ArchivedAt != nil {
+		formatted := m.ArchivedAt.UTC().Format(time.RFC3339)
+		archivedAt = &formatted
+	}
 	return ModelResponse{
 		ID:                 m.ID,
 		Name:               m.Name,
@@ -339,6 +405,7 @@ func toResponse(m workforce.WorkTimeModel) (ModelResponse, error) {
 		RotationAnchorDate: rotationAnchor(m.RotationAnchorDate),
 		Entries:            entries,
 		WeeklyTotals:       totals,
+		ArchivedAt:         archivedAt,
 	}, nil
 }
 

@@ -45,6 +45,7 @@ type Dependencies struct {
 // reads share one application service, transaction runtime and observer.
 type WorkTime interface {
 	workforce.Capability
+	workforce.WorkTimeModelCatalog
 	planning.ShiftReads
 }
 
@@ -61,8 +62,7 @@ func New(dependencies Dependencies) (WorkTime, error) {
 }
 
 func newApplication(dependencies Dependencies) (*application.Service, error) {
-	if dependencies.DB == nil || dependencies.LiveStaffIDs == nil ||
-		dependencies.LockStaffAssignment == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.LiveStaffIDs == nil || dependencies.LockStaffAssignment == nil || dependencies.Observe == nil {
 		return nil, errors.New("workforce compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.DatabaseRuntime(dependencies.DB))

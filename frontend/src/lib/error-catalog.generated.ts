@@ -1025,14 +1025,20 @@ export const ERROR_CATALOG = {
         "Diese Datei ist schon beim Empfänger oder noch unterwegs. Es wurde keine neue Datei erstellt.",
       "parent_billing.export_file_number_start_locked":
         "Die Dateinummern laufen schon. Die erste Nummer lässt sich nicht mehr ändern.",
+      "parent_billing.export_formats_invalid":
+        "Die Zuordnung wurde nicht gespeichert. Bitte laden Sie die Seite neu und versuchen Sie es noch einmal.",
       "parent_billing.export_invoice_not_found":
         "Diese Rechnung gibt es nicht. Laden Sie die Seite neu.",
       "parent_billing.export_mapping_invalid":
         "Die Feldzuordnung ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
       "parent_billing.export_recipient_invalid":
         "Der Empfänger wurde nicht gespeichert. Bitte prüfen Sie die markierten Angaben.",
+      "parent_billing.export_recipient_name_taken":
+        "Einen Empfänger mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
+      "parent_billing.export_recipient_not_found":
+        "Diesen Empfänger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.export_recipient_not_ready":
-        "Der Empfänger fehlt oder ist unvollständig. Bitte ergänzen Sie ihn unter „Empfänger“. Es wurde keine Datei erstellt.",
+        "Diese Datei hat keinen bereiten Empfänger. Bitte ordnen Sie ihr unter „Empfänger der Exporte“ einen zu. Es wurde keine Datei erstellt.",
       "parent_billing.export_run_empty":
         "In diesem Lauf gibt es keine Rechnung. Es gibt keine Datei zum Herunterladen.",
       "parent_billing.export_run_not_found":
@@ -1941,6 +1947,8 @@ export const ERROR_CATALOG = {
         "Urlaub können Sie nur ab heute beantragen. Bitte wählen Sie ein anderes Datum.",
       "workforce.work_session_overlap":
         "Die Zeit überschneidet sich mit einem anderen Eintrag an diesem Tag. Bitte prüfen Sie Beginn und Ende.",
+      "workforce.work_time_model_archived":
+        "Diese Vorlage wird nicht mehr angeboten. Bitte wählen Sie eine andere Vorlage.",
     },
   },
   en: {
@@ -2490,14 +2498,20 @@ export const ERROR_CATALOG = {
         "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_formats_invalid":
+        "The assignment was not saved. Please reload the page and try again.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
       "parent_billing.export_recipient_invalid":
         "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_name_taken":
+        "A recipient with this name already exists. Please choose another name.",
+      "parent_billing.export_recipient_not_found":
+        "This recipient no longer exists. Please reload the page.",
       "parent_billing.export_recipient_not_ready":
-        "The recipient is missing or incomplete. Please complete it under “Recipient”. No file was created.",
+        "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -3147,14 +3161,20 @@ export const ERROR_CATALOG = {
         "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_formats_invalid":
+        "The assignment was not saved. Please reload the page and try again.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
       "parent_billing.export_recipient_invalid":
         "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_name_taken":
+        "A recipient with this name already exists. Please choose another name.",
+      "parent_billing.export_recipient_not_found":
+        "This recipient no longer exists. Please reload the page.",
       "parent_billing.export_recipient_not_ready":
-        "The recipient is missing or incomplete. Please complete it under “Recipient”. No file was created.",
+        "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -3748,14 +3768,20 @@ export const ERROR_CATALOG = {
         "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_formats_invalid":
+        "The assignment was not saved. Please reload the page and try again.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
       "parent_billing.export_recipient_invalid":
         "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_name_taken":
+        "A recipient with this name already exists. Please choose another name.",
+      "parent_billing.export_recipient_not_found":
+        "This recipient no longer exists. Please reload the page.",
       "parent_billing.export_recipient_not_ready":
-        "The recipient is missing or incomplete. Please complete it under “Recipient”. No file was created.",
+        "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -4337,14 +4363,20 @@ export const ERROR_CATALOG = {
         "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_formats_invalid":
+        "The assignment was not saved. Please reload the page and try again.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
       "parent_billing.export_recipient_invalid":
         "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_name_taken":
+        "A recipient with this name already exists. Please choose another name.",
+      "parent_billing.export_recipient_not_found":
+        "This recipient no longer exists. Please reload the page.",
       "parent_billing.export_recipient_not_ready":
-        "The recipient is missing or incomplete. Please complete it under “Recipient”. No file was created.",
+        "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -4931,14 +4963,20 @@ export const ERROR_CATALOG = {
         "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_formats_invalid":
+        "The assignment was not saved. Please reload the page and try again.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
       "parent_billing.export_recipient_invalid":
         "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_name_taken":
+        "A recipient with this name already exists. Please choose another name.",
+      "parent_billing.export_recipient_not_found":
+        "This recipient no longer exists. Please reload the page.",
       "parent_billing.export_recipient_not_ready":
-        "The recipient is missing or incomplete. Please complete it under “Recipient”. No file was created.",
+        "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -5518,14 +5556,20 @@ export const ERROR_CATALOG = {
         "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_formats_invalid":
+        "The assignment was not saved. Please reload the page and try again.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
       "parent_billing.export_recipient_invalid":
         "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_name_taken":
+        "A recipient with this name already exists. Please choose another name.",
+      "parent_billing.export_recipient_not_found":
+        "This recipient no longer exists. Please reload the page.",
       "parent_billing.export_recipient_not_ready":
-        "The recipient is missing or incomplete. Please complete it under “Recipient”. No file was created.",
+        "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":

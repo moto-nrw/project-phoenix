@@ -516,6 +516,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/work-time-models/"}:                                                          notCaptured,
 	{http.MethodDelete, "/api/work-time-models/{id}"}:                                                    notCaptured,
 	{http.MethodPut, "/api/work-time-models/{id}"}:                                                       notCaptured,
+	{http.MethodPost, "/api/work-time-models/{id}/archive"}:                                              notCaptured,
+	{http.MethodPost, "/api/work-time-models/{id}/restore"}:                                              notCaptured,
 
 	// OGS portal: sign-in, accounts, invitations.
 	{http.MethodPut, "/auth/accounts/{accountId}/"}:                        notCaptured,

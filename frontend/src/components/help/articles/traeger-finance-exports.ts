@@ -44,7 +44,7 @@ export function traegerFinanceExportsTopic(): HelpTopic {
         steps: [
           "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
           "Wählen Sie beim Lauf `Sollstellung`. Die Datei wird heruntergeladen.",
-          "Geben Sie die Datei an Ihre Kämmerei. Oder lassen Sie moto sie übergeben, siehe „Exporte an einen Empfänger übergeben“.",
+          "Geben Sie die Datei an Ihre Kämmerei. Oder lassen Sie moto sie übergeben, siehe „Exporte an Empfänger übergeben“.",
         ],
       },
     ],
