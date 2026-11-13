@@ -146,6 +146,7 @@ function RunningRow({
           variant="outline"
           size="md"
           onClick={() => onAssign(row.id)}
+          tooltip="Öffnet ein Fenster, um eine weitere Person zur Aufsicht einzutragen."
         >
           <UserPlus className="h-4 w-4" aria-hidden="true" />
           Betreuer hinzufügen
@@ -224,7 +225,12 @@ function ScheduleRow({
         </p>
       </div>
       {canManage ? (
-        <ButtonLink variant="outline" size="md" href={href}>
+        <ButtonLink
+          variant="outline"
+          size="md"
+          href={href}
+          tooltip="Öffnet diesen Termin im Vertretungsplan von heute."
+        >
           Vertretung eintragen
         </ButtonLink>
       ) : (
@@ -250,7 +256,13 @@ function GroupSection(props: GroupSectionProps) {
   return (
     <div className="space-y-4">
       {overview.groups.length > 0 && overview.targets.length > 0 ? (
-        <Button type="button" variant="outline" size="md" onClick={onAssign}>
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          onClick={onAssign}
+          tooltip="Öffnet ein Fenster, um eine Gruppe an eine andere Person zu geben."
+        >
           Gruppe übergeben
         </Button>
       ) : overview.groups.length === 0 ? (
@@ -306,6 +318,7 @@ function HandoverRow({
           variant="outline_danger"
           size="md"
           onClick={() => onEnd(handover)}
+          tooltip="moto fragt vorher nach und beendet dann die Übergabe der Gruppe."
         >
           Beenden
         </Button>
@@ -467,11 +480,14 @@ function AssignmentFields(props: AssignmentFieldsProps) {
 function AssignmentFooter({
   saving,
   disabled,
+  disabledReason,
   onClose,
   onSubmit,
 }: Readonly<{
   saving: boolean;
   disabled: boolean;
+  /** Was im Formular noch fehlt; leer, sobald es vollständig ist. */
+  disabledReason?: string;
   onClose: () => void;
   onSubmit: () => void;
 }>) {
@@ -483,6 +499,7 @@ function AssignmentFooter({
         size="md"
         onClick={onClose}
         disabled={saving}
+        noTooltip="Schließt nur das Fenster, ohne etwas zu übergeben."
       >
         Abbrechen
       </Button>
@@ -491,13 +508,28 @@ function AssignmentFooter({
         size="md"
         onClick={onSubmit}
         disabled={disabled}
+        disabledReason={disabledReason}
         isLoading={saving}
         loadingText="Wird übergeben…"
+        tooltip="Macht die gewählte Person im Zeitraum für die Gruppe zuständig."
       >
         Zuweisen
       </Button>
     </>
   );
+}
+
+/** Grund für den gesperrten Knopf „Zuweisen“, der erste fehlende Schritt. */
+function assignmentMissing(
+  groupId: string,
+  staffId: string,
+  start: string,
+  end: string,
+): string | undefined {
+  if (!groupId) return "Wählen Sie zuerst eine Gruppe aus.";
+  if (!staffId) return "Wählen Sie zuerst eine Betreuungskraft aus.";
+  if (end < start) return "Das Enddatum darf nicht vor dem Startdatum liegen.";
+  return undefined;
 }
 
 function useAssignmentForm(
@@ -517,6 +549,7 @@ function useAssignmentForm(
     setStart(value);
     if (end < value) setEnd(value);
   };
+  const missing = assignmentMissing(groupId, staffId, start, end);
   return {
     values: { groupId, staffId, today, start, end },
     setters: {
@@ -526,7 +559,8 @@ function useAssignmentForm(
       end: setEnd,
     },
     submit: () => onSubmit(groupId, staffId, start, end),
-    complete: Boolean(groupId && staffId && end >= start),
+    missing,
+    complete: missing === undefined,
   };
 }
 
@@ -556,6 +590,7 @@ function GroupAssignmentModal(props: GroupAssignmentModalProps) {
         <AssignmentFooter
           saving={action.saving}
           disabled={!form.complete || action.saving}
+          disabledReason={form.missing}
           onClose={close}
           onSubmit={form.submit}
         />
@@ -795,6 +830,7 @@ function ScheduleCard({
           variant="ghost"
           size="compact"
           href={data.scheduleHref()}
+          tooltip="Öffnet den Vertretungsplan für heute."
         >
           Vertretungsplan öffnen
         </ButtonLink>

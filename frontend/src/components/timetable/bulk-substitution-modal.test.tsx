@@ -266,7 +266,11 @@ describe("BulkSubstitutionModal", () => {
   it("zeigt ohne gewählte Person keine Terminvorschau und blockt den Save", () => {
     renderModal();
     expect(screen.queryByText(/Betroffene Termine/)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    const save = screen.getByRole("button", { name: "Speichern" });
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveAccessibleDescription(
+      "Wählen Sie zuerst die abwesende Person aus.",
+    );
   });
 
   it("gruppiert die Termine der Person nach Tagen und ignoriert fremde/abgesagte Termine", () => {
@@ -420,7 +424,11 @@ describe("BulkSubstitutionModal", () => {
     setRange(futureISO(1), futureISO(60));
 
     expect(screen.getByText(/höchstens 56 Tage/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    const save = screen.getByRole("button", { name: "Speichern" });
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveAccessibleDescription(
+      "Wählen Sie einen kürzeren Zeitraum, höchstens acht Wochen.",
+    );
   });
 
   it("erlaubt einen Zeitraum über 31 Kalendertage, begrenzt aber die GEWÄHLTEN Tage auf 31", () => {
@@ -440,9 +448,13 @@ describe("BulkSubstitutionModal", () => {
     expect(
       screen.getByText(/höchstens 31 Tage auf einmal speichern/),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Für 32 Tag(e) speichern" }),
-    ).toBeDisabled();
+    const tooMany = screen.getByRole("button", {
+      name: "Für 32 Tag(e) speichern",
+    });
+    expect(tooMany).toHaveAttribute("aria-disabled", "true");
+    expect(tooMany).toHaveAccessibleDescription(
+      "Wählen Sie höchstens 31 Tage auf einmal aus.",
+    );
 
     // Einen Tag abwählen → 31 gewählte Tage sind wieder speicherbar.
     fireEvent.click(screen.getAllByRole("checkbox")[0]!);
@@ -548,9 +560,13 @@ describe("BulkSubstitutionModal", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Für 1 Tag(e) speichern" }),
-    ).toBeDisabled();
+    const save = screen.getByRole("button", {
+      name: "Für 1 Tag(e) speichern",
+    });
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveAccessibleDescription(
+      "Laden Sie zuerst die Termine im Zeitraum neu.",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(mockSwrState.mutate).toHaveBeenCalledTimes(1);
   });

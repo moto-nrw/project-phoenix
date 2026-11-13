@@ -20,6 +20,7 @@ import {
   calendarEmptyLabel,
   calendarFetchRange,
   CalendarOverviewList,
+  NEW_APPOINTMENT_HINT,
   PersonalCalendar,
   PersonalCalendarChrome,
   visibleCalendarEvents,
@@ -1035,6 +1036,7 @@ function StaffCalendarPageInner() {
             size="md"
             className="gap-1.5"
             onClick={handleCreate}
+            tooltip={NEW_APPOINTMENT_HINT}
           >
             <Plus className="h-4 w-4" aria-hidden />
             Neuer Termin
@@ -1404,6 +1406,7 @@ function StaffCalendarPageInner() {
                         size="md"
                         onClick={resetForm}
                         disabled={submitting}
+                        noTooltip="Schließt nur das Formular, ohne etwas zu speichern."
                       >
                         Abbrechen
                       </Button>
@@ -1412,6 +1415,11 @@ function StaffCalendarPageInner() {
                         size="md"
                         isLoading={submitting}
                         loadingText="Speichert…"
+                        tooltip={appointmentSaveHint(
+                          Boolean(editingId),
+                          frequency !== "none",
+                          sendEmail,
+                        )}
                       >
                         {editingId
                           ? "Änderungen speichern"
@@ -1573,6 +1581,28 @@ function StaffCalendarPageInner() {
       )}
     </TenantPage>
   );
+}
+
+/**
+ * Was „Termin speichern“ auslöst (#6751): Eine Änderung gilt immer für die
+ * ganze Reihe (das Formular lädt die Reihe, nicht den Einzeltermin), und die
+ * E-Mail an Eltern folgt dem Haken im Formular.
+ */
+function appointmentSaveHint(
+  editing: boolean,
+  recurring: boolean,
+  notifyParents: boolean,
+): string {
+  const parents = " und schickt den Eltern sofort eine E-Mail.";
+  if (!editing) {
+    return notifyParents
+      ? `Trägt den Termin ein${parents}`
+      : "Trägt den Termin bei allen gewählten Empfängern ein.";
+  }
+  const what = recurring
+    ? "Ändert alle Termine der Reihe"
+    : "Ändert den Termin";
+  return notifyParents ? `${what}${parents}` : `${what} für alle Empfänger.`;
 }
 
 /** Prüfung vor dem Senden. Schlüssel sind die Feldnamen des Backends. */

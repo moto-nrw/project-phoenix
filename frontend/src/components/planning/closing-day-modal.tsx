@@ -160,7 +160,13 @@ export function ClosingDayModal({
       error={formErrors.error}
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" size="md" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            noTooltip="Schließt nur das Fenster, ohne etwas zu speichern."
+          >
             Abbrechen
           </Button>
           <Button
@@ -169,6 +175,7 @@ export function ClosingDayModal({
             size="md"
             onClick={() => void handleSave()}
             disabled={saving || saveBlocked}
+            tooltip={saveTooltip(onOfferCancel, schools)}
           >
             {saving ? "Speichern..." : saveLabel}
           </Button>
@@ -307,6 +314,23 @@ interface ClosingDayModalProps {
     startDate: string;
     endDate: string;
   }) => void;
+}
+
+/**
+ * Was „Speichern“ auslöst (#6751). Mit Schulauswahl speichert das Träger-Büro;
+ * dann bekommen Eltern mit gebuchten Ferientagen im Zeitraum eine E-Mail.
+ */
+function saveTooltip(
+  onOfferCancel: ClosingDayModalProps["onOfferCancel"],
+  schools: ClosingDayModalProps["schools"],
+): string {
+  if (onOfferCancel) {
+    return "Speichert den Schließtag und bietet an, Termine darin abzusagen.";
+  }
+  if (schools) {
+    return "Speichert den Schließtag für die gewählten Schulen und informiert betroffene Eltern.";
+  }
+  return "Speichert den Schließtag.";
 }
 
 // #3594: Stehen im gespeicherten Zeitraum noch geplante Termine, bietet moto

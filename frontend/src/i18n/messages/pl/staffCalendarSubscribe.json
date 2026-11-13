@@ -14,5 +14,9 @@
   "passwordCopied": "Hasło aplikacji skopiowane.",
   "passwordOnce": "Hasło aplikacji widzą Państwo tylko teraz. Proszę od razu zapisać je w programie kalendarza.",
   "passwordHidden": "Hasło aplikacji zostało już pokazane. Jeśli już go Państwo nie mają, proszę utworzyć nowe dane dostępu.",
-  "caldavUnavailable": "Połączenie jest teraz niedostępne. Proszę spróbować jeszcze raz."
+  "caldavUnavailable": "Połączenie jest teraz niedostępne. Proszę spróbować jeszcze raz.",
+  "rotateHint": "Od razu tworzy nowe dane dostępu, dotychczasowa subskrypcja się kończy.",
+  "copyAddressHint": "Kopiuje adres do wklejenia w programie kalendarza.",
+  "copyUsernameHint": "Kopiuje nazwę użytkownika do wklejenia w programie kalendarza.",
+  "copyPasswordHint": "Kopiuje hasło aplikacji do wklejenia w programie kalendarza."
 }
