@@ -290,6 +290,32 @@ func (s *Service) TraegerEmailStatusesByKey(ctx context.Context, organizationID 
 	return intentStatuses(deliveryContract.TransportEmail, rows)
 }
 
+// TraegerEmailStatusesOf reports the mails of a Träger for the related
+// entities of one type and with the idempotency keys, in one read (#6976),
+// in the caller's Träger transaction of that Träger.
+func (s *Service) TraegerEmailStatusesOf(ctx context.Context, organizationID int64, relatedType string, relatedIDs []int64, keys []string) (statuses []deliveryContract.Status, err error) {
+	if organizationID <= 0 {
+		return nil, errors.New("delivery: Träger is required")
+	}
+	relatedType = strings.TrimSpace(relatedType)
+	if len(relatedIDs) > 0 && relatedType == "" {
+		return nil, errors.New("delivery: related entity type is required")
+	}
+	if len(relatedIDs) == 0 && len(keys) == 0 {
+		return []deliveryContract.Status{}, nil
+	}
+	started := time.Now()
+	var rows []domain.Intent
+	defer func() {
+		s.observe(domain.Observation{Operation: "status_query", Transport: string(domain.TransportEmail), Duration: time.Since(started), Count: len(rows), Err: err})
+	}()
+	rows, err = s.store.TraegerEmailStatusesOf(ctx, organizationID, relatedType, relatedIDs, keys)
+	if err != nil {
+		return nil, err
+	}
+	return intentStatuses(deliveryContract.TransportEmail, rows)
+}
+
 // RetryFailedTraegerEmails makes the Träger's dead letters of keys with a
 // known failure due again; it keeps their idempotency keys, so each stays
 // the same mail.
@@ -323,7 +349,8 @@ func intentStatuses(transport deliveryContract.Transport, rows []domain.Intent) 
 			}
 		}
 		statuses = append(statuses, deliveryContract.Status{
-			ID: row.ID, IdempotencyKey: row.IdempotencyKey, Transport: transport, State: deliveryContract.State(row.Status), Attempts: row.Attempts,
+			ID: row.ID, IdempotencyKey: row.IdempotencyKey, Kind: row.Template, RelatedID: row.RelatedEntityID,
+			Transport: transport, State: deliveryContract.State(row.Status), Attempts: row.Attempts,
 			LastError: row.LastError, ProviderResult: providerResult, NextAttemptAt: row.NextRetryAt,
 			SentAt: row.SentAt, DeadLetterAt: row.DeadLetterAt, CancelledAt: row.CancelledAt,
 			DeliveryState: row.DeliveryState, DeliveryStateAt: row.DeliveryStateAt,

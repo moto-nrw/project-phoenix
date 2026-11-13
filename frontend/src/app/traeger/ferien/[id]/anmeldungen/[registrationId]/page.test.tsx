@@ -622,6 +622,99 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("lists every mail of the registration with its status (#6976)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      mails: [
+        { kind: "holiday_registration_received", outcome: "delivered" },
+        { kind: "holiday_registration_accepted", outcome: "accepted" },
+        { kind: "holiday_place_granted", outcome: "queued" },
+        { kind: "holiday_closure_notice", outcome: "blocked" },
+        { kind: "holiday_parent_account_offer", outcome: "undeliverable" },
+      ],
+      mailProblems: [
+        { kind: "holiday_closure_notice", state: "blocked" },
+        { kind: "holiday_parent_account_offer", state: "failed" },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    const section = await screen.findByRole("region", { name: "Mails" });
+    const rows = within(section).getAllByRole("listitem");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "EingangsbestätigungZugestellt",
+      "Annahme-MailVersendet",
+      "Mail zum FerienplatzWird gesendet",
+      "Mail zu SchließtagenNicht gesendet",
+      "Mail zum ElternkontoNicht zustellbar",
+    ]);
+    expect(
+      within(section).getByText(
+        "Nicht jede Mail hat die Eltern erreicht. Informieren Sie die Familie am besten per Telefon. Prüfen Sie die E-Mail-Adresse unter „Eltern“ und ändern Sie sie, wenn sie falsch ist.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Mail zu Schließtagen wurde nicht gesendet. An diese Adresse gehen zurzeit keine Mails.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Mail zum Elternkonto hat die Eltern nicht erreicht.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("names two closing day notices that did not arrive (#6976)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      mails: [
+        { kind: "holiday_closure_notice", outcome: "send_failed" },
+        { kind: "holiday_closure_notice", outcome: "unknown" },
+      ],
+      mailProblems: [
+        { kind: "holiday_closure_notice", state: "failed" },
+        { kind: "holiday_closure_notice", state: "unknown" },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Mail zu Schließtagen hat die Eltern nicht erreicht.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Ob die Mail zu Schließtagen angekommen ist, ist unklar.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no mail section before any mail exists (#6976)", async () => {
+    mockRegistration.mockResolvedValue({ ...HOLIDAY_REGISTRATION, mails: [] });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Eltern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Mails" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("says when moto deletes the registration and downloads it as a PDF (#6691)", async () => {
     mockRegistration.mockResolvedValue({
       ...HOLIDAY_REGISTRATION,

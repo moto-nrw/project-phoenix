@@ -39,7 +39,11 @@ import { holidayRegistrationDeletionNotice } from "~/components/traeger/holiday-
 import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registration-history";
 import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
-import { HolidayRegistrationMailProblemsAlert } from "~/components/traeger/holiday-registration-mail-problems";
+import {
+  HOLIDAY_MAIL_NEXT_STEP,
+  holidayMailLabel,
+  HolidayRegistrationMailProblemsAlert,
+} from "~/components/traeger/holiday-registration-mail-problems";
 import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { isRefusal } from "~/components/traeger/use-traeger-confirmed-resource";
@@ -71,6 +75,7 @@ import { confirmationsConcept } from "~/lib/concepts/confirmations";
 import { parentsConcept } from "~/lib/concepts/parents";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
+import { mailStatusCopy } from "~/lib/email-delivery-status";
 import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
@@ -788,6 +793,46 @@ export default function TraegerHolidayRegistrationPage() {
               </div>
             </SectionCard>
           )}
+          {/* Every mail of the registration with its status (#6976), like
+              the mails of an enrollment request. It stays away while no
+              mail exists: a card that always reads „keine Mail“ tells the
+              office nothing. */}
+          {registration.mails?.length ? (
+            <SectionCard
+              title="Mails"
+              description="Hier sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind."
+              namedRegion
+            >
+              <ul className="divide-y divide-gray-100">
+                {registration.mails.map((mail, index) => {
+                  const copy = mailStatusCopy(mail.outcome);
+                  return (
+                    <li
+                      key={`${mail.kind}-${index}`}
+                      className="flex flex-wrap items-center justify-between gap-2 py-2"
+                    >
+                      <span className="text-sm text-gray-900">
+                        {holidayMailLabel(mail.kind)}
+                      </span>
+                      {copy && (
+                        <StatusBadge
+                          label={copy.label}
+                          tone={copy.tone}
+                          compact
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              {registration.mailProblems.length > 0 && (
+                <p className="mt-2 text-sm text-gray-600">
+                  Nicht jede Mail hat die Eltern erreicht.{" "}
+                  {HOLIDAY_MAIL_NEXT_STEP}
+                </p>
+              )}
+            </SectionCard>
+          ) : null}
           <HolidayRegistrationHistory
             period={period}
             names={names}

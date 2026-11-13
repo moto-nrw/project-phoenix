@@ -170,31 +170,33 @@ func (m holidayTraegerMail) EnqueueTraegerMail(ctx context.Context, mail enrollm
 }
 
 // holidayMailStates reads what became of the Träger's mails of the holiday
-// registrations by idempotency key, in the caller's Träger transaction
-// (#6737), and names those that did not reach the parents in Enrollment's
-// words.
+// registrations, by registration and by idempotency key, in the caller's
+// Träger transaction (#6737, #6976), and names those that did not reach the
+// parents in Enrollment's words.
 type holidayMailStates struct {
 	mails deliveryRuntime.TraegerMails
 }
 
-func (s holidayMailStates) HolidayMailProblems(ctx context.Context, organizationID int64, keys []string) (map[string]string, error) {
+func (s holidayMailStates) HolidayMails(ctx context.Context, organizationID int64, registrationIDs []int64, keys []string) ([]enrollmentOwner.HolidayMailState, error) {
 	if s.mails == nil {
 		return nil, errors.New("holiday registration: the Träger mails of Delivery are not configured")
 	}
-	statuses, err := s.mails.TraegerEmailStatusesByKey(ctx, organizationID, keys)
+	statuses, err := s.mails.TraegerEmailStatusesOf(ctx, organizationID, enrollmentOwner.MailRelatedHolidayRegistration, registrationIDs, keys)
 	if err != nil {
 		return nil, err
 	}
-	problems := map[string]string{}
+	states := make([]enrollmentOwner.HolidayMailState, 0, len(statuses))
 	for _, status := range statuses {
-		if status.IdempotencyKey == nil {
-			continue
+		state := enrollmentOwner.HolidayMailState{Kind: status.Kind, Outcome: string(status.Outcome), Problem: holidayMailProblem(status.Outcome)}
+		if status.RelatedID != nil {
+			state.RegistrationID = *status.RelatedID
 		}
-		if state := holidayMailProblem(status.Outcome); state != "" {
-			problems[*status.IdempotencyKey] = state
+		if status.IdempotencyKey != nil {
+			state.IdempotencyKey = *status.IdempotencyKey
 		}
+		states = append(states, state)
 	}
-	return problems, nil
+	return states, nil
 }
 
 // holidayMailProblem names an outcome of a mail that did not reach the

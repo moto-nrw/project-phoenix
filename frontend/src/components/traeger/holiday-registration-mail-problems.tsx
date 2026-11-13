@@ -1,6 +1,7 @@
-// Mails of a holiday registration that did not reach the parents (#6737):
-// the receipt and the acceptance mail. The office learns it here, so it can
-// check the address and reach the family another way.
+// Mails of a holiday registration that did not reach the parents (#6737,
+// #6976): receipt, acceptance, place, closing day notice and parent account
+// offer. The office learns it here, so it can check the address and reach
+// the family another way.
 import { useEffect, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
@@ -60,16 +61,28 @@ export function useHolidayRegistrationMailProblems(
 
 // The receipt is no acceptance yet; its name keeps it apart from the
 // office's „Bestätigen“.
-const MAIL_NAMES: Record<HolidayRegistrationMailKind, string> = {
-  holiday_registration_received: "die Eingangsbestätigung",
-  holiday_registration_accepted: "die Annahme-Mail",
+const MAIL_LABELS: Record<HolidayRegistrationMailKind, string> = {
+  holiday_registration_received: "Eingangsbestätigung",
+  holiday_registration_accepted: "Annahme-Mail",
+  holiday_place_granted: "Mail zum Ferienplatz",
+  holiday_closure_notice: "Mail zu Schließtagen",
+  holiday_parent_account_offer: "Mail zum Elternkonto",
 };
+
+/** The name of a mail in a list, as „Eingangsbestätigung“ (#6976). */
+export function holidayMailLabel(kind: HolidayRegistrationMailKind): string {
+  return MAIL_LABELS[kind] ?? "E-Mail";
+}
+
+/** What the office does when a mail did not reach the parents. */
+export const HOLIDAY_MAIL_NEXT_STEP =
+  "Informieren Sie die Familie am besten per Telefon. Prüfen Sie die E-Mail-Adresse unter „Eltern“ und ändern Sie sie, wenn sie falsch ist.";
 
 /** One sentence per mail: which mail and what became of it. */
 function holidayMailProblemText(
   problem: HolidayRegistrationMailProblem,
 ): string {
-  const mail = MAIL_NAMES[problem.kind];
+  const mail = `die ${holidayMailLabel(problem.kind)}`;
   const Mail = mail.charAt(0).toUpperCase() + mail.slice(1);
   switch (problem.state) {
     case "blocked":
@@ -92,15 +105,12 @@ export function HolidayRegistrationMailProblemsAlert({
       title="E-Mail an die Eltern prüfen"
       message={
         <>
-          {problems.map((problem) => (
-            <span key={problem.kind} className="block">
+          {problems.map((problem, index) => (
+            <span key={`${problem.kind}-${index}`} className="block">
               {holidayMailProblemText(problem)}
             </span>
           ))}
-          <span className="block">
-            Prüfen Sie die E-Mail-Adresse unter Eltern. Informieren Sie die
-            Familie am besten per Telefon.
-          </span>
+          <span className="block">{HOLIDAY_MAIL_NEXT_STEP}</span>
         </>
       }
     />

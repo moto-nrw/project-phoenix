@@ -241,6 +241,10 @@ var ErrEmailSuppressionStaysAtProvider = errors.New("delivery: the provider keep
 type Status struct {
 	IdempotencyKey *string
 	ID             int64
+	// Kind is the template of the intent; RelatedID the entity it was
+	// enqueued for, nil without one (#6976).
+	Kind           string
+	RelatedID      *int64
 	Transport      Transport
 	State          State
 	Attempts       int

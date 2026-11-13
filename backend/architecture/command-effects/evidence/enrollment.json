@@ -1753,11 +1753,11 @@
       "target_owner": "traeger-view"
     },
     {
-      "binding": "github.com/moto-ogs/project-phoenix/api.holidayMailStates.HolidayMailProblems",
-      "binding_digest": "3f82d023ddf02842271e91f357431a97",
-      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayMailStates.HolidayMailProblems",
+      "binding": "github.com/moto-ogs/project-phoenix/api.holidayMailStates.HolidayMails",
+      "binding_digest": "bff328c1e2b6653cfef2089037b7273e",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayMailStates.HolidayMails",
       "source_owner": "enrollment",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.TraegerMails.TraegerEmailStatusesByKey",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.TraegerMails.TraegerEmailStatusesOf",
       "target_owner": "delivery-platform"
     },
     {

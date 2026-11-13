@@ -96,3 +96,76 @@ func TestHolidayRegistrationMailProblemsStayWithTheTraegerAndAreFlat(t *testing.
 	assert.Len(t, read().Statements, len(one.Statements), "the read is flat in the number of registrations")
 	querybudgets.AssertQueryBudget(t, "api.traeger.holiday_registration_mail_problems", one)
 }
+
+// #6976: the detail names every mail of the registration with its outcome,
+// all five kinds, and the warning and the list name the place, closing day
+// and account mails that did not arrive like the receipt. A family's closing
+// day notice relates to one registration and counts for each it names. A mail
+// held back at a blocked address never reads as sent. Another Träger reads
+// none of it.
+func TestHolidayRegistrationDetailNamesEveryMail(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Mailstand Alle")
+	ctx := context.Background()
+	mail := func(kind string, related int64, key, set string, args ...any) {
+		var id int64
+		require.NoError(t, f.db.NewRaw(`INSERT INTO platform.email_outbox
+			(organization_id, kind, recipient, payload, related_entity_type, related_entity_id, idempotency_key)
+			VALUES (?, ?, '{"address":"eva.muster@example.org"}', '{}', ?, ?, ?) RETURNING id`,
+			f.office.organization, kind, enrollment.MailRelatedHolidayRegistration, related, key).Scan(ctx, &id))
+		_, err := f.db.NewRaw(`UPDATE platform.email_outbox SET `+set+` WHERE id = ?`, append(args, id)...).Exec(ctx)
+		require.NoError(t, err)
+	}
+	mail(enrollment.MailKindHolidayPlaceGranted, f.siblings, "holiday-place-granted:test",
+		`status = 'sent', sent_at = NOW(), delivery_state = 'delivered', delivery_state_at = NOW()`)
+	mail(enrollment.MailKindHolidayParentAccountOffer, f.siblings, "holiday-parent-account-offer:test",
+		`status = 'sent', sent_at = NOW()`)
+	closureKey := "holiday-closure-op:test:family"
+	mail(enrollment.MailKindHolidayClosureNotice, f.siblings, closureKey,
+		`status = 'cancelled', last_error = ?, cancelled_at = NOW()`, deliveryContract.MailHeldByList)
+	for _, registration := range []int64{f.siblings, f.again} {
+		_, err := f.db.NewRaw(`INSERT INTO enrollment.holiday_closure_sends
+			(organization_id, operation_id, family_key, holiday_registration_id, idempotency_key)
+			VALUES (?, '00000000-0000-4000-8000-000000006976', repeat('a', 64), ?, ?)`,
+			f.office.organization, registration, closureKey).Exec(ctx)
+		require.NoError(t, err)
+	}
+
+	detail := func(id int64) enrollment.HolidayRegistrationDetail {
+		rec := traegerJSON(t, f.traeger, f.office.token, http.MethodGet, f.registrationPath(id, ""), nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return decodeSchoolPortalData[enrollment.HolidayRegistrationDetail](t, rec.Body.Bytes())
+	}
+	outcomes := func(mails []enrollment.RequestMailOutcome) map[string]string {
+		byKind := map[string]string{}
+		for _, mail := range mails {
+			byKind[mail.Kind] = mail.Outcome
+		}
+		return byKind
+	}
+	siblings := detail(f.siblings)
+	assert.Equal(t, map[string]string{
+		enrollment.MailKindHolidayRegistrationReceived: string(deliveryContract.EmailQueued),
+		enrollment.MailKindHolidayPlaceGranted:         string(deliveryContract.EmailDelivered),
+		enrollment.MailKindHolidayParentAccountOffer:   string(deliveryContract.EmailAccepted),
+		enrollment.MailKindHolidayClosureNotice:        string(deliveryContract.EmailBlocked),
+	}, outcomes(siblings.Mails))
+	for _, mail := range siblings.Mails {
+		assert.Empty(t, mail.AddressMark, "a Träger keeps no address list")
+	}
+	closure := []enrollment.HolidayRegistrationMailProblem{{Kind: enrollment.MailKindHolidayClosureNotice, State: enrollment.HolidayMailBlocked}}
+	assert.Equal(t, closure, siblings.MailProblems, "the held back notice is a problem, the sent mails are none")
+
+	again := detail(f.again)
+	assert.Equal(t, map[string]string{
+		enrollment.MailKindHolidayRegistrationReceived: string(deliveryContract.EmailQueued),
+		enrollment.MailKindHolidayClosureNotice:        string(deliveryContract.EmailBlocked),
+	}, outcomes(again.Mails), "the family's notice names the second registration too")
+	assert.Equal(t, closure, again.MailProblems)
+	assert.Equal(t, map[int64][]enrollment.HolidayRegistrationMailProblem{f.siblings: closure, f.again: closure}, f.mailProblems(t))
+
+	other := newTraegerOffice(t, f.db, f.traeger, "Mailstand Alle Fremd", identityaccess.TraegerRoleAdministration)
+	rec := traegerJSON(t, f.traeger, other.token, http.MethodGet, f.registrationPath(f.siblings, ""), nil)
+	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	assert.NotContains(t, rec.Body.String(), "holiday_closure_notice", "another Träger reads none of the mails")
+}

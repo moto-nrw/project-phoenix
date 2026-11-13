@@ -18,6 +18,7 @@ import {
   debtorNumberFormatOf,
 } from "~/lib/debtor-number-format";
 import { apiErrorFromBody, transportFetch } from "./api-error";
+import type { MailOutcome } from "./email-delivery-status";
 import { filenameFromDisposition } from "./file-download";
 import {
   type BackendConsentTexts,
@@ -129,9 +130,22 @@ export interface HolidayRegistrationChild {
   readonly holidayWishCheck: boolean;
 }
 
-/** Which mail of a registration to the parents (#6737). */
+/** Which mail of a registration to the parents (#6737, #6976). */
 export type HolidayRegistrationMailKind =
-  "holiday_registration_received" | "holiday_registration_accepted";
+  | "holiday_registration_received"
+  | "holiday_registration_accepted"
+  | "holiday_place_granted"
+  | "holiday_closure_notice"
+  | "holiday_parent_account_offer";
+
+/**
+ * One mail of a registration with what became of it, in Delivery's words
+ * (#6976). A Träger keeps no address list, so no mail carries a mark.
+ */
+export interface HolidayRegistrationMail {
+  readonly kind: HolidayRegistrationMailKind;
+  readonly outcome: MailOutcome;
+}
 
 /**
  * What became of a mail that did not reach the parents (#6737): moto gave it
@@ -166,7 +180,7 @@ export interface HolidayRegistrationSummary {
    */
   readonly deletesOn: string | null;
   readonly healthDeletesOn: string | null;
-  /** Receipt and acceptance mails that did not reach the parents (#6737). */
+  /** Mails that did not reach the parents (#6737, #6976). */
   readonly mailProblems: readonly HolidayRegistrationMailProblem[];
   readonly children: readonly HolidayRegistrationChild[];
 }
@@ -344,6 +358,8 @@ export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
   >;
   /** Only in a period by criteria (#4700); empty otherwise. */
   readonly criteria?: readonly HolidayRegistrationCriterion[];
+  /** Every mail to the parents, oldest first (#6976). */
+  readonly mails?: readonly HolidayRegistrationMail[];
 }
 
 interface BackendCheck {
@@ -479,6 +495,7 @@ interface BackendDetail extends BackendSummary {
         checked_at: string | null;
       }[]
     | null;
+  mails?: HolidayRegistrationMail[] | null;
 }
 
 function checksFromBackend(
@@ -636,6 +653,10 @@ function detailFromBackend(
       stated: criterion.stated,
       checked: criterion.checked,
       checkedAt: criterion.checked_at,
+    })),
+    mails: (registration.mails ?? []).map((mail) => ({
+      kind: mail.kind,
+      outcome: mail.outcome,
     })),
   };
 }
