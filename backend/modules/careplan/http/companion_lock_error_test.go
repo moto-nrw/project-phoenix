@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"errors"

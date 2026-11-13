@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"testing"
@@ -6,6 +6,8 @@ import (
 	peopleState "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 	"github.com/stretchr/testify/assert"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 // TestApplyBusDays verifies the create/update bus_days resolution (#1582):
@@ -84,7 +86,7 @@ func TestApplyBusDays(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			student := &peopleState.StudentState{BusDays: tc.existing}
-			applyBusDays(tc.legacyBus, tc.days, student)
+			careplanhttp.ApplyBusDaysForTest(tc.legacyBus, tc.days, student)
 			assert.Equal(t, tc.want, student.BusDays)
 		})
 	}

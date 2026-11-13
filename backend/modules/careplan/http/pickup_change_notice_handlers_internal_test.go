@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"context"
@@ -9,13 +9,15 @@ import (
 	"testing"
 	"time"
 
-	chi "github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
 	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 type pickupNoticesDouble struct {
@@ -34,15 +36,9 @@ func (d *pickupNoticesDouble) MarkPickupChangeNoticesRead(_ context.Context, rea
 	return []careplan.PickupChangeTeamNotice{}, nil
 }
 
-func pickupNoticeRequest(method, target string, accountID int, id, body string) *http.Request {
+func pickupNoticeRequest(method, target string, accountID int, body string) *http.Request {
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
-	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: accountID})
-	if id != "" {
-		route := chi.NewRouteContext()
-		route.URLParams.Add("id", id)
-		ctx = context.WithValue(ctx, chi.RouteCtxKey, route)
-	}
-	return req.WithContext(ctx)
+	return req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: accountID}))
 }
 
 // The header reads only the caller's own markers, with the child's first
@@ -53,10 +49,10 @@ func TestPickupChangeNoticeRoutesServeTheCallersMarkers(t *testing.T) {
 	notices := &pickupNoticesDouble{notices: []careplan.PickupChangeTeamNotice{{
 		RequestID: 5, StudentID: 77, StudentFirstName: "Mia", Date: calendar.NewDate(2026, 11, 13), PickupTime: "15:00", InformedAt: informed,
 	}}}
-	rs := &Resource{ResourceConfig: ResourceConfig{PickupChangeNotices: notices}}
+	rs := &careplanhttp.Resource{ResourceConfig: careplanhttp.ResourceConfig{PickupChangeNotices: notices}}
 
 	w := httptest.NewRecorder()
-	rs.listPickupChangeNotices(w, pickupNoticeRequest(http.MethodGet, "/pickup-change-notices", 41, "", ""))
+	serveRoute(t, rs, w, pickupNoticeRequest(http.MethodGet, "/students/pickup-change-notices", 41, ""), permissions.UsersRead)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Equal(t, int64(41), notices.reader)
 	var body struct {
@@ -70,23 +66,23 @@ func TestPickupChangeNoticeRoutesServeTheCallersMarkers(t *testing.T) {
 	}, body.Data[0])
 
 	w = httptest.NewRecorder()
-	rs.readPickupChangeNotices(w, pickupNoticeRequest(http.MethodPost, "/77/pickup-change-notices/read", 41, "77",
-		`{"notices":[{"request_id":"5","informed_at":"2026-11-12T08:00:00.123456Z"}]}`))
+	serveRoute(t, rs, w, pickupNoticeRequest(http.MethodPost, "/students/77/pickup-change-notices/read", 41,
+		`{"notices":[{"request_id":"5","informed_at":"2026-11-12T08:00:00.123456Z"}]}`), permissions.UsersRead)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Equal(t, int64(77), notices.student)
 	assert.Equal(t, []careplan.PickupChangeNoticeRevision{{RequestID: 5, InformedAt: time.Date(2026, 11, 12, 8, 0, 0, 123456000, time.UTC)}}, notices.observed)
 	assert.JSONEq(t, `[]`, string(mustData(t, w)))
 
 	w = httptest.NewRecorder()
-	rs.readPickupChangeNotices(w, pickupNoticeRequest(http.MethodPost, "/x/pickup-change-notices/read", 41, "x", `{"notices":[]}`))
+	serveRoute(t, rs, w, pickupNoticeRequest(http.MethodPost, "/students/x/pickup-change-notices/read", 41, `{"notices":[]}`), permissions.UsersRead)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
 	w = httptest.NewRecorder()
-	rs.readPickupChangeNotices(w, pickupNoticeRequest(http.MethodPost, "/77/pickup-change-notices/read", 41, "77", `not json`))
+	serveRoute(t, rs, w, pickupNoticeRequest(http.MethodPost, "/students/77/pickup-change-notices/read", 41, `not json`), permissions.UsersRead)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
 	w = httptest.NewRecorder()
-	(&Resource{}).listPickupChangeNotices(w, pickupNoticeRequest(http.MethodGet, "/pickup-change-notices", 41, "", ""))
+	serveRoute(t, &careplanhttp.Resource{}, w, pickupNoticeRequest(http.MethodGet, "/students/pickup-change-notices", 41, ""), permissions.UsersRead)
 	assert.Equal(t, http.StatusInternalServerError, w.Code, "an unbound capability is a server error, never an empty list")
 }
 

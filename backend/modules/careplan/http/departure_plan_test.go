@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"testing"
@@ -6,6 +6,8 @@ import (
 	peopleState "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 	dep "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 	"github.com/stretchr/testify/assert"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 func TestApplyDeparturePlan_NoInputPreservesAllowedModes(t *testing.T) {
@@ -21,7 +23,7 @@ func TestApplyDeparturePlan_NoInputPreservesAllowedModes(t *testing.T) {
 		BusDays: dep.BusDays{dep.PickupDayMonday: true},
 	}
 
-	applyDeparturePlan(nil, nil, nil, nil, nil, nil, student)
+	careplanhttp.ApplyDeparturePlanForTest(nil, nil, nil, nil, nil, nil, student)
 
 	assert.Equal(t, dep.AllowedDepartureModes{
 		dep.PickupDayMonday: []dep.DepartureMode{
@@ -51,7 +53,7 @@ func TestApplyDeparturePlan_LegacyDepartureDoesNotCollapseAllowedModes(t *testin
 		dep.PickupDayMonday: dep.DeparturePickup,
 	}
 
-	applyDeparturePlan(nil, &departure, nil, nil, nil, nil, student)
+	careplanhttp.ApplyDeparturePlanForTest(nil, &departure, nil, nil, nil, nil, student)
 
 	assert.Equal(t, dep.AllowedDepartureModes{
 		dep.PickupDayMonday: []dep.DepartureMode{
@@ -80,7 +82,7 @@ func TestApplyDeparturePlan_LegacyMapsDoNotReplaceAllowedModes(t *testing.T) {
 	}
 	busDays := dep.BusDays{dep.PickupDayTuesday: true}
 
-	applyDeparturePlan(nil, nil, nil, nil, nil, &busDays, student)
+	careplanhttp.ApplyDeparturePlanForTest(nil, nil, nil, nil, nil, &busDays, student)
 
 	assert.Equal(t, dep.BusDays{dep.PickupDayTuesday: true}, student.BusDays)
 	assert.Equal(t, dep.AllowedDepartureModes{
