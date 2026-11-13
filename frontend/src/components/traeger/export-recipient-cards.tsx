@@ -1,39 +1,55 @@
 "use client";
 
-// The recipient of the finance exports of a Träger (#6824, ADR 0218): the
-// form of the SFTP access, saved with a password that never comes back,
-// and the newest handovers with their outcome.
+// The recipients of the finance exports of a Träger (#6824, ADR 0218; #6911,
+// ADR 0221): which file goes to which recipient, the list of recipients with
+// their state, the form of one recipient's access, saved with a password
+// that never comes back, and the newest handovers with their outcome.
 
-import { KeyRound, Send } from "lucide-react";
+import { ArrowRightLeft, Inbox, KeyRound, Send } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   HANDOVER_FORMAT_LABELS,
   HANDOVER_STATE_LABELS,
   HANDOVER_STATE_TONES,
   HANDOVER_UNKNOWN_TEXT,
+  destinationText,
+  exportRecipientPath,
+  formatsText,
   handoverReasonText,
+  recipientStatus,
 } from "~/components/traeger/export-handover-format";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { FramedList } from "~/components/ui/framed-list";
+import { IconTile } from "~/components/ui/icon-tile";
 import { Input } from "~/components/ui/input";
+import { ListRowLink } from "~/components/ui/list-row-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SwitchRow } from "~/components/ui/switch";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatBerlinDate, formatBerlinTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import type {
-  ExportHandover,
-  ExportRecipient,
-  ExportRecipientDraft,
+import {
+  type ExportFormatAssignment,
+  type ExportHandover,
+  type ExportRecipient,
+  type ExportRecipientDraft,
+  type ExportRecipientsPage,
+  HANDOVER_FORMATS,
+  type HandoverFormat,
 } from "~/lib/traeger-export-handovers-api";
+import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "ExportRecipientCards" });
 
 interface Draft {
+  readonly name: string;
   readonly enabled: boolean;
   readonly host: string;
   readonly port: string;
@@ -43,9 +59,22 @@ interface Draft {
   readonly hostKeyFingerprint: string;
 }
 
-function draftOf(recipient: ExportRecipient): Draft {
+const EMPTY_DRAFT: Draft = {
+  name: "",
+  enabled: true,
+  host: "",
+  port: "22",
+  username: "",
+  password: "",
+  remoteDirectory: "",
+  hostKeyFingerprint: "",
+};
+
+function draftOf(recipient: ExportRecipient | null): Draft {
+  if (!recipient) return EMPTY_DRAFT;
   return {
-    enabled: recipient.configured ? recipient.enabled : true,
+    name: recipient.name,
+    enabled: recipient.enabled,
     host: recipient.host,
     port: String(recipient.port || 22),
     username: recipient.username,
@@ -71,15 +100,18 @@ function destinationChanged(recipient: ExportRecipient, draft: Draft) {
 const PASSWORD_AGAIN =
   "Bitte geben Sie das Passwort noch einmal ein. moto schickt es nur an die Adresse, für die Sie es eingegeben haben.";
 
-/** The form of the SFTP access of the recipient. */
+/**
+ * The form of one recipient: its name and its access. Without a recipient
+ * it adds a new one; removing is offered only for a saved one.
+ */
 export function ExportRecipientFormCard({
   recipient,
   onSave,
   onDelete,
 }: Readonly<{
-  recipient: ExportRecipient;
+  recipient: ExportRecipient | null;
   onSave: (draft: ExportRecipientDraft) => Promise<void>;
-  onDelete: () => Promise<void>;
+  onDelete?: () => Promise<void>;
 }>) {
   const [draft, setDraft] = useState<Draft>(() => draftOf(recipient));
   const [saving, setSaving] = useState(false);
@@ -104,10 +136,12 @@ export function ExportRecipientFormCard({
     formErrors.clear();
     const port = Number(draft.port);
     const fields: Record<string, string> = {};
+    if (!draft.name.trim())
+      fields.name = "Bitte geben Sie dem Empfänger einen Namen.";
     if (!Number.isInteger(port) || port < 1 || port > 65535)
       fields.port = "Bitte geben Sie eine Zahl zwischen 1 und 65535 ein.";
     if (
-      recipient.passwordSet &&
+      recipient?.passwordSet &&
       !draft.password &&
       destinationChanged(recipient, draft)
     )
@@ -119,6 +153,7 @@ export function ExportRecipientFormCard({
     setSaving(true);
     try {
       await onSave({
+        name: draft.name.trim(),
         enabled: draft.enabled,
         host: draft.host.trim(),
         port,
@@ -127,7 +162,7 @@ export function ExportRecipientFormCard({
         remoteDirectory: draft.remoteDirectory.trim(),
         hostKeyFingerprint: draft.hostKeyFingerprint.trim(),
       });
-      success("Der Empfänger ist gespeichert.");
+      success(`${draft.name.trim()} ist gespeichert.`);
     } catch (err) {
       logger.error("traeger_export_recipient_save_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -139,12 +174,15 @@ export function ExportRecipientFormCard({
   };
 
   const remove = async () => {
+    if (!onDelete) return;
     setDeleting(true);
     deleteErrors.clear();
     try {
       await onDelete();
       setConfirmDelete(false);
-      success("Der Empfänger ist entfernt. Das Passwort ist gelöscht.");
+      success(
+        `${recipient?.name ?? "Der Empfänger"} ist entfernt. Das Passwort ist gelöscht.`,
+      );
     } catch (err) {
       logger.error("traeger_export_recipient_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -155,9 +193,14 @@ export function ExportRecipientFormCard({
     }
   };
 
-  const passwordHint = recipient.passwordSet
+  const passwordHint = recipient?.passwordSet
     ? "Ist gespeichert und wird nicht angezeigt. Nur ausfüllen, um es zu ändern."
     : "moto speichert es verschlüsselt und zeigt es nie wieder an.";
+  const formats = recipient?.formats ?? [];
+  const deleteDescription =
+    formats.length > 0
+      ? `moto löscht Adresse, Benutzername und Passwort. ${formatsText(formats)} können Sie danach nur herunterladen, bis Sie sie einem anderen Empfänger zuordnen. Der Verlauf der Übergaben bleibt.`
+      : "moto löscht Adresse, Benutzername und Passwort. Der Empfänger bekommt keine Datei, nichts geht auf den Download zurück. Der Verlauf der Übergaben bleibt.";
 
   return (
     <SectionCard
@@ -166,12 +209,12 @@ export function ExportRecipientFormCard({
       icon={KeyRound}
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
-          {recipient.configured ? (
+          {recipient && onDelete ? (
             <Button
               type="button"
               variant="outline_danger"
               size="md"
-              tooltip="Löscht Adresse und Passwort. moto fragt vorher nach."
+              tooltip="Löscht den Empfänger mit Passwort. moto fragt vorher nach."
               onClick={() => setConfirmDelete(true)}
             >
               Empfänger entfernen
@@ -186,11 +229,11 @@ export function ExportRecipientFormCard({
             size="md"
             isLoading={saving}
             loadingText="Speichert…"
-            disabled={!changed && recipient.configured}
+            disabled={!changed && recipient !== null}
             disabledReason="Sie haben noch nichts geändert."
             noTooltip="Ein reines Speichern ohne Folgen."
           >
-            Speichern
+            {recipient ? "Speichern" : "Empfänger anlegen"}
           </Button>
         </div>
       }
@@ -203,9 +246,20 @@ export function ExportRecipientFormCard({
         onSubmit={(event) => void submit(event)}
       >
         <FormErrorAlert message={formErrors.error} />
+        <Input
+          name="name"
+          label="Name"
+          required
+          placeholder="Kämmerei"
+          hint="So erscheint der Empfänger bei den Exporten, zum Beispiel „Kämmerei“ oder „Steuerbüro“."
+          autoComplete="off"
+          value={draft.name}
+          error={formErrors.fieldError("name") ?? undefined}
+          onChange={(event) => set({ name: event.target.value })}
+        />
         <SwitchRow
           label="Übergabe einschalten"
-          description="Bei den Exporten erscheint dann neben dem Herunterladen auch „Übergeben“."
+          description="Nur dann übergibt moto Dateien an diesen Empfänger."
           checked={draft.enabled}
           onCheckedChange={(enabled) => set({ enabled })}
         />
@@ -246,7 +300,7 @@ export function ExportRecipientFormCard({
             type="password"
             revealable
             autoComplete="new-password"
-            placeholder={recipient.passwordSet ? "••••••••" : undefined}
+            placeholder={recipient?.passwordSet ? "••••••••" : undefined}
             hint={passwordHint}
             value={draft.password}
             error={formErrors.fieldError("password") ?? undefined}
@@ -275,22 +329,210 @@ export function ExportRecipientFormCard({
           onChange={(event) => set({ hostKeyFingerprint: event.target.value })}
         />
       </form>
-      <ConfirmDeleteModal
-        isOpen={confirmDelete}
-        title="Empfänger entfernen?"
-        description="moto löscht Adresse, Benutzername und Passwort. Bis Sie einen neuen Empfänger eintragen, können Sie die Dateien nur herunterladen. Der Verlauf der Übergaben bleibt."
-        gate={{ mode: "twoStep", firstStepLabel: "Entfernen" }}
-        confirmLabel="Ja, entfernen"
-        loading={deleting}
-        error={deleteErrors.error}
-        onConfirm={remove}
-        onClose={() => setConfirmDelete(false)}
-      />
+      {recipient && onDelete ? (
+        <ConfirmDeleteModal
+          isOpen={confirmDelete}
+          title={`${recipient.name} entfernen?`}
+          description={deleteDescription}
+          gate={{ mode: "twoStep", firstStepLabel: "Entfernen" }}
+          confirmLabel="Ja, entfernen"
+          loading={deleting}
+          error={deleteErrors.error}
+          onConfirm={remove}
+          onClose={() => setConfirmDelete(false)}
+        />
+      ) : null}
     </SectionCard>
   );
 }
 
-function handoverColumns(): DataTableColumn<ExportHandover>[] {
+/** The value of the select for the download, never a recipient id. */
+const DOWNLOAD = "";
+
+const FORMAT_HINTS: Record<HandoverFormat, string> = {
+  sollstellung: "Für die Kämmerei oder Kasse",
+  datev: "Für das Steuerbüro oder die Buchhaltung",
+  pain008: "Für die Bank",
+};
+
+function assignmentsOf(page: ExportRecipientsPage) {
+  return Object.fromEntries(
+    HANDOVER_FORMATS.map((format) => [
+      format,
+      page.assignments.find((assignment) => assignment.format === format)
+        ?.recipientId ?? DOWNLOAD,
+    ]),
+  ) as Record<HandoverFormat, string>;
+}
+
+/**
+ * Which file goes to which recipient: one select per format, saved as a
+ * whole. A format without a recipient stays a download.
+ */
+export function ExportFormatAssignmentCard({
+  page,
+  onSave,
+}: Readonly<{
+  page: ExportRecipientsPage;
+  onSave: (assignments: readonly ExportFormatAssignment[]) => Promise<void>;
+}>) {
+  const [draft, setDraft] = useState(() => assignmentsOf(page));
+  const [saving, setSaving] = useState(false);
+  const errors = useApiFormError();
+  const { success } = useToast();
+
+  useEffect(() => setDraft(assignmentsOf(page)), [page]);
+
+  const saved = assignmentsOf(page);
+  const changed = HANDOVER_FORMATS.some(
+    (format) => draft[format] !== saved[format],
+  );
+  const options = [
+    { value: DOWNLOAD, label: "Nur herunterladen" },
+    ...page.recipients.map((recipient) => ({
+      value: recipient.id,
+      label: recipient.ready
+        ? recipient.name
+        : `${recipient.name} (${recipientStatus(recipient).label})`,
+    })),
+  ];
+
+  const save = async () => {
+    errors.clear();
+    setSaving(true);
+    try {
+      await onSave(
+        HANDOVER_FORMATS.map((format) => ({
+          format,
+          recipientId: draft[format] === DOWNLOAD ? null : draft[format],
+        })),
+      );
+      success("Die Zuordnung ist gespeichert.");
+    } catch (err) {
+      logger.error("traeger_export_formats_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void errors.show(err, { object: "die Zuordnung" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <SectionCard
+      title="Welche Datei geht wohin"
+      description="Jede Datei geht an genau einen Empfänger. Ohne Empfänger laden Sie sie herunter."
+      icon={ArrowRightLeft}
+      footer={
+        <EditActions
+          onCancel={() => setDraft(saved)}
+          onSave={() => void save()}
+          saving={saving}
+          disabled={!changed}
+          cancelDisabled={!changed || saving}
+        />
+      }
+    >
+      <FormErrorAlert message={errors.error} />
+      <ul className="divide-y divide-gray-100">
+        {HANDOVER_FORMATS.map((format) => {
+          const chosen = page.recipients.find(
+            (recipient) => recipient.id === draft[format],
+          );
+          return (
+            <li
+              key={format}
+              className="grid gap-3 py-4 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] sm:items-center sm:gap-6"
+            >
+              <span className="min-w-0">
+                <span
+                  id={`export-format-${format}`}
+                  className="block font-medium text-gray-900"
+                >
+                  {HANDOVER_FORMAT_LABELS[format]}
+                </span>
+                <span className="block text-sm text-gray-500">
+                  {FORMAT_HINTS[format]}
+                </span>
+              </span>
+              <CustomSelect
+                ariaLabelledBy={`export-format-${format}`}
+                value={draft[format]}
+                options={options}
+                onChange={(value) =>
+                  setDraft((current) => ({ ...current, [format]: value }))
+                }
+                hint={
+                  chosen && !chosen.ready
+                    ? `Bis ${chosen.name} bereit ist, übergibt moto nichts.`
+                    : undefined
+                }
+              />
+            </li>
+          );
+        })}
+      </ul>
+    </SectionCard>
+  );
+}
+
+/** Every recipient of the Träger with its state and the files it receives. */
+export function ExportRecipientListCard({
+  recipients,
+}: Readonly<{ recipients: readonly ExportRecipient[] }>) {
+  return (
+    <SectionCard
+      title="Empfänger"
+      description="Jeder Empfänger hat seinen eigenen Zugang. Öffnen Sie einen Empfänger, um ihn zu ändern."
+      icon={Inbox}
+      flush={recipients.length > 0}
+    >
+      {recipients.length === 0 ? (
+        <EmptyState
+          variant="compact"
+          title="Noch kein Empfänger."
+          description="Fügen Sie oben einen Empfänger hinzu, zum Beispiel Ihre Kämmerei."
+        />
+      ) : (
+        <FramedList className="rounded-none border-0">
+          {recipients.map((recipient) => {
+            const status = recipientStatus(recipient);
+            return (
+              <ListRowLink
+                key={recipient.id}
+                href={traegerPath(exportRecipientPath(recipient.id))}
+                icon={<IconTile icon={<Inbox aria-hidden />} size="sm" />}
+                title={recipient.name}
+                subtitle={
+                  <>
+                    <span className="block break-words">
+                      {recipient.host
+                        ? destinationText(
+                            recipient.host,
+                            recipient.remoteDirectory,
+                          )
+                        : "Noch keine Adresse"}
+                    </span>
+                    <span className="block text-gray-500">
+                      {recipient.formats.length > 0
+                        ? `Bekommt: ${formatsText(recipient.formats)}`
+                        : "Bekommt noch keine Datei"}
+                    </span>
+                  </>
+                }
+                badge={<StatusBadge label={status.label} tone={status.tone} />}
+              />
+            );
+          })}
+        </FramedList>
+      )}
+    </SectionCard>
+  );
+}
+
+function handoverColumns(
+  showRecipient: boolean,
+): DataTableColumn<ExportHandover>[] {
   return [
     {
       key: "when",
@@ -321,9 +563,17 @@ function handoverColumns(): DataTableColumn<ExportHandover>[] {
     },
     {
       key: "target",
-      header: "Ziel",
+      header: showRecipient ? "Empfänger" : "Ziel",
       render: (handover) => (
         <span className="min-w-0 text-sm text-gray-600">
+          {showRecipient && handover.recipientName ? (
+            <span className="block font-medium break-words text-gray-900">
+              {handover.recipientName}
+              {handover.recipientId === null ? (
+                <span className="font-normal text-gray-500"> (entfernt)</span>
+              ) : null}
+            </span>
+          ) : null}
           <span className="block break-words">{handover.targetHost}</span>
           {handover.targetDirectory ? (
             <span className="block break-words text-gray-500">
@@ -358,10 +608,15 @@ function handoverColumns(): DataTableColumn<ExportHandover>[] {
   ];
 }
 
-/** The newest handovers of the Träger, every attempt on its own row. */
+/** The newest handovers, every attempt on its own row. */
 export function ExportHandoverHistoryCard({
   handovers,
-}: Readonly<{ handovers: readonly ExportHandover[] }>) {
+  showRecipient = false,
+}: Readonly<{
+  handovers: readonly ExportHandover[];
+  /** On the list of all recipients each row names its recipient. */
+  showRecipient?: boolean;
+}>) {
   return (
     <SectionCard
       title="Letzte Übergaben"
@@ -370,7 +625,7 @@ export function ExportHandoverHistoryCard({
       flush
     >
       <DataTable
-        columns={handoverColumns()}
+        columns={handoverColumns(showRecipient)}
         rows={[...handovers]}
         getRowKey={(handover) => handover.id}
         stackedOnMobile

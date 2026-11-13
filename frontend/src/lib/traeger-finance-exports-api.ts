@@ -145,6 +145,8 @@ export interface ExportProtocolEntry {
 export interface ProtocolHandover {
   readonly state: HandoverState;
   readonly reason: string;
+  /** The recipient at the handover (ADR 0221); empty for an older one. */
+  readonly recipientName: string;
   readonly targetHost: string;
   readonly targetDirectory: string;
 }
@@ -250,6 +252,7 @@ interface BackendEntry {
   handover?: {
     state: HandoverState;
     reason?: string;
+    recipient_name?: string;
     target_host: string;
     target_directory: string;
   } | null;
@@ -379,6 +382,7 @@ function entryFromBackend(entry: BackendEntry): ExportProtocolEntry {
       ? {
           state: entry.handover.state,
           reason: entry.handover.reason ?? "",
+          recipientName: entry.handover.recipient_name ?? "",
           targetHost: entry.handover.target_host,
           targetDirectory: entry.handover.target_directory,
         }

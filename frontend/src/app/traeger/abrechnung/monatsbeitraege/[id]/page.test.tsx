@@ -16,7 +16,7 @@ const { api } = vi.hoisted(() => ({
 // The recipient of the handover (ADR 0218) is tested on its own.
 vi.mock("~/lib/traeger-export-handovers-api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  fetchExportRecipient: () => new Promise(() => undefined),
+  fetchExportRecipients: () => new Promise(() => undefined),
 }));
 vi.mock("~/lib/traeger-care-billing-api", async (original) => ({
   ...(await original<typeof import("~/lib/traeger-care-billing-api")>()),
