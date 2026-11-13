@@ -113,7 +113,7 @@ func TestActivityCategoriesListFailurePaths(t *testing.T) {
 			// A read the client canceled is no server error: 499, never a
 			// buffered success.
 			wantStatus, wantCode := http.StatusInternalServerError, "general.server"
-			if scenario.cancelAfter {
+			if scenario.cancelBefore || scenario.cancelAfter {
 				wantStatus, wantCode = 499, "general.unavailable"
 			}
 			require.Equal(t, wantStatus, response.Code, response.Body.String())

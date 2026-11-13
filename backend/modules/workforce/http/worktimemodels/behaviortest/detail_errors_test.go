@@ -33,7 +33,7 @@ func TestWorkTimeModelDetailProtectedFailures(t *testing.T) {
 		{name: "permission before transaction", status: http.StatusForbidden, detail: "Forbidden"},
 		{name: "malformed id", id: "invalid", permission: "time_tracking:manage", status: http.StatusBadRequest, detail: `strconv.ParseInt: parsing "invalid": invalid syntax`, statements: 3},
 		{name: "nonpositive id", id: "0", permission: "time_tracking:manage", status: http.StatusBadRequest, detail: "work time model ID is required", statements: 3},
-		{name: "cancel before transaction", permission: "time_tracking:manage", cancel: true, status: http.StatusInternalServerError, detail: "Internal Server Error", statements: 0},
+		{name: "cancel before transaction", permission: "time_tracking:manage", cancel: true, status: 499, detail: "unit of work: start transaction: context canceled", statements: 0},
 		{name: "model read error", permission: "time_tracking:manage", breakTable: "work_time_models", status: http.StatusInternalServerError,
 			detail: `workforce postgres: find work-time model: `, statements: 4},
 		{name: "nested entry read error", permission: "time_tracking:manage", breakTable: "work_time_model_entries", status: http.StatusInternalServerError,
@@ -92,15 +92,17 @@ func TestWorkTimeModelDetailProtectedFailures(t *testing.T) {
 			t.Logf("work_time_model_detail_failure=%s statements=%d body=%s queries_json=%s", test.name, counter.Total(), response.Body.String(), encoded)
 			require.Equal(t, test.status, response.Code, response.Body.String())
 			require.Equal(t, "application/json", response.Header().Get("Content-Type"))
-			code, anchor := "general.input", "anleitung-eingabe-pruefen"
+			code, anchor, title := "general.input", "anleitung-eingabe-pruefen", http.StatusText(test.status)
 			switch test.status {
+			case 499: // the client went away: no server error
+				code, anchor, title = "general.unavailable", "anleitung-gerade-nicht-erreichbar", "Client Closed Request"
 			case http.StatusForbidden:
 				code, anchor = "general.permission", "anleitung-zugriff-pruefen"
 			case http.StatusInternalServerError:
 				code, anchor = "general.server", "anleitung-unerwarteter-fehler"
 			}
 			want, encodeErr := json.Marshal(map[string]any{
-				"type": "https://moto-app.de/help/fehlermeldungen#" + anchor, "title": http.StatusText(test.status),
+				"type": "https://moto-app.de/help/fehlermeldungen#" + anchor, "title": title,
 				"status": test.status, "detail": detail, "instance": "", "code": code,
 			})
 			require.NoError(t, encodeErr)

@@ -335,7 +335,8 @@ func TestStaffNoticeListRouteContracts(t *testing.T) {
 				counter.Start()
 				rec = routetest.ExecuteRequestForTest(t, f.router, req.WithContext(cancelled))
 				counter.Stop()
-				routetest.AssertErrorResponse(t, rec, http.StatusInternalServerError)
+				// The client went away before the transaction began: 499.
+				routetest.AssertErrorResponse(t, rec, 499)
 				require.NotContains(t, rec.Body.String(), `"data"`, "a failed request must not return a partial list")
 				require.NotContains(t, counter.Queries(), "COMMIT", "cancelled request must not commit")
 				assertNoticeBudgetReadOnly(t, counter)
