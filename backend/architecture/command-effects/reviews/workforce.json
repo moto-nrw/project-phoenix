@@ -18093,12 +18093,12 @@
     },
     {
       "adr": "0067",
-      "approval_adr": "0228",
+      "approval_adr": "0229",
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.WorkforceAbsenceWrites.ApproveAbsence",
       "classification": "workflow",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking.AdminAbsenceWrites.ApproveAbsence",
-      "reason": "HTTP transport entry (#4825, ADR 0099): the port is the consuming http package's own interface and the root binds the workflow entry; no domain application calls it. Shift Plan Sync SickReports runs Workforce's absence write and the SickCascadePlan it returns in one tenant transaction: absence lock before the cascade's shift and day locks; a failed plan step aborts the write. Since #6847 an approval cascades the approved absence and a withdrawal of an approved request reverses it (ADR 0228).",
+      "reason": "HTTP transport entry (#4825, ADR 0099): the port is the consuming http package's own interface and the root binds the workflow entry; no domain application calls it. Shift Plan Sync SickReports runs Workforce's absence write and the SickCascadePlan it returns in one tenant transaction: absence lock before the cascade's shift and day locks; a failed plan step aborts the write. Since #6847 an approval cascades the approved absence and a withdrawal of an approved request reverses it (ADR 0229).",
       "source_owner": "workforce",
       "target": "*github.com/moto-ogs/project-phoenix/workflows/shiftplansync.SickReports.ApproveAbsence",
       "target_owner": "shift-plan-sync"
@@ -18170,12 +18170,12 @@
     },
     {
       "adr": "0067",
-      "approval_adr": "0228",
+      "approval_adr": "0229",
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.WorkforceAbsenceWrites.CancelAbsence",
       "classification": "workflow",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking.OwnAbsenceWrites.CancelAbsence",
-      "reason": "HTTP transport entry (#4825, ADR 0099): the port is the consuming http package's own interface and the root binds the workflow entry; no domain application calls it. Shift Plan Sync SickReports runs Workforce's absence write and the SickCascadePlan it returns in one tenant transaction: absence lock before the cascade's shift and day locks; a failed plan step aborts the write. Since #6847 an approval cascades the approved absence and a withdrawal of an approved request reverses it (ADR 0228).",
+      "reason": "HTTP transport entry (#4825, ADR 0099): the port is the consuming http package's own interface and the root binds the workflow entry; no domain application calls it. Shift Plan Sync SickReports runs Workforce's absence write and the SickCascadePlan it returns in one tenant transaction: absence lock before the cascade's shift and day locks; a failed plan step aborts the write. Since #6847 an approval cascades the approved absence and a withdrawal of an approved request reverses it (ADR 0229).",
       "source_owner": "workforce",
       "target": "*github.com/moto-ogs/project-phoenix/workflows/shiftplansync.SickReports.CancelAbsence",
       "target_owner": "shift-plan-sync"
