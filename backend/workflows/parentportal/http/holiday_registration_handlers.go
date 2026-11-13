@@ -50,8 +50,8 @@ type HolidayRegistrationAddressResponse struct {
 
 // HolidayRegistrationContactResponse is another guardian of a child the
 // form may offer as the second custodian (full_guardian) or as an emergency
-// or pickup contact (#6682). email and phone are absent where the parent
-// portal shows the guardian's name only.
+// or pickup contact (#6682). email and phone are absent when the school
+// knows none.
 type HolidayRegistrationContactResponse struct {
 	GuardianProfileID string `json:"guardian_profile_id"`
 	FirstName         string `json:"first_name"`

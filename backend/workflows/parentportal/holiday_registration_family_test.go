@@ -279,7 +279,7 @@ func TestHolidayRegistrationFamilyOffersAddressAndContacts(t *testing.T) {
 	require.NoError(t, err)
 	closed, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, parentService.HolidayRegistrationScope{OrganizationID: 42, SchoolIDs: []int64{chain.TenantID}})
 	require.NoError(t, err)
-	assert.Empty(t, closed.Children, "no contacts beyond what the guardian list shows")
+	assert.Empty(t, closed.Children, "no child and no contacts without parent_portal.access")
 }
 
 // TestHolidayRegistrationFamilyOrdersContactsByEmergencyPriority pins the

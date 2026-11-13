@@ -92,7 +92,7 @@ func TestGetHolidayRegistrationFamily_AnswersTheLinkedTraegersChildren(t *testin
 }
 
 // The prefill of #6682 on the wire: the parent's address and the child's
-// other guardians with string IDs; redacted contact data stays absent.
+// other guardians with string IDs; empty contact data stays absent.
 func TestHolidayRegistrationFamilyResponse_CarriesAddressAndContacts(t *testing.T) {
 	t.Parallel()
 	response := holidayRegistrationFamilyResponse(sessiontoken.AppClaims{Sub: "eltern@example.org"}, &parentService.HolidayRegistrationFamily{

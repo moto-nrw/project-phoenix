@@ -479,9 +479,8 @@ export interface HolidayKnownChild {
 }
 
 /**
- * Another guardian of a known child (#6682). Email and phone are "" where
- * the parents portal shows only the name: a guardian with an own account or
- * a contact of another family as well.
+ * Another guardian of a known child (#6682). Email and phone are "" when
+ * the school knows none; an own account does not hide them here.
  */
 export interface HolidayKnownContact {
   readonly guardianProfileId: string;

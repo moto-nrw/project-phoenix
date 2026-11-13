@@ -1170,6 +1170,44 @@ describe("HolidayRegistrationForm", () => {
     expect(contacts.getByLabelText(/^Name/)).toHaveValue("");
   });
 
+  it("asks for a number only when the school knows none, not after the parent cleared it (#6682)", () => {
+    const known: HolidayKnownFamily = {
+      ...family,
+      children: [
+        {
+          ...family.children[0]!,
+          contacts: [
+            {
+              guardianProfileId: "52",
+              firstName: "Erika",
+              lastName: "Brandt",
+              email: "",
+              phone: "0151 9876",
+              relationshipType: "relative",
+              fullGuardian: false,
+              emergency: true,
+              pickup: false,
+            },
+          ],
+        },
+      ],
+    };
+    renderForm(known);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Felix Schneider/ }));
+    const contacts = within(
+      screen.getByRole("heading", { name: "Kontakte" }).closest("section")!,
+    );
+    const phone = contacts.getByLabelText(/^Telefon/);
+    expect(phone).toHaveValue("0151 9876");
+    type(phone, "");
+    expect(phone).toHaveValue("");
+    expect(
+      contacts.queryByText(
+        "Für diese Person kennt die Schule keine Nummer. Bitte tragen Sie sie ein.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("offers no known children without a parent account", () => {
     renderForm();
     expect(screen.getByText("Kind 1")).toBeInTheDocument();

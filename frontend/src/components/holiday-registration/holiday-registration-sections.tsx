@@ -574,10 +574,12 @@ export function ContactList({
               label={contact.emergency ? t("phone") : t("phoneOptional")}
               required={contact.emergency}
               // A contact from the account for whom the school knows no
-              // number still needs one (#6682).
+              // number still needs one (#6682). A number the parent cleared
+              // was known, so the hint would be wrong there.
               hint={
                 contact.knownGuardianId &&
                 contact.emergency &&
+                !contact.prefilled?.phone &&
                 contact.phone.trim() === ""
                   ? t("knownContactPhoneHint")
                   : accountHint(contact.phone, contact.prefilled?.phone)
