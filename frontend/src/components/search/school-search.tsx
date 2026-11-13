@@ -399,8 +399,8 @@ export function SchoolSearchDialog({
     ) : (
       <span className="text-gray-500">
         {readsContacts
-          ? "Name, Klasse, Telefonnummer oder Angabe aus der Anmeldung"
-          : "Name, Klasse oder Seite"}
+          ? "Auch Telefonnummern und Anmeldeangaben"
+          : "Kinder, Räume, Gruppen und Seiten"}
       </span>
     );
 

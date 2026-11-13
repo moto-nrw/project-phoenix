@@ -174,7 +174,8 @@ export function CommandPalette({
             // The dialog opens to type: the field takes the focus, not the X.
             // oxlint-disable-next-line jsx-a11y/no-autofocus -- a search dialog opened on purpose starts in its field
             autoFocus
-            type="search"
+            type="text"
+            inputMode="search"
             aria-label={label}
             placeholder={placeholder}
             value={query}
@@ -275,9 +276,9 @@ export function CommandPalette({
             </div>
           )}
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-gray-100 px-4 py-3 md:px-6">
-          <div className="min-w-0 text-sm">{footer}</div>
-          <p className="hidden items-center gap-3 text-xs text-gray-500 pointer-fine:flex">
+        <div className="flex items-center justify-between gap-4 border-t border-gray-100 px-4 py-3 md:px-6">
+          <div className="min-w-0 truncate text-sm">{footer}</div>
+          <p className="hidden shrink-0 items-center gap-3 text-xs text-gray-500 pointer-fine:flex">
             <span>
               <CommandPaletteKey>↑</CommandPaletteKey>
               <CommandPaletteKey>↓</CommandPaletteKey> auswählen
