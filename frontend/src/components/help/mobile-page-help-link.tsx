@@ -13,7 +13,7 @@ import {
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
 import { normalizeTenantPathname } from "~/lib/tenant-path";
-import { SchoolSearchTrigger } from "~/components/search/school-search-trigger";
+import { SchoolSearchSlot } from "~/components/search/school-search-slot";
 
 /** Mobile counterpart of the desktop header's help action. */
 export function MobilePageHelpLink() {
@@ -28,7 +28,7 @@ export function MobilePageHelpLink() {
   // one container.
   return (
     <span className="inline-flex shrink-0 items-center gap-1 lg:hidden">
-      <SchoolSearchTrigger placement="pageHead" />
+      <SchoolSearchSlot placement="pageHead" />
       <ResolvedMobilePageHelpLink mode="teacher" />
     </span>
   );

@@ -10,6 +10,7 @@ import {
 } from "~/test/render-budget";
 import { MobilePageHelpPortal } from "./mobile-page-help-portal";
 import { MobilePageHelpLink } from "./mobile-page-help-link";
+import { SchoolSearchProvider } from "~/components/search/school-search-trigger";
 
 const state = vi.hoisted(() => ({
   pathname: "/testschule/students/search",
@@ -158,6 +159,40 @@ describe("mobile page help", () => {
       expect(screen.getByRole("link")).toBeInTheDocument();
     },
   );
+
+  // The page head is shared with other portals; only the staff layout puts
+  // the search into it (#6954), so no other portal loads the search code.
+  it("shows the school search only where the staff layout provides it", () => {
+    const { unmount } = render(<MobilePageHelpLink />);
+    expect(screen.getByRole("link")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Überall suchen" }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <SchoolSearchProvider>
+        <MobilePageHelpLink />
+      </SchoolSearchProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Überall suchen" })).toHaveClass(
+      "lg:hidden",
+    );
+  });
+
+  it("keeps the school search out of the parent page head", () => {
+    state.mode = "parent";
+    state.pathname = "/parents/children/12";
+    render(
+      <SchoolSearchProvider>
+        <MobilePageHelpLink />
+      </SchoolSearchProvider>,
+    );
+    expect(screen.getByRole("link")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Überall suchen" }),
+    ).not.toBeInTheDocument();
+  });
 
   // The target registers once with the persistent portal shell. This catches
   // an accidental registration loop without observing unrelated DOM changes.

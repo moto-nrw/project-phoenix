@@ -5,11 +5,16 @@ import { Search } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { Button } from "~/components/ui/button";
+import {
+  SchoolSearchSlotContext,
+  type SchoolSearchPlacement,
+} from "./school-search-slot";
 
-// The dialog with its result rendering loads on first use, so every page
-// carries only this button and the shortcut.
+// The dialog with its result rendering loads apart from the page: the header
+// fetches it once the browser is idle, so the first open shows it at once.
+const loadSchoolSearch = () => import("./school-search");
 const SchoolSearchDialog = dynamic(
-  () => import("./school-search").then((mod) => mod.SchoolSearchDialog),
+  () => loadSchoolSearch().then((mod) => mod.SchoolSearchDialog),
   { ssr: false },
 );
 
@@ -35,12 +40,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 interface SchoolSearchTriggerProps {
-  /**
-   * `header`: the staff header from lg on, a field-like button from xl on and
-   * the owner of the shortcut Cmd/Ctrl+K. `pageHead`: the magnifier in the
-   * page head below lg, where the shell has no header (phone, tablet).
-   */
-  readonly placement: "header" | "pageHead";
+  /** From xl on the header shows a field-like button; see the slot. */
+  readonly placement: SchoolSearchPlacement;
 }
 
 /**
@@ -71,7 +72,11 @@ export function SchoolSearchTrigger({
       setIsOpen((current) => !current);
     };
     globalThis.addEventListener("keydown", handleKeyDown);
-    return () => globalThis.removeEventListener("keydown", handleKeyDown);
+    const preload = globalThis.setTimeout(() => void loadSchoolSearch(), 2000);
+    return () => {
+      globalThis.removeEventListener("keydown", handleKeyDown);
+      globalThis.clearTimeout(preload);
+    };
   }, [placement]);
 
   return (
@@ -109,5 +114,23 @@ export function SchoolSearchTrigger({
         <SchoolSearchDialog isOpen onClose={() => setIsOpen(false)} />
       ) : null}
     </>
+  );
+}
+
+function renderSchoolSearchTrigger(placement: SchoolSearchPlacement) {
+  return <SchoolSearchTrigger placement={placement} />;
+}
+
+/**
+ * Puts the search into the shared header and page head of the staff portal.
+ * Only the staff layout renders it, so no other portal loads the search.
+ */
+export function SchoolSearchProvider({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <SchoolSearchSlotContext.Provider value={renderSchoolSearchTrigger}>
+      {children}
+    </SchoolSearchSlotContext.Provider>
   );
 }

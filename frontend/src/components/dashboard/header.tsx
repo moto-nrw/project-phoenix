@@ -36,7 +36,7 @@ import { isDemoBuild } from "~/lib/demo-access";
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { RefreshButton } from "./header/refresh-button";
-import { SchoolSearchTrigger } from "~/components/search/school-search-trigger";
+import { SchoolSearchSlot } from "~/components/search/school-search-slot";
 import { RemindersBell } from "./header/reminders-bell";
 import { StaffNewsButton } from "./header/staff-news-button";
 import { SessionWarning } from "./header/session-warning";
@@ -511,7 +511,7 @@ export function Header() {
           <div className="ml-auto flex flex-shrink-0 items-center space-x-2">
             {/* Die Suche über die Schule (#6954): Feld ab xl, sonst Lupe. */}
             {mode === "teacher" ? (
-              <SchoolSearchTrigger placement="header" />
+              <SchoolSearchSlot placement="header" />
             ) : null}
             {/* Das Fragezeichen steht bei den Aktionen (#4345): direkt hinter
                 der Brotkrume las es sich als Teil des Seitennamens oder als
