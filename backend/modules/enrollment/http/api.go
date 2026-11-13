@@ -142,7 +142,8 @@ func PublicRoutes() chi.Routes {
 	return r
 }
 
-// mountPublicRoutes registers the parent-facing routes.
+// mountPublicRoutes registers the parent-facing routes. PublicRoutes calls
+// it on a zero Resource, so it only binds handlers and reads no field.
 func (rs *Resource) mountPublicRoutes(r chi.Router) {
 	r.Get("/phases/public/{tenantSlug}", rs.listPublicPhases)
 	r.Get("/form-bootstrap/public/{tenantSlug}/{phaseId}", rs.publicFormBootstrap)

@@ -8,11 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// The public holiday link is exempt from the general limiter, so its own
-// limit must never be tighter than the general one. Production runs the
-// general limiter at 600 a minute with a burst of 100; the first limit of the
-// link, 300 a minute, halved what the link had before (#6726).
-func TestHolidayRegistrationLimitsAreNeverTighterThanTheGeneralLimiter(t *testing.T) {
+// The public links (the holiday link, the school's online enrollment) are
+// exempt from the general limiter, so their own limit must never be tighter
+// than the general one. Production runs the general limiter at 600 a minute
+// with a burst of 100; the first limit of the holiday link, 300 a minute,
+// halved what the link had before (#6726).
+func TestPublicLinkLimitsAreNeverTighterThanTheGeneralLimiter(t *testing.T) {
 	t.Parallel()
 	for _, general := range []struct{ limit, burst int }{
 		{60, 10},     // defaults of the code
