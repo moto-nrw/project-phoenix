@@ -14,6 +14,12 @@ import (
 
 const lettermintHeaderOutbox = "X-Moto-Outbox-Id"
 
+// The block values that never lift, as the webhook and the Team API both name them.
+const (
+	lettermintScopeGlobal = "global"
+	lettermintTypeDomain  = "domain"
+)
+
 // lettermintBlocklistAnswer recognizes a receiving server that refuses the provider's IP
 // or its reputation, not the address. Then neither the address is at fault nor
 // would a retry over the same provider help.
@@ -201,7 +207,7 @@ func (e lettermintEnvelope) block() lettermintBlock {
 // team's list, the only one SuppressionActive can read, holds neither, so the
 // block never reads as gone; and only a corrected address gets a mail through.
 func (b lettermintBlock) permanent() bool {
-	return b.Scope == apiScopeGlobal || b.SuppressionType == apiTypeDomain
+	return b.Scope == lettermintScopeGlobal || b.SuppressionType == lettermintTypeDomain
 }
 
 // apply makes a mail held back by a permanent block a bounce for good (#6998): the

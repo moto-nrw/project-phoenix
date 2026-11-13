@@ -23,8 +23,6 @@ const (
 	apiReasonBounce = "hard_bounce"
 	apiReasonSpam   = "spam_complaint"
 	apiTypeEmail    = "email"
-	apiTypeDomain   = "domain"
-	apiScopeGlobal  = "global"
 )
 
 // lettermintClientConfig configures the Team API client. BaseURL is empty in production;
