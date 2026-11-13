@@ -89,13 +89,17 @@ function isBlankContact(contact: ContactDraft): boolean {
   );
 }
 
-/**
- * The person a row of the list stands for, as personKey names it: the name
- * the prefill wrote, also after the parent changed the row, else the typed
- * name. Blank rows stand for nobody.
- */
-function rowPerson(contact: ContactDraft): string {
-  return (contact.prefilled?.name ?? contact.name).trim().toLowerCase();
+/** The name a row was typed with, for a row the prefill did not write. */
+function typedName(contact: ContactDraft): string {
+  return contact.name.trim().toLowerCase();
+}
+
+/** The school records a row of the list stands for. */
+function rowIds(contact: ContactDraft): readonly string[] {
+  return (
+    contact.knownPersonIds ??
+    (contact.knownGuardianId ? [contact.knownGuardianId] : [])
+  );
 }
 
 /**
@@ -112,12 +116,136 @@ function formPhone(phone: string): string {
   return looksLikePhone(plain) ? plain : "";
 }
 
-/**
- * One key per person. Siblings at two schools of the Träger have the same
- * person under two school records, so the name joins them as well.
- */
-function personKey(contact: HolidayKnownContact): string {
+/** A person of the picked children with all school records it has. */
+interface KnownPerson extends HolidayKnownContact {
+  /** One record per school; the first one names the person. */
+  readonly ids: readonly string[];
+}
+
+/** A person of the family while its records are joined. */
+interface FamilyPerson extends KnownPerson {
+  readonly schoolIds: readonly string[];
+}
+
+function personName(contact: HolidayKnownContact): string {
   return `${contact.firstName} ${contact.lastName}`.trim().toLowerCase();
+}
+
+/**
+ * A number in one spelling: digits only, "00" as "+", and the German
+ * country code as the leading "0" ("+49 (0)5402", "0049 5402", "05402").
+ */
+function phoneDigits(phone: string): string {
+  const digits = phone
+    .replace(/\(0\)/g, "")
+    .replace(/[^\d+]/g, "")
+    .replace(/^00/, "+");
+  return digits.replace(/^\+490?/, "0").replace(/\+/g, "00");
+}
+
+/** Whether both hold a value and the values differ. */
+function contradicts(a: string, b: string): boolean {
+  return a !== "" && b !== "" && a !== b;
+}
+
+/**
+ * Whether a record of another school is the same person (#6682): siblings
+ * at two schools of the Träger have one person under two records. Only the
+ * name joins them there, so it joins only across schools and only while the
+ * number and the email do not contradict. Two records of one school are
+ * two persons, such as father and grandfather of the same name; a name a
+ * school has twice joins nothing, since it cannot say which one is meant.
+ */
+function samePerson(
+  person: FamilyPerson,
+  contact: HolidayKnownContact,
+  schoolId: string,
+  ambiguous: ReadonlySet<string>,
+): boolean {
+  return (
+    personName(person) === personName(contact) &&
+    !ambiguous.has(personName(contact)) &&
+    !person.schoolIds.includes(schoolId) &&
+    !contradicts(phoneDigits(person.phone), phoneDigits(contact.phone)) &&
+    !contradicts(
+      person.email.trim().toLowerCase(),
+      contact.email.trim().toLowerCase(),
+    )
+  );
+}
+
+/** Names one school has under two or more records, over all children. */
+function ambiguousNames(family: HolidayKnownFamily): Set<string> {
+  const records = new Map<string, Set<string>>();
+  for (const child of family.children) {
+    for (const contact of child.contacts) {
+      const key = `${child.schoolId}\u0000${personName(contact)}`;
+      const ids = records.get(key) ?? new Set<string>();
+      ids.add(contact.guardianProfileId);
+      records.set(key, ids);
+    }
+  }
+  const names = new Set<string>();
+  for (const [key, ids] of records) {
+    if (ids.size > 1) names.add(key.slice(key.indexOf("\u0000") + 1));
+  }
+  return names;
+}
+
+/** Adds a record to the person it belongs to, or as a new person. */
+function addRecord(
+  persons: FamilyPerson[],
+  contact: HolidayKnownContact,
+  schoolId: string,
+  ambiguous: ReadonlySet<string>,
+): void {
+  const index = persons.findIndex(
+    (person) =>
+      person.ids.includes(contact.guardianProfileId) ||
+      samePerson(person, contact, schoolId, ambiguous),
+  );
+  const seen = persons[index];
+  if (!seen) {
+    persons.push({
+      ...contact,
+      ids: [contact.guardianProfileId],
+      schoolIds: [schoolId],
+    });
+    return;
+  }
+  persons[index] = {
+    ...seen,
+    ids: seen.ids.includes(contact.guardianProfileId)
+      ? seen.ids
+      : [...seen.ids, contact.guardianProfileId],
+    schoolIds: seen.schoolIds.includes(schoolId)
+      ? seen.schoolIds
+      : [...seen.schoolIds, schoolId],
+    email: seen.email || contact.email,
+    phone: seen.phone || contact.phone,
+    fullGuardian: seen.fullGuardian || contact.fullGuardian,
+    emergency: seen.emergency || contact.emergency,
+    pickup: seen.pickup || contact.pickup,
+  };
+}
+
+/**
+ * The records of each person over all children of the family, so a person
+ * stays the same one whichever children the parent picks and in which order.
+ */
+function familyRecords(
+  family: HolidayKnownFamily,
+): Map<string, readonly string[]> {
+  const ambiguous = ambiguousNames(family);
+  const persons: FamilyPerson[] = [];
+  for (const child of family.children) {
+    for (const contact of child.contacts) {
+      addRecord(persons, contact, child.schoolId, ambiguous);
+    }
+  }
+  return new Map(
+    persons.flatMap((person) => person.ids.map((id) => [id, person.ids])),
+  );
 }
 
 /**
@@ -127,14 +255,18 @@ function personKey(contact: HolidayKnownContact): string {
 function pickedContacts(
   draft: RegistrationDraft,
   family: HolidayKnownFamily,
-): HolidayKnownContact[] {
-  const byPerson = new Map<string, HolidayKnownContact>();
+): KnownPerson[] {
+  const records = familyRecords(family);
+  const byPerson = new Map<string, KnownPerson>();
   for (const child of draft.children) {
     const known = family.children.find(
       (candidate) => candidate.studentId === child.knownStudentId,
     );
     for (const contact of known?.contacts ?? []) {
-      const key = personKey(contact);
+      const ids = records.get(contact.guardianProfileId) ?? [
+        contact.guardianProfileId,
+      ];
+      const key = ids[0] ?? contact.guardianProfileId;
       const seen = byPerson.get(key);
       byPerson.set(
         key,
@@ -147,11 +279,19 @@ function pickedContacts(
               emergency: seen.emergency || contact.emergency,
               pickup: seen.pickup || contact.pickup,
             }
-          : contact,
+          : { ...contact, ids },
       );
     }
   }
   return [...byPerson.values()];
+}
+
+/** The person of the picked children a row stands for, if any. */
+function personOf(
+  persons: readonly KnownPerson[],
+  ids: readonly string[],
+): KnownPerson | undefined {
+  return persons.find((person) => person.ids.some((id) => ids.includes(id)));
 }
 
 function contactValues(
@@ -178,52 +318,73 @@ function fits(contacts: readonly ContactDraft[], values: ContactValues) {
   );
 }
 
+/** The records of a row grow with the person, so a row keeps it. */
+function withPersonIds(
+  contact: ContactDraft,
+  person: KnownPerson | undefined,
+): ContactDraft {
+  if (!person) return contact;
+  const ids = [...new Set([...rowIds(contact), ...person.ids])];
+  return ids.length === rowIds(contact).length
+    ? contact
+    : { ...contact, knownPersonIds: ids };
+}
+
 function syncContacts(
   current: readonly ContactDraft[],
-  wanted: readonly HolidayKnownContact[],
+  wanted: readonly KnownPerson[],
   dismissed: ReadonlySet<string>,
   label: RelationshipLabel,
 ): readonly ContactDraft[] {
-  // By person, not by record: siblings at two schools bring the same person
-  // under two records, and either may be the one still picked.
-  const byPerson = new Map(wanted.map((known) => [personKey(known), known]));
+  // By the person's records, not by name: two persons may share a name, and
+  // either record of a person at two schools may be the one still picked.
   // A contact the parent typed or changed stays as it is. An untouched one
   // from the prefill follows the picked children: it takes their current
   // roles while they fit the limits, or goes when no picked child has it.
   const kept: ContactDraft[] = [];
   for (const [index, contact] of current.entries()) {
+    const known = personOf(wanted, rowIds(contact));
     if (!isPrefilledContact(contact)) {
-      kept.push(contact);
+      kept.push(withPersonIds(contact, known));
       continue;
     }
-    const known = byPerson.get(rowPerson(contact));
     if (!known || !(known.emergency || known.pickup)) continue;
     const values = contactValues(known, label);
     kept.push(
-      fits(
-        [...kept, ...current.slice(index + 1)].filter(
-          (other) => !isBlankContact(other),
-        ),
-        values,
-      )
-        ? {
-            ...contact,
-            ...values,
-            knownGuardianId: known.guardianProfileId,
-            prefilled: values,
-          }
-        : contact,
+      withPersonIds(
+        fits(
+          [...kept, ...current.slice(index + 1)].filter(
+            (other) => !isBlankContact(other),
+          ),
+          values,
+        )
+          ? {
+              ...contact,
+              ...values,
+              knownGuardianId: known.guardianProfileId,
+              prefilled: values,
+            }
+          : contact,
+        known,
+      ),
     );
   }
-  // A person already in the list, from the prefill or typed by the parent,
-  // gets no second row.
-  const present = new Set(kept.map(rowPerson).filter((person) => person));
+  // A person already in the list gets no second row: a row from the
+  // prefill by its records, a row the parent typed by its name.
+  const presentIds = new Set(kept.flatMap(rowIds));
+  const typedNames = new Set(
+    kept
+      .filter((contact) => rowIds(contact).length === 0)
+      .map(typedName)
+      .filter((name) => name),
+  );
   let contacts = kept.filter((contact) => !isBlankContact(contact));
   for (const known of wanted) {
     if (!(known.emergency || known.pickup)) continue;
-    if (present.has(personKey(known))) continue;
+    if (known.ids.some((id) => presentIds.has(id))) continue;
+    if (typedNames.has(personName(known))) continue;
     // The parent removed this person; another child does not bring it back.
-    if (dismissed.has(personKey(known))) continue;
+    if (known.ids.some((id) => dismissed.has(id))) continue;
     const values = contactValues(known, label);
     if (!fits(contacts, values)) continue;
     contacts = [
@@ -232,6 +393,7 @@ function syncContacts(
         ...emptyContact(),
         ...values,
         knownGuardianId: known.guardianProfileId,
+        knownPersonIds: known.ids,
         prefilled: values,
       },
     ];
@@ -248,7 +410,7 @@ const blankGuardian: RegistrationDraft["guardian"] = {
 
 function syncSecondGuardian(
   draft: RegistrationDraft,
-  wanted: readonly HolidayKnownContact[],
+  wanted: readonly KnownPerson[],
 ): Pick<RegistrationDraft, "secondGuardian" | "secondGuardianPrefill"> {
   const typed = Object.values(draft.secondGuardian).some(
     (value) => value.trim() !== "",
@@ -313,12 +475,12 @@ export function withEditedContacts(
 ): RegistrationDraft {
   const left = new Set(contacts.map((contact) => contact.knownGuardianId));
   // One person can come from siblings at two schools under two records, so
-  // the removal keeps the person's name, as personKey joins them.
+  // the removal keeps all records of the row.
   const removed = draft.contacts.flatMap((contact) =>
     contact.knownGuardianId &&
     contact.prefilled &&
     !left.has(contact.knownGuardianId)
-      ? [contact.prefilled.name.toLowerCase()]
+      ? rowIds(contact)
       : [],
   );
   if (removed.length === 0) return { ...draft, contacts };

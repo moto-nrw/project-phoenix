@@ -145,6 +145,11 @@ export interface ContactDraft {
   readonly relationship: string;
   /** The guardian of a known child this contact came from (#6682). */
   readonly knownGuardianId?: string;
+  /**
+   * All school records of that person: siblings at two schools bring one
+   * person under two records (#6682).
+   */
+  readonly knownPersonIds?: readonly string[];
   /** What the prefill wrote, to keep the parent's own changes (#6682). */
   readonly prefilled?: Pick<
     ContactDraft,
@@ -179,8 +184,8 @@ export interface RegistrationDraft {
   readonly children: readonly ChildDraft[];
   readonly contacts: readonly ContactDraft[];
   /**
-   * Persons from the account the parent removed from the contacts, by name
-   * in lower case as the prefill joins them (#6682).
+   * School records of the persons from the account the parent removed from
+   * the contacts (#6682).
    */
   readonly dismissedContacts?: readonly string[];
   readonly legalAcceptances?: Readonly<Record<string, boolean>>;

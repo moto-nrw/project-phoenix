@@ -78,7 +78,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f
         env:
           POSTGRES_DB: phoenix_test
           POSTGRES_USER: postgres
@@ -234,7 +234,7 @@ jobs:
           # this block too, including role memberships such as pg_read_all_data.
           # A role the dump references fails the restore (ON_ERROR_STOP); a role
           # used only through SET ROLE fails later, in the tests that need it.
-          # Everything runs inside the postgres:17-alpine service container: the
+          # Everything runs inside the postgres service container: the
           # local socket is trust-auth and the runner's psql is v16, which
           # refuses a v17 server.
           docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d phoenix_test <<EOF
@@ -568,7 +568,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f
         env:
           POSTGRES_DB: phoenix_seed
           POSTGRES_USER: postgres
