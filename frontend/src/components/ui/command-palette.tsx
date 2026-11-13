@@ -255,7 +255,7 @@ export function CommandPalette({
                               {item.title}
                             </span>
                             {item.subtitle ? (
-                              <span className="block truncate text-xs text-gray-500">
+                              <span className="line-clamp-2 block text-xs text-gray-500">
                                 {item.subtitle}
                               </span>
                             ) : null}
