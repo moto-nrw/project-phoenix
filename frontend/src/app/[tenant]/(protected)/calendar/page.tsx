@@ -96,6 +96,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { useCalDAVEnabled } from "~/lib/tenant-context";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { OverviewVisibilityPicker } from "~/components/calendar/overview-visibility-picker";
 
 type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
@@ -1196,51 +1197,40 @@ function StaffCalendarPageInner() {
                       disabled={submitting}
                     />
 
-                    <div
-                      className={`grid gap-4 ${editingId ? "" : "md:grid-cols-2"}`}
-                    >
-                      {!editingId ? (
-                        <CustomSelect
-                          id="calendar-delivery-mode"
-                          label="Antwortregel"
-                          value={deliveryMode}
-                          onChange={(next) =>
-                            setDeliveryMode(next as CalendarDeliveryMode)
-                          }
-                          disabled={submitting}
-                          options={[
-                            {
-                              value: "rsvp_required",
-                              label: "Antwort erforderlich: Zusage oder Absage",
-                            },
-                            {
-                              value: "informational",
-                              label:
-                                "Nur informieren: ohne Rückmeldung eintragen",
-                            },
-                          ]}
-                        />
-                      ) : null}
+                    {!editingId ? (
                       <CustomSelect
-                        id="calendar-overview-visibility"
-                        label="Teilnehmerübersicht"
-                        value={overviewVisibility}
+                        id="calendar-delivery-mode"
+                        label="Antwortregel"
+                        value={deliveryMode}
                         onChange={(next) =>
-                          setOverviewVisibility(
-                            next as CalendarOverviewVisibility,
-                          )
+                          setDeliveryMode(next as CalendarDeliveryMode)
                         }
                         disabled={submitting}
+                        hint={
+                          deliveryMode === "rsvp_required" &&
+                          frequency !== "none"
+                            ? "Eine Zusage oder Absage gilt für alle Termine der Reihe."
+                            : undefined
+                        }
                         options={[
-                          { value: "organizer", label: "Nur ich" },
                           {
-                            value: "staff",
-                            label: "Mitarbeitende mit Termin",
+                            value: "rsvp_required",
+                            label: "Antwort erforderlich: Zusage oder Absage",
                           },
-                          { value: "all", label: "Alle Eingeladenen" },
+                          {
+                            value: "informational",
+                            label:
+                              "Nur informieren: ohne Rückmeldung eintragen",
+                          },
                         ]}
                       />
-                    </div>
+                    ) : null}
+
+                    <OverviewVisibilityPicker
+                      value={overviewVisibility}
+                      onChange={setOverviewVisibility}
+                      disabled={submitting}
+                    />
 
                     {!editingId ? (
                       <InsetPanel tone="white">

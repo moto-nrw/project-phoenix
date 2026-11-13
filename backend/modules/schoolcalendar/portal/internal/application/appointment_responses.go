@@ -56,15 +56,24 @@ func guardianRecipientStatusForStudents(recipients []*appointmentcap.Appointment
 	guardianRecipients := recipientsOfGuardians(recipients, int64Set(guardianProfileIDs))
 	allowedStudents := int64Set(studentIDs)
 	for _, recipient := range guardianRecipients {
-		for _, studentID := range recipient.StudentIDs {
-			if _, ok := allowedStudents[studentID]; ok {
-				status := recipient.Status
-				id := recipient.ID
-				return &status, &id
-			}
+		if recipientHasStudent(recipient, allowedStudents) {
+			status := recipient.Status
+			id := recipient.ID
+			return &status, &id
 		}
 	}
 	return nil, nil
+}
+
+// recipientHasStudent reports whether the recipient was invited through one of
+// the allowed students.
+func recipientHasStudent(recipient *appointmentcap.AppointmentRecipient, allowedStudents map[int64]struct{}) bool {
+	for _, studentID := range recipient.StudentIDs {
+		if _, ok := allowedStudents[studentID]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // recipientsOfGuardians keeps, in order, the guardian recipients whose profile
