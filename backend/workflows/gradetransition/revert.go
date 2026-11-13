@@ -63,7 +63,7 @@ func validateCanRevert(transition schoolstructure.Transition) error {
 func (w *Workflow) executeRevert(ctx context.Context, actor Actor, transition schoolstructure.Transition, history []schoolstructure.TransitionHistoryEntry) (Result, error) {
 	result := Result{TransitionID: transition.ID, Warnings: make([]string, 0)}
 
-	graduated, err := w.revertPromotedStudents(ctx, history, &result)
+	graduated, reverted, err := w.revertPromotedStudents(ctx, history, &result)
 	if err != nil {
 		return result, err
 	}
@@ -97,6 +97,9 @@ func (w *Workflow) executeRevert(ctx context.Context, actor Actor, transition sc
 	if err := w.deps.ResyncOfferingRosters(ctx, w.deps.Today()); err != nil {
 		return result, fmt.Errorf("failed to resync offering-sourced templates: %w", err)
 	}
+	if err := w.deps.FollowClassChanges(ctx, reverted, w.deps.Today()); err != nil {
+		return result, fmt.Errorf("failed to follow class changes on targeted templates: %w", err)
+	}
 
 	if err := w.deps.Structure.MarkTransitionReverted(ctx, transition.ID, actor.AccountID, w.deps.Now()); err != nil {
 		if errors.Is(err, schoolstructure.ErrTransitionStateConflict) {
@@ -112,9 +115,11 @@ func (w *Workflow) executeRevert(ctx context.Context, actor Actor, transition sc
 // revertPromotedStudents moves every promoted child back while their class
 // still equals the one this transition assigned; a child moved elsewhere
 // since (a manual correction or a later transition) is left untouched and
-// counted in a warning. It returns the graduated ledger rows.
-func (w *Workflow) revertPromotedStudents(ctx context.Context, history []schoolstructure.TransitionHistoryEntry, result *Result) ([]schoolstructure.TransitionHistoryEntry, error) {
+// counted in a warning. It returns the graduated ledger rows and the class
+// changes of the children it moved back.
+func (w *Workflow) revertPromotedStudents(ctx context.Context, history []schoolstructure.TransitionHistoryEntry, result *Result) ([]schoolstructure.TransitionHistoryEntry, []ClassChange, error) {
 	graduated := make([]schoolstructure.TransitionHistoryEntry, 0)
+	reverted := make([]ClassChange, 0)
 	missing := 0
 	for _, entry := range history {
 		switch {
@@ -125,10 +130,11 @@ func (w *Workflow) revertPromotedStudents(ctx context.Context, history []schools
 			}
 			rows, err := w.deps.Membership.ChangeClass(ctx, []int64{entry.StudentID}, *entry.ToClass, entry.FromClass)
 			if err != nil {
-				return nil, fmt.Errorf("failed to revert student %d: %w", entry.StudentID, err)
+				return nil, nil, fmt.Errorf("failed to revert student %d: %w", entry.StudentID, err)
 			}
 			if rows > 0 {
 				result.StudentsPromoted++
+				reverted = append(reverted, ClassChange{StudentID: entry.StudentID, PreviousSchoolClass: *entry.ToClass})
 			} else {
 				missing++
 			}
@@ -140,7 +146,7 @@ func (w *Workflow) revertPromotedStudents(ctx context.Context, history []schools
 		result.Warnings = append(result.Warnings,
 			fmt.Sprintf("%d promoted students could not be reverted (deleted or class changed since promotion)", missing))
 	}
-	return graduated, nil
+	return graduated, reverted, nil
 }
 
 // revertGraduatedStudents restores the alumni to the lifecycle status they

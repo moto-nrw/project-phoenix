@@ -24,8 +24,9 @@ type templateRosterMaintenanceResponse struct {
 	// InvalidOfferings are active sources that resync cannot use for this
 	// Regeltermin.
 	InvalidOfferings []templateRosterMaintenanceOfferingResponse `json:"invalid_offerings,omitempty"`
-	// DynamicTargets: a Klasse, Jahrgang or Gruppe target exists. Children who
-	// join it later are not added to occurrences that already exist.
+	// DynamicTargets: a Klasse, Jahrgang or Gruppe target exists. A child who
+	// changes Klasse or Gruppe follows on the existing occurrences (#6841); a
+	// new child reaches only occurrences created afterwards.
 	DynamicTargets bool `json:"dynamic_targets"`
 	// CareOfferingsDisabled: offerings are configured, but the school has
 	// switched Betreuungsangebote off.

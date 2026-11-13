@@ -58,7 +58,7 @@ describe("describeRosterMaintenance", () => {
 
     expect(result.label).toBe("Manuell");
     expect(result.explanation).toBe(
-      "An- und Abmeldungen werden hier nicht übernommen. Kinder pflegen Sie selbst. Klasse, Jahrgang oder Gruppe gelten nur für neu erzeugte Termine.",
+      "An- und Abmeldungen werden hier nicht übernommen. Kinder pflegen Sie selbst. Wechselt ein Kind Klasse oder Gruppe, passt moto alle Termine an. Neue Kinder kommen nur auf neu erzeugte Termine.",
     );
     expect(result.explanation).not.toContain("automatisch übernommen");
   });
@@ -74,7 +74,7 @@ describe("describeRosterMaintenance", () => {
 
     expect(result.label).toBe("Teils automatisch");
     expect(result.explanation).toBe(
-      "Neue Anmeldungen für das Betreuungsangebot „Mittagessen“ werden automatisch übernommen. Klasse, Jahrgang oder Gruppe gelten nur für neu erzeugte Termine. Weitere Kinder müssen Sie selbst ergänzen.",
+      "Neue Anmeldungen für das Betreuungsangebot „Mittagessen“ werden automatisch übernommen. Wechselt ein Kind Klasse oder Gruppe, passt moto alle Termine an. Neue Kinder kommen nur auf neu erzeugte Termine. Weitere Kinder müssen Sie selbst ergänzen.",
     );
   });
 

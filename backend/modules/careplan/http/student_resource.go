@@ -27,6 +27,7 @@ type ResourceConfig struct {
 	CareLifecycleService         careplan.CareLifecycle
 	CareRequestReviews           careplan.CareScheduleReviewQuery
 	CareRequestService           carerequests.Decisions
+	FollowCohortChanges          FollowCohortChanges
 	CompanionService             careplan.StudentCompanions
 	DocumentStorage              StudentDocumentStorage
 	ExcusedRequestService        excusedrequests.Service

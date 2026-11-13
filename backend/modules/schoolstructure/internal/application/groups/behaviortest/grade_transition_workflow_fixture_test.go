@@ -34,6 +34,9 @@ type transitionFixture struct {
 	now        time.Time
 	// resyncCalls records every offering-roster resync the workflow triggers.
 	resyncCalls []calendar.Date
+	// classChangeCalls records every class follow-up on targeted
+	// Regeltermine (#6841).
+	classChangeCalls [][]gradetransition.ClassChange
 }
 
 // newTransitionFixture composes the workflow with the clock pinned to a fixed
@@ -56,6 +59,10 @@ func newTransitionFixture(t *testing.T, db *bun.DB) *transitionFixture {
 		LockRecurrenceWrites: owners.LockRecurrenceWrites,
 		ResyncOfferingRosters: func(_ context.Context, effectiveFrom calendar.Date) error {
 			f.resyncCalls = append(f.resyncCalls, effectiveFrom)
+			return nil
+		},
+		FollowClassChanges: func(_ context.Context, changes []gradetransition.ClassChange, _ calendar.Date) error {
+			f.classChangeCalls = append(f.classChangeCalls, changes)
 			return nil
 		},
 		Audit:                api.MustNewWorkflowAuditCommand(testpkg.NewDatabase(t, db), "grade transition audit append failed"),

@@ -181,7 +181,7 @@ func mountStudentRoutes(
 	reports owners.PresenceReports, structureViews StructureServices, organizations organizationtenancy.Query,
 	statusDays studentpresence.StatusDays, absences deliveryCompose.AbsenceNotifier, deletion *studentdeletion.Workflow,
 	groupLive grouplive.Query, decisions enrollmentOwner.Decisions, active studentpresence.Presence, resumption careStudentsHTTP.CareResumption,
-	noteTeam peopledirectory.StudentNoteTeamNotices, noteTeamReach studentsAPI.StudentNoteTeamReach,
+	noteTeam peopledirectory.StudentNoteTeamNotices, noteTeamReach studentsAPI.StudentNoteTeamReach, cohorts timetableModule.CohortRosters,
 ) error {
 	// A direct school_class edit must resync Jahrgang-filtered offering-sourced
 	// Regeltermine like a grade transition does (#2147 review round 10); Care
@@ -213,8 +213,8 @@ func mountStudentRoutes(
 			ArrivalScheduleService: schedules.Arrivals,
 			Broadcaster:            hub,
 			CareLifecycleService:   schedules.Lifecycle, CareResumption: resumption, CareExitRestoration: owners.NewCarePlanRestoration(schedules.Lifecycle, requests.CareOfferings, nil),
-			CareRequestReviews:           careReviews,
-			CareRequestService:           requests.CareRequests,
+			CareRequestReviews: careReviews,
+			CareRequestService: requests.CareRequests, FollowCohortChanges: studentCohortChanges(cohorts),
 			CompanionService:             companions,
 			DocumentStorage:              NewStudentDocumentStorage(),
 			ExcusedRequestService:        requests.Excused,

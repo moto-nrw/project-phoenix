@@ -138,7 +138,7 @@ func (w *Workflow) executeApply(ctx context.Context, actor Actor, transition sch
 		return result, err
 	}
 
-	if err := w.finalizeAppliedTransition(ctx, actor, transition, graduates); err != nil {
+	if err := w.finalizeAppliedTransition(ctx, actor, transition, promotions, graduates); err != nil {
 		return result, err
 	}
 	result = appliedTransitionResult(result)
@@ -219,6 +219,14 @@ func classSet(classes []string) map[string]bool {
 		set[class] = true
 	}
 	return set
+}
+
+func promotedClassChanges(promotions []cohortStudent) []ClassChange {
+	changes := make([]ClassChange, 0, len(promotions))
+	for _, student := range promotions {
+		changes = append(changes, ClassChange{StudentID: student.StudentID, PreviousSchoolClass: student.SchoolClass})
+	}
+	return changes
 }
 
 func studentIDsOf(cohort []cohortStudent) []int64 {
@@ -402,7 +410,7 @@ func (w *Workflow) applyCohortChanges(ctx context.Context, transition schoolstru
 	return nil
 }
 
-func (w *Workflow) finalizeAppliedTransition(ctx context.Context, actor Actor, transition schoolstructure.Transition, graduates []cohortStudent) error {
+func (w *Workflow) finalizeAppliedTransition(ctx context.Context, actor Actor, transition schoolstructure.Transition, promotions, graduates []cohortStudent) error {
 	// Drop the departed children from already-materialized rosters,
 	// archiving each removed row for the revert. MUST run before the
 	// offering-source resync: the resync would remove the same rows plainly,
@@ -418,6 +426,12 @@ func (w *Workflow) finalizeAppliedTransition(ctx context.Context, actor Actor, t
 	// the recurrence gate inside the same transaction.
 	if err := w.deps.ResyncOfferingRosters(ctx, w.deps.Today()); err != nil {
 		return fmt.Errorf("failed to resync offering-sourced templates: %w", err)
+	}
+
+	// Regeltermine with a Klasse or Jahrgang target follow the promoted
+	// children on their already materialized occurrences (#6841).
+	if err := w.deps.FollowClassChanges(ctx, promotedClassChanges(promotions), w.deps.Today()); err != nil {
+		return fmt.Errorf("failed to follow class changes on targeted templates: %w", err)
 	}
 
 	// Record which instances already existed, AFTER the archive pass and

@@ -67,3 +67,31 @@ type RecurrenceWriteLock interface {
 	// from the children's lifecycle status.
 	LockRecurrenceWritesThenGradeTransitions(ctx context.Context) error
 }
+
+// CohortChange is one child's Klasse or Gruppe write (#6841): what changed
+// and the value before the write. The current values are read from the
+// directory, so the caller names only the previous ones.
+type CohortChange struct {
+	StudentID           int64
+	SchoolClassChanged  bool
+	PreviousSchoolClass string
+	GroupChanged        bool
+	PreviousGroupID     *int64
+}
+
+// CohortRosters lets the already-materialized occurrences of Regeltermine
+// with a Klasse, Jahrgang or Gruppe target follow children who change their
+// Klasse or Gruppe (#6841). The materializer resolves those targets only when
+// it creates an occurrence, and a whole planning period is materialized when
+// a Regeltermin is saved, so without this pass a child who moved from 3a to
+// 3b stays on every future 3a occurrence and is missing on the 3b ones.
+type CohortRosters interface {
+	// FollowCohortChanges adds the children to the planned occurrences from
+	// `from` on (the caller passes today) of every template whose target they
+	// joined, and removes their still-planned rows from the templates whose
+	// target they left, unless an enrollment of that template still plans
+	// them. Templates the change does not move the child into or out of stay
+	// untouched, so hand edits there survive. The caller holds the tenant
+	// recurrence gate and runs inside its tenant transaction.
+	FollowCohortChanges(ctx context.Context, changes []CohortChange, from calendar.Date) error
+}

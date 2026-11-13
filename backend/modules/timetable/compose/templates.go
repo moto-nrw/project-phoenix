@@ -54,3 +54,10 @@ func NewInstanceAutoEnd(instances ports.LegacyInstanceReads, completion timetabl
 func NewStudentTemplateDays(deps ports.StudentTemplateDaysDependencies) (timetable.StudentTemplateDays, error) {
 	return application.NewStudentTemplateDays(deps)
 }
+
+// NewCohortRosters composes the follow-up that moves children who changed
+// Klasse or Gruppe between the materialized occurrences of dynamically
+// targeted Regeltermine (#6841).
+func NewCohortRosters(deps ports.CohortRosterDependencies) (timetable.CohortRosters, error) {
+	return application.NewCohortRosters(deps)
+}

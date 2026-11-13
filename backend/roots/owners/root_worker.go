@@ -362,7 +362,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return nil
 		},
 		func() (err error) {
-			timetableRows, err = BuildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups, hub)
+			timetableRows, err = BuildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups, hub, persons, people.Students)
 			return
 		},
 		func() (err error) { classArrivals, err = BuildClassArrivals(db, env.Logger); return },

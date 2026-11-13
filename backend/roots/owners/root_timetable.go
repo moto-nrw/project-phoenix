@@ -8,6 +8,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/realtime"
 
 	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
 	"github.com/moto-ogs/project-phoenix/modules/timetable"
@@ -36,6 +37,9 @@ type TimetableOwner struct {
 	// StudentTemplateDays names and removes the hand planning a booking
 	// change leaves behind (#5102).
 	StudentTemplateDays timetable.StudentTemplateDays
+	// CohortRosters moves children who change Klasse or Gruppe between the
+	// materialized occurrences of dynamically targeted Regeltermine (#6841).
+	CohortRosters timetable.CohortRosters
 }
 
 // BuildTimetableOwner binds the Timetable owner's retained rows. The
@@ -45,6 +49,7 @@ func BuildTimetableOwner(
 	db transactionruntime.Database, logger *slog.Logger, now func() time.Time,
 	owner timetable.Capability, repos TimetableRepositories, calendar schoolcalendar.Days,
 	enrollment *enrollmentOwner.BookingProjection, groups EducationGroupRows, broadcaster realtime.Broadcaster,
+	students peopledirectory.StudentQuery, careBounds timetablePorts.CareBoundReader,
 ) (TimetableOwner, error) {
 	pool := db.Pool()
 	recurrenceLock, err := arrivalTimetable.NewRecurrenceWriteLock(arrivalTimetable.RecurrenceLockDependencies{
@@ -62,6 +67,10 @@ func BuildTimetableOwner(
 	if err != nil {
 		return TimetableOwner{}, fmt.Errorf("compose timetable student template days: %w", err)
 	}
+	cohorts, err := NewTimetableCohortRosters(repos, students, careBounds, logger)
+	if err != nil {
+		return TimetableOwner{}, fmt.Errorf("compose timetable cohort rosters: %w", err)
+	}
 	return TimetableOwner{
 		Repositories:        repos,
 		EducationGroupNames: TimetableEducationGroupNames(groups),
@@ -78,7 +87,20 @@ func BuildTimetableOwner(
 		RosterReconciler:    arrivalTimetable.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, repos.Directories, logger, now),
 		BlockMetadata:       arrivalTimetable.NewBlockDisplayMetadata(pool, blockDisplayCompose.List),
 		StudentTemplateDays: studentDays,
+		CohortRosters:       cohorts,
 	}, nil
+}
+
+// NewTimetableCohortRosters binds the cohort roster follow-up (#6841) over
+// the retained rows and the People Directory's enrolled children; careBounds
+// may be nil.
+func NewTimetableCohortRosters(
+	repos TimetableRepositories, students peopledirectory.StudentQuery, careBounds timetablePorts.CareBoundReader, logger *slog.Logger,
+) (timetable.CohortRosters, error) {
+	return arrivalTimetable.NewCohortRosters(timetablePorts.CohortRosterDependencies{
+		Groups: repos.Timetable, Students: timetableStudents(students), Enrollments: repos.StudentEnrollment, Directories: repos.Directories,
+		CareBounds: careBounds, Instances: repos.ActivityInstance, Participants: repos.InstanceStudent, Logger: logger,
+	})
 }
 
 // NewTimetableStudentTemplateDays binds the student template days over the

@@ -30,7 +30,11 @@ type Dependencies struct {
 	// ResyncOfferingRosters re-reconciles the offering-sourced timetable
 	// templates from the given calendar day after the class rewrite.
 	ResyncOfferingRosters func(context.Context, calendar.Date) error
-	Logger                *slog.Logger
+	// FollowClassChanges moves the children whose class the transition
+	// rewrote between the materialized occurrences of Regeltermine with a
+	// Klasse or Jahrgang target, from the given calendar day (#6841).
+	FollowClassChanges func(context.Context, []gradetransition.ClassChange, calendar.Date) error
+	Logger             *slog.Logger
 	// Audit appends the class-list rewrites in the caller's transaction, as
 	// the records ClassListEntryRecord builds; the root binds both.
 	Audit                AuditLog
