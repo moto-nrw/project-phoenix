@@ -31914,15 +31914,23 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
-      "binding_digest": "fdf462b580fb1f945132167c63bf393c",
+      "binding_digest": "1ce00f438f9d73745d15faa55a080e86",
       "port": "github.com/moto-ogs/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
       "source_owner": "timetable-activities",
-      "target": "github.com/moto-ogs/project-phoenix/modules/workforce.RangeBlockingAbsenceStatuses",
+      "target": "github.com/moto-ogs/project-phoenix/modules/workforce.PlanEffectiveAbsenceStatuses",
       "target_owner": "workforce"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
-      "binding_digest": "79d963020f3a2f4db90586de07a1d6b4",
+      "binding_digest": "d3160f5264d7a362f4999135c824f6ef",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/workforce.StaffAbsence.HalfBoundaryDays",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
+      "binding_digest": "5ba26892cf2bad7abd71673cbf7589b0",
       "port": "github.com/moto-ogs/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-ogs/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",

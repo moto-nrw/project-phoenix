@@ -798,7 +798,7 @@ export const OPEN_MONTH_REFRESH_MS = 60_000;
  */
 export const MAX_TARGET_RANGE_DAYS = 366;
 
-export interface BackendDailyTarget {
+interface BackendDailyTarget {
   date: string;
   target_minutes: number;
 }
