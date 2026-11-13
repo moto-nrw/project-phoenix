@@ -66,11 +66,16 @@ test.describe("Planung navigation", () => {
   test("sidebar shows the planning pages inside the Planung group and navigates each area", async ({
     page,
   }) => {
+    // Nach dem Login steht die Seite noch auf „moto öffnet Ihre OGS…“, bis der
+    // Dev-Server die erste Portalseite kompiliert hat. Das dauert in CI länger
+    // als die 5 Sekunden einer einzelnen Erwartung.
+    test.setTimeout(60_000);
     const sidebar = page.locator("aside");
 
     // Die Gruppe Planung (#2826) ist beim ersten Besuch zu; die Gruppenzeile
     // klappt sie auf, ohne zu navigieren.
     const planung = sidebar.getByRole("button", { name: "Planung" });
+    await expect(planung).toBeVisible({ timeout: 30_000 });
     await expect(planung).toHaveAttribute("aria-expanded", "false");
     await planung.click();
     await expect(planung).toHaveAttribute("aria-expanded", "true");
