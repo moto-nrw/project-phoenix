@@ -4,15 +4,14 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 	"github.com/moto-ogs/project-phoenix/modules/timetable"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Booking changes and hand-maintained Regeltermine (#5342). A booking

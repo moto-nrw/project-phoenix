@@ -5,9 +5,8 @@ import (
 
 	"github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/stretchr/testify/require"
-
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGroupRoomProjectionPreservesOpenRoomFlag(t *testing.T) {

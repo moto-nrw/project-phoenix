@@ -20,17 +20,15 @@ import (
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/moto-ogs/project-phoenix/tenant"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
 	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
-
-	"github.com/uptrace/bun"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/uptrace/bun"
 )
 
 // stubRequestSettings is a minimal RequestSettingsResolver. Tests set

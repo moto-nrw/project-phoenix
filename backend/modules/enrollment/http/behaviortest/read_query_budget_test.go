@@ -9,15 +9,14 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 	enrollmentHTTP "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // The real schema handlers and administration share one owner read per call.

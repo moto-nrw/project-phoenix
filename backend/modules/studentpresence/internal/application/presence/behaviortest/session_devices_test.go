@@ -6,9 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	api "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/stretchr/testify/assert"
 )
 
 type sessionWindowSettings struct {

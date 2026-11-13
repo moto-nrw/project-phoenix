@@ -3,15 +3,14 @@ package enrollmenthttp_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-ogs/project-phoenix/api"
 	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	"github.com/moto-ogs/project-phoenix/modules/timetable"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // #5365: the planning period ends before the Stichtag and the school has not

@@ -5,10 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRolloverStatusToken_UsesConfiguredLifetime(t *testing.T) {

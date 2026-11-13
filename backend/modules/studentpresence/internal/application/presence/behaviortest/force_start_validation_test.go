@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
 	active "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
@@ -19,6 +17,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
+	"github.com/stretchr/testify/require"
 )
 
 type validationStaffDirectory struct {

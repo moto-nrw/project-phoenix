@@ -5,10 +5,9 @@ import (
 
 	"github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGroupsCompositionPreservesYardColor(t *testing.T) {

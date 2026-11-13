@@ -12,10 +12,9 @@ import (
 	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Integration coverage for the ExportPhase coupling: loading the phase

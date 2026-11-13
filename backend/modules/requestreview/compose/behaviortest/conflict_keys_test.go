@@ -3,13 +3,12 @@ package behaviortest
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-ogs/project-phoenix/modules/careplan/offeringrequests"
+	"github.com/stretchr/testify/assert"
 )
 
 // These owner-contract assertions replace the retired generic conflict helper's

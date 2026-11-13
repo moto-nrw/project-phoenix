@@ -7,12 +7,11 @@ import (
 
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-ogs/project-phoenix/api"
 	"github.com/moto-ogs/project-phoenix/api/testutil"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEnrollmentProfileRouteGrowthQueryBudget(t *testing.T) {

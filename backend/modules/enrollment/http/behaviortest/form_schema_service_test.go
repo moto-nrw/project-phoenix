@@ -9,11 +9,10 @@ import (
 
 	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-
-	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func setupSchemaTest(t *testing.T) (*bun.DB, capability.FormSchemaAdministration, int64, int64) {

@@ -21,17 +21,15 @@ import (
 	"testing"
 	"time"
 
-	presenceevents "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence/behaviortest"
-
 	"github.com/moto-ogs/project-phoenix/api"
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
+	active "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
+	presenceevents "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence/behaviortest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	active "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
-	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // firstOfType returns the first event of the given type seen across every

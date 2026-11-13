@@ -6,11 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/moto-ogs/project-phoenix/api/testutil"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRoomSnapshotExportQueryBudget(t *testing.T) {

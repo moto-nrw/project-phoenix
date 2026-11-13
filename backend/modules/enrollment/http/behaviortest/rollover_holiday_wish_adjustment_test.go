@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRolloverHolidayWishCanBeAnsweredWithBookingAdjustment(t *testing.T) {

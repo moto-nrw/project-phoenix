@@ -7,13 +7,12 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // openRoomPresence is the narrow surface the open-room move workflow binds to

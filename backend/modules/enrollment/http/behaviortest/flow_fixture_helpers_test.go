@@ -18,9 +18,6 @@ import (
 
 	"github.com/moto-ogs/project-phoenix/api/testutil"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
@@ -29,6 +26,8 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/timetable"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // Fixtures of the enrollment flow suites (#3565). The suites seed Care

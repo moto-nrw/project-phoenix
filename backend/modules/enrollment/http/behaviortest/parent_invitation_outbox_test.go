@@ -11,9 +11,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-ogs/project-phoenix/api"
 	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
@@ -25,6 +22,8 @@ import (
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/moto-ogs/project-phoenix/tenant"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 func TestParentInvitationOutboxIsAtomicWithApproval(t *testing.T) {

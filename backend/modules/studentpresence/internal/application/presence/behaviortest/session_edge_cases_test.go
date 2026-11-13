@@ -7,11 +7,10 @@ import (
 
 	"github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	activeSvc "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // buildSessionEdgeCaseService creates an Active Service for edge case tests

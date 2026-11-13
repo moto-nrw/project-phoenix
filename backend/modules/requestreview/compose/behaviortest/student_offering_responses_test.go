@@ -5,10 +5,9 @@ import (
 
 	reviewbindings "github.com/moto-ogs/project-phoenix/roots/requestreviewbinding"
 
+	"github.com/moto-ogs/project-phoenix/modules/careplan/offeringrequests"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-ogs/project-phoenix/modules/careplan/offeringrequests"
 )
 
 func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *testing.T) {

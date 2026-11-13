@@ -3,13 +3,12 @@ package enrollmenthttp_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Request-level weekly answers feed the deferred plan just like child-level

@@ -14,12 +14,11 @@ import (
 	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
+	"github.com/moto-ogs/project-phoenix/realtime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-
-	"github.com/moto-ogs/project-phoenix/realtime"
-	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Companion regressions for the admin-correction sync of an APPROVED child

@@ -10,8 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-ogs/project-phoenix/api"
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
@@ -24,6 +22,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/uptrace/bun"
 )
 
 // futureRenewal is an approved re-enrollment of an already cared-for child

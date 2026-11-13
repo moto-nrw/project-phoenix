@@ -4,10 +4,9 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // AttendanceResult.Changed pins whether the CALL mutated the attendance row

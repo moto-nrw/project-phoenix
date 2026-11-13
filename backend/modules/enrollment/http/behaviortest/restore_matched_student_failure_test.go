@@ -14,15 +14,14 @@ import (
 
 	api "github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
-
 	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Real Intake fixture shared by the fault schedules below. The trusted school

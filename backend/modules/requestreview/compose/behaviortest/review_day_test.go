@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-ogs/project-phoenix/modules/requestreview"
+	"github.com/stretchr/testify/require"
 )
 
 func TestQueuesPreferTheResolvedUrgencyDate(t *testing.T) {

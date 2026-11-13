@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 	"github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 	enrollmenthttp "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	"github.com/moto-ogs/project-phoenix/roots/owners"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 func adminCaseService(env *requestTestEnv, requests compose.ChangeRequestRecords, children compose.IntakeChildren, catalog compose.IntakeCatalog) enrollmenthttp.ChangeRequestService {

@@ -12,14 +12,13 @@ import (
 
 	api "github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 func TestRestoreMatchedStudentOrderedDuplicateAndNullGuards(t *testing.T) {

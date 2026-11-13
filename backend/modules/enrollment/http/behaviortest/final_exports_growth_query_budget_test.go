@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-ogs/project-phoenix/api/testutil"
 	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
 	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
@@ -20,6 +18,7 @@ import (
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEnrollmentExportsPositiveGrowthQueryBudget(t *testing.T) {

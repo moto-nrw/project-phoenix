@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // Exercise the merged page and badge with multiple children, not merely

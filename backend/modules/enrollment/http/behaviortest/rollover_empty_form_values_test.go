@@ -3,11 +3,10 @@ package enrollmenthttp_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestRolloverStoresEmptyFormValuesAsJSONObjects pins the one empty form of a

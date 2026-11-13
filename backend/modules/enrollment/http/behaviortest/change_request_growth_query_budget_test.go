@@ -8,12 +8,11 @@ import (
 
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 
-	"github.com/stretchr/testify/require"
-
 	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	compose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEnrollmentPublicChangesRouteGrowthQueryBudget(t *testing.T) {

@@ -11,12 +11,11 @@ import (
 
 	api "github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // The competing writer is a real existing_students Intake, with a distinct

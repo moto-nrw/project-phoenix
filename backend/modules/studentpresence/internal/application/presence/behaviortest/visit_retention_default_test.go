@@ -8,11 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	activeService "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // privacyConsentRetentionKey is models/config.KeyPrivacyConsentRetentionDays,

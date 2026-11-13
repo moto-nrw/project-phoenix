@@ -7,10 +7,9 @@ import (
 
 	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestRequestService_LoadPublicFormBootstrap_AssemblesPhaseSchemaCapabilities(t *testing.T) {

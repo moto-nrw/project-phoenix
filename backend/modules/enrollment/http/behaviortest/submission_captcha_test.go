@@ -12,11 +12,10 @@ import (
 	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
 	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
-	"github.com/stretchr/testify/require"
-
 	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
 	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 type captchaSchoolLookup struct {

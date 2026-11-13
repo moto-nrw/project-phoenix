@@ -13,12 +13,11 @@ import (
 	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	api "github.com/moto-ogs/project-phoenix/roots/owners"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 type failingIntakeWrites struct {

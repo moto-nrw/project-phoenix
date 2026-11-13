@@ -9,11 +9,10 @@ import (
 
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	owner "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 func TestOwnerOfferingInsertDefaultsDatesAndRollsBack(t *testing.T) {

@@ -6,12 +6,11 @@ import (
 	"testing"
 	"time"
 
+	activeService "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-
-	activeService "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
-	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestConfirmDailyCheckout_ConcurrentDestinationsReportRecordedCheckout(t *testing.T) {

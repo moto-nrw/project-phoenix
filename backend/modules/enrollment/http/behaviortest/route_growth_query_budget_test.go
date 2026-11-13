@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-ogs/project-phoenix/api"
 	"github.com/moto-ogs/project-phoenix/api/testutil"
 	uploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
@@ -22,6 +20,7 @@ import (
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
+	"github.com/stretchr/testify/require"
 )
 
 // Counts include every SQL statement issued by the actual mounted handler,

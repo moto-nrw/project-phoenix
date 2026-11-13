@@ -8,12 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	compose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 	enrollmentHTTP "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 // A malformed pinned version must hide only its own display metadata. Rows

@@ -9,15 +9,13 @@ import (
 
 	api "github.com/moto-ogs/project-phoenix/roots/owners"
 
+	enrollmentCapability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentCapability "github.com/moto-ogs/project-phoenix/modules/enrollment"
-	testpkg "github.com/moto-ogs/project-phoenix/test"
-
-	"github.com/uptrace/bun"
-
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/uptrace/bun"
 )
 
 // setupFullSchemaTest provides repositories for phase and request fixtures

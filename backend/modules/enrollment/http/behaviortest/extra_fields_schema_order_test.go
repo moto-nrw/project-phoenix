@@ -8,13 +8,12 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-ogs/project-phoenix/api"
 	"github.com/moto-ogs/project-phoenix/api/testutil"
 	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	enrollmentHTTP "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 // Historical schema decoding must not overtake an earlier child's JSON error,

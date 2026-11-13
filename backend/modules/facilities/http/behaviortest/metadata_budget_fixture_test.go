@@ -4,9 +4,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/uptrace/bun"
-
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/uptrace/bun"
 )
 
 // roomMetadataBudgetRouter serves the metadata budget tests the real

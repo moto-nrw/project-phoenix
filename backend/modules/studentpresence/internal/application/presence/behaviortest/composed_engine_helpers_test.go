@@ -3,10 +3,9 @@ package behaviortest_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/stretchr/testify/require"
 )
 
 // composedEngine returns the application service the services factory

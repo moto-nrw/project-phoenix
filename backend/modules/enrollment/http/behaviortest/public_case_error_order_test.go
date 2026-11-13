@@ -7,12 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	compose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 // A stored malformed child must win over a later message-read failure. The

@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"testing"
 
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-
-	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestRuntimeConstraintViolationUsesPostgresSQLState(t *testing.T) {

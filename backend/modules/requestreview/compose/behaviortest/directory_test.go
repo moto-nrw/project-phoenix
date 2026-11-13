@@ -6,10 +6,9 @@ import (
 
 	reviewbindings "github.com/moto-ogs/project-phoenix/roots/requestreviewbinding"
 
-	"github.com/stretchr/testify/require"
-
 	peoplecompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {

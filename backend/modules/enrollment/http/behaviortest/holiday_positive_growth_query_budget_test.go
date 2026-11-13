@@ -9,9 +9,6 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-ogs/project-phoenix/api"
 	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
@@ -20,6 +17,8 @@ import (
 	"github.com/moto-ogs/project-phoenix/tenant"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // Confirmed registration rows arrange the input, not replacement services.

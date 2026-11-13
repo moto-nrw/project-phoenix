@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/moto-ogs/project-phoenix/api"
-	"github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence"
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -25,15 +24,4 @@ func setupActiveModule(t *testing.T) (*bun.DB, api.ActiveSettings, api.ActivePre
 	moduleCaller := api.NewActiveTestCaller(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	moduleSettings := api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	return db, moduleSettings, modulePresence, modulePeople, moduleEducation, moduleCaller, module
-}
-
-// The root imports this package, so the internal tests reach its settings
-// service through this binding.
-func init() {
-	presence.ComposeTrackingSettings = func(t *testing.T, db *bun.DB) presence.TrackingSettings {
-		t.Helper()
-		module, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
-		require.NoError(t, err)
-		return module.Settings
-	}
 }

@@ -8,17 +8,15 @@ import (
 	"testing"
 	"time"
 
-	presenceevents "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence/behaviortest"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-ogs/project-phoenix/api"
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 	active "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
+	presenceevents "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence/behaviortest"
 	"github.com/moto-ogs/project-phoenix/tenant"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 type pausedCheckinWrite struct {

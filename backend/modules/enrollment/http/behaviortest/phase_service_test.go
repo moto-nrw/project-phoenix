@@ -13,19 +13,17 @@ import (
 	"github.com/moto-ogs/project-phoenix/api"
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-ogs/project-phoenix/tenant"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
-
-	"github.com/uptrace/bun"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-ogs/project-phoenix/modules/timetable"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/uptrace/bun"
 )
 
 func setupPhaseTest(t *testing.T) (enrollmentNative.PhaseAdministration, *owners.EnrollmentFlowTestRepositories, owners.TimetableCarePlanRows, api.TimetableSchoolCalendar, *bun.DB) {

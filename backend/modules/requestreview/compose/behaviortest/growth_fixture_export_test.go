@@ -4,13 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/moto-ogs/project-phoenix/modules/requestreview"
 	reviewbindings "github.com/moto-ogs/project-phoenix/roots/requestreviewbinding"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // NewGrowthQuery reuses the existing real queue fixtures for external DB tests.

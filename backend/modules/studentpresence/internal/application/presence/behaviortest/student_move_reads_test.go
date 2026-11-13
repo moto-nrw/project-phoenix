@@ -7,14 +7,12 @@ import (
 	"testing"
 	"time"
 
-	presenceevents "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence/behaviortest"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
+	presenceevents "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence/behaviortest"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // moveCohort is one child of each kind a bulk move meets, in request order:
