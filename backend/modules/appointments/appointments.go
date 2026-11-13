@@ -359,19 +359,6 @@ type RecipientResponse struct {
 	Status         string
 }
 
-func (r RecipientResponse) Validate() error {
-	if r.RecipientID <= 0 {
-		return invalid("appointment recipient ID is required")
-	}
-	if !ValidResponseStatus(r.Status) {
-		return invalid("invalid recipient status")
-	}
-	if !r.OccurrenceDate.IsZero() && r.Status != ResponseStatusAccepted && r.Status != ResponseStatusDeclined {
-		return invalid("an occurrence takes accepted or declined")
-	}
-	return nil
-}
-
 type AppointmentRecipientStudent struct {
 	ID          int64     `json:"id"`
 	TenantID    int64     `json:"tenant_id"`

@@ -538,8 +538,15 @@ func (s *Service) CreateAppointmentRecipients(ctx context.Context, appointmentID
 }
 
 func (s *Service) UpdateAppointmentRecipientResponse(ctx context.Context, response appointments.RecipientResponse) error {
-	if err := response.Validate(); err != nil {
-		return err
+	if response.RecipientID <= 0 {
+		return invalid("appointment recipient ID is required")
+	}
+	if !appointments.ValidResponseStatus(response.Status) {
+		return invalid("invalid recipient status")
+	}
+	// A single date of a series takes an answer only, never pending or info.
+	if !response.OccurrenceDate.IsZero() && response.Status != appointments.ResponseStatusAccepted && response.Status != appointments.ResponseStatusDeclined {
+		return invalid("an occurrence takes accepted or declined")
 	}
 	return s.runUnit(ctx, "update_appointment_recipient_response", func(ctx context.Context, stats *domain.OperationStats) error {
 		updated, queryStats, err := s.store.UpdateAppointmentRecipientResponse(ctx, response)
