@@ -87,3 +87,40 @@ func assertStatusDayEvent(t *testing.T, event statusDayHistoryEvent, reportedAt 
 	require.NotNil(t, event.AccountID)
 	assert.Equal(t, accountID, *event.AccountID)
 }
+
+// A new reporter on a standing day keeps its report time (a profile note
+// update reuses the flag's since time) and still leaves an event (#6842).
+func TestStatusDayReporterChangeIsRecorded(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "Reporter", "Change", "1a")
+	parent := testpkg.CreateTestAccount(t, db, "reporter-parent")
+	staff := testpkg.CreateTestAccount(t, db, "reporter-staff")
+	date := careplan.Date("2031-03-05")
+	reportedAt := time.Date(2031, 3, 5, 6, 30, 0, 0, time.UTC)
+	for _, report := range []careplan.StudentStatusDay{
+		{Source: careplan.StudentStatusSourceParent, GuardianAccountID: &parent.ID, ReportedByAccountID: &parent.ID},
+		{Source: careplan.StudentStatusSourceManual, ReportedByAccountID: &staff.ID},
+	} {
+		report.StudentID, report.Date, report.Status, report.ReportedAt = student.ID, date, "sick", reportedAt
+		_, err := module.UpsertStudentStatusDay(ctx, report)
+		require.NoError(t, err)
+	}
+
+	events := []statusDayHistoryEvent{}
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		scoped, _, databaseErr := postgresNative.CarePlanDatabase(db)(txCtx)
+		if databaseErr != nil {
+			return databaseErr
+		}
+		return scoped.NewSelect().TableExpr("schedule.meal_sickness_status_history").
+			Column("reported_at", "cleared_at", "source", "account_id").
+			Where("student_id = ? AND date = ? AND status = 'sick'", student.ID, string(date)).
+			OrderExpr("id ASC").Scan(txCtx, &events)
+	}))
+	require.Len(t, events, 2)
+	assertStatusDayEvent(t, events[0], reportedAt, false, careplan.StudentStatusSourceParent, parent.ID)
+	assertStatusDayEvent(t, events[1], reportedAt, false, careplan.StudentStatusSourceManual, staff.ID)
+}

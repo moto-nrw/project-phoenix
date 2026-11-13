@@ -95,6 +95,11 @@ const statusDayProvenanceUpSQL = `
 			effective_change := NEW.reported_at;
 		ELSIF NEW.cleared_at IS DISTINCT FROM OLD.cleared_at THEN
 			effective_change := COALESCE(NEW.cleared_at, clock_timestamp());
+		ELSIF NEW.source IS DISTINCT FROM OLD.source
+			OR NEW.reported_by_account_id IS DISTINCT FROM OLD.reported_by_account_id THEN
+			-- A new reporter on a standing day keeps its report time (a
+			-- profile note update reuses the flag's since time).
+			effective_change := clock_timestamp();
 		ELSE
 			RETURN NEW;
 		END IF;
@@ -114,6 +119,11 @@ const statusDayProvenanceUpSQL = `
 		RETURN NEW;
 	END;
 	$$ LANGUAGE plpgsql;
+
+	DROP TRIGGER IF EXISTS record_meal_sickness_status ON active.student_status_days;
+	CREATE TRIGGER record_meal_sickness_status
+		AFTER INSERT OR UPDATE OF status, reported_at, cleared_at, source, reported_by_account_id ON active.student_status_days
+		FOR EACH ROW EXECUTE FUNCTION schedule.record_meal_sickness_status();
 `
 
 // statusDayProvenanceDownSQL hands a withdrawn archive its clearing source
@@ -123,6 +133,11 @@ const statusDayProvenanceDownSQL = `
 	UPDATE active.student_status_days
 	SET source = cleared_source
 	WHERE source = 'end_of_day' AND cleared_source IS NOT NULL;
+
+	DROP TRIGGER IF EXISTS record_meal_sickness_status ON active.student_status_days;
+	CREATE TRIGGER record_meal_sickness_status
+		AFTER INSERT OR UPDATE OF status, reported_at, cleared_at ON active.student_status_days
+		FOR EACH ROW EXECUTE FUNCTION schedule.record_meal_sickness_status();
 
 	ALTER TABLE schedule.meal_sickness_status_history
 		DROP COLUMN IF EXISTS account_id,
