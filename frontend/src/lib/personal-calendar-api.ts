@@ -78,7 +78,18 @@ export interface CalendarEvent {
   readonly cancelled?: boolean;
   readonly recurring?: boolean;
   readonly delivery_mode?: CalendarDeliveryMode;
+  /** Die Antwort für diesen Termin. */
   readonly response_status?: CalendarResponseStatus;
+  /**
+   * Die Antwort für die ganze Reihe. Sie weicht von `response_status` ab,
+   * wenn für diesen Termin eine eigene Antwort gilt (#6987).
+   */
+  readonly series_response_status?: CalendarResponseStatus;
+  /**
+   * Ob für mindestens einen Termin der Reihe eine eigene Antwort gilt. Eine
+   * neue Antwort für die Reihe ersetzt sie dann (#6987).
+   */
+  readonly has_occurrence_answers?: boolean;
   readonly recipient_id?: string;
   readonly organizer_staff_id?: string;
   readonly can_respond: boolean;
@@ -172,6 +183,8 @@ export interface CalendarResponseCounts {
  */
 export interface CalendarAppointmentOverview {
   readonly appointment_id: string;
+  /** Der Termin einer Reihe, dessen Antworten die Übersicht zählt (#6987). */
+  readonly occurrence_date?: string;
   readonly delivery_mode: CalendarDeliveryMode;
   readonly overview_visibility: CalendarOverviewVisibility;
   readonly counts: CalendarResponseCounts;
@@ -295,15 +308,36 @@ export function getParentCalendar(from: Date, to: Date) {
   );
 }
 
+/**
+ * Der Körper einer Zu- oder Absage. Mit `occurrenceDate` gilt sie nur für
+ * diesen Termin einer Reihe, sonst für den Termin oder alle Termine (#6987).
+ */
+function answerBody(
+  status: "accepted" | "declined",
+  occurrenceDate?: string,
+): string {
+  return JSON.stringify(
+    occurrenceDate ? { status, occurrence_date: occurrenceDate } : { status },
+  );
+}
+
+/** `?occurrence_date=…` für die Antworten eines Termins einer Reihe. */
+function occurrenceQuery(occurrenceDate?: string): string {
+  return occurrenceDate
+    ? `?${new URLSearchParams({ occurrence_date: occurrenceDate }).toString()}`
+    : "";
+}
+
 export function respondStaffCalendar(
   recipientId: string,
   status: "accepted" | "declined",
+  occurrenceDate?: string,
 ) {
   return fetchJSON(
     `/api/calendar/recipients/${encodeURIComponent(recipientId)}/response`,
     {
       method: "POST",
-      body: JSON.stringify({ status }),
+      body: answerBody(status, occurrenceDate),
     },
   );
 }
@@ -311,25 +345,32 @@ export function respondStaffCalendar(
 export function respondParentCalendar(
   recipientId: string,
   status: "accepted" | "declined",
+  occurrenceDate?: string,
 ) {
   return fetchJSON(
     `/api/parent/calendar/recipients/${encodeURIComponent(recipientId)}/response`,
     {
       method: "POST",
-      body: JSON.stringify({ status }),
+      body: answerBody(status, occurrenceDate),
     },
   );
 }
 
-export function getStaffAppointmentOverview(appointmentId: string) {
+export function getStaffAppointmentOverview(
+  appointmentId: string,
+  occurrenceDate?: string,
+) {
   return fetchJSON<CalendarAppointmentOverview>(
-    `/api/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`,
+    `/api/calendar/appointments/${encodeURIComponent(appointmentId)}/overview${occurrenceQuery(occurrenceDate)}`,
   );
 }
 
-export function getParentAppointmentOverview(appointmentId: string) {
+export function getParentAppointmentOverview(
+  appointmentId: string,
+  occurrenceDate?: string,
+) {
   return fetchJSON<CalendarAppointmentOverview>(
-    `/api/parent/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`,
+    `/api/parent/calendar/appointments/${encodeURIComponent(appointmentId)}/overview${occurrenceQuery(occurrenceDate)}`,
   );
 }
 
@@ -517,10 +558,11 @@ export function deleteSchoolAppointment(appointmentId: string) {
 export function respondSchoolCalendar(
   recipientId: string,
   status: "accepted" | "declined",
+  occurrenceDate?: string,
 ) {
   return fetchJSON(
     `/api/school/calendar/recipients/${encodeURIComponent(recipientId)}/response`,
-    { method: "POST", body: JSON.stringify({ status }) },
+    { method: "POST", body: answerBody(status, occurrenceDate) },
   );
 }
 

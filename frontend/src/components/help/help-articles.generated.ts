@@ -4920,7 +4920,8 @@ export const myScheduleTopic = function myScheduleTopic(): HelpTopic {
       "Sie haben einen Überblick über Ihre Termine und Einsätze. Das Kalender-Abo übernimmt neue, geänderte und abgesagte Einträge automatisch.",
     notes: [
       "Mit `Sa/So` blenden Sie das Wochenende ein. Eine Zahl zeigt, dass dort Einträge liegen.",
-      "Bei einer Einladung wählen Sie im geöffneten Termin `Zusagen` oder `Absagen`. Bei einer Reihe gilt die Antwort für alle Termine.",
+      "Bei einer Einladung wählen Sie im geöffneten Termin `Zusagen` oder `Absagen`. Bei einer Reihe wählen Sie vorher unter `Ihre Antwort gilt für`, ob die Antwort nur für diesen Termin oder für `Alle Termine` gilt.",
+      "`Teilnehmer` zeigt bei einer Reihe die Antworten für den geöffneten Termin.",
       "Beim Anlegen und Bearbeiten wählen Sie unter `Wer sieht die Teilnehmerübersicht?`, wer die Antworten sieht. Bei `Alle Eingeladenen` sehen Eltern nur, wie viele zugesagt und abgesagt haben, keine Namen.",
       "Legen Sie einen Termin an und wählen Sie `Alle Lehrkräfte`. Dann sehen die Lehrkräfte ihn in moto schule.",
     ],
@@ -5377,6 +5378,9 @@ export const ownAbsenceTopic = function ownAbsenceTopic(): HelpTopic {
       "Freizeitausgleich trägt nur ein, wer die Zeiten des Teams verwalten darf.",
     ],
     notes: [
+      "An ganzen Abwesenheitstagen fallen Ihre Schichten aus. Im Betreuungsplan stehen Sie als abwesend.",
+      "In den Plänen sieht das Team nur, ob Sie krank oder abwesend sind. Die Art und Ihre Bemerkung sieht es nicht.",
+      "Bei einem halben Tag bleiben Ihre Schichten stehen. Ihre Leitung ändert sie bei Bedarf.",
       "Ihre Abwesenheit steht danach in der Tabelle `Zeiterfassung` unter `Status`. Über das Stift-Symbol am Ende der Zeile öffnen Sie den Tag.",
       "Hat eine Art Ihrer OGS feste Tage, sehen Sie den Stand in der Karte `Kontingente`. Den Anspruch trägt Ihre Leitung ein.",
     ],
@@ -5614,6 +5618,7 @@ export const parentAnnouncementTopic =
         "Unter einer Mitteilung steht `Von …, Lehrkraft der Klasse … · nur zum Lesen`? Die hat eine Lehrkraft in moto schule geschrieben. Sie können sie lesen, ändern kann sie nur die Lehrkraft.",
         "Unter `Priorität` stehen `Info` und `Wichtig` zur Wahl.",
         "Mit `Ablaufdatum (optional)` blenden Sie die Mitteilung später wieder aus.",
+        "Eine Mitteilung bleibt bei den Kindern, die sie beim Veröffentlichen erreicht hat. Wechselt danach ein Kind die Klasse, behält es die Mitteilung. Die neue Klasse bekommt sie nicht. Das gilt auch für `Statistik` und Erinnerungen.",
       ],
       troubleshootingDetails: [
         "`Veröffentlichen` bleibt grau? Dann fehlt noch ein Empfänger.",
@@ -5648,13 +5653,15 @@ export const parentCalendarTopic = function parentCalendarTopic(): HelpTopic {
       "Ein Termin ist eine `Betreuungszeit`, eine `Einladung` oder ein `Termin`.",
       "Bei einer Einladung antworten Sie mit `Zusagen` oder `Absagen`.",
       "Danach steht am Termin `Zugesagt` oder `Abgesagt`.",
-      "Wiederholt sich ein Termin, gilt Ihre Antwort für alle Termine der Reihe.",
+      "Wiederholt sich ein Termin, wählen Sie unter `Ihre Antwort gilt für` zwischen `Nur am …` und `Alle Termine`. So sagen Sie zum Beispiel einem einzelnen Termin ab.",
+      "Eine Antwort ändern Sie im geöffneten Termin mit `Antwort ändern`.",
       "Unter `Rückmeldungen` sehen Sie, wie viele zugesagt und abgesagt haben. Namen anderer Eltern sehen Sie nicht.",
       "Rechts steht ein Monatskalender. Mit den Pfeilen wechseln Sie den Monat.",
       "Unter `Kalender abonnieren` holen Sie sich mit `Abo-Link anzeigen` die Termine in Ihren eigenen Kalender.",
     ],
     differences: [
       "Ein Termin trägt `Antwort erforderlich`? Dann wartet die OGS auf Ihre Antwort.",
+      "Steht am Termin `Nur für diesen Termin`? Dann gilt dort eine andere Antwort als für die übrigen Termine der Reihe.",
       "Hat die OGS abgesagt, steht dort `Von der OGS abgesagt`.",
       "Sie sehen keine `Rückmeldungen`? Dann zeigt die OGS sie bei diesem Termin nicht.",
       "Der Kalender zeigt die nächsten 3 Monate.",
@@ -6720,6 +6727,7 @@ export const parentLetterTopic = function parentLetterTopic(): HelpTopic {
     result:
       "Der Brief steht im Elternportal. Die erreichten Eltern bekommen zusätzlich eine E-Mail.",
     notes: [
+      "Unter `Status` zählen die Kinder, die der Brief beim Veröffentlichen erreicht hat. Wechselt danach ein Kind die Klasse, bleibt es in der Liste. Die neue Klasse bekommt den Brief nicht.",
       "Unter `Empfänger` steht bei jeder Mail, was aus ihr geworden ist. Steht dort `Adresse prüfen`, korrigieren Sie die Adresse beim Kind unter `Erziehungsberechtigte`.",
       "Unter `Wer erhält die E-Mail?` wählen Sie `Nur mit Portalzugang` oder `Alle Bezugspersonen`.",
       "Die Eltern bestätigen den Brief. Eine Bestätigung pro Kind genügt.",
@@ -9271,6 +9279,7 @@ export const teacherCalendarTopic = function teacherCalendarTopic(): HelpTopic {
         title: "Auf eine Einladung der OGS antworten",
         steps: [
           "Wählen Sie den Termin im Kalender.",
+          "Bei einer Reihe: Wählen Sie unter `Ihre Antwort gilt für`, ob die Antwort nur für diesen Termin oder für `Alle Termine` gilt.",
           "Wählen Sie `Zusagen` oder `Absagen`.",
         ],
       },
@@ -13809,6 +13818,8 @@ export const vacationTopic = function vacationTopic(): HelpTopic {
     ],
     notes: [
       "Einen offenen oder zukünftigen genehmigten Antrag können Sie stornieren.",
+      "Ist der Antrag genehmigt, fallen Ihre Schichten an den ganzen Urlaubstagen aus. Im Betreuungsplan stehen Sie dann als abwesend. Das Team sieht dort nur `Abwesenheit`.",
+      "Stornieren Sie einen genehmigten Antrag, plant moto Sie an diesen Tagen wieder ein.",
       "Bei einer `Rückfrage` schreiben Sie eine Antwort und wählen `Antwort senden & erneut einreichen`.",
     ],
     related: [HELP_TOPICS.ownAbsence, HELP_TOPICS.correctWorkTime],

@@ -1633,7 +1633,6 @@ import {
   MAX_TARGET_RANGE_DAYS,
   mapBalanceAdjustmentResponse,
   mapDailyProjectionResponse,
-  mapDailyTargetsResponse,
   mapMonthCloseResultResponse,
   mapMonthCloseSnapshotResponse,
   mapMonthSummaryResponse,
@@ -1642,7 +1641,6 @@ import {
   mapWorkSessionEditResponse,
   type BackendBalanceAdjustment,
   type BackendDailyProjection,
-  type BackendDailyTarget,
   type DayProjection,
   type BackendMonthCloseResult,
   type BackendMonthCloseSnapshot,
@@ -1753,43 +1751,21 @@ class StaffMonthSummaryService {
     return mapDailyProjectionResponse(json.data);
   }
 
-  // Admin counterpart to timeTrackingService.getScheduleTargets — the same
-  // date-valid Soll the Monatskarte is computed from, so card and table can
-  // never disagree after a schedule change (#1842).
-  async getScheduleTargets(
-    staffId: string,
-    from: string,
-    to: string,
-  ): Promise<ReadonlyMap<string, number>> {
-    const params = new URLSearchParams({ from, to, target_only: "true" });
-    const response = await sessionFetch(
-      `/api/staff/${staffId}/time-tracking/schedule-targets?${params}`,
-    );
-    if (!response.ok) {
-      throw await apiErrorFromResponse(
-        response,
-        `Failed to fetch schedule targets: ${response.statusText}`,
-      );
-    }
-    const json = (await response.json()) as {
-      data: BackendDailyTarget[] | null;
-    };
-    return mapDailyTargetsResponse(json.data);
-  }
-
   /**
-   * Same date-valid Soll as `getScheduleTargets`, for a range that may be
-   * longer than the endpoint's MAX_TARGET_RANGE_DAYS window. The Übersicht
-   * charts reach back to the configured account start ("Gesamt"), which can be
-   * years — one request would simply 400. The windows are fetched with bounded
-   * concurrency and merged; days repeat across no two windows, so the merge is
-   * a plain union.
+   * The same per-day projection as `getDailyProjection` (Soll, Gutschrift,
+   * Ist, Saldo), for a range that may be longer than the endpoint's
+   * MAX_TARGET_RANGE_DAYS window. The Übersicht charts reach back to the
+   * configured account start ("Gesamt"), which can be years — one request
+   * would simply 400. The windows are fetched with bounded concurrency and
+   * merged; days repeat across no two windows, so the merge is a plain union.
+   * The charts sum these server days instead of crediting absences themselves
+   * (#6847).
    */
-  async getScheduleTargetsRange(
+  async getDailyProjectionRange(
     staffId: string,
     from: string,
     to: string,
-  ): Promise<ReadonlyMap<string, number>> {
+  ): Promise<ReadonlyMap<string, DayProjection>> {
     // Windows are MAX_TARGET_RANGE_DAYS calendar days INCLUSIVE — one day
     // inside the endpoint's cap, which counts the gap between the bounds
     // rather than the days. Nothing rides on the last day of headroom, and a
@@ -1816,18 +1792,18 @@ class StaffMonthSummaryService {
     const chunks = await mapWithConcurrency(
       windows,
       MAX_TARGET_RANGE_CONCURRENCY,
-      (w) => this.getScheduleTargets(staffId, w.from, w.to),
+      (w) => this.getDailyProjection(staffId, w.from, w.to),
     );
-    const merged = new Map<string, number>();
+    const merged = new Map<string, DayProjection>();
     for (const chunk of chunks) {
-      for (const [day, minutes] of chunk) merged.set(day, minutes);
+      for (const [day, projection] of chunk) merged.set(day, projection);
     }
     return merged;
   }
 }
 
-// Upper bound on schedule-target windows fetched at once by
-// getScheduleTargetsRange. Four keeps the round-trips overlapping without
+// Upper bound on projection windows fetched at once by
+// getDailyProjectionRange. Four keeps the round-trips overlapping without
 // letting a long-lived account open a dozen+ concurrent DB-backed requests.
 const MAX_TARGET_RANGE_CONCURRENCY = 4;
 

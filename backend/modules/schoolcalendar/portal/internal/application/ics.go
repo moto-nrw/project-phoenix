@@ -33,8 +33,7 @@ func (s *service) StaffAppointmentICS(ctx context.Context, appointmentID int64) 
 	if err != nil {
 		return "", "", err
 	}
-	_, recipientID := staffRecipientStatus(recipients, staff.ID)
-	if appointment.OrganizerStaffID != staff.ID && recipientID == nil {
+	if appointment.OrganizerStaffID != staff.ID && staffRecipient(recipients, staff.ID) == nil {
 		return "", "", ErrNotFound
 	}
 	return s.renderAppointmentICS(ctx, appointment)

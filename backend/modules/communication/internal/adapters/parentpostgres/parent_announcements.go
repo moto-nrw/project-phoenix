@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-ogs/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 const (
@@ -386,7 +387,10 @@ func (s *AnnouncementStore) SetPublished(ctx context.Context, id int64, publishe
 		// disappear before staff can schedule a reminder for the correction.
 		query.Set("reminder_at = NULL").
 			Set("reminder_text = NULL").
-			Set("reminder_sent_at = NULL")
+			Set("reminder_sent_at = NULL").
+			// The recorded children belonged to the withdrawn publication too;
+			// the next one records those of its own moment (#6988).
+			Set("recipient_student_ids = NULL")
 	}
 	query = withTenant(query, parentAnnouncementAlias, scope)
 	if _, err := query.Exec(ctx); err != nil {
@@ -420,6 +424,28 @@ func (s *AnnouncementStore) PublishIfDraft(ctx context.Context, id int64, publis
 		return false, fmt.Errorf("publish parent announcement rows affected: %w", err)
 	}
 	return affected > 0, nil
+}
+
+// RecordRecipients stores the children a publication reached (#6988). A
+// recorded publication that reached nobody stores an empty array, which
+// readers tell apart from NULL, "not recorded". RLS pins the update to the
+// current tenant.
+func (s *AnnouncementStore) RecordRecipients(ctx context.Context, id int64, studentIDs []int64) error {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	recorded := append(make([]int64, 0, len(studentIDs)), studentIDs...)
+	query := db.NewUpdate().
+		Model((*parentAnnouncementRow)(nil)).
+		ModelTableExpr(parentAnnouncementTableExpr).
+		Set("recipient_student_ids = ?::bigint[]", pgdialect.Array(recorded)).
+		Where(`"parent_announcement".id = ?`, id)
+	query = withTenant(query, parentAnnouncementAlias, scope)
+	if _, err := query.Exec(ctx); err != nil {
+		return fmt.Errorf("record parent announcement recipients: %w", err)
+	}
+	return nil
 }
 
 // reminderLivePredicate is the row state in which a scheduled reminder may

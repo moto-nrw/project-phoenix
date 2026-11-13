@@ -52,6 +52,14 @@ import {
 } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { ListGroupHeader } from "~/components/ui/list-group-header";
+import { AnswerScopeChoice } from "~/components/calendar/answer-scope-choice";
+import {
+  answerDiffersFromSeries,
+  defaultAnswerScope,
+  formatOccurrenceShortDay,
+  seriesAnswerReplacesDates,
+  type AnswerScope,
+} from "~/lib/calendar-answers";
 
 export type CalendarViewMode = "day" | "week" | "month";
 
@@ -66,10 +74,16 @@ interface PersonalCalendarProps {
   readonly weekStart?: Date;
   readonly viewMode?: CalendarViewMode;
   readonly loading?: boolean;
-  readonly onShowOverview?: (appointmentId: string) => void;
+  /** Mit `occurrenceDate` zählt die Übersicht einen Termin einer Reihe. */
+  readonly onShowOverview?: (
+    appointmentId: string,
+    occurrenceDate?: string,
+  ) => void;
+  /** Mit `occurrenceDate` gilt die Antwort nur für diesen Termin (#6987). */
   readonly onRespond?: (
     recipientId: string,
     status: "accepted" | "declined",
+    occurrenceDate?: string,
   ) => void;
   readonly respondingRecipientId?: string | null;
   // Organizer-only management actions. Passed by the staff calendar page and
@@ -89,10 +103,16 @@ interface CalendarEventActions {
   // rendering inline actions — Apple-Calendar style: tap the event, act in the
   // detail. Set internally by PersonalCalendar.
   readonly onSelect?: (event: CalendarEvent) => void;
-  readonly onShowOverview?: (appointmentId: string) => void;
+  /** Mit `occurrenceDate` zählt die Übersicht einen Termin einer Reihe. */
+  readonly onShowOverview?: (
+    appointmentId: string,
+    occurrenceDate?: string,
+  ) => void;
+  /** Mit `occurrenceDate` gilt die Antwort nur für diesen Termin (#6987). */
   readonly onRespond?: (
     recipientId: string,
     status: "accepted" | "declined",
+    occurrenceDate?: string,
   ) => void;
   readonly respondingRecipientId?: string | null;
   readonly onEdit?: (event: CalendarEvent) => void;
@@ -248,6 +268,17 @@ const responseTone: Record<CalendarResponseStatus, StatusBadgeTone> = {
   declined: "red",
   info: "blue",
 };
+
+/** Was eine Antwort nur für diesen Termin mit den anderen Terminen macht. */
+function occurrenceScopeHint(event: CalendarEvent): string {
+  const series = event.series_response_status;
+  if (seriesAnswerReplacesDates(event) || series === undefined) {
+    return "Die anderen Termine der Reihe behalten ihre Antwort.";
+  }
+  if (series === "pending")
+    return "Die anderen Termine der Reihe bleiben offen.";
+  return `Für die anderen Termine gilt weiter: ${responseLabel[series] ?? series}.`;
+}
 
 function eventTime(event: CalendarEvent): string {
   if (event.all_day) return "Ganztägig";
@@ -732,6 +763,7 @@ export function PersonalCalendar({
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {selectedEvent ? (
               <CalendarEventDetail
+                key={selectedEvent.id}
                 event={selectedEvent}
                 actions={actions}
                 onClose={() => setClicked(null)}
@@ -1269,6 +1301,22 @@ function CalendarEventDetail({
   const showRespond = Boolean(
     !cancelled && event.can_respond && recipientId && onRespond,
   );
+  const occurrenceDate = event.occurrence_date;
+  const recurringAnswer = showRespond && event.recurring && occurrenceDate;
+  const [answerScope, setAnswerScope] = useState<AnswerScope>(() =>
+    defaultAnswerScope(event),
+  );
+  const answer = (status: "accepted" | "declined") => {
+    onRespond!(
+      recipientId!,
+      status,
+      recurringAnswer && answerScope === "occurrence"
+        ? occurrenceDate
+        : undefined,
+    );
+    onClose();
+  };
+  const ownDateAnswer = answerDiffersFromSeries(event);
   const showIcs = Boolean(
     !cancelled &&
     event.source === "appointment" &&
@@ -1315,6 +1363,9 @@ function CalendarEventDetail({
             tone={responseTone[event.response_status]}
             compact
           />
+        ) : null}
+        {!cancelled && ownDateAnswer ? (
+          <StatusBadge label="Nur für diesen Termin" tone="gray" compact />
         ) : null}
       </div>
 
@@ -1375,10 +1426,20 @@ function CalendarEventDetail({
 
       {hasActions ? (
         <div className="flex flex-col gap-2 border-t border-gray-200 pt-4">
-          {showRespond && event.recurring ? (
-            <p className="text-xs leading-5 text-gray-500">
-              Ihre Antwort gilt für alle Termine dieser Reihe.
-            </p>
+          {recurringAnswer ? (
+            <AnswerScopeChoice
+              value={answerScope}
+              onChange={setAnswerScope}
+              legend="Ihre Antwort gilt für"
+              occurrenceLabel={`Nur am ${formatOccurrenceShortDay(occurrenceDate)}`}
+              seriesLabel="Alle Termine"
+              occurrenceHint={occurrenceScopeHint(event)}
+              seriesHint={
+                seriesAnswerReplacesDates(event)
+                  ? "Ihre Antwort gilt dann für alle Termine, auch für einzeln beantwortete."
+                  : "Ihre Antwort gilt für alle Termine dieser Reihe."
+              }
+            />
           ) : null}
           {showRespond ? (
             <div className="grid grid-cols-2 gap-2">
@@ -1388,10 +1449,7 @@ function CalendarEventDetail({
                 size="md"
                 className="gap-2"
                 disabled={responding}
-                onClick={() => {
-                  onRespond!(recipientId!, "accepted");
-                  onClose();
-                }}
+                onClick={() => answer("accepted")}
               >
                 <Check className="h-4 w-4" aria-hidden />
                 Zusagen
@@ -1402,10 +1460,7 @@ function CalendarEventDetail({
                 size="md"
                 className="gap-2"
                 disabled={responding}
-                onClick={() => {
-                  onRespond!(recipientId!, "declined");
-                  onClose();
-                }}
+                onClick={() => answer("declined")}
               >
                 <X className="h-4 w-4" aria-hidden />
                 Absagen
@@ -1435,7 +1490,10 @@ function CalendarEventDetail({
               size="md"
               className="gap-2"
               onClick={() => {
-                onShowOverview!(event.appointment_id!);
+                onShowOverview!(
+                  event.appointment_id!,
+                  event.recurring ? occurrenceDate : undefined,
+                );
                 onClose();
               }}
             >
@@ -1510,9 +1568,21 @@ export function CalendarOverviewList({
     <div className="space-y-4">
       {overview.delivery_mode === "rsvp_required" ? (
         <div className="grid grid-cols-3 gap-2">
-          <StatCard label="Zugesagt" value={accepted} tone="green" />
-          <StatCard label="Abgesagt" value={declined} tone="red" />
-          <StatCard label="Offen" value={pending} tone="neutral" />
+          {/* Dieselben Kacheln wie die Rückmeldungen im Elternportal; die
+              großen Versalien-Kacheln brachen am Handy mitten im Wort um. */}
+          <StatCard
+            variant="tile"
+            label="Zugesagt"
+            value={accepted}
+            tone="green"
+          />
+          <StatCard
+            variant="tile"
+            label="Abgesagt"
+            value={declined}
+            tone="red"
+          />
+          <StatCard variant="tile" label="Offen" value={pending} />
         </div>
       ) : null}
       <FramedList>

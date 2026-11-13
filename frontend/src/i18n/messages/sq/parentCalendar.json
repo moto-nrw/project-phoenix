@@ -32,7 +32,20 @@
   "errorObjectList": "lista e takimeve",
   "errorObjectResponse": "përgjigjja",
   "responseRequiredSeries": "Përgjigje për të gjitha datat e serisë",
-  "seriesAnswer": "Përgjigjja juaj vlen për të gjitha datat e kësaj serie.",
+  "answerScope": {
+    "legend": "Përgjigjja juaj vlen për",
+    "occurrence": "Vetëm më {date}",
+    "series": "Të gjitha datat",
+    "occurrenceHintOthers": "Datat e tjera të serisë e mbajnë përgjigjen e tyre.",
+    "occurrenceHintOpen": "Datat e tjera të serisë mbeten pa përgjigje.",
+    "occurrenceHintKeeps": "Për datat e tjera vlen ende: {answer}.",
+    "seriesHint": "Përgjigjja juaj vlen për të gjitha datat e kësaj serie.",
+    "seriesHintReplaces": "Atëherë përgjigjja vlen për të gjitha datat, edhe për ato me përgjigje më vete."
+  },
+  "onlyThisDate": "Vetëm për këtë datë",
+  "changeAnswer": "Ndrysho përgjigjen",
+  "acceptedOn": "U pranua për {date}.",
+  "declinedOn": "U refuzua për {date}.",
   "errorObjectOverview": "përgjigjet",
   "responses": {
     "title": "Përgjigjet",

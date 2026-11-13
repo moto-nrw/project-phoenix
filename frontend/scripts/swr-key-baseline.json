@@ -78,7 +78,7 @@
   "src/lib/hooks/use-enrollments-unread.ts": 1,
   "src/lib/hooks/use-home-group.ts": 1,
   "src/lib/hooks/use-own-staff-schedule.ts": 1,
-  "src/lib/hooks/use-period-metrics.ts": 7,
+  "src/lib/hooks/use-period-metrics.ts": 3,
   "src/lib/hooks/use-pickup-extensions.ts": 1,
   "src/lib/hooks/use-reminders.ts": 1,
   "src/lib/hooks/use-settings-schema.ts": 1,

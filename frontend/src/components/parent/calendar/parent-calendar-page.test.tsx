@@ -335,12 +335,16 @@ describe("ParentCalendarPage", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Zusagen" }));
 
     await waitFor(() =>
-      expect(mockedRespond).toHaveBeenCalledWith("77", "accepted"),
+      expect(mockedRespond).toHaveBeenCalledWith("77", "accepted", undefined),
     );
     expect(within(dialog).getByText("Zugesagt")).toBeInTheDocument();
     expect(
       within(dialog).queryByRole("button", { name: "Zusagen" }),
     ).not.toBeInTheDocument();
+    // #6987: die Antwort bleibt änderbar.
+    expect(
+      within(dialog).getByRole("button", { name: "Antwort ändern" }),
+    ).toBeInTheDocument();
     expect(toastSuccess).toHaveBeenCalledWith("Termin zugesagt.");
   });
 
@@ -354,7 +358,9 @@ describe("ParentCalendarPage", () => {
           can_view_overview: true,
           delivery_mode: "rsvp_required",
           recurring: true,
+          occurrence_date: "2026-08-19",
           response_status: "pending",
+          series_response_status: "pending",
           recipient_id: "77",
         }),
       ]),
@@ -387,7 +393,11 @@ describe("ParentCalendarPage", () => {
     expect(
       within(responses).getByText("Namen anderer Eltern sehen Sie nicht."),
     ).toBeInTheDocument();
-    expect(mockedOverview).toHaveBeenCalledWith("appointment-1");
+    // #6987: die Zahlen gelten für den geöffneten Termin der Reihe.
+    expect(mockedOverview).toHaveBeenCalledWith("appointment-1", "2026-08-19");
+    expect(
+      within(dialog).getByRole("button", { name: "Alle Termine" }),
+    ).toHaveAttribute("aria-pressed", "true");
     expect(
       within(dialog).getByText(
         "Ihre Antwort gilt für alle Termine dieser Reihe.",
@@ -426,7 +436,7 @@ describe("ParentCalendarPage", () => {
     fireEvent.click(within(rows[0]!).getByRole("button", { name: "Zusagen" }));
 
     await waitFor(() =>
-      expect(mockedRespond).toHaveBeenCalledWith("77", "accepted"),
+      expect(mockedRespond).toHaveBeenCalledWith("77", "accepted", undefined),
     );
     for (const row of screen.getAllByRole("article", { name: "Elternabend" })) {
       expect(await within(row).findByText("Zugesagt")).toBeInTheDocument();
@@ -434,6 +444,105 @@ describe("ParentCalendarPage", () => {
         within(row).queryByRole("button", { name: "Zusagen" }),
       ).not.toBeInTheDocument();
     }
+  });
+
+  // #6987: Eltern sagen der Reihe zu und einem einzelnen Termin ab.
+  it("sagt einen einzelnen Termin einer zugesagten Reihe ab", async () => {
+    const series = {
+      can_respond: true,
+      recurring: true,
+      response_status: "accepted",
+      series_response_status: "accepted",
+      recipient_id: "77",
+    };
+    mockedCalendar.mockResolvedValue(
+      calendarResponse([
+        event({
+          ...series,
+          id: "appointment:1:2026-08-19",
+          occurrence_date: "2026-08-19",
+        }),
+        event({
+          ...series,
+          id: "appointment:1:2026-08-26",
+          occurrence_date: "2026-08-26",
+          start_date: "2026-08-26",
+          end_date: "2026-08-26",
+        }),
+      ]),
+    );
+    renderPage();
+
+    const rows = await screen.findAllByRole("article", { name: "Elternabend" });
+    fireEvent.click(
+      within(rows[1]!).getByRole("button", { name: /Elternabend, 18:00/ }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Elternabend" });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Antwort ändern" }),
+    );
+    expect(
+      within(dialog).getByRole("button", { name: /^Nur am / }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(dialog).getByText(
+        "Für die anderen Termine gilt weiter: Zugesagt.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Absagen" }));
+
+    await waitFor(() =>
+      expect(mockedRespond).toHaveBeenCalledWith(
+        "77",
+        "declined",
+        "2026-08-26",
+      ),
+    );
+    expect(toastSuccess).toHaveBeenCalledWith(
+      expect.stringMatching(/^Für .*26.* abgesagt\.$/),
+    );
+    const [first, second] = screen.getAllByRole("article", {
+      name: "Elternabend",
+    });
+    expect(within(first!).getByText("Zugesagt")).toBeInTheDocument();
+    expect(within(second!).getByText("Abgesagt")).toBeInTheDocument();
+    expect(
+      within(second!).getByText(/nur für diesen Termin/i),
+    ).toBeInTheDocument();
+  });
+
+  // #6987 Review: Hat die Reihe noch keine Antwort, aber ein Termin schon
+  // eine eigene, beantworten die Knöpfe der Zeile nur ihren Termin. Sonst
+  // löschte ein Klick die Absage für den anderen Tag.
+  it("überschreibt mit der Zeile keine Antwort für einen anderen Termin", async () => {
+    mockedCalendar.mockResolvedValue(
+      calendarResponse([
+        event({
+          can_respond: true,
+          recurring: true,
+          occurrence_date: "2026-08-19",
+          response_status: "pending",
+          series_response_status: "pending",
+          has_occurrence_answers: true,
+          recipient_id: "77",
+        }),
+      ]),
+    );
+    renderPage();
+
+    const row = await screen.findByRole("article", { name: "Elternabend" });
+    expect(within(row).getByText("Antwort erforderlich")).toBeInTheDocument();
+    expect(
+      within(row).queryByText("Antwort für alle Termine der Reihe"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "Zusagen" }));
+    await waitFor(() =>
+      expect(mockedRespond).toHaveBeenCalledWith(
+        "77",
+        "accepted",
+        "2026-08-19",
+      ),
+    );
   });
 
   it("speichert eine Rückmeldung direkt in der Terminzeile", async () => {
@@ -470,7 +579,7 @@ describe("ParentCalendarPage", () => {
     fireEvent.click(declineButton);
 
     await waitFor(() =>
-      expect(mockedRespond).toHaveBeenCalledWith("77", "declined"),
+      expect(mockedRespond).toHaveBeenCalledWith("77", "declined", undefined),
     );
     expect(within(row).getByText("Abgesagt")).toBeInTheDocument();
     expect(toastSuccess).toHaveBeenCalledWith("Termin abgesagt.");

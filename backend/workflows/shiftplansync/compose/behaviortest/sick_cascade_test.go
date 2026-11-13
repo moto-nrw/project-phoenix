@@ -617,7 +617,7 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 		markDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			// The cascade runs behind the sick report's entry locks, as in
 			// SickReports: the days come before Workforce's staff row (#6583).
-			if err := e.cascade.LockSickReportWrite(ctx, e.subject.ID, absenceID, day.String(), day.String()); err != nil {
+			if err := e.cascade.LockSickReportWrite(ctx, e.subject.ID, absenceID, "", day.String(), day.String()); err != nil {
 				return err
 			}
 			return e.cascade.MarkSickForRange(ctx, input)

@@ -24,6 +24,7 @@ type ParentAnnouncementOption communication.PortalParentAnnouncementOption
 type ParentAnnouncementTarget communication.PortalParentAnnouncementTarget
 type StaffAnnouncementSource interface {
 	communication.StaffAnnouncementRecords
+	communication.AnnouncementRecipientRecords
 }
 
 func AnnouncementPollResultsFromAnnouncementRecord(v *communication.PortalAnnouncementPollResults) *AnnouncementPollResults {

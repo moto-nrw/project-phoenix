@@ -26,8 +26,9 @@ const logger = createLogger({ component: "ParentResponseSummary" });
 /**
  * Wie viele Eingeladene zu- und abgesagt haben, wenn die OGS die Übersicht
  * für alle Eingeladenen freigibt. Eltern sehen nur die Zahlen, nie Namen
- * oder Antworten anderer Eltern (#6846). Die Zahlen laden beim Öffnen der
- * Details und nach der eigenen Antwort neu.
+ * oder Antworten anderer Eltern (#6846). Bei einer Reihe zählen die
+ * Antworten für den geöffneten Termin (#6987). Die Zahlen laden beim Öffnen
+ * der Details und nach der eigenen Antwort neu.
  */
 export function ParentResponseSummary({
   event,
@@ -39,6 +40,7 @@ export function ParentResponseSummary({
     !event.cancelled
       ? event.appointment_id
       : undefined;
+  const occurrenceDate = event.recurring ? event.occurrence_date : undefined;
   const ownAnswer = event.response_status;
   const [counts, setCounts] = useState<CalendarResponseCounts | null>(null);
   const { error, show, clear } = useApiLoadError();
@@ -49,7 +51,10 @@ export function ParentResponseSummary({
     const seq = ++seqRef.current;
     clear();
     try {
-      const overview = await getParentAppointmentOverview(appointmentId);
+      const overview = await getParentAppointmentOverview(
+        appointmentId,
+        occurrenceDate,
+      );
       if (seq === seqRef.current) setCounts(overview.counts);
     } catch (err) {
       if (seq !== seqRef.current) return;
@@ -61,7 +66,7 @@ export function ParentResponseSummary({
         retry: () => void loadRef.current(),
       });
     }
-  }, [appointmentId, clear, show, t]);
+  }, [appointmentId, occurrenceDate, clear, show, t]);
   // The retry runs the latest load, not the one of the failed attempt.
   const loadRef = useRef(load);
   useLayoutEffect(() => {

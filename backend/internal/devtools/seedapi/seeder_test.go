@@ -1791,6 +1791,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.URL.Path == "/parent/me/calendar" {
+			// The parent's Elterncafé invitation it answers date by date (#6987).
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"events":[{"title":%q,"recipient_id":"81"}]}}`, seedParentCafeTitle)
+			return
+		}
 		if r.URL.Path == "/traeger/holiday-periods/criteria" {
 			// The criteria of the allocation as stored (#4700).
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"criteria":[{"id":71},{"id":72},{"id":73},{"id":74}],"periods":[]}}`)

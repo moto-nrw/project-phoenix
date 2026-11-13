@@ -1249,9 +1249,9 @@ function ClockInStatsStrip({
   metrics,
 }: {
   // Every figure is date-valid, straight from the backend month model
-  // (usePeriodMetrics, #1842). Never computeStaffMetrics: that one prices
-  // historical days at the CURRENT schedule and contradicts the Monatskarte
-  // further down the page after a contract change. null = loading.
+  // (usePeriodMetrics, #1842, #6847). Never price days in the browser: a
+  // browser-side calculation contradicted the Monatskarte and the daily rows
+  // after a contract change. null = loading.
   readonly metrics: PeriodMetrics;
 }) {
   const { week, month, accountBalanceMinutes } = metrics;

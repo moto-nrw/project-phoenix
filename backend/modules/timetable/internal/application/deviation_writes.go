@@ -31,6 +31,18 @@ type substituteWriteOp struct {
 type absenceMarkOptions struct {
 	eventType     string
 	sickAbsenceID *int64
+	// cause names the absence kind behind a stamped row: "sick" for a sick
+	// report, "absence" for every other absence (#6847).
+	cause string
+}
+
+// stampedAbsenceCause is the history's name for the kind of absence that
+// stamped a row.
+func stampedAbsenceCause(sick bool) string {
+	if sick {
+		return "sick"
+	}
+	return "absence"
 }
 
 // applyAbsence marks one staff row absent (day-wide semantics; the caller
@@ -49,19 +61,25 @@ func (s *staffDeviations) applyAbsence(
 	})
 }
 
-// MarkSickAbsence is the #1843 sick-cascade variant of the absence write:
-// same write semantics, but stamps the provenance id (so deleting the sick
-// report can clear exactly these rows) and logs "sick_reported" instead of
-// the manual "absence" event.
+// MarkSickAbsence is the plan-cascade variant of the absence write (#1843):
+// same write semantics, but stamps the provenance id (so deleting the absence
+// can clear exactly these rows). A sick report logs "sick_reported"; every
+// other absence logs the ordinary "absence" event, so the history never
+// calls a vacation a Krankmeldung (#6847).
 func (s *staffDeviations) MarkSickAbsence(ctx context.Context, in timetable.SickAbsenceMark, touched timetable.TouchedActivities) error {
 	row, instance, err := s.loadAssignment(ctx, in.AssignmentID)
 	if err != nil {
 		return err
 	}
 	sickAbsenceID := in.SickAbsenceID
+	eventType := ports.DeviationEventAbsence
+	if in.Sick {
+		eventType = ports.DeviationEventSickReported
+	}
 	return s.applyAbsenceMark(ctx, row, instance, in.Reason, in.ActorAccountID, touched, absenceMarkOptions{
-		eventType:     ports.DeviationEventSickReported,
+		eventType:     eventType,
 		sickAbsenceID: &sickAbsenceID,
+		cause:         stampedAbsenceCause(in.Sick),
 	})
 }
 
@@ -106,7 +124,7 @@ func (s *staffDeviations) applyAbsenceMark(
 	}
 	newValue := map[string]any{"is_absent": true}
 	if opts.sickAbsenceID != nil {
-		newValue["cause"] = "sick"
+		newValue["cause"] = opts.cause
 		newValue["absence_id"] = *opts.sickAbsenceID
 	}
 	return s.logDeviationEvent(ctx, deviationEventInput{
@@ -188,13 +206,17 @@ func (s *staffDeviations) ClearSickAbsence(ctx context.Context, in timetable.Sic
 		return err
 	}
 	touch(touched, instance)
-	oldValue := map[string]any{"is_absent": true, "cause": "sick", "absence_id": in.SickAbsenceID}
+	oldValue := map[string]any{"is_absent": true, "cause": stampedAbsenceCause(in.Sick), "absence_id": in.SickAbsenceID}
 	if previousReason != nil {
 		oldValue["reason"] = *previousReason
 	}
+	eventType := ports.DeviationEventReturnToPresence
+	if in.Sick {
+		eventType = ports.DeviationEventSickCleared
+	}
 	if err := s.logDeviationEvent(ctx, deviationEventInput{
 		instance:       instance,
-		eventType:      ports.DeviationEventSickCleared,
+		eventType:      eventType,
 		subjectStaffID: &row.StaffID,
 		oldValue:       oldValue,
 		newValue:       map[string]any{"is_absent": false},

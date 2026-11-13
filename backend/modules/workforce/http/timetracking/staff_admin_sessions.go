@@ -203,7 +203,7 @@ func (rs *StaffAdminResource) approveAbsence(w http.ResponseWriter, r *http.Requ
 			return
 		}
 	}
-	resp, err := rs.StaffAbsenceService.ApproveAbsence(r.Context(), absenceID, claims.AccountID, decidedBy, req.DecisionNote)
+	resp, err := rs.AbsenceWrites.ApproveAbsence(r.Context(), absenceID, claims.AccountID, decidedBy, req.DecisionNote)
 	if err != nil {
 		common.RenderError(w, r, renderApproveAbsenceError(err))
 		return

@@ -800,20 +800,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (c staffAbsenceCapability) ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforce.StaffAbsenceResponse, error) {\n\treturn c.absence(c.absences.ApproveAbsence(ctx, absenceID, actorAccountID, decidedByStaffID, note))\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.ApproveAbsence",
-      "owner": "modules/workforce"
-    },
-    {
-      "build": "production",
-      "evidence": "func (c staffAbsenceCapability) CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error {\n\treturn mapTimeTrackingFailure(c.absences.CancelAbsence(ctx, staffID, actorAccountID, absenceID))\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.CancelAbsence",
-      "owner": "modules/workforce"
-    },
-    {
-      "build": "production",
       "evidence": "func (c staffAbsenceCapability) DeleteVacationOpening(ctx context.Context, staffID, deletedBy int64, year int) error {\n\treturn mapTimeTrackingFailure(c.absences.DeleteVacationOpening(ctx, staffID, deletedBy, year))\n}",
       "form": "unclassified-evidence",
       "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.DeleteVacationOpening",

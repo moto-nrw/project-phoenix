@@ -148,6 +148,10 @@ interface SubstitutionSlideOverProps {
 
 const FORM_ID = "vertretung-form";
 
+// The block label every absence but a sick report writes
+// (timetable.AbsentBlockReason, #6847); a sick report writes "Krankmeldung".
+const ABSENT_BLOCK_REASON = "Abwesenheit";
+
 export function SubstitutionSlideOver({
   instance,
   dayInstances,
@@ -263,6 +267,10 @@ export function SubstitutionSlideOver({
         )
         .map((appointment) => appointment.id);
       const sickLocked = row.isSickAbsence === true;
+      // Every absence in force stamps the plan since #6847; a sick report
+      // names itself, every other absence writes the neutral label.
+      const lockedByOtherAbsence =
+        sickLocked && row.absenceReason === ABSENT_BLOCK_REASON;
       const allOpenAbsent =
         openAppointments.length > 0 &&
         existingAbsentIds.length === openAppointments.length;
@@ -272,6 +280,7 @@ export function SubstitutionSlideOver({
         existingAbsentIds,
         sickAbsenceIds,
         sickLocked,
+        lockedByOtherAbsence,
         scope:
           row.isAbsent && !sickLocked
             ? allOpenAbsent

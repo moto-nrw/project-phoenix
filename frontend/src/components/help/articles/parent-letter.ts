@@ -23,6 +23,7 @@ export function parentLetterTopic(): HelpTopic {
     result:
       "Der Brief steht im Elternportal. Die erreichten Eltern bekommen zusätzlich eine E-Mail.",
     notes: [
+      "Unter `Status` zählen die Kinder, die der Brief beim Veröffentlichen erreicht hat. Wechselt danach ein Kind die Klasse, bleibt es in der Liste. Die neue Klasse bekommt den Brief nicht.",
       "Unter `Empfänger` steht bei jeder Mail, was aus ihr geworden ist. Steht dort `Adresse prüfen`, korrigieren Sie die Adresse beim Kind unter `Erziehungsberechtigte`.",
       "Unter `Wer erhält die E-Mail?` wählen Sie `Nur mit Portalzugang` oder `Alle Bezugspersonen`.",
       "Die Eltern bestätigen den Brief. Eine Bestätigung pro Kind genügt.",
