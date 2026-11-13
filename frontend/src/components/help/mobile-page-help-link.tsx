@@ -21,15 +21,16 @@ export function MobilePageHelpLink() {
   // Shared page primitives also render outside an authenticated portal.
   // moto schule already keeps its shell header visible on every width.
   if (auth?.mode !== "teacher" && auth?.mode !== "parent") return null;
-  // Below lg the staff portal has no header: its search sits here, beside
-  // the help (#6954).
+  if (auth.mode === "parent")
+    return <ResolvedMobilePageHelpLink mode="parent" />;
+  // Below lg the staff portal has no header: its search sits here, beside the
+  // help (#6954). The page head keeps one slot for this target, so both share
+  // one container.
   return (
-    <>
-      {auth.mode === "teacher" ? (
-        <SchoolSearchTrigger placement="pageHead" />
-      ) : null}
-      <ResolvedMobilePageHelpLink mode={auth.mode} />
-    </>
+    <span className="inline-flex shrink-0 items-center gap-1 lg:hidden">
+      <SchoolSearchTrigger placement="pageHead" />
+      <ResolvedMobilePageHelpLink mode="teacher" />
+    </span>
   );
 }
 
