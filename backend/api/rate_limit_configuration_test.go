@@ -41,15 +41,20 @@ func TestRateLimitConfigurationAndRejectionMetrics(t *testing.T) {
 	cfg := CurrentServiceConfig()
 	require.Equal(t, enabled, cfg.RateLimitEnabled, "password-reset configuration")
 	accepted := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	// The login limiter spends its budget on refused attempts only.
+	refused := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusUnauthorized) })
 	general := chi.NewRouter()
 	setupRateLimiting(general, nil, cfg.RateLimitEnabled, false)
 	general.Post("/probe", accepted)
 	auth := authRateLimitersFromEnv(cfg.RateLimitEnabled)
 	webhook := emailWebhookRateLimit(cfg.RateLimitEnabled)
-	handlers := map[string]struct {
+	// passed is the status of a request the limiter lets through.
+	type rateLimitProbe struct {
 		handler  http.Handler
 		requests int
-	}{"write": {general, 3}}
+		passed   int
+	}
+	handlers := map[string]rateLimitProbe{"write": {general, 3, http.StatusNoContent}}
 	if !enabled {
 		assert.Nil(t, auth.auth)
 		assert.Nil(t, auth.emailConfirm)
@@ -60,22 +65,10 @@ func TestRateLimitConfigurationAndRejectionMetrics(t *testing.T) {
 		require.NotNil(t, auth.emailConfirm)
 		require.NotNil(t, auth.invitation)
 		require.NotNil(t, webhook)
-		handlers["auth"] = struct {
-			handler  http.Handler
-			requests int
-		}{auth.auth.Middleware()(accepted), 20}
-		handlers["email-confirm"] = struct {
-			handler  http.Handler
-			requests int
-		}{auth.emailConfirm.Middleware()(accepted), 20}
-		handlers["invitation"] = struct {
-			handler  http.Handler
-			requests int
-		}{auth.invitation.Middleware()(accepted), 20}
-		handlers["webhook"] = struct {
-			handler  http.Handler
-			requests int
-		}{webhook(accepted), 2 * emailWebhookBurst}
+		handlers["auth"] = rateLimitProbe{auth.auth.Middleware()(refused), 20, http.StatusUnauthorized}
+		handlers["email-confirm"] = rateLimitProbe{auth.emailConfirm.Middleware()(accepted), 20, http.StatusNoContent}
+		handlers["invitation"] = rateLimitProbe{auth.invitation.Middleware()(accepted), 20, http.StatusNoContent}
+		handlers["webhook"] = rateLimitProbe{webhook(accepted), 2 * emailWebhookBurst, http.StatusNoContent}
 	}
 	for bucket, probe := range handlers {
 		before := rejectionMetric(t, bucket)
@@ -88,7 +81,7 @@ func TestRateLimitConfigurationAndRejectionMetrics(t *testing.T) {
 			if response.Code == http.StatusTooManyRequests {
 				rejected++
 			} else {
-				require.Equal(t, http.StatusNoContent, response.Code)
+				require.Equal(t, probe.passed, response.Code)
 			}
 		}
 		if enabled {

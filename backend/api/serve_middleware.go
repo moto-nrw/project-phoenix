@@ -303,6 +303,10 @@ type authRateLimiters struct {
 // buildAuthRateLimiters constructs the stricter auth-endpoint rate limiters
 // from RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE (default 5), wiring the security
 // logger when present. exemptLoopback lets loopback peers through (demo only).
+//
+// The login limiter spends its tokens on refused attempts and on mails only
+// (#6738, docs/agents/contracts.md "Client IP and rate limits"), so the many
+// accepted logins behind one school address do not use them up.
 func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, configuredLimit string, exemptLoopback bool) authRateLimiters {
 	authLimit := 5 // default: 5 requests per minute for auth
 	if limit := configuredLimit; limit != "" {
@@ -319,6 +323,7 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, conf
 		emailConfirm: customMiddleware.NewRateLimiter(authLimit, burst),
 		invitation:   customMiddleware.NewRateLimiter(authLimit, burst),
 	}
+	limiters.auth.SpendOnRefusals(sendsAuthMail)
 	for bucket, limiter := range map[string]*customMiddleware.RateLimiter{
 		"auth": limiters.auth, "email-confirm": limiters.emailConfirm, "invitation": limiters.invitation,
 	} {
@@ -334,6 +339,22 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, conf
 	return limiters
 }
 
+// authMailPathSuffixes end the auth-limited routes that mail a password-reset
+// link or a code under every portal: the reset request, the resend of a
+// sign-in code, and the caterer's start of a second factor or a passkey
+// enrollment. The confirmation of a reset sends none.
+var authMailPathSuffixes = []string{"/password-reset", "/mfa/resend", "/account/mfa/start", "/passkeys/enrollment/challenge"}
+
+// sendsAuthMail reports whether an auth-limited request asks for a mail.
+func sendsAuthMail(r *http.Request) bool {
+	for _, suffix := range authMailPathSuffixes {
+		if strings.HasSuffix(r.URL.Path, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
 // authRateLimitersFromEnv builds the auth-endpoint limiters from the root
 // configuration snapshot. Disabled limiters carry nil fields.
 func authRateLimitersFromEnv(enabled bool) authRateLimiters {
@@ -347,7 +368,8 @@ func authRateLimitersFromEnv(enabled bool) authRateLimiters {
 func (limiters authRateLimiters) enabled() bool { return limiters.auth != nil }
 
 // authMiddleware is the auth limiter's middleware, nil while rate limiting is
-// disabled. Tenant, operator, parent and school login share its budget.
+// disabled. Tenant, operator, parent and school login share its budget of
+// refused attempts per address.
 func (limiters authRateLimiters) authMiddleware() func(http.Handler) http.Handler {
 	if limiters.auth == nil {
 		return nil
