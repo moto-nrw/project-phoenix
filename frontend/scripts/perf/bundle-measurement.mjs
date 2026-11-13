@@ -272,6 +272,16 @@ export function reusableMeasurement(file, identity) {
   }
 }
 
+/** One greppable line per run: whether the base came from the cache. */
+function reportBase(line) {
+  process.stdout.write(`${line}\n`);
+  if (process.env.GITHUB_STEP_SUMMARY)
+    appendFileSync(
+      process.env.GITHUB_STEP_SUMMARY,
+      `## Bundle-Basis\n\n\`${line}\`\n\n`,
+    );
+}
+
 function buildBase() {
   const requested = JSON.parse(readFileSync(BASE_IDENTITY, "utf8"));
   const current = identityForRevision(requested.sourceRevision);
@@ -279,8 +289,8 @@ function buildBase() {
     throw new Error("Base source/configuration changed since preparation");
   const earlier = reusableMeasurement(BASE_MEASUREMENT, current.identity);
   if (earlier) {
-    process.stdout.write(
-      `Merge-base measurement reused: source tree ${current.identity.sourceTree}, measured ${earlier.measuredAt} in run ${earlier.runId ?? "unknown"}, ${Object.keys(earlier.routes).length} routes.\n`,
+    reportBase(
+      `base measurement: cache hit (source tree ${current.identity.sourceTree}, measured ${earlier.measuredAt} at ${earlier.sourceRevision} in run ${earlier.runId ?? "unknown"}, ${Object.keys(earlier.routes).length} routes)`,
     );
     return;
   }
@@ -295,8 +305,8 @@ function buildBase() {
       process.env.GITHUB_RUN_ID ?? null,
     ),
   );
-  process.stdout.write(
-    `Cold merge-base measurement completed: ${current.sourceRevision}, ${routes.size} routes.\n`,
+  reportBase(
+    `base measurement: measured (cold build of ${current.sourceRevision}, source tree ${current.identity.sourceTree}, ${routes.size} routes)`,
   );
 }
 

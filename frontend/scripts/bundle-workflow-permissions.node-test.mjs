@@ -204,6 +204,74 @@ test("a merge-base measurement is restored by its identity before the build and 
   );
 });
 
+test("development's base measurement is built like a pull request's, under the same key", () => {
+  const pr = workflow("lint.yml").jobs["frontend-build"];
+  const warm = workflow("frontend-bundle-base.yml");
+  const job = warm.jobs.measure;
+  // Key inputs: runner image, Node, build env. A drift only misses, but then
+  // every pull request builds its base cold again.
+  assert.equal(job["runs-on"], pr["runs-on"]);
+  assert.deepEqual(job.env, pr.env);
+  const find = (steps, predicate) => steps.find(predicate);
+  const uses = (prefix) => (step) => step.uses?.startsWith(prefix);
+  for (const prefix of [
+    "actions/setup-node@",
+    "actions/cache/restore@",
+    "actions/cache/save@",
+  ]) {
+    const mine = find(job.steps, uses(prefix));
+    const theirs = find(pr.steps, uses(prefix));
+    assert.equal(mine.uses, theirs.uses, prefix);
+    assert.deepEqual(mine.with, theirs.with, prefix);
+    assert.equal(mine.id, theirs.id, prefix);
+  }
+  assert.ok(job.steps.some((step) => step.run === "corepack enable"));
+  const index = (predicate) => job.steps.findIndex(predicate);
+  const identify = index((step) => step.id === "bundle-key");
+  const restore = index(uses("actions/cache/restore@"));
+  const build = index(
+    (step) =>
+      step.run === "node scripts/perf/bundle-measurement.mjs --build-base",
+  );
+  const save = index(uses("actions/cache/save@"));
+  assert.ok(
+    identify >= 0 && identify < restore && restore < build && build < save,
+  );
+  assert.equal(
+    job.steps[identify].run,
+    'node scripts/perf/bundle-measurement.mjs --prepare-ci "$GITHUB_SHA"',
+  );
+  assert.match(
+    find(pr.steps, (step) => step.id === "bundle-key").run,
+    /node scripts\/perf\/bundle-measurement\.mjs --prepare-ci "\$merge_base"/,
+  );
+  for (const step of [job.steps[identify], job.steps[build]])
+    assert.equal(step["working-directory"], "frontend");
+  assert.equal(
+    job.steps[save].if,
+    "steps.bundle-base-cache.outputs.cache-hit != 'true'",
+  );
+  // One writer on development, the default branch every pull request reads.
+  assert.deepEqual(warm.on.push.branches, ["development"]);
+  for (const path of [
+    "frontend/**",
+    ".github/workflows/frontend-bundle-base.yml",
+    ".github/workflows/lint.yml",
+  ])
+    assert.ok(warm.on.push.paths.includes(path), path);
+  assert.equal(job.if, "github.ref == 'refs/heads/development'");
+  // Every commit can be a base: no run cancels another commit's.
+  assert.equal(warm.concurrency["cancel-in-progress"], false);
+  assert.match(warm.concurrency.group, /\$\{\{ github\.sha \}\}$/);
+  assert.deepEqual(warm.permissions, {});
+  assert.deepEqual(job.permissions, { contents: "read" });
+  const checkout = find(job.steps, uses("actions/checkout@"));
+  assert.equal(checkout.with["persist-credentials"], false);
+  assert.ok(
+    !job.steps.some((step) => step.env?.GH_TOKEN || step.env?.GITHUB_TOKEN),
+  );
+});
+
 test("a lint.yml-only PR selects frontend checks and the reusable frontend build", () => {
   const main = workflow("main.yml");
   const filter = main.jobs["detect-changes"].steps.find(
