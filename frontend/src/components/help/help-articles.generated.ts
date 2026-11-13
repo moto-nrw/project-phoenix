@@ -7852,8 +7852,8 @@ export const schoolSearchTopic = function schoolSearchTopic(): HelpTopic {
         title: "Die Suche öffnen",
         ordered: false,
         steps: [
-          "Am Computer: Wählen Sie oben `Suchen`. Oder drücken Sie Strg und K. Am Mac drücken Sie ⌘ und K.",
-          "Am Tablet und am Handy: Wählen Sie oben die Lupe.",
+          "Am Computer: Wählen Sie oben `Überall suchen`. Oder drücken Sie Strg und K. Am Mac drücken Sie ⌘ und K.",
+          "Am Tablet und am Handy: Wählen Sie oben neben dem Fragezeichen die Lupe. Der Reiter `Suchen` unten öffnet dagegen `Alle Kinder`.",
         ],
       },
       {
@@ -7893,7 +7893,7 @@ export const schoolSearchTopic = function schoolSearchTopic(): HelpTopic {
     ],
     notes: [
       "Ohne Eingabe zeigt die Suche die Seiten, die Sie öffnen dürfen.",
-      "Mit `In „Alle Kinder“ weitersuchen` sehen Sie alle Kinder mit diesem Namen.",
+      "Mit `Alle Treffer in „Alle Kinder“` sehen Sie alle Kinder mit diesem Namen.",
     ],
     related: [HELP_TOPICS.studentSearch, HELP_TOPICS.appOverview],
   };
