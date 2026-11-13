@@ -68,6 +68,7 @@ func (d *Decisions) ApplyDueClassSwitches(ctx context.Context, asOf calendar.Dat
 		return 0, nil
 	}
 	applied := 0
+	previousClasses := make(map[int64]string, len(due))
 	for _, change := range due {
 		ok, err := d.applyClassSwitch(ctx, change)
 		if err != nil {
@@ -75,6 +76,7 @@ func (d *Decisions) ApplyDueClassSwitches(ctx context.Context, asOf calendar.Dat
 		}
 		if ok {
 			applied++
+			previousClasses[*change.CreatedStudentID] = change.From
 		}
 		if err := d.deps.Children.SetChildClassSwitch(ctx, change.RequestChildID, nil); err != nil {
 			return applied, fmt.Errorf("class switch: clear request child %d: %w", change.RequestChildID, err)
@@ -84,6 +86,9 @@ func (d *Decisions) ApplyDueClassSwitches(ctx context.Context, asOf calendar.Dat
 		if err := d.resyncOfferingSourcedTemplates(ctx, asOf); err != nil {
 			return applied, fmt.Errorf("class switch: resync sourced templates: %w", err)
 		}
+	}
+	if err := d.followClassChanges(ctx, previousClasses, asOf); err != nil {
+		return applied, fmt.Errorf("class switch: follow class changes on targeted templates: %w", err)
 	}
 	return applied, nil
 }

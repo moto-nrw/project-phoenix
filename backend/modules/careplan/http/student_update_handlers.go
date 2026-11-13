@@ -233,8 +233,8 @@ func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *peopleMod
 }
 
 // acquirePreRowLockGates takes the advisory locks that must precede ANY
-// student row lock of this request. It returns whether a class-change resync
-// may be owed after the write (see resyncSourcedTemplatesOnClassChange).
+// student row lock of this request. It returns whether a cohort follow-up may
+// be owed after the write (see followCohortChange).
 //
 // Photo feature: the lock is taken only when consent is actually toggling
 // (name/notes edits must not queue behind a feature disable/purge). The photo
@@ -249,9 +249,10 @@ func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *peopleMod
 // grade-transition order (shared class-writes gate first, recurrence gate
 // second, row locks last) — any other order can deadlock against a
 // concurrently applying transition. They are taken whenever the request
-// carries a class at all, because whether the class actually changes is only
-// known once the row is locked.
-func (rs *Resource) acquirePreRowLockGates(ctx context.Context, student *peopleModule.StudentState, req *UpdateStudentRequest) (classChangeRequested bool, err error) {
+// carries a class or a group at all, because whether either actually changes
+// is only known once the row is locked. A group edit needs the same gates:
+// Regeltermine with a Gruppe target follow the child (#6841).
+func (rs *Resource) acquirePreRowLockGates(ctx context.Context, student *peopleModule.StudentState, req *UpdateStudentRequest) (cohortGatesHeld bool, err error) {
 	consentChanging := req.PhotoConsentGiven != nil &&
 		(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
 	if consentChanging {
@@ -260,7 +261,7 @@ func (rs *Resource) acquirePreRowLockGates(ctx context.Context, student *peopleM
 		}
 	}
 
-	if req.SchoolClass == nil || rs.OfferingSourceResyncer == nil {
+	if !rs.cohortFollowUpConfigured(req) {
 		return false, nil
 	}
 	if rs.LockTemplateRecurrence == nil {
@@ -282,16 +283,48 @@ func (rs *Resource) acquirePreRowLockGates(ctx context.Context, student *peopleM
 	return true, nil
 }
 
-// resyncSourcedTemplatesOnClassChange follows the child into the new Jahrgang
-// on every offering-sourced template once the locked row's class actually
-// changed. Runs under the recurrence gate acquirePreRowLockGates took; a
-// resync failure aborts the whole update instead of committing a class edit
-// whose sourced rosters are stale (#2147 review round 10).
-func (rs *Resource) resyncSourcedTemplatesOnClassChange(ctx context.Context, classChangeRequested bool, previousSchoolClass, currentSchoolClass string) error {
-	if !classChangeRequested || previousSchoolClass == currentSchoolClass {
+// cohortFollowUpConfigured reports whether the request writes a class or a
+// group and a follow-up is wired that would need the gates.
+func (rs *Resource) cohortFollowUpConfigured(req *UpdateStudentRequest) bool {
+	if req.SchoolClass == nil && req.GroupID == nil {
+		return false
+	}
+	return (req.SchoolClass != nil && rs.OfferingSourceResyncer != nil) || rs.FollowCohortChanges != nil
+}
+
+// followCohortChange follows the child into the new Klasse, Jahrgang or
+// Gruppe once the locked row actually changed: every offering-sourced
+// template re-reconciles its Jahrgang filter (#2147), and the materialized
+// occurrences of Regeltermine with a Klasse, Jahrgang or Gruppe target gain
+// or lose the child (#6841). Runs under the recurrence gate
+// acquirePreRowLockGates took; a failure aborts the whole update instead of
+// committing a class edit whose rosters are stale (#2147 review round 10).
+func (rs *Resource) followCohortChange(ctx context.Context, update *studentUpdate) error {
+	if !update.cohortGatesHeld {
 		return nil
 	}
-	return rs.OfferingSourceResyncer.ResyncOfferingSourcedTemplates(ctx, rs.todayDate())
+	fresh := update.fresh
+	classChanged := update.previousSchoolClass != fresh.SchoolClass
+	groupChanged := !sameOptionalID(update.previousGroupID, fresh.GroupID)
+	if classChanged && rs.OfferingSourceResyncer != nil {
+		if err := rs.OfferingSourceResyncer.ResyncOfferingSourcedTemplates(ctx, rs.todayDate()); err != nil {
+			return err
+		}
+	}
+	if (!classChanged && !groupChanged) || rs.FollowCohortChanges == nil {
+		return nil
+	}
+	return rs.FollowCohortChanges(ctx, []TargetCohortChange{{
+		StudentID: fresh.ID, SchoolClassChanged: classChanged, PreviousSchoolClass: update.previousSchoolClass,
+		GroupChanged: groupChanged, PreviousGroupID: update.previousGroupID,
+	}}, rs.todayDate())
+}
+
+func sameOptionalID(a, b *int64) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 // studentUpdate is one locked-row student patch in flight: the request, the
@@ -309,7 +342,8 @@ type studentUpdate struct {
 	wasSick              bool
 	wasExcused           bool
 	previousSchoolClass  string
-	classChangeRequested bool
+	previousGroupID      *int64
+	cohortGatesHeld      bool
 	authorizedExtensions map[int64]map[string]bool
 }
 
@@ -336,6 +370,10 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	update.wasSick = boolPtrValue(fresh.Sick)
 	update.wasExcused = boolPtrValue(fresh.Excused)
 	update.previousSchoolClass = fresh.SchoolClass
+	if fresh.GroupID != nil {
+		groupID := *fresh.GroupID
+		update.previousGroupID = &groupID
+	}
 
 	// Snapshot the tracked profile fields before applying the patch so the
 	// audit diff (#1455) compares the locked pre-update row with the persisted
@@ -378,11 +416,11 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 func (rs *Resource) lockStudentUpdateRows(ctx context.Context, update *studentUpdate, userPermissions []string) error {
 	// Advisory locks that must precede ANY student row lock of this request —
 	// see the helper for the two ordering rationales.
-	classChangeRequested, err := rs.acquirePreRowLockGates(ctx, update.snapshot, update.req)
+	cohortGatesHeld, err := rs.acquirePreRowLockGates(ctx, update.snapshot, update.req)
 	if err != nil {
 		return err
 	}
-	update.classChangeRequested = classChangeRequested
+	update.cohortGatesHeld = cohortGatesHeld
 
 	// Before ANY row lock of this request: a companion update writes the linked
 	// child too (a confirmed extension widens their departure plan), so subject
@@ -444,7 +482,7 @@ func (rs *Resource) writeStudentUpdate(ctx context.Context, update *studentUpdat
 		return false, err
 	}
 
-	if err := rs.resyncSourcedTemplatesOnClassChange(ctx, update.classChangeRequested, update.previousSchoolClass, fresh.SchoolClass); err != nil {
+	if err := rs.followCohortChange(ctx, update); err != nil {
 		return false, err
 	}
 

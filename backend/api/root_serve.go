@@ -272,7 +272,7 @@ func composeServeRoot(
 			return nil
 		},
 		func() (err error) {
-			timetableRows, err = owners.BuildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups, hub)
+			timetableRows, err = owners.BuildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups, hub, persons, people.Students)
 			return
 		},
 		func() (err error) { classArrivals, err = owners.BuildClassArrivals(db, env.Logger); return },
@@ -531,7 +531,7 @@ func composeServeRoot(
 			return mountStudentRoutes(tenant, db, logger, deviceAuth, studentPresence, persons, services, membership, caller, reviewPolicy,
 				settings.Service, hub, carePlan, carePlanRows.Companions, schedules, requests, planning, emitter, activities,
 				lifecycle, reports, structureViews, organizations, presence.StatusDays, notifications.AbsenceNotifier, studentDeletion,
-				groupLive, enrollmentCompose.PublicDecisions(decisions), active, owners.NewCareResumption(carePlanRows.LifecycleOwners.Students, carePlan, carePlanRows.LifecycleOwners.ChangeTrail, nil, logger.With("service", "care_lifecycle")).Resume, persons.StudentNoteTeam, newStudentNoteTeamReach(people.Staff, notifications))
+				groupLive, enrollmentCompose.PublicDecisions(decisions), active, owners.NewCareResumption(carePlanRows.LifecycleOwners.Students, carePlan, carePlanRows.LifecycleOwners.ChangeTrail, nil, logger.With("service", "care_lifecycle")).Resume, persons.StudentNoteTeam, newStudentNoteTeamReach(people.Staff, notifications), timetableRows.CohortRosters)
 		},
 		func() error {
 			return mountPresenceRoutes(tenant, db, logger, config.SentryPyrePortalDSN, deviceAuth, studentPresence, active, facilities,

@@ -271,6 +271,7 @@ func newDecisionsForTestWithBookings(
 		CareWithdrawal:         careWithdrawal,
 		ParentsURL:             owners.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
 		LockTemplateRecurrence: lockTemplateRecurrence,
+		FollowClassChanges:     api.MustEnrollmentTestClassFollowUp(testpkg.MustDatabase(env.db)),
 		Pickups: TestWeeklyPickupHooks{
 			Snapshot:      snapshotPickupWeekdayChanges(pickupAutoExcusal),
 			RecordChanges: recordPickupWeekdayChanges(pickupAutoExcusal),

@@ -56,7 +56,7 @@ func AssembleGradeTransition(deps gradetransitioncompose.Dependencies) (gradetra
 		"database": deps.DB == nil, "school structure": deps.Structure == nil, "student presence": deps.Presence == nil,
 		"people directory": deps.Directory == nil, "school membership": deps.Membership == nil,
 		"roster reconciliation": deps.Rosters == nil, "recurrence lock": deps.LockRecurrenceWrites == nil,
-		"offering roster resync": deps.ResyncOfferingRosters == nil, "audit": deps.Audit == nil,
+		"offering roster resync": deps.ResyncOfferingRosters == nil, "class change follow-up": deps.FollowClassChanges == nil, "audit": deps.Audit == nil,
 		"class list entry record": deps.ClassListEntryRecord == nil,
 	} {
 		if missing {
@@ -91,11 +91,10 @@ func AssembleGradeTransition(deps gradetransitioncompose.Dependencies) (gradetra
 		Structure: deps.Structure, Directory: deps.Directory, Membership: deps.Membership, Presence: deps.Presence, Rosters: deps.Rosters,
 		LockRecurrenceWrites: deps.LockRecurrenceWrites,
 		ResyncOfferingRosters: func(ctx context.Context, effectiveFrom string) error {
-			day, err := calendar.ParseDate(effectiveFrom)
-			if err != nil {
-				return err
-			}
-			return deps.ResyncOfferingRosters(ctx, day)
+			return onCalendarDay(effectiveFrom, func(day calendar.Date) error { return deps.ResyncOfferingRosters(ctx, day) })
+		},
+		FollowClassChanges: func(ctx context.Context, changes []gradetransition.ClassChange, effectiveFrom string) error {
+			return onCalendarDay(effectiveFrom, func(day calendar.Date) error { return deps.FollowClassChanges(ctx, changes, day) })
 		},
 		AppendClassListEntryAudit: func(ctx context.Context, actor gradetransition.Actor, change gradetransition.ClassListEntryAudit) error {
 			return deps.Audit.Append(ctx, deps.ClassListEntryRecord(actor, change))
@@ -109,4 +108,13 @@ func AssembleGradeTransition(deps gradetransitioncompose.Dependencies) (gradetra
 			)
 		},
 	}, nil
+}
+
+// onCalendarDay runs fn on the workflow's YYYY-MM-DD effective day.
+func onCalendarDay(effectiveFrom string, fn func(calendar.Date) error) error {
+	day, err := calendar.ParseDate(effectiveFrom)
+	if err != nil {
+		return err
+	}
+	return fn(day)
 }

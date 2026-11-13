@@ -16295,6 +16295,105 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0067",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.RosterReconciler, which the cohort roster follow-up (#6841) reuses for its batch writes. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/peopledirectory.Capability.ListStudentsByID (people-directory) through modules/timetable/internal/application.RosterReconciler, which the cohort roster follow-up (#6841) reuses for its batch writes. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.RosterReconciler, which the cohort roster follow-up (#6841) reuses for its batch writes. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/peopledirectory.Owner.ListStudentsByID (people-directory) through modules/timetable/internal/application.RosterReconciler, which the cohort roster follow-up (#6841) reuses for its batch writes. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/peopledirectory.Student.IsAlumnus (people-directory) through modules/timetable/internal/application.RosterReconciler, which the cohort roster follow-up (#6841) reuses for its batch writes. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Student.IsAlumnus",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/peopledirectory.StudentQuery.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.RosterReconciler, which the cohort roster follow-up (#6841) reuses for its batch writes. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/peopledirectory.StudentQuery.ListStudentsByID (people-directory) through modules/timetable/internal/application.RosterReconciler, which the cohort roster follow-up (#6841) reuses for its batch writes. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.WithinCurrentTenant (tenant-runtime) through the roster reads the cohort roster follow-up (#6841) shares with the sourced-roster batch. The caller enters the platform contract inside its own unit; scope and retry behavior are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.WithinTenantRetry (tenant-runtime) through the roster reads the cohort roster follow-up (#6841) shares with the sourced-roster batch. The caller enters the platform contract inside its own unit; scope and retry behavior are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-ogs/project-phoenix/modules/timetable.Capability.AcknowledgeConflict",
       "classification": "platform",

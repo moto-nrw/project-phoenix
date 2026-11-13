@@ -9,6 +9,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/workflows/gradetransition"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -94,7 +95,7 @@ func TestGradeTransitionWorkflow_ApplyAndRevert_ResyncOfferingSourcedRosters(t *
 	fromClass := fmt.Sprintf("2resync-%s", suffix)
 	toClass := fmt.Sprintf("3resync-%s", suffix)
 
-	testpkg.CreateTestStudent(t, db, "Resync", "Child", fromClass)
+	student := testpkg.CreateTestStudent(t, db, "Resync", "Child", fromClass)
 
 	transitionID := f.createDraft(t, ctx, "2025-2026", promote(fromClass, toClass))
 
@@ -103,10 +104,14 @@ func TestGradeTransitionWorkflow_ApplyAndRevert_ResyncOfferingSourcedRosters(t *
 	require.Len(t, f.resyncCalls, 1,
 		"apply must resync offering-sourced rosters after rewriting school classes")
 	assert.Equal(t, calendar.NewDate(2026, 8, 24), f.resyncCalls[0])
+	require.Len(t, f.classChangeCalls, 1, "apply must let targeted Regeltermine follow the promoted children (#6841)")
+	assert.Equal(t, []gradetransition.ClassChange{{StudentID: student.ID, PreviousSchoolClass: fromClass}}, f.classChangeCalls[0])
 
 	_, err = wf.Revert(ctx, transitionID)
 	require.NoError(t, err)
 	require.Len(t, f.resyncCalls, 2,
 		"revert must resync in the opposite direction")
 	assert.Equal(t, calendar.NewDate(2026, 8, 24), f.resyncCalls[1])
+	require.Len(t, f.classChangeCalls, 2, "revert must let targeted Regeltermine follow the children back")
+	assert.Equal(t, []gradetransition.ClassChange{{StudentID: student.ID, PreviousSchoolClass: toClass}}, f.classChangeCalls[1])
 }

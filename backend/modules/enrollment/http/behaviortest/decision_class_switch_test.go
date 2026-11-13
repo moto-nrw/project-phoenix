@@ -1,6 +1,7 @@
 package enrollmenthttp_test
 
 import (
+	"fmt"
 	"testing"
 
 	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
@@ -79,6 +80,14 @@ func TestDecisionService_Decide_ExistingStudentRenewalKeepsRunningClassUntilYear
 	require.NoError(t, err)
 	assert.Equal(t, 0, applied, "nothing switches before the new school year")
 
+	// Regeltermine with a Klasse or Jahrgang target were materialized for the
+	// new year while the child was still in 1a (#6841).
+	period := testpkg.CreateTestCalendarPeriod(t, env.db, "Schuljahr 2030", newYearStart, newYearEnd)
+	room := testpkg.CreateTestRoom(t, env.db, "Klassenwechsel")
+	class1a := classSwitchTargetedOccurrence(t, env, period.ID, room.ID, "target_school_class", "1a")
+	testpkg.CreateTestInstanceStudent(t, env.db, class1a, existing.ID, "")
+	grade3 := classSwitchTargetedOccurrence(t, env, period.ID, room.ID, "target_grade_level", 3)
+
 	applied, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), owner.ApplyDueClassSwitches, newYearStart)
 	require.NoError(t, err)
 	assert.Equal(t, 1, applied)
@@ -86,6 +95,35 @@ func TestDecisionService_Decide_ExistingStudentRenewalKeepsRunningClassUntilYear
 	require.NoError(t, err)
 	assert.Equal(t, "3", student.SchoolClass, "the edited target applies when the new school year starts")
 	assert.Equal(t, runningFrom, *student.EnrolledFrom)
+	assert.Empty(t, classSwitchRoster(t, env, class1a), "the child leaves the 1a Regeltermin with the switch")
+	assert.Equal(t, []int64{existing.ID}, classSwitchRoster(t, env, grade3), "the child joins the Jahrgang 3 Regeltermin with the switch")
+}
+
+// classSwitchTargetedOccurrence creates a Regeltermin with one Klasse
+// ('target_school_class') or Jahrgang ('target_grade_level') target and its
+// planned occurrence on the first school day after the switch.
+func classSwitchTargetedOccurrence(t *testing.T, env *decisionTestEnv, periodID, roomID int64, column string, value any) int64 {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	template := testpkg.CreateTestActivityGroup(t, env.db, fmt.Sprintf("Klassenwechsel %s %v", column, value))
+	_, err := env.db.NewUpdate().TableExpr("activities.groups").Set("is_template = true").Set("calendar_period_id = ?", periodID).
+		Where("id = ?", template.ID).Exec(ctx)
+	require.NoError(t, err)
+	targetType := map[string]string{"target_school_class": "klasse", "target_grade_level": "jahrgang"}[column]
+	_, err = env.db.NewRaw(fmt.Sprintf(`INSERT INTO activities.group_targets (tenant_id, activity_group_id, target_group_type, %s)
+		VALUES (?, ?, ?, ?)`, column), testpkg.Tenant(t), template.ID, targetType, value).Exec(ctx)
+	require.NoError(t, err)
+	return testpkg.CreateTestActivityInstance(t, env.db, calendar.NewDate(2030, 8, 1), roomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID: &template.ID, CalendarPeriodID: &periodID,
+	}).ID
+}
+
+func classSwitchRoster(t *testing.T, env *decisionTestEnv, instanceID int64) []int64 {
+	t.Helper()
+	var ids []int64
+	require.NoError(t, env.db.NewRaw(`SELECT student_id FROM schedule.instance_students WHERE instance_id = ? ORDER BY student_id`, instanceID).
+		Scan(testpkg.Ctx(t), &ids))
+	return ids
 }
 
 // A child the school does not care for right now gets next year's class and

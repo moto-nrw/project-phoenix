@@ -545,6 +545,18 @@
       "target_owner": "care-plan"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Decisions.SyncApprovedChildData",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.ApprovedChildChanges.SyncApprovedChildData",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Decisions.SyncApprovedChildData",
       "classification": "platform",
@@ -709,6 +721,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Approve",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.ChangeRequests.Approve",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0208",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Approve",
@@ -800,6 +824,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ChangeRequests.CorrectApprovedChildData",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.ChangeRequests.CorrectApprovedChildData",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -945,6 +981,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Reject",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.ChangeRequests.Reject",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0208",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Reject",
@@ -1038,6 +1086,18 @@
       "target_owner": "care-plan"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.DecisionCommand.DecideAndInvite",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0208",
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
@@ -1118,6 +1178,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Decisions.Decide",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.Decide",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0083",
@@ -1202,6 +1274,18 @@
       "target_owner": "care-plan"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.Decide",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.Decide",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0208",
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.Decide",
@@ -1284,6 +1368,18 @@
       "target_owner": "care-plan"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0208",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
@@ -1364,6 +1460,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0083",
@@ -2872,6 +2980,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Intake.CreateManualApprovedEnrollment",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.IntakeSubmissions.CreateManualApprovedEnrollment",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0208",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Intake.CreateManualApprovedEnrollment",
@@ -3673,6 +3793,18 @@
       "target_owner": "care-plan"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Rollovers.RunDeadlineWorker",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.Rollovers.RunDeadlineWorker",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0208",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.Rollovers.RunDeadlineWorker",
@@ -4238,6 +4370,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.changeRequestService.Approve",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.ChangeRequestService.Approve",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0208",
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.changeRequestService.Approve",
@@ -4329,6 +4473,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.changeRequestService.CorrectApprovedChildData",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.ChangeRequestService.CorrectApprovedChildData",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -4474,6 +4630,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.changeRequestService.Reject",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.ChangeRequestService.Reject",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0208",
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.changeRequestService.Reject",
@@ -4567,6 +4735,18 @@
       "target_owner": "care-plan"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.decisionService.Decide",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.DecisionService.Decide",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0208",
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.decisionService.Decide",
@@ -4647,6 +4827,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.decisionService.DecideAndInvite",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.DecisionService.DecideAndInvite",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0083",
@@ -4918,6 +5110,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Intake.CreateManualApprovedEnrollment",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0083",
@@ -5228,6 +5432,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.intakeService.CreateManualApprovedEnrollment",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.RequestService.CreateManualApprovedEnrollment",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0208",
       "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.intakeService.CreateManualApprovedEnrollment",
@@ -5486,6 +5702,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.rolloverService.RunDeadlineWorker",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.RolloverService.RunDeadlineWorker",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0083",
@@ -5826,6 +6054,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/http.manualApprovedEnrollments.CreateManualApprovedEnrollment",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0083",
@@ -7299,6 +7539,18 @@
       "target_owner": "care-plan"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.DecideAndInvite",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0208",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
@@ -7840,6 +8092,18 @@
       "target_owner": "care-plan"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueClassSwitches",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueClassSwitches",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueClassSwitches",
@@ -8000,6 +8264,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0224",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/compose.Decisions.Decide",
+      "classification": "E1",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.RolloverDecider.Decide",
+      "reason": "E1 existing decision/renewal/approved-child-sync surface: a decision that rewrites a child's class (existing-student approval, approved-child edit, planned class switch) lets Regeltermine with a Klasse or Jahrgang target follow, right after the offering resync it already runs, under the class-writes and recurrence gates it already holds; Timetable writes only its own roster rows in the caller's tenant unit. Approved for this binding by ADR 0224. Target: modules/timetable.CohortRosters.FollowCohortChanges.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0083",

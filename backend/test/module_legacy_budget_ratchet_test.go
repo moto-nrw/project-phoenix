@@ -296,7 +296,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // recipient rekey (+33) and the handovers of modules/parentbilling/compose (+5).
 // ADR 0220: the pickup change team constructor of modules/careplan/compose
 // adds exactly 13 LOC.
-const moduleComposeBudgetTotal = 13429
+// ADR 0224: the cohort rosters constructor (+5) and the grade transition's
+// class follow-up port (+2).
+const moduleComposeBudgetTotal = 13436
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC (ADR 0220 adds 13 to modules/careplan/compose), raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -445,9 +447,10 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 266,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
-	// Raised by ADR 0128: the student template days constructor (+5) and by
-	// ADR 0144: the vacation hint constructor (+6).
-	"modules/timetable/compose":                     1151,
+	// Raised by ADR 0128: the student template days constructor (+5), by
+	// ADR 0144: the vacation hint constructor (+6) and by ADR 0224: the cohort
+	// rosters constructor (+5).
+	"modules/timetable/compose":                     1156,
 	"modules/timetableblockdisplay/compose":         9,
 	"modules/timetableenrollmentprovenance/compose": 10,
 	"modules/timetableprojection/compose":           7,
@@ -458,9 +461,10 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0188: the bank cipher dependency and backfill/rekey constructor (+7).
 	// ADR 0197: the export opener of the sealed staff bank and tax data (+5).
-	"modules/workforce/compose":         918,
-	"workflows/catererportal/compose":   37, // added by ADR 0077
-	"workflows/gradetransition/compose": 49,
+	"modules/workforce/compose":       918,
+	"workflows/catererportal/compose": 37, // added by ADR 0077
+	// Raised by ADR 0224: the class follow-up port (+2).
+	"workflows/gradetransition/compose": 51,
 	// Added by ADR 0209: the holiday allocation workflow and its joining
 	// Träger transaction (ADR 0206).
 	"workflows/holidayallocation/compose": 13,
