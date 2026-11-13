@@ -7,6 +7,52 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestStatusDayProvenanceAccountDeletionDoesNotRecordEvent(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "Deleted", "Reporter", "1a")
+	staff := testpkg.CreateTestAccount(t, db, "status-deleted-staff")
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO active.student_status_days
+			(tenant_id, student_id, date, status, reported_at, source, reported_by_account_id)
+		VALUES (?, ?, '2031-03-04', 'sick', NOW() - INTERVAL '2 hours', 'manual', ?)
+	`, testpkg.Tenant(t), student.ID, staff.ID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `
+		UPDATE active.student_status_days
+		SET cleared_at = NOW(), cleared_source = 'manual', cleared_by_account_id = ?
+		WHERE student_id = ?
+	`, staff.ID, student.ID)
+	require.NoError(t, err)
+
+	var eventsBefore int
+	require.NoError(t, db.NewRaw(`
+		SELECT COUNT(*) FROM schedule.meal_sickness_status_history WHERE student_id = ?
+	`, student.ID).Scan(ctx, &eventsBefore))
+	require.Equal(t, 2, eventsBefore)
+
+	_, err = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, staff.ID)
+	require.NoError(t, err, "deleting the same reporter and clearer must not insert a history event referencing the deleted account")
+
+	var anonymizedDays int
+	require.NoError(t, db.NewRaw(`
+		SELECT COUNT(*) FROM active.student_status_days
+		WHERE student_id = ? AND reported_by_account_id IS NULL AND cleared_by_account_id IS NULL
+			AND source = 'manual' AND cleared_source = 'manual' AND cleared_at IS NOT NULL
+	`, student.ID).Scan(ctx, &anonymizedDays))
+	require.Equal(t, 1, anonymizedDays, "account deletion only removes the account references, not the clearing or its source")
+
+	var eventsAfter, anonymizedEvents int
+	require.NoError(t, db.NewRaw(`
+		SELECT COUNT(*), COUNT(*) FILTER (WHERE account_id IS NULL)
+		FROM schedule.meal_sickness_status_history WHERE student_id = ?
+	`, student.ID).Scan(ctx, &eventsAfter, &anonymizedEvents))
+	require.Equal(t, eventsBefore, eventsAfter, "FK-driven reporter nullification is not a new report or clearing")
+	require.Equal(t, eventsBefore, anonymizedEvents, "the report and clearing remain in history without the deleted account")
+}
+
 func TestStatusDayProvenanceRollbackAllowsLegacyReReport(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

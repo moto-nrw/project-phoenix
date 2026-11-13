@@ -53,9 +53,11 @@ const repeatableScheduleRecordMealSicknessStatusSQL = `CREATE OR REPLACE FUNCTIO
 		ELSIF NEW.cleared_at IS DISTINCT FROM OLD.cleared_at THEN
 			effective_change := COALESCE(NEW.cleared_at, clock_timestamp());
 		ELSIF NEW.source IS DISTINCT FROM OLD.source
-			OR NEW.reported_by_account_id IS DISTINCT FROM OLD.reported_by_account_id THEN
+			OR (NEW.reported_by_account_id IS NOT NULL
+				AND NEW.reported_by_account_id IS DISTINCT FROM OLD.reported_by_account_id) THEN
 			-- A new reporter on a standing day keeps its report time (a
 			-- profile note update reuses the flag's since time).
+			-- ON DELETE SET NULL only anonymizes a reporter; it is no event.
 			effective_change := clock_timestamp();
 		ELSE
 			RETURN NEW;
