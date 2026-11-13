@@ -4,8 +4,8 @@ status: accepted
 
 # Bestätigungsschreiben gehen als Mail des Trägers über die Outbox
 
-Entscheidung vom 26.10.2026 zu [#4670](https://github.com/moto-nrw/project-phoenix/issues/4670),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 26.10.2026 zu [#4670](https://github.com/moto-ogs/project-phoenix/issues/4670),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 94, 95, 97 und 100. Sie ist der vierte Bau-Schnitt des Owners
 Elternabrechnung aus
 [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)

@@ -23,9 +23,11 @@ const GAP = 6;
 /** Time to move the pointer from the control onto the bubble (WCAG 1.4.13). */
 const LEAVE_GRACE_MS = 120;
 
-// Ob der letzte Bedienschritt eine Taste war. Nur dann zeigt ein Fokus die
+// Ob der letzte Bedienschritt die Tab-Taste war. Nur dann zeigt ein Fokus die
 // Blase: ein Klick oder Tipp fokussiert den Knopf auch, löst aber zugleich die
-// Aktion aus, eine Blase käme dann zu spät (#6643).
+// Aktion aus, eine Blase käme dann zu spät (#6643). Öffnet Enter einen Dialog,
+// setzt er den Fokus selbst auf sein X; eine Blase dort finge die erste
+// Escape-Taste ab, die den Dialog schließen soll (#6744).
 let keyboardModality = false;
 let modalityTracking = false;
 const pendingHoverCancels = new Set<() => void>();
@@ -60,7 +62,8 @@ function trackModality() {
     "keydown",
     (event) => {
       if (!event.metaKey && !event.altKey && !event.ctrlKey) {
-        keyboardModality = true;
+        // Shift allein ändert nichts: Shift+Tab kommt als zweites Ereignis.
+        if (event.key !== "Shift") keyboardModality = event.key === "Tab";
       }
     },
     true,

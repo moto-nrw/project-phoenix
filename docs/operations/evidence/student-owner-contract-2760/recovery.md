@@ -55,7 +55,7 @@ this restore exercise did not execute Contract against this source database.
 The actual prior server image `ed76e88` was exported read-only with
 `docker image save` from `moto-app-server`, then loaded locally. No production
 container was stopped or changed. Registry identity observed on that server:
-`ghcr.io/moto-nrw/phoenix-server@sha256:d2ed5fee7a8665deba06dd7e19896701a4ddee334872c0464e150a808ab7e029`.
+`ghcr.io/moto-ogs/phoenix-server@sha256:d2ed5fee7a8665deba06dd7e19896701a4ddee334872c0464e150a808ab7e029`.
 The exported configuration blob hashes to
 `91e473903865b188afde544f4456f4640b0d09f83ca9c2f80cee7888e609397d`, matching
 the server's image ID; all eight exported uncompressed layer hashes matched.

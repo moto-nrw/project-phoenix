@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // queuePayrollDispatch records the automatic send of #4805 in the close's

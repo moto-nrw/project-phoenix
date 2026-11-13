@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Sourced Regeltermine whose rows must carry the period their instances

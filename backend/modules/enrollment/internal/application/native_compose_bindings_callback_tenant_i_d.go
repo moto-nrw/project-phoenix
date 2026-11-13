@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func NewTenantID() func(ctx context.Context) (int64, error) {

@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	api "github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The credential generation (#6289, design in the PR): every artifact a

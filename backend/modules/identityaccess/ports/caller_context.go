@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // CallerPeople is the People Directory seam of the caller context: the

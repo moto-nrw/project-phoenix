@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	mailcontract "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 
 	"github.com/k3a/html2text"
 	"github.com/vanng822/go-premailer/premailer"

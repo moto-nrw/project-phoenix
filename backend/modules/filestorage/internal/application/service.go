@@ -30,9 +30,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/filestorage"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/ports"
 )
 
 // Dependencies are the seams composition binds. Announcements may stay nil in

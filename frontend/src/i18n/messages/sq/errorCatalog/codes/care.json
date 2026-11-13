@@ -60,6 +60,7 @@
   "offering_changes_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
   "payer_guardian_protected": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
   "photo_consent_not_withdrawn": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "pickup_change_care_day_ended": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "pickup_change_cutoff_passed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "pickup_change_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
   "pickup_permission_request_required": "Një leje e re për marrjen e fëmijës kërkon nënshkrimin tuaj. Pastaj OGS e konfirmon.",

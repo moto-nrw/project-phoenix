@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // PasswordResetWiring is the configuration the reset flows are composed

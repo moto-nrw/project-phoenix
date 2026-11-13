@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+
 	"github.com/uptrace/bun"
 )
 
@@ -796,5 +797,4 @@ const messageAttachmentErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.s
    PERFORM platform.school_erasure_assert_empty(p_school_id,v_child_keys);
    RETURN v_counts;
  END $body$;
- REVOKE ALL ON FUNCTION platform.school_erasure_delete(BIGINT) FROM PUBLIC, phoenix_auth, phoenix_tenant, phoenix_admin, phoenix_demo, phoenix_school_erasure;
-`
+ REVOKE ALL ON FUNCTION platform.school_erasure_delete(BIGINT) FROM PUBLIC, phoenix_auth, phoenix_tenant, phoenix_admin, phoenix_demo, phoenix_school_erasure;`

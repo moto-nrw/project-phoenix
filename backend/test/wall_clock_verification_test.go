@@ -46,8 +46,8 @@ func TestActivityInstanceWallClockRatchetDetectsAliasedInstantSources(t *testing
 
 import (
 	stdtime "time"
-	tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
+	tz "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/models/schedule"
 )
 
 func examples() {

@@ -64,6 +64,7 @@ const CodeWorkforceShiftOverlap = "workforce.shift_overlap"
 const CodeWorkforceShiftSeriesNoOccurrences = "workforce.shift_series_no_occurrences"
 const CodeWorkforceShiftSeriesOutsidePeriod = "workforce.shift_series_outside_period"
 const CodeWorkforceShiftSeriesWeekCycleMissing = "workforce.shift_series_week_cycle_missing"
+const CodeWorkforceShiftTypeArchived = "workforce.shift_type_archived"
 const CodeWorkforceShiftTypeInactive = "workforce.shift_type_inactive"
 const CodeWorkforceStaffProfileMissing = "workforce.staff_profile_missing"
 const CodeWorkforceStammdatenInvalid = "workforce.stammdaten_invalid"
@@ -78,6 +79,7 @@ const CodeWorkforceVacationQuotaExceeded = "workforce.vacation_quota_exceeded"
 const CodeWorkforceVacationQuotaReasonRequired = "workforce.vacation_quota_reason_required"
 const CodeWorkforceVacationRequestInPast = "workforce.vacation_request_in_past"
 const CodeWorkforceWorkSessionOverlap = "workforce.work_session_overlap"
+const CodeWorkforceWorkTimeModelArchived = "workforce.work_time_model_archived"
 
 var errorCodeClassesWorkforce = []errorCodeClass{
 	{CodeWorkforceAbsenceAllowanceExceeded, "business_rejection"},
@@ -143,6 +145,7 @@ var errorCodeClassesWorkforce = []errorCodeClass{
 	{CodeWorkforceShiftSeriesNoOccurrences, "input"},
 	{CodeWorkforceShiftSeriesOutsidePeriod, "input"},
 	{CodeWorkforceShiftSeriesWeekCycleMissing, "input"},
+	{CodeWorkforceShiftTypeArchived, "business_rejection"},
 	{CodeWorkforceShiftTypeInactive, "business_rejection"},
 	{CodeWorkforceStaffProfileMissing, "business_rejection"},
 	{CodeWorkforceStammdatenInvalid, "input"},
@@ -157,6 +160,7 @@ var errorCodeClassesWorkforce = []errorCodeClass{
 	{CodeWorkforceVacationQuotaReasonRequired, "input"},
 	{CodeWorkforceVacationRequestInPast, "input"},
 	{CodeWorkforceWorkSessionOverlap, "business_rejection"},
+	{CodeWorkforceWorkTimeModelArchived, "business_rejection"},
 }
 
 func init() {

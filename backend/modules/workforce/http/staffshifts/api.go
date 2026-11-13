@@ -20,7 +20,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // Middleware is the HTTP middleware shape the composition root supplies.
@@ -410,6 +410,7 @@ var failureRules = []failureRule{
 	{Target: workforce.ErrInvalidStaffShift, Kind: FailureInvalid},
 	{Target: workforce.ErrShiftTypeNotFound, Kind: FailureInvalid},
 	{Target: workforce.ErrShiftTypeInactive, Kind: FailureInvalid},
+	{Target: workforce.ErrShiftTypeArchived, Kind: FailureConflict},
 	{Target: workforce.ErrShiftSeriesNotFound, Kind: FailureNotFound},
 	{Target: workforce.ErrInvalidShiftSeries, Kind: FailureInvalid},
 	{Target: workforce.ErrPlanExportInvalid, Kind: FailureInvalid},

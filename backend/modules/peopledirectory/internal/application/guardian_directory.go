@@ -8,13 +8,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // Guardian directory composition (#2663). The People Directory facade owns

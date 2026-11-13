@@ -3,12 +3,12 @@ package api
 import (
 	"context"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
 	"encoding/json"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // setOperatorAuditChanges stores the change summary on an operator ledger

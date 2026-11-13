@@ -3,7 +3,7 @@ package application
 import (
 	"log/slog"
 
-	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	identityBindingPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // invitationLogger is the logger the always-composed invitation maintenance

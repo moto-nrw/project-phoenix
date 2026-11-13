@@ -49,3 +49,44 @@ export async function box(page: Page, testId: string) {
   if (!rect) throw new Error(`${testId} is not rendered`);
   return rect;
 }
+
+/**
+ * Lädt eine Quelldatei aus `src` über Vites SSR-Modulgraphen, damit ein
+ * Layouttest das Produktionsmarkup einer Komponente rendern kann, die
+ * Playwrights eigener Loader nicht auflöst (`next/link` ohne Dateiendung,
+ * `~/`-Pfade). Die Client-Umgebung ist ein Platzhalter: Layouttests laufen
+ * ohne Umgebungsvariablen.
+ */
+export async function loadSourceModules<T>(
+  load: (
+    importSource: (file: string) => Promise<Record<string, unknown>>,
+  ) => Promise<T>,
+): Promise<T> {
+  const { createServer } = await import("vite");
+  const server = await createServer({
+    root: FRONTEND_DIR,
+    configFile: false,
+    logLevel: "error",
+    appType: "custom",
+    server: { middlewareMode: true, hmr: false, watch: null },
+    resolve: {
+      alias: [
+        {
+          find: /^~\/env\.client$/,
+          replacement: path.join(
+            FRONTEND_DIR,
+            "e2e",
+            "layout",
+            "env-client-stub.ts",
+          ),
+        },
+        { find: /^~\//, replacement: `${path.join(FRONTEND_DIR, "src")}/` },
+      ],
+    },
+  });
+  try {
+    return await load((file) => server.ssrLoadModule(file));
+  } finally {
+    await server.close();
+  }
+}

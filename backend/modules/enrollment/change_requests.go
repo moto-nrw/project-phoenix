@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Refusals of the change requests (#3565). Handlers render err.Error().

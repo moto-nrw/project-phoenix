@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
 )
 
 // German pill texts of a Stammdaten decision. The neutral line for the other

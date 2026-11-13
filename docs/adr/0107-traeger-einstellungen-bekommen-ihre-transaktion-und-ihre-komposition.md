@@ -4,7 +4,7 @@ status: accepted
 
 # Träger-Einstellungen bekommen ihre Transaktion und ihre Komposition
 
-Entscheidung vom 25.10.2026 zu [#4652](https://github.com/moto-nrw/project-phoenix/issues/4652),
+Entscheidung vom 25.10.2026 zu [#4652](https://github.com/moto-ogs/project-phoenix/issues/4652),
 erster Bau-Schnitt von
 [ADR 0086](0086-traeger-werte-liegen-zwischen-standard-und-schule.md).
 ADR 0086 hat die Träger-Ebene im Settings-System beschlossen. Diese ADR hält

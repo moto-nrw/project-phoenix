@@ -1,8 +1,8 @@
 package projection
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience/contract"
-	postgres "github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/staffannouncementaudience/contract"
+	postgres "github.com/moto-ogs/project-phoenix/modules/staffannouncementaudience/internal/adapters/postgres"
 )
 
 func New(database postgres.Database) *postgres.Projection { return postgres.New(database) }

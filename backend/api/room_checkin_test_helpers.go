@@ -6,17 +6,17 @@ import (
 	"log/slog"
 	"time"
 
-	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
+	scanBindings "github.com/moto-ogs/project-phoenix/roots/devicescanbinding"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	devicescanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewRoomsTestModule composes the active graph the room routes run over and

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // School invitations (#2722): the one-time link that grants an invitee

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 )
 
 func TestHolidayClosureWatchdogRunsWhileProcessingIsStuck(t *testing.T) {

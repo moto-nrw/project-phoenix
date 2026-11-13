@@ -6,13 +6,13 @@ import (
 	"context"
 	"log/slog"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewAttendanceSyncTestRepositories adapts one timetable capability for tests of

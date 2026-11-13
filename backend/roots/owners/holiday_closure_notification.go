@@ -5,14 +5,14 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	notification "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification"
-	notificationPorts "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification/ports"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	notification "github.com/moto-ogs/project-phoenix/workflows/holidayclosurenotification"
+	notificationPorts "github.com/moto-ogs/project-phoenix/workflows/holidayclosurenotification/ports"
 )
 
 // HolidayClosureHolidays is what the worker reads of School Calendar's

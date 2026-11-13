@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	staffInboxContract "github.com/moto-nrw/project-phoenix/modules/staffmessageinbox/contract"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	staffInboxContract "github.com/moto-ogs/project-phoenix/modules/staffmessageinbox/contract"
 )
 
 type communicationStaffInbox struct{ source staffStoreProjection }

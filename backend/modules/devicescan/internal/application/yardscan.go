@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 // routeYardScan applies the Schulhof rule of ADR 0019 (#3282) while blocks

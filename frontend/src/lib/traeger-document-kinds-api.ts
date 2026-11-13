@@ -44,7 +44,7 @@ const PATH = "/api/traeger/billing-document-kinds";
 
 /** Name einer Dokumentart, wie Schreiben und Übersicht sie nennen. */
 export const DOCUMENT_KIND_LABEL: Readonly<Record<DocumentKind, string>> = {
-  confirmation: "Bestätigung mit Rechnung",
+  confirmation: "Bestätigung und Rechnung",
   invoice: "Rechnung",
   fee_notice: "Gebührenbescheid",
 };

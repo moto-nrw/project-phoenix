@@ -13,8 +13,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Closing days in booked holiday weeks (#6434, ADR 0196); the rules are on

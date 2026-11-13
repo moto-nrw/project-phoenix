@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/application"
 	"github.com/uptrace/bun"
 )
 

@@ -5,8 +5,8 @@ package fixturetest
 import (
 	context "context"
 
-	ports "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	ports "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type StudentPickupNoteRecords interface {

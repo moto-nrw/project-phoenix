@@ -5,11 +5,20 @@ import type { ReactNode, RefObject } from "react";
 import { Download, Printer } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  EXPORT_ACTION_LABELS,
+  EXPORT_BUSY_LABELS,
+  EXPORT_FORMAT_LABELS,
+  type ExportFileFormat,
+  type ExportRunKind,
+} from "~/components/ui/export-formats";
 import type { FormErrorInput } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   SlideOver,
+  SlideOverBody,
+  SlideOverCancelButton,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
@@ -18,23 +27,6 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { StatusBadge } from "~/components/ui/status-badge";
-
-/** Every file format a moto export can produce. */
-export type ExportFileFormat = "pdf" | "docx" | "xlsx" | "csv";
-
-/**
- * Format names in the interface (docs/reference/exporte.md, Regel 3): the
- * names people know from their office programs, not the file endings.
- */
-export const EXPORT_FORMAT_LABELS: Readonly<Record<ExportFileFormat, string>> =
-  {
-    pdf: "PDF",
-    docx: "Word",
-    xlsx: "Excel",
-    csv: "CSV",
-  };
-
-export type ExportRunKind = "download" | "print";
 
 /**
  * State of a running export. `useExportRun` (`~/hooks/use-export-run`)
@@ -75,6 +67,11 @@ interface ExportDialogProps<F extends ExportFileFormat> {
    * options themselves say why; Drucken and Herunterladen wait.
    */
   readonly blocked?: boolean;
+  /**
+   * Locks every way to close the dialog without a running operation; the
+   * one name for this lock in every kit dialog (#6575). A running export locks it too.
+   */
+  readonly isDismissDisabled?: boolean;
   /** Options of this export (template, period, columns). */
   readonly children?: ReactNode;
 }
@@ -98,6 +95,7 @@ export function ExportDialog<F extends ExportFileFormat>({
   defaultFormat,
   run,
   blocked = false,
+  isDismissDisabled = false,
   children,
 }: ExportDialogProps<F>) {
   const initialFormat = defaultFormat ?? formats[0];
@@ -117,28 +115,23 @@ export function ExportDialog<F extends ExportFileFormat>({
     <SlideOver
       open={isOpen}
       onOpenChange={(open) => {
-        // Solange ein Export läuft, bleibt der Dialog stehen.
-        if (!open && busy === null) onClose();
+        if (!open) onClose();
       }}
+      // Solange ein Export läuft, bleibt der Dialog stehen.
+      isDismissDisabled={isDismissDisabled || busy !== null}
     >
       <SlideOverContent size="md">
         <SlideOverHeader
-          close={
-            <SlideOverCloseButton
-              aria-label="Export schließen"
-              disabled={busy !== null}
-            />
-          }
+          close={<SlideOverCloseButton aria-label="Export schließen" />}
         >
           <SlideOverTitle>{title}</SlideOverTitle>
           {description ? (
             <SlideOverDescription>{description}</SlideOverDescription>
           ) : null}
         </SlideOverHeader>
-        <div
-          ref={run.bodyRef}
-          className="flex-1 space-y-5 overflow-y-auto px-5 py-4"
-        >
+        <SlideOverBody ref={run.bodyRef} className="space-y-5">
+          {/* Not the body's `error` slot: that keeps 16 px to the content,
+              this dialog 20 px, the gap of its sections (#6716). */}
           <FormErrorAlert message={run.error} />
           {filters.length > 0 ? (
             <section>
@@ -179,17 +172,9 @@ export function ExportDialog<F extends ExportFileFormat>({
               </div>
             </section>
           ) : null}
-        </div>
+        </SlideOverBody>
         <SlideOverFooter>
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={onClose}
-            disabled={busy !== null}
-          >
-            Abbrechen
-          </Button>
+          <SlideOverCancelButton>Abbrechen</SlideOverCancelButton>
           {run.print ? (
             <Button
               type="button"
@@ -197,9 +182,12 @@ export function ExportDialog<F extends ExportFileFormat>({
               size="md"
               onClick={run.print}
               disabled={busy !== null || blocked}
+              tooltip="Öffnet die Liste als Druckansicht."
             >
               <Printer className="h-4 w-4" aria-hidden />
-              {busy === "print" ? "Wird geöffnet…" : "Drucken"}
+              {busy === "print"
+                ? EXPORT_BUSY_LABELS.print
+                : EXPORT_ACTION_LABELS.print}
             </Button>
           ) : null}
           <Button
@@ -210,9 +198,12 @@ export function ExportDialog<F extends ExportFileFormat>({
               if (format) run.download(format);
             }}
             disabled={busy !== null || blocked || !format}
+            tooltip="Speichert die Liste im gewählten Format auf Ihrem Gerät."
           >
             <Download className="h-4 w-4" aria-hidden />
-            {busy === "download" ? "Wird erstellt…" : "Herunterladen"}
+            {busy === "download"
+              ? EXPORT_BUSY_LABELS.download
+              : EXPORT_ACTION_LABELS.download}
           </Button>
         </SlideOverFooter>
       </SlideOverContent>

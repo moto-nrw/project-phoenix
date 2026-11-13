@@ -50,7 +50,7 @@ func TestTenantLifecycleReadIsAnExactAdministrativeException(t *testing.T) {
 
 func TestTenantLifecycleDynamicReadNeverAllowsAnotherCallOrWrite(t *testing.T) {
 	t.Parallel()
-	source := "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/tenantexport"
+	source := "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/adapters/tenantexport"
 	pkg := Package{Owner: "organization-tenancy", Role: "postgres"}
 	if !tenantLifecycleDynamicRead(source, pkg, "exportRun.exportTable", "QueryContext") {
 		t.Fatal("catalog read rejected")

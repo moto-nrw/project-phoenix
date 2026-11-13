@@ -33,7 +33,7 @@ export function traegerBillingTermsTopic(): HelpTopic {
         description:
           "Ein Lauf kann ein festes Datum haben, bis zu dem alle Familien zahlen. Das geht nur vor der Freigabe.",
         steps: [
-          "Öffnen Sie den Lauf unter `Abrechnung`, bei den Monatsbeiträgen oder bei den Ferien.",
+          "Öffnen Sie den Lauf unter `Abrechnungsläufe`, im Reiter `Monatsbeiträge` oder `Ferien`.",
           "Beim Monatslauf wählen Sie in der Karte `Monatslauf` beim Feld `Fällig` den Knopf `Ändern`. Beim Ferienlauf wählen Sie `Fälligkeiten ändern`. Es öffnet sich eine eigene Seite.",
           "Wählen Sie je Zahlungsweg ein Datum. Ohne Datum gilt das Zahlungsziel der Leistung.",
           "Wählen Sie `Speichern`. Sie kommen zurück zum Lauf. Bei `Fällig` steht jetzt das Datum.",
@@ -44,12 +44,12 @@ export function traegerBillingTermsTopic(): HelpTopic {
         description:
           "Das gilt für alle Rechnungen dieser Familie, auch für Geschwister. Die Familie ist die E-Mail-Adresse der Person im Vertrag.",
         steps: [
-          "Öffnen Sie einen Monatslauf unter `Abrechnung` und `Monatsbeiträge`.",
+          "Öffnen Sie einen Monatslauf unter `Abrechnungsläufe` und `Monatsbeiträge`.",
           "Wählen Sie bei der Rechnung des Kindes das Menü mit den drei Punkten und dann `Empfänger und Zahlung`. Es öffnet sich eine eigene Seite.",
           "Wählen Sie bei `Rechnung an`: `Person im Vertrag`, `Beide Eltern` oder `Andere Person`.",
           "Bei `Beide Eltern` tragen Sie den Namen des zweiten Elternteils ein. Beide Namen stehen dann auf der Rechnung.",
           "Bei `Andere Person` tragen Sie Name, E-Mail-Adresse und Anschrift ein. Die Rechnung geht dann an diese Person.",
-          "Wählen Sie bei Bedarf einen eigenen `Zahlungsweg`. `Wie die Leistung` nimmt den Zahlungsweg aus den Abrechnungsvorgaben.",
+          "Wählen Sie bei Bedarf einen eigenen `Zahlungsweg`. `Wie in den Abrechnungsvorgaben` nimmt den dort eingestellten Zahlungsweg.",
           "Wählen Sie bei Bedarf einen `Eigenen Zahltag`, zum Beispiel den 15. des Monats.",
           "Wählen Sie `Speichern`.",
         ],
@@ -60,7 +60,7 @@ export function traegerBillingTermsTopic(): HelpTopic {
     notes: [
       "Die Ferienbetreuung hat immer eine eigene Rechnung. Sie steht nie auf der Rechnung der Betreuung.",
       "Bei `Lastschrift` buchen Sie den Betrag selbst ab. Dafür braucht die Familie ein SEPA-Mandat bei Ihnen, und Sie brauchen eine Gläubiger-ID. Ohne Mandat geht die Rechnung als Überweisung. moto bucht kein Geld ab.",
-      "Unter `Abrechnung` und `Familien` sehen Sie bei jeder Familie den Zahlungsweg ihrer Rechnungen.",
+      "Unter `Familien und Zahlung` sehen Sie bei jeder Familie den Zahlungsweg ihrer Rechnungen.",
       "Beim Erstellen der Schreiben stehen die Fälligkeiten bereits fest. Das Feld `Zahlen bis` gilt nur für ältere Rechnungen ohne eigenes Datum.",
       "Welches Datum gilt: zuerst der eigene Zahltag der Familie, dann das Datum des Laufs, sonst das Zahlungsziel der Leistung.",
     ],

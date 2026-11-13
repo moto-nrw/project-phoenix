@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 func (q *AccountRoleQueries) FindActiveGuardianMemberships(ctx context.Context, accountIDs []int64) (result map[int64][]int64, err error) {

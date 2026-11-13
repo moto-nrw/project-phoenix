@@ -298,7 +298,7 @@ describe("MyDayBlock (#2180)", () => {
   });
 
   // #3921: ein spontaner Block hat bis zum Beenden kein Ende, und wer
-  // gegangen ist, steht getrennt.
+  // nicht mehr im Raum ist, steht getrennt.
   it("zeigt bei einem laufenden spontanen Block kein ausgedachtes Ende", () => {
     swr.data = [
       block({
@@ -325,7 +325,7 @@ describe("MyDayBlock (#2180)", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Ende offen")).toBeInTheDocument();
     expect(
-      screen.getByText("9 da · 27 gegangen", { exact: false }),
+      screen.getByText("9 da · 27 nicht mehr im Raum", { exact: false }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/von 0/)).not.toBeInTheDocument();
   });

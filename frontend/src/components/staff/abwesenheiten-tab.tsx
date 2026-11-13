@@ -745,6 +745,9 @@ export function AbwesenheitenTab({
         <SickReportModal
           isOpen
           staff={sickStaff}
+          targetHint={
+            canManageSickReports ? { canSetTarget: canEdit } : undefined
+          }
           onClose={() => setSickStaff(null)}
           onCreated={() => {
             // reload zeigt seinen Ladefehler selbst; hier bleibt nur das
@@ -857,6 +860,9 @@ export function AbwesenheitenTab({
         <AbsenceBookingModal
           staff={staff}
           types={absenceTypes}
+          targetHint={
+            canManageSickReports ? { canSetTarget: canEdit } : undefined
+          }
           onClose={() => setBookingOpen(false)}
           onSaved={() => {
             setBookingOpen(false);

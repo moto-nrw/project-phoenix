@@ -75,6 +75,7 @@
     "cutoffHint": "Godzinę odbioru na dziś możesz zmienić do {time}.",
     "cutoffClosed": "Na dziś zmiany są możliwe tylko do {time}. Skontaktuj się z {careTerm}. Inne dni możesz nadal zmieniać.",
     "cutoffClosedGeneric": "Na dziś zmiana nie jest już możliwa. Skontaktuj się z {careTerm}. Inne dni możesz nadal zmieniać.",
+    "careDayEnded": "Opieka na dziś już się skończyła. Nie można już zmienić godziny odbioru na dziś. Inne dni można nadal zmieniać.",
     "reset": "Cofnij zmianę",
     "resetTitle": "Cofnąć zmianę?",
     "resetDescription": "Inna godzina odbioru na dzień {date} zostanie usunięta. Znów obowiązuje stały plan tygodnia.",

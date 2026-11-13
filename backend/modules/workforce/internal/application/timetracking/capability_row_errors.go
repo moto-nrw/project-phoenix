@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 )
 
 // recordErrors builds the retained repository error shape of the capability

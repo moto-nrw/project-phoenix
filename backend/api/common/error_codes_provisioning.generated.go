@@ -18,6 +18,7 @@ const CodeProvisioningOrganizationHasSchools = "provisioning.organization_has_sc
 const CodeProvisioningOrganizationNotDeleted = "provisioning.organization_not_deleted"
 const CodeProvisioningOrganizationNotFound = "provisioning.organization_not_found"
 const CodeProvisioningOrganizationSlugTaken = "provisioning.organization_slug_taken"
+const CodeProvisioningPersonHasActiveProfile = "provisioning.person_has_active_profile"
 const CodeProvisioningPersonHasSupervisions = "provisioning.person_has_supervisions"
 const CodeProvisioningPersonNotFound = "provisioning.person_not_found"
 const CodeProvisioningSchoolAlreadyDeleted = "provisioning.school_already_deleted"
@@ -50,6 +51,7 @@ var errorCodeClassesProvisioning = []errorCodeClass{
 	{CodeProvisioningOrganizationNotDeleted, "business_rejection"},
 	{CodeProvisioningOrganizationNotFound, "business_rejection"},
 	{CodeProvisioningOrganizationSlugTaken, "business_rejection"},
+	{CodeProvisioningPersonHasActiveProfile, "business_rejection"},
 	{CodeProvisioningPersonHasSupervisions, "business_rejection"},
 	{CodeProvisioningPersonNotFound, "business_rejection"},
 	{CodeProvisioningSchoolAlreadyDeleted, "business_rejection"},

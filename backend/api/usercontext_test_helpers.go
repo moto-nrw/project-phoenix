@@ -5,11 +5,11 @@ package api
 import (
 	"log/slog"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewUserContextTestModule composes the caller context over the test

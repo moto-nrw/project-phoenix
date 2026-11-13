@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	scanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	scanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // NewOpenRoomMover binds the device-scan open-room port to the open-room

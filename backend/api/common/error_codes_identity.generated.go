@@ -6,6 +6,7 @@ const CodeIdentityAccountAlreadyHasTenantAccess = "identity.account_already_has_
 const CodeIdentityAccountInactive = "identity.account_inactive"
 const CodeIdentityAccountNotFound = "identity.account_not_found"
 const CodeIdentityAccountNotInSchool = "identity.account_not_in_school"
+const CodeIdentityAccountSharedAcrossSchools = "identity.account_shared_across_schools"
 const CodeIdentityCatererAddressTaken = "identity.caterer_address_taken"
 const CodeIdentityCatererWithoutSchool = "identity.caterer_without_school"
 const CodeIdentityCurrentPasswordWrong = "identity.current_password_wrong"
@@ -69,6 +70,7 @@ var errorCodeClassesIdentity = []errorCodeClass{
 	{CodeIdentityAccountInactive, "permission"},
 	{CodeIdentityAccountNotFound, "business_rejection"},
 	{CodeIdentityAccountNotInSchool, "business_rejection"},
+	{CodeIdentityAccountSharedAcrossSchools, "permission"},
 	{CodeIdentityCatererAddressTaken, "business_rejection"},
 	{CodeIdentityCatererWithoutSchool, "permission"},
 	{CodeIdentityCurrentPasswordWrong, "input"},

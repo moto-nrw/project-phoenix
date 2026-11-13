@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	listexport "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Pure unit tests against in-memory port records: the IDs below are struct

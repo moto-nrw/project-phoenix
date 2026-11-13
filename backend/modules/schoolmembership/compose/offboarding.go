@@ -1,9 +1,9 @@
 package compose
 
 import (
-	application "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application"
+	application "github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/application"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // NewOffboarding binds the Membership-owned part of staff offboarding and of

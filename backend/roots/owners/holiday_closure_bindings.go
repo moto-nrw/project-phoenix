@@ -5,16 +5,16 @@ import (
 	"log/slog"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryRuntime "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	schoolCalendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/compose"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // HolidayClosureMail is the Träger outbox of the closing day notices with

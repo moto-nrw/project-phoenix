@@ -56,6 +56,16 @@ trustPolicyExclude:
   # (May/June 2023) already had SLSA provenance, so the backport is flagged as a
   # downgrade. Known pnpm false positive (pnpm/pnpm#10202, discussion #11084).
   - semver@6.3.1
+  # pnpm itself, pinned in packageManager. A global pnpm 11+/12 downloads the pinned
+  # version and checks it against this policy. The 10.34.0–10.34.5 line was
+  # token-published by pnpmuser without provenance, while 10.31–10.33 and all 11.x
+  # carry SLSA provenance, so the date-based check reports a takeover. Checked
+  # before excluding: same publisher as 10.34.0–10.34.4, verified registry
+  # signature, sha512 matches the packageManager pin, tag v10.34.5 (702ad5f8) is
+  # verified on pnpm/pnpm, and the release fixes GHSA-c59q-g84q-2gj5,
+  # GHSA-vq4v-j7r6-jq4m and GHSA-vx52-2968-3vc6. CI is unaffected (corepack checks
+  # the sha512). Drop this entry with the next pnpm bump.
+  - pnpm@10.34.5
 
 onlyBuiltDependencies:
   - esbuild

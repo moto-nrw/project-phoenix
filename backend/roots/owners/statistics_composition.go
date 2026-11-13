@@ -5,17 +5,17 @@ import (
 	"log/slog"
 	"time"
 
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
 
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewStatistics builds the Statistik report over the presence database of

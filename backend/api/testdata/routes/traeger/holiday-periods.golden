@@ -9,6 +9,7 @@ GET /traeger/holiday-periods/{id}/places
 GET /traeger/holiday-periods/{id}/registrations
 GET /traeger/holiday-periods/{id}/registrations/export
 GET /traeger/holiday-periods/{id}/registrations/known-children
+GET /traeger/holiday-periods/{id}/registrations/mail-problems
 GET /traeger/holiday-periods/{id}/registrations/pdf
 GET /traeger/holiday-periods/{id}/registrations/{registrationId}
 GET /traeger/holiday-periods/{id}/registrations/{registrationId}/health

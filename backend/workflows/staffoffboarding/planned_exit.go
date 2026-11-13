@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The planned exit of #4809: the Leitung enters a last working day, and after

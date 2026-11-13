@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // NewMailRenderers returns Enrollment's mail renderers. Only holiday acceptance
@@ -41,9 +41,11 @@ func NewMailRenderers(accounts enrollment.HolidayAcceptanceAccounts, parentsURL 
 			phaseSubject:     "Anmeldung verlängert: %s",
 			phaseFullSubject: "Anmeldung verlängert: %s - %s",
 		})),
-		HolidayRegistrationReceived: renderHolidayRegistrationReceived,
-		HolidayPlaceGranted:         renderHolidayPlaceGranted,
-		HolidayClosureNotice:        renderHolidayClosureNotice,
+		HolidayRegistrationReceived: func(ctx context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+			return renderHolidayRegistrationReceived(ctx, kind, raw, parentsURL)
+		},
+		HolidayPlaceGranted:  renderHolidayPlaceGranted,
+		HolidayClosureNotice: renderHolidayClosureNotice,
 		HolidayRegistrationAccepted: func(ctx context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
 			return renderHolidayRegistrationAccepted(ctx, kind, raw, accounts, parentsURL)
 		},
@@ -54,8 +56,10 @@ func NewMailRenderers(accounts enrollment.HolidayAcceptanceAccounts, parentsURL 
 }
 
 // renderHolidayRegistrationReceived renders the receipt of a public holiday
-// registration from its typed payload. The Träger is the sender.
-func renderHolidayRegistrationReceived(_ context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+// registration from its typed payload. The Träger is the sender. The status
+// link is built from the token and the parents URL at sending (#6676); a
+// mail enqueued before carries no token and shows no link.
+func renderHolidayRegistrationReceived(_ context.Context, kind string, raw json.RawMessage, parentsURL string) (*enrollment.RenderedMail, error) {
 	var payload enrollment.HolidayRegistrationMail
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return nil, fmt.Errorf("%s payload is not a holiday registration mail: %w", kind, err)
@@ -91,6 +95,7 @@ func renderHolidayRegistrationReceived(_ context.Context, kind string, raw json.
 			"Waitlisted":   waitlisted,
 			"Pending":      pending,
 			"Declaration":  holidayDeclarationContent(payload.Declaration),
+			"StatusURL":    enrollment.HolidayRegistrationStatusURL(parentsURL, payload.StatusToken),
 		},
 	}, nil
 }

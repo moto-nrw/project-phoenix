@@ -111,8 +111,9 @@ function SearchBarContent({
 }: Readonly<SearchBarProps & { readonly draftState: DebouncedSearchValue }>) {
   const { shownValue, handleChange, commitNow } = draftState;
   const sizeClasses = {
-    sm: "py-2 pl-9 pr-3 text-sm",
-    md: "py-2.5 pl-9 pr-3 text-sm md:pl-10 md:pr-10",
+    // By finger 16 px: smaller text makes iOS zoom into the field.
+    sm: "py-2 pl-9 pr-3 text-sm pointer-coarse:text-base",
+    md: "py-2.5 pl-9 pr-3 text-sm pointer-coarse:text-base md:pl-10 md:pr-10",
     lg: "py-3 pl-10 pr-10 text-base",
   };
 
@@ -190,4 +191,23 @@ export function SharedSearchBar(props: Readonly<SearchBarProps>) {
   }
 
   return <SearchBarContent {...props} draftState={sharedDraftState} />;
+}
+
+/**
+ * Ein einzelnes Suchfeld mit eigenem Entwurf, für eine Suche außerhalb der
+ * Such- und Filterzeile von `TenantPage` (z. B. im Bedienband der
+ * Planungsflächen). Die Zeile selbst rendert zwei Kopien desselben Felds und
+ * teilt ihren Entwurf über `SearchBarDraftProvider`.
+ */
+export function SearchBar(props: Readonly<SearchBarProps>) {
+  return (
+    <SearchBarDraftProvider
+      value={props.value}
+      onChange={props.onChange}
+      debounceMs={props.debounceMs}
+      resetKey={props.resetKey}
+    >
+      <SharedSearchBar {...props} />
+    </SearchBarDraftProvider>
+  );
 }

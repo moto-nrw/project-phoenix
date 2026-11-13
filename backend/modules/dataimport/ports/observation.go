@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 type commandObserverKey struct{}

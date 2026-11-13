@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -57,10 +57,14 @@ func TestMealAbsenceHistoryRecordsEveryAbsenceStatus(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"class_trip:open", "class_trip:cleared"}, history("2026-09-10"))
 
-	// A second status on the same day keeps its own rows.
+	// A second status on the same day keeps its own rows. Only one status
+	// stands per day (#6958), so the excused day is lifted first.
+	_, err = db.NewRaw(`UPDATE active.student_status_days SET cleared_at = ? WHERE tenant_id = ? AND student_id = ? AND date = '2026-09-08'`,
+		reportedAt.Add(time.Hour), student.TenantID, student.ID).Exec(ctx)
+	require.NoError(t, err)
 	sickID := statusDay("2026-09-08", "sick")
 	deleteStatusDay(t, db, sickID)
-	assert.Equal(t, []string{"excused:open", "sick:open", "sick:cleared"}, history("2026-09-08"))
+	assert.Equal(t, []string{"excused:open", "excused:cleared", "sick:open", "sick:cleared"}, history("2026-09-08"))
 
 	// A changed status counts from the change, not from the first report:
 	// an earlier order snapshot must not see it.

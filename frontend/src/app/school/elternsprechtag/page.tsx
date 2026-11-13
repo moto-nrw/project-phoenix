@@ -344,7 +344,7 @@ function SchoolParentConferences() {
                         label="Tag"
                         id="parent-conference-date"
                         name="date"
-                        controlSize="lg"
+                        controlSize="large"
                         value={draft.date}
                         error={formErrors.fieldError("date")}
                         onChange={(next) => update({ date: next })}

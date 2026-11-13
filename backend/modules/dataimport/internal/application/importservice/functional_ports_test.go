@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 type PersonDirectoryFuncs struct {

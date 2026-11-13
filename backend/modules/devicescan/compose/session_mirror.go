@@ -3,7 +3,7 @@ package compose
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/internal/application"
 )
 
 type MirroredSession = application.MirroredSession

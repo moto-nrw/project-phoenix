@@ -1,7 +1,7 @@
 package schedulerecords
 
 import (
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ClosingDayReasonMaxLength is the maximum length of the reason field.

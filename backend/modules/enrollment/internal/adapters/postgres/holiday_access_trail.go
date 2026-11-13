@@ -8,8 +8,8 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // The access trail of the holiday registrations (#5326) for the access log

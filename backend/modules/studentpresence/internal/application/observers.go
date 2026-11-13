@@ -3,7 +3,7 @@ package application
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 // FailureLogger logs the failed operations of a Student Presence composition

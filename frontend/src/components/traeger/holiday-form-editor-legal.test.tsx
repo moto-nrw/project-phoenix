@@ -34,6 +34,7 @@ const form = {
   legalBlocks: [],
   template: [],
   addressRequirement: "off" as const,
+  healthRequirement: "optional" as const,
   createdAt: "2026-09-01T10:00:00Z",
 };
 
@@ -119,7 +120,9 @@ describe("Holiday form legal blocks", () => {
     );
     for (let i = 0; i < 2; i++) {
       fireEvent.click(
-        screen.getByRole("button", { name: "Eigene Zustimmung hinzufügen" }),
+        screen.getByRole("button", {
+          name: "Hinweis oder Einwilligung hinzufügen",
+        }),
       );
       fireEvent.change(screen.getAllByLabelText("Titel")[i]!, {
         target: { value: `Hinweis ${i + 1}` },
@@ -139,7 +142,9 @@ describe("Holiday form legal blocks", () => {
       );
     }
     fireEvent.click(
-      screen.getByRole("button", { name: "Eigene Zustimmung hinzufügen" }),
+      screen.getByRole("button", {
+        name: "Hinweis oder Einwilligung hinzufügen",
+      }),
     );
     fireEvent.change(screen.getAllByLabelText("Titel")[2]!, {
       target: { value: "Fotos" },
@@ -175,6 +180,7 @@ describe("Holiday form legal blocks", () => {
         }),
       ]),
       "off",
+      "optional",
     );
     // Anker: the complete form was saved with both Träger uploads.
     expect(upload).toHaveBeenNthCalledWith(1, "5", expect.any(File));
@@ -195,7 +201,9 @@ describe("Holiday form legal blocks", () => {
       </ToastProvider>,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Eigene Zustimmung hinzufügen" }),
+      screen.getByRole("button", {
+        name: "Hinweis oder Einwilligung hinzufügen",
+      }),
     );
     fireEvent.change(screen.getByLabelText("PDF-Dateien auswählen"), {
       target: {

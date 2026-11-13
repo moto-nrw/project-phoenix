@@ -6,8 +6,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 )
 
 func principalTestCurrentPrincipal(ctx context.Context) (permissions.Principal, error) {

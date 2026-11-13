@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The invoices and amounts of a family (spec #4611 user story 81, #4691).
@@ -19,6 +19,12 @@ import (
 // its first document, which never changes because issued documents never
 // change. The payer choice of #4689 replaces the address as the key in one
 // place, the store's grouping.
+
+// FamilyContracts resolves existing care contracts for a set of family
+// addresses in the caller's Träger transaction. The root binds the port.
+type FamilyContracts interface {
+	FamiliesWithContracts(ctx context.Context, organizationID int64, emails []string) ([]string, error)
+}
 
 // Who pays an invoice, from its positions.
 const (
@@ -49,7 +55,7 @@ const (
 
 // ErrFamilyNotFound reports a family that has no document of the Träger of
 // the session.
-var ErrFamilyNotFound = errors.New("no document of the Träger names this family")
+var ErrFamilyNotFound = errors.New("no document or number of the Träger names this family")
 
 // BillingAmounts are the sums of a family in whole cent, all positive:
 // what its invoices asked for, what the cancellations took back, what the
@@ -85,6 +91,14 @@ type BillingFamily struct {
 	OpenInvoiceCount int           `json:"open_invoice_count"`
 	DocumentCount    int           `json:"document_count"`
 	LastIssuedOn     calendar.Date `json:"last_issued_on"`
+	// FamilyEmail is the key of the family (FamilyKey); the number of the
+	// family is set by it. FamilyDebtorNumber is the number the family has
+	// (#6692), empty for none; DebtorNumbers are the numbers its documents
+	// copied. HolidayOnly marks a family with no care contract and no
+	// monthly invoice. A family without a document has the ID 0.
+	FamilyEmail        string `json:"family_email"`
+	FamilyDebtorNumber string `json:"family_debtor_number"`
+	HolidayOnly        bool   `json:"holiday_only"`
 	BillingAmounts
 }
 
@@ -144,10 +158,18 @@ type BillingFamilyDetail struct {
 // and runs in the Träger transaction of its Träger, which the caller opens;
 // every read is recorded in the trail of each run whose documents it shows.
 type BillingFamilies interface {
-	// ListBillingFamilies lists the families with an issued document, by
-	// name.
+	// ListBillingFamilies lists the families with an issued document or a
+	// number of their own (#6692), by name; the read of a number is recorded
+	// in the family's trail.
 	ListBillingFamilies(ctx context.Context, reviewer HolidayReviewer) ([]BillingFamily, error)
 	// BillingFamily reads one family by its ID with every document. An ID
 	// that is no document of the Träger is ErrFamilyNotFound.
 	BillingFamily(ctx context.Context, reviewer HolidayReviewer, familyID int64) (BillingFamilyDetail, error)
+	// SetFamilyDebtorNumber sets the number of a family by its key, also of
+	// a family without a care contract (#6692); empty removes it. A key that
+	// names no family of the Träger is ErrFamilyNotFound.
+	SetFamilyDebtorNumber(ctx context.Context, reviewer HolidayReviewer, input FamilyDebtorNumberInput) (FamilyDebtorNumber, error)
+	// DebtorNumberFormat is the format every number the office enters must
+	// have (#6675), so a form can name it.
+	DebtorNumberFormat(ctx context.Context, reviewer HolidayReviewer) (DebtorNumberFormat, error)
 }

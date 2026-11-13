@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/delivery/internal/ports"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
-	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	deliveryModels "github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

@@ -12,32 +12,51 @@ import (
 var fullCommitPattern = regexp.MustCompile(`^[0-9a-fA-F]{40}$`)
 
 func LoadBasePolicyAndManifest(project, policyPath, baselinePath, ref string) (*Policy, *LegacyManifest, error) {
+	policy, manifest, _, err := loadBaseForCandidate(project, policyPath, baselinePath, ref, nil)
+	return policy, manifest, err
+}
+
+// loadBaseForCandidate loads the base policy and baseline. With a candidate
+// that declares an approved module rename (ADR 0217) it reads both under the
+// candidate's module path and returns the rewrite for the other base
+// artifacts; otherwise the rewrite is nil.
+func loadBaseForCandidate(project, policyPath, baselinePath, ref string, candidate *Policy) (*Policy, *LegacyManifest, *baseRewrite, error) {
 	root, err := gitOutput(project, "rev-parse", "--show-toplevel")
 	if err != nil {
-		return nil, nil, fmt.Errorf("resolve repository root: %w", err)
+		return nil, nil, nil, fmt.Errorf("resolve repository root: %w", err)
 	}
 	root = strings.TrimSpace(root)
 	sha, err := resolveBaseCommit(root, ref)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+	var rewrite *baseRewrite
+	if candidate != nil {
+		rewrite, err = resolveBaseRewrite(root, project, sha, policyPath, candidate)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 	}
 	policyBlob, err := readBasePolicyDocument(root, project, sha, policyPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("read base policy: %w", err)
+		return nil, nil, nil, fmt.Errorf("read base policy: %w", err)
 	}
 	baselineBlob, err := readGitBlob(root, project, sha, baselinePath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("read base legacy baseline: %w", err)
+		return nil, nil, nil, fmt.Errorf("read base legacy baseline: %w", err)
 	}
-	policy, err := decodePolicy(bytes.NewReader(policyBlob), true)
+	policy, err := decodePolicy(bytes.NewReader(rewrite.apply(policyBlob)), true)
 	if err != nil {
-		return nil, nil, fmt.Errorf("decode base policy: %w", err)
+		return nil, nil, nil, fmt.Errorf("decode base policy: %w", err)
 	}
-	manifest, err := DecodeLegacyManifest(bytes.NewReader(baselineBlob))
+	if rewrite != nil && candidate.PolicyEpoch <= policy.PolicyEpoch {
+		return nil, nil, nil, fmt.Errorf("module rename from %s requires a reviewed policy epoch above %d", candidate.ModuleRename.From, policy.PolicyEpoch)
+	}
+	manifest, err := DecodeLegacyManifest(bytes.NewReader(rewrite.apply(baselineBlob)))
 	if err != nil {
-		return nil, nil, fmt.Errorf("decode base legacy baseline: %w", err)
+		return nil, nil, nil, fmt.Errorf("decode base legacy baseline: %w", err)
 	}
-	return policy, manifest, nil
+	return policy, manifest, rewrite, nil
 }
 
 func resolveBaseCommit(root, ref string) (string, error) {

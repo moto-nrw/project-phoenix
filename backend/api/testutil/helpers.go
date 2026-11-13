@@ -34,10 +34,10 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/devicetest"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/devicetest"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // DeviceIdentity exposes the authenticated principal facts to HTTP adapter

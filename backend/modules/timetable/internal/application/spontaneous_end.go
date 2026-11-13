@@ -3,8 +3,8 @@ package application
 import (
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	scheduleModel "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // lastWallClockMinute is 23:59, the latest end a block of one day can have.

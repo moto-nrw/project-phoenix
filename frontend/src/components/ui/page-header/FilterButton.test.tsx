@@ -113,3 +113,25 @@ describe("FilterButton", () => {
     expect(button).toHaveClass("custom-class");
   });
 });
+
+describe("FilterButton count badge", () => {
+  // The name carries the count once; the badge is only its picture, so a
+  // screen reader does not read it twice and the shown digit is no text
+  // outside the name (WCAG 2.5.3).
+  it("names the active filters once and hides the badge from assistive tech", () => {
+    render(
+      <FilterButton
+        isOpen={false}
+        onClick={vi.fn()}
+        hasActiveFilters
+        activeCount={2}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "Filter, 2 aktiv" });
+    expect(button).toHaveTextContent("2");
+    expect(
+      screen.getByText("2").closest('[aria-hidden="true"]'),
+    ).not.toBeNull();
+  });
+});

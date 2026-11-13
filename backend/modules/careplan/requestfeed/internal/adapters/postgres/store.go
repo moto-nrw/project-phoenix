@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed/internal/domain"
 	"github.com/uptrace/bun"
 )
 

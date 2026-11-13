@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/contact"
 )
 
 // These are the original canonical causes retained model consumers expose.

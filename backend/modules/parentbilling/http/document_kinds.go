@@ -8,8 +8,8 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	capability "github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // DocumentKindResource serves the kind of document of each service of a

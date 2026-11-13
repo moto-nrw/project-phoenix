@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SchemaQueries reads immutable versions, lineages and their references.
@@ -52,7 +52,7 @@ type PhaseCommands interface {
 	InsertPhase(ctx context.Context, phase *Phase) error
 	UpdatePhase(ctx context.Context, phase *Phase) error
 	DeletePhase(ctx context.Context, id int64) error
-	RemovePhase(ctx context.Context, id int64) (int, error)
+	RemovePhase(ctx context.Context, id int64) error
 }
 
 // PhaseSchemaLinks reads and advances phase references to schema versions.
@@ -85,7 +85,6 @@ type RequestCommands interface {
 	InsertRequest(ctx context.Context, req *Request) error
 	UpdateRequestGuardian(ctx context.Context, req *Request, includeEmail bool) error
 	SetRequestWithdrawal(ctx context.Context, id int64, at *time.Time) error
-	DeletePhaseRequests(ctx context.Context, phaseID int64) (int, error)
 	DeleteRequest(ctx context.Context, id int64) error
 	AcquireSubmissionDedupLock(ctx context.Context, phaseID int64, emailHash uint64) error
 	AcquireExistingStudentMatchLock(ctx context.Context, phaseID int64) error

@@ -93,8 +93,8 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
 
 // Mock UI components
 
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: ({ filters }: any) =>
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: ({ filters }: any) =>
     filters?.map((f: any) => (
       <select
         key={f.id}

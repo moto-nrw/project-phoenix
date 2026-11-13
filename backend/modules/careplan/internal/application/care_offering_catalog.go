@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // CareOfferingCatalogDependencies are the ports the catalog reads and the
@@ -19,14 +19,15 @@ import (
 // NewCareOfferingCatalogWithBookings binds both to the booking
 // materialization it builds.
 type CareOfferingCatalogDependencies struct {
-	Records      ports.CatalogRecords
-	Phases       ports.CatalogPhases
-	Timetable    ports.CatalogTimetable
-	Calendar     ports.CatalogCalendar
-	Bookings     ports.CatalogBookings
-	Settings     ports.CatalogSettings
-	Translations ports.CatalogTranslations
-	SourceRules  ports.OfferingSourceRules
+	CopyReferences ports.CatalogCopyReferences
+	Records        ports.CatalogRecords
+	Phases         ports.CatalogPhases
+	Timetable      ports.CatalogTimetable
+	Calendar       ports.CatalogCalendar
+	Bookings       ports.CatalogBookings
+	Settings       ports.CatalogSettings
+	Translations   ports.CatalogTranslations
+	SourceRules    ports.OfferingSourceRules
 
 	SourcedTemplates ports.SourcedTemplateResyncer
 	Pickup           ports.PickupResyncer
@@ -43,7 +44,8 @@ type CareOfferingCatalogDependencies struct {
 
 // CareOfferingCatalog is the Care Plan care-offering catalog (#3559).
 type CareOfferingCatalog struct {
-	deps CareOfferingCatalogDependencies
+	deps       CareOfferingCatalogDependencies
+	copyWrites ports.CatalogCopyWrites
 }
 
 var _ careplan.CareOfferingCatalogCapability = (*CareOfferingCatalog)(nil)
@@ -60,7 +62,8 @@ func newCareOfferingCatalog(deps CareOfferingCatalogDependencies) (*CareOffering
 	if deps.Today == nil {
 		deps.Today = calendar.TodayDate
 	}
-	return &CareOfferingCatalog{deps: deps}, nil
+	copyWrites, _ := deps.Records.(ports.CatalogCopyWrites)
+	return &CareOfferingCatalog{deps: deps, copyWrites: copyWrites}, nil
 }
 
 func (c *CareOfferingCatalog) ListCatalog(ctx context.Context) ([]careplan.CareOffering, error) {
@@ -271,6 +274,15 @@ func (c *CareOfferingCatalog) validateAutoAddConfig(ctx context.Context, offerin
 func (c *CareOfferingCatalog) DeleteOffering(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return careOfferingInvalidf("id must be positive")
+	}
+	// Only the Träger office withdraws a copy (ADR 0195 section 7); the next
+	// rollout would otherwise create it again.
+	existing, err := c.findRecord(ctx, id)
+	if err != nil {
+		return err
+	}
+	if existing.Traeger != nil {
+		return careplan.ErrTraegerCopyDelete
 	}
 	// Retire sourced rosters BEFORE the row delete: the FK's ON DELETE SET
 	// NULL only degrades the templates to manual rosters and would leave

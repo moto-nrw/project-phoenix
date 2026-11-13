@@ -6,6 +6,7 @@ import {
   PortalBottomNav,
   PortalBottomNavLink,
 } from "~/components/ui/portal-bottom-nav";
+import { COUNTER_TONE } from "~/lib/counter-tones";
 import type { SchoolStaffNoticesPending } from "~/lib/hooks/use-school-staff-notices-pending";
 import type { SchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { schoolPath } from "~/lib/school-url";
@@ -93,7 +94,7 @@ export function SchoolBottomNav({
               badge && badge.count > 0 ? (
                 <NotificationBadge
                   count={badge.count}
-                  tone="staff"
+                  tone={COUNTER_TONE.staff}
                   size="sm"
                   ariaLabel={badge.ariaLabel}
                   className="absolute -top-2 -right-3"

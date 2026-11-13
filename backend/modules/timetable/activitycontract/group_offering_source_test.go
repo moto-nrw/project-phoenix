@@ -3,7 +3,7 @@ package activitycontract_test
 import (
 	"testing"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 )
 
 func TestGroupValidateOfferingSource(t *testing.T) {

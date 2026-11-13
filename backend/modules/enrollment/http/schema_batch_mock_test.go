@@ -3,7 +3,7 @@ package enrollmenthttp
 import (
 	"context"
 
-	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 func (m *mockFormSchemaService) StudentExtraFieldSchemas(ctx context.Context, ids []int64) ([]enrollment.SchemaVersionResult, error) {

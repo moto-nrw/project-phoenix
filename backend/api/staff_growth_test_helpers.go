@@ -6,15 +6,15 @@ import (
 	"log/slog"
 	"net/http"
 
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
 	"github.com/go-chi/chi/v5"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // StaffGrowthTestRouter reuses the fully composed directory resource, including

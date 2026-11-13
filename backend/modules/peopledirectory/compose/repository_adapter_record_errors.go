@@ -1,8 +1,8 @@
 package compose
 
 import (
-	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	usersRepo "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ParseRetainedCalendarDate parses a YYYY-MM-DD value the way the retained

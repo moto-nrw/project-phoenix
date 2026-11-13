@@ -5,13 +5,13 @@ import (
 	"errors"
 	"time"
 
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	organizationCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	schoolMembershipCompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // NewSchoolMembership composes the School Membership owner for test graphs

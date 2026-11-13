@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 
-	calModels "github.com/moto-nrw/project-phoenix/modules/appointments"
-	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	calModels "github.com/moto-ogs/project-phoenix/modules/appointments"
+	calendarSvc "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

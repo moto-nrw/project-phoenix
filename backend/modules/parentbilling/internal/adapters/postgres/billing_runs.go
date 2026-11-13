@@ -9,8 +9,8 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The billing runs, number ranges and invoices (#4668, ADR 0119). The

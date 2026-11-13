@@ -1,12 +1,12 @@
 package owners
 
 import (
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // ParentGuardianPolicy binds the workflow to Security's canonical guardian rules.

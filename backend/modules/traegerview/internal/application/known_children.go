@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
 )
 
 // KnownHolidayChildren returns the registered children of a holiday period of

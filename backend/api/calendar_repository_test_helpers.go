@@ -7,17 +7,17 @@ import (
 	"errors"
 	"fmt"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
+	appointmentsCompose "github.com/moto-ogs/project-phoenix/modules/appointments/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/compose"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // federalStateResolver is the slice of the settings service the tenant

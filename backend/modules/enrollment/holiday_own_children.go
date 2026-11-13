@@ -3,7 +3,7 @@ package enrollment
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Children of the hosting school itself in a holiday week it hosts (#6678,
@@ -131,4 +131,38 @@ type HolidayOwnChildren interface {
 	// registration that fits no student or several instead of losing it
 	// silently. It names children only by the ID of the participant list.
 	HolidayOwnChildAssignments(ctx context.Context, host HolidayHost, weekID int64) ([]HolidayOwnChildAssignment, error)
+	// HolidayHomeSchoolBookings lists the confirmed holiday bookings of the
+	// school's own children in open weeks other schools of its Träger host
+	// (#6679), each with how the registration was assigned to a student, and
+	// records the read when there is any.
+	HolidayHomeSchoolBookings(ctx context.Context, host HolidayHost) ([]HolidayHomeSchoolBooking, error)
+}
+
+// HolidayHomeSchoolBooking is the confirmed booking of a child of the school
+// in a week another school of its Träger hosts (#6679, ADR 0116 addendum
+// 2026-11-12). The home school plans its own care and informs its families;
+// it reads the child, the week, the hosting school and the booked care, no
+// health information, contacts or answers. The access ends with the last
+// day of the week, and a cancellation or rebooking takes the entry away.
+// HostSchoolName is filled in by the route. Assignment and StudentID say
+// which student of the school the registration fits, as for the school's
+// own children of a hosted week (#6678).
+type HolidayHomeSchoolBooking struct {
+	ChildID         int64         `json:"child_id"`
+	FirstName       string        `json:"first_name"`
+	LastName        string        `json:"last_name"`
+	BirthDate       calendar.Date `json:"birth_date"`
+	WeekID          int64         `json:"week_id"`
+	PeriodName      string        `json:"period_name"`
+	StartsOn        calendar.Date `json:"starts_on"`
+	EndsOn          calendar.Date `json:"ends_on"`
+	HostSchoolID    int64         `json:"host_school_id"`
+	HostSchoolName  string        `json:"host_school_name"`
+	TimeModelName   string        `json:"time_model_name"`
+	TimeModelStarts string        `json:"time_model_starts_at"`
+	TimeModelEnds   string        `json:"time_model_ends_at"`
+	// Days are the booked days of a week by days, empty for the whole week.
+	Days       []calendar.Date `json:"days"`
+	Assignment string          `json:"assignment"`
+	StudentID  *int64          `json:"student_id"`
 }

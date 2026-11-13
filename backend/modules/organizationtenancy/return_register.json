@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "a98848b8bdd3b916ad017afe633661ca5aed028f71483c0d4807255a4aada33d",
+  "catalogSHA256": "8b7c9101bf77f25b114fb42065590cbbe2c4991a623f9f14c168b912aedf9dff",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -2887,11 +2887,39 @@
           "type": "bigint",
           "udt": "int8",
           "nullable": true
+        },
+        {
+          "name": "reported_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "cleared_source",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
+        },
+        {
+          "name": "cleared_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
         }
       ],
       "relationships": [
         {
+          "column": "cleared_by_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
           "column": "guardian_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "reported_by_account_id",
           "targetTable": "auth.accounts",
           "targetColumn": "id"
         },
@@ -3165,6 +3193,24 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": true
+        },
+        {
+          "name": "pack_up_minutes",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
+        },
+        {
+          "name": "rounding_interval_minutes",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
+        },
+        {
+          "name": "rounding_mode",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -6107,6 +6153,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "target_name",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -8353,6 +8405,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "occurrence_responses",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -10415,6 +10473,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -12312,6 +12376,30 @@
           "type": "jsonb",
           "udt": "jsonb",
           "nullable": true
+        },
+        {
+          "name": "traeger_source_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "traeger_source_version",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": true
+        },
+        {
+          "name": "traeger_values",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "traeger_deviations",
+          "type": "ARRAY",
+          "udt": "_text",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -13290,6 +13378,12 @@
           "type": "text",
           "udt": "text",
           "nullable": false
+        },
+        {
+          "name": "health_requirement",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -13388,6 +13482,406 @@
           "column": "organization_id",
           "targetTable": "enrollment.holiday_periods",
           "targetColumn": "organization_id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
+      "name": "enrollment.traeger_care_offering_schools",
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "traeger_care_offering_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "school_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "applied_version",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": true
+        },
+        {
+          "name": "applied_copy_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "outcome",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "error_code",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
+        },
+        {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "enrollment.traeger_care_offerings",
+          "targetColumn": "organization_id"
+        },
+        {
+          "column": "traeger_care_offering_id",
+          "targetTable": "enrollment.traeger_care_offerings",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
+      "name": "enrollment.traeger_care_offering_versions",
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "traeger_care_offering_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
+        },
+        {
+          "name": "fields",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "released_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "released_by",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "enrollment.traeger_care_offerings",
+          "targetColumn": "organization_id"
+        },
+        {
+          "column": "released_by",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "traeger_care_offering_id",
+          "targetTable": "enrollment.traeger_care_offerings",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
+      "name": "enrollment.traeger_care_offerings",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "traeger_phase_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "draft",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "released_version",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": true
+        },
+        {
+          "name": "withdrawn_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "enrollment.traeger_phases",
+          "targetColumn": "organization_id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "traeger_phase_id",
+          "targetTable": "enrollment.traeger_phases",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
+      "name": "enrollment.traeger_phase_schools",
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "traeger_phase_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "school_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "selected",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
+        },
+        {
+          "name": "applied_version",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": true
+        },
+        {
+          "name": "outcome",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "error_code",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
+        },
+        {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "enrollment.traeger_phases",
+          "targetColumn": "organization_id"
+        },
+        {
+          "column": "traeger_phase_id",
+          "targetTable": "enrollment.traeger_phases",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
+      "name": "enrollment.traeger_phase_versions",
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "traeger_phase_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
+        },
+        {
+          "name": "fields",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "released_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "released_by",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "enrollment.traeger_phases",
+          "targetColumn": "organization_id"
+        },
+        {
+          "column": "released_by",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "traeger_phase_id",
+          "targetTable": "enrollment.traeger_phases",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
+      "name": "enrollment.traeger_phases",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "draft",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "all_schools",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
+        },
+        {
+          "name": "released_version",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": true
+        },
+        {
+          "name": "withdrawn_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
         }
       ],
       "packages": [
@@ -15091,7 +15585,8 @@
         "organization"
       ],
       "excludedColumns": {
-        "health_data": "Answers to the family health questions, sealed with HEALTH_DATA_KEYS (#4722); its ciphertext is no customer export content, the export opens it into health as the JSON it holds (#3838, #6328)."
+        "health_data": "Answers to the family health questions, sealed with HEALTH_DATA_KEYS (#4722); its ciphertext is no customer export content, the export opens it into health as the JSON it holds (#3838, #6328).",
+        "status_token": "Random token of the parents' status link (#6676); a replayable credential for reading the registration, no customer export content."
       }
     },
     {
@@ -16816,6 +17311,12 @@
           "type": "jsonb",
           "udt": "jsonb",
           "nullable": false
+        },
+        {
+          "name": "datev_booking_keys",
+          "type": "ARRAY",
+          "udt": "_text",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -16839,6 +17340,386 @@
         "school",
         "organization"
       ]
+    },
+    {
+      "name": "parent_billing.export_file_transfers",
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "export_file_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "target_host",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "target_directory",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "state",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "failure_reason",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "settled_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "recipient_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "recipient_name",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "export_file_id",
+          "targetTable": "parent_billing.export_files",
+          "targetColumn": "id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "parent_billing.export_files",
+          "targetColumn": "organization_id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
+      "name": "audit.traeger_export_transfers",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "actor_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "export_kind",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "export_format",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "filename",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "byte_size",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "target_host",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "target_port",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
+        },
+        {
+          "name": "target_directory",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "failure_reason",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "dispatch_state",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "dispatch_expires_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "recipient_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "recipient_name",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "actor_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "config.traeger_export_recipients",
+          "targetColumn": "organization_id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "recipient_id",
+          "targetTable": "config.traeger_export_recipients",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ],
+      "excludedColumns": {
+        "dispatch_token": "Authentication or operational secret/credential material; not customer export content."
+      }
+    },
+    {
+      "name": "config.traeger_export_recipient_formats",
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "export_format",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "recipient_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "updated_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "config.traeger_export_recipients",
+          "targetColumn": "organization_id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "recipient_id",
+          "targetTable": "config.traeger_export_recipients",
+          "targetColumn": "id"
+        },
+        {
+          "column": "updated_by_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
+      "name": "config.traeger_export_recipients",
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
+        },
+        {
+          "name": "host",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "port",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
+        },
+        {
+          "name": "username",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "remote_directory",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "host_key_fingerprint",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "updated_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "updated_by_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ],
+      "excludedColumns": {
+        "password_sealed": "Recipient password sealed with the bank key of the deployment; a credential, never opened and never part of any export (ADR 0218 section 3)."
+      }
     },
     {
       "name": "parent_billing.datev_booked_documents",
@@ -17217,7 +18098,7 @@
           "name": "care_contract_id",
           "type": "bigint",
           "udt": "int8",
-          "nullable": false
+          "nullable": true
         },
         {
           "name": "recipient_kind",
@@ -17302,6 +18183,36 @@
           "type": "character varying",
           "udt": "varchar",
           "nullable": true
+        },
+        {
+          "name": "holder_first_name",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "holder_last_name",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "last_used_on",
+          "type": "date",
+          "udt": "date",
+          "nullable": true
+        },
+        {
+          "name": "debtor_number_registration_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "cascade_contract_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -17311,9 +18222,24 @@
           "targetColumn": "id"
         },
         {
+          "column": "cascade_contract_id",
+          "targetTable": "care_contract.contracts",
+          "targetColumn": "id"
+        },
+        {
           "column": "organization_id",
           "targetTable": "care_contract.contracts",
           "targetColumn": "organization_id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "care_contract.contracts",
+          "targetColumn": "organization_id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
         },
         {
           "column": "updated_by_account_id",
@@ -17351,7 +18277,7 @@
           "name": "care_contract_id",
           "type": "bigint",
           "udt": "int8",
-          "nullable": false
+          "nullable": true
         },
         {
           "name": "action",
@@ -17387,6 +18313,11 @@
           "column": "organization_id",
           "targetTable": "care_contract.contracts",
           "targetColumn": "organization_id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
         }
       ],
       "packages": [
@@ -21694,6 +22625,77 @@
       ]
     },
     {
+      "name": "schedule.pickup_change_team_notices",
+      "columns": [
+        {
+          "name": "tenant_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "request_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "recipient_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "pickup_date",
+          "type": "date",
+          "udt": "date",
+          "nullable": false
+        },
+        {
+          "name": "informed_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "read_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        }
+      ],
+      "relationships": [
+        {
+          "column": "recipient_account_id",
+          "targetTable": "auth.account_tenants",
+          "targetColumn": "account_id"
+        },
+        {
+          "column": "recipient_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "request_id",
+          "targetTable": "schedule.care_schedule_change_requests",
+          "targetColumn": "id"
+        },
+        {
+          "column": "tenant_id",
+          "targetTable": "auth.account_tenants",
+          "targetColumn": "tenant_id"
+        },
+        {
+          "column": "tenant_id",
+          "targetTable": "platform.schools",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school"
+      ]
+    },
+    {
       "name": "schedule.traeger_closing_days",
       "columns": [
         {
@@ -22678,6 +23680,30 @@
           "type": "jsonb",
           "udt": "jsonb",
           "nullable": false
+        },
+        {
+          "name": "traeger_source_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "traeger_source_version",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": true
+        },
+        {
+          "name": "traeger_values",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "traeger_deviations",
+          "type": "ARRAY",
+          "udt": "_text",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -22750,6 +23776,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "offering_terms",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -23820,6 +24852,12 @@
           "type": "boolean",
           "udt": "bool",
           "nullable": false
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -25587,6 +26625,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "display_name",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -28699,9 +29743,26 @@
           "type": "text",
           "udt": "text",
           "nullable": false
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
+        },
+        {
+          "name": "account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
         }
       ],
       "relationships": [
+        {
+          "column": "account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
         {
           "column": "student_id",
           "targetTable": "users.student_profiles",
@@ -29011,6 +30072,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -31811,6 +32878,12 @@
           "name": "sender_school_class",
           "type": "text",
           "udt": "text",
+          "nullable": true
+        },
+        {
+          "name": "recipient_student_ids",
+          "type": "ARRAY",
+          "udt": "_int8",
           "nullable": true
         }
       ],
@@ -35515,6 +36588,71 @@
           "column": "tenant_id",
           "targetTable": "users.student_profiles",
           "targetColumn": "tenant_id"
+        }
+      ],
+      "packages": [
+        "school"
+      ]
+    },
+    {
+      "name": "users.student_note_team_notices",
+      "columns": [
+        {
+          "name": "tenant_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "note_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "recipient_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "informed_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "read_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        }
+      ],
+      "relationships": [
+        {
+          "column": "note_id",
+          "targetTable": "users.student_notes",
+          "targetColumn": "id"
+        },
+        {
+          "column": "recipient_account_id",
+          "targetTable": "auth.account_tenants",
+          "targetColumn": "account_id"
+        },
+        {
+          "column": "recipient_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "tenant_id",
+          "targetTable": "auth.account_tenants",
+          "targetColumn": "tenant_id"
+        },
+        {
+          "column": "tenant_id",
+          "targetTable": "platform.schools",
+          "targetColumn": "id"
         }
       ],
       "packages": [

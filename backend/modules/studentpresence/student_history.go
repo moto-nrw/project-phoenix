@@ -3,7 +3,7 @@ package studentpresence
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // HistoryInstanceCancelled is the status of a history slot whose block

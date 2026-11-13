@@ -1,7 +1,7 @@
 package application
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 type AnnouncementDeclarationSettings communication.PortalAnnouncementDeclarationSettings
@@ -24,6 +24,7 @@ type ParentAnnouncementOption communication.PortalParentAnnouncementOption
 type ParentAnnouncementTarget communication.PortalParentAnnouncementTarget
 type StaffAnnouncementSource interface {
 	communication.StaffAnnouncementRecords
+	communication.AnnouncementRecipientRecords
 }
 
 func AnnouncementPollResultsFromAnnouncementRecord(v *communication.PortalAnnouncementPollResults) *AnnouncementPollResults {

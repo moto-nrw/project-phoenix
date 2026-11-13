@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
 )
 
 func (s *Store) CountStudentAssignments(ctx context.Context, studentID int64) (int, domain.OperationStats, error) {

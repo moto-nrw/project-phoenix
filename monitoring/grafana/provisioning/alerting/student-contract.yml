@@ -38,7 +38,7 @@ groups:
         for: 0s
         annotations:
           summary: Old student access, changed statistics, or failed/stale observation. Do not run Contract.
-          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/student-contract.md
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/student-contract.md
         labels: {env: prod, issue: "2760", severity: critical}
         isPaused: false
       - uid: student-contract-old-object-error
@@ -73,6 +73,6 @@ groups:
         for: 0s
         annotations:
           summary: At least one SQL error names a retired student object. Find and stop the old caller.
-          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/student-contract.md
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/student-contract.md
         labels: {env: prod, issue: "2760", service: postgres, severity: critical}
         isPaused: false

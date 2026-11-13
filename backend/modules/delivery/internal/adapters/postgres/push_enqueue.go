@@ -8,7 +8,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
 )
 
 // Push intents of a school, or deferred pushes of a Träger (ADR 0126), with

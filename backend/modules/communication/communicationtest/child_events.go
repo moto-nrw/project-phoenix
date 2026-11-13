@@ -3,8 +3,8 @@ package communicationtest
 import (
 	"encoding/json"
 
-	compose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	compose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 )
 
 func NewEmitterWithDecisions(events eventContract.Events, notifier eventContract.DecisionNotifier) eventContract.Emitter {

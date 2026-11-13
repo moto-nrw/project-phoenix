@@ -6,7 +6,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // The kind of document of every service of a Träger (#4688) in

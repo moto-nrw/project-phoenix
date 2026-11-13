@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 func (m *Service) DeletionRequestCounts(ctx context.Context, requestID int64) (*enrollment.DeletionRequestCounts, error) {

@@ -9,9 +9,13 @@ interface ShiftTypeBody {
 
 /**
  * GET /api/staff/shift-types
- * All shift types (Schichtarten) for the current tenant.
+ * The offered shift types (Schichtarten) of the current tenant;
+ * `include_archived=true` adds removed ones planned shifts still carry,
+ * `with_usage=true` the planned shifts and series per type (#6845).
  */
-export const GET = proxyGet("/api/shift-types");
+export const GET = proxyGet("/api/shift-types", {
+  forwardQuery: ["include_archived", "with_usage"],
+});
 
 /**
  * POST /api/staff/shift-types

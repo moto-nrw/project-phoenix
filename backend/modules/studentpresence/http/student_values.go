@@ -3,8 +3,8 @@ package studentpresencehttp
 import (
 	context "context"
 
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // PrivacyConsentCapability is the Student Presence owner surface this

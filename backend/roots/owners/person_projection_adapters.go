@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	educationService "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	educationService "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
 )
 
 // educationPersonQuery adapts the People Directory to the person port the

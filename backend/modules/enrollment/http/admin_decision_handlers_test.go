@@ -13,18 +13,18 @@ import (
 	"testing"
 	"time"
 
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // mockDecisionService is a hand-rolled fake that records inputs and
@@ -771,6 +771,18 @@ func TestDecideAdminChildHandler_InvalidDataMapsTo400(t *testing.T) {
 		"/enrollment/admin/requests/1234/children/99/decide",
 		map[string]any{"status": "approved"})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestDecideAdminChildHandler_ReviewerWithoutStaffProfileMapsTo403(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockDecisionService{decideErr: fmt.Errorf("decision: targeted-field dispatch on new student: %w", capability.ErrDecisionReviewerStaffRequired)}
+	router := buildAdminDecisionRouter(mock)
+	w := executeAdminJSON(t, router, http.MethodPost,
+		"/enrollment/admin/requests/1234/children/99/decide",
+		map[string]any{"status": "approved"})
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"enrollment.approval_staff_profile_required"`)
 }
 
 func TestDecideAdminChildHandler_GenericErrorMapsTo500(t *testing.T) {

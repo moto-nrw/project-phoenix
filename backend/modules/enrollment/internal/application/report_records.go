@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // maxReportRows caps the students and children one report covers;

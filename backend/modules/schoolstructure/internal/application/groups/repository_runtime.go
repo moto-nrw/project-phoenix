@@ -3,7 +3,7 @@ package groups
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // RepositoryRuntime provides the context-only tenant capabilities of the owner.

@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
 )
 
 // assignStaffRFIDTag handles assigning an RFID tag to a staff member (device-authenticated endpoint)

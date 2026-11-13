@@ -18,6 +18,7 @@ describe("mapShiftType", () => {
       color: "#83CD2D",
       description: "Zeit am Kind",
       isActive: true,
+      archivedAt: null,
     });
   });
 

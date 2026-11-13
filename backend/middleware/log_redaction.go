@@ -17,21 +17,25 @@ var feedPathMarkers = []string{"/public/calendar/", "/public/request-feed/"}
 // invitation token (ADR 0077): the token alone accepts the invitation.
 var invitationPathMarkers = []string{"/caterer/invitations/", "/einladung/"}
 
-// Signing and account setup links carry replayable credentials. Match escaped path
+// Signing, account setup and holiday registration status links (#6676)
+// carry replayable credentials. Match escaped path
 // prefixes too: referrers and error texts can retain their URL encoding.
 var credentialPathPattern = regexp.MustCompile(`(?i)(` + encodedPathMarker("/public/care-contract-signing/") + `|` +
 	encodedPathMarker("/vertrag-unterschreiben/") + `|` +
 	encodedPathMarker("/auth/holiday-parent-setups/") + `|` +
-	encodedPathMarker("/ferienkonto/") + `)[^/?#\s"']+`)
+	encodedPathMarker("/ferienkonto/") + `|` +
+	encodedPathMarker("/ferienanmeldung/status/") + `)[^/?#\s"']+`)
 
 // tokenPathPattern matches the segment after a route prefix whose token is the
 // only credential of an unauthenticated request: enrollment status links,
 // staff, guardian and Träger invitations, holiday registration and quote
-// links, and payroll download links. Some prefixes also serve signed-in
+// links, holiday registration status links (#6676; listed before the
+// registration prefix, so the token after "status/" is the redacted
+// segment), and payroll download links. Some prefixes also serve signed-in
 // routes with a numeric ID or a fixed word in that position; isRouteID keeps
 // those readable.
 var tokenPathPattern = regexp.MustCompile(`(/api/enrollment/requests/|/auth/invitations/|/auth/guardian-invitations/|` +
-	`/traeger/invitations/|/traeger/holiday-registrations/|/traeger/holiday-quotes/|/parent/holiday-registrations/|` +
+	`/traeger/invitations/|/traeger/holiday-registrations/status/|/traeger/holiday-registrations/|/traeger/holiday-quotes/|/parent/holiday-registrations/|` +
 	`/public/payroll-download/)([^/?#\s"']+)`)
 
 // fixedTokenPathSegments are the route words that share a position with a token.

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
 	"golang.org/x/time/rate"
 )
 

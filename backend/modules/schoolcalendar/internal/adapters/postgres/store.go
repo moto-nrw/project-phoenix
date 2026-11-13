@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
@@ -645,16 +645,24 @@ func execDelete(ctx context.Context, query *bun.DeleteQuery, operation string, n
 // removal can collide with while the rows scoped to the period lose it.
 var calendarPeriodRosterConstraints = []string{"idx_student_enrollments_active", "idx_supervisors_active"}
 
+// calendarPeriodShiftSeriesConstraint is the Dienstplan series FK without an
+// ON DELETE action: a period that series still use cannot go (#6845).
+const calendarPeriodShiftSeriesConstraint = "fk_staff_shift_series_calendar_period"
+
 // wrapCalendarPeriodRosterConflict classifies a removal that would
-// duplicate an active enrollment or supervision but keeps the driver error
-// in the chain.
+// duplicate an active enrollment or supervision, or that Dienstplan series
+// still block, but keeps the driver error in the chain.
 func wrapCalendarPeriodRosterConflict(err error) error {
 	var postgresError pgdriver.Error
 	if !errors.As(err, &postgresError) || !postgresError.IntegrityViolation() {
 		return err
 	}
-	for _, constraint := range calendarPeriodRosterConstraints {
-		if postgresError.Field('n') == constraint {
+	constraint := postgresError.Field('n')
+	if constraint == calendarPeriodShiftSeriesConstraint {
+		return fmt.Errorf("%w: %w", schoolcalendar.ErrCalendarPeriodUsedByShiftSeries, err)
+	}
+	for _, rosterConstraint := range calendarPeriodRosterConstraints {
+		if constraint == rosterConstraint {
 			return fmt.Errorf("%w: %w", schoolcalendar.ErrCalendarPeriodRosterConflict, err)
 		}
 	}

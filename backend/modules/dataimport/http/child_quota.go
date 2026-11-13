@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // childQuotaPreview tells the import preview whether the new children fit

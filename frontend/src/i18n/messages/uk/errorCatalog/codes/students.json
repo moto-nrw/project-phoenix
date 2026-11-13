@@ -75,6 +75,7 @@
   "pickup_change_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "pickup_change_expired": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "pickup_change_impact_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "care_request_plan_changed": "План догляду щойно змінився. Оновіть сторінку. Потім ще раз перевірте запит.",
   "pickup_permission_contact_gone": "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
   "pickup_proof_not_found": "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
   "pickup_reset_requires_offering": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -88,7 +89,9 @@
   "staff_value_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "staff_value_unsupported": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "status_day_conflict": "На деякі дні вже є запис. Ці дні не змінено.",
+  "status_day_occupied": "На сьогодні внесено класну поїздку. Спочатку скасуйте класну поїздку.",
   "guardian_email_block_needs_review": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "guardian_email_block_lift_failed": "Не вдалося зберегти: {object}. Перевірте введені дані.",
-  "guardian_email_block_stays": "Не вдалося зберегти: {object}. Перевірте введені дані."
+  "guardian_email_block_stays": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "person_has_active_profile": "Не вдалося змінити: {object}. Перевірте поточний стан."
 }

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // PresenceOperations binds the presence application service to the
@@ -269,6 +269,10 @@ func (p PresenceOperations) DashboardAnalytics(ctx context.Context) (studentpres
 		LastUpdated:         analytics.LastUpdated,
 	}
 	result.StudentsAtSchool, result.StudentsInClass, result.StudentsHome = splitAtSchoolOrKeepHome(ctx, p.atSchool, analytics.StudentsHome, analytics.HomeCandidateIDs, p.logger)
+	sickInClass, excusedInClass := absentInClassOrNone(ctx, p.atSchool, analytics.SickCandidateIDs, analytics.ExcusedCandidateIDs, p.logger)
+	result.StudentsSick = max(0, result.StudentsSick-sickInClass)
+	result.StudentsExcused = max(0, result.StudentsExcused-excusedInClass)
+	result.StudentsInClass += sickInClass + excusedInClass
 	for _, item := range analytics.RecentActivity {
 		result.RecentActivity = append(result.RecentActivity, studentpresence.RecentActivity{
 			Type: item.Type, GroupName: item.GroupName, RoomName: item.RoomName, Count: item.Count, Timestamp: item.Timestamp,
@@ -309,6 +313,40 @@ func splitAtSchoolFromHome(ctx context.Context, counter AtSchoolCounter, home in
 		return 0, 0, 0, err
 	}
 	return atSchool, inClass, max(0, home-atSchool-inClass), nil
+}
+
+func absentInClassOrNone(ctx context.Context, counter AtSchoolCounter, sickIDs, excusedIDs []int64, logger *slog.Logger) (sickInClass, excusedInClass int) {
+	sickInClass, excusedInClass, err := absentInClass(ctx, counter, sickIDs, excusedIDs)
+	if err == nil {
+		return sickInClass, excusedInClass
+	}
+	logger.Warn("failed to split in-class students from dashboard absence counts", "error", err)
+	return 0, 0
+}
+
+// absentInClass counts the sick and the excused students that staff checked
+// out to class before the care day's end. A recorded checkout to class beats
+// the day status, so they count as "Im Unterricht" only, like in every list
+// (#5710). The counter's "Schule" figure is not used here: that state is only
+// derived from the day plan, and the day status keeps precedence over it.
+func absentInClass(ctx context.Context, counter AtSchoolCounter, sickIDs, excusedIDs []int64) (sickInClass, excusedInClass int, err error) {
+	if counter == nil {
+		return 0, 0, nil
+	}
+	count := func(ids []int64) (int, error) {
+		if len(ids) == 0 {
+			return 0, nil
+		}
+		_, inClass, countErr := counter.CountAtSchoolToday(ctx, ids)
+		return inClass, countErr
+	}
+	if sickInClass, err = count(sickIDs); err != nil {
+		return 0, 0, err
+	}
+	if excusedInClass, err = count(excusedIDs); err != nil {
+		return 0, 0, err
+	}
+	return sickInClass, excusedInClass, nil
 }
 
 func (p PresenceOperations) CrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]studentpresence.CrossTenantStudent, error) {

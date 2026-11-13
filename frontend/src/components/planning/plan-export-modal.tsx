@@ -214,7 +214,7 @@ export function PlanExportModal({
             <ISODatePicker
               id="plan-export-from"
               label="Von"
-              controlSize="lg"
+              controlSize="large"
               value={from}
               onChange={setFrom}
               calendarLayout="popover"
@@ -222,7 +222,7 @@ export function PlanExportModal({
             <ISODatePicker
               id="plan-export-to"
               label="Bis"
-              controlSize="lg"
+              controlSize="large"
               value={to}
               min={from || undefined}
               onChange={setTo}

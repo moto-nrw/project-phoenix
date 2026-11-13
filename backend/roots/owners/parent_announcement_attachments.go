@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	filestorageModule "github.com/moto-ogs/project-phoenix/modules/filestorage"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // ParentAttachmentReads are File Storage's tenant-scoped attachment reads the

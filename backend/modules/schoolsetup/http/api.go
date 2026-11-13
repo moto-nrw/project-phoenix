@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
+	"github.com/moto-ogs/project-phoenix/modules/schoolsetup"
 )
 
 type Middleware = func(http.Handler) http.Handler

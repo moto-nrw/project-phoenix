@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ShiftRecord is one planned work shift of a staff member on a calendar day.
@@ -106,6 +106,9 @@ type ShiftTypeRecord struct {
 	Color       string    `json:"color"`
 	Description string    `json:"description,omitempty"`
 	IsActive    bool      `json:"is_active"`
+	// ArchivedAt marks a type the school removed while planned shifts or
+	// series still carried it (#6845).
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
 }
 
 // Validate normalizes and checks the shift type. It trims the name, defaults

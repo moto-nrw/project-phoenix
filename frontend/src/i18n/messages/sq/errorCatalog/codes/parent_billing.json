@@ -27,6 +27,9 @@
   "cost_bearer_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "cost_takeover_with_exemption": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "debtor_number_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "debtor_number_digits": "Numri i debitorit ka {digits} shifra, për shembull {example}.",
+  "debtor_number_digit_range": "Numri i debitorit ka {min_digits} deri {max_digits} shifra, për shembull {example}.",
+  "family_debtor_number_conflict": "Familja ka tashmë numrin e debitorit {family_debtor_number}. Zgjidhni cili numër vlen.",
   "debtor_number_locked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "family_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "holiday_quote_invalid": "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
@@ -117,5 +120,11 @@
   "online_mandate_disabled": "Ofruesi juaj nuk e pranon tani mandatin e debitimit direkt në aplikacion.",
   "sepa_mandate_text_changed": "Teksti i mandatit ka ndryshuar. Ju lutemi lexojeni dhe konfirmojeni përsëri.",
   "cost_center_date_taken": "There is already a cost center from this day. Choose another day or delete the old one.",
-  "sollstellung_revenue_account_missing": "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings."
+  "sollstellung_revenue_account_missing": "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings.",
+  "export_recipient_not_ready": "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
+  "export_already_handed_over": "This file already reached the recipient or is still on its way. No new file was created.",
+  "export_recipient_invalid": "The recipient was not saved. Please check the marked fields.",
+  "export_recipient_not_found": "This recipient no longer exists. Please reload the page.",
+  "export_recipient_name_taken": "A recipient with this name already exists. Please choose another name.",
+  "export_formats_invalid": "The assignment was not saved. Please reload the page and try again."
 }

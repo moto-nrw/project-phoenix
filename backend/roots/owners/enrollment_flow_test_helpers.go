@@ -5,11 +5,11 @@ package owners
 import (
 	"context"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewEnrollmentFlowOutcomes reads what became of the mails of the fixtures.

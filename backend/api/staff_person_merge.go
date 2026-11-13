@@ -6,14 +6,14 @@ import (
 	"net"
 	"net/http"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	auditRecords "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/workflows/staffpersonmerge"
-	mergeCompose "github.com/moto-nrw/project-phoenix/workflows/staffpersonmerge/compose"
-	mergeHTTP "github.com/moto-nrw/project-phoenix/workflows/staffpersonmerge/http"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	auditRecords "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	membershipCompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/workflows/staffpersonmerge"
+	mergeCompose "github.com/moto-ogs/project-phoenix/workflows/staffpersonmerge/compose"
+	mergeHTTP "github.com/moto-ogs/project-phoenix/workflows/staffpersonmerge/http"
 )
 
 type staffPersonMergeAudit struct {

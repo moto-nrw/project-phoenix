@@ -52,6 +52,7 @@
   "account_not_found": "{object} could not be changed. Please check its current status.",
   "tenant_access_not_found": "{object} could not be changed. Please check its current status.",
   "account_not_in_school": "{object} could not be changed. Please check its current status.",
+  "account_shared_across_schools": "You cannot access {object}. Please contact the school.",
   "lehrkraft_role_immutable": "{object} could not be changed. Please check its current status.",
   "access_name_required": "{object} could not be saved. Please check your entries.",
   "caterer_address_taken": "This email address already belongs to another moto account. Please use a different address.",

@@ -13,8 +13,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // The operator half of the fake store (ports.OperatorStore) and the doubles
@@ -242,16 +242,21 @@ func (m *fakeOperatorMFA) OperatorTrustedDeviceDays() int { return 90 }
 type fakeOperatorAudit struct {
 	mu      sync.Mutex
 	entries []domain.OperatorAuditEntry
-	err     error
+	// inTransaction lists the actions appended inside a fake transaction.
+	inTransaction []string
+	err           error
 }
 
-func (a *fakeOperatorAudit) RecordOperatorAction(_ context.Context, entry domain.OperatorAuditEntry) error {
+func (a *fakeOperatorAudit) RecordOperatorAction(ctx context.Context, entry domain.OperatorAuditEntry) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.err != nil {
 		return a.err
 	}
 	a.entries = append(a.entries, entry)
+	if inTx, _ := ctx.Value(fakeTxKey{}).(bool); inTx {
+		a.inTransaction = append(a.inTransaction, entry.Action)
+	}
 	return nil
 }
 

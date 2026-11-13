@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/workflows/sessionend/ports"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/workflows/sessionend/ports"
 )
 
 const (

@@ -46,6 +46,8 @@ export interface BackendTimeTrackingOverviewRow {
   /** "" when the staff member has no employment type recorded. */
   employment_type: string;
   soll_minutes: number;
+  /** False when no Soll is maintained for the month (#6887). */
+  has_target: boolean;
   ist_minutes: number;
   /** Frozen closing balance for an actively closed month, live otherwise. */
   balance_minutes: number;
@@ -84,6 +86,8 @@ export interface TimeAccountRow {
   name: string;
   employmentType: string;
   sollMinutes: number;
+  /** False when no Soll is maintained for the month (#6887). */
+  hasTarget: boolean;
   istMinutes: number;
   balanceMinutes: number;
   remainingVacationDays: number;
@@ -124,6 +128,7 @@ export function mapTimeAccountRow(
     name: data.name,
     employmentType: data.employment_type,
     sollMinutes: data.soll_minutes,
+    hasTarget: data.has_target,
     istMinutes: data.ist_minutes,
     balanceMinutes: data.balance_minutes,
     remainingVacationDays: data.remaining_vacation_days,

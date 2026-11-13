@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentPhotoStore is the persistence port over the photo columns of

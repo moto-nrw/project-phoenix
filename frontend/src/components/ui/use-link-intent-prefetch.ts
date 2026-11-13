@@ -13,6 +13,7 @@ import {
   useDataPrefetchIntent,
   type PrefetchResource,
 } from "./data-prefetch-intent";
+import { isInternalPath } from "./navigation-url";
 
 /**
  * So lange muss die Maus auf dem Link bleiben, bevor er vorlädt. Wer mit der
@@ -138,8 +139,4 @@ export function useLinkIntentPrefetch({
       dataIntent.onFocus();
     },
   };
-}
-
-function isInternalPath(href: string): boolean {
-  return href.startsWith("/") && !href.startsWith("//");
 }

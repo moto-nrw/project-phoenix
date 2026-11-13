@@ -5,16 +5,16 @@ import (
 	"log/slog"
 	"testing"
 
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentportalcompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 )
 
 // The parent portal must know before the family types anything whether the

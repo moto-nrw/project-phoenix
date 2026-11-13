@@ -1,9 +1,6 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "~/lib/utils";
-
-// Das eine Kartenpolster (ADR 0149, Entscheidung 9): 20 px, auf dem Telefon
-// und in der kompakten Ansicht 16 px.
-export const SECTION_CARD_PADDING = "compact:p-4 p-5 max-sm:p-4";
+import { CARD_FRAME, CARD_HOVER } from "./card-surface";
 
 interface SectionCardSurfaceProps extends Omit<
   HTMLAttributes<HTMLElement>,
@@ -44,8 +41,8 @@ export function SectionCardSurface({
         bare
           ? cn("space-y-4", className)
           : cn(
-              "moto-content-surface rounded-2xl border",
-              hoverElevated && "moto-hover-elevated",
+              CARD_FRAME,
+              hoverElevated && CARD_HOVER,
               overflow === "hidden" ? "overflow-hidden" : "overflow-visible",
               className,
             )

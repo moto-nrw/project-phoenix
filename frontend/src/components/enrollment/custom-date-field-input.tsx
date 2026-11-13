@@ -20,7 +20,7 @@ export function CustomDateFieldInput(
           {...datePicker}
           id={control.id}
           name={control.name}
-          controlSize="md"
+          controlSize="compact"
           value={control.value}
           onChange={control.onChange}
           invalid={control.invalid}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 // The permanent-deletion commands run in the caller's transaction only: the

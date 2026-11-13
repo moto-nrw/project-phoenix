@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // demoContact receives the lead mail and the prospects' answers.
