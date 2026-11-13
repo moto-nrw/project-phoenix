@@ -12,6 +12,11 @@ import Link from "next/link";
 import { TenantPage, TenantPageStats } from "./tenant-page";
 import { Button, ButtonLink } from "./button";
 import { ModuleNotBookedSlots } from "~/components/tenant/module-not-booked-state";
+import {
+  DESKTOP_WIDTH,
+  PHONE_WIDTH,
+  setViewportWidth,
+} from "~/test/helpers/viewport";
 
 // Der Zustand für nicht gebuchte Module liest die Sitzung (#4894).
 vi.mock("next-auth/react", () => ({
@@ -472,13 +477,15 @@ describe("TenantPage", () => {
       const tablist = screen.getByRole("tablist", {
         name: "Seitenbereiche",
       });
-      const moreButton = screen.getByRole("tab", { name: "Mehr" });
+      // The active tab sits under „Mehr“: the trigger shows its label, so
+      // its name carries that label too (WCAG 2.5.3, label in name).
+      const moreButton = screen.getByRole("tab", { name: "Mehr: Personal" });
 
       expect(moreButton).toHaveAttribute("role", "tab");
       expect(moreButton).toHaveAttribute("aria-selected", "true");
       expect(moreButton).toHaveAttribute("tabindex", "0");
 
-      expect(within(tablist).getByRole("tab", { name: "Mehr" })).toBe(
+      expect(within(tablist).getByRole("tab", { name: "Mehr: Personal" })).toBe(
         moreButton,
       );
       moreButton.focus();
@@ -500,6 +507,49 @@ describe("TenantPage", () => {
     }
   });
 
+  it("führt die Pfeiltasten auf dem Telefon über jeden Reiter, nicht über „Mehr“ (#6579)", () => {
+    const onChange = vi.fn();
+    const clientWidth = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(120);
+    const offsetWidth = vi
+      .spyOn(HTMLElement.prototype, "offsetWidth", "get")
+      .mockReturnValue(100);
+    setViewportWidth(PHONE_WIDTH);
+
+    try {
+      render(
+        <TenantPage
+          title="Datenverwaltung"
+          tabs={{
+            value: "kinder",
+            onChange,
+            items: [
+              { value: "kinder", label: "Kinder" },
+              { value: "personal", label: "Personal" },
+            ],
+          }}
+        />,
+      );
+
+      const kinder = screen.getByRole("tab", { name: "Kinder" });
+      kinder.focus();
+      fireEvent.keyDown(kinder, { key: "ArrowRight" });
+      expect(screen.getByRole("tab", { name: "Personal" })).toHaveFocus();
+      expect(onChange).toHaveBeenLastCalledWith("personal");
+
+      fireEvent.keyDown(screen.getByRole("tab", { name: "Personal" }), {
+        key: "ArrowRight",
+      });
+      expect(kinder).toHaveFocus();
+      expect(onChange).toHaveBeenLastCalledWith("kinder");
+    } finally {
+      clientWidth.mockRestore();
+      offsetWidth.mockRestore();
+      setViewportWidth(DESKTOP_WIDTH);
+    }
+  });
+
   it("setzt zwischen die Wert-Label-Paare der Statuszeile ein Trennzeichen", () => {
     render(
       <TenantPageStats
@@ -513,6 +563,31 @@ describe("TenantPage", () => {
     expect(screen.getByText("116")).toBeInTheDocument();
     expect(screen.getByText("krank")).toBeInTheDocument();
     expect(screen.getByText("·")).toBeInTheDocument();
+  });
+
+  it("macht ein Paar mit onSelect zum Textknopf und lässt die übrigen Anzeige", () => {
+    const onSelect = vi.fn();
+    render(
+      <TenantPageStats
+        items={[
+          { value: 12, label: "Familien" },
+          {
+            value: 3,
+            label: "ohne Debitorennummer",
+            onSelect,
+            selectLabel: "Familien ohne Debitorennummer zeigen",
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Familien ohne Debitorennummer zeigen",
+      }),
+    );
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 
   it("zeigt mehrere Werte ohne Label ohne doppelten Schlüssel", () => {

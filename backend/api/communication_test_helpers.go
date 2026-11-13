@@ -6,19 +6,19 @@ import (
 	"context"
 	"log/slog"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // NewParentEventEmitter builds Communication's real parent-event emitter over

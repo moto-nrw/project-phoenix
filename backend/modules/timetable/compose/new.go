@@ -6,12 +6,12 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
-	nativeports "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/ports"
+	nativeports "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

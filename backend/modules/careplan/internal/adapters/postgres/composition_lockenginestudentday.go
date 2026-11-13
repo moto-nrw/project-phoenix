@@ -3,7 +3,7 @@ package postgres
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/careplanning"
+	"github.com/moto-ogs/project-phoenix/internal/careplanning"
 	"github.com/uptrace/bun"
 )
 

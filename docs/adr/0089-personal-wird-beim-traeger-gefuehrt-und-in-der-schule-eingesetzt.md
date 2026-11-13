@@ -4,15 +4,15 @@ status: accepted
 
 # Personal wird beim Träger geführt und in der Schule eingesetzt
 
-Entscheidung vom 23.10.2026 zu [#4648](https://github.com/moto-nrw/project-phoenix/issues/4648),
-Etappe 0 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 23.10.2026 zu [#4648](https://github.com/moto-ogs/project-phoenix/issues/4648),
+Etappe 0 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 101 bis 111 und 118. Sie beantwortet
-[#2817](https://github.com/moto-nrw/project-phoenix/issues/2817) und
-[#2819](https://github.com/moto-nrw/project-phoenix/issues/2819), revidiert
+[#2817](https://github.com/moto-ogs/project-phoenix/issues/2817) und
+[#2819](https://github.com/moto-ogs/project-phoenix/issues/2819), revidiert
 für die Träger-Ebene die Ausschlüsse aus
-[#1417](https://github.com/moto-nrw/project-phoenix/issues/1417) und hebt den
+[#1417](https://github.com/moto-ogs/project-phoenix/issues/1417) und hebt den
 Ausschluss eines Dienstplans auf Träger-Ebene aus
-[#2808](https://github.com/moto-nrw/project-phoenix/issues/2808) auf. Sie baut
+[#2808](https://github.com/moto-ogs/project-phoenix/issues/2808) auf. Sie baut
 auf [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md),
 [ADR 0086](0086-traeger-werte-liegen-zwischen-standard-und-schule.md) und
 [ADR 0021](0021-wiederaufnahme-fuehrt-die-fruehere-beschaeftigung-fort.md) auf.
@@ -293,7 +293,7 @@ Zahlen werden nicht protokolliert.
 - Erfasste Zeiten in den Schulen folgen weiter der Frist der jeweiligen
   Schule.
 - Eigene Fristen je Träger entscheiden
-  [#4720](https://github.com/moto-nrw/project-phoenix/issues/4720) und die
+  [#4720](https://github.com/moto-ogs/project-phoenix/issues/4720) und die
   ADR, die ADR 0086 dafür vorsieht.
 
 ## Verworfene Optionen
@@ -359,11 +359,11 @@ Zahlen werden nicht protokolliert.
   entschieden.
 - Die Ruhezeit nach § 5 ArbZG fehlt heute auch je Schule. Die Prüfung aus §8
   schließt die Lücke für Personen mit Arbeitsvertrag.
-- Umsetzung in [#4705](https://github.com/moto-nrw/project-phoenix/issues/4705)
-  (Personalstamm), [#4707](https://github.com/moto-nrw/project-phoenix/issues/4707)
-  (Nachweise), [#4708](https://github.com/moto-nrw/project-phoenix/issues/4708)
-  (Einsatzplanung), [#4709](https://github.com/moto-nrw/project-phoenix/issues/4709)
-  (Vertretungspool) und [#4712](https://github.com/moto-nrw/project-phoenix/issues/4712)
+- Umsetzung in [#4705](https://github.com/moto-ogs/project-phoenix/issues/4705)
+  (Personalstamm), [#4707](https://github.com/moto-ogs/project-phoenix/issues/4707)
+  (Nachweise), [#4708](https://github.com/moto-ogs/project-phoenix/issues/4708)
+  (Einsatzplanung), [#4709](https://github.com/moto-ogs/project-phoenix/issues/4709)
+  (Vertretungspool) und [#4712](https://github.com/moto-ogs/project-phoenix/issues/4712)
   (Minijob, Übungsleiter, Lohnexport).
 - Offen bleiben: das SFTP-Ziel des Trägers, mehrere Arbeitgeber je Träger,
   eigene Löschfristen je Träger und ein Import von Plänen aus tarifführenden

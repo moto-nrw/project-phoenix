@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 type ParentInboxReads interface {

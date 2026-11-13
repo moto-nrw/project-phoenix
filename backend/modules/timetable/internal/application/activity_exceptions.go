@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
 )
 
 func (s *Service) FindActivityException(ctx context.Context, id int64) (result timetable.ActivityException, err error) {

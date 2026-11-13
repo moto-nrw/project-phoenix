@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
 )
 
 var (

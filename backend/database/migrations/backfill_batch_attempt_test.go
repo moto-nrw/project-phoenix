@@ -4,10 +4,11 @@ package migrations
 
 import (
 	"context"
+	"database/sql/driver"
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -19,6 +20,7 @@ import (
 func init() {
 	backfillAttemptChecks["PanicRollsBack"] = checkPanicRollsBack
 	backfillAttemptChecks["SamplerStopsOnce"] = checkSamplerStopsOnce
+	backfillAttemptChecks["SamplerFailureRacingStop"] = checkSamplerFailureRacingStop
 }
 
 // A panicking body rolls back before the deferred conn.Close, as RunInTx did:
@@ -74,4 +76,21 @@ func checkSamplerStopsOnce(t *testing.T, _ *bun.DB) {
 			require.NoError(t, err)
 		}
 	}
+}
+
+// A sample that fails while stop cancels the sampler still reports its own
+// failure; only the cancellation stop caused is no sampler failure (#6808).
+func checkSamplerFailureRacingStop(t *testing.T, _ *bun.DB) {
+	t.Parallel()
+	pool, faults := testpkg.NewStatementFaultPool(t)
+	faults.Arm(testpkg.FaultNone, nil)
+	faults.AlsoFailStatementWhenCancelled(monitorSamplePrefix, testpkg.InjectedFailure("bad_conn"))
+	// The deadline bounds the held sample should stop never cancel it.
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	stop, _, err := monitorBackfillLocks(ctx, pool, 0)
+	require.NoError(t, err)
+	waitSamplerFailed(t, faults) // the sample took its failure and is held
+	_, err = stop()
+	require.ErrorIs(t, err, driver.ErrBadConn)
 }

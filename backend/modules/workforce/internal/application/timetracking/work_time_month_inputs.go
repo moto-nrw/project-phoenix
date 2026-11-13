@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // addAdjustments folds the Stundenkonto transactions (#1420) into their
@@ -61,7 +61,7 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 			continue
 		}
 
-		for day, minutes := range netMinutesByDate(session, breaksBySessionID[session.ID], end, first, today) {
+		for day, minutes := range creditedNetMinutesByDate(session, breaksBySessionID[session.ID], end, first, today) {
 			if agg, ok := aggregates[monthOf(day)]; ok {
 				agg.actual += minutes
 			}
@@ -109,6 +109,8 @@ func sessionEndUpTo(session *WorkSession, now time.Time) time.Time {
 // once (lowest absence ID wins), and only reported/approved absences count.
 // Day counters are schedule-aware: a vacation day only counts when the day
 // actually had a target (> 0), so part-timers aren't charged for days off.
+// A zero on a day no maintained Soll governs says nothing about a plan; such
+// workdays of the absence are counted separately (#6889).
 func (s *workTimeMonthService) addAbsenceCredits(ctx context.Context, staffID int64, first, last, today calendar.Date, resolver *dailyTargetResolver, aggregates map[monthKey]*monthAggregates) error {
 	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: first.String(), OverlapTo: last.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
 	absences := absencesToRecord(absenceValues)
@@ -120,9 +122,16 @@ func (s *workTimeMonthService) addAbsenceCredits(ctx context.Context, staffID in
 	if today.Before(through) {
 		through = today
 	}
-	walkCreditedAbsenceDays(absences, first, through, resolver.TargetFor,
+	walkAbsenceDayCoverage(absences, first, through, resolver.TargetFor,
 		func(d calendar.Date, absence *StaffAbsence, credit int, fraction float64) {
 			creditAbsenceDay(absence, credit, fraction, aggregates[monthOf(d)])
+		},
+		func(d calendar.Date, absence *StaffAbsence, fraction float64) {
+			agg := aggregates[monthOf(d)]
+			if agg == nil || !isWorkdayWithoutPlan(d, resolver) {
+				return
+			}
+			agg.daysWithoutTarget.count(absence.AbsenceType, fraction)
 		})
 	return nil
 }

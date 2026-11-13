@@ -4,11 +4,11 @@ status: accepted
 
 # Owner boundary costs are measured before consolidation
 
-Decision of 2026-10-23 for [#4546](https://github.com/moto-nrw/project-phoenix/issues/4546),
+Decision of 2026-10-23 for [#4546](https://github.com/moto-ogs/project-phoenix/issues/4546),
 after #2580. Keep explicit cross-owner bindings; reduce duplicate vocabulary
 inside an owner, not the owner boundary. This decision changes no ownership,
 policy rule, ratchet budget or runtime code. Projection consolidation and the
-large-domain cuts belong to [#4547](https://github.com/moto-nrw/project-phoenix/issues/4547).
+large-domain cuts belong to [#4547](https://github.com/moto-ogs/project-phoenix/issues/4547).
 
 ## Decisions
 
@@ -257,7 +257,7 @@ out of its scope; scope completeness remains the separate #4542 work.
 
 ## Developer-cost sample: feature PR #4617
 
-[#4617](https://github.com/moto-nrw/project-phoenix/pull/4617), "name who filed
+[#4617](https://github.com/moto-ogs/project-phoenix/pull/4617), "name who filed
 each parent request in the request review", is a recent, bounded read feature:
 merge `082940f7afc1318de738315f81b47fb12edf3df2`, first parent
 `e73b8ed4863677ef5d777a6b86af6b9ddcfd2bf7`. Count the actual merge diff,
@@ -380,7 +380,7 @@ for mod in mods:
         if not f.startswith(('backend/roots/', 'backend/api/')):
             continue
         source = data.decode()
-        pattern = r'(?m)^\s*(\w+)?\s*"github.com/moto-nrw/project-phoenix/modules/' + mod + r'(/[^"\n]*)?"'
+        pattern = r'(?m)^\s*(\w+)?\s*"github.com/moto-ogs/project-phoenix/modules/' + mod + r'(/[^"\n]*)?"'
         for match in re.finditer(pattern, source):
             suffix = match[2] or ''
             alias = match[1] or (suffix.split('/')[-1] if suffix else mod)
@@ -484,7 +484,7 @@ for mod in mods:
     for path, lines in files.items():
         if not path.startswith(('roots/', 'api/')):
             continue
-        pattern = r'(?m)^\s*(\w+)?\s*"github.com/moto-nrw/project-phoenix/modules/' + mod + r'(/[^"\n]*)?"'
+        pattern = r'(?m)^\s*(\w+)?\s*"github.com/moto-ogs/project-phoenix/modules/' + mod + r'(/[^"\n]*)?"'
         for match in re.finditer(pattern, '\n'.join(lines)):
             suffix = match[2] or ''
             alias = match[1] or (suffix.split('/')[-1] if suffix else mod)
@@ -575,7 +575,7 @@ PY
 ### Feature diff accounting
 
 ```bash
-gh pr view 4617 --repo moto-nrw/project-phoenix --json title,mergeCommit,files
+gh pr view 4617 --repo moto-ogs/project-phoenix --json title,mergeCommit,files
 python3 - <<'PY'
 import collections, json, pathlib, subprocess
 sha = '082940f7afc1318de738315f81b47fb12edf3df2'

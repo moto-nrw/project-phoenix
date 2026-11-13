@@ -9,26 +9,26 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/spf13/viper"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/observability"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryRuntime "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/traegercalendar"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/observability"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	parentAPI "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // holidayRegistrationPath is the public holiday registration and
@@ -49,9 +49,12 @@ func mountTraegerRoutes(root, tenant chi.Router, limiters authRateLimiters, iden
 	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerSettings, schoolSettings TraegerSchoolSettings, attendanceMarks owners.MealAttendanceMarks,
 	delivery deliveryRuntime.Capability, closureMail owners.HolidayClosureMail, outcomes deliveryRuntime.EmailOutcomes, keys TurnstileKeys,
 	healthData enrollmentOwner.HolidayHealthCipher, bankData parentbilling.BankDataCipher, statistics studentpresence.StatisticsReports, changes careplan.OfferingChangeCapability, contractHolidays carecontract.SchoolHolidays,
-	holidayCalendar enrollmentOwner.HolidaySchoolCalendar, closureHolidays owners.HolidayClosureHolidays, calendarSchools traegercalendar.Schools,
+	holidayCalendar enrollmentOwner.HolidaySchoolCalendar, closureHolidays owners.HolidayClosureHolidays, calendarSchools traegercalendar.Schools, schoolPhases *enrollmentCompose.Phases, schoolCatalog careplan.CareOfferingCatalogCapability, lockRecurrence func(context.Context) error,
 	parentsURL string, logger *slog.Logger) error {
-	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayTraegerMail{delivery: delivery}, newHolidayOfficeTraeger(organizations)); err != nil {
+	if _, ok := identity.(identityaccess.TraegerMemberProfiles); !ok {
+		return errors.New("traeger portal: identity does not serve the names of the Träger-Büro")
+	}
+	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayTraegerMail{delivery: delivery}, holidayMailStates{mails: closureMail.TraegerMails}, newHolidayOfficeTraeger(organizations)); err != nil {
 		return err
 	}
 	setups, ok := identity.(identityaccess.HolidayParentSetups)
@@ -73,7 +76,9 @@ func mountTraegerRoutes(root, tenant chi.Router, limiters authRateLimiters, iden
 	// The office decides the parents' changes through Care Plan's review of
 	// the school (#5979).
 	mountCareContractChangeRoutes(root, organizations, changes, schoolSettings, audit.Log)
-	return nil
+	// The office rolls its phases and offerings out into its schools (#4704).
+	billing, intake := newTraegerCatalogBilling(organizations, settings, schoolSettings, attendanceMarks, delivery, outcomes, audit.Log, contractHolidays, parentsURL)
+	return mountTraegerCatalogRoutes(root, schoolPhases, schoolCatalog, lockRecurrence, organizations, billing, intake)
 }
 
 // TraegerSettings is the Träger level of the settings system: the
@@ -162,6 +167,50 @@ func (m holidayTraegerMail) EnqueueTraegerMail(ctx context.Context, mail enrollm
 		Related: deliveryContract.RelatedEntity{Type: mail.RelatedType, ID: mail.RelatedID},
 	})
 	return err
+}
+
+// holidayMailStates reads what became of the Träger's mails of the holiday
+// registrations by idempotency key, in the caller's Träger transaction
+// (#6737), and names those that did not reach the parents in Enrollment's
+// words.
+type holidayMailStates struct {
+	mails deliveryRuntime.TraegerMails
+}
+
+func (s holidayMailStates) HolidayMailProblems(ctx context.Context, organizationID int64, keys []string) (map[string]string, error) {
+	if s.mails == nil {
+		return nil, errors.New("holiday registration: the Träger mails of Delivery are not configured")
+	}
+	statuses, err := s.mails.TraegerEmailStatusesByKey(ctx, organizationID, keys)
+	if err != nil {
+		return nil, err
+	}
+	problems := map[string]string{}
+	for _, status := range statuses {
+		if status.IdempotencyKey == nil {
+			continue
+		}
+		if state := holidayMailProblem(status.Outcome); state != "" {
+			problems[*status.IdempotencyKey] = state
+		}
+	}
+	return problems, nil
+}
+
+// holidayMailProblem names an outcome of a mail that did not reach the
+// parents; a mail on its way, accepted, delivered or withdrawn has none.
+func holidayMailProblem(outcome deliveryContract.EmailOutcome) string {
+	switch outcome {
+	case deliveryContract.EmailSendFailed, deliveryContract.EmailUndeliverable:
+		return enrollmentOwner.HolidayMailFailed
+	case deliveryContract.EmailBlocked, deliveryContract.EmailProviderBlocked, deliveryContract.EmailHeldByStop,
+		deliveryContract.EmailComplained, deliveryContract.EmailUnsubscribed:
+		return enrollmentOwner.HolidayMailBlocked
+	case deliveryContract.EmailOutcomeUnknown, deliveryContract.EmailOverdue:
+		return enrollmentOwner.HolidayMailUnknown
+	default:
+		return ""
+	}
 }
 
 // parentHolidayRegistrationLinks resolves the link of a holiday period for

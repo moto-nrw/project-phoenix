@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // The "Klassenliste" preset renders its weekday cells through the shared

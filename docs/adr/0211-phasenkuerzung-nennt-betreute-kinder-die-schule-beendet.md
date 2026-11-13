@@ -5,7 +5,7 @@ status: proposed
 # Phasenkürzung nennt betreute Kinder, die Schule beendet die Betreuung
 
 **Status: Vorgeschlagen.** Vorschlag vom 11.11.2026 zu
-[#6598](https://github.com/moto-nrw/project-phoenix/issues/6598). Ergänzt
+[#6598](https://github.com/moto-ogs/project-phoenix/issues/6598). Ergänzt
 [ADR 0202](0202-phasenaenderungen-verschieben-offene-plaene-und-schuetzen-wirksame-buchungen.md),
 [ADR 0205](0205-phasenaenderungen-fuehren-die-buchungsgrenzen-der-phase-mit.md)
 und

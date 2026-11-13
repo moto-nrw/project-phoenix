@@ -3,13 +3,13 @@ package api
 import (
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // HolidayHostSchools is the Organisation & Tenancy read that names the

@@ -248,10 +248,13 @@ export function DatevRepeatDialog({
   runLabel,
   fiscalYears,
   loading,
+  handover = false,
   onConfirm,
   onClose,
 }: Readonly<{
   runLabel: string | null;
+  /** The file goes to the recipient of the Träger instead of the browser. */
+  handover?: boolean;
   fiscalYears: readonly string[];
   loading: boolean;
   onConfirm: (fiscalYear: string | undefined) => void;
@@ -271,11 +274,15 @@ export function DatevRepeatDialog({
       isOpen={runLabel !== null}
       onClose={close}
       onConfirm={() => onConfirm(year ?? undefined)}
-      title="Alle Buchungen erneut herunterladen?"
-      confirmText="Erneut herunterladen"
+      title={
+        handover
+          ? "Alle Buchungen erneut übergeben?"
+          : "Alle Buchungen erneut herunterladen?"
+      }
+      confirmText={handover ? "Erneut übergeben" : "Erneut herunterladen"}
       confirmVariant="warning"
       isConfirmLoading={loading}
-      loadingText="Wird erstellt …"
+      loadingText={handover ? "Wird übergeben …" : "Wird erstellt …"}
       mobileSheet
     >
       <div className="space-y-4">
@@ -286,7 +293,11 @@ export function DatevRepeatDialog({
         <Alert
           type="warning"
           title="Buchungen können doppelt in DATEV stehen"
-          message="Geben Sie die Datei nur weiter, wenn Ihr Steuerbüro die frühere Datei nicht hat oder nicht einlesen konnte."
+          message={
+            handover
+              ? "Übergeben Sie die Datei nur, wenn der Empfänger die frühere Datei nicht hat oder nicht einlesen konnte."
+              : "Geben Sie die Datei nur weiter, wenn Ihr Steuerbüro die frühere Datei nicht hat oder nicht einlesen konnte."
+          }
           announce="off"
         />
         {fiscalYears.length > 1 && year !== null ? (

@@ -1,5 +1,6 @@
 "use client";
 
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
@@ -26,11 +27,15 @@ export function RequestIdButton({
 }: RequestIdButtonProps) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const { copy } = useClipboardCopy("RequestIdButton");
+  const kitDefault = useKitDefault();
 
   const handleCopy = async () => {
     const copied = await copy(requestId);
     setFeedback(copied ? copiedLabel : copyFailedLabel);
   };
+
+  const text = label?.replace("{requestId}", requestId) ?? requestId;
+  const at = text.lastIndexOf(requestId);
 
   return (
     <>
@@ -40,12 +45,31 @@ export function RequestIdButton({
         variant="link_tone"
         size="compact"
         aria-label={copyLabel}
+        // Sichtbar steht nur die Kennung. Auf einer übersetzten Fläche nennt
+        // die Blase die Aktion mit dem übersetzten Namen; ActionHint liest
+        // ihn dann nicht doppelt vor, weil er schon der Name ist.
+        tooltip={
+          kitDefault(
+            "Kopiert die Kennung, damit Sie sie dem Support nennen können.",
+          ) ?? copyLabel
+        }
         onClick={() => void handleCopy()}
         // A request ID is a 36-character UUID: let it wrap inside the alert
         // or toast instead of running past its edge.
         className="max-w-full min-w-0 self-center text-left break-all whitespace-normal"
       >
-        {label?.replace("{requestId}", requestId) ?? requestId}
+        {at > 0 ? (
+          // One text flow inside the flex button: on a phone a line break
+          // puts the ID under its label, so the ID stays whole instead of
+          // leaving its last characters alone. Label and ID stay one text
+          // (the break is no text), as screen readers and tests read it.
+          <span className="min-w-0">
+            {text.slice(0, at).trimEnd()}
+            <br className="sm:hidden" /> {text.slice(at)}
+          </span>
+        ) : (
+          text
+        )}
       </Button>
     </>
   );

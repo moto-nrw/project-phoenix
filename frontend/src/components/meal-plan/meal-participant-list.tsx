@@ -394,7 +394,7 @@ export function MealParticipantList({
             }
             {...datePicker}
             calendarLayout="popover-below"
-            controlSize="md"
+            controlSize="compact"
             disabledDay={isWeekendDay}
             hideClearButton
             required

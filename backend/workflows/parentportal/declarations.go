@@ -1,6 +1,6 @@
 package parentportal
 
-import "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
+import "github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/messaging"
 
 // Erklärungen (#3430) as the guardian portal HTTP composition names them.
 type (

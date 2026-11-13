@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // ParentDocumentStore reads the inbox of one recipient in the Träger

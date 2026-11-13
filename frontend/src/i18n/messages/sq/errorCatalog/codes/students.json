@@ -75,6 +75,7 @@
   "pickup_change_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "pickup_change_expired": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "pickup_change_impact_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "care_request_plan_changed": "Plani i kujdesit sapo ndryshoi. Ju lutemi rifreskoni faqen. Pastaj kontrolloni sërish kërkesën.",
   "pickup_permission_contact_gone": "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
   "pickup_proof_not_found": "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
   "pickup_reset_requires_offering": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -88,7 +89,9 @@
   "staff_value_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "staff_value_unsupported": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "status_day_conflict": "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
+  "status_day_occupied": "Për sot është regjistruar një ekskursion klase. Hiqni fillimisht ekskursionin e klasës.",
   "guardian_email_block_needs_review": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "guardian_email_block_lift_failed": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-  "guardian_email_block_stays": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+  "guardian_email_block_stays": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "person_has_active_profile": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }

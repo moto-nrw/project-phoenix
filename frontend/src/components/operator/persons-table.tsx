@@ -16,6 +16,30 @@ interface PersonsTableProps {
 }
 
 /**
+ * A child or a live staff member leaves through the school's student deletion
+ * or Personalaustritt; the operator person deletion refuses them (#6840).
+ */
+export function operatorMayDeletePerson(person: OperatorPerson): boolean {
+  return !person.isStaff && !person.isStudent;
+}
+
+/**
+ * One line above a person list that explains why some entries offer no
+ * deletion; it renders nothing while every person is deletable.
+ */
+export function SchoolDeletesPersonHint({
+  persons,
+}: Readonly<{ persons: readonly OperatorPerson[] }>) {
+  if (persons.every(operatorMayDeletePerson)) return null;
+  return (
+    <p className="text-sm text-gray-500">
+      Kinder löscht die Schule beim Kind. Mitarbeitende lassen sich erst nach
+      ihrem Austritt löschen.
+    </p>
+  );
+}
+
+/**
  * Merkmals-Badges (Mitarbeiter/Kinder/RFID) fuer eine Person. Gemeinsame
  * Implementierung fuer PersonsTable und die Karten-Ansicht in
  * app/operator/persons/page.tsx, damit beide dieselben MOTO-Tokens nutzen.
@@ -110,34 +134,38 @@ export function PersonsTable({
         key: "actions",
         header: "Aktionen",
         align: "right",
-        render: (row) => (
-          <OverflowMenu
-            items={[
-              {
-                label: "Löschen",
-                icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
-                destructive: true,
-                onClick: () => onDelete(row),
-              },
-            ]}
-            triggerSize="sm"
-            ariaLabel={`Aktionen für ${row.firstName} ${row.lastName}`}
-          />
-        ),
+        render: (row) =>
+          !operatorMayDeletePerson(row) ? null : (
+            <OverflowMenu
+              items={[
+                {
+                  label: "Löschen",
+                  icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+                  destructive: true,
+                  onClick: () => onDelete(row),
+                },
+              ]}
+              triggerSize="sm"
+              ariaLabel={`Aktionen für ${row.firstName} ${row.lastName}`}
+            />
+          ),
       });
     }
     return cols;
   }, [onDelete, showSchool]);
 
   return (
-    <DataTable
-      columns={columns}
-      rows={persons}
-      getRowKey={(row) => row.id}
-      emptyState="Keine Personen vorhanden."
-      defaultSortKey="name"
-      pageSize={50}
-      isLoading={isLoading}
-    />
+    <div className="flex flex-col gap-3">
+      {onDelete && <SchoolDeletesPersonHint persons={persons} />}
+      <DataTable
+        columns={columns}
+        rows={persons}
+        getRowKey={(row) => row.id}
+        emptyState="Keine Personen vorhanden."
+        defaultSortKey="name"
+        pageSize={50}
+        isLoading={isLoading}
+      />
+    </div>
   );
 }

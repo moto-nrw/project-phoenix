@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // QueueStaffTimeTrackingChanged emits a tenant-wide invalidation after the

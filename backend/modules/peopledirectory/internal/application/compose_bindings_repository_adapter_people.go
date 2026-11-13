@@ -1,8 +1,8 @@
 package application
 
 import (
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // defaultGuardianRole applies the default preset, or nothing without a

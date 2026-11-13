@@ -35,7 +35,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useApiLoadError } from "~/contexts/ToastContext";
-import { hasPermission } from "~/lib/auth-utils";
+import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -697,6 +697,11 @@ function DienstplanContent() {
         <SickReportModal
           isOpen
           staff={sickModal}
+          targetHint={
+            canEdit
+              ? { canSetTarget: hasEffectiveAdminScope(session) }
+              : undefined
+          }
           onClose={() => setSickModal(null)}
           onCreated={() => {
             // Bewusst still wie oben: gespeichert ist die Krankmeldung schon.

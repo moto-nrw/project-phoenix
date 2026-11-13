@@ -1,0 +1,41 @@
+{
+  "loading": "Gjendja po ngarkohet",
+  "errorObject": "Gjendja e regjistrimit tuaj për pushimet",
+  "kicker": "Regjistrimi për pushimet",
+  "title": {
+    "received": "Regjistrimi juaj ka mbërritur",
+    "confirmed": "Regjistrimi juaj është konfirmuar",
+    "cancelled": "Ky regjistrim nuk vlen më"
+  },
+  "lead": {
+    "received": "Kjo nuk është ende konfirmim. {traeger} po e kontrollon regjistrimin tuaj dhe do t'ju shkruajë një email.",
+    "confirmed": "{traeger} e ka konfirmuar regjistrimin tuaj. Konfirmimi erdhi me email.",
+    "cancelled": "{traeger} e ka anuluar regjistrimin. Javët më poshtë nuk vlejnë më."
+  },
+  "periodLabel": "Periudha",
+  "submittedLabel": "Mbërriti më",
+  "stepsTitle": "Si vazhdon",
+  "stepsCancelled": "Nuk ka hap tjetër. Për pyetje drejtohuni te organizatori.",
+  "stepReceived": "Regjistrimi mbërriti",
+  "stepReceivedDetail": "Më {date}",
+  "stepReview": "Organizatori kontrollon",
+  "stepReviewRunning": "Kontrolli po vazhdon.",
+  "stepReviewAfter": "Regjistrimi është i hapur deri më {date}. Pastaj vendos organizatori.",
+  "stepReviewDone": "Kontrolli përfundoi.",
+  "stepDecision": "Konfirmimi me email",
+  "stepDecisionNext": "Do të merrni një email sapo organizatori të ketë vendosur.",
+  "stepDecisionDone": "Konfirmimi ka ardhur.",
+  "stepState": {
+    "done": "kryer",
+    "current": "në vazhdim",
+    "next": "vjen më vonë"
+  },
+  "weeksTitle": "Javët dhe vendet",
+  "weeksDescription": "Vetëm për informim. Ndryshimet sqarojini drejtpërdrejt me organizatorin.",
+  "weekCount": "{count, plural, one {# javë} other {# javë}}",
+  "noWeeks": "Asnjë javë e rezervuar.",
+  "hostSchool": "në {school}",
+  "privacyNote": "Kjo lidhje tregon vetëm gjendjen e regjistrimit tuaj. Mos ia jepni të tjerëve. Pas pushimeve organizatori e fshin regjistrimin. Atëherë lidhja nuk vlen më.",
+  "notFoundTitle": "Nuk e gjejmë këtë regjistrim",
+  "notFoundText": "Ndoshta lidhja është e paplotë. Ju lutemi hapeni sërish nga emaili juaj. Pas pushimeve regjistrimi fshihet. Atëherë lidhja nuk vlen më."
+}

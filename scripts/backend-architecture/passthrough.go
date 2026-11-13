@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/moto-nrw/project-phoenix/internal/passthrough"
+	"github.com/moto-ogs/project-phoenix/internal/passthrough"
 )
 
 func passthroughCommand(args []string, project string) (bool, error) {

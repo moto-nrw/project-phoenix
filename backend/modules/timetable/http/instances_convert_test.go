@@ -11,12 +11,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

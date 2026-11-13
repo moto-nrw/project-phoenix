@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
 )
 
 // toFilter translates the retired filter map into the owner's typed filter.

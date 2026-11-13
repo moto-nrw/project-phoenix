@@ -18,8 +18,9 @@ remote references; it does not merge or rebase the base into the PR. Update the
 branch only for actual conflicts (`DIRTY`) or when the PR adds or changes
 migrations, not merely because it is `BEHIND` or the base has advanced.
 `BASE_UPDATE=conflicts` does not cover the migration case: merge the base
-yourself, then check migration numbers and order against it and against open
-PRs. For stacks, follow the
+yourself, so the name check and the order check of
+[the migration system](backend-data.md#migration-system) run against the
+migrations merged since. For stacks, follow the
 [stacked-PR workflow](../../.agents/skills/stacked-pr/SKILL.md#keep-the-stack-current).
 Check relevant interactions with recent base changes; investigate concrete
 integration risks without routine sync commits.

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SickNoteRetention deletes a school's sick notes (AU-Bescheinigungen) after

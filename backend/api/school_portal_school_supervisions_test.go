@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	timetable "github.com/moto-nrw/project-phoenix/modules/timetable/http"
+	timetable "github.com/moto-ogs/project-phoenix/modules/timetable/http"
 
 	"github.com/go-chi/chi/v5"
 
@@ -18,14 +18,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	classdayhttp "github.com/moto-ogs/project-phoenix/modules/classday/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/schoolportal"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 const supervisionPermission = "supervision:own"

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+	securitycontract "github.com/moto-ogs/project-phoenix/modules/securityruntime/ports"
 )
 
 func TestResolveStudentReadScope(t *testing.T) {

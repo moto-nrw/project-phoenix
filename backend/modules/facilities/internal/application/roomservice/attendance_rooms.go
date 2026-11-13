@@ -3,8 +3,8 @@ package facilities
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // AttendanceRoomRecords is the retained room read and lock contract.

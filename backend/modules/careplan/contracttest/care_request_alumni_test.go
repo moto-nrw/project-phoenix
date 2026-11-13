@@ -11,10 +11,10 @@ package contracttest_test
 import (
 	"testing"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

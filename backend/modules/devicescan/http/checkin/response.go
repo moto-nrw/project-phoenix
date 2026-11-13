@@ -3,7 +3,7 @@ package checkin
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
 )
 
 // buildCheckinResponse renders a detailed-mode scan. The key set is the

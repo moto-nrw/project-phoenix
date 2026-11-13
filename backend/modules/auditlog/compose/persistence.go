@@ -3,7 +3,7 @@ package compose
 import (
 	"errors"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/internal/adapters/auditpostgres"
+	audit "github.com/moto-ogs/project-phoenix/modules/auditlog/internal/adapters/auditpostgres"
 	"github.com/uptrace/bun"
 )
 

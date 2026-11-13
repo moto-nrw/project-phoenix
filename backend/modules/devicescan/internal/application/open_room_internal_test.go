@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 // fakeOpenRooms records every move the service asks for and answers with a

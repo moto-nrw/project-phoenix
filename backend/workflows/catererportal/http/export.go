@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 var errExportFormat = errors.New("format must be pdf, xlsx or csv")

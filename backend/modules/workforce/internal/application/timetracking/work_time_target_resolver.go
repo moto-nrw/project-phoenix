@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // TargetOverrideReader is the consumer port over the Workforce
@@ -47,6 +47,7 @@ func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID 
 	}
 	if entries.HasEntries {
 		resolver.Schedule = func(d calendar.Date) (int, bool) { return entries.DailyTarget(staff.RotationAnchorDate, d) }
+		resolver.ScheduleCovers = entries.Covers
 	}
 	if entries.HasEntries || staff.WorkTimeModelID == nil {
 		return resolver, nil

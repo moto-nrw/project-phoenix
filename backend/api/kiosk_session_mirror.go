@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	devicescanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // KioskMirroredSession is the composed mirror notification.

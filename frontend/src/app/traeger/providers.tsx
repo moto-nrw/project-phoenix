@@ -9,6 +9,7 @@ import {
   useSessionPollInterval,
 } from "~/components/auth/session-account-binding";
 import { SessionEndBarrier } from "~/components/auth/session-end-barrier";
+import { ErrorContactProvider } from "~/lib/error-contact";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { traegerPath } from "~/lib/traeger-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
@@ -45,7 +46,9 @@ export function TraegerProviders({
       <SWRScopeBoundary />
       <TraegerAnalyticsSession />
       <SentrySessionContext portal="traeger" />
-      {children}
+      {/* A missing right sends the person to the Leitung of the
+          Träger-Büro, not to a school (#6871). */}
+      <ErrorContactProvider contact="traeger">{children}</ErrorContactProvider>
     </SessionProvider>
   );
 }

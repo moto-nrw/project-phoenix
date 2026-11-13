@@ -5,26 +5,26 @@ import (
 	"fmt"
 	"log/slog"
 
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
 
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
-	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/planexport"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	arrivalTimetable "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/shiftplansync"
+	shiftplansyncCompose "github.com/moto-ogs/project-phoenix/workflows/shiftplansync/compose"
 )
 
 // BuildWorkSessionSide binds the time-tracking side of Workforce (#3413)
@@ -112,10 +112,12 @@ type WorkforcePlanning struct {
 	TimeTrackingCleanup    workforceCompose.TimeTrackingCleanupService
 }
 
-// WorkforceAbsenceWrites are the absence writes that may cascade a sick
-// report, as the Workforce routes consume them; the root binds the
-// shift-plan-sync entry (#4825).
+// WorkforceAbsenceWrites are the absence writes that may cascade an absence
+// into the plans, as the Workforce routes consume them; the root binds the
+// shift-plan-sync entry (#4825, #6847).
 type WorkforceAbsenceWrites interface {
+	ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforceModule.StaffAbsenceResponse, error)
+	CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error
 	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforceModule.CreateAbsenceRequest) (*workforceModule.StaffAbsenceResponse, error)
 	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforceModule.CreateAbsenceRequest) (*workforceModule.StaffAbsenceResponse, error)
 	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforceModule.UpdateAbsenceRequest) (*workforceModule.StaffAbsenceResponse, error)

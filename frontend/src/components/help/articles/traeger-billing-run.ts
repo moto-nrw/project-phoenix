@@ -12,7 +12,7 @@ export function traegerBillingRunTopic(): HelpTopic {
     audience: "traeger",
     icon: "FileText",
     requirements: [
-      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Abrechnung`.",
+      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation die Bereiche unter `Finanzen`.",
       "Der Ferienzeitraum ist veröffentlicht, und die Anmeldungen sind bestätigt.",
     ],
     steps: [],
@@ -31,10 +31,11 @@ export function traegerBillingRunTopic(): HelpTopic {
       {
         title: "Lauf starten und prüfen",
         steps: [
+          "Wählen Sie in der Navigation `Abrechnungsläufe`. Der Reiter `Ferien` ist schon offen.",
           "Wählen Sie `Lauf starten`.",
           "Wählen Sie den Ferienzeitraum und dann `Lauf starten`.",
           "Prüfen Sie die Vorschau unter `Rechnungen`. Je Familie steht dort eine Rechnung.",
-          "Die Positionen einer Rechnung sehen Sie im Menü mit den drei Punkten unter `Aufschlüsselung ansehen`.",
+          "Die Beträge je Kind blenden Sie mit `Aufschlüsselung zeigen` unter allen Rechnungen ein. Auf dem Handy finden Sie `Aufschlüsselung zeigen` im Menü mit den drei Punkten.",
         ],
       },
       {
@@ -64,6 +65,7 @@ export function traegerBillingRunTopic(): HelpTopic {
         steps: [
           "Wählen Sie `Lauf freigeben`.",
           "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
+          "Steht im Dialog `Noch offen`, klären Sie diese Punkte zuerst. Oder Sie geben mit `Trotzdem freigeben` frei. Zahlt eine Familie per Lastschrift ohne gültiges Mandat, geben Sie erst frei, wenn das Mandat da ist oder die Familie überweist.",
         ],
       },
       {
@@ -116,6 +118,18 @@ export function traegerBillingRunTopic(): HelpTopic {
         ],
       },
       {
+        title: "Versand und Exporte einer Rechnung ansehen",
+        description:
+          "Das geht, sobald der Lauf freigegeben ist. Sie sehen, was mit einer Rechnung geschah. Ändern können Sie dort nichts.",
+        steps: [
+          "Öffnen Sie den freigegebenen Lauf.",
+          "Wählen Sie bei der Rechnung das Menü mit den drei Punkten.",
+          "Wählen Sie `Versand und Exporte ansehen`.",
+          "Jeder Schritt steht mit Zeit und Konto da: Ausstellung, Versand, Storno und Lastschrift.",
+          "Jede Datei für Kämmerei, Steuerbüro oder Bank steht mit Nummer und Dateiname da.",
+        ],
+      },
+      {
         title: "Rechnung stornieren und neu ausstellen",
         description:
           "Eine ausgestellte Rechnung ändert sich nie. Stimmt sie nicht, stornieren Sie sie. Der Storno ist ein eigenes Dokument mit eigener Nummer und eigenem Schreiben.",
@@ -125,7 +139,7 @@ export function traegerBillingRunTopic(): HelpTopic {
           "Wählen Sie `Rechnung stornieren`.",
           "Schreiben Sie eine Begründung, zum Beispiel: Anschrift war falsch. Neue Rechnung folgt.",
           "Wählen Sie `Stornieren`.",
-          "Wählen Sie im Menü der Rechnung `Aufschlüsselung ansehen` und dann `Neu ausstellen`.",
+          "Wählen Sie im Menü der Rechnung `Aufschlüsselung zeigen` und dann `Neu ausstellen`.",
           "moto öffnet einen Lauf in der Vorschau. Dort steht die Familie mit dem Hinweis `Ersetzt` und der alten Nummer.",
           "Hatte die alte Rechnung Korrekturen, stehen sie bei `Übernommene Korrekturen`. Sie zählen schon in der neuen Rechnung mit. Prüfen Sie jede davon.",
           "Stimmt eine Korrektur nicht mehr, wählen Sie bei ihr das Menü mit den drei Punkten und dann `Ändern` oder `Entfernen`.",
@@ -168,13 +182,14 @@ export function traegerBillingRunTopic(): HelpTopic {
       {
         title: "Rechnungen und Beträge einer Familie ansehen",
         description:
-          "Hier sehen Sie alle Rechnungen, Stornos und Gutschriften einer Familie über alle Läufe. Eine Familie sind alle Schreiben an dieselbe E-Mail-Adresse.",
+          "Hier sehen Sie alle Rechnungen, Stornos und Gutschriften einer Familie über alle Läufe und ihre Debitorennummer. Eine Familie ist eine E-Mail-Adresse. Familien aus der Ferienbetreuung stehen hier schon, wenn ihre Anmeldung mit Debitorennummer bestätigt ist.",
         steps: [
-          "Wählen Sie in der Navigation `Abrechnung`.",
-          "Wählen Sie oben den Reiter `Familien`.",
+          "Wählen Sie in der Navigation `Familien und Zahlung`. Der Reiter `Familien` ist schon offen.",
           "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offene Forderung`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
-          "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offener Forderung` sehen Sie nur Familien, deren Rechnungen noch Geld verlangen.",
-          "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand.",
+          "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offener Forderung` sehen Sie nur Familien, deren Rechnungen noch Geld verlangen. Ob gezahlt wurde, sieht moto nicht. Mit `Ohne Debitorennummer` sehen Sie Familien ohne Nummer. Denselben Filter setzt ein Klick auf `ohne Debitorennummer` oben in der Zeile mit den Zahlen.",
+          "Unter `Debitorennummer` steht die Nummer der Familie. Steht auf älteren Rechnungen eine andere, sehen Sie sie darunter. `Nur Ferien` heißt: Die Familie hat keinen Betreuungsvertrag.",
+          "Öffnen Sie das Drei-Punkte-Menü neben der Nummer. Wählen Sie `Debitorennummer ändern` oder `Debitorennummer eintragen`. Tragen Sie die Nummer ein und wählen Sie `Speichern`. Ausgestellte Rechnungen behalten ihre Nummer.",
+          "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand. Eine Familie ohne Rechnung öffnet sich nicht.",
           "Wählen Sie ein Dokument, um seinen Abrechnungslauf zu öffnen. Dort stornieren Sie oder schreiben gut.",
         ],
       },
@@ -186,8 +201,8 @@ export function traegerBillingRunTopic(): HelpTopic {
       "Ferien werden im Voraus abgerechnet. Grundlage ist der Beitrag, den moto beim Bestätigen der Anmeldung festgehalten hat.",
       "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
       "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
-      "Logo, Farbe, Absender und Fußzeile im Schreiben kommen aus `Briefkopf und Vorlagen`. Die Ansprechperson kommt aus `Allgemein`, die Bankverbindung aus `Abrechnungsvorgaben`. Als Verwendungszweck steht im Schreiben die Debitorennummer der Familie. Hat die Anmeldung keine, steht dort die Rechnungsnummer. Einen eigenen Zahlungstext schreiben Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung`.",
-      "Die Rechnung übernimmt die Debitorennummer der Anmeldung. Sie steht im Schreiben unter der Rechnungsnummer und in der Übersicht für die Kämmerei in der Spalte `Debitorennummer`.",
+      "Logo, Farbe, Absender und Fußzeile im Schreiben kommen aus `Briefkopf und Vorlagen`. Die Ansprechperson kommt aus `Allgemein`, die Bankverbindung aus `Abrechnungsvorgaben`. Als Verwendungszweck steht im Schreiben die Debitorennummer der Rechnung. Hat die Rechnung keine, steht dort die Rechnungsnummer. Einen eigenen Zahlungstext schreiben Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung`.",
+      "Die Rechnung übernimmt die Debitorennummer der Anmeldung. Hat die Anmeldung keine, nimmt sie die Nummer der Familie aus dem Reiter `Familien`. Die Nummer steht im Schreiben unter der Rechnungsnummer und in der Übersicht für die Kämmerei in der Spalte `Debitorennummer`.",
       "Storno und Gutschrift bekommen ihre Nummer aus demselben Nummernkreis wie die Rechnungen. In der Aufschlüsselung einer Rechnung steht unter `Verlauf` ihr Storno, ihre Gutschriften und die neue Rechnung.",
       "Sind die Schreiben des Laufs schon erstellt, bekommen Storno und Gutschrift ihr Schreiben sofort. Sie senden es wie die anderen Schreiben unter `Versand per Mail`.",
       "Nach einem Storno lässt sich die Debitorennummer der Anmeldung wieder ändern. Die neue Rechnung übernimmt sie.",
@@ -196,10 +211,10 @@ export function traegerBillingRunTopic(): HelpTopic {
       "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
       "Den Text des Schreibens legen Sie in den Einstellungen unter `Briefkopf und Vorlagen` fest. Erstellte Schreiben behalten den Text, mit dem sie entstanden sind.",
       "`Offene Forderung` und `Forderung offen` heißen: Die Rechnung ist ausgestellt, nicht storniert und nicht gutgeschrieben. Das ist der Stand vor Zahlungseingang. Zahlungen sieht moto nicht. Eine offene Forderung heißt also nicht, dass die Familie im Rückstand ist. Ob sie gezahlt hat, prüfen Sie in Ihrer Buchhaltung.",
-      "Bei `Wer zahlt` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`. Eine stornierte Rechnung zählt dabei nicht mit.",
+      "In der Spalte `Zahlung` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`, darunter der Zahlungsweg. Eine stornierte Rechnung zählt dabei nicht mit.",
     ],
     differences: [
-      "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+      "Sie sehen in der Navigation kein `Abrechnungsläufe`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
       "Im Ferienzeitraum fehlt `Zur Abrechnung`? Der Zeitraum ist noch ein Entwurf, oder Ihre Rolle ist nicht Abrechnung.",
       "Im Lauf fehlt `Zum Ferienzeitraum`? Ihre Rolle darf die Ferienbetreuung nicht öffnen.",
       "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",
@@ -208,8 +223,9 @@ export function traegerBillingRunTopic(): HelpTopic {
       "Ein Klick auf eine Rechnung zeigt kein Schreiben? Die Schreiben des Laufs sind noch nicht erstellt. Erstellen Sie sie bei `Bestätigungsschreiben`.",
       "Auf dem Handy oder einem schmalen Bildschirm steht das Schreiben an der Stelle der Liste. Mit `Zurück zu den Rechnungen` kommen Sie zur Liste.",
       "Statt des Schreibens steht, dass sich die Datei auf diesem Gerät hier nicht zeigen lässt? Wählen Sie `In neuem Tab öffnen` oder `Herunterladen`.",
+      "Im Menü fehlt `Versand und Exporte ansehen`? Der Lauf ist noch nicht freigegeben, oder die Zeile ist ein Storno oder eine Gutschrift. Beide stehen bei ihrer Rechnung.",
       "Im Menü einer Rechnung fehlt `Rechnung stornieren`? Die Rechnung hat schon eine Gutschrift oder ist schon storniert. Schreiben Sie dann den Rest gut.",
-      "Vor der Freigabe steht, dass Anmeldungen noch keine Debitorennummer haben? Ihr Träger fragt die Nummer ab, und diese Anmeldungen wurden ohne Nummer bestätigt. Tragen Sie die Nummer in der Anmeldung ein. Freigeben können Sie trotzdem. Nennt Ihr eigener Zahlungstext die Debitorennummer, lassen sich die Schreiben ohne Nummer aber nicht erstellen.",
+      "Vor der Freigabe steht, dass Anmeldungen noch keine Debitorennummer haben? Ihr Träger fragt die Nummer ab. Diese Anmeldungen wurden ohne Nummer bestätigt, und auch die Familie hat keine. Tragen Sie die Nummer in der Anmeldung ein. Freigeben können Sie trotzdem. Nennt Ihr eigener Zahlungstext die Debitorennummer, lassen sich die Schreiben ohne Nummer aber nicht erstellen.",
       "Vor der Freigabe steht `Schreiben brauchen die Debitorennummer`? Ihr eigener Zahlungstext nennt die Debitorennummer, und Rechnungen mit Betrag haben keine. Tragen Sie die Nummern vor dem Freigeben in den Anmeldungen ein. Das Feld dafür erscheint, wenn in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung` `Debitorennummer beim Bestätigen abfragen` an ist. Freigeben geht trotzdem, der Knopf heißt dann `Trotzdem freigeben`. Die Schreiben lassen sich danach nur ohne den Platzhalter erstellen.",
     ],
     troubleshootingDetails: [

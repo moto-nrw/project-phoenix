@@ -3,9 +3,9 @@ package application
 import (
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The validation and classification rules of Phase A. Every rule reads the
@@ -89,10 +89,11 @@ func validateSubstituteAvailable(in timetable.ApplyDeviationsInput, sub timetabl
 	if sub.AbsentStaffID == sub.SubstituteStaffID {
 		return timetable.DeviationBadRequest("die abwesende Person kann sich nicht selbst vertreten").WithCode(timetable.CodeSubstituteSelf).OnField("substitute_staff_id")
 	}
-	// A sick report makes the person absent the whole day: like an absent
-	// person, they cannot cover anyone (#6292).
+	// A sick report, a vacation or any other full-day absence makes the
+	// person absent the whole day: like an absent person, they cannot cover
+	// anyone (#6292, #6847).
 	if readSet.sickStaff[sub.SubstituteStaffID] {
-		return timetable.DeviationBadRequest("die Ersatzperson ist an diesem Tag krankgemeldet").WithCode(timetable.CodeSubstituteAbsent).OnField("substitute_staff_id")
+		return timetable.DeviationBadRequest("die Ersatzperson ist an diesem Tag ganztägig abwesend").WithCode(timetable.CodeSubstituteAbsent).OnField("substitute_staff_id")
 	}
 	// A person cannot cover an appointment on which this same save marks them
 	// absent. Appointment-scoped absences elsewhere on the day are independent.

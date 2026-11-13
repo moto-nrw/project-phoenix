@@ -1,6 +1,6 @@
 package testutil
 
-import "github.com/moto-nrw/project-phoenix/api/testutil/routetest"
+import "github.com/moto-ogs/project-phoenix/api/testutil/routetest"
 
 // The request, response, router and claims helpers live in routetest, which
 // does not link the service graph this package composes. They are re-exported

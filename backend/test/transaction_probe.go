@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // TransactionProbe writes one throwaway guardian profile through the tenant

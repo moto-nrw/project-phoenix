@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
 func groupChildrenByTenant(children []*ports.ChildSummary) map[int64][]*ports.ChildSummary {
@@ -73,8 +73,7 @@ func (s *service) parentVisibleAppointment(ctx context.Context, appointmentID in
 	}
 	guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
 	studentIDs := distinctChildStudentIDs(tenantChildren)
-	_, recipientID := guardianRecipientStatusForStudents(recipients, guardianProfileIDs, studentIDs)
-	if recipientID == nil {
+	if guardianRecipientForStudents(recipients, guardianProfileIDs, studentIDs) == nil {
 		return nil, nil, nil
 	}
 	return appointment, recipients, nil

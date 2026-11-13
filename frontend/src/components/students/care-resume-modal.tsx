@@ -97,7 +97,6 @@ export function CareResumeModal({
       isOpen={isOpen}
       onClose={onClose}
       title={`Betreuung von ${displayName} wieder aufnehmen`}
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-lg"
       isDismissDisabled={saving}
       footer={
         <>

@@ -9,18 +9,18 @@ import (
 func TestRouteSizedBuilderAnalyzerFollowsCompositionGraph(t *testing.T) {
 	t.Parallel()
 	root := writeRouteBuilderFixture(t, "api/sample/sample_test.go", `package sample_test
-import "github.com/moto-nrw/project-phoenix/support"
+import "github.com/moto-ogs/project-phoenix/support"
 func TestRoute() { support.BuildRoute() }
 `)
 	writeRouteBuilderSource(t, root, "support/helper.go", `package support
-import root "github.com/moto-nrw/project-phoenix/api"
+import root "github.com/moto-ogs/project-phoenix/api"
 var construct = root.newRuntime
 func BuildRoute() { construct(nil) }
 `)
 	violations, err := routeSizedBuilderViolations(root)
 	require.NoError(t, err)
 	require.Condition(t, func() bool {
-		return containsViolation(violations, "support/helper.go#construct references broad composition github.com/moto-nrw/project-phoenix/api.newRuntime")
+		return containsViolation(violations, "support/helper.go#construct references broad composition github.com/moto-ogs/project-phoenix/api.newRuntime")
 	}, "%v", violations)
 }
 
@@ -47,7 +47,7 @@ func TestNormal() { TestFullProductionRouterGolden() }
 func TestRouteSizedBuilderAnalyzerRejectsBroadInitializer(t *testing.T) {
 	t.Parallel()
 	root := writeRouteBuilderFixture(t, "api/sample/sample_test.go", `package sample_test
-import "github.com/moto-nrw/project-phoenix/api"
+import "github.com/moto-ogs/project-phoenix/api"
 var hidden = api.newRuntime(nil)
 `)
 	violations, err := routeSizedBuilderViolations(root)
@@ -69,11 +69,11 @@ func BuildRoute() {}`},
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			root := writeRouteBuilderFixture(t, "api/sample/sample_test.go", `package sample_test
-import "github.com/moto-nrw/project-phoenix/support"
+import "github.com/moto-ogs/project-phoenix/support"
 func TestRoute() { `+test.caller+` }
 `)
 			writeRouteBuilderSource(t, root, "support/helper.go", `package support
-import "github.com/moto-nrw/project-phoenix/api"
+import "github.com/moto-ogs/project-phoenix/api"
 `+test.support)
 			violations, err := routeSizedBuilderViolations(root)
 			require.NoError(t, err)
@@ -85,15 +85,15 @@ import "github.com/moto-nrw/project-phoenix/api"
 func TestRouteSizedBuilderAnalyzerFollowsReturnedReceiverPackage(t *testing.T) {
 	t.Parallel()
 	root := writeRouteBuilderFixture(t, "api/sample/sample_test.go", `package sample_test
-import "github.com/moto-nrw/project-phoenix/support"
+import "github.com/moto-ogs/project-phoenix/support"
 func TestRoute() { support.NewBuilder().BuildRoute() }
 `)
 	writeRouteBuilderSource(t, root, "support/helper.go", `package support
-import "github.com/moto-nrw/project-phoenix/builders"
+import "github.com/moto-ogs/project-phoenix/builders"
 func NewBuilder() *builders.Builder { return &builders.Builder{} }
 `)
 	writeRouteBuilderSource(t, root, "builders/builder.go", `package builders
-import "github.com/moto-nrw/project-phoenix/api"
+import "github.com/moto-ogs/project-phoenix/api"
 type Builder struct{}
 func (*Builder) BuildRoute() { api.newRuntime(nil) }
 `)

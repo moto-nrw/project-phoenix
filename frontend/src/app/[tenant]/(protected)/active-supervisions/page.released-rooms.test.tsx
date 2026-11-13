@@ -86,9 +86,9 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock PageHeaderSearchLayout (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: vi.fn(
+// Mock TenantPageSearchRow (vi.fn wrapper enables mockImplementation in enhanced tests)
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: vi.fn(
     ({ title, badge }: { title: string; badge?: { count: number } }) => (
       <div data-testid="page-header" data-count={badge?.count}>
         {title}
@@ -180,12 +180,12 @@ vi.mock("~/components/rooms/transit-students-section", () => ({
 }));
 
 // Mock LocationBadge
-vi.mock("@/components/ui/location-badge", () => ({
+vi.mock("@/components/students/presence/location-badge", () => ({
   LocationBadge: () => <div data-testid="location-badge">Location</div>,
 }));
 
 // Mock EmptyStudentResults
-vi.mock("~/components/ui/empty-student-results", () => ({
+vi.mock("~/components/students/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results">No results</div>,
 }));
 
@@ -338,7 +338,7 @@ vi.mock("~/lib/swr", () => ({
 import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
-import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
+import { TenantPageSearchRow } from "~/components/ui/tenant-page-search-row";
 import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 import MeinRaumPage from "./page";
 
@@ -359,7 +359,7 @@ function render(ui: Parameters<typeof rtlRender>[0]) {
 }
 
 const defaultPageHeader = vi
-  .mocked(PageHeaderSearchLayout)
+  .mocked(TenantPageSearchRow)
   .getMockImplementation()!;
 
 // A block running in a released room, as the dashboard ships it (#3281).
@@ -471,7 +471,7 @@ beforeEach(() => {
   vi.mocked(useOptionalSupervision)
     .mockReset()
     .mockReturnValue(defaultSupervisionState);
-  vi.mocked(PageHeaderSearchLayout)
+  vi.mocked(TenantPageSearchRow)
     .mockReset()
     .mockImplementation(defaultPageHeader);
   vi.mocked(useSWRAuth)
@@ -499,11 +499,12 @@ describe("Action button click handlers", () => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
 
-    // Override PageHeaderSearchLayout to render action buttons as clickable elements
-    const mod =
-      await import("~/components/ui/page-header/PageHeaderSearchLayout");
+    // Override TenantPageSearchRow. The row never receives `actionButton`
+    // (TenantPage renders actions itself), so that read stays empty; the
+    // override only replaces the search row.
+    const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
-      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
+      mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const actionButton = p.actionButton as React.ReactNode;
@@ -825,11 +826,12 @@ describe("open-room tab onTabChange callback", () => {
     // Simulate mobile viewport for tabs to appear
     setViewportWidth(500);
 
-    // Override PageHeaderSearchLayout to render tabs with onTabChange
-    const mod =
-      await import("~/components/ui/page-header/PageHeaderSearchLayout");
+    // Override TenantPageSearchRow. The row never receives `tabs` or
+    // `actionButton` (TenantPage renders tabs and actions itself), so those
+    // reads stay empty; the override only replaces the search row.
+    const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
-      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
+      mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const tabs = p.tabs as
@@ -1761,7 +1763,7 @@ describe("released room with running blocks (#3281)", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      const header = vi.mocked(PageHeaderSearchLayout).mock.calls.at(-1)?.[0];
+      const header = vi.mocked(TenantPageSearchRow).mock.calls.at(-1)?.[0];
       const groupFilter = header?.filters?.find(
         (filter) => filter.id === "group",
       );

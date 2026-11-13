@@ -4,7 +4,7 @@ status: accepted
 
 # Kurswartelisten folgen dem bestehenden Prüfumfang
 
-Entscheidung vom 2026-10-31 für [#4767](https://github.com/moto-nrw/project-phoenix/issues/4767).
+Entscheidung vom 2026-10-31 für [#4767](https://github.com/moto-ogs/project-phoenix/issues/4767).
 
 ## Kontext
 

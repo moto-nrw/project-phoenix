@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
 )
 
 // maxTemplateGapAckClassLength bounds one class name; school classes are

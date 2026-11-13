@@ -5,11 +5,11 @@ package compose
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	parentRepo "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/parentpostgres"
-	postgresNative "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	parentRepo "github.com/moto-ogs/project-phoenix/modules/careplan/internal/adapters/parentpostgres"
+	postgresNative "github.com/moto-ogs/project-phoenix/modules/careplan/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/application"
+	parentModels "github.com/moto-ogs/project-phoenix/modules/careplan/internal/rows"
 	"github.com/uptrace/bun"
 )
 

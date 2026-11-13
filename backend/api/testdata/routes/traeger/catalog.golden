@@ -1,0 +1,10 @@
+GET /traeger/catalog/phases
+GET /traeger/catalog/phases/{id}
+POST /traeger/catalog/offerings/{id}/withdraw
+POST /traeger/catalog/phases
+POST /traeger/catalog/phases/{id}/offerings
+POST /traeger/catalog/phases/{id}/preview
+POST /traeger/catalog/phases/{id}/rollout
+POST /traeger/catalog/phases/{id}/withdraw
+PUT /traeger/catalog/offerings/{id}
+PUT /traeger/catalog/phases/{id}

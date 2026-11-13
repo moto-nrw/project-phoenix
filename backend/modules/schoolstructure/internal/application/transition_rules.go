@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
 )
 
 var academicYearPattern = regexp.MustCompile(`^\d{4}-\d{4}$`)

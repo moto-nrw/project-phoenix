@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // checkoutContext holds all context needed for a checkout operation

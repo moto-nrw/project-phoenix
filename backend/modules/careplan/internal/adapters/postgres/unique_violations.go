@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 const pendingStudentDataFieldIndex = "uniq_student_data_change_requests_pending_field"

@@ -3,10 +3,10 @@ package groups_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

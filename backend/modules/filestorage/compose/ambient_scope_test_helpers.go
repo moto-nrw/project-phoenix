@@ -5,7 +5,7 @@ package compose
 import (
 	"context"
 
-	postgresNative "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres"
+	postgresNative "github.com/moto-ogs/project-phoenix/modules/filestorage/internal/adapters/postgres"
 	"github.com/uptrace/bun"
 )
 

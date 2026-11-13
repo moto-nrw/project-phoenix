@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	userModels "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestLetterChildStatuses_DerivesFulfilmentFromAcknowledgement pins the core

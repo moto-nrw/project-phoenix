@@ -122,7 +122,6 @@ export function UnsavedChangesDialog({
       isOpen
       onClose={onCancel}
       title="Änderungen speichern?"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-lg"
       isDismissDisabled={saving}
       footer={footer}
     >

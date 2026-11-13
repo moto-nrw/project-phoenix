@@ -101,6 +101,7 @@ export function errorAlertActions(
           variant="ghost_tone"
           size="compact"
           onClick={retry.onClick}
+          noTooltip="„Erneut versuchen“ wiederholt nur den Schritt, der gerade fehlschlug."
           className="shrink-0 self-center underline underline-offset-2"
         >
           {retry.label}

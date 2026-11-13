@@ -9,8 +9,8 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // keepBilledPrices holds the monthly billing and refuses a change of the
@@ -62,7 +62,7 @@ func priceListsAfter(tariffs []parentbilling.CareTariff, heads []parentbilling.C
 		return after, headsAfter
 	}
 	for _, price := range replacement.Prices {
-		after = append(after, parentbilling.CareTariff{SchoolID: schoolID, CareOfferingID: price.CareOfferingID,
+		after = append(after, parentbilling.CareTariff{SchoolID: schoolID, CareOfferingID: price.CareOfferingID, ModuleName: price.ModuleName,
 			Weekday: price.Weekday, DaysPerWeek: price.DaysPerWeek, ValidFrom: validFrom,
 			MonthlyCents: price.MonthlyCents, SiblingCents: price.SiblingCents, MealExtra: price.MealExtra})
 	}
@@ -169,4 +169,58 @@ func priceError(price parentbilling.CarePrice) string {
 		return "needs the name of the module"
 	}
 	return ""
+}
+
+// modulePriceList is the price list of the module's school from its month
+// with the module's prices replaced: the other modules of that month stay,
+// and the free months come from the list of that month or the one before.
+func modulePriceList(tariffs []parentbilling.CareTariff, heads []parentbilling.CarePriceListHead, module parentbilling.CareModulePriceList) parentbilling.CarePriceList {
+	list := parentbilling.CarePriceList{SchoolID: module.SchoolID, ValidFrom: module.ValidFrom, FreeMonths: []int{}}
+	var latest calendar.Date
+	for _, head := range heads {
+		if head.SchoolID == module.SchoolID && !head.ValidFrom.After(module.ValidFrom) && (latest == "" || head.ValidFrom.After(latest)) {
+			latest, list.FreeMonths = head.ValidFrom, slices.Clone(head.FreeMonths)
+		}
+	}
+	for _, tariff := range tariffs {
+		if tariff.SchoolID == module.SchoolID && tariff.ValidFrom == module.ValidFrom && tariff.CareOfferingID != module.CareOfferingID {
+			list.Prices = append(list.Prices, parentbilling.CarePrice{
+				CareOfferingID: tariff.CareOfferingID, ModuleName: tariff.ModuleName, Weekday: tariff.Weekday,
+				DaysPerWeek: tariff.DaysPerWeek, MonthlyCents: tariff.MonthlyCents, SiblingCents: tariff.SiblingCents, MealExtra: tariff.MealExtra,
+			})
+		}
+	}
+	for _, price := range module.Prices {
+		price.CareOfferingID, price.ModuleName = module.CareOfferingID, module.ModuleName
+		list.Prices = append(list.Prices, price)
+	}
+	return list
+}
+
+// mergeModulePrices combines all changes of a month before validation. The
+// result keeps the other modules and free months; input order cannot lose a
+// preceding module of the same batch.
+func mergeModulePrices(tariffs []parentbilling.CareTariff, heads []parentbilling.CarePriceListHead, modules []parentbilling.CareModulePriceList) ([]parentbilling.CarePriceList, []parentbilling.CareTariff, []parentbilling.CarePriceListHead, error) {
+	after, headsAfter := tariffs, heads
+	byMonth := map[calendar.Date]parentbilling.CarePriceList{}
+	seen := map[[2]string]bool{}
+	for _, module := range modules {
+		key := [2]string{module.ValidFrom.String(), fmt.Sprint(module.CareOfferingID)}
+		if seen[key] {
+			return nil, nil, nil, validation.Errors{"prices": errors.New("module repeated in a month")}
+		}
+		seen[key] = true
+		list, err := normalizePriceList(modulePriceList(after, headsAfter, module))
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		byMonth[module.ValidFrom] = list
+		after, headsAfter = priceListsAfter(after, headsAfter, module.SchoolID, module.ValidFrom, &list)
+	}
+	lists := make([]parentbilling.CarePriceList, 0, len(byMonth))
+	for _, list := range byMonth {
+		lists = append(lists, list)
+	}
+	slices.SortFunc(lists, func(a, b parentbilling.CarePriceList) int { return a.ValidFrom.Compare(b.ValidFrom) })
+	return lists, after, headsAfter, nil
 }

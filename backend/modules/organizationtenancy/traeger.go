@@ -37,6 +37,31 @@ type TraegerMembership struct {
 	Status         string
 	ActivatedAt    *time.Time
 	CreatedAt      time.Time
+	// DisplayName is the name the person carries at this Träger (#4693),
+	// empty until it is set.
+	DisplayName string
+}
+
+// TraegerMemberName is the name of a person at a Träger (#4693).
+type TraegerMemberName struct {
+	AccountID int64
+	Name      string
+}
+
+// TraegerMemberNames reads and sets the name of a Träger membership (#4693).
+// The name belongs to the membership: a person may carry different names at
+// two Träger, and it goes with the membership.
+type TraegerMemberNames interface {
+	// ListTraegerMemberNames returns the names of the given accounts at the
+	// Träger, from memberships in any state (a removed person keeps naming
+	// their past exports); an account without a name or without a
+	// membership there is missing. It joins the caller's administrative or
+	// Träger transaction and reads nothing for an empty set.
+	ListTraegerMemberNames(ctx context.Context, organizationID int64, accountIDs []int64) ([]TraegerMemberName, error)
+	// SetTraegerMemberName sets the name of the account's active membership
+	// on the caller's administrative transaction and reports whether one
+	// was active. The caller validates the name.
+	SetTraegerMemberName(ctx context.Context, organizationID, accountID int64, name string) (bool, error)
 }
 
 // TraegerMembershipQuery reads the Träger memberships and the schools a

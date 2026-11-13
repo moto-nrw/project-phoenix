@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
 )
 
 // slotRoomNames resolves only selectable occurrences, including unselected

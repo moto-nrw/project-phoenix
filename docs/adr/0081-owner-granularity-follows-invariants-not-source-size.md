@@ -4,7 +4,7 @@ status: accepted
 
 # Owner granularity follows invariants, not source size
 
-Decision of 2026-10-23 for [#4547](https://github.com/moto-nrw/project-phoenix/issues/4547).
+Decision of 2026-10-23 for [#4547](https://github.com/moto-ogs/project-phoenix/issues/4547).
 Keep the examined projection and domain owners. Source size triggers inspection,
 not a merger or split. This adds selection criteria to
 [ADR 0066](0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md),
@@ -244,7 +244,7 @@ Existing locks, not checks claimed to have been run by this docs-only change:
 |---|---|
 | Exact write ownership and projection grants | `internal/architecture/cli_test.go`: `TestCheckRejectsMissingOrConflictingTableOwners`, `TestCheckRejectsInvalidReadProjection`, `TestPolicyRejectsProjectionPackageAliasesWithDuplicateGrants` |
 | Canonical domains/platforms, acyclic graph and no domain-to-projection rules | `internal/architecture/canonical_owners_test.go`, `acyclic_target_test.go`, `target_rule_test.go`: `TestPolicyRejectsDomainProjectionRules` |
-| Tenant and relationship-sensitive reads | ADR 0080's Guardian Link, Block Display and Staff Inbox test pointers; `modules/parentmessageinbox/internal/adapters/postgres/projection_test.go`; `modules/parentrequestfeedprojection/internal/adapters/postgres/query_test.go` and `isolation_test.go`; `modules/staffdirectoryview/isolation_test.go` |
+| Tenant and relationship-sensitive reads | ADR 0080's Guardian Link, Block Display and Staff Inbox test pointers; `modules/parentmessageinbox/internal/adapters/postgres/projection_test.go`; `modules/parentrequestfeedprojection/internal/adapters/postgres/query_test.go` and `isolation_test.go`; `modules/staffdirectoryview/behaviortest/isolation_test.go` |
 | Lifecycle and planning behaviour | `modules/careplan/contracttest/care_exit_storage_cutover_test.go`; `modules/timetable/internal/application/template_series_roster_pure_test.go`; `modules/workforce/internal/planning/staff_shift_move_mock_test.go` and `staff_shift_series_integration_test.go` |
 | No forwarding/composition-budget expansion | `test/module_passthrough_ratchet_test.go`, `test/module_legacy_budget_ratchet_test.go`, `test/module_compose_alias_ratchet_test.go`, `internal/architecture/ratchet_budgets_test.go` |
 

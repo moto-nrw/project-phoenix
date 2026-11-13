@@ -3,11 +3,11 @@
 Historical partial-delivery evidence. The bounded-batch completion and current
 replay contract are recorded in [the follow-up report](data-import-batches-2708.md).
 
-Issue: [#2708](https://github.com/moto-nrw/project-phoenix/issues/2708).
+Issue: [#2708](https://github.com/moto-ogs/project-phoenix/issues/2708).
 Implementation baseline: `939126a901186f7bbaeb984fee5ba7b10771a329`.
 Measured locally on 2026-09-10, macOS arm64, PostgreSQL 17.11.
 This flow-specific evidence supplements accepted checkpoint
-[#3020](https://github.com/moto-nrw/project-phoenix/issues/3020).
+[#3020](https://github.com/moto-ogs/project-phoenix/issues/3020).
 It is not a staging or production observation window.
 
 ## Cutover and ownership

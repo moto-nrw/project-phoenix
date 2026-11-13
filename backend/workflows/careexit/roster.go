@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // RosterTimetable is the Timetable half of a planned participant since the

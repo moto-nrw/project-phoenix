@@ -6,9 +6,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
 )
 
 var (

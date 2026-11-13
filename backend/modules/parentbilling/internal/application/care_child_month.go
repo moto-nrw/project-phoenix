@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The billing unit child-month (ADR 0158, Nachtrag Kind-Monat): the monthly

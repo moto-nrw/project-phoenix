@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // flowUnit is what a public flow of one receiver shares: the unit of work

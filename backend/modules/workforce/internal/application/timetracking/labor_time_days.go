@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // breakStep is one §4 ArbZG step: above OverMinutes of net work time a break

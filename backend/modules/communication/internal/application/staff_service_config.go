@@ -3,7 +3,7 @@ package application
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are

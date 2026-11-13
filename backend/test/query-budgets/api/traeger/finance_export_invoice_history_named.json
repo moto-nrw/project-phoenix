@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.finance_export_invoice_history_named",
+  "max": 5,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/finance-exports/invoice-history/{kind}/{id} (#4693) when colleagues acted:\nthe selects of api.traeger.finance_export_invoice_history and the names of the colleagues at the Träger of the\nsession (Organisation & Tenancy, platform.traeger_member_names) in one statement. Flat in the number of colleagues.",
+  "route": "GET /traeger/finance-exports/invoice-history/{kind}/{id}"
+}

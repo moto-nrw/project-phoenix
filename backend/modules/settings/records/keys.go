@@ -3,7 +3,7 @@ package records
 import (
 	"strconv"
 
-	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
+	reviewsettings "github.com/moto-ogs/project-phoenix/modules/settings/review"
 )
 
 // Settings key constants. Use these instead of string literals to ensure
@@ -150,6 +150,22 @@ const (
 const (
 	KeyTrackingAutoCheckoutEnabled      = "tracking.auto_checkout_enabled"
 	KeyTrackingAutoCheckoutGraceMinutes = "tracking.auto_checkout_grace_minutes"
+)
+
+// Time-tracking credit settings (#6851, #6852): extra minutes for every
+// regular checkout and the rounding of each completed work block.
+const (
+	KeyTrackingPackUpMinutes           = "tracking.pack_up_minutes"
+	KeyTrackingRoundingIntervalMinutes = "tracking.rounding_interval_minutes"
+	KeyTrackingRoundingMode            = "tracking.rounding_mode"
+)
+
+// Values of KeyTrackingRoundingIntervalMinutes and KeyTrackingRoundingMode.
+const (
+	TrackingRoundingOff     = "0"
+	TrackingRoundingNearest = "nearest"
+	TrackingRoundingUp      = "up"
+	TrackingRoundingDown    = "down"
 )
 
 // Operations settings.

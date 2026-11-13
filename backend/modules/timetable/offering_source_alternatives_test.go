@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // TestDroppedChildrenAlternatives: Schule am Berg chose only "Randstunde" as

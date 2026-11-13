@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // Träger-Portal sign-in (ADR 0084, #4649). The Träger session has scope org,
@@ -152,11 +152,12 @@ func (s *AccountAuthentication) CheckPasswordLogin(ctx context.Context, email, p
 // only in the Träger-Büro has no school to file it in (ADR 0084), so the
 // sign-in is only logged.
 func (s *AccountAuthentication) traegerLoginAudit(ctx context.Context, accountID int64, ipAddress, userAgent string) *mintAudit {
-	if _, _, err := s.resolveAccountTenantDefault(ctx, accountID); err != nil {
+	schoolID, _, err := s.resolveAccountTenantDefault(ctx, accountID)
+	if err != nil {
 		s.logger.Info("Träger sign-in without a school ledger", slog.Int64("account_id", accountID))
 		return nil
 	}
-	return &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent}
+	return &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: schoolID}
 }
 
 // listTraegerOrganizations reads the Träger of the account outside the mint;

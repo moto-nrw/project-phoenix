@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	announcementService "github.com/moto-nrw/project-phoenix/modules/communication"
+	announcementService "github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // Wire shapes of the surveys (#4781). Ids travel as strings.

@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // Renewal terms (#6456). A renewal opens a new care phase, and the Träger

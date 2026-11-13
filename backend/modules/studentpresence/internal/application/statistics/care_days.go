@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Care days of a report window: weekdays without a public holiday, a

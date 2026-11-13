@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

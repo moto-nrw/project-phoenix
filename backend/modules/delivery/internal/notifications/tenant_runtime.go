@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/delivery/internal/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

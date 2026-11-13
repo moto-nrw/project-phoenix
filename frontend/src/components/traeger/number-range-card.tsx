@@ -157,7 +157,7 @@ export function NumberRangeCard({
           }}
         >
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id={`number-range-pattern-${service}`}
             name="pattern"
             label="Muster der Rechnungsnummer"

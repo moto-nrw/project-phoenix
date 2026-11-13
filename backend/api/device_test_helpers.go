@@ -5,10 +5,10 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	devicefleetRepositoryAdapter "github.com/moto-ogs/project-phoenix/modules/devicefleet/compose/repositoryadapter"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // NewDeviceRepository serves the retained device repository shape from an

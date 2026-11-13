@@ -39,7 +39,7 @@ export function CheckboxCard({
       <span className="min-w-0 flex-1 leading-snug">
         <span className="block font-medium text-gray-900">{label}</span>
         {hint ? (
-          <span className="mt-0.5 block text-xs font-normal text-gray-500">
+          <span className="mt-0.5 block text-sm font-normal text-gray-500">
             {hint}
           </span>
         ) : null}

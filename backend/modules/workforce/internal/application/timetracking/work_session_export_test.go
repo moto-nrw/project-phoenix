@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,6 +42,7 @@ func wsCreateTestServiceWithAbsenceRepo() (*workSessionService, *wsMockWorkSessi
 		auditRepo:                 auditRepo,
 		absenceRepo:               absenceRepo,
 		GroupSupervisorRepository: supervisorRepo,
+		settings:                  &wsMockSettingsResolver{},
 	}
 
 	return service, sessionRepo, breakRepo, auditRepo, absenceRepo, supervisorRepo

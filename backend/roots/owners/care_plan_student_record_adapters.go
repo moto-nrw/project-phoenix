@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 type CompanionRepository struct{ Capability careplan.Capability }

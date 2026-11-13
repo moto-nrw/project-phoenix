@@ -1,6 +1,8 @@
 "use client";
 
 import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
+import { COLOR_BAR_FALLBACK } from "../color-bar";
+import { PLANNING_COLORS } from "./planning-colors";
 
 /**
  * PlanBlock is the shared shift/occupancy card: white surface, a 3px
@@ -77,11 +79,6 @@ interface PlanBlockProps {
   readonly "aria-label"?: string;
 }
 
-/** Bestandskonstante `UNTYPED_SHIFT_COLOR` (frühere per-Zell-Wochenansicht) — die
- *  neutrale Kante für Blöcke ohne Schichtart, jetzt hier zentralisiert. */
-const UNTYPED_EDGE_COLOR = "#D1D5DB";
-const CANCELLED_EDGE_COLOR = "#9CA3AF";
-
 /**
  * The single sanctioned repeating-linear-gradient in the entire kit
  *: a hard-edged hatch for
@@ -119,8 +116,8 @@ export function PlanBlock({
 }: PlanBlockProps) {
   const isCancelled = status === "cancelled";
   const edgeColor = isCancelled
-    ? CANCELLED_EDGE_COLOR
-    : (color ?? UNTYPED_EDGE_COLOR);
+    ? PLANNING_COLORS.cancelled
+    : (color ?? COLOR_BAR_FALLBACK);
   const showTint = tinted && !isCancelled;
 
   // Aufrufer-Positionierung UNTER die Rezeptur mergen: die Rezeptur-Keys sind

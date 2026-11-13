@@ -3,7 +3,7 @@ package enrollmenthttp
 import (
 	"context"
 
-	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // toStudentHistorySummaries batches only pinned schema display metadata.

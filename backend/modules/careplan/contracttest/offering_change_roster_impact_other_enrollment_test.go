@@ -7,11 +7,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The approval of a parent request takes the same path as a direct booking

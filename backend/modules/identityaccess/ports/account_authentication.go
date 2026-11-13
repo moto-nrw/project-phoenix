@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // SchoolDirectory reads the Organisation & Tenancy school facts login

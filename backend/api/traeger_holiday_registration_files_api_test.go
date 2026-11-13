@@ -18,18 +18,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	enrollmentHTTP "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	enrollmentHTTP "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 func (f reviewFixture) file(t *testing.T, token, suffix string) *httptest.ResponseRecorder {
@@ -76,7 +76,7 @@ func TestHolidayRegistrationFilesKeepAnsweredInactiveAndArchivedCriteria(t *test
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	later := decodeSchoolPortalData[receiptBody](t, rec.Body.Bytes())
 
-	_, _, _, records := enrollmentCompose.NewHolidayRegistrationReview(testHealthCipher(), nil, nil, owners.HolidayTestSchoolCalendar{})
+	_, _, _, records := enrollmentCompose.NewHolidayRegistrationReview(testHealthCipher(), nil, nil, owners.HolidayTestSchoolCalendar{}, nil)
 	reviewer := enrollment.HolidayReviewer{
 		OrganizationID: f.office.organization,
 		AccountID:      testpkg.CreateTestAccount(t, f.db, "holiday-records").ID,
@@ -212,7 +212,7 @@ func holidayFilesRouter(t *testing.T, f reviewFixture, account int64, rights ...
 		AccountID: account, OrganizationID: f.office.organization, Scope: tenant.ScopeOrg, Permissions: rights,
 	})
 	require.NoError(t, err)
-	review, places, allocation, records := enrollmentCompose.NewHolidayRegistrationReview(testHealthCipher(), nil, nil, owners.HolidayTestSchoolCalendar{})
+	review, places, allocation, records := enrollmentCompose.NewHolidayRegistrationReview(testHealthCipher(), nil, nil, owners.HolidayTestSchoolCalendar{}, nil)
 	_, wishes := enrollmentCompose.NewHolidayWishes(testHealthCipher())
 	resource := enrollmentHTTP.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil, owners.HolidayTestSchoolCalendar{}),
 		review, records, wishes, places, allocation, allocation, unnamedHolidaySchools{},
@@ -273,7 +273,7 @@ func TestHolidayRegistrationKeepsTheRetentionOfItsText(t *testing.T) {
 			PrivacyConsent string `json:"privacy_consent"`
 		} `json:"consent_texts"`
 	}](t, rec.Body.Bytes())
-	assert.Equal(t, 4, offer.ConsentTexts.Version)
+	assert.Equal(t, 5, offer.ConsentTexts.Version)
 	assert.Equal(t, 180, offer.ConsentTexts.RetentionDays)
 	assert.Contains(t, offer.ConsentTexts.PrivacyConsent, "Er löscht sie 180 Tage nach den Ferien.")
 	assert.Contains(t, offer.ConsentTexts.PrivacyConsent, "Gesundheitsangaben löscht er schon 92 Tage nach den Ferien.")

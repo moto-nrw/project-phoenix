@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 // listStaffFilters holds the parsed query parameters of the directory read.

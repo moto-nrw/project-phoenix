@@ -12,10 +12,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // Erklärungen (#3430): the declaration part of a feed item, the submission

@@ -27,6 +27,7 @@ GET /api/staff/time-tracking/month-close
 GET /api/staff/time-tracking/overview
 GET /api/staff/time-tracking/payroll-dispatch
 GET /api/staff/time-tracking/payroll-rules
+GET /api/staff/time-tracking/target-coverage
 GET /api/staff/{id}
 GET /api/staff/{id}/absences
 GET /api/staff/{id}/avatar

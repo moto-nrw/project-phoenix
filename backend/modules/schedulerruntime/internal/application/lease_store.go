@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 )
 
 // persistedLeaseTerm bounds the storage value accepted by the lease port.

@@ -81,6 +81,7 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
   debtorNumber: "",
   deletesOn: null,
   healthDeletesOn: null,
+  mailProblems: [],
   guardianAddress: null,
   secondGuardian: null,
   children: [

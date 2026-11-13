@@ -1,6 +1,6 @@
 package presence
 
-import "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+import "github.com/moto-ogs/project-phoenix/modules/studentpresence"
 
 // attendanceDetail carries the three WP-B10 fields of a snapshot into the
 // realtime event. A nil snapshot yields nil, so the event goes out with

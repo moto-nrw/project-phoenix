@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,6 +24,9 @@ func TestPersonColumnsAreSubjectOrHandling(t *testing.T) {
 		"accepted_account_id", "account_id", "author_account_id", "created_student_id", "guardian_account_id",
 		"guardian_profile_id", "last_sender_account_id", "matched_student_id", "membership_id", "organizer_account_id",
 		"organizer_staff_id", "parent_account_id", "person_id", "regular_staff_id", "related_staff_id",
+		// The recipient of a shared child note: the row is that person's
+		// unread marker (#6854).
+		"recipient_account_id",
 		"sender_account_id", "signer_account_id", "staff_id", "student_high_id", "student_id", "student_low_id",
 		"student_profile_id", "subject_staff_id", "substitute_staff_id", "target_account_id", "target_staff_id", "user_id",
 	}

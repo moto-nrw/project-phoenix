@@ -52,6 +52,7 @@
   "account_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "tenant_access_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "account_not_in_school": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "account_shared_across_schools": "У вас немає доступу до: {object}. Зверніться до школи.",
   "lehrkraft_role_immutable": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "access_name_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "caterer_address_taken": "Ця адреса електронної пошти вже належить іншому обліковому запису moto. Будь ласка, вкажіть іншу адресу.",

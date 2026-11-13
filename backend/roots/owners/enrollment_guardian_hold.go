@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/guardianhold"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/guardianhold"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // EnrollmentGuardianHold is Enrollment's held renewal permission (#6638).

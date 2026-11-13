@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	runtime "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	runtime "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/adapters/postgres/runtime"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

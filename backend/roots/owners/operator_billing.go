@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"time"
 
-	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+	devicefleetCompose "github.com/moto-ogs/project-phoenix/modules/devicefleet/compose"
+	organizationModule "github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	schoolMembershipCompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
 )
 
 // NewOperatorBilling composes Organisation & Tenancy's billing report

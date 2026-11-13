@@ -16,6 +16,7 @@ type TraegerAccountChange struct {
 	Action          string
 	TargetAccountID *int64
 	TargetEmail     *string
+	TargetName      *string
 	RolesBefore     []string
 	RolesAfter      []string
 }

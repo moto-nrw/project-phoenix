@@ -3,8 +3,8 @@ package owners
 import (
 	"encoding/json"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 func ParentDeparturePolicy() parentportal.DeparturePolicy {

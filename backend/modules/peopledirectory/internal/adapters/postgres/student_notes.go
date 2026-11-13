@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres/calendar"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/adapters/postgres/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -39,13 +39,16 @@ const studentNotesTable = "users.student_notes"
 
 // StudentNoteStore is the persistence port over users.student_notes. It shares
 // the database runtime with the person and student stores.
-type StudentNoteStore struct{ database Database }
+type StudentNoteStore struct {
+	database Database
+	students StudentDirectory
+}
 
-func NewStudentNoteStore(database Database) *StudentNoteStore {
-	if database == nil {
-		panic("people directory postgres: database runtime is required")
+func NewStudentNoteStore(database Database, students StudentDirectory) *StudentNoteStore {
+	if database == nil || students == nil {
+		panic("people directory postgres: database runtime and student directory are required")
 	}
-	return &StudentNoteStore{database: database}
+	return &StudentNoteStore{database: database, students: students}
 }
 
 func (s *StudentNoteStore) tenantDatabase(ctx context.Context) (bun.IDB, TenantScope, error) {

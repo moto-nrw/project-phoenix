@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // The Audit Platform's trails the Timetable owner writes through

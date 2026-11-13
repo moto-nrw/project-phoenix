@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	educationRepo "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
 )
 
 // EducationRooms serves the group service's room directory from the
@@ -26,6 +26,11 @@ func (r EducationRooms) FindRoom(ctx context.Context, id int64) (*educationRepo.
 	room, err := r.rooms.FindRoom(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	// An archived room only keeps its history; no group may move into it
+	// (#6845).
+	if room.ArchivedAt != nil {
+		return nil, facilities.ErrRoomNotFound
 	}
 	return &educationRepo.RoomProjection{
 		ID: room.ID, CreatedAt: room.CreatedAt, UpdatedAt: room.UpdatedAt,

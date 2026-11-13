@@ -7,7 +7,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Withdrawal and termination of a care contract in the parents portal

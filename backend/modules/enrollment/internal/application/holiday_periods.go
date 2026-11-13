@@ -11,8 +11,8 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Holiday periods of a Träger (#4659). The caller runs every operation in the
@@ -126,7 +126,7 @@ func (h *HolidayPeriods) CreateHolidayPeriod(ctx context.Context, organizationID
 	if err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
-	if _, err := h.forms.InsertHolidayPeriodForm(ctx, organizationID, periodID, 0, enrollment.HolidayFormTemplate(), nil, enrollment.HolidayAddressOff); err != nil {
+	if _, err := h.forms.InsertHolidayPeriodForm(ctx, organizationID, periodID, 0, enrollment.HolidayFormTemplate(), nil, enrollment.HolidayAddressOff, enrollment.HolidayHealthOptional); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
 	return h.markedPeriod(ctx, organizationID, periodID)

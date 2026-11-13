@@ -96,9 +96,9 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0075",
       "id": "roots/devicescanbinding/attendance.Toggle",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "#5710: Consumer-port adapter that translates a missing kiosk session into the Process Device Scan sentinel, so the kiosk receives iot.no_active_session instead of a 500 (ADR 0075 consumer-port adapter form)."
     },
     {
       "decision": "0090",

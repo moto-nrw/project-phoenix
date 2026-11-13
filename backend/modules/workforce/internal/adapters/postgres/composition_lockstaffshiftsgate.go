@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func LockStaffShiftsGate(ctx context.Context, staffID int64, lock func(context.Context, string) error) error {

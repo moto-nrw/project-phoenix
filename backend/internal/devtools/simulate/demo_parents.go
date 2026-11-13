@@ -7,7 +7,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/demoprofile"
+	"github.com/moto-ogs/project-phoenix/demoprofile"
 )
 
 // Parent ticks of the public demo (#3468). Other parents of the demo school

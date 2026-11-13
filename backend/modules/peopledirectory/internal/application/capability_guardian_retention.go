@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *Service) DeleteExpiredChildlessGuardians(ctx context.Context, retentionDays int, openInvitations peopledirectory.OpenGuardianInvitations) (int, error) {

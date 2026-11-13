@@ -6,10 +6,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 	"github.com/stretchr/testify/require"
 )
 

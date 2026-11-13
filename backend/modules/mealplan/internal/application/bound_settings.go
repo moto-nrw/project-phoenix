@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/ports"
 )
 
 // Settings are the meal plan's settings resolvers, bound at construction.

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/contact"
 )
 
 func (s *Intake) newStatusToken() (string, error) {

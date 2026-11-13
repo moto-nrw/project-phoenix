@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	parentModels "github.com/moto-ogs/project-phoenix/modules/careplan/internal/rows"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The enrollment.phases.audience values (#1663) the fixtures below write

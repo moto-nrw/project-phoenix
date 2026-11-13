@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"log/slog"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 )
 
 // operatorRepositories are the retained repositories the operator seams

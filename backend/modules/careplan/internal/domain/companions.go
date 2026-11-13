@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // CompanionStudent is what the companion rules read from one child's

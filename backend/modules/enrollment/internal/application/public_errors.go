@@ -3,9 +3,9 @@ package application
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/selection"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // The HTTP adapters classify refusals by Enrollment's public values, but some
@@ -38,6 +38,7 @@ var publicErrorAliases = []struct {
 	{careplan.ErrBookingRequestNotFound, enrollment.ErrDecisionRequestNotFound},
 	{careplan.ErrBookingChildNotFound, enrollment.ErrDecisionChildNotFound},
 	{careplan.ErrCareOfferingNotFound, enrollment.ErrCareOfferingNotFound},
+	{careplan.ErrTraegerCopyDelete, enrollment.ErrTraegerCopyDelete},
 	{careplan.ErrCareOfferingConfigInvalid, enrollment.ErrCareOfferingInvalid},
 	{careplan.ErrCareOfferingSourceConflict, enrollment.ErrCareOfferingSourceConflict},
 	{careplan.ErrCareOfferingTemplatePeriodMismatch, enrollment.ErrCareOfferingTemplatePeriodMismatch},

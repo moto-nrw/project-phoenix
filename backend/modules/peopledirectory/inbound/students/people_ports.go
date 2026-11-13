@@ -3,8 +3,8 @@ package students
 import (
 	context "context"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PersonRecords is the person half the routes cannot yet reach through the

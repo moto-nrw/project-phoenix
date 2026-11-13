@@ -12,9 +12,9 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/templates"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The runs of the Jahresbescheide (#6219, ADR 0182). A run assesses the

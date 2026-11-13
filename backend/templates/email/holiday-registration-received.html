@@ -58,6 +58,20 @@
         {{if .Binding}}<p style="margin: 8px 0 0 0; font-size: 14px;">Die Anmeldung ist verbindlich.{{if .Waitlisted}} Das gilt auch für einen Platz von der Warteliste.{{end}}</p>{{end}}
     </div>
 
+    {{if .StatusURL}}
+    <p style="margin-top: 24px;">Den Stand Ihrer Anmeldung sehen Sie jederzeit hier:</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.StatusURL}}">Stand ansehen</a>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht geht, kopieren Sie diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.StatusURL}}">{{.StatusURL}}</a>
+    </div>
+    <p style="font-size: 14px; color: #6b7280;">Geben Sie den Link nicht weiter. Wer ihn hat, sieht den Stand Ihrer Anmeldung.</p>
+    {{end}}
+
     {{with .Declaration}}
     <div class="highlight-box" style="margin-top: 24px;">
         <p style="margin: 0; font-size: 14px;"><strong>Ihre Erklärung</strong></p>

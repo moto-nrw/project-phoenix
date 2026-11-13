@@ -5,18 +5,18 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/staffdirectoryview"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/staffdirectoryview"
 )
 
 // staffIdentityQuery is the consumer-owned account-facts port for staff projections.

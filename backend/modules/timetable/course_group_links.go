@@ -3,7 +3,7 @@ package timetable
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // CourseOfferingLink is a care offering that may feed course groups: through

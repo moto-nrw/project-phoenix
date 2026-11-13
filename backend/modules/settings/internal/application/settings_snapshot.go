@@ -3,7 +3,7 @@ package config
 import (
 	"context"
 
-	settingsRecords "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	settingsRecords "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // Prefetch resolves keys in one read and attaches the snapshot to ctx.

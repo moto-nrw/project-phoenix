@@ -15,14 +15,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // confidentialityNote matches the wording of the other printed exports.

@@ -8,6 +8,7 @@ import {
   type MouseEvent,
 } from "react";
 import { NavigationProgressContext } from "~/components/ui/navigation-progress-store";
+import { currentUrl, navigationTarget } from "~/components/ui/navigation-url";
 
 type NavigationEvent = Parameters<
   NonNullable<ComponentProps<typeof NextLink>["onNavigate"]>
@@ -56,20 +57,6 @@ export function useNavigationLinkProgress(
   };
 }
 
-function navigationTarget(href: string): string | null {
-  try {
-    const target = new URL(href, window.location.href);
-    if (target.origin !== window.location.origin) return null;
-    return normalizedUrl(target.pathname, target.search);
-  } catch {
-    return null;
-  }
-}
-
-function currentUrl() {
-  return normalizedUrl(window.location.pathname, window.location.search);
-}
-
 function isClientSideLinkClick(event: MouseEvent<HTMLAnchorElement>) {
   if (
     event.button !== 0 ||
@@ -86,9 +73,4 @@ function isClientSideLinkClick(event: MouseEvent<HTMLAnchorElement>) {
     (link.target === "" || link.target === "_self") &&
     !link.hasAttribute("download")
   );
-}
-
-function normalizedUrl(pathname: string, search: string) {
-  const normalizedSearch = new URLSearchParams(search).toString();
-  return normalizedSearch === "" ? pathname : `${pathname}?${normalizedSearch}`;
 }

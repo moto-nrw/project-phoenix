@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 

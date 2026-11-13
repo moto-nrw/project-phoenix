@@ -20,15 +20,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablehttp "github.com/moto-nrw/project-phoenix/modules/timetable/http"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablehttp "github.com/moto-ogs/project-phoenix/modules/timetable/http"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 type weekProtocolCaller struct {

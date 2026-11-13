@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // PersonWriter is the owner's person write path (#3349); the composition root

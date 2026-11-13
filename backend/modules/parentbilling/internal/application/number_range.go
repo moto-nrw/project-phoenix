@@ -8,7 +8,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // The pattern of a number range (spec #4611 user story 75, ADR 0119): text

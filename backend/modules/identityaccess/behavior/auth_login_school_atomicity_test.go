@@ -9,9 +9,9 @@ import (
 	"net"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

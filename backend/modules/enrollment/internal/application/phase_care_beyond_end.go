@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // careBeyondShortenedEnd lists the confirmed children of the phase whose

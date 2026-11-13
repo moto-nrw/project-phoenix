@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/feedback"
-	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/feedback"
+	"github.com/moto-ogs/project-phoenix/modules/feedback/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/feedback/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *Service) Submit(ctx context.Context, input feedback.CreateEntry) (feedback.Entry, error) {

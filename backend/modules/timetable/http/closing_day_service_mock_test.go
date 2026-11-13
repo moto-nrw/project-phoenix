@@ -3,7 +3,7 @@ package timetablehttp
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
 )
 
 // ClosingDaysMock is a func-field test double for the ClosingDays port.

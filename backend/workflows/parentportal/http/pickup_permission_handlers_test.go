@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

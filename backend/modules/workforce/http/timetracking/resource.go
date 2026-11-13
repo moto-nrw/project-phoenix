@@ -3,14 +3,16 @@ package timetracking
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
-// OwnAbsenceWrites are the staff member's absence writes that may cascade a
-// sick report into Dienstplan and Betreuungsplan (#1843). The root binds the
-// shift-plan-sync workflow's entry, which runs Workforce's write and the
-// cascade in one tenant transaction (#4825).
+// OwnAbsenceWrites are the staff member's absence writes that may cascade an
+// absence into Dienstplan and Betreuungsplan (#1843, #6847), the withdrawal
+// of an approved request among them. The root binds the shift-plan-sync
+// workflow's entry, which runs Workforce's write and the cascade in one
+// tenant transaction (#4825).
 type OwnAbsenceWrites interface {
+	CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error
 	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
 	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
 	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error

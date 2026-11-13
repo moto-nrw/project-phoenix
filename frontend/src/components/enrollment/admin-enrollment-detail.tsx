@@ -4,6 +4,11 @@ import {
   APPROVAL_WITHOUT_OFFERING_COPY,
   approvalNeedsOfferingConfirm,
 } from "~/components/enrollment/approval-without-offering";
+import {
+  APPROVAL_WITH_CHANGED_TERMS_COPY,
+  changedOfferings,
+  submittedTermsMessage,
+} from "~/components/enrollment/offering-term-changes";
 import { isTerminalChildStatus } from "~/lib/enrollment-status";
 import type { ChildStatus } from "~/lib/enrollment-status";
 import { InsetPanel } from "~/components/ui/inset-panel";
@@ -154,6 +159,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       childId: string,
       status: DecisionStatus,
       existingChildChoice?: ExistingChildChoice,
+      acceptOfferingChanges?: boolean,
     ) => Promise<void>
   >(async () => undefined);
   const latestRestoreRef = useRef<() => Promise<void>>(async () => undefined);
@@ -165,9 +171,17 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [approvalWithoutOfferingChildId, setApprovalWithoutOfferingChildId] =
-    useState<{ id: string; existingChildChoice?: ExistingChildChoice } | null>(
-      null,
-    );
+    useState<{
+      id: string;
+      existingChildChoice?: ExistingChildChoice;
+      acceptOfferingChanges?: boolean;
+    } | null>(null);
+  // Ein Angebot hat sich seit der Anmeldung geändert: das Büro bestätigt die
+  // neuen Angaben vor dem Bestätigen des Kindes (#6837).
+  const [changedTermsApproval, setChangedTermsApproval] = useState<{
+    child: AdminRequestChild;
+    existingChildChoice?: ExistingChildChoice;
+  } | null>(null);
   // Ein Kind, das vielleicht schon angemeldet ist: das Büro wählt vor dem
   // Bestätigen das bestehende Kind oder ein neues (#6053).
   const [existingChildChoiceChild, setExistingChildChoiceChild] =
@@ -253,6 +267,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     childId: string,
     status: DecisionStatus,
     existingChildChoice?: ExistingChildChoice,
+    acceptOfferingChanges?: boolean,
   ) => {
     if (!data) return;
     const reason = (reasons[childId] ?? "").trim();
@@ -261,16 +276,28 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     setDecisionErrorChildId(childId);
     let saved = false;
     try {
-      // The office's choice travels only when there was one to make.
-      await (existingChildChoice
-        ? decideAdminChild(
-            requestId,
-            childId,
-            status,
-            reason || undefined,
-            existingChildChoice,
-          )
-        : decideAdminChild(requestId, childId, status, reason || undefined));
+      // The office's choice and confirmation travel only when there was
+      // one to make.
+      if (acceptOfferingChanges === true) {
+        await decideAdminChild(
+          requestId,
+          childId,
+          status,
+          reason || undefined,
+          existingChildChoice,
+          true,
+        );
+      } else if (existingChildChoice) {
+        await decideAdminChild(
+          requestId,
+          childId,
+          status,
+          reason || undefined,
+          existingChildChoice,
+        );
+      } else {
+        await decideAdminChild(requestId, childId, status, reason || undefined);
+      }
       saved = true;
     } catch (err) {
       logger.error("admin_enrollment_decide_failed", {
@@ -282,7 +309,12 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       await decisionErrors.show(err, {
         object: "die Entscheidung",
         retry: () =>
-          void latestDecideRef.current(childId, status, existingChildChoice),
+          void latestDecideRef.current(
+            childId,
+            status,
+            existingChildChoice,
+            acceptOfferingChanges,
+          ),
       });
     } finally {
       setBusyChildId(null);
@@ -354,6 +386,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     child: AdminRequestChild,
     status: DecisionStatus,
     existingChildChoice?: ExistingChildChoice,
+    acceptOfferingChanges?: boolean,
   ) => {
     if (
       status === "approved" &&
@@ -361,6 +394,14 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       needsExistingChildChoice(child)
     ) {
       setExistingChildChoiceChild(child);
+      return;
+    }
+    if (
+      status === "approved" &&
+      acceptOfferingChanges !== true &&
+      changedOfferings(child).length > 0
+    ) {
+      setChangedTermsApproval({ child, existingChildChoice });
       return;
     }
     if (
@@ -373,10 +414,19 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           : (child.offerings?.length ?? 0),
       })
     ) {
-      setApprovalWithoutOfferingChildId({ id: child.id, existingChildChoice });
+      setApprovalWithoutOfferingChildId({
+        id: child.id,
+        existingChildChoice,
+        acceptOfferingChanges,
+      });
       return;
     }
-    void handleDecide(child.id, status, existingChildChoice);
+    void handleDecide(
+      child.id,
+      status,
+      existingChildChoice,
+      acceptOfferingChanges,
+    );
   };
 
   const submittedAt = formatDateTime(data.submitted_at, {
@@ -430,6 +480,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   pending.id,
                   "approved",
                   pending.existingChildChoice,
+                  pending.acceptOfferingChanges,
                 );
               }
             }}
@@ -440,6 +491,44 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
               type="warning"
               message={APPROVAL_WITHOUT_OFFERING_COPY.message}
             />
+          </ConfirmationModal>
+          <ConfirmationModal
+            isOpen={changedTermsApproval !== null}
+            onClose={() => setChangedTermsApproval(null)}
+            onConfirm={() => {
+              const pending = changedTermsApproval;
+              setChangedTermsApproval(null);
+              if (pending !== null) {
+                requestDecision(
+                  pending.child,
+                  "approved",
+                  pending.existingChildChoice,
+                  true,
+                );
+              }
+            }}
+            title={APPROVAL_WITH_CHANGED_TERMS_COPY.title}
+            confirmText={APPROVAL_WITH_CHANGED_TERMS_COPY.confirmText}
+          >
+            <Alert
+              type="warning"
+              message={APPROVAL_WITH_CHANGED_TERMS_COPY.message}
+            />
+            <ul className="mt-3 space-y-2 text-sm">
+              {(changedTermsApproval
+                ? changedOfferings(changedTermsApproval.child)
+                : []
+              ).map((offering) => (
+                <li key={offering.offering_id}>
+                  <span className="font-medium text-gray-900">
+                    {offering.offering_name}
+                  </span>
+                  <span className="block text-gray-600">
+                    {submittedTermsMessage(offering)}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </ConfirmationModal>
           {existingChildChoiceChild ? (
             <ChoiceModal

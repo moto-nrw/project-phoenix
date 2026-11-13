@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	calendarSvc "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
 	"github.com/stretchr/testify/assert"
 )
 

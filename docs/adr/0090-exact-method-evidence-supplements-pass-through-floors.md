@@ -4,7 +4,7 @@ status: accepted
 
 # Exact method evidence supplements pass-through floors
 
-Decision of 2026-10-23 for [#4738](https://github.com/moto-nrw/project-phoenix/issues/4738).
+Decision of 2026-10-23 for [#4738](https://github.com/moto-ogs/project-phoenix/issues/4738).
 First implementation cut of ADR 0083 section 3. ADR 0089 is accepted on
 `development`; this PR uses the following decision number, 0090.
 

@@ -3,8 +3,8 @@
 package api
 
 import (
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // The student seams of a graph that has no composed owner to hand them: test

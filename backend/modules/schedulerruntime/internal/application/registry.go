@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 )
 
 // Job is one embedded worker job. Start registers its polling loop with the

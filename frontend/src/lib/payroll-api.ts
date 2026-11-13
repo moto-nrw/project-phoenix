@@ -278,6 +278,50 @@ export async function fetchPayrollDispatch(): Promise<PayrollDispatchView | null
   return json.data.latest ? mapPayrollDispatch(json.data.latest) : null;
 }
 
+interface BackendPayrollTargetCoverage {
+  year: number;
+  month: number;
+  staff_total: number;
+  staff_without_target: number;
+}
+
+/**
+ * Wie viele Beschäftigte im Monat kein Soll haben (#6890). Ohne Soll zählen
+ * Krankheit, Urlaub und Fortbildung 0 Stunden. Dieselbe Rechnung wie die
+ * Zeitkonten, nur die Zahlen.
+ */
+export interface PayrollTargetCoverage {
+  year: number;
+  month: number;
+  staffTotal: number;
+  staffWithoutTarget: number;
+}
+
+/**
+ * Die Soll-Prüfung des laufenden Monats. Braucht time_tracking:manage oder
+ * config:manage und das Modul Zeiterfassung.
+ */
+export async function fetchPayrollTargetCoverage(): Promise<PayrollTargetCoverage> {
+  const response = await sessionFetch(
+    "/api/staff/time-tracking/target-coverage",
+  );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(
+      response,
+      `Failed to fetch payroll target coverage: ${response.statusText}`,
+    );
+  }
+  const json = (await response.json()) as {
+    data: BackendPayrollTargetCoverage;
+  };
+  return {
+    year: json.data.year,
+    month: json.data.month,
+    staffTotal: json.data.staff_total,
+    staffWithoutTarget: json.data.staff_without_target,
+  };
+}
+
 /**
  * Sätze zu den Grund-Codes des Versands. Derselbe Wortlaut steht in der
  * Hinweis-E-Mail des Backends (payroll_dispatch_mail.go).

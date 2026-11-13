@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 )
 
 // GetForReview authorizes the child before loading display identities. It

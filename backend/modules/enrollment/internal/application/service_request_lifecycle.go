@@ -22,15 +22,6 @@ func (m *Service) CountPhaseRequests(ctx context.Context, phaseID int64) (int, e
 	return m.store.CountPhaseRequests(ctx, phaseID)
 }
 
-// DeletePhaseRequests deletes submissions and their dependent intake rows.
-// Materialized students are not owned by, or deleted with, an application.
-func (m *Service) DeletePhaseRequests(ctx context.Context, phaseID int64) (int, error) {
-	if err := m.transactions.RequireTransaction(ctx); err != nil {
-		return 0, err
-	}
-	return m.store.DeletePhaseRequests(ctx, phaseID)
-}
-
 func (m *Service) FullyRejectedRequestsBefore(ctx context.Context, cutoff time.Time) ([]int64, error) {
 	if err := m.transactions.RequireTransaction(ctx); err != nil {
 		return nil, err

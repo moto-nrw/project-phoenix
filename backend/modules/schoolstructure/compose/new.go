@@ -3,14 +3,14 @@ package compose
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres"
-	application "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/adapters/postgres"
+	application "github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/ports"
 )
 
 type Observation = ports.Observation

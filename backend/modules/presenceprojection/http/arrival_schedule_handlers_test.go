@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func createStudentsAPITestStaffID(t *testing.T, tc *testContext) int64 {

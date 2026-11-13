@@ -4,10 +4,10 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // getMyProfile assembles the autofill payload for the JWT-bearing

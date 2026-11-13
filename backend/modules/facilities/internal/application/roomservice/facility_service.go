@@ -7,7 +7,7 @@ import (
 	"slices"
 	"time"
 
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 type OccupancyProjection func(context.Context, []facilitiesModule.Room) ([]RoomWithOccupancy, error)

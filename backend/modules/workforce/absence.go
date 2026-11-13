@@ -122,6 +122,17 @@ type StaffAbsence struct {
 	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
+// HalfBoundaryDays reports whether the first and the last day of the absence
+// are half days. A legacy entry that sets only half_day is half on both ends,
+// so a single half day covers no full day; the Stundenkonto credits the same
+// halves.
+func (a StaffAbsence) HalfBoundaryDays() (start, end bool) {
+	if a.HalfDay && !a.StartHalfDay && !a.EndHalfDay {
+		return true, true
+	}
+	return a.StartHalfDay, a.EndHalfDay
+}
+
 // StaffAbsenceOrderField names a column a listing may be ordered by.
 type StaffAbsenceOrderField string
 

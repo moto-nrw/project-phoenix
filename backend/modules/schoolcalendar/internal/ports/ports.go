@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/internal/domain"
 )
 
 // Store is the persistence port over schedule.calendar_periods and

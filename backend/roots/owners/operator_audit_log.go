@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 )
 
 // NewOperatorAuditLogFromEntries serves the operator ledger the root records

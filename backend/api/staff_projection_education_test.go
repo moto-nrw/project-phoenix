@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	educationRepo "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type handoverWritesStub struct {

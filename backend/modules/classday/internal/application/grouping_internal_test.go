@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
 )
 
 // TestApplyGrouping_SlotDisambiguatesDistinctInstances guards the #1565

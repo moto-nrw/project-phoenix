@@ -5,7 +5,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // The cancellations, credits and invoices issued again (#4690). They are

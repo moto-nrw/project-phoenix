@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
 	provider "github.com/SherClockHolmes/webpush-go"
 	"github.com/stretchr/testify/assert"

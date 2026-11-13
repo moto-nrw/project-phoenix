@@ -219,7 +219,7 @@ export function ChildMasterDataRequestModal({
               monthYearNavigation
               max={todayISO()}
               calendarLayout="popover"
-              controlSize="md"
+              controlSize="compact"
             />
           </ModalField>
           <ModalField

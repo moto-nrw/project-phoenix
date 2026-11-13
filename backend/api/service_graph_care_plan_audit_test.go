@@ -6,13 +6,13 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/require"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The booking consistency audit the Worker runs is composed by the root over

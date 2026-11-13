@@ -24,6 +24,7 @@ const CodeStudentsCareExitNoteTooLong = "students.care_exit_note_too_long"
 const CodeStudentsCareExitPreviewChanged = "students.care_exit_preview_changed"
 const CodeStudentsCareExitTooManyStudents = "students.care_exit_too_many_students"
 const CodeStudentsCareOfferingsDisabled = "students.care_offerings_disabled"
+const CodeStudentsCareRequestPlanChanged = "students.care_request_plan_changed"
 const CodeStudentsCareResumeAlumnus = "students.care_resume_alumnus"
 const CodeStudentsCareResumeMissing = "students.care_resume_missing"
 const CodeStudentsCareResumeNotChecked = "students.care_resume_not_checked"
@@ -73,6 +74,7 @@ const CodeStudentsOfferingChangeDateOutOfRange = "students.offering_change_date_
 const CodeStudentsOfferingChangesNoEnrollment = "students.offering_changes_no_enrollment"
 const CodeStudentsPartialAbsenceConflict = "students.partial_absence_conflict"
 const CodeStudentsPartialAbsenceRequiresDedicatedAction = "students.partial_absence_requires_dedicated_action"
+const CodeStudentsPersonHasActiveProfile = "students.person_has_active_profile"
 const CodeStudentsPhotoConsentRequired = "students.photo_consent_required"
 const CodeStudentsPhotoConsentWithdrawn = "students.photo_consent_withdrawn"
 const CodeStudentsPhotosDisabled = "students.photos_disabled"
@@ -93,6 +95,7 @@ const CodeStudentsStaffProfileRequired = "students.staff_profile_required"
 const CodeStudentsStaffValueInvalid = "students.staff_value_invalid"
 const CodeStudentsStaffValueUnsupported = "students.staff_value_unsupported"
 const CodeStudentsStatusDayConflict = "students.status_day_conflict"
+const CodeStudentsStatusDayOccupied = "students.status_day_occupied"
 
 var errorCodeClassesStudents = []errorCodeClass{
 	{CodeStudentsAbsenceReadRequired, "permission"},
@@ -118,6 +121,7 @@ var errorCodeClassesStudents = []errorCodeClass{
 	{CodeStudentsCareExitPreviewChanged, "business_rejection"},
 	{CodeStudentsCareExitTooManyStudents, "input"},
 	{CodeStudentsCareOfferingsDisabled, "permission"},
+	{CodeStudentsCareRequestPlanChanged, "business_rejection"},
 	{CodeStudentsCareResumeAlumnus, "business_rejection"},
 	{CodeStudentsCareResumeMissing, "business_rejection"},
 	{CodeStudentsCareResumeNotChecked, "input"},
@@ -167,6 +171,7 @@ var errorCodeClassesStudents = []errorCodeClass{
 	{CodeStudentsOfferingChangesNoEnrollment, "permission"},
 	{CodeStudentsPartialAbsenceConflict, "business_rejection"},
 	{CodeStudentsPartialAbsenceRequiresDedicatedAction, "business_rejection"},
+	{CodeStudentsPersonHasActiveProfile, "business_rejection"},
 	{CodeStudentsPhotoConsentRequired, "input"},
 	{CodeStudentsPhotoConsentWithdrawn, "business_rejection"},
 	{CodeStudentsPhotosDisabled, "permission"},
@@ -187,6 +192,7 @@ var errorCodeClassesStudents = []errorCodeClass{
 	{CodeStudentsStaffValueInvalid, "input"},
 	{CodeStudentsStaffValueUnsupported, "input"},
 	{CodeStudentsStatusDayConflict, "business_rejection"},
+	{CodeStudentsStatusDayOccupied, "business_rejection"},
 }
 
 func init() {

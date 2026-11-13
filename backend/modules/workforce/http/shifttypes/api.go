@@ -13,11 +13,12 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // Middleware is the HTTP middleware shape the composition root supplies.
@@ -51,13 +52,14 @@ type Runtime struct {
 
 // Resource bundles the dependencies for the shift-type HTTP handlers.
 type Resource struct {
-	types   workforce.ShiftTypeAdministration
-	runtime Runtime
+	types      workforce.ShiftTypeAdministration
+	references workforce.ShiftPlanReferenceQuery
+	runtime    Runtime
 }
 
 // NewResource wires the dependencies.
-func NewResource(types workforce.ShiftTypeAdministration, runtime Runtime) *Resource {
-	return &Resource{types: types, runtime: runtime}
+func NewResource(types workforce.ShiftTypeAdministration, references workforce.ShiftPlanReferenceQuery, runtime Runtime) *Resource {
+	return &Resource{types: types, references: references, runtime: runtime}
 }
 
 // Router returns the chi sub-router for /api/shift-types.
@@ -98,15 +100,62 @@ type ShiftTypeResponse struct {
 	Color       string `json:"color"`
 	Description string `json:"description,omitempty"`
 	IsActive    bool   `json:"is_active"`
+	// ArchivedAt is present on a type the school removed while planned
+	// shifts or series still carried it (#6845); only a list requested with
+	// include_archived=true contains such types.
+	ArchivedAt *string `json:"archived_at,omitempty"`
+	// Usage is present only on a list requested with with_usage=true.
+	Usage *ShiftTypeUsageResponse `json:"usage,omitempty"`
+}
+
+// ShiftTypeUsageResponse counts the planned shifts and series carrying a
+// type; removing a used type archives it instead of deleting it.
+type ShiftTypeUsageResponse struct {
+	Shifts int `json:"shifts"`
+	Series int `json:"series"`
+}
+
+// ShiftTypeDeleteResponse tells the client whether the type is gone or only
+// left the choice because planned shifts or series still carry it.
+type ShiftTypeDeleteResponse struct {
+	ID      int64  `json:"id"`
+	Outcome string `json:"outcome"`
 }
 
 func toShiftTypeResponse(t workforce.ShiftType) ShiftTypeResponse {
+	var archivedAt *string
+	if t.ArchivedAt != nil {
+		formatted := t.ArchivedAt.UTC().Format(time.RFC3339)
+		archivedAt = &formatted
+	}
 	return ShiftTypeResponse{
 		ID:          t.ID,
 		Name:        t.Name,
 		Color:       t.Color,
 		Description: t.Description,
 		IsActive:    t.IsActive,
+		ArchivedAt:  archivedAt,
+	}
+}
+
+// offeredShiftTypes drops archived types unless the caller asked for them.
+func offeredShiftTypes(types []workforce.ShiftType, includeArchived bool) []workforce.ShiftType {
+	if includeArchived {
+		return types
+	}
+	offered := make([]workforce.ShiftType, 0, len(types))
+	for _, shiftType := range types {
+		if shiftType.ArchivedAt == nil {
+			offered = append(offered, shiftType)
+		}
+	}
+	return offered
+}
+
+func attachUsage(responses []ShiftTypeResponse, references map[int64]workforce.ShiftTypeReferences) {
+	for index := range responses {
+		entry := references[responses[index].ID]
+		responses[index].Usage = &ShiftTypeUsageResponse{Shifts: entry.Shifts, Series: entry.Series}
 	}
 }
 
@@ -162,13 +211,27 @@ func (rs *Resource) renderError(w http.ResponseWriter, r *http.Request, err erro
 	rs.runtime.Failure(w, r, classify(err), err)
 }
 
+// list returns the types the school offers, ordered by name.
+// include_archived=true adds the archived types, which the Dienstplan needs
+// to label planned shifts; with_usage=true adds the planned shifts and series
+// per type, which costs one more tenant-wide read.
 func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 	types, err := rs.types.ListShiftTypes(r.Context())
 	if err != nil {
 		rs.renderError(w, r, err)
 		return
 	}
-	rs.runtime.Success(w, r, http.StatusOK, toShiftTypeResponses(types), "Shift types retrieved")
+	query := r.URL.Query()
+	out := toShiftTypeResponses(offeredShiftTypes(types, query.Get("include_archived") == "true"))
+	if query.Get("with_usage") == "true" && len(out) > 0 {
+		references, usageErr := rs.references.ShiftPlanReferences(r.Context())
+		if usageErr != nil {
+			rs.renderError(w, r, usageErr)
+			return
+		}
+		attachUsage(out, references.ByShiftType)
+	}
+	rs.runtime.Success(w, r, http.StatusOK, out, "Shift types retrieved")
 }
 
 func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
@@ -221,9 +284,10 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.Failure(w, r, FailureInvalid, err)
 		return
 	}
-	if err := rs.types.DeleteShiftType(r.Context(), id); err != nil {
+	removal, err := rs.types.DeleteShiftType(r.Context(), id)
+	if err != nil {
 		rs.renderError(w, r, err)
 		return
 	}
-	rs.runtime.Success(w, r, http.StatusOK, map[string]any{"id": id}, "Shift type deleted")
+	rs.runtime.Success(w, r, http.StatusOK, ShiftTypeDeleteResponse{ID: id, Outcome: string(removal)}, "Shift type removed")
 }

@@ -1,0 +1,7 @@
+{
+  "scenario": "api.workforce.shift_types.list.with_usage",
+  "max": 5,
+  "exact": true,
+  "description": "GET /api/shift-types/?with_usage=true (#6845): real Workforce planning composition and protected tenant router. Complete request capture: BEGIN, combined tenant role/config, one tenant-scoped bulk shift-type SELECT, one tenant-scoped grouped SELECT of the shifts and series per type (and series per calendar period) and COMMIT. Exact for 1 and 4 types with planned shifts; counts per type, zero for an unused type, excludes foreign tenants and issues no writes.",
+  "route": "GET /api/shift-types/"
+}

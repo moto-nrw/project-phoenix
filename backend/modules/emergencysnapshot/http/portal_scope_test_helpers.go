@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // scopeTestTenantRoutes binds real native gates supplied by the shared

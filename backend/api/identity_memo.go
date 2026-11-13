@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // requestIdentityMemo resolves the request identity memo the request

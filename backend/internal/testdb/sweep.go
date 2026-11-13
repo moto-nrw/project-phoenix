@@ -153,19 +153,26 @@ func listDatabasesByPrefix(ctx context.Context, maint sqlExecutor, prefix string
 // state rather than a test's own?" — as a SQL condition over the table
 // aliased `t`. An empty condition means every row of the table is shared.
 //
-// Three shapes, in the order the resolver tries them:
+// Four shapes, in the order the resolver tries them:
 //
 //  1. A tenant_id column: below the test band (or absent) means shared.
 //     That is the default and covers ~90% of the schema.
 //  2. Tables whose own primary key IS the tenant (a school's ID is the tenant
 //     ID; the fixtures create its organization under the same ID).
-//  3. Tables that reach their tenant through a mapping row. auth.accounts is
+//  3. A row without tenant_id that carries an organization_id belongs to
+//     that Träger: below the test band (or absent) means shared. Every
+//     organization a test creates lies in the band — CreateTestTenant hands
+//     out band IDs and the template lifts the organization sequence above
+//     it — so a row keyed by one is the test's own and dies with the clone
+//     (#6962). Tables with both columns (platform.push_outbox, a school's or
+//     a Träger's row) keep deciding by tenant_id wherever one is set.
+//  4. Tables that reach their tenant through a mapping row. auth.accounts is
 //     the important one: an account carries no tenant_id at all — the link to
 //     a school lives in auth.account_tenants. An account that maps to a test
 //     tenant was created by a test and dies with the clone; only one that
 //     maps nowhere, or nowhere test-owned, is shared state.
 //
-// Shape 3 is why this is a predicate and not a column name. Enumerating the
+// Shape 4 is why this is a predicate and not a column name. Enumerating the
 // mapping tables by hand is the price; the alternative was tolerating
 // auth.accounts as a leftover in three quarters of all packages.
 var tenantIdentityTables = map[string]string{
@@ -178,9 +185,6 @@ var tenantIdentityTables = map[string]string{
 	// How far the attendance retention deleted (#4686) is keyed by the
 	// school, without tenant_id, like the Mensa months.
 	"active.attendance_retention_marks": "school_id",
-	// The key of a Träger's family fingerprints (ADR 0196) is keyed by the
-	// organization alone: the organization ID is the tenant identity.
-	"enrollment.holiday_closure_family_keys": "organization_id",
 }
 
 // mappedTenantTables reach their tenant through a join table.
@@ -196,7 +200,7 @@ var mappedTenantTables = map[string]struct{ mappingTable, foreignKey, ownerColum
 	"auth.tokens":                {"auth.account_tenants", "account_id", "account_id"},
 }
 
-func sharedRowPredicate(table string, hasTenantID bool) string {
+func sharedRowPredicate(table string, hasTenantID, hasOrganizationID bool) string {
 	if m, ok := mappedTenantTables[table]; ok {
 		unownedAccount := fmt.Sprintf(
 			"NOT EXISTS (SELECT 1 FROM %s m WHERE m.%s = t.%s AND m.tenant_id >= %d)",
@@ -207,10 +211,14 @@ func sharedRowPredicate(table string, hasTenantID bool) string {
 		return unownedAccount
 	}
 	switch {
+	case hasTenantID && hasOrganizationID:
+		return fmt.Sprintf("COALESCE(t.tenant_id, t.organization_id) IS NULL OR COALESCE(t.tenant_id, t.organization_id) < %d", TenantIDBase)
 	case hasTenantID:
 		return fmt.Sprintf("t.tenant_id IS NULL OR t.tenant_id < %d", TenantIDBase)
 	case tenantIdentityTables[table] != "":
 		return fmt.Sprintf("t.%s < %d", tenantIdentityTables[table], TenantIDBase)
+	case hasOrganizationID:
+		return fmt.Sprintf("t.organization_id IS NULL OR t.organization_id < %d", TenantIDBase)
 	default:
 		return ""
 	}
@@ -223,6 +231,10 @@ func tableSharedPredicates(ctx context.Context, db sqlExecutor) (map[string]stri
 		       EXISTS (
 		           SELECT 1 FROM pg_attribute a
 		           WHERE a.attrelid = c.oid AND a.attname = 'tenant_id' AND a.attnum > 0 AND NOT a.attisdropped
+		       ),
+		       EXISTS (
+		           SELECT 1 FROM pg_attribute a
+		           WHERE a.attrelid = c.oid AND a.attname = 'organization_id' AND a.attnum > 0 AND NOT a.attisdropped
 		       )
 		FROM pg_class c
 		JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -237,11 +249,11 @@ func tableSharedPredicates(ctx context.Context, db sqlExecutor) (map[string]stri
 	owners := make(map[string]string)
 	for rows.Next() {
 		var table string
-		var hasTenantID bool
-		if err := rows.Scan(&table, &hasTenantID); err != nil {
+		var hasTenantID, hasOrganizationID bool
+		if err := rows.Scan(&table, &hasTenantID, &hasOrganizationID); err != nil {
 			return nil, err
 		}
-		owners[table] = sharedRowPredicate(table, hasTenantID)
+		owners[table] = sharedRowPredicate(table, hasTenantID, hasOrganizationID)
 	}
 	return owners, rows.Err()
 }

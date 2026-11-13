@@ -14,8 +14,8 @@ import (
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // Cause strips the owner's operation envelope, so a table matches and a
@@ -142,8 +142,18 @@ var MFARules = slices.Concat([]common.ErrorRule{
 	rule(identityaccess.ErrMFANotEnrolled, common.ErrorForbidden),
 	rule(identityaccess.ErrMFAAlreadyEnrolled, common.ErrorConflict),
 	rule(identityaccess.ErrMFAPermissionDenied, common.ErrorForbidden),
+	// A school administrator's account-wide reset of an account another
+	// school or a Träger also holds (#6862).
+	rule(identityaccess.ErrAccountSharedAcrossSchools, AccountSharedAcrossSchools),
 	rule(identityaccess.ErrMFAInvalidOverride, common.ErrorInvalidRequest),
 })
+
+// AccountSharedAcrossSchools answers a school administrator's change to
+// what holds for a whole account while another school or a Träger also
+// holds it (#6862).
+func AccountSharedAcrossSchools(err error) render.Renderer {
+	return common.ErrorForbiddenWithCode(err, common.CodeIdentityAccountSharedAcrossSchools)
+}
 
 func mfaCodeInvalid(err error) render.Renderer {
 	return common.ErrorUnauthorizedWithCode(err, common.CodeIdentityMfaCodeInvalid)

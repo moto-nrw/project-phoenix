@@ -3,7 +3,7 @@ package settings
 import (
 	"context"
 
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // CareBookingSource is the resolver slice the care booking switches read
