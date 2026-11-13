@@ -54,7 +54,7 @@ func mountTraegerRoutes(root, tenant chi.Router, limiters authRateLimiters, iden
 	if _, ok := identity.(identityaccess.TraegerMemberProfiles); !ok {
 		return errors.New("traeger portal: identity does not serve the names of the Träger-Büro")
 	}
-	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayTraegerMail{delivery: delivery}, newHolidayOfficeTraeger(organizations)); err != nil {
+	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayTraegerMail{delivery: delivery}, holidayMailStates{mails: closureMail.TraegerMails}, newHolidayOfficeTraeger(organizations)); err != nil {
 		return err
 	}
 	setups, ok := identity.(identityaccess.HolidayParentSetups)
@@ -167,6 +167,50 @@ func (m holidayTraegerMail) EnqueueTraegerMail(ctx context.Context, mail enrollm
 		Related: deliveryContract.RelatedEntity{Type: mail.RelatedType, ID: mail.RelatedID},
 	})
 	return err
+}
+
+// holidayMailStates reads what became of the Träger's mails of the holiday
+// registrations by idempotency key, in the caller's Träger transaction
+// (#6737), and names those that did not reach the parents in Enrollment's
+// words.
+type holidayMailStates struct {
+	mails deliveryRuntime.TraegerMails
+}
+
+func (s holidayMailStates) HolidayMailProblems(ctx context.Context, organizationID int64, keys []string) (map[string]string, error) {
+	if s.mails == nil {
+		return nil, errors.New("holiday registration: the Träger mails of Delivery are not configured")
+	}
+	statuses, err := s.mails.TraegerEmailStatusesByKey(ctx, organizationID, keys)
+	if err != nil {
+		return nil, err
+	}
+	problems := map[string]string{}
+	for _, status := range statuses {
+		if status.IdempotencyKey == nil {
+			continue
+		}
+		if state := holidayMailProblem(status.Outcome); state != "" {
+			problems[*status.IdempotencyKey] = state
+		}
+	}
+	return problems, nil
+}
+
+// holidayMailProblem names an outcome of a mail that did not reach the
+// parents; a mail on its way, accepted, delivered or withdrawn has none.
+func holidayMailProblem(outcome deliveryContract.EmailOutcome) string {
+	switch outcome {
+	case deliveryContract.EmailSendFailed, deliveryContract.EmailUndeliverable:
+		return enrollmentOwner.HolidayMailFailed
+	case deliveryContract.EmailBlocked, deliveryContract.EmailProviderBlocked, deliveryContract.EmailHeldByStop,
+		deliveryContract.EmailComplained, deliveryContract.EmailUnsubscribed:
+		return enrollmentOwner.HolidayMailBlocked
+	case deliveryContract.EmailOutcomeUnknown, deliveryContract.EmailOverdue:
+		return enrollmentOwner.HolidayMailUnknown
+	default:
+		return ""
+	}
 }
 
 // parentHolidayRegistrationLinks resolves the link of a holiday period for

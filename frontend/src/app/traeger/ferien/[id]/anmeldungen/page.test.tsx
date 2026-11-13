@@ -24,7 +24,10 @@ import {
 const { mockConfirmationSettings } = vi.hoisted(() => ({
   mockConfirmationSettings: vi.fn(),
 }));
-const { mockFetchKnown } = vi.hoisted(() => ({ mockFetchKnown: vi.fn() }));
+const { mockFetchKnown, mockFetchMails } = vi.hoisted(() => ({
+  mockFetchKnown: vi.fn(),
+  mockFetchMails: vi.fn(),
+}));
 const {
   mockPush,
   mockFetchList,
@@ -70,6 +73,8 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
   fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
   fetchHolidayKnownChildren: (periodId: string, registrationId?: string) =>
     mockFetchKnown(periodId, registrationId),
+  fetchHolidayRegistrationMailProblems: (periodId: string) =>
+    mockFetchMails(periodId),
 }));
 const { mockFetchGroups, mockMerge } = vi.hoisted(() => ({
   mockFetchGroups: vi.fn(),
@@ -115,6 +120,8 @@ describe("TraegerHolidayRegistrationsPage", () => {
     mockFetchList.mockResolvedValue(HOLIDAY_REGISTRATION_LIST);
     mockFetchKnown.mockReset();
     mockFetchKnown.mockResolvedValue(new Map());
+    mockFetchMails.mockReset();
+    mockFetchMails.mockResolvedValue(new Map());
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
     mockFetchGroups.mockReset();
     mockMerge.mockReset();
@@ -409,6 +416,34 @@ describe("TraegerHolidayRegistrationsPage", () => {
         "csv",
       ),
     );
+  });
+
+  it("marks a registration whose mail did not reach the parents (#6737)", async () => {
+    const registration = HOLIDAY_REGISTRATION_LIST.registrations[0]!;
+    mockFetchMails.mockResolvedValue(
+      new Map([
+        [
+          registration.id,
+          [{ kind: "holiday_registration_received", state: "unknown" }],
+        ],
+      ]),
+    );
+    renderPage();
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Eva Muster");
+
+    expect(await within(table).findByText("E-Mail prüfen")).toBeInTheDocument();
+    expect(mockFetchMails).toHaveBeenCalledWith("5");
+  });
+
+  it("keeps the list when the mail states cannot be read (#6737)", async () => {
+    mockFetchMails.mockRejectedValue(new Error("offline"));
+    renderPage();
+    const table = await screen.findByRole("table");
+
+    expect(await within(table).findByText("Eva Muster")).toBeInTheDocument();
+    await waitFor(() => expect(mockFetchMails).toHaveBeenCalled());
+    expect(within(table).queryByText("E-Mail prüfen")).not.toBeInTheDocument();
   });
 
   it("says when moto deletes the registrations and downloads them as PDFs in a ZIP (#6691)", async () => {

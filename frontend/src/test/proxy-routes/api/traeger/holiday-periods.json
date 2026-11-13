@@ -19,6 +19,9 @@
   "api/traeger/holiday-periods/[id]/registrations/known-children": [
     "GET traeger /traeger/holiday-periods/id%2F1/registrations/known-children"
   ],
+  "api/traeger/holiday-periods/[id]/registrations/mail-problems": [
+    "GET traeger /traeger/holiday-periods/id%2F1/registrations/mail-problems"
+  ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]": [
     "GET traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1"
   ],

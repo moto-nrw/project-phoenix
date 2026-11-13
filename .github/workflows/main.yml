@@ -316,6 +316,7 @@ jobs:
               - 'monitoring/grafana/provisioning/alerting/nightly-cleanup.yml'
               - 'monitoring/grafana/provisioning/alerting/infrastructure.yml'
               - 'monitoring/grafana/provisioning/alerting/holiday-closure-notifications.yml'
+              - 'monitoring/grafana/provisioning/alerting/email-delivery.yml'
               - 'monitoring/prometheus-compose.yml'
               - 'scripts/systemd/moto-*backup*'
               - 'scripts/systemd/moto-release-retention*'
@@ -515,7 +516,7 @@ jobs:
       - name: Verify encrypted daily backup and isolated restore
         if: matrix.suite == 'restore'
         run: |
-          node --test scripts/daily-backup.integration.test.mjs scripts/daily-backup-alerts.integration.test.mjs scripts/nightly-cleanup-alerts.integration.test.mjs scripts/db-pool-alerts.integration.test.mjs scripts/holiday-closure-alerts.integration.test.mjs
+          node --test scripts/daily-backup.integration.test.mjs scripts/daily-backup-alerts.integration.test.mjs scripts/nightly-cleanup-alerts.integration.test.mjs scripts/db-pool-alerts.integration.test.mjs scripts/holiday-closure-alerts.integration.test.mjs scripts/email-delivery-alerts.integration.test.mjs
           sudo install -d /usr/local/lib/moto-backup
           sudo install scripts/daily-backup.sh /usr/local/lib/moto-backup/
           systemd-analyze verify scripts/systemd/moto-daily-backup.service scripts/systemd/moto-daily-backup.timer scripts/systemd/moto-backup-failure@.service
