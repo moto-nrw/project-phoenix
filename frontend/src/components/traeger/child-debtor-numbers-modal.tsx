@@ -167,9 +167,10 @@ export function ChildDebtorNumbersModal({
           </p>
         ) : null}
         <p className="text-sm text-gray-600">
-          Jedes Kind hat eine eigene Nummer, auch Geschwister. Die nächste
-          Rechnung eines Kindes nimmt seine Nummer. Ausgestellte Rechnungen
-          behalten ihre Nummer.
+          {`Jedes Kind hat eine eigene Nummer, auch Geschwister. ${debtorNumberFormatHint(format)} Die nächste Rechnung eines Kindes nimmt seine Nummer. Ausgestellte Rechnungen behalten ihre Nummer.`.replace(
+            /\s+/g,
+            " ",
+          )}
         </p>
         {children.map((child, index) => (
           <Input
@@ -182,15 +183,16 @@ export function ChildDebtorNumbersModal({
             inputMode={format.digitsOnly ? "numeric" : undefined}
             maxLength={DEBTOR_NUMBER_MAX_LENGTH}
             value={values[index] ?? ""}
-            hint={debtorNumberFormatHint(format) || undefined}
             error={formErrors.fieldError(fieldName(index)) ?? undefined}
-            onChange={(event) =>
+            onChange={(event) => {
+              // A refusal belongs to the value it refused.
+              formErrors.clear();
               setValues((current) =>
                 current.map((value, at) =>
                   at === index ? event.target.value : value,
                 ),
-              )
-            }
+              );
+            }}
           />
         ))}
       </form>
