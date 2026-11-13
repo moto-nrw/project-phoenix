@@ -335,6 +335,82 @@ describe("prefill from the parent account (#6682)", () => {
     ]);
   });
 
+  it("keeps two different persons of the same name apart", () => {
+    // Father and grandfather share the name at one school; another one at
+    // a second school has a number that contradicts both.
+    const father = contact("40", {
+      firstName: "Hans",
+      phone: "0151 40",
+      email: "hans@example.org",
+    });
+    const grandfather = contact("41", {
+      firstName: "Hans",
+      phone: "",
+      pickup: true,
+    });
+    const elsewhere = contact("92", { firstName: "Hans", phone: "0170 92" });
+    const namesakes: HolidayKnownFamily = {
+      ...family,
+      children: [
+        child("10", [father, grandfather]),
+        { ...child("14", [elsewhere]), schoolId: "2" },
+      ],
+    };
+    const pickIn = (
+      draft: ReturnType<typeof registrationFromFamily>,
+      known: HolidayKnownChild,
+    ) =>
+      withKnownContacts(
+        toggleKnownChild(draft, known, offer),
+        namesakes,
+        label,
+      );
+    let draft = pickIn(
+      registrationFromFamily(namesakes),
+      namesakes.children[0]!,
+    );
+    draft = pickIn(draft, namesakes.children[1]!);
+    expect(
+      draft.contacts.map((c) => [c.knownGuardianId, c.phone, c.pickup]),
+    ).toEqual([
+      ["40", "0151 40", false],
+      ["41", "", true],
+      ["92", "0170 92", false],
+    ]);
+    // Removing one of them keeps the others.
+    draft = withEditedContacts(
+      draft,
+      draft.contacts.filter((c) => c.knownGuardianId !== "41"),
+    );
+    draft = pickIn(draft, namesakes.children[1]!);
+    draft = pickIn(draft, namesakes.children[1]!);
+    expect(draft.contacts.map((c) => c.knownGuardianId)).toEqual(["40", "92"]);
+  });
+
+  it("joins one person of two schools whose number is written differently", () => {
+    const twoSchools: HolidayKnownFamily = {
+      ...family,
+      children: [
+        child("10", [{ ...grandma, phone: "+49 (0)5402 1234" }]),
+        {
+          ...child("13", [
+            { ...grandma, guardianProfileId: "91", phone: "05402 1234" },
+          ]),
+          schoolId: "2",
+        },
+      ],
+    };
+    let draft = registrationFromFamily(twoSchools);
+    for (const known of twoSchools.children) {
+      draft = withKnownContacts(
+        toggleKnownChild(draft, known, offer),
+        twoSchools,
+        label,
+      );
+    }
+    expect(draft.contacts.map((c) => c.name)).toEqual(["Erika Muster"]);
+  });
+
   it("adds no second row for a person the parent typed in", () => {
     const typed = {
       ...registrationFromFamily(family),
