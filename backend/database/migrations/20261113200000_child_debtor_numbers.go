@@ -118,10 +118,13 @@ func childDebtorNumbersUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// childDebtorNumbersDown drops the tables. The erasure of the demo families
-// (repeatable_platform_erase_demo_visitor_families.go) names them in
-// PL/pgSQL, which resolves a table only when it runs.
+// childDebtorNumbersDown first puts back the erasure of the demo families of
+// 1.15.951, which does not read the tables, and then drops them: the
+// repeatable definition reads them and would fail at its next run.
 func childDebtorNumbersDown(ctx context.Context, db *bun.DB) error {
+	if err := restoreDemoVisitorFamiliesErasure(ctx, db); err != nil {
+		return err
+	}
 	if _, err := db.ExecContext(ctx, childDebtorNumbersDownSQL); err != nil {
 		return fmt.Errorf("drop the debtor numbers of the children: %w", err)
 	}

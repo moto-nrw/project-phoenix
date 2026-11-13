@@ -122,9 +122,10 @@ func countDebtorNumbers(counts *parentbilling.SEPAMandateImportCounts, candidate
 
 // assignImportedNumbers decides the number of each row by the Träger's
 // scope.
-func (m *SEPAMandates) assignImportedNumbers(ctx context.Context, organizationID int64, candidates []importCandidate,
+func (m *SEPAMandates) assignImportedNumbers(ctx context.Context, reviewer parentbilling.HolidayReviewer, candidates []importCandidate,
 	table importTable, columns importColumnIndex,
 ) error {
+	organizationID := reviewer.OrganizationID
 	format, err := debtorNumberFormatOf(ctx, m.formats, organizationID)
 	if err != nil {
 		return err
@@ -146,10 +147,25 @@ func (m *SEPAMandates) assignImportedNumbers(ctx context.Context, organizationID
 		return err
 	}
 	known := make(map[string]string, len(stored))
+	byKey := make(map[string]parentbilling.ChildDebtorNumber, len(stored))
 	for _, number := range stored {
 		known[number.Key()] = number.DebtorNumber
+		byKey[number.Key()] = number
 	}
 	assignChildDebtorNumbers(candidates, table, columns, known, format)
+	// The preview compares with a stored number and says so: the read is in
+	// the number's trail, once per number.
+	var read []parentbilling.ChildDebtorNumber
+	seen := map[int64]bool{}
+	for _, candidate := range candidates {
+		if number, ok := byKey[importChildKey(candidate)]; ok && candidate.row.DebtorNumber != "" && !seen[number.ID] {
+			seen[number.ID] = true
+			read = append(read, number)
+		}
+	}
+	if err := m.store.InsertChildDebtorNumberEvents(ctx, organizationID, reviewer.AccountID, familyBillingRead, read); err != nil {
+		return fmt.Errorf("parent billing: record the read of the children's numbers: %w", err)
+	}
 	return nil
 }
 
@@ -237,7 +253,8 @@ func childNumbersToSet(candidates []importCandidate) []parentbilling.ChildDebtor
 		seen[key] = true
 		child := candidate.child
 		set = append(set, parentbilling.ChildDebtorNumber{FamilyEmail: candidate.family, ChildFirstName: child.FirstName,
-			ChildLastName: child.LastName, ChildBirthDate: child.BirthDate, DebtorNumber: candidate.row.DebtorNumber})
+			ChildLastName: child.LastName, ChildBirthDate: child.BirthDate, DebtorNumber: candidate.row.DebtorNumber,
+			LastUsedOn: candidate.until})
 	}
 	return set
 }

@@ -66,7 +66,10 @@ func (s *Store) ChildDebtorNumbers(ctx context.Context, organizationID int64) ([
 // SaveChildDebtorNumbers writes the number of each child in one statement:
 // a child without a row gets one, a child with a row its new number. With
 // onlyNew a child that has a number keeps it (the import). Each row counts
-// today as a day its number is needed. It answers the rows it wrote.
+// today, or the later last day of the contract that needs it
+// (ChildDebtorNumber.LastUsedOn), as a day its number is needed, so a number
+// prepared for a contract ahead outlives the retention until then. It
+// answers the rows it wrote.
 func (s *Store) SaveChildDebtorNumbers(ctx context.Context, organizationID, accountID int64, numbers []parentbilling.ChildDebtorNumber,
 	today calendar.Date, onlyNew bool,
 ) ([]parentbilling.ChildDebtorNumber, error) {
@@ -79,10 +82,14 @@ func (s *Store) SaveChildDebtorNumbers(ctx context.Context, organizationID, acco
 	}
 	rows := make([]childDebtorNumberRow, len(numbers))
 	for i, number := range numbers {
+		usedOn := today
+		if number.LastUsedOn.After(today) {
+			usedOn = number.LastUsedOn
+		}
 		rows[i] = childDebtorNumberRow{OrganizationID: organizationID, FamilyEmail: parentbilling.FamilyKey(number.FamilyEmail),
 			ChildKey:       parentbilling.ChildKey(number.ChildFirstName, number.ChildLastName, number.ChildBirthDate),
 			ChildFirstName: number.ChildFirstName, ChildLastName: number.ChildLastName, ChildBirthDate: number.ChildBirthDate,
-			DebtorNumber: number.DebtorNumber, LastUsedOn: today, UpdatedByAccountID: accountRef(accountID), UpdatedAt: time.Now()}
+			DebtorNumber: number.DebtorNumber, LastUsedOn: usedOn, UpdatedByAccountID: accountRef(accountID), UpdatedAt: time.Now()}
 	}
 	query := db.NewInsert().Model(&rows)
 	if onlyNew {

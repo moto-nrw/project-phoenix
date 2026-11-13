@@ -97,6 +97,10 @@ func TestChildDebtorNumbersReachTheMonthlyInvoiceOfEachChild(t *testing.T) {
 	assert.Equal(t, common.CodeParentBillingChildNotFound, decodeProblem(t, rec).Code, "a child of no contract of the family")
 	assert.Equal(t, []listedChild{{"Mia", "Beispiel", "10 0001"}, {"Noah", "Beispiel", "10 0002"}},
 		listChildFamilies(t, f, f.office.token)[0].Children, "the names stay as the contract has them")
+	var lastUsed string
+	require.NoError(t, f.db.NewRaw(`SELECT MIN(last_used_on)::text FROM parent_billing.child_debtor_numbers WHERE organization_id = ?`,
+		f.office.organization).Scan(context.Background(), &lastUsed))
+	assert.Greater(t, lastUsed, careMonth, "a number prepared for a contract ahead is kept until the contract needs it")
 
 	run := f.startRun(t, careMonth)
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(run.ID, ""), nil)
@@ -171,6 +175,20 @@ func TestSEPAMandateImportTakesOverDebtorNumbersPerChild(t *testing.T) {
 
 	assert.Equal(t, []listedChild{{"Mia", "Beispiel", "20 0001"}, {"Noah", "Beispiel", "20 0002"}},
 		childrenOf(listChildFamilies(t, f, f.office.token), family), "the import gave each sibling its own number")
+
+	fields["mapping"] = strings.NewReplacer(`"payer":"E-Mail"`, `"payer":"Vertrag"`, `"payer_key":"email"`, `"payer_key":"contract_id"`).
+		Replace(fields["mapping"])
+	var reads int
+	countReads := func() int {
+		require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM parent_billing.child_debtor_number_events WHERE organization_id = ? AND action = 'read'`,
+			f.office.organization).Scan(context.Background(), &reads))
+		return reads
+	}
+	before := countReads()
+	rec = importForm(t, f.traeger, f.office.token, sepaImportPreviewPath, "ogs.csv", []byte(byContract), fields)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"debtor_number_status":"same"`)
+	assert.Equal(t, before+2, countReads(), "comparing with the stored numbers is in their trail")
 	var familyNumbers int
 	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM parent_billing.family_billing WHERE organization_id = ? AND debtor_number IS NOT NULL`,
 		f.office.organization).Scan(context.Background(), &familyNumbers))
@@ -207,4 +225,32 @@ func TestFamilyChildrenQueryBudgetIsFlat(t *testing.T) {
 	require.Equal(t, http.StatusOK, setChildNumber(t, f, f.office.token, other, "Noah", "20 0002"))
 	assert.Len(t, list().Statements, len(children.Statements), "the children of any number of families and contracts take the same statements")
 	querybudgets.AssertQueryBudget(t, "api.traeger.billing_family_children", children)
+}
+
+// A preview confirmed while the Träger kept the number per payer does not
+// import into the children once it keeps it per child: the office looks
+// again.
+func TestSEPAMandateImportPreviewChangesWithTheScope(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Debitorenimport Umstellung")
+	lia := careContract(t, f.db, f.office.organization, f.office.schools[0], "Lia", careMonth, sjrServices()...)
+	saveCreditor(t, f, map[string]any{"creditor_id": sepaCreditorID, "prenotification_days": 14, "missing_mandate": "transfer"})
+	csv := []byte(strings.Join([]string{
+		"Mandatsreferenz;Unterschriftsdatum;IBAN;Kontoinhaber;Vertrag;Lastschriftart;kinder-Debitorennummer",
+		fmt.Sprintf("OGS-U1;15.08.2024;%s;Eva Beispiel;%d;FRST;40 0001", sepaIBAN, lia),
+	}, "\r\n") + "\r\n")
+	fields := map[string]string{"mapping": `{"columns":{"reference":"Mandatsreferenz","signed_on":"Unterschriftsdatum","iban":"IBAN",` +
+		`"account_holder":"Kontoinhaber","payer":"Vertrag","sequence":"Lastschriftart","debtor_number":"kinder-Debitorennummer"},` +
+		`"payer_key":"contract_id","creditor_from_traeger":true,"confirmed_creditor_id":"DE98ZZZ09999999999"}`}
+	rec := importForm(t, f.traeger, f.office.token, sepaImportPreviewPath, "ogs.csv", csv, fields)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	preview := decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes())
+	require.Contains(t, rec.Body.String(), `"debtor_number_status":"new"`)
+
+	childScope(t, f)
+	confirmed := map[string]string{"fingerprint": preview.Fingerprint, "mapping": fields["mapping"]}
+	rec = importForm(t, f.traeger, f.office.token, sepaImportPath, "ogs.csv", csv, confirmed)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	code, _ := registrationRefusalOf(t, rec)
+	assert.Equal(t, "parent_billing.sepa_import_changed", code)
 }

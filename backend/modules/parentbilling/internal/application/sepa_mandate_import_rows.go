@@ -54,6 +54,9 @@ type importCandidate struct {
 	child parentbilling.FamilyChild
 	// perChild marks a row whose number goes to the child, not the family.
 	perChild bool
+	// until is the last day of the contract of the child, which the
+	// retention of its number counts from.
+	until calendar.Date
 }
 
 // Problems that make a row a conflict or a row to clarify; every other
@@ -237,7 +240,7 @@ func (c *importCheck) readPayer(candidate *importCandidate, cells []string) {
 	candidate.family = payer.family
 	// The contract names its child; the address only a family of one child.
 	if c.columns.payerKey == parentbilling.PayerByContract || len(c.payers.children[payer.family]) == 1 {
-		candidate.child = payer.child
+		candidate.child, candidate.until = payer.child, payer.until
 	}
 }
 

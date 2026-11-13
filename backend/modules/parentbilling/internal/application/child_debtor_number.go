@@ -36,6 +36,8 @@ type contractChild struct {
 	family    string
 	recipient parentbilling.CareRecipient
 	child     parentbilling.FamilyChild
+	// until is the last day of the contract within the window read.
+	until calendar.Date
 }
 
 // DebtorNumberScope answers whom the Träger's debtor numbers name, so the
@@ -56,11 +58,15 @@ func (f *BillingFamilies) contractChildren(ctx context.Context, organizationID i
 		return nil, err
 	}
 	first := map[int64]parentbilling.CareContractVersion{}
+	until := map[int64]calendar.Date{}
 	ids := []int64{}
 	for _, version := range versions {
 		if _, seen := first[version.ContractID]; !seen {
 			first[version.ContractID] = version
 			ids = append(ids, version.ContractID)
+		}
+		if version.Until.After(until[version.ContractID]) {
+			until[version.ContractID] = version.Until
 		}
 	}
 	slices.Sort(ids)
@@ -78,7 +84,7 @@ func (f *BillingFamilies) contractChildren(ctx context.Context, organizationID i
 			continue
 		}
 		seen[parentbilling.ChildDebtorNumberKey(family, key)] = true
-		children = append(children, contractChild{family: family, recipient: recipient, child: parentbilling.FamilyChild{
+		children = append(children, contractChild{family: family, recipient: recipient, until: until[id], child: parentbilling.FamilyChild{
 			FirstName: version.ChildFirstName, LastName: version.ChildLastName, BirthDate: version.ChildBirthDate}})
 	}
 	return children, nil
@@ -185,7 +191,7 @@ func (f *BillingFamilies) SetChildDebtorNumber(ctx context.Context, reviewer par
 	if family == "" || key == "" {
 		return parentbilling.FamilyChild{}, parentbilling.ErrChildNotFound
 	}
-	child, err := f.knownChild(ctx, reviewer.OrganizationID, family, key)
+	child, until, err := f.knownChild(ctx, reviewer.OrganizationID, family, key)
 	if err != nil {
 		return parentbilling.FamilyChild{}, err
 	}
@@ -202,7 +208,7 @@ func (f *BillingFamilies) SetChildDebtorNumber(ctx context.Context, reviewer par
 	}
 	saved, err := f.store.SaveChildDebtorNumbers(ctx, reviewer.OrganizationID, reviewer.AccountID, []parentbilling.ChildDebtorNumber{{
 		FamilyEmail: family, ChildFirstName: child.FirstName, ChildLastName: child.LastName, ChildBirthDate: child.BirthDate,
-		DebtorNumber: number,
+		DebtorNumber: number, LastUsedOn: until,
 	}}, f.today(), false)
 	if err != nil {
 		return parentbilling.FamilyChild{}, err
@@ -216,28 +222,30 @@ func (f *BillingFamilies) SetChildDebtorNumber(ctx context.Context, reviewer par
 
 // knownChild finds a child of the family by its key among the children of
 // the contracts and the children with a number; ErrChildNotFound without.
-// The names come from the contract or the number, not from the request.
-func (f *BillingFamilies) knownChild(ctx context.Context, organizationID int64, family, key string) (parentbilling.FamilyChild, error) {
-	numbers, err := f.store.ChildDebtorNumbers(ctx, organizationID)
-	if err != nil {
-		return parentbilling.FamilyChild{}, err
-	}
+// The names come from the contract or the number, not from the request. It
+// answers the last day of the child's contract in the window, zero without
+// one, which the number's retention counts from.
+func (f *BillingFamilies) knownChild(ctx context.Context, organizationID int64, family, key string) (parentbilling.FamilyChild, calendar.Date, error) {
 	wanted := parentbilling.ChildDebtorNumberKey(family, key)
-	for _, number := range numbers {
-		if number.Key() == wanted {
-			return parentbilling.FamilyChild{FirstName: number.ChildFirstName, LastName: number.ChildLastName,
-				BirthDate: number.ChildBirthDate, DebtorNumber: number.DebtorNumber}, nil
-		}
-	}
 	contracts, err := f.contractChildren(ctx, organizationID)
 	if err != nil {
-		return parentbilling.FamilyChild{}, err
+		return parentbilling.FamilyChild{}, "", err
 	}
 	for _, contract := range contracts {
 		child := contract.child
-		if contract.family == family && parentbilling.ChildKey(child.FirstName, child.LastName, child.BirthDate) == key {
-			return child, nil
+		if parentbilling.ChildDebtorNumberKey(contract.family, parentbilling.ChildKey(child.FirstName, child.LastName, child.BirthDate)) == wanted {
+			return child, contract.until, nil
 		}
 	}
-	return parentbilling.FamilyChild{}, parentbilling.ErrChildNotFound
+	numbers, err := f.store.ChildDebtorNumbers(ctx, organizationID)
+	if err != nil {
+		return parentbilling.FamilyChild{}, "", err
+	}
+	for _, number := range numbers {
+		if number.Key() == wanted {
+			return parentbilling.FamilyChild{FirstName: number.ChildFirstName, LastName: number.ChildLastName,
+				BirthDate: number.ChildBirthDate, DebtorNumber: number.DebtorNumber}, "", nil
+		}
+	}
+	return parentbilling.FamilyChild{}, "", parentbilling.ErrChildNotFound
 }

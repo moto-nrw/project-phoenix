@@ -420,11 +420,24 @@ export default function TraegerBillingFamiliesPage() {
   const [openFilter, setOpenFilter] = useState<OpenFilter>("");
   const [numberFilter, setNumberFilter] = useState<NumberFilter>("");
   const [changing, setChanging] = useState<BillingFamily | null>(null);
-  const settings = useDebtorNumberSettings();
+  const {
+    settings,
+    error: settingsError,
+    reload: reloadSettings,
+  } = useDebtorNumberSettings();
   const format = settings?.format;
   const scope = settings?.scope;
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
+
+  // Without the scope the page cannot tell which numbers apply (#7007).
+  useEffect(() => {
+    if (!settingsError) return;
+    void showLoadError(settingsError, {
+      object: "die Einstellungen der Debitorennummer",
+      retry: reloadSettings,
+    });
+  }, [reloadSettings, settingsError, showLoadError]);
 
   const load = useCallback(async () => {
     if (!scope) return;

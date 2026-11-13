@@ -59,6 +59,9 @@ export function ChildDebtorNumbersModal({
   const isOpen = family !== null;
   const children = family?.children ?? [];
   const [values, setValues] = useState<string[]>([]);
+  // The numbers as stored: a save that stops after some children keeps
+  // what it already wrote, so a retry compares with that.
+  const [stored, setStored] = useState<string[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
   const pending = useFormModalPending(isOpen);
   const formErrors = useApiFormError(formRef);
@@ -67,7 +70,9 @@ export function ChildDebtorNumbersModal({
 
   useEffect(() => {
     if (!family) return;
-    setValues((family.children ?? []).map((child) => child.debtorNumber));
+    const numbers = (family.children ?? []).map((child) => child.debtorNumber);
+    setValues(numbers);
+    setStored(numbers);
     clearErrors();
   }, [family, clearErrors]);
 
@@ -85,12 +90,21 @@ export function ChildDebtorNumbersModal({
     }
     const changed = children.flatMap((child, index) => {
       const value = (values[index] ?? "").trim();
-      return value === child.debtorNumber ? [] : [{ child, value }];
+      return value === (stored[index] ?? "") ? [] : [{ child, index, value }];
     });
     const result = await pending.run(async (op) => {
       try {
-        for (const { child, value } of changed) {
-          await setChildDebtorNumber(family.familyEmail, child, value);
+        for (const { child, index, value } of changed) {
+          const saved = await setChildDebtorNumber(
+            family.familyEmail,
+            child,
+            value,
+          );
+          setStored((current) =>
+            current.map((number, at) =>
+              at === index ? saved.debtorNumber : number,
+            ),
+          );
         }
         if (changed.length > 0) {
           success(

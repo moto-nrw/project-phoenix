@@ -70,7 +70,8 @@ func ChildDebtorNumberKey(familyEmail, childKey string) string {
 }
 
 // ChildDebtorNumber is the number of one child of a family of the Träger.
-// LastUsedOn is the last day an invoice or a registration needed it.
+// LastUsedOn is the last day a save, a registration or a contract needs it;
+// the retention counts from it.
 type ChildDebtorNumber struct {
 	ID             int64          `json:"id"`
 	FamilyEmail    string         `json:"family_email"`

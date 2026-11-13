@@ -233,7 +233,7 @@ func (m *SEPAMandates) evaluateImport(ctx context.Context, reviewer parentbillin
 		candidates[i] = check.row(cells, table.lines[i])
 	}
 	if _, mapped := columns.fields[parentbilling.ImportFieldDebtorNumber]; mapped {
-		if err := m.assignImportedNumbers(ctx, reviewer.OrganizationID, candidates, table, columns); err != nil {
+		if err := m.assignImportedNumbers(ctx, reviewer, candidates, table, columns); err != nil {
 			return nil, err
 		}
 	}
