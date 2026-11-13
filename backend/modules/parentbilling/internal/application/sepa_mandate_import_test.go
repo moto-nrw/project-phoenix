@@ -439,3 +439,18 @@ func TestImportPayersKeepTheLatestContractOfAChild(t *testing.T) {
 	assert.Equal(t, calendar.NewDate(2030, 7, 31), payers.childUntil[key])
 	assert.Len(t, payers.children["eva@example.org"], 1, "one child with two contracts")
 }
+
+// Every row naming a child keeps its stored number until the latest end of
+// its contracts, also rows whose numbers conflict (#7007).
+func TestChildNumbersToExtendCoverEveryRowOfAChild(t *testing.T) {
+	t.Parallel()
+	child := parentbilling.FamilyChild{FirstName: "Mia", LastName: "Beispiel"}
+	row := func(status string) importCandidate {
+		return importCandidate{family: "eva@example.org", child: child, perChild: true, until: calendar.NewDate(2032, 7, 31),
+			row: parentbilling.SEPAMandateImportRow{DebtorNumberStatus: status}}
+	}
+	extend := childNumbersToExtend([]importCandidate{row(parentbilling.DebtorNumberRowsDiffer), row(parentbilling.DebtorNumberRowsDiffer)})
+	require.Len(t, extend, 1)
+	assert.Equal(t, calendar.NewDate(2032, 7, 31), extend[0].LastUsedOn)
+	assert.Empty(t, extend[0].DebtorNumber, "the number stays as stored")
+}

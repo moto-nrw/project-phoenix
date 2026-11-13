@@ -290,17 +290,16 @@ func (m *SEPAMandates) saveChildNumbers(ctx context.Context, reviewer parentbill
 	return nil
 }
 
-// childNumbersToExtend are the children the file names whose stored number
-// it confirms or leaves: their contracts still need it, until the latest end
-// the import knows, whatever the number of the row.
+// childNumbersToExtend are the children the file names: a stored number of
+// each stays until the latest end of its contracts the import knows,
+// whatever the row says about the number (same, another, conflicting or
+// none). Only rows that exist change; no number does.
 func childNumbersToExtend(candidates []importCandidate) []parentbilling.ChildDebtorNumber {
 	var extend []parentbilling.ChildDebtorNumber
 	seen := map[string]bool{}
 	for _, candidate := range candidates {
 		key := importChildKey(candidate)
-		status := candidate.row.DebtorNumberStatus
-		if !candidate.perChild || key == "" || candidate.until.IsZero() || seen[key] ||
-			(status != parentbilling.DebtorNumberSame && status != parentbilling.DebtorNumberDiffers) {
+		if !candidate.perChild || key == "" || candidate.until.IsZero() || seen[key] {
 			continue
 		}
 		seen[key] = true
