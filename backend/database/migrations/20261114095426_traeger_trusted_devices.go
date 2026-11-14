@@ -8,7 +8,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerTrustedDevicesVersion = "20261114074132"
+const traegerTrustedDevicesVersion = "20261114095426"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
