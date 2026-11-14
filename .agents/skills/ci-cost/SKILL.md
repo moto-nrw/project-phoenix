@@ -146,6 +146,21 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   and `roots/owners` 7 times, 60 % of its compile CPU (#6914). `GOGC=400`
   for the toolchain alone saved 13 % of the build CPU locally; `-exec "env -u
   GOGC"` keeps it away from the test binaries.
+- `GOGC=200` for the test binaries, rejected (#7045): locally `api` used 19 %
+  less CPU, but in three full suites per variant busy CPU did not fall (1151 to
+  1241 s without, 1171 to 1292 s with; 1146 to 1571 s without and 1146 to
+  1215 s with, both with `-vet=off`), and peak memory rose 0.6-1.0 GiB. The
+  job summary prints peak memory in use (MemTotal minus MemAvailable, tmpfs
+  included): 5.8-7.3 of 30.9 GiB on 8 vCPU. The full suite on 4 vCPU, an
+  upper bound for the small runner's selections, peaked at 5.7-6.2 of
+  15.4 GiB, with `GOGC=200` at 7.2.
+- `go test` vets with `-vet=off` here (#7045): golangci-lint's default govet
+  set holds every analyzer of go test's subset, and lint selects the same
+  packages. Its default `exclusions.generated: strict` dropped findings in
+  generated files, which go test vets; `generated: disable` closes that and
+  found nothing. vet cost 17-55 CPU s (about 2 % of busy) in pull requests
+  with Go changes and 0-12 s in full suites of an unchanged tree, whose vet
+  results come from the warmed build cache.
 - A job in front of the job that sets the wall-clock time costs its duration
   plus a runner start: "Select backend tests" took 40–67 s plus 6–15 s. The
   long job selects for itself, as t3code's does.

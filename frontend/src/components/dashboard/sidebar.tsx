@@ -43,6 +43,7 @@ import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSidebarGroups } from "~/lib/hooks/use-sidebar-groups";
+import { useSimpleStaffNav } from "~/lib/hooks/use-simple-staff-nav";
 import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import {
   isStaffSettingsPath,
@@ -73,14 +74,17 @@ import { useHelpHref } from "~/lib/hooks/use-help-href";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { SidebarAccordionSection } from "~/components/ui/sidebar-accordion-section";
 import { SidebarGroup } from "~/components/ui/sidebar-group";
+import { ListBulletsIcon } from "@phosphor-icons/react/ssr";
 import {
   combineSidebarRowBadges,
+  SidebarRowButton,
   SidebarRowLink,
   SidebarRowPlaceholder,
   SidebarSectionHeading,
   type SidebarRowBadge,
 } from "~/components/ui/sidebar-row";
 import { SidebarSubItem } from "~/components/ui/sidebar-sub-item";
+import { NavSceneIcon } from "~/components/ui/nav-scene-icon/nav-scene-icon";
 import {
   SIDEBAR_ICON_CLASSES,
   SIDEBAR_NAV_GAP,
@@ -121,6 +125,7 @@ import {
   STAFF_NAV_BOTTOM,
   STAFF_NAV_CONCEPTS,
   STAFF_NAV_GROUPS,
+  STAFF_NAV_SIMPLE_ENTRIES,
   STAFF_NAV_TOP,
   type StaffNavEntry,
   type StaffNavSectionKey,
@@ -547,6 +552,9 @@ function SidebarContent({
   // Kinder nur über „Alle Kinder“ (#1321): Gruppen und Aktuelle
   // Aufsicht verlassen die Leiste und stehen dort als Reiter.
   const childSearchOnlyNavigation = useChildSearchOnlyNavigation();
+  // Einfache Seitenleiste (#6956): nur die Seiten des Betreuungsalltags,
+  // ohne Gruppen. Die Person kann selbst alle Seiten einblenden.
+  const simpleNav = useSimpleStaffNav(session ?? null);
 
   // Die Adresse hinter dem Eintrag `Hilfe` ganz unten, mit dem Kontext der
   // Sitzung. Die mobile Navigation holt sie aus demselben Hook (#3575).
@@ -1580,35 +1588,44 @@ function SidebarContent({
                   Betreuungskräfte — über den Gruppen, wie bisher. */}
             {STAFF_NAV_TOP.map(renderEntry)}
 
+            {/* Einfache Seitenleiste (#6956): die Seiten des
+                  Betreuungsalltags als eine Liste, ohne Gruppen zum
+                  Aufklappen. */}
+            {simpleNav.active
+              ? STAFF_NAV_SIMPLE_ENTRIES.map(renderEntry)
+              : null}
+
             {/* Die fünf Gruppen (#2826), in der Reihenfolge des Baums. Eine
                   Gruppe ohne sichtbare Zeile fällt weg. */}
-            {STAFF_NAV_GROUPS.map((group) => {
-              const rows = group.entries.map(renderEntry);
-              if (!rows.some(Boolean)) return null;
-              return (
-                <div key={group.key} className="pt-2">
-                  <SidebarGroup
-                    label={group.label}
-                    icon={group.icon}
-                    tourId={`nav-group-${group.key}`}
-                    isOpen={isGroupOpen(group.key)}
-                    onToggle={() => toggleGroup(group.key)}
-                    containsActive={group.entries.some(isEntryActive)}
-                    badge={combineSidebarRowBadges(
-                      group.entries.map(entryBadge),
-                      group.key === "eltern"
-                        ? COUNTER_TONE.parents
-                        : COUNTER_TONE.staff,
-                    )}
-                    collapsed={collapsed}
-                    labelsMounted={labelsMounted}
-                    labelsVisible={labelsVisible}
-                  >
-                    {rows}
-                  </SidebarGroup>
-                </div>
-              );
-            })}
+            {simpleNav.active
+              ? null
+              : STAFF_NAV_GROUPS.map((group) => {
+                  const rows = group.entries.map(renderEntry);
+                  if (!rows.some(Boolean)) return null;
+                  return (
+                    <div key={group.key} className="pt-2">
+                      <SidebarGroup
+                        label={group.label}
+                        icon={group.icon}
+                        tourId={`nav-group-${group.key}`}
+                        isOpen={isGroupOpen(group.key)}
+                        onToggle={() => toggleGroup(group.key)}
+                        containsActive={group.entries.some(isEntryActive)}
+                        badge={combineSidebarRowBadges(
+                          group.entries.map(entryBadge),
+                          group.key === "eltern"
+                            ? COUNTER_TONE.parents
+                            : COUNTER_TONE.staff,
+                        )}
+                        collapsed={collapsed}
+                        labelsMounted={labelsMounted}
+                        labelsVisible={labelsVisible}
+                      >
+                        {rows}
+                      </SidebarGroup>
+                    </div>
+                  );
+                })}
           </nav>
 
           {/* Bottom pinned items — gleiches Raster wie oben, damit der untere
@@ -1617,6 +1634,21 @@ function SidebarContent({
             className={`border-t border-gray-200 ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
           >
             {STAFF_NAV_BOTTOM.map(renderEntry)}
+            {/* Ausgeblendet heißt nicht gesperrt (#6956): jede Person
+                  wechselt selbst zwischen beiden Ansichten. */}
+            {simpleNav.available ? (
+              <SidebarRowButton
+                {...collapseState}
+                label={simpleNav.toggleLabel}
+                icon={
+                  <NavSceneIcon
+                    icon={ListBulletsIcon}
+                    className={SIDEBAR_ICON_CLASSES}
+                  />
+                }
+                onClick={simpleNav.toggle}
+              />
+            ) : null}
           </nav>
         </>
       )}
