@@ -4,13 +4,15 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // CatererInvitationDelivery mails the invitation; the link exists only in
-// the mail.
+// the mail. It also reads what became of those mails in one read.
 type CatererInvitationDelivery interface {
 	EnqueueCatererInvitation(ctx context.Context, invitationID, schoolID int64, email, catererName, token string, expiresAt time.Time) error
+	CatererInvitationMailStates(ctx context.Context, tenantID int64, invitationIDs []int64) (map[int64]identityaccess.InvitationMailState, error)
 }
 
 // CatererStore holds the caterer, its accounts, the schools' supplies and

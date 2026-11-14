@@ -336,6 +336,8 @@ func TestGuardianInvitationQueuesOneWelcomePerGuardianAndSchool(t *testing.T) {
 	welcomeSchoolSettings(t, db)
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "welcome-guardian")
+	child := testpkg.CreateTestStudent(t, db, "Welcome", "Kind", "1a")
+	testpkg.CreateTestStudentGuardianLink(t, db, child.ID, profile.ID, "primary_guardian")
 	creator := testpkg.CreateTestAccount(t, db, "welcome-guardian-creator")
 
 	// The routes run the flows in the request's tenant transaction, which

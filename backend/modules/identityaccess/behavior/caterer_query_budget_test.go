@@ -45,6 +45,56 @@ func TestCatererInvitationsQueryBudget(t *testing.T) {
 	}))
 }
 
+// The school sees what became of each invitation's mail, read for the whole
+// list in one statement, however many invitations it sent (#5960, #2940).
+func TestCatererInvitationMailStatesShowEachMailInOneRead(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	caterers := setupAuthFactory(t, db).Caterers()
+	school := testpkg.Tenant(t)
+	staff := testpkg.CreateTestAccount(t, db, "caterer-mail-staff")
+	add := func(count int) {
+		for range count {
+			invite(t, db, caterers, school, staff.ID, fmt.Sprintf("kueche-mail-%d@example.com", time.Now().UnixNano()))
+		}
+	}
+	add(2)
+	require.NoError(t, inSchool(t, db, school, func(ctx context.Context) error {
+		listed, err := caterers.ListCatererInvitations(ctx)
+		require.NoError(t, err)
+		require.Len(t, listed, 2)
+		bounced, waiting := listed[0].ID, listed[1].ID
+		_, err = db.ExecContext(ctx, `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW(), delivery_state = 'failed'
+			WHERE kind = 'caterer_invitation' AND related_entity_id = ?`, bounced)
+		require.NoError(t, err)
+		states, err := caterers.CatererInvitationMailStates(ctx, []int64{bounced, waiting})
+		require.NoError(t, err)
+		assert.Equal(t, "undeliverable", states[bounced].Outcome, "the school sees that the mail did not arrive")
+		assert.Equal(t, "queued", states[waiting].Outcome)
+
+		counter := testpkg.CaptureQueriesForContext(t, db)
+		countedCtx := counter.Context(ctx)
+		run := func() []string {
+			invitations, err := caterers.ListCatererInvitations(ctx)
+			require.NoError(t, err)
+			ids := make([]int64, 0, len(invitations))
+			for _, invitation := range invitations {
+				ids = append(ids, invitation.ID)
+			}
+			counter.Reset()
+			_, err = caterers.CatererInvitationMailStates(countedCtx, ids)
+			require.NoError(t, err)
+			return counter.Operation("SELECT")
+		}
+		small := run()
+		add(4)
+		large := run()
+		assert.Equal(t, len(small), len(large), "the read must not grow a statement per invitation")
+		querybudgets.AssertQueryBudget(t, "modules.identityaccess.caterer_invitation_mail_states.reads", counter.Measurement(large))
+		return nil
+	}))
+}
+
 // The caterer portal names a caterer's schools in a fixed number of
 // statements, however many schools it supplies (ADR 0077, #2940).
 func TestCatererSchoolsQueryBudget(t *testing.T) {

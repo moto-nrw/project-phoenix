@@ -25,7 +25,10 @@ const (
 	// EmailHeldByStop is a mail that stayed back because the school stopped mail to
 	// the person. The address itself is fine.
 	EmailHeldByStop EmailOutcome = "held_by_stop"
-	EmailComplained EmailOutcome = "complained"
+	// EmailHeldByDeparture is a mailing that stayed back because no child of the
+	// person is in care at the school any more (#5960). The address itself is fine.
+	EmailHeldByDeparture EmailOutcome = "held_by_departure"
+	EmailComplained      EmailOutcome = "complained"
 	// EmailUnsubscribed is a person who unsubscribed. The address itself is fine.
 	EmailUnsubscribed EmailOutcome = "unsubscribed"
 	// EmailOverdue is a delayed mail past EmailDelayLimit without a final event.
@@ -54,6 +57,8 @@ const (
 const (
 	MailHeldByList = "Diese Adresse ist gesperrt, weil eine frühere Mail nicht zugestellt werden konnte."
 	MailHeldByStop = "Die Schule hat die Mails an diese Person gestoppt."
+	// MailHeldByDeparture ends a mailing to a family whose last child left (#5960).
+	MailHeldByDeparture = "Kein Kind dieser Person wird noch an der Schule betreut."
 )
 
 // EmailProviderBlock is the provider's block of an address at this moment, read
@@ -102,6 +107,9 @@ const (
 	EmailSendBlockAddress EmailSendBlock = "address"
 	// EmailSendBlockStopped: the school stopped mail to this person.
 	EmailSendBlockStopped EmailSendBlock = "stopped"
+	// EmailSendBlockDeparted: no child of the address holders is in care.
+	// It only holds distribution mail, never contracts or billing letters.
+	EmailSendBlockDeparted EmailSendBlock = "departed"
 	// EmailSendBlockProvider: the provider withholds mail to the address now.
 	EmailSendBlockProvider EmailSendBlock = "provider"
 	// EmailSendBlockUnreadable: the provider's state could not be read.
@@ -116,6 +124,9 @@ const (
 func EmailOutcomeOf(status string, deliveryState, lastError *string, mark EmailAddressMark) EmailOutcome {
 	if State(status) == StateCancelled && lastError != nil && *lastError == MailHeldByStop {
 		return EmailHeldByStop
+	}
+	if State(status) == StateCancelled && lastError != nil && *lastError == MailHeldByDeparture {
+		return EmailHeldByDeparture
 	}
 	if deliveryState != nil {
 		if outcome, known := reportedOutcome(status, *deliveryState); known {

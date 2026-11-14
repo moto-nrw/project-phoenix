@@ -19,6 +19,7 @@ type eventWorkerStore struct {
 	workerStore
 	suppressed bool
 	stopped    bool
+	departed   bool
 	// traegerListed answers the read of a Träger's mail, so a test tells it apart
 	// from the school's.
 	traegerListed bool
@@ -30,8 +31,8 @@ func (s *eventWorkerStore) RecordEmailDeliveryEvent(_ context.Context, event dom
 	return domain.EmailDeliveryEventResult{Matched: true, Recorded: true, State: event.State}, nil
 }
 
-func (s *eventWorkerStore) SchoolEmailHolds(context.Context, int64, string) (bool, bool, error) {
-	return s.suppressed, s.stopped, nil
+func (s *eventWorkerStore) SchoolEmailHolds(context.Context, int64, string) (domain.SchoolMailHolds, error) {
+	return domain.SchoolMailHolds{Listed: s.suppressed, Stopped: s.stopped, Departed: s.departed}, nil
 }
 
 func (s *eventWorkerStore) TraegerEmailHolds(context.Context, int64, string) (bool, bool, error) {
@@ -78,6 +79,41 @@ func TestWorkerHoldsBackAMailToAStoppedGuardianWithoutMarkingTheAddress(t *testi
 	require.Len(t, store.events, 1)
 	assert.False(t, store.events[0].State.BlocksAddress(), "the stop is the school's decision, not a problem of the address")
 	assert.Equal(t, deliveryContract.MailHeldByStop, store.cancelledReason, "the mail says why it stayed back")
+}
+
+// After the family's last child left, the school's mailings stay back and the
+// mail a family needs on its own still goes out (#5960).
+func TestWorkerHoldsBackOnlyTheSchoolsMailingsToADepartedFamily(t *testing.T) {
+	t.Parallel()
+	for _, template := range []string{"parent_announcement", "parent_message", "appointment_published", "appointment_reminder", "guardian_invitation"} {
+		store := &eventWorkerStore{departed: true}
+		mail := eventMail(false)
+		mail.Template = template
+		store.claimed, store.renewed, store.finalizeCancelled = []domain.Intent{mail}, true, true
+		provider := &workerProvider{}
+
+		stats, err := NewWorker(store, provider, func(domain.Observation) {}).RunOnce(context.Background(), 1, 6)
+
+		require.NoError(t, err, template)
+		assert.Zero(t, provider.calls, template)
+		assert.Equal(t, 1, stats.Cancelled, template)
+		assert.Equal(t, deliveryContract.MailHeldByDeparture, store.cancelledReason, template)
+		require.Len(t, store.events, 1, template)
+		assert.False(t, store.events[0].State.BlocksAddress(), "%s: a departure says nothing about the address", template)
+	}
+	for _, template := range []string{"care_contract_notice", "enrollment_approved", "guardian_welcome", "holiday_place_granted"} {
+		store := &eventWorkerStore{departed: true}
+		mail := eventMail(false)
+		mail.Template = template
+		store.claimed, store.renewed, store.finalizeSent = []domain.Intent{mail}, true, true
+		provider := &workerProvider{}
+
+		stats, err := NewWorker(store, provider, func(domain.Observation) {}).RunOnce(context.Background(), 1, 6)
+
+		require.NoError(t, err, template)
+		assert.Equal(t, 1, provider.calls, "%s is needed by the family on its own", template)
+		assert.Equal(t, 1, stats.Sent, template)
+	}
 }
 
 func TestWorkerAsksTheTraegersSchoolsForATraegerMail(t *testing.T) {

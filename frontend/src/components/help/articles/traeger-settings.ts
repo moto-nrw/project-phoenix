@@ -39,6 +39,7 @@ export function traegerSettingsTopic(): HelpTopic {
       "Ebenfalls unter `Ferienbetreuung` schreiben Sie bei `Zahlungstext im Schreiben` einen eigenen Satz, der um die Zahlung bittet. Erlaubte Platzhalter sind {Betrag}, {Zahlungsfrist}, {Rechnungsnummer} und {Debitorennummer}. Darunter zeigt die `Vorschau des Zahlungstexts` den Satz mit Beispielwerten. Ist das Feld leer, steht im Schreiben der eingebaute Satz.",
       "Der eigene Zahlungstext gilt für die Schreiben, die Sie danach erstellen. Fertige Schreiben bleiben, wie sie sind.",
       "Unter `Ferienbetreuung` legen Sie bei `Ferienanmeldungen löschen nach (Tagen)` fest, wie lange moto Ferienanmeldungen aufbewahrt. Möglich sind 92 bis 1095 Tage, der Standard ist 365 Tage. Die Frist steht im Einwilligungstext für die Eltern. Eine Änderung gilt nur für Anmeldungen, die danach eingehen.",
+      "Unter `Datenschutz` legen Sie bei `Erziehungsberechtigte ohne Kind aufbewahren (Tage)` fest, wie lange moto Eltern ohne Kind aufbewahrt. Möglich sind 30 bis 365 Tage, der Standard ist 90 Tage. Eine Schule kann einen eigenen Wert eintragen.",
       "Im Bereich `Dashboard` legen Sie fest, ab wann das Dashboard eine Schule unter `Auffälligkeiten` zeigt: bei zu wenig Personal, bei vielen Krankmeldungen und bei offenen Anmeldungen. 0 schaltet einen Hinweis aus.",
       "Unter `Ferienbetreuung` legen Sie bei `Ferienbeitrag` auch fest, welches Kind das erste Kind ist und was ein Kostenträger bezahlt. Mehr dazu steht im Artikel `Ferienbeitrag festlegen`.",
     ],

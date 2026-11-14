@@ -81,9 +81,9 @@ func TestRecoverableCancellationKeepsHolidayClosureOrder(t *testing.T) {
 			var first, second int64
 			require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox (organization_id, kind, idempotency_key, recipient, payload, status, last_error)
     VALUES (?, 'holiday_closure_notice', 'closure', '{"address":"family@example.org"}', '{}', 'cancelled', ?) RETURNING id`, organization, reason).Scan(ctx, &first))
-			require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox (organization_id, kind, idempotency_key, recipient, payload)
-    VALUES (?, 'holiday_closure_notice', 'reopening', '{"address":"family@example.org"}', '{}') RETURNING id`, organization).Scan(ctx, &second))
 			now := time.Now()
+			require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox (organization_id, kind, idempotency_key, recipient, payload, next_retry_at)
+    VALUES (?, 'holiday_closure_notice', 'reopening', '{"address":"family@example.org"}', '{}', ?) RETURNING id`, organization, now).Scan(ctx, &second))
 			claimed, err := store.Claim(ctx, domain.TransportEmail, 10, now, now.Add(time.Minute))
 			require.NoError(t, err)
 			if reason == "guardian access revoked" {

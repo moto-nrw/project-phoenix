@@ -605,6 +605,8 @@ func TestGuardianComposition_SeedTokenHeaderDoesNotExposeTokenOutsideLocalDev(t 
 			t.Parallel()
 			ctx := setupGuardiansCompositionRoute(t, appEnv)
 			guardianID, _ := ctx.createGuardian("invite-" + appEnv)
+			studentID, _ := ctx.createStudent("Seed", "Kind", "1a")
+			ctx.link(studentID, guardianID, "primary_guardian")
 
 			req := testutil.NewAuthenticatedRequest(t, http.MethodPost, guardiansPath("/%d/invite", guardianID), nil,
 				bearer(t, withPerms(testutil.DefaultTestClaims(), "users:create")))
@@ -623,6 +625,8 @@ func TestGuardianComposition_SeedTokenExposedForLocalSeeder(t *testing.T) {
 	t.Parallel()
 	ctx := setupGuardiansCompositionRoute(t, "development")
 	guardianID, _ := ctx.createGuardian("invite-local")
+	studentID, _ := ctx.createStudent("Seed", "Kind", "1a")
+	ctx.link(studentID, guardianID, "primary_guardian")
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodPost, guardiansPath("/%d/invite", guardianID), nil,
 		bearer(t, withPerms(testutil.DefaultTestClaims(), "users:create")))

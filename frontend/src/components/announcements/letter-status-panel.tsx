@@ -30,6 +30,7 @@ import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { formatDate } from "~/lib/date-helpers";
 import {
   CHECK_ADDRESS_AT_GUARDIAN,
+  GUARDIAN_DEPARTED_COPY,
   correctedAddressCopy,
   mailStatusCopy,
   STOP_SHARED_NOTE,
@@ -546,6 +547,7 @@ function recipientMailCopy(
       recipient.email_status === "failed" &&
       !recipient.address_mark &&
       !recipient.stopped &&
+      !recipient.departed &&
       recipient.provider_block !== "active" &&
       recipient.provider_block !== "unreadable";
     const corrected = resendReaches
@@ -579,7 +581,9 @@ function RecipientRow({ recipient }: { readonly recipient: LetterRecipient }) {
       });
   // The note says it in plain words; the raw server text stays out then.
   const note =
-    recipient.mail_outcome === "accepted" ? null : mailCopy?.explanation;
+    recipient.departed || recipient.mail_outcome === "accepted"
+      ? null
+      : mailCopy?.explanation;
   const portal = REACHABILITY_LABELS[recipient.reachability] ?? null;
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
@@ -597,10 +601,15 @@ function RecipientRow({ recipient }: { readonly recipient: LetterRecipient }) {
           </p>
         )}
         {note && <p className="text-xs text-gray-600">{note}</p>}
+        {recipient.departed && (
+          <p className="text-xs text-gray-600">
+            Aktuell: {GUARDIAN_DEPARTED_COPY.explanation}
+          </p>
+        )}
         {recipient.stopped && recipient.stop_shared && (
           <p className="text-xs text-gray-600">{STOP_SHARED_NOTE}</p>
         )}
-        {recipient.last_error && !mailCopy && (
+        {recipient.last_error && !mailCopy && !recipient.departed && (
           <p
             className="truncate text-xs text-gray-500"
             title={recipient.last_error}
@@ -615,6 +624,12 @@ function RecipientRow({ recipient }: { readonly recipient: LetterRecipient }) {
           tone={email.tone}
           title={email.title}
         />
+        {recipient.departed && (
+          <StatusBadge
+            label={GUARDIAN_DEPARTED_COPY.label}
+            tone={GUARDIAN_DEPARTED_COPY.tone}
+          />
+        )}
         {portal && (
           <StatusBadge
             label={portal.label}
