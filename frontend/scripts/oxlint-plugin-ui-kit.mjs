@@ -6134,6 +6134,16 @@ const TOOLTIP_SCOPE = [
   "src/components/timetable/betreuungsplan-view.tsx",
   "src/components/timetable/booking-leftover-hints.tsx",
   "src/components/timetable/bulk-substitution-modal.tsx",
+  // Planung: Vertretung, Tagesplan, Vorlagen, Stundenplan (#6773).
+  "src/components/timetable/substitution-person-card.tsx",
+  "src/components/timetable/substitution-slide-over.tsx",
+  "src/components/timetable/tagesplan-view.tsx",
+  "src/components/timetable/template-card.tsx",
+  "src/components/timetable/template-list.tsx",
+  "src/components/timetable/timetable-add-menu.tsx",
+  "src/components/timetable/timetable-event-modal.tsx",
+  "src/components/timetable/vertretung-day-list.tsx",
+  "src/components/timetable/vertretung-view.tsx",
   // Planung: Termine, Konflikte, Angebote, Serien (#6772).
   "src/components/timetable/calendar-period-modal.tsx",
   "src/components/timetable/conflict-warnings-banner.tsx",
@@ -6400,6 +6410,19 @@ const TOOLTIP_SCOPE = [
   "src/components/database/detail-delete-button.tsx",
   "src/components/database/grade-transitions/grade-transitions-manager.tsx",
   "src/components/database/grade-transitions/graduates-modal.tsx",
+  // Mitarbeitende: Akte, Stammdaten, Stundenkonto, Zeiterfassung (#6771).
+  "src/components/staff/staff-audit-log.tsx",
+  "src/components/staff/staff-export-button.tsx",
+  "src/components/staff/staff-session-table.tsx",
+  "src/components/staff/staff-time-accounts-table.tsx",
+  "src/components/staff/staff-time-export-modal.tsx",
+  "src/components/staff/stammdaten-section-forms.tsx",
+  "src/components/staff/stammdaten-tab.tsx",
+  "src/components/staff/stundenkonto-panel.tsx",
+  "src/components/staff/zeiterfassung-tab.tsx",
+  "src/components/teachers/caregiver-blocker-resolution-panel.tsx",
+  "src/components/teachers/caregiver-capability-modal.tsx",
+  "src/components/teachers/staff-list.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

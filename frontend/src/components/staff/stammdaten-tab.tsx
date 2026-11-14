@@ -520,6 +520,7 @@ export function StammdatenTab({
             variant="surface"
             size="md"
             onClick={startEditing}
+            tooltip="Öffnet die Stammdaten dieser Person zum Bearbeiten."
           >
             Bearbeiten
           </Button>
@@ -736,6 +737,7 @@ export function StammdatenTab({
                 href={tenantPath("/payroll")}
                 variant="ghost"
                 size="md"
+                tooltip="Öffnet die Abrechnung mit Lohnarten und DATEV-Angaben."
               >
                 Abrechnung
               </ButtonLink>
@@ -775,6 +777,11 @@ export function StammdatenTab({
                 size="md"
                 onClick={() => void toggleReveal()}
                 disabled={revealing}
+                tooltip={
+                  revealed
+                    ? "Verdeckt Bank- und Steuerdaten wieder."
+                    : "Zeigt Bank- und Steuerdaten vollständig, der Abruf wird protokolliert."
+                }
               >
                 {revealed ? (
                   <>
@@ -812,6 +819,7 @@ export function StammdatenTab({
                   isLoading={financialLoading}
                   loadingText="Wird geladen…"
                   onClick={() => void loadFinancialForEditing()}
+                  tooltip="Lädt die Werte ins Formular, der Abruf wird protokolliert."
                 >
                   Werte zum Ändern laden
                 </Button>

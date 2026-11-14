@@ -456,7 +456,7 @@ export function ZeiterfassungTab({
           onPrev={handlePrev}
           onNext={handleNext}
           onToday={handleGoToday}
-          todayLabel={viewMode === "month" ? "Diesen Monat" : "Diese Woche"}
+          isMonth={viewMode === "month"}
         />
 
         {viewMode === "month" && (
@@ -620,14 +620,15 @@ function RangeNav({
   onPrev,
   onNext,
   onToday,
-  todayLabel,
+  isMonth,
 }: {
   readonly label: string;
   readonly onPrev: () => void;
   readonly onNext: () => void;
   readonly onToday: () => void;
-  readonly todayLabel: string;
+  readonly isMonth: boolean;
 }) {
+  const todayLabel = isMonth ? "Diesen Monat" : "Diese Woche";
   return (
     <div className="flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
       <div className="hidden sm:block" />
@@ -638,6 +639,11 @@ function RangeNav({
           size="icon"
           onClick={onPrev}
           aria-label="Vorheriger Zeitraum"
+          tooltip={
+            isMonth
+              ? "Zeigt die Zeiten des Vormonats."
+              : "Zeigt die Zeiten der Vorwoche."
+          }
         >
           <ChevronLeft className="h-4 w-4" aria-hidden />
         </Button>
@@ -650,6 +656,11 @@ function RangeNav({
           size="icon"
           onClick={onNext}
           aria-label="Nächster Zeitraum"
+          tooltip={
+            isMonth
+              ? "Zeigt die Zeiten des Folgemonats."
+              : "Zeigt die Zeiten der Folgewoche."
+          }
         >
           <ChevronRight className="h-4 w-4" aria-hidden />
         </Button>
@@ -660,6 +671,11 @@ function RangeNav({
           variant="outline"
           size="compact"
           onClick={onToday}
+          tooltip={
+            isMonth
+              ? "Springt zurück zum laufenden Monat."
+              : "Springt zurück zur laufenden Woche."
+          }
         >
           {todayLabel}
         </Button>

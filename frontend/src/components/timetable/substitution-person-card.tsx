@@ -79,6 +79,7 @@ function MarkAbsentAction({ person, name, onUpdate }: PersonHeaderProps) {
       variant="outline_danger"
       size="md"
       aria-label={`${name} als abwesend markieren`}
+      tooltip="Markiert die Person beim Speichern als abwesend."
       onClick={() =>
         onUpdate({
           absent: true,
@@ -101,6 +102,11 @@ function UndoAbsenceAction({ person, name, onUpdate }: PersonHeaderProps) {
       variant="ghost"
       size="md"
       aria-label={`${name} ${person.wasAbsent ? "anwesend melden" : "Änderung rückgängig machen"}`}
+      tooltip={
+        person.wasAbsent
+          ? "Meldet die Person beim Speichern wieder als anwesend."
+          : "Verwirft die Abwesenheit, die Sie gerade eingetragen haben."
+      }
       onClick={() =>
         onUpdate({
           absent: false,
