@@ -373,7 +373,7 @@ export function SetupChecklist<K extends string>({
                             tooltip={
                               step.skipped
                                 ? "Nimmt den Schritt wieder zu den offenen Schritten."
-                                : "Lässt den Schritt aus und zählt ihn als fertig."
+                                : "Lässt den Schritt aus und zählt ihn für den Abschluss mit."
                             }
                           >
                             {step.skipped

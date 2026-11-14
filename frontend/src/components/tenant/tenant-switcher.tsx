@@ -247,8 +247,7 @@ export function BrandTenantSwitcher({
     for (const t of orgTenants) {
       menuItems.push({
         label: t.name,
-        noDescription:
-          "Name der Einrichtung; der Auslöser erklärt den Wechsel für alle Einträge.",
+        description: "Wechselt zu dieser Einrichtung",
         onClick: () => void handleSwitch(t),
       });
     }
