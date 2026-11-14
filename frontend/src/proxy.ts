@@ -5,6 +5,7 @@ import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 import { normalizeHostname, tenantSlugFromHost } from "~/lib/tenant-host";
 import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
 import { berlinTodayISO } from "~/lib/date-helpers";
+import { DEMO_BOOKING_URL, isDemoBuild } from "~/lib/demo-build";
 import {
   resolvePlanungRedirect,
   type PlanungRedirectTarget,
@@ -49,7 +50,11 @@ const TENANT_DOMAIN = requiredEnv("TENANT_DOMAIN", process.env.TENANT_DOMAIN);
 // the policy names no analytics host.
 // Keep Next.js inline bootstrap/hydration scripts working without a nonce
 // migration. This is not a strict XSS policy; see docs/operations/browser-csp-3842.md.
-const BLOB_FRAME_SRC = "frame-src 'self' blob:";
+// The demo build also frames the booking calendar behind „Termin buchen“.
+const DEMO_BOOKING_FRAME = isDemoBuild()
+  ? ` ${new URL(DEMO_BOOKING_URL).origin}`
+  : "";
+const BLOB_FRAME_SRC = `frame-src 'self' blob:${DEMO_BOOKING_FRAME}`;
 const CSP_HEADER = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
@@ -58,7 +63,7 @@ const CSP_HEADER = [
   "connect-src 'self'",
   "object-src 'none'",
   // A PDF the page loaded through the signed-in API shows in a frame from
-  // its object URL (#5692); no other origin may be framed.
+  // its object URL (#5692); no other origin may be framed outside the demo.
   BLOB_FRAME_SRC,
   "frame-ancestors 'none'",
   "base-uri 'self'",

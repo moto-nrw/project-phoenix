@@ -17,8 +17,9 @@
 //
 // The sign-in always asks for the second factor (ADR 0084, #4651): an e-mailed
 // code under the org challenge scope, set up first where the account has
-// none. Refresh and logout run through the shared, scope-preserving
-// /auth/refresh and /auth/logout like the school portal's.
+// none, or a device the person remembered at this Träger when they chose to
+// at the code step (#6955). Refresh and logout run through the shared,
+// scope-preserving /auth/refresh and /auth/logout like the school portal's.
 package traegerportal
 
 import (
@@ -48,9 +49,12 @@ type Organization struct {
 // AuthRuntime is the Träger-Portal's session port; the composition root binds
 // it to Identity & Access.
 type AuthRuntime struct {
-	Login func(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (*identityaccess.TraegerLoginResult, error)
+	// Login signs in with the browser's remember-device cookie, which
+	// replaces the code when it names a device of the account at the Träger.
+	Login func(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64, trustedDeviceCookie string) (*identityaccess.TraegerLoginResult, error)
 	// IssueTokens mints the Träger session after a proven second factor;
-	// the membership is checked again.
+	// the membership is checked again. The answer names the Träger of the
+	// session.
 	IssueTokens func(ctx context.Context, proof VerifiedChallenge, organizationID int64, ipAddress, userAgent string) (*identityaccess.TraegerLoginResult, error)
 }
 
@@ -112,23 +116,32 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Route("/auth", func(r chi.Router) {
-		if authRateLimiter != nil {
-			r.Use(authRateLimiter)
-		}
-		r.Post("/login", rs.login)
-		// The reset link reaches Träger-Büro members only and lands on the
-		// Träger host (#5149).
-		r.Post("/password-reset", rs.resets.ServeInitiate)
-		r.Post("/password-reset/confirm", rs.resets.ServeConfirm)
-		// The Träger second factor: redeems only org-scope challenges.
-		r.Post("/mfa/verify", rs.mfaVerify)
-		r.Post("/mfa/resend", rs.mfaResend)
-		// Setting up the factor takes the Träger enrollment token the login
-		// mints, never a Träger session or another portal's token.
 		r.Group(func(r chi.Router) {
-			r.Use(sessiontoken.EnrollmentAuthenticatorFor(tokenprimitives.OrgClaims))
-			r.Post("/mfa/enroll/start", rs.mfaEnrollStart)
-			r.Post("/mfa/enroll/confirm", rs.mfaEnrollConfirm)
+			if authRateLimiter != nil {
+				r.Use(authRateLimiter)
+			}
+			r.Post("/login", rs.login)
+			// The reset link reaches Träger-Büro members only and lands on
+			// the Träger host (#5149).
+			r.Post("/password-reset", rs.resets.ServeInitiate)
+			r.Post("/password-reset/confirm", rs.resets.ServeConfirm)
+			// The Träger second factor: redeems only org-scope challenges.
+			r.Post("/mfa/verify", rs.mfaVerify)
+			r.Post("/mfa/resend", rs.mfaResend)
+			// Setting up the factor takes the Träger enrollment token the
+			// login mints, never a Träger session or another portal's token.
+			r.Group(func(r chi.Router) {
+				r.Use(sessiontoken.EnrollmentAuthenticatorFor(tokenprimitives.OrgClaims))
+				r.Post("/mfa/enroll/start", rs.mfaEnrollStart)
+				r.Post("/mfa/enroll/confirm", rs.mfaEnrollConfirm)
+			})
+		})
+		// The person's own remembered devices at the Träger of the session
+		// (#6955), behind the Träger session like the tenant portal's own
+		// devices behind its session.
+		protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
+			r.Get("/mfa/trusted-devices", rs.listTrustedDevices)
+			r.Delete("/mfa/trusted-devices/{"+portalauth.TrustedDeviceIDParam+"}", rs.revokeTrustedDevice)
 		})
 	})
 	r.Mount("/invitations", rs.invitationRouter(authRateLimiter))
@@ -163,7 +176,8 @@ func (req *LoginRequest) Bind(_ *http.Request) error {
 }
 
 // LoginResponse is the login answer of the other portals with the Träger
-// the sign-in resolved or offers.
+// the sign-in resolved or offers. mfa_required carries the remember-device
+// offer as portalauth.LoginResponse does (#6955).
 type LoginResponse struct {
 	Status                string         `json:"status"`
 	AccessToken           string         `json:"access_token,omitempty"`
@@ -171,6 +185,8 @@ type LoginResponse struct {
 	ChallengeToken        string         `json:"challenge_token,omitempty"`
 	MaskedEmail           string         `json:"masked_email,omitempty"`
 	MFAEnrollmentRequired bool           `json:"mfa_enrollment_required,omitempty"`
+	TrustedDeviceEnabled  *bool          `json:"trusted_device_enabled,omitempty"`
+	TrustedDeviceDays     *int           `json:"trusted_device_days,omitempty"`
 	OrganizationID        int64          `json:"organization_id,omitempty"`
 	Organizations         []Organization `json:"organizations,omitempty"`
 }
@@ -186,7 +202,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client := portalauth.ClientOf(r)
-	result, err := rs.auth.Login(r.Context(), req.Email, req.Password, client.IP, client.UserAgent, req.OrganizationID)
+	result, err := rs.auth.Login(r.Context(), req.Email, req.Password, client.IP, client.UserAgent, req.OrganizationID, common.TrustedDevice(r))
 	if err != nil {
 		portalauth.Render(w, r, err, portalauth.LoginRules)
 		return
@@ -199,10 +215,15 @@ func loginResponse(result *identityaccess.TraegerLoginResult) LoginResponse {
 	for _, organization := range result.Organizations {
 		organizations = append(organizations, Organization(organization))
 	}
-	return LoginResponse{
+	response := LoginResponse{
 		Status: string(result.Status), AccessToken: result.AccessToken, RefreshToken: result.RefreshToken,
 		ChallengeToken: result.ChallengeToken, MaskedEmail: result.MaskedEmail,
 		MFAEnrollmentRequired: result.Status == identityaccess.TraegerLoginMFAEnrollmentRequired,
 		OrganizationID:        result.OrganizationID, Organizations: organizations,
 	}
+	if result.Status == identityaccess.TraegerLoginMFARequired {
+		enabled, days := result.TrustedDeviceEnabled, result.TrustedDeviceDays
+		response.TrustedDeviceEnabled, response.TrustedDeviceDays = &enabled, &days
+	}
+	return response
 }

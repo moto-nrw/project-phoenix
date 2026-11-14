@@ -7508,12 +7508,23 @@
           "type": "bigint",
           "udt": "int8",
           "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
         }
       ],
       "relationships": [
         {
           "column": "account_id",
           "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
           "targetColumn": "id"
         },
         {
@@ -19615,6 +19626,12 @@
           "name": "debit_gap",
           "type": "character varying",
           "udt": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "holiday_registration_child_id",
+          "type": "bigint",
+          "udt": "int8",
           "nullable": true
         }
       ],

@@ -237,3 +237,27 @@ type AccountMFA interface {
 	AccountTrustedDevices
 	AccountMFAAdministration
 }
+
+// traegerDeviceKey carries the Träger whose remembered devices a
+// trusted-device call without a school means.
+type traegerDeviceKey struct{}
+
+// WithTraegerDevice binds the Träger of the Träger-Portal to the
+// trusted-device calls of ctx (#6955). A Träger session names its Träger and
+// no school, so its device does too: AccountTrustedDevices called with
+// tenantID zero then prepares, issues, verifies, lists and revokes only the
+// devices of that Träger. Without the binding a call without a school means
+// the caterer portal's devices (#4497); a call that names a school ignores
+// it. A non-positive organizationID binds nothing.
+func WithTraegerDevice(ctx context.Context, organizationID int64) context.Context {
+	if organizationID <= 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, traegerDeviceKey{}, organizationID)
+}
+
+// TraegerDeviceOf is the Träger WithTraegerDevice bound, or zero.
+func TraegerDeviceOf(ctx context.Context) int64 {
+	organizationID, _ := ctx.Value(traegerDeviceKey{}).(int64)
+	return organizationID
+}

@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -17,6 +18,8 @@ export interface OTPInputGridHandle {
   reset(): void;
   /** Move focus to the first digit input. */
   focus(): void;
+  /** Take focus off the grid, so an on-screen keyboard closes. */
+  blur(): void;
 }
 
 interface OTPInputGridProps {
@@ -24,6 +27,12 @@ interface OTPInputGridProps {
   readonly disabled?: boolean;
   /** Fires exactly once per fill — guarded internally to prevent double-submit. */
   readonly onComplete: (code: string) => void;
+  /**
+   * Fires with the digits entered so far on every change, also when a digit
+   * is removed again. A parent that submits with its own buttons reads the
+   * code from here.
+   */
+  readonly onChange?: (code: string) => void;
   readonly ariaLabel?: string;
   readonly autoFocus?: boolean;
 }
@@ -44,6 +53,7 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
       length,
       disabled = false,
       onComplete,
+      onChange,
       ariaLabel = "Bestätigungscode",
       autoFocus = true,
     },
@@ -58,28 +68,55 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
     );
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
     const submittedRef = useRef(false);
+    const focusFrameRef = useRef<number | null>(null);
+
+    const cancelPendingFocus = useCallback(() => {
+      if (focusFrameRef.current !== null) {
+        cancelAnimationFrame(focusFrameRef.current);
+        focusFrameRef.current = null;
+      }
+    }, []);
 
     useImperativeHandle(
       ref,
       () => ({
         reset: () => {
+          cancelPendingFocus();
           setDigits(Array.from({ length }, () => ""));
           submittedRef.current = false;
           inputRefs.current[0]?.focus();
         },
         focus: () => {
+          cancelPendingFocus();
           inputRefs.current[0]?.focus();
         },
+        blur: () => {
+          // A queued digit advance must not undo an explicit blur.
+          cancelPendingFocus();
+          for (const input of inputRefs.current) input?.blur();
+        },
       }),
-      [length],
+      [length, cancelPendingFocus],
     );
 
     useEffect(() => {
       if (autoFocus) inputRefs.current[0]?.focus();
-    }, [autoFocus]);
+      return cancelPendingFocus;
+    }, [autoFocus, cancelPendingFocus]);
+
+    // The parent hears every state of the code, including the reset and a
+    // removed digit, from the one place the digits live.
+    const latestOnChange = useRef(onChange);
+    useLayoutEffect(() => {
+      latestOnChange.current = onChange;
+    });
+    useEffect(() => {
+      latestOnChange.current?.(digits.join(""));
+    }, [digits]);
 
     const handleDigitChange = useCallback(
       (index: number, value: string) => {
+        cancelPendingFocus();
         const sanitized = value.replace(/\D/g, "");
         if (sanitized.length === 0) {
           setDigits((prev) => {
@@ -97,13 +134,16 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
         setDigits(next);
 
         const focusTarget = Math.min(index + chars.length, length - 1);
-        requestAnimationFrame(() => inputRefs.current[focusTarget]?.focus());
+        focusFrameRef.current = requestAnimationFrame(() => {
+          focusFrameRef.current = null;
+          inputRefs.current[focusTarget]?.focus();
+        });
         if (next.every((digit) => digit !== "") && !submittedRef.current) {
           submittedRef.current = true;
           onComplete(next.join(""));
         }
       },
-      [digits, length, onComplete],
+      [digits, length, onComplete, cancelPendingFocus],
     );
 
     const handleKeyDown = useCallback(

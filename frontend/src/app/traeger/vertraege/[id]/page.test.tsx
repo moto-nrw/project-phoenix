@@ -399,7 +399,11 @@ describe("TraegerVertragPage", () => {
 
   it.each([
     ["unsubscribed", "Abgemeldet", /abgemeldet/],
-    ["complained", "Nicht zustellbar", /unerwünscht/],
+    [
+      "complained",
+      "Als unerwünscht gemeldet",
+      /hat eine Mail als unerwünscht gemeldet/,
+    ],
   ] as const)(
     "does not read a %s mail as sent",
     async (outcome, label, text) => {

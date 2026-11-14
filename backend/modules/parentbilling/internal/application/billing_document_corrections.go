@@ -229,14 +229,14 @@ func creditOf(invoice parentbilling.BillingDocument, child parentbilling.Billing
 }
 
 // correctionOf copies what a document of an invoice keeps of it: the
-// registration, the recipient as the invoice has it and the service days.
+// registration and child (#7007), the recipient as the invoice has it and the service days.
 // Its positions carry where the invoice's booked, so a Storno or credit
 // relieves the same accounts (#4821, #6624).
 func correctionOf(invoice parentbilling.BillingDocument, kind, reason string) parentbilling.BillingDocument {
 	reference := invoice.ID
 	return parentbilling.BillingDocument{
 		Kind: kind, DocumentKind: invoice.DocumentKind, ReferenceDocumentID: &reference, ReferenceNumber: invoice.Number, Reason: reason,
-		RegistrationID: invoice.RegistrationID, RecipientFirstName: invoice.RecipientFirstName,
+		RegistrationID: invoice.RegistrationID, RegistrationChildID: invoice.RegistrationChildID, RecipientFirstName: invoice.RecipientFirstName,
 		RecipientLastName: invoice.RecipientLastName, RecipientEmail: invoice.RecipientEmail,
 		RecipientAddress: invoice.RecipientAddress, RecipientKind: invoice.RecipientKind,
 		RecipientSecondName: invoice.RecipientSecondName, DebtorNumber: invoice.DebtorNumber,

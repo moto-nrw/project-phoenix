@@ -41,7 +41,6 @@ import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-regis
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
 import {
   HOLIDAY_MAIL_LABELS,
-  HOLIDAY_MAIL_NEXT_STEP,
   HolidayRegistrationMailProblemsAlert,
 } from "~/components/traeger/holiday-registration-mail-problems";
 import { RequestMailStatus } from "~/components/enrollment/request-mail-status";
@@ -73,6 +72,7 @@ import {
 import { hasPermission } from "~/lib/auth-utils";
 import { childrenConcept } from "~/lib/concepts/children";
 import { confirmationsConcept } from "~/lib/concepts/confirmations";
+import { mailsConcept } from "~/lib/concepts/mails";
 import { parentsConcept } from "~/lib/concepts/parents";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
@@ -82,6 +82,7 @@ import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resour
 import {
   fetchHolidayContribution,
   fetchHolidayFamilyDebtorNumber,
+  type HolidayFamilyDebtorNumbers,
   type HolidayContribution,
 } from "~/lib/traeger-contributions-api";
 import {
@@ -116,8 +117,15 @@ const PDF_LABELS: AttachmentLabels = {
   errorObject: "die PDF-Datei",
 };
 
+const NO_FAMILY_DEBTOR_NUMBERS: HolidayFamilyDebtorNumbers = {
+  debtorNumber: "",
+  children: [],
+};
+
 const logger = createLogger({ component: "TraegerHolidayRegistrationPage" });
 const TRAEGER_BILLING_RIGHT = "traeger_billing:manage";
+// The mail notice leads here: phone and address of the parents (#6999).
+const PARENTS_SECTION_ID = "eltern";
 
 // The edit states load with the first „Ändern“, not with the page.
 const editors = () => import("~/components/traeger/holiday-registration-edit");
@@ -195,8 +203,9 @@ export default function TraegerHolidayRegistrationPage() {
   const [confirmation, setConfirmation] =
     useState<HolidayConfirmationSettings | null>(null);
   // The number the family already has at the Träger, proposed at the
-  // confirmation (#6692).
-  const [familyDebtorNumber, setFamilyDebtorNumber] = useState("");
+  // confirmation (#6692), and with a number per child each child's (#7007).
+  const [familyDebtorNumbers, setFamilyDebtorNumbers] =
+    useState<HolidayFamilyDebtorNumbers>(NO_FAMILY_DEBTOR_NUMBERS);
   // The exemption the confirmation applies; it starts with the parents'
   // statement and the preview follows it.
   const [exemption, setExemption] = useState(false);
@@ -229,7 +238,7 @@ export default function TraegerHolidayRegistrationPage() {
         setHealth(null);
         setContribution(null);
         setConfirmation(null);
-        setFamilyDebtorNumber("");
+        setFamilyDebtorNumbers(NO_FAMILY_DEBTOR_NUMBERS);
         setEditing(null);
       }
       throw error;
@@ -257,7 +266,7 @@ export default function TraegerHolidayRegistrationPage() {
       if (request !== latestRegistration.current) return;
       latestContribution.current++;
       setConfirmation(loadedConfirmation);
-      setFamilyDebtorNumber(loadedFamilyDebtorNumber);
+      setFamilyDebtorNumbers(loadedFamilyDebtorNumber);
       setRegistration(loadedRegistration);
       setHealth(loadedHealth);
       setContribution(loadedContribution);
@@ -493,6 +502,9 @@ export default function TraegerHolidayRegistrationPage() {
           ) : null}
           <HolidayRegistrationMailProblemsAlert
             problems={registration.mailProblems}
+            outcomes={(registration.mails ?? []).map((mail) => mail.outcome)}
+            cancelled={cancelled}
+            parentsSectionId={PARENTS_SECTION_ID}
           />
           <HolidayRegistrationStatusCard
             periodId={periodId}
@@ -501,7 +513,8 @@ export default function TraegerHolidayRegistrationPage() {
             previewPending={previewPending}
             debtorNumberRequired={confirmation?.debtorNumberRequired ?? false}
             debtorNumberFormat={confirmation?.debtorNumberFormat}
-            familyDebtorNumber={familyDebtorNumber}
+            familyDebtorNumber={familyDebtorNumbers.debtorNumber}
+            childDebtorNumbers={familyDebtorNumbers.children}
             exemption={exemption}
             onExemptionChange={changeExemption}
             costBearers={confirmation?.costBearers}
@@ -602,6 +615,8 @@ export default function TraegerHolidayRegistrationPage() {
             />
           ) : (
             <SectionCard
+              id={PARENTS_SECTION_ID}
+              className="scroll-mt-24"
               leading={<ConceptIconTile concept={parentsConcept} />}
               title="Eltern"
               description={cancelled ? CANCELLED_EDIT_TEXT : undefined}
@@ -798,8 +813,8 @@ export default function TraegerHolidayRegistrationPage() {
             </SectionCard>
           )}
           {/* Every mail of the registration with its status (#6976), in the
-              view of the mails of an enrollment request. A Träger keeps no
-              address list, so its own next step stands under the list. */}
+              view of the mails of an enrollment request. The next step stands
+              once, in the notice at the top (#6999). */}
           <RequestMailStatus
             mails={(registration.mails ?? []).map((mail) => ({
               kind: mail.kind,
@@ -807,13 +822,9 @@ export default function TraegerHolidayRegistrationPage() {
               ...(mail.createdAt ? { created_at: mail.createdAt } : {}),
             }))}
             loadError={null}
-            title="Mails"
+            title="Mails an die Eltern"
             labels={HOLIDAY_MAIL_LABELS}
-            note={
-              registration.mailProblems.length > 0
-                ? `Bei mindestens einer Mail gibt es ein Problem. ${HOLIDAY_MAIL_NEXT_STEP}`
-                : undefined
-            }
+            leading={<ConceptIconTile concept={mailsConcept} />}
           />
           <HolidayRegistrationHistory
             period={period}

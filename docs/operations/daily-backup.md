@@ -444,7 +444,7 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
 
    `phoenix_tenant` und `phoenix_admin` sind NOLOGIN und benötigen kein Passwort.
    Auch außerhalb der Demo existiert `phoenix_demo`; sein Wert ist erforderlich.
-   Eng begrenzte Ausnahme für [persönliche Diagnosezugänge](diagnose-lesezugang-3840.md)
+   Eng begrenzte Ausnahme für persönliche Diagnosezugänge
    und interne [Lösch-/Aufbewahrungszugänge](tenant-erasure.md) sowie den
    [Freigabezugang der Datenrückgabe](auskunft-und-rueckgabe.md#8-paket-zum-abruf-freigeben-art-30-abs-2-data-act):
    Ausschließliche Mitgliedschaft in **genau einer** der Gruppen `phoenix_diagnostics`,
@@ -467,8 +467,8 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
    Alle anderen unbekannten LOGIN-Rollen werden weiterhin abgewiesen.
    Vor Wiederholung deren Zweck/Mapping klären und das Verfahren gezielt erweitern.
    Persönliche Diagnosezugänge nach Restore **bewusst einzeln neu freischalten**:
-   Auftrag und Schulwahl bestätigen, Rechte und MFA-Netzweg/HBA nach dem
-   Diagnose-Runbook prüfen, Passwort neu setzen, erst danach LOGIN aktivieren.
+   Auftrag und Schulwahl bestätigen, Rechte und Netzweg/HBA prüfen, Passwort
+   neu setzen, erst danach LOGIN aktivieren.
    Nicht benötigte Zugänge bleiben gesperrt.
    **Lösch-/Aufbewahrungs-Logins ebenfalls bewusst einzeln neu freischalten:**
    Auftrag, Zuständigkeit und benötigte Gruppenrolle erneut prüfen. Keine
