@@ -61,16 +61,22 @@ if (childOrigin) {
 }
 // Exercise the browser helper at the BFF/Mailpit seam without a seeded stack.
 // A session exists only after the OTP exchange, not when the email field hides.
-for (const { enrollment, trustedDeviceEnabled } of childOrigin
+for (const { enrollment, deviceChoice } of childOrigin
   ? []
   : [
-      { enrollment: false, trustedDeviceEnabled: false },
-      { enrollment: false, trustedDeviceEnabled: true },
-      { enrollment: true, trustedDeviceEnabled: false },
+      { enrollment: false, deviceChoice: "none" },
+      { enrollment: false, deviceChoice: "legacy" },
+      { enrollment: false, deviceChoice: "current" },
+      { enrollment: true, deviceChoice: "none" },
     ]) {
-  test(`local login completes ${enrollment ? "enrollment" : "verification"}${trustedDeviceEnabled ? " with device choice" : ""} and reuses its session`, async ({
+  test(`local login completes ${enrollment ? "enrollment" : "verification"}${deviceChoice !== "none" ? ` with ${deviceChoice} device choice` : ""} and reuses its session`, async ({
     browser,
   }) => {
+    const trustedDeviceEnabled = deviceChoice !== "none";
+    const confirmLabel =
+      deviceChoice === "current"
+        ? "Nein, nur anmelden"
+        : "Nur dieses Mal bestätigen";
     const code = String(randomInt(100_000, 1_000_000));
     let loginCount = 0;
     let verified = false;
@@ -89,7 +95,7 @@ for (const { enrollment, trustedDeviceEnabled } of childOrigin
             const showCode = () => {
               document.body.innerHTML = '<input autocomplete="one-time-code">' + ${JSON.stringify(
                 trustedDeviceEnabled
-                  ? '<button id="once">Nur dieses Mal bestätigen<span>Für Geräte, die mehrere Personen nutzen.</span></button><button id="remember">Bestätigen und dieses Gerät 30 Tage merken</button>'
+                  ? `<button id="once">${confirmLabel}<span>Für Geräte, die mehrere Personen nutzen.</span></button><button id="remember">Bestätigen und dieses Gerät 30 Tage merken</button>`
                   : "",
               )};
               const verify = async (rememberDevice) => {

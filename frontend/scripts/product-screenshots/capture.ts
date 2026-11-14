@@ -195,7 +195,7 @@ async function loginToTraeger(
     await page.getByRole("button", { name: "Weiter zum Dashboard" }).click();
   } else {
     const confirmOnce = page.getByRole("button", {
-      name: /^Nur dieses Mal bestätigen/,
+      name: /^(?:Nur dieses Mal bestätigen|Nein, nur anmelden)/,
     });
     if (await confirmOnce.isVisible()) await confirmOnce.click();
   }

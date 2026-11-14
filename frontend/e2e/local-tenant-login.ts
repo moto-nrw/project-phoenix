@@ -231,7 +231,7 @@ async function loginThroughUI(
     } else {
       // Schools that allow remembered devices require an explicit choice.
       const confirmOnce = page.getByRole("button", {
-        name: /^Nur dieses Mal bestätigen/,
+        name: /^(?:Nur dieses Mal bestätigen|Nein, nur anmelden)/,
       });
       if (await confirmOnce.isVisible()) await confirmOnce.click();
     }
