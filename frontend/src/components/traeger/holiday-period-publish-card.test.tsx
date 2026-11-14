@@ -144,9 +144,13 @@ describe("HolidayPeriodPublishCard", () => {
     ).toBeInTheDocument();
     // The only controls left hand the parents' link on: copy it (#4661) or
     // show it as a QR code.
+    // Zugängliche Namen statt textContent: die Knopf-Erklärung (#6643) liegt
+    // als versteckte Beschreibung im Knopf.
+    expect(screen.getAllByRole("button")).toHaveLength(2);
     expect(
-      screen.getAllByRole("button").map((button) => button.textContent),
-    ).toEqual(["Link kopieren", "QR-Code"]);
+      screen.getByRole("button", { name: "Link kopieren" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "QR-Code" })).toBeInTheDocument();
     expect(screen.getByText("Veröffentlicht")).toBeInTheDocument();
   });
 
