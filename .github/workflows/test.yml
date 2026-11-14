@@ -115,6 +115,24 @@ jobs:
           --health-retries 10
 
     steps:
+      # Peak memory in use on the runner for the whole job, page cache not
+      # counted: test binaries, toolchain, and Postgres with its tmpfs data
+      # directory (shared memory is not available memory). "Summarize backend
+      # CPU use" reports it beside the runner's total.
+      - name: Start memory sampler
+        run: |
+          (
+            peak=0
+            while :; do
+              used=$(awk '/^MemTotal:/ { total = $2 } /^MemAvailable:/ { available = $2 } END { print total - available }' /proc/meminfo)
+              if [ "$used" -gt "$peak" ]; then
+                peak=$used
+                echo "$peak" > "$RUNNER_TEMP/memory-peak-kib"
+              fi
+              sleep 0.5
+            done
+          ) > /dev/null 2>&1 < /dev/null &
+
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -435,6 +453,14 @@ jobs:
               "| **busy** | | **\($busy)** |",
               "| idle | | \($idle) |"
             ' "$RUNNER_TEMP/actiongraph.json"
+            total=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo)
+            peak=unknown
+            [ -s "$RUNNER_TEMP/memory-peak-kib" ] && peak="$(($(cat "$RUNNER_TEMP/memory-peak-kib") / 1024)) MiB"
+            postgres_peak=unknown
+            postgres_bytes=$(docker exec "$PG_CONTAINER" cat /sys/fs/cgroup/memory.peak 2>/dev/null) &&
+              postgres_peak="$((postgres_bytes / 1048576)) MiB"
+            echo
+            echo "Peak memory in use: $peak of $((total / 1024)) MiB on the runner; Postgres container: $postgres_peak"
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       # A package over its budget fails the pull request that made it slower,
