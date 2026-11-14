@@ -107,5 +107,15 @@
     "title": "Të fshihen hapat e parë?",
     "body": "Udhëzuesit mbeten te Ndihma.",
     "confirm": "Fshih"
+  },
+  "tooltips": {
+    "open": "Shfaq listën e hapave të parë.",
+    "collapse": "E zvogëlon listën në një buton në skaj të ekranit.",
+    "show": "Ju tregon zonat e shënuara hap pas hapi.",
+    "guide": "Hap udhëzuesin në një skedë të re.",
+    "installGuide": "Hap udhëzuesin në një skedë të re dhe e shënon hapin si të kryer.",
+    "complete": "Përfundon hapat e parë dhe i fsheh në këtë pajisje.",
+    "dismiss": "Fsheh hapat e parë në këtë pajisje, moto pyet më parë.",
+    "dismissConfirm": "Fsheh hapat e parë në këtë pajisje."
   }
 }

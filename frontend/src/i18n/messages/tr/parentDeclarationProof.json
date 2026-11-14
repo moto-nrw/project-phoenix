@@ -26,5 +26,6 @@
   "note": "Bu belge basit bir elektronik beyanı kanıtlar. Yasanın gerektirdiği kağıt üzerindeki imzanın yerini tutmaz.",
   "noteSigned": "İmzalı yanıtlar, çizilmiş imzalı basit elektronik imza olarak verildi.",
   "errorObjectProof": "kanıt belgesi",
-  "errorObjectPdf": "PDF dosyası"
+  "errorObjectPdf": "PDF dosyası",
+  "downloadTooltip": "Belgeyi PDF olarak bu cihaza kaydeder."
 }

@@ -123,13 +123,11 @@
   "actions": {
     "sick": {
       "label": "Krankmeldung",
-      "shortLabel": "Krankmeldung",
-      "hint": "Kind für einen oder mehrere Tage krankmelden"
+      "shortLabel": "Krankmeldung"
     },
     "pickup": {
       "label": "Abholzeit für einen Tag ändern",
-      "shortLabel": "Abholzeit ändern",
-      "hint": "Abholzeit an einem einzelnen Tag anpassen"
+      "shortLabel": "Abholzeit ändern"
     }
   },
   "request": {

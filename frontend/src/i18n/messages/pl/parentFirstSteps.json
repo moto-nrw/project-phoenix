@@ -107,5 +107,15 @@
     "title": "Ukryć pierwsze kroki?",
     "body": "Instrukcje nadal znajdziesz w Pomocy.",
     "confirm": "Ukryj"
+  },
+  "tooltips": {
+    "open": "Pokazuje listę pierwszych kroków.",
+    "collapse": "Zmniejsza listę do przycisku przy krawędzi ekranu.",
+    "show": "Pokazuje zaznaczone obszary krok po kroku.",
+    "guide": "Otwiera instrukcję w nowej karcie.",
+    "installGuide": "Otwiera instrukcję w nowej karcie i odhacza ten krok.",
+    "complete": "Kończy pierwsze kroki i ukrywa je na tym urządzeniu.",
+    "dismiss": "Ukrywa pierwsze kroki na tym urządzeniu, moto najpierw zapyta.",
+    "dismissConfirm": "Ukrywa pierwsze kroki na tym urządzeniu."
   }
 }

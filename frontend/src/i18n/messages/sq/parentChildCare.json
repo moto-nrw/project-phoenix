@@ -123,13 +123,11 @@
   "actions": {
     "sick": {
       "label": "Njofto mungesë",
-      "shortLabel": "Mungesë",
-      "hint": "Njoftoni mungesën e fëmijës për një ose më shumë ditë"
+      "shortLabel": "Mungesë"
     },
     "pickup": {
       "label": "Marrje për një ditë",
-      "shortLabel": "Marrje",
-      "hint": "Përshtatni orarin e marrjes për një ditë të vetme"
+      "shortLabel": "Marrje"
     }
   },
   "request": {
