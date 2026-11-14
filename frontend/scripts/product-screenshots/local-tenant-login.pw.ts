@@ -60,13 +60,30 @@ if (childOrigin) {
 }
 // Exercise the browser helper at the BFF/Mailpit seam without a seeded stack.
 // A session exists only after the OTP exchange, not when the email field hides.
-for (const enrollment of childOrigin ? [] : [false, true]) {
-  test(`local login completes ${enrollment ? "enrollment" : "verification"} and reuses its session`, async ({
+const scenarios = [
+  { name: "enrollment", enrollment: true },
+  {
+    name: "verification with a device choice",
+    enrollment: false,
+    trustedDeviceEnabled: true,
+  },
+  {
+    name: "verification without a device choice",
+    enrollment: false,
+    trustedDeviceEnabled: false,
+  },
+  { name: "verification with the default device choice", enrollment: false },
+];
+for (const scenario of childOrigin ? [] : scenarios) {
+  const { enrollment, trustedDeviceEnabled } = scenario;
+  const deviceChoice = !enrollment && trustedDeviceEnabled !== false;
+  test(`local login completes ${scenario.name} and reuses its session`, async ({
     browser,
   }) => {
     const code = String(randomInt(100_000, 1_000_000));
     let loginCount = 0;
     let verified = false;
+    let remembered = false;
     const server = createServer((request, response) => {
       response.setHeader("Content-Type", "application/json");
       const url = new URL(request.url!, "http://localhost");
@@ -78,10 +95,11 @@ for (const enrollment of childOrigin ? [] : [false, true]) {
           <button id="login">Anmelden</button>
           <script>
             const showCode = () => {
-              document.body.innerHTML = '<input autocomplete="one-time-code">';
-              document.querySelector('input').oninput = async (event) => {
-                if (event.target.value.length !== 6) return;
-                const response = await fetch('/api/auth/mfa/verify', {method: 'POST', body: event.target.value});
+              document.body.innerHTML = '<input autocomplete="one-time-code">' + ${JSON.stringify(deviceChoice ? '<button id="remember">Ja, merken und anmelden</button><button id="once">Nein, nur anmelden</button>' : "")};
+              const verify = async (rememberDevice) => {
+                const code = document.querySelector('input').value;
+                if (code.length !== 6) return;
+                const response = await fetch('/api/auth/mfa/verify', {method: 'POST', body: JSON.stringify({code, remember_device: rememberDevice})});
                 if (!response.ok) return;
                 document.body.innerHTML = ${JSON.stringify(enrollment ? '<button id="continue">Weiter zum Dashboard</button>' : "Angemeldet")};
                 document.querySelector('#continue')?.addEventListener('click', () => {
@@ -89,6 +107,10 @@ for (const enrollment of childOrigin ? [] : [false, true]) {
                   document.body.innerHTML = 'Angemeldet';
                 });
               };
+              if (${deviceChoice}) {
+                document.querySelector('#remember').onclick = () => verify(true);
+                document.querySelector('#once').onclick = () => verify(false);
+              } else document.querySelector('input').oninput = () => verify(false);
             };
             document.querySelector('#login').onclick = async () => {
               await fetch('/api/auth/login', {method: 'POST'});
@@ -104,6 +126,7 @@ for (const enrollment of childOrigin ? [] : [false, true]) {
           response.end(
             JSON.stringify({
               status: enrollment ? "mfa_enrollment_required" : "mfa_required",
+              trusted_device_enabled: trustedDeviceEnabled,
             }),
           );
           return;
@@ -113,7 +136,12 @@ for (const enrollment of childOrigin ? [] : [false, true]) {
             entered += chunk.toString();
           });
           request.on("end", () => {
-            verified = entered === code;
+            const body = JSON.parse(entered) as {
+              code: string;
+              remember_device: boolean;
+            };
+            verified = body.code === code;
+            remembered = body.remember_device;
             response.statusCode = verified ? 200 : 401;
             if (verified && !enrollment)
               response.setHeader("Set-Cookie", "session=ready;Path=/;HttpOnly");
@@ -196,11 +224,13 @@ for (const enrollment of childOrigin ? [] : [false, true]) {
         expect(statSync(join(cacheDirectory, file)).mode & 0o777).toBe(0o600);
       }
       expect(verified).toBe(true);
+      expect(remembered).toBe(false);
       // A rejected saved session must complete MFA again, not be trusted locally.
       verified = false;
       await loginInFreshWorker(origin, cacheDirectory);
       expect(loginCount).toBe(2);
       expect(verified).toBe(true);
+      expect(remembered).toBe(false);
     } finally {
       rmSync(directory, { recursive: true, force: true });
       if (previousMailpit === undefined) delete process.env.MAILPIT_URL;
