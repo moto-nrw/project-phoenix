@@ -310,9 +310,9 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	assert.Equal(t, float64(31), children[0].(map[string]any)["home_school_id"])
 	assert.Equal(t, float64(0), children[1].(map[string]any)["home_school_id"], "the second sibling is a holiday guest")
 	assert.Equal(t, []any{
-		map[string]any{"week_id": float64(51), "time_model_id": float64(61)},
+		map[string]any{"week_id": float64(51), "time_model_id": float64(61), "lunch": true},
 		map[string]any{"week_id": float64(52), "time_model_id": float64(63)},
-	}, children[1].(map[string]any)["bookings"])
+	}, children[1].(map[string]any)["bookings"], "the guest eats lunch in the first week only (#5631)")
 	duplicate := registrations[1]
 	assert.NotEqual(t, registration["guardian"], duplicate["guardian"], "another parent registers the child again")
 	duplicateChildren, ok := duplicate["children"].([]any)
