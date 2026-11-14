@@ -73,8 +73,10 @@ func problemsOf(row carecontract.ContractImportRow) []string {
 	return problems
 }
 
-// A file in the layout of the master data of OGS Connect maps without help;
-// the signing date of the SEPA mandate is not the conclusion of a contract.
+// Common headers map without help; the signing date of a SEPA mandate is
+// not the conclusion of a contract. The master data of OGS Connect itself
+// has no birth date, first day or mail address: see
+// TestContractImportTakesAChosenFirstDayForEveryRow and the API test.
 func TestSuggestContractImportMappingReadsCommonHeaders(t *testing.T) {
 	t.Parallel()
 	mapping := suggestContractImportMapping([]string{"Nachname Kind", "Vorname Kind", "", "Geburtsdatum", "Debitor-Nr.", "Kontoinhaber",
