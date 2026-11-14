@@ -902,10 +902,19 @@ jobs:
       # database. synchronous_commit = off answers a commit before its WAL
       # reaches the disk; a crash could lose the last commits, but not
       # corrupt the database, and a crash fails the job anyway.
+      #
+      # The seed fills empty tables within seconds, and autovacuum looks at a
+      # database once a minute. Until it analyzed them, the planner took the
+      # 110 guardians with an account for one row and joined them in nested
+      # loops: 74-107 statements of 0.7-1.8 s per school, so the first seed
+      # took 10-45 s longer in 30 of 56 pull request runs (14.11.2026,
+      # #6962). With a naptime of 5 s the statistics follow the seed: 0-2
+      # such statements and no slower first seed in six runs.
       - name: Log Postgres lock waits and slow statements
         run: |
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 \
             -c "ALTER SYSTEM SET synchronous_commit = off" \
+            -c "ALTER SYSTEM SET autovacuum_naptime = '5s'" \
             -c "ALTER SYSTEM SET log_lock_waits = on" \
             -c "ALTER SYSTEM SET log_min_duration_statement = '1s'" \
             -c "ALTER SYSTEM SET log_autovacuum_min_duration = '1s'" \
