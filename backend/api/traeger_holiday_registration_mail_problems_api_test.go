@@ -102,7 +102,9 @@ func TestHolidayRegistrationMailProblemsStayWithTheTraegerAndAreFlat(t *testing.
 // and account mails that did not arrive like the receipt. A family's closing
 // day notice relates to one registration and counts for each it names. A mail
 // held back at a blocked address never reads as sent. Another Träger reads
-// none of it.
+// none of it: the read of the registration already refuses it, so the mail
+// read is never reached. Its own Träger filter is proved without RLS in
+// TestTraegerEmailStatusesOfStaysWithTheTraeger (#6999).
 func TestHolidayRegistrationDetailNamesEveryMail(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Mailstand Alle")

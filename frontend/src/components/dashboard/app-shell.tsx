@@ -38,7 +38,7 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const previewActive = useShellAuthSafe()?.isPreview === true;
   // Öffentliche Demo (#3467): derselbe feste Streifen oben, mit Rollenmenü
-  // und „Kostenlos starten". Während einer Vorschau hat deren Streifen Vorrang.
+  // und „Termin buchen". Während einer Vorschau hat deren Streifen Vorrang.
   const demoBannerShown = useDemoBannerShown();
   const stripActive = previewActive || demoBannerShown;
   // Abends liegt unter dem Demo-Streifen eine Hinweiszeile (h-8, #3921).
