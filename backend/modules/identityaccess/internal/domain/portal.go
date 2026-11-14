@@ -96,12 +96,11 @@ type Portal struct {
 	// enrollment token, redeemable only there.
 	Challenge  bool
 	Enrollment bool
-	// TrustedDevice: a redeemed challenge may remember the browser. A
-	// portal without a school remembers it without one: the caterer and the
-	// parents portal at the account (#4497, #7051), the Träger-Portal at its
-	// Träger (#6955).
-	TrustedDevice bool
-	// Device is unset for the operator, whose devices are its own records.
+	// Device is whose remembered devices a sign-in means. A portal without a
+	// school remembers the browser without one: the caterer and the parents
+	// portal at the account (#4497, #7051), the Träger-Portal at its Träger
+	// (#6955). It is unset for the operator, whose devices are its own
+	// records.
 	Device DeviceRealm
 	MFA    MFARule
 	// FactorAtValidation: a session validation reads the account's own
@@ -129,21 +128,21 @@ type Portal struct {
 // The portals, closed.
 var (
 	PortalTenant = Portal{Name: "tenant", Claim: "", LegacyClaim: "tenant", Tenant: ShapeRequired, Org: ShapeOptional,
-		Persisted: true, Challenge: true, Enrollment: true, TrustedDevice: true, Device: DeviceOfSchool, MFA: MFASchoolPolicy, Push: PushPortalStaff,
+		Persisted: true, Challenge: true, Enrollment: true, Device: DeviceOfSchool, MFA: MFASchoolPolicy, Push: PushPortalStaff,
 		TraegerKind: SessionKindTraegerSchool}
 	PortalSchool = Portal{Name: "school", Claim: "school", Tenant: ShapeRequired, Org: ShapeOptional,
-		Persisted: true, Challenge: true, Enrollment: true, TrustedDevice: true, Device: DeviceOfSchool, MFA: MFASchoolPolicy, Push: PushPortalSchool}
+		Persisted: true, Challenge: true, Enrollment: true, Device: DeviceOfSchool, MFA: MFASchoolPolicy, Push: PushPortalSchool}
 	PortalParent = Portal{Name: "parent", Claim: "parent",
-		Persisted: true, Challenge: true, TrustedDevice: true, Device: DeviceOfParentPortal, MFA: MFAAccountChoice, Push: PushPortalParent,
+		Persisted: true, Challenge: true, Device: DeviceOfParentPortal, MFA: MFAAccountChoice, Push: PushPortalParent,
 		TraegerKind: SessionKindTraegerParent, OrgNamesSession: true}
 	PortalCaterer = Portal{Name: "caterer", Claim: "caterer",
-		Persisted: true, Challenge: true, TrustedDevice: true, Device: DeviceOfAccount, MFA: MFAAccountChoice,
+		Persisted: true, Challenge: true, Device: DeviceOfAccount, MFA: MFAAccountChoice,
 		FactorAtValidation: true, MovesSchool: true}
 	PortalOrg = Portal{Name: "org", Claim: "org", Tenant: ShapeForbidden, Org: ShapeRequired,
-		Persisted: true, Challenge: true, Enrollment: true, TrustedDevice: true, Device: DeviceOfTraeger, MFA: MFAAlways, Push: PushPortalStaff,
+		Persisted: true, Challenge: true, Enrollment: true, Device: DeviceOfTraeger, MFA: MFAAlways, Push: PushPortalStaff,
 		OrgNamesSession: true}
 	PortalPlatform = Portal{Name: "platform", Claim: "platform", Tenant: ShapeOptional, Org: ShapeOptional,
-		Challenge: true, Enrollment: true, TrustedDevice: true, MFA: MFAOperator}
+		Challenge: true, Enrollment: true, MFA: MFAOperator}
 
 	portals = []Portal{PortalTenant, PortalSchool, PortalParent, PortalCaterer, PortalOrg, PortalPlatform}
 )

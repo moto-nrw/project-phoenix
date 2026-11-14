@@ -33,10 +33,12 @@ const MaxDeliveryDays = 7
 var ErrDeliveryRangeTooLong = errors.New("a delivery list covers at most seven days")
 
 // SchoolCaterer is the school's caterer as the school sees it: the running
-// supply, if any, and the school's invitations.
+// supply, if any, the school's invitations and what became of their mails
+// (#5960). An invitation without a mail has no key in InvitationMail.
 type SchoolCaterer struct {
-	Supply      *SchoolSupply
-	Invitations []identityaccess.CatererInvitation
+	Supply         *SchoolSupply
+	Invitations    []identityaccess.CatererInvitation
+	InvitationMail map[int64]identityaccess.InvitationMailState
 }
 
 // SchoolSupply is the running supply: who supplies the school, where to and

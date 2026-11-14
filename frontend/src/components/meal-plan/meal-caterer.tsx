@@ -15,6 +15,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -22,6 +23,10 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
+import {
+  invitationMailNote,
+  mailStatusCopy,
+} from "~/lib/email-delivery-status";
 import { createLogger } from "~/lib/logger";
 import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
@@ -36,6 +41,14 @@ import {
 const logger = createLogger({ component: "MealCaterer" });
 
 const EMPTY_FORM = { email: "", catererName: "", deliveryAddress: "" };
+
+/** What the school learns about an invitation's mail and does next (#5960). */
+function catererMailNote(invitation: MealCatererInvitation): string | null {
+  return invitationMailNote(
+    invitation,
+    "Stimmt die Adresse nicht, widerrufen Sie die Einladung und laden Sie neu ein.",
+  );
+}
 
 /**
  * Der Caterer der Schule (ADR 0077): wer liefert, eine Einladung per E-Mail
@@ -216,13 +229,43 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
     {
       key: "email",
       header: "E-Mail-Adresse",
-      stacked: "meta",
-      render: (invitation) => invitation.email,
+      // A long address with its status does not fit beside the name on a
+      // phone; as a labelled line it keeps both readable.
+      stacked: "field",
+      render: (invitation) => {
+        const mailCopy = mailStatusCopy(
+          invitation.mailOutcome,
+          invitation.addressMark,
+          false,
+          invitation.providerBlock,
+        );
+        const mailNote = catererMailNote(invitation);
+        return (
+          <>
+            <span className="block wrap-anywhere">{invitation.email}</span>
+            {mailCopy && (
+              <span className="mt-1 block">
+                <StatusBadge
+                  label={mailCopy.label}
+                  tone={mailCopy.tone}
+                  compact
+                />
+              </span>
+            )}
+            {/* The phone rows have no sub-row, so the note stands here. */}
+            {mailNote && (
+              <span className="mt-1 block text-xs text-gray-600 md:hidden">
+                {mailNote}
+              </span>
+            )}
+          </>
+        );
+      },
     },
     {
       key: "expires",
       header: "Gültig bis",
-      stacked: "meta",
+      stacked: "field",
       render: (invitation) => formatBerlinDate(invitation.expiresAt),
     },
     {
@@ -321,6 +364,12 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
               getRowKey={(invitation) => invitation.id}
               rowHasInteractiveControls
               stackedOnMobile
+              renderSubRows={(invitation) => {
+                const mailNote = catererMailNote(invitation);
+                return mailNote
+                  ? [{ key: `${invitation.id}-mail-note`, content: mailNote }]
+                  : [];
+              }}
             />
           ) : null}
         </div>

@@ -154,3 +154,36 @@ func catererOrderID(rt *Runtime, auth AuthRef, schoolID string, day seedDate) (s
 	}
 	return response.Data.Days[0].OrderID, nil
 }
+
+// The manual school's caterer (#5960): it invites a catering business that
+// never accepts, so its invitation stays open and the school's caterer card
+// shows the delivery status of the invitation mail on every dev machine. The
+// demo school accepts its own invitation and then shows the supply instead.
+const (
+	seedOpenCatererName  = "Küchenwerk Nord"
+	seedOpenCatererEmail = "bestellung@kuechenwerk-nord.example"
+)
+
+// seedManualOpenCatererInvitation switches on meal registration at the manual
+// school and invites seedOpenCatererName. Without a mailbox (the demo sidecar)
+// it invites nobody, as seedMealCatererInvitationStep does.
+func (s *Seeder) seedManualOpenCatererInvitation(rt *Runtime) error {
+	if s.options.ReadMailLink == nil {
+		fmt.Println("  no mailbox; the manual school invites no caterer")
+		return nil
+	}
+	if err := enableMealRegistration(rt); err != nil {
+		return err
+	}
+	email := seedOpenCatererEmail
+	if scope := s.accountScope(); scope != "" {
+		email = scopedEmail(email, scope)
+	}
+	if _, err := rt.Client.Post("/api/meal-caterer/invitations", map[string]any{
+		"email": email, "caterer_name": seedOpenCatererName, "delivery_address": "Ausgabeküche, Schulweg 2",
+	}); err != nil {
+		return fmt.Errorf("invite the manual school's caterer: %w", err)
+	}
+	fmt.Printf("  caterer %s invited; the invitation stays open\n", seedOpenCatererName)
+	return nil
+}

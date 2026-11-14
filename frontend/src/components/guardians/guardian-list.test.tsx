@@ -573,6 +573,27 @@ describe("GuardianList mail state (#5934)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("explains why a departed family cannot be invited again", () => {
+    render(
+      <GuardianList
+        guardians={[guardian]}
+        emailStates={{
+          "7": { mailOutcome: "send_failed", sendBlock: "departed" },
+        }}
+        onInvite={() => undefined}
+        onEdit={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Kein Kind in Betreuung")).toBeInTheDocument();
+    expect(screen.getByText(/Kein Kind dieser Person/)).toBeInTheDocument();
+    expect(screen.queryByText(/Bitte senden Sie neu/)).not.toBeInTheDocument();
+    openMenu();
+    expect(screen.getByRole("menuitem", { name: "Bearbeiten" })).toBeVisible();
+    expect(
+      screen.queryByRole("menuitem", { name: "Erneut einladen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("lets the school stop mail and take the stop back", () => {
     const onStop = vi.fn();
     const { rerender } = render(

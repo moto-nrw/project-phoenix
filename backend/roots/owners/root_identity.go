@@ -98,7 +98,7 @@ func BuildIdentityAccess(
 	}
 	// The lifecycle flows (#3225) read the role management of the module
 	// they are composed into.
-	catererMail, err := CatererInvitationDelivery(organizations, outbox, links.CatererURL)
+	catererMail, err := CatererInvitationDelivery(organizations, outbox, deliveryRuntime.EmailOutcomes, links.CatererURL)
 	if err != nil {
 		return nil, nil, err
 	}

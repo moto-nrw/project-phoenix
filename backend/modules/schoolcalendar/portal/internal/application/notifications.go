@@ -236,6 +236,11 @@ type guardianRecipients struct {
 	// dispatch carries them into its own transaction, which asks the same
 	// question again immediately before the payload leaves the backend.
 	studentsByGuardian map[int64][]int64
+
+	// answers holds, per guardian profile, the recipient row's answer: the
+	// answer for the whole appointment or series and the dates answered on
+	// their own (#6987). Reminders skip the dates a guardian declined (#7014).
+	answers map[int64]GuardianNotificationAnswer
 }
 
 // reachableGuardianRecipients resolves the appointment's guardian recipients to

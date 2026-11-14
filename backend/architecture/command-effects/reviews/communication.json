@@ -1419,7 +1419,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
-      "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect.",
+      "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. The binding now also forwards the current Departed flag (#5960); this budget still limits only provider block lookups and does not read or change the departure hold. No persistent, lock or scope effect.",
       "source_owner": "communication",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -1429,7 +1429,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
-      "reason": "Pure classification of a mail outcome in the delivery contract (#5934); since #5957 the adapter also asks about an earlier refusal of the current address. No persistent, lock or scope effect.",
+      "reason": "Pure classification of a mail outcome in the delivery contract (#5934); since #5957 the adapter also asks about an earlier refusal of the current address. The binding now forwards Departed separately (#5960); HeldAtProvider still classifies only the historical provider outcome and does not turn a departure into a provider block. No persistent, lock or scope effect.",
       "source_owner": "communication",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
       "target_owner": "delivery-platform"
@@ -1439,7 +1439,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
-      "reason": "Read-only newly exposed target: communication reaches modules/delivery/runtime.Capability.EmailDeliveryStatuses (delivery-platform) through roots/owners.announcementDeliveryAdapter.ListForEntity. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Since #5934 it also passes on what became of the mail, read in the same statement.",
+      "reason": "Read-only newly exposed target: communication reaches modules/delivery/runtime.Capability.EmailDeliveryStatuses (delivery-platform) through roots/owners.announcementDeliveryAdapter.ListForEntity. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Since #5934 it also passes on what became of the mail, read in the same statement. The current departure hold (#5960) is read there too and excludes letter retries until the address is known again.",
       "source_owner": "communication",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.Capability.EmailDeliveryStatuses",
       "target_owner": "delivery-platform"
@@ -1449,7 +1449,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
-      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934); since #5957 also for an earlier refusal of the current address of the same letter. No persistent, lock or scope effect.",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934); since #5957 also for an earlier refusal of the current address of the same letter. The binding now also copies the independent current Departed flag (#5960); the provider lookup's addresses, budget and read-only effect remain unchanged. No persistent, lock or scope effect.",
       "source_owner": "communication",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
       "target_owner": "delivery-platform"

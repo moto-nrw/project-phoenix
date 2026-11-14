@@ -2,14 +2,13 @@ package ports
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // The record ports of the operator and account sessions, the operator second
-// factor, the operator links and both portals' passkeys. Only the module's
+// factor and the operator links. Only the module's
 // flows read and write these rows; the public contract carries the flows.
 // OperatorSession is one persisted, revocable operator refresh session.
 // Rotation records the hand-off on the predecessor (RotatedAt,
@@ -338,65 +337,6 @@ type OperatorTokens interface {
 	OperatorTokenCommand
 }
 
-// AccountPasskeyQuery resolves active, that is unrevoked, account passkeys.
-type AccountPasskeyQuery interface {
-	// ListActiveAccountPasskeys orders by registration, oldest first.
-	ListActiveAccountPasskeys(ctx context.Context, accountID int64) ([]identityaccess.AccountPasskeyCredential, error)
-	FindActiveAccountPasskey(ctx context.Context, credentialID, userHandle []byte) (identityaccess.AccountPasskeyCredential, error)
-}
-
-// AccountPasskeyCommand changes account passkey records. The creates
-// validate the record and return it with its identity and timestamps.
-type AccountPasskeyCommand interface {
-	CreateAccountPasskey(ctx context.Context, credential identityaccess.AccountPasskeyCredential) (identityaccess.AccountPasskeyCredential, error)
-	// RecordAccountPasskeyUse stores the credential state after a verified
-	// assertion on an active credential.
-	RecordAccountPasskeyUse(ctx context.Context, id int64, credentialJSON json.RawMessage, usedAt time.Time) error
-	// RevokeAccountPasskey revokes an active credential of that account.
-	RevokeAccountPasskey(ctx context.Context, accountID, id int64, revokedAt time.Time) error
-	CreateAccountPasskeySession(ctx context.Context, session identityaccess.AccountPasskeySession) (identityaccess.AccountPasskeySession, error)
-	// ConsumeAccountPasskeySession completes a ceremony exactly once and
-	// returns its state.
-	ConsumeAccountPasskeySession(ctx context.Context, id, purpose string, consumedAt time.Time) (identityaccess.AccountPasskeySession, error)
-}
-
-// AccountPasskeyRecords is the capability the school-portal passkey flows
-// consume.
-type AccountPasskeyRecords interface {
-	AccountPasskeyQuery
-	AccountPasskeyCommand
-}
-
-// OperatorPasskeyQuery resolves active, that is unrevoked, operator
-// passkeys.
-type OperatorPasskeyQuery interface {
-	// ListActiveOperatorPasskeys orders by registration, oldest first.
-	ListActiveOperatorPasskeys(ctx context.Context, operatorID int64) ([]identityaccess.OperatorPasskeyCredential, error)
-	FindActiveOperatorPasskey(ctx context.Context, credentialID, userHandle []byte) (identityaccess.OperatorPasskeyCredential, error)
-}
-
-// OperatorPasskeyCommand changes operator passkey records. The creates
-// validate the record and return it with its identity and timestamps.
-type OperatorPasskeyCommand interface {
-	CreateOperatorPasskey(ctx context.Context, credential identityaccess.OperatorPasskeyCredential) (identityaccess.OperatorPasskeyCredential, error)
-	// RecordOperatorPasskeyUse stores the credential state after a verified
-	// assertion on an active credential.
-	RecordOperatorPasskeyUse(ctx context.Context, id int64, credentialJSON json.RawMessage, usedAt time.Time) error
-	// RevokeOperatorPasskey revokes an active credential of that operator.
-	RevokeOperatorPasskey(ctx context.Context, operatorID, id int64, revokedAt time.Time) error
-	CreateOperatorPasskeySession(ctx context.Context, session identityaccess.OperatorPasskeySession) (identityaccess.OperatorPasskeySession, error)
-	// ConsumeOperatorPasskeySession completes a ceremony exactly once and
-	// returns its state.
-	ConsumeOperatorPasskeySession(ctx context.Context, id, purpose string, consumedAt time.Time) (identityaccess.OperatorPasskeySession, error)
-}
-
-// OperatorPasskeyRecords is the capability the operator passkey flows
-// consume.
-type OperatorPasskeyRecords interface {
-	OperatorPasskeyQuery
-	OperatorPasskeyCommand
-}
-
 // Records are all record ports the composed owner serves; the module's
 // record-contract tests reach the stores through them.
 type Records interface {
@@ -404,6 +344,4 @@ type Records interface {
 	AccountSessionAccess
 	OperatorMFARecords
 	OperatorTokens
-	AccountPasskeyRecords
-	OperatorPasskeyRecords
 }

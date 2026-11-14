@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
@@ -138,62 +137,4 @@ func (p *OperatorPasskey) ConsumeSession(ctx context.Context, id, purpose string
 		return nil
 	})
 	return result, err
-}
-
-func (p *OperatorPasskey) ListActiveOperatorPasskeys(ctx context.Context, operatorID int64) ([]identityaccess.OperatorPasskeyCredential, error) {
-	values, err := p.ListActiveCredentials(ctx, operatorID)
-	if err != nil {
-		return nil, fmt.Errorf("identity access: list active operator passkeys: %w", MapError(err))
-	}
-	result := make([]identityaccess.OperatorPasskeyCredential, 0, len(values))
-	for _, value := range values {
-		result = append(result, identityaccess.OperatorPasskeyCredential(value))
-	}
-	return result, nil
-}
-
-func (p *OperatorPasskey) FindActiveOperatorPasskey(ctx context.Context, credentialID, userHandle []byte) (identityaccess.OperatorPasskeyCredential, error) {
-	value, err := p.FindActiveCredential(ctx, credentialID, userHandle)
-	if err != nil {
-		return identityaccess.OperatorPasskeyCredential{}, fmt.Errorf("identity access: find active operator passkey: %w", MapError(err))
-	}
-	return identityaccess.OperatorPasskeyCredential(value), nil
-}
-
-func (p *OperatorPasskey) CreateOperatorPasskey(ctx context.Context, credential identityaccess.OperatorPasskeyCredential) (identityaccess.OperatorPasskeyCredential, error) {
-	value, err := p.CreateCredential(ctx, domain.OperatorPasskeyCredential(credential))
-	if err != nil {
-		return identityaccess.OperatorPasskeyCredential{}, fmt.Errorf("identity access: create operator passkey: %w", MapError(err))
-	}
-	return identityaccess.OperatorPasskeyCredential(value), nil
-}
-
-func (p *OperatorPasskey) RecordOperatorPasskeyUse(ctx context.Context, id int64, credentialJSON json.RawMessage, usedAt time.Time) error {
-	if err := p.RecordUse(ctx, id, credentialJSON, usedAt); err != nil {
-		return fmt.Errorf("identity access: record operator passkey use: %w", MapError(err))
-	}
-	return nil
-}
-
-func (p *OperatorPasskey) RevokeOperatorPasskey(ctx context.Context, operatorID, id int64, revokedAt time.Time) error {
-	if err := p.RevokeCredential(ctx, operatorID, id, revokedAt); err != nil {
-		return fmt.Errorf("identity access: revoke operator passkey: %w", MapError(err))
-	}
-	return nil
-}
-
-func (p *OperatorPasskey) CreateOperatorPasskeySession(ctx context.Context, session identityaccess.OperatorPasskeySession) (identityaccess.OperatorPasskeySession, error) {
-	value, err := p.CreateSession(ctx, domain.OperatorPasskeySession(session))
-	if err != nil {
-		return identityaccess.OperatorPasskeySession{}, fmt.Errorf("identity access: create operator passkey session: %w", MapError(err))
-	}
-	return identityaccess.OperatorPasskeySession(value), nil
-}
-
-func (p *OperatorPasskey) ConsumeOperatorPasskeySession(ctx context.Context, id, purpose string, consumedAt time.Time) (identityaccess.OperatorPasskeySession, error) {
-	value, err := p.ConsumeSession(ctx, id, purpose, consumedAt)
-	if err != nil {
-		return identityaccess.OperatorPasskeySession{}, fmt.Errorf("identity access: consume operator passkey session: %w", MapError(err))
-	}
-	return identityaccess.OperatorPasskeySession(value), nil
 }

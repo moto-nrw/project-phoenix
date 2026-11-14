@@ -162,7 +162,12 @@ export async function fetchStudentGuardians(
 }
 
 type GuardianSendBlock =
-  "address" | "delayed" | "stopped" | "provider" | "provider_unknown";
+  | "address"
+  | "delayed"
+  | "stopped"
+  | "departed"
+  | "provider"
+  | "provider_unknown";
 
 /** What the school knows about mail to one guardian's address (#5934). */
 export interface GuardianEmailState {

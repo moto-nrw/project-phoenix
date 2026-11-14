@@ -50,6 +50,25 @@ type GuardianAudience struct {
 	GuardianIDs        []int64
 	Profiles           map[int64]*GuardianProfile
 	StudentsByGuardian map[int64][]int64
+	Answers            map[int64]GuardianAnswer
+}
+
+// GuardianAnswer is a guardian's answer to the appointment: the answer for the
+// whole appointment or series and the dates answered on their own (#6987).
+type GuardianAnswer struct {
+	Status              string
+	OccurrenceResponses map[appointments.Date]string
+}
+
+// DeclinedOn reports whether the guardian declined this occurrence, by its own
+// answer or by the series answer. A declined date is not reminded (#7014).
+func (a GuardianAudience) DeclinedOn(guardianProfileID int64, occurrence appointments.Date) bool {
+	answer, ok := a.Answers[guardianProfileID]
+	if !ok {
+		return false
+	}
+	recipient := appointments.AppointmentRecipient{Status: answer.Status, OccurrenceResponses: answer.OccurrenceResponses}
+	return recipient.StatusOn(occurrence) == appointments.ResponseStatusDeclined
 }
 
 // ReminderPushSnapshot retains the exact claim and scan window until the

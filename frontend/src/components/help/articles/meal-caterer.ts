@@ -39,7 +39,7 @@ export function mealCatererTopic(): HelpTopic {
       "Die Lieferliste bekommen Sie bei `Bestellung` über das Menü mit den drei Punkten. Wählen Sie unter `Lieferliste der Woche` `PDF`, `Excel` oder `CSV`. Die Woche wählen Sie oben unter dem Titel. Es ist dieselbe Liste, die Ihr Caterer sieht, ohne Namen.",
     ],
     troubleshootingDetails: [
-      "Kam keine E-Mail an? Widerrufen Sie die Einladung unter `Offene Einladungen` im Menü mit den drei Punkten mit `Widerrufen`. Senden Sie dann eine neue.",
+      "Kam keine E-Mail an? Unter `Offene Einladungen` steht bei der Adresse, was aus der Mail wurde, zum Beispiel `Zugestellt` oder `Nicht zustellbar`. Stimmt die Adresse nicht, widerrufen Sie die Einladung im Menü mit den drei Punkten mit `Widerrufen`. Senden Sie dann eine neue.",
       "Fehlt die Karte `Caterer`? Dann ist `Anmeldung zum Mittagessen` aus, oder Ihr Konto darf den Speiseplan nicht bearbeiten.",
       "Steht auf der Karte nur „Einen Caterer einladen können nur Admins Ihrer Schule.“? Dann bitten Sie einen Admin Ihrer Schule um die Einladung.",
       "Kommt Ihr Caterer nicht mehr an den Code für die Zwei-Faktor-Anmeldung? Dann meldet er sich beim moto-Team. Sie als Schule können sie nicht zurücksetzen, weil ein Caterer mehrere Schulen beliefern kann.",

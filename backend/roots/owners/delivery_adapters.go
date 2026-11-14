@@ -66,6 +66,7 @@ func (a announcementDeliveryAdapter) ListForEntity(ctx context.Context, tenantID
 			Reachability: row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,
 			SentAt: row.SentAt, Attempts: row.Attempts, MailOutcome: string(row.Outcome), AddressMark: string(row.AddressMark), Stopped: row.Stopped,
 			StopShared: row.StopShared, MailedTo: row.MailedTo, ProviderBlock: letterProviderBlock(row, blocks),
+			Departed: row.Departed,
 		})
 	}
 	return result, nil

@@ -66,6 +66,9 @@ func (s *Seeder) seedManualProfile(ctx context.Context, rt *Runtime) (*SeedProfi
 	if err != nil {
 		return nil, err
 	}
+	if err := s.seedManualOpenCatererInvitation(rt); err != nil {
+		return nil, err
+	}
 	virtualDevice, err := verifyManualProfile(ctx, rt, definition, data, fullBootstrap, sharedAdmin)
 	if err != nil {
 		return nil, err

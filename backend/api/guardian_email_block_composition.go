@@ -36,7 +36,7 @@ type guardianEmailAudit interface {
 
 // guardianEmailStates reads the state of a child's guardians' addresses in the
 // request's tenant transaction. The stop of a guardian is the guardian's own value.
-func (d GuardianEmailDelivery) guardianEmailStates(ctx context.Context, addresses, stoppedAddresses []string) (map[string]usersAPI.GuardianEmailState, error) {
+func (d GuardianEmailDelivery) guardianEmailStates(ctx context.Context, addresses, _ []string) (map[string]usersAPI.GuardianEmailState, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -45,26 +45,27 @@ func (d GuardianEmailDelivery) guardianEmailStates(ctx context.Context, addresse
 	if err != nil {
 		return nil, err
 	}
+	stopped, departed, err := d.Outcomes.GuardianEmailHolds(ctx, tenantID.Int64(), addresses)
+	if err != nil {
+		return nil, err
+	}
 	latest, err := d.Outcomes.LatestEmailOutcomes(ctx, tenantID.Int64(), []string{identityaccess.MailKindGuardianInvitation}, addresses)
 	if err != nil {
 		return nil, err
 	}
 	provider := d.Outcomes.ProviderEmailBlocks(ctx, deliveryContract.AddressesHeldAtProvider(latest))
-	// Only a stop raises this question, so a child without one costs no read.
-	var stopped map[string]bool
-	if len(stoppedAddresses) > 0 {
-		if stopped, err = d.Outcomes.StoppedEmailAddresses(ctx, tenantID.Int64(), stoppedAddresses); err != nil {
-			return nil, err
-		}
-	}
 	states := make(map[string]usersAPI.GuardianEmailState, len(addresses))
 	for _, address := range addresses {
 		key := deliveryContract.NormalizedEmailAddress(address)
 		report := latest[key]
+		block := deliveryContract.EmailSendBlockOf(marks[key], false, report.Outcome, provider[key])
+		if departed[key] {
+			block = deliveryContract.EmailSendBlockDeparted
+		}
 		states[key] = usersAPI.GuardianEmailState{
 			MailOutcome:       string(report.Outcome),
 			AddressMark:       string(marks[key]),
-			SendBlock:         string(deliveryContract.EmailSendBlockOf(marks[key], false, report.Outcome, provider[key])),
+			SendBlock:         string(block),
 			ProviderBlock:     string(provider[key]),
 			AllHoldersStopped: stopped[key],
 			OutcomeAt:         report.OutcomeAt,

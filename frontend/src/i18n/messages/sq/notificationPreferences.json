@@ -27,7 +27,7 @@
     },
     "parent_appointment_reminder": {
       "label": "Kujtesë për takim",
-      "description": "Pak para një takimi ku jeni të ftuar."
+      "description": "Pak para një takimi ku jeni të ftuar. Jo për takimet që keni refuzuar."
     },
     "parent_request_decided": {
       "label": "Vendim për kërkesën tuaj",

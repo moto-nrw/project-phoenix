@@ -46,6 +46,8 @@
   "changeAnswer": "Yanıtı değiştir",
   "acceptedOn": "{date} için katılım onaylandı.",
   "declinedOn": "{date} için katılım reddedildi.",
+  "noReminder": "Hatırlatma yok",
+  "noReminderDetail": "Bunun için hatırlatma almayacaksınız.",
   "errorObjectOverview": "yanıtlar",
   "responses": {
     "title": "Yanıtlar",

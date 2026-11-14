@@ -80,7 +80,7 @@ func guardianPermissionSet(links []*ports.StudentGuardian) map[[2]int64]bool {
 }
 
 func buildGuardianRecipients(recipients []*appointmentcap.AppointmentRecipient, readSet *guardianRecipientReadSet) guardianRecipients {
-	result := guardianRecipients{profiles: readSet.profiles, studentsByGuardian: make(map[int64][]int64)}
+	result := guardianRecipients{profiles: readSet.profiles, studentsByGuardian: make(map[int64][]int64), answers: make(map[int64]GuardianNotificationAnswer)}
 	for _, recipient := range recipients {
 		if recipient.GuardianProfileID == nil {
 			continue
@@ -99,6 +99,7 @@ func buildGuardianRecipients(recipients []*appointmentcap.AppointmentRecipient, 
 		if len(allowedStudents) > 0 {
 			result.guardianIDs = append(result.guardianIDs, guardianID)
 			result.studentsByGuardian[guardianID] = append(result.studentsByGuardian[guardianID], allowedStudents...)
+			result.answers[guardianID] = GuardianNotificationAnswer{Status: recipient.Status, OccurrenceResponses: recipient.OccurrenceResponses}
 		}
 	}
 	return result

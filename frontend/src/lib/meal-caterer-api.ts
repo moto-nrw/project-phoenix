@@ -4,6 +4,11 @@
 // link reaches the caterer by mail only; the school never sees it.
 
 import { apiErrorFromResponse } from "./api-error";
+import type {
+  EmailAddressMark,
+  MailOutcome,
+  MailProviderBlock,
+} from "./email-delivery-status";
 import { sessionFetch } from "./session-cache";
 
 type MealCatererInvitationStatus = "open" | "accepted" | "revoked" | "expired";
@@ -16,6 +21,10 @@ export interface MealCatererInvitation {
   status: MealCatererInvitationStatus;
   expiresAt: string;
   createdAt: string;
+  /** What became of the invitation's mail (#5960); unset before a mail exists. */
+  mailOutcome?: MailOutcome;
+  addressMark?: EmailAddressMark;
+  providerBlock?: MailProviderBlock;
 }
 
 interface MealCatererSupply {
@@ -43,6 +52,9 @@ interface BackendInvitation {
   status: MealCatererInvitationStatus;
   expires_at: string;
   created_at: string;
+  mail_outcome?: MailOutcome;
+  address_mark?: EmailAddressMark;
+  provider_block?: MailProviderBlock;
 }
 
 interface BackendMealCaterer {
@@ -70,6 +82,9 @@ function mapInvitation(invitation: BackendInvitation): MealCatererInvitation {
     status: invitation.status,
     expiresAt: invitation.expires_at,
     createdAt: invitation.created_at,
+    mailOutcome: invitation.mail_outcome,
+    addressMark: invitation.address_mark,
+    providerBlock: invitation.provider_block,
   };
 }
 

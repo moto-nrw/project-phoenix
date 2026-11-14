@@ -2244,9 +2244,9 @@ export const editStudentTopic = function editStudentTopic(): HelpTopic {
 } satisfies typeof authored_editStudentTopic;
 
 /**
- * Die Zustellhinweise (#5934). Sie stehen an fünf Stellen: Einladung der Eltern,
- * Elternbrief, Einladung ins Personal, Anmeldung und, für den Träger, im Versand
- * der Schreiben. Hier steht, was jedes Wort bedeutet und wer als Nächstes handelt.
+ * Die Zustellhinweise (#5934). Sie stehen an sechs Stellen: Einladung der Eltern,
+ * Elternbrief, Einladung ins Personal, Einladung des Caterers (#5960), Anmeldung
+ * und, für den Träger, im Versand der Schreiben. Hier steht, was jedes Wort bedeutet und wer als Nächstes handelt.
  * `Versendet` heißt nur: Die Mail ist raus. `Zugestellt` meldet erst der
  * Mail-Dienst, und ohne ihn (Strato, Brevo, Notweg) bleibt es bei `Versendet`.
  */
@@ -2277,19 +2277,20 @@ export const emailDeliveryTopic = function emailDeliveryTopic(): HelpTopic {
           "`Gesperrt`: Diese Adresse ist gesperrt. Eine neue Mail hilft nicht. Der moto-Support muss das klären.",
           "`Stand unklar`: Ob die Adresse gesperrt ist, lässt sich gerade nicht prüfen. Versuchen Sie es später noch einmal.",
           "`Nicht versendet`: Es gab keine Mail, zum Beispiel weil die Adresse fehlt.",
-          "`Fehlgeschlagen`: Das Senden hat nicht geklappt. Bitte senden Sie neu.",
+          "`Fehlgeschlagen`: Das Senden hat nicht geklappt. Besteht keine aktuelle Sperre, können Sie neu senden.",
           "`Ergebnis unbekannt`: Ob die Mail rausging, ist nicht bekannt.",
           "`Abgebrochen`: Die Mail wurde nicht mehr gesendet.",
           "`Abgemeldet`: Die Person hat sich von den Mails abgemeldet. Sprechen Sie sie direkt an.",
           "`Alte Adresse abgemeldet` oder `Alte Adresse gesperrt`: Die Person hat inzwischen eine neue Adresse. Eine neue Mail an diese Adresse ist möglich.",
           "`Adresse prüfen`: An diese Adresse geht keine Mail mehr raus, weil sie gesperrt ist.",
           "`Versand gestoppt`: Ihre Schule hat die Mails an diese Person gestoppt. Nutzt noch jemand diese Adresse, gehen Mails an die Adresse weiter raus.",
+          "`Kein Kind in Betreuung`: Die Familie bekommt keine Elternbriefe, Nachrichten, Termine und Einladungen mehr. Das frühere Versandergebnis bleibt daneben stehen.",
         ],
       },
       {
         title: "Einen Elternbrief neu senden",
         description:
-          "Das geht für Mails, die nicht ankamen. Gesperrte Adressen und gestoppte Personen bekommen keine neue Mail.",
+          "Das geht für Mails, die nicht ankamen. Gesperrte Adressen, gestoppte Personen und Familien ohne Kind in Betreuung bekommen keine neue Mail.",
         steps: [
           "Öffnen Sie den Elternbrief und sehen Sie sich den Status an.",
           "Steht bei einer Person `Adresse prüfen`? Prüfen Sie zuerst die Adresse wie unten beschrieben.",
@@ -2322,11 +2323,12 @@ export const emailDeliveryTopic = function emailDeliveryTopic(): HelpTopic {
     notes: [
       "Anmeldecodes und Mails zum Passwort kommen auch an eine gesperrte Adresse.",
       "Abrechnungsbriefe des Trägers gehen auch an gesperrte Adressen und gestoppte Personen.",
+      "Wird kein Kind einer Person mehr betreut, bekommt sie keine Elternbriefe, Nachrichten, Termine und Einladungen mehr. Im Briefstatus steht die aktuelle Sperre getrennt vom früheren Versandergebnis. Verträge, Abrechnungsbriefe und Mails zu einer neuen Anmeldung kommen weiter an.",
       "Mails an das Team hält eine Sperre nicht zurück. Die Einladung zeigt den Hinweis trotzdem.",
     ],
     troubleshootingDetails: [
       "Hat die Person eine Mail als unerwünscht gemeldet? Dann können Sie die Sperre nicht aufheben. Sprechen Sie die Person direkt an. Eine andere Adresse tragen Sie unter `Bearbeiten` ein.",
-      "`Erneut einladen` fehlt? Dann ist die Adresse gesperrt oder die letzte Mail noch unterwegs. Der Hinweis bei der Person sagt, was davon zutrifft.",
+      "`Erneut einladen` fehlt? Dann ist die Adresse gesperrt, die letzte Mail noch unterwegs oder kein Kind mehr in Betreuung. Der Hinweis bei der Person nennt den Grund.",
       "Steht bei der Person `Gesperrt`? Die Schule kann das nicht aufheben. Wenden Sie sich an den moto-Support. Die Sperre lässt sich nicht weiter zuordnen.",
       "Hat sich die Person abgemeldet oder eine Mail als unerwünscht gemeldet? An dieselbe Adresse geht kein Elternbrief mehr. Hat sie eine andere Adresse? Tragen Sie diese unter `Bearbeiten` ein. Dann können Sie den Brief neu senden.",
       "Ist die Adresse in einem Elternbrief geändert? Die Zeile nennt die Adresse, an die die Mail ging, und darunter die aktuelle Adresse. Das Ergebnis gehört zur ersten.",
@@ -4669,7 +4671,7 @@ export const mealCatererTopic = function mealCatererTopic(): HelpTopic {
       "Die Lieferliste bekommen Sie bei `Bestellung` über das Menü mit den drei Punkten. Wählen Sie unter `Lieferliste der Woche` `PDF`, `Excel` oder `CSV`. Die Woche wählen Sie oben unter dem Titel. Es ist dieselbe Liste, die Ihr Caterer sieht, ohne Namen.",
     ],
     troubleshootingDetails: [
-      "Kam keine E-Mail an? Widerrufen Sie die Einladung unter `Offene Einladungen` im Menü mit den drei Punkten mit `Widerrufen`. Senden Sie dann eine neue.",
+      "Kam keine E-Mail an? Unter `Offene Einladungen` steht bei der Adresse, was aus der Mail wurde, zum Beispiel `Zugestellt` oder `Nicht zustellbar`. Stimmt die Adresse nicht, widerrufen Sie die Einladung im Menü mit den drei Punkten mit `Widerrufen`. Senden Sie dann eine neue.",
       "Fehlt die Karte `Caterer`? Dann ist `Anmeldung zum Mittagessen` aus, oder Ihr Konto darf den Speiseplan nicht bearbeiten.",
       "Steht auf der Karte nur „Einen Caterer einladen können nur Admins Ihrer Schule.“? Dann bitten Sie einen Admin Ihrer Schule um die Einladung.",
       "Kommt Ihr Caterer nicht mehr an den Code für die Zwei-Faktor-Anmeldung? Dann meldet er sich beim moto-Team. Sie als Schule können sie nicht zurücksetzen, weil ein Caterer mehrere Schulen beliefern kann.",
@@ -5693,6 +5695,7 @@ export const parentCalendarTopic = function parentCalendarTopic(): HelpTopic {
       "Ein Termin ist eine `Betreuungszeit`, eine `Einladung` oder ein `Termin`.",
       "Bei einer Einladung antworten Sie mit `Zusagen` oder `Absagen`.",
       "Danach steht am Termin `Zugesagt` oder `Abgesagt`.",
+      "Für einen abgesagten Termin bekommen Sie keine Erinnerung. Am Termin steht dann `Keine Erinnerung`.",
       "Wiederholt sich ein Termin, wählen Sie unter `Ihre Antwort gilt für` zwischen `Nur am …` und `Alle Termine`. So sagen Sie zum Beispiel einem einzelnen Termin ab.",
       "Eine Antwort ändern Sie im geöffneten Termin mit `Antwort ändern`.",
       "Unter `Rückmeldungen` sehen Sie, wie viele zugesagt und abgesagt haben. Namen anderer Eltern sehen Sie nicht.",
@@ -8151,6 +8154,7 @@ export const settingsGuideTopic = function settingsGuideTopic(): HelpTopic {
           "Vor dem Einschalten prüft die Schule die Rechtsgrundlage. Sie ist für die Nutzung verantwortlich.",
           "`Nutzungsanalyse`: moto erhält Nutzungsstatistiken Ihrer Schule, aber keine eingegebenen Inhalte.",
           "Löschfristen wie `Anwesenheit aufbewahren (Tage)`: Wie lange moto Daten behält. Sie können sie nur lesen.",
+          "`Erziehungsberechtigte ohne Kind aufbewahren (Tage)`: Diese Frist stellen Sie selbst ein. Sie beginnt erst, wenn das letzte Kind der Person gelöscht ist.",
         ],
       },
       {
@@ -8225,6 +8229,7 @@ export const settingsTopic = function settingsTopic(): HelpTopic {
       "Damit enden auch Sitzungsaufzeichnungen. Die Fehlerdiagnose bleibt davon getrennt.",
       "Unter `Datenschutz` sehen Sie die Löschfristen. Sie zeigen, wie lange moto Daten aufbewahrt.",
       "moto legt die Löschfristen mit Ihrer Schule fest. Sie können sie nur lesen.",
+      "Eine Ausnahme ist `Erziehungsberechtigte ohne Kind aufbewahren (Tage)`. Diese Frist stellen Sie selbst ein, zwischen 30 und 365 Tagen. Sie beginnt erst, wenn das letzte Kind der Person gelöscht ist.",
       "Unter `Betrieb` steht das `Bundesland` Ihrer Schule. Danach richten sich die gesetzlichen Feiertage. Ändern kann es nur das moto-Team.",
       "Wer Blöcke starten oder beenden darf, legen Sie unter `Betrieb` fest: bei `Wer darf Blöcke starten?` und `Wer darf Blöcke beenden?`.",
       "`Das ganze Team` geht dort nur, wenn das Team alle Gruppen und Blöcke sieht.",
@@ -13699,6 +13704,7 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
       "Ebenfalls unter `Ferienbetreuung` schreiben Sie bei `Zahlungstext im Schreiben` einen eigenen Satz, der um die Zahlung bittet. Erlaubte Platzhalter sind {Betrag}, {Zahlungsfrist}, {Rechnungsnummer} und {Debitorennummer}. Darunter zeigt die `Vorschau des Zahlungstexts` den Satz mit Beispielwerten. Ist das Feld leer, steht im Schreiben der eingebaute Satz.",
       "Der eigene Zahlungstext gilt für die Schreiben, die Sie danach erstellen. Fertige Schreiben bleiben, wie sie sind.",
       "Unter `Ferienbetreuung` legen Sie bei `Ferienanmeldungen löschen nach (Tagen)` fest, wie lange moto Ferienanmeldungen aufbewahrt. Möglich sind 92 bis 1095 Tage, der Standard ist 365 Tage. Die Frist steht im Einwilligungstext für die Eltern. Eine Änderung gilt nur für Anmeldungen, die danach eingehen.",
+      "Unter `Datenschutz` legen Sie bei `Erziehungsberechtigte ohne Kind aufbewahren (Tage)` fest, wie lange moto Eltern ohne Kind aufbewahrt. Möglich sind 30 bis 365 Tage, der Standard ist 90 Tage. Eine Schule kann einen eigenen Wert eintragen.",
       "Im Bereich `Dashboard` legen Sie fest, ab wann das Dashboard eine Schule unter `Auffälligkeiten` zeigt: bei zu wenig Personal, bei vielen Krankmeldungen und bei offenen Anmeldungen. 0 schaltet einen Hinweis aus.",
       "Unter `Ferienbetreuung` legen Sie bei `Ferienbeitrag` auch fest, welches Kind das erste Kind ist und was ein Kostenträger bezahlt. Mehr dazu steht im Artikel `Ferienbeitrag festlegen`.",
     ],
