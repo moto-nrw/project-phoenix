@@ -363,7 +363,8 @@ describe("StudentSearchPage — room_id deep-link (#1323)", () => {
     // for the test path; we mimic that here.
     mockUseSWRAuth.mockImplementation(
       (key: string | null, fetcher?: () => Promise<unknown>) => {
-        if (fetcher) {
+        // Like SWR, a null key starts no request.
+        if (fetcher && key !== null) {
           // Fire-and-forget — we only assert on mockGetStudents call shape.
           void fetcher().catch(() => undefined);
         }
@@ -494,6 +495,118 @@ describe("StudentSearchPage — room_id deep-link (#1323)", () => {
     // Anker: die ungefilterte Kinderliste ist geladen.
     expect(await screen.findByTestId("student-card-7")).toBeInTheDocument();
     expect(screen.queryByText(/Seepferdchen/)).not.toBeInTheDocument();
+  });
+
+  it("holds the list and the export until the server has answered for a saved registration answer (#6954)", async () => {
+    // Loaded before the answer, the list came once without the filter and
+    // again with it, and an export in between carried every child.
+    mockUseSession.mockImplementation(() => ({
+      data: { user: { token: "t", permissions: ["users:read"] } },
+      status: "authenticated",
+    }));
+    let grant: (questions: unknown[]) => void = () => undefined;
+    mockFetchAnswerFilters.mockReturnValue(
+      new Promise<unknown[]>((resolve) => {
+        grant = resolve;
+      }),
+    );
+    currentSearch = new URLSearchParams({
+      enrollment_answer: "seepferdchen=true",
+    });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(mockFetchAnswerFilters).toHaveBeenCalled();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockGetStudents).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(
+      await screen.findByRole("menuitem", { name: /Exportieren/ }),
+    ).toBeDisabled();
+
+    await act(async () => {
+      grant([
+        {
+          key: "seepferdchen",
+          label: "Seepferdchen vorhanden?",
+          options: [{ value: "true", label: "Ja", count: 3 }],
+        },
+      ]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockGetStudents).toHaveBeenCalled();
+    });
+    expect(
+      mockGetStudents.mock.calls.every(
+        (call) =>
+          (call[0] as Record<string, unknown>).enrollmentAnswer ===
+          "seepferdchen=true",
+      ),
+    ).toBe(true);
+    expect(screen.getByRole("menuitem", { name: /Exportieren/ })).toBeEnabled();
+  });
+
+  it("keeps a saved registration answer while the session is still loading (#6954)", async () => {
+    // A loading session names no permissions. Read as "may not ask", it
+    // dropped the saved filter of an account that may.
+    mockUseSession.mockImplementation(() => ({
+      data: null,
+      status: "loading",
+    }));
+    currentSearch = new URLSearchParams({
+      enrollment_answer: "seepferdchen=true",
+    });
+
+    const { rerender } = render(<StudentSearchPage />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockFetchAnswerFilters).not.toHaveBeenCalled();
+
+    mockUseSession.mockImplementation(() => ({
+      data: { user: { token: "t", permissions: ["users:read"] } },
+      status: "authenticated",
+    }));
+    rerender(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(
+        mockGetStudents.mock.calls.some(
+          (call) =>
+            (call[0] as Record<string, unknown>).enrollmentAnswer ===
+            "seepferdchen=true",
+        ),
+      ).toBe(true);
+    });
+    expect(
+      mockGetStudents.mock.calls.every(
+        (call) =>
+          (call[0] as Record<string, unknown>).enrollmentAnswer ===
+          "seepferdchen=true",
+      ),
+    ).toBe(true);
+  });
+
+  it("loads the list at once when no registration answer is saved (#6954)", async () => {
+    mockUseSession.mockImplementation(() => ({
+      data: { user: { token: "t", permissions: ["users:read"] } },
+      status: "authenticated",
+    }));
+    mockFetchAnswerFilters.mockReturnValue(
+      new Promise<unknown[]>(() => undefined),
+    );
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(mockGetStudents).toHaveBeenCalled();
+    });
   });
 
   it("does not forward roomId when no room_id query param is present", async () => {

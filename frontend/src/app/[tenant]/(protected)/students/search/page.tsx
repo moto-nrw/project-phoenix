@@ -1601,6 +1601,9 @@ function SearchPageContent() {
     readonly EnrollmentAnswerFilter[]
   >([]);
   useEffect(() => {
+    // A session that is still loading names no permissions yet: deciding now
+    // would refuse the account and drop its saved filter.
+    if (status === "loading") return;
     if (!mayAskEnrollmentAnswers) {
       setEnrollmentAnswerAccess("denied");
       return;
@@ -1629,9 +1632,15 @@ function SearchPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [mayAskEnrollmentAnswers]);
+  }, [mayAskEnrollmentAnswers, status]);
   const effectiveEnrollmentAnswer =
     enrollmentAnswerAccess === "granted" ? enrollmentAnswerFilter : "";
+  // A saved filter waits for the server's answer. Loaded before it, the list
+  // would come once without the filter and again with it, and an export in
+  // between would carry every child. The list and the export start when the
+  // access is known; without a saved filter nothing waits.
+  const awaitsEnrollmentAnswerAccess =
+    enrollmentAnswerAccess === "pending" && enrollmentAnswerFilter !== "";
 
   // The group filter leads the key as a fixed `g{id}`/`gall` scope segment
   // (#2097) so the SSE flush can read it back and skip a refetch when a
@@ -1695,7 +1704,7 @@ function SearchPageContent() {
      */
     truncatedTotal: number | null;
   }>(
-    studentsCacheKey,
+    awaitsEnrollmentAnswerAccess ? null : studentsCacheKey,
     async () => {
       const filters = buildStudentSearchFilters(studentSearchParams);
 
@@ -2061,6 +2070,7 @@ function SearchPageContent() {
   const showGridSkeleton =
     isInitializing ||
     isAuthError ||
+    awaitsEnrollmentAnswerAccess ||
     (!hasLoadError && ((isSearching && !hasFetchedOnce) || isDateTransition));
 
   // The stall is tied to the request it was measured for, so a new key or a
@@ -3365,6 +3375,9 @@ function SearchPageContent() {
                           "Öffnet den Export der Kinder aus der aktuellen Filterung.",
                         icon: <Download className="h-4 w-4" aria-hidden />,
                         onClick: () => setIsExportOpen(true),
+                        // Erst wenn feststeht, ob der gespeicherte Filter
+                        // nach Anmeldeangaben gilt.
+                        disabled: awaitsEnrollmentAnswerAccess,
                         badge: rowsLoaded ? filteredStudents.length : undefined,
                       },
                     ]
