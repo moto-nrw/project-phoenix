@@ -631,6 +631,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/school/auth/password-reset"}:                                                   notCaptured,
 	{http.MethodPost, "/school/auth/password-reset/confirm"}:                                           notCaptured,
 	{http.MethodPost, "/school/auth/switch-school"}:                                                    notCaptured,
+	{http.MethodDelete, "/school/auth/mfa/trusted-devices/{deviceId}"}:                                 notCaptured,
 	{http.MethodPost, "/school/calendar/appointments"}:                                                 event("school_appointment_created"),
 	{http.MethodDelete, "/school/calendar/appointments/{appointmentId}"}:                               event("school_appointment_deleted"),
 	{http.MethodPut, "/school/calendar/appointments/{appointmentId}"}:                                  event("school_appointment_updated"),

@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -17,6 +18,8 @@ export interface OTPInputGridHandle {
   reset(): void;
   /** Move focus to the first digit input. */
   focus(): void;
+  /** Take focus off the grid, so an on-screen keyboard closes. */
+  blur(): void;
 }
 
 interface OTPInputGridProps {
@@ -24,6 +27,12 @@ interface OTPInputGridProps {
   readonly disabled?: boolean;
   /** Fires exactly once per fill — guarded internally to prevent double-submit. */
   readonly onComplete: (code: string) => void;
+  /**
+   * Fires with the digits entered so far on every change, also when a digit
+   * is removed again. A parent that submits with its own buttons reads the
+   * code from here.
+   */
+  readonly onChange?: (code: string) => void;
   readonly ariaLabel?: string;
   readonly autoFocus?: boolean;
 }
@@ -44,6 +53,7 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
       length,
       disabled = false,
       onComplete,
+      onChange,
       ariaLabel = "Bestätigungscode",
       autoFocus = true,
     },
@@ -70,6 +80,9 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
         focus: () => {
           inputRefs.current[0]?.focus();
         },
+        blur: () => {
+          for (const input of inputRefs.current) input?.blur();
+        },
       }),
       [length],
     );
@@ -77,6 +90,16 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
     useEffect(() => {
       if (autoFocus) inputRefs.current[0]?.focus();
     }, [autoFocus]);
+
+    // The parent hears every state of the code, including the reset and a
+    // removed digit, from the one place the digits live.
+    const latestOnChange = useRef(onChange);
+    useLayoutEffect(() => {
+      latestOnChange.current = onChange;
+    });
+    useEffect(() => {
+      latestOnChange.current?.(digits.join(""));
+    }, [digits]);
 
     const handleDigitChange = useCallback(
       (index: number, value: string) => {

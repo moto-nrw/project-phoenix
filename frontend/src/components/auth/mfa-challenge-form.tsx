@@ -9,7 +9,6 @@ import {
 } from "react";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { Checkbox } from "~/components/ui/checkbox";
 import { createLogger } from "~/lib/logger";
 import { credentialError, MFA_STEP_REFUSALS } from "./credential-error";
 import {
@@ -26,6 +25,80 @@ const logger = createLogger({ component: "MFAChallengeForm" });
 const CODE_LENGTH = 6;
 const DEFAULT_RESEND_COOLDOWN_SECONDS = 60;
 
+/**
+ * Where each portal lists the remembered devices, as the sentence under the
+ * two buttons names it. The words are the portal's own navigation labels.
+ */
+const DEVICE_LIST_PLACE: Record<LoginScope, string> = {
+  tenant: "in Ihrem Profil",
+  school: "in den Einstellungen",
+  traeger: "unter „Konto“",
+  caterer: "unter „Konto“",
+  operator: "in Ihrem Profil",
+};
+
+/** Which of the two confirm buttons is waiting for the answer. */
+type PendingChoice = "remember" | "once";
+
+interface ConfirmChoiceProps {
+  readonly variant: "primary" | "outline";
+  readonly label: string;
+  /** For whom the choice is meant, visible also where no tooltip shows. */
+  readonly description: string;
+  readonly tooltip: string;
+  readonly codeComplete: boolean;
+  /** A check is running, started by this or the other button. */
+  readonly busy: boolean;
+  /** This button started the running check. */
+  readonly pending: boolean;
+  readonly onClick: () => void;
+}
+
+/**
+ * One of the two ways to confirm the code. While its check runs the label
+ * says so and the description stays, so the button keeps its height.
+ */
+function ConfirmChoice({
+  variant,
+  label,
+  description,
+  tooltip,
+  codeComplete,
+  busy,
+  pending,
+  onClick,
+}: ConfirmChoiceProps) {
+  const primary = variant === "primary";
+  return (
+    <Button
+      type="button"
+      variant={variant}
+      size="md"
+      className="w-full"
+      onClick={onClick}
+      disabled={!codeComplete || busy}
+      disabledReason={
+        codeComplete ? undefined : "Geben Sie zuerst den Code ein."
+      }
+      tooltip={tooltip}
+    >
+      <span className="flex w-full min-w-0 flex-col items-start gap-0.5 text-left wrap-anywhere">
+        <span
+          className={`text-sm font-semibold ${primary ? "text-white" : "text-gray-900"}`}
+          aria-live="polite"
+        >
+          {pending ? "Code wird geprüft…" : label}
+        </span>
+        <span
+          className={`text-xs font-normal text-pretty ${primary ? "text-white/80" : "text-gray-500"}`}
+        >
+          {description}
+        </span>
+      </span>
+    </Button>
+  );
+}
+
 interface MFAChallengeFormProps {
   readonly scope: LoginScope;
   readonly challengeToken: string;
@@ -39,14 +112,16 @@ interface MFAChallengeFormProps {
   readonly onError?: (error: unknown) => boolean | Promise<boolean>;
   readonly onCancel?: () => void;
   /**
-   * Mirrors security.mfa_trusted_device_enabled for the tenant. When false
-   * we hide the "N Tage merken" checkbox and skip its state in the verify
-   * request. Undefined defaults to `true` for backwards compatibility with
-   * older backends that haven't shipped the field.
+   * Mirrors security.mfa_trusted_device_enabled for the tenant. When true,
+   * the person confirms with one of two buttons and so decides each time
+   * whether this device is remembered (#6955). When false, nothing can be
+   * remembered and the code is checked as soon as it is complete. Undefined
+   * defaults to `true` for backwards compatibility with older backends that
+   * haven't shipped the field.
    */
   readonly trustedDeviceEnabled?: boolean;
   /**
-   * Day count rendered into the "Auf diesem Gerät N Tage merken" label.
+   * Day count rendered into "Bestätigen und dieses Gerät N Tage merken".
    * Mirrors security.mfa_trusted_device_days so the label always matches
    * the actual cookie lifetime. Defaults to 90 — the registry default —
    * if an older backend doesn't surface the field.
@@ -68,7 +143,13 @@ export function MFAChallengeForm({
   trustedDeviceDays = 90,
   organizationId,
 }: MFAChallengeFormProps) {
-  const [rememberDevice, setRememberDevice] = useState(false);
+  // Nothing is preselected: the device is remembered only when the person
+  // presses the button that says so (#6955). A shared tablet in a room must
+  // never become a remembered device by a default.
+  const [code, setCode] = useState("");
+  const [pendingChoice, setPendingChoice] = useState<PendingChoice | null>(
+    null,
+  );
   // Fehler über den gemeinsamen Weg (#2517). Ein abgelehnter Code bleibt im
   // Formular (MFA_STEP_REFUSALS); jeder andere 401 ist eine abgelaufene
   // Anmeldung und führt zur Anmeldeseite.
@@ -95,7 +176,7 @@ export function MFAChallengeForm({
   }, [resendIn]);
 
   const performVerify = useCallback(
-    async (submittedCode: string) => {
+    async (submittedCode: string, rememberDevice: boolean) => {
       setIsVerifying(true);
       clearError();
       try {
@@ -122,12 +203,12 @@ export function MFAChallengeForm({
         });
       } finally {
         setIsVerifying(false);
+        setPendingChoice(null);
       }
     },
     [
       scope,
       activeToken,
-      rememberDevice,
       organizationId,
       onSuccess,
       onError,
@@ -175,6 +256,21 @@ export function MFAChallengeForm({
   } else {
     resendLabel = "Neuen Code anfordern";
   }
+
+  const codeComplete = code.length === CODE_LENGTH;
+
+  // With the two buttons below, a complete code waits for the person's
+  // choice. Leaving the field closes the on-screen keyboard of a tablet or
+  // phone, which would otherwise cover the buttons.
+  useEffect(() => {
+    if (trustedDeviceEnabled && codeComplete) otpRef.current?.blur();
+  }, [trustedDeviceEnabled, codeComplete]);
+
+  const confirm = (choice: PendingChoice) => {
+    if (!codeComplete || isVerifying) return;
+    setPendingChoice(choice);
+    void performVerify(code, choice === "remember");
+  };
 
   const handleBack = () => {
     onCancel?.();
@@ -228,48 +324,74 @@ export function MFAChallengeForm({
           ref={otpRef}
           length={CODE_LENGTH}
           disabled={isVerifying}
-          onComplete={(code) => {
-            // Fire-and-forget: errors surface through state, not the caller.
-            void performVerify(code);
+          onChange={setCode}
+          onComplete={(completeCode) => {
+            // Without the choice there is nothing to decide: the code is
+            // checked right away. Fire-and-forget: errors surface through
+            // state, not the caller.
+            if (!trustedDeviceEnabled) void performVerify(completeCode, false);
           }}
           ariaLabel="6-stelliger Bestätigungscode"
         />
-        <p className="text-center text-xs text-gray-500">
-          {isVerifying
-            ? "Code wird geprüft…"
-            : "Der Code wird automatisch geprüft, sobald Sie alle 6 Stellen eingegeben haben."}
-        </p>
-        <div className="flex justify-center">
-          <Button
-            type="button"
-            variant="link"
-            size="md"
-            onClick={() => {
-              void handleResend();
-            }}
-            disabled={resendIn > 0 || isResending || isVerifying}
-          >
-            {resendLabel}
-          </Button>
-        </div>
+        {!trustedDeviceEnabled && (
+          <p className="text-center text-xs text-gray-500">
+            {isVerifying
+              ? "Code wird geprüft…"
+              : "Der Code wird automatisch geprüft, sobald Sie alle 6 Stellen eingegeben haben."}
+          </p>
+        )}
       </div>
 
       {trustedDeviceEnabled && (
-        <div className="flex justify-center">
-          <label
-            htmlFor="mfa-remember-device"
-            className="relative flex cursor-pointer items-center gap-2 text-sm text-gray-700 select-none has-[:disabled]:cursor-not-allowed"
+        <div className="space-y-3">
+          {/* The kit's choice shape (ChoiceModal): full-width buttons that
+              each name their consequence. The texts wrap on a phone, so the
+              buttons keep the kit's `md` padding instead of a fixed height. */}
+          <div
+            role="group"
+            aria-label="Anmeldung bestätigen"
+            className="flex flex-col gap-2"
           >
-            <Checkbox
-              id="mfa-remember-device"
-              checked={rememberDevice}
-              onChange={(e) => setRememberDevice(e.target.checked)}
-              disabled={isVerifying}
+            <ConfirmChoice
+              variant="primary"
+              label={`Bestätigen und dieses Gerät ${trustedDeviceDays} Tage merken`}
+              description="Nur auf Ihrem eigenen Gerät. Dort entfällt der Code so lange."
+              tooltip={`Meldet Sie an. Hier fragt moto ${trustedDeviceDays} Tage lang keinen Code ab.`}
+              codeComplete={codeComplete}
+              busy={isVerifying}
+              pending={pendingChoice === "remember"}
+              onClick={() => confirm("remember")}
             />
-            Auf diesem Gerät {trustedDeviceDays} Tage merken
-          </label>
+            <ConfirmChoice
+              variant="outline"
+              label="Nur dieses Mal bestätigen"
+              description="Für Geräte, die mehrere Personen nutzen."
+              tooltip="Meldet Sie an. Beim nächsten Anmelden fragt moto wieder nach einem Code."
+              codeComplete={codeComplete}
+              busy={isVerifying}
+              pending={pendingChoice === "once"}
+              onClick={() => confirm("once")}
+            />
+          </div>
+          <p className="text-center text-xs leading-relaxed text-gray-500">
+            Gemerkte Geräte entfernen Sie {DEVICE_LIST_PLACE[scope]}.
+          </p>
         </div>
       )}
+
+      <div className="flex justify-center">
+        <Button
+          type="button"
+          variant="link"
+          size="md"
+          onClick={() => {
+            void handleResend();
+          }}
+          disabled={resendIn > 0 || isResending || isVerifying}
+        >
+          {resendLabel}
+        </Button>
+      </div>
     </div>
   );
 }

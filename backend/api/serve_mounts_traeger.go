@@ -45,6 +45,7 @@ type TraegerPortalIdentity interface {
 	identityaccess.TraegerAccountLogin
 	identityaccess.AccountMFAChallenges
 	identityaccess.AccountMFAEnrollment
+	identityaccess.AccountTrustedDevices
 	identityaccess.TraegerAccountManagement
 	identityaccess.TraegerRoles
 	identityaccess.TraegerSchoolSessions
@@ -437,10 +438,13 @@ func TraegerPortalAuth(sessions identityaccess.TraegerAccountLogin) traegerporta
 
 // TraegerPortalMFA binds the Träger second factor. The org challenge scope is
 // applied here, so a challenge of another portal is refused before any code
-// is compared. A Träger challenge names no school.
+// is compared. A Träger challenge names no school, and a Träger's remembered
+// device names its Träger and no school: the device calls run without a
+// school and bound to the Träger (identityaccess.WithTraegerDevice, #6955).
 func TraegerPortalMFA(mfa interface {
 	identityaccess.AccountMFAChallenges
 	identityaccess.AccountMFAEnrollment
+	identityaccess.AccountTrustedDevices
 }) traegerportal.MFARuntime {
 	if mfa == nil {
 		return traegerportal.MFARuntime{}
@@ -465,6 +469,21 @@ func TraegerPortalMFA(mfa interface {
 		},
 		Enroll: func(ctx context.Context, proof traegerportal.VerifiedChallenge) error {
 			return mfa.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: proof.AccountID, Scope: identityaccess.MFAChallengeScopeOrg, MFAResetGeneration: proof.MFAResetGeneration})
+		},
+		PrepareTrustedDevice: func(ctx context.Context, accountID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+			return mfa.PrepareTrustedDevice(ctx, accountID, 0, userAgent, ip)
+		},
+		ListTrustedDevices: func(ctx context.Context, accountID, organizationID int64) ([]identityaccess.AccountTrustedDevice, error) {
+			if organizationID <= 0 {
+				return nil, identityaccess.ErrMFAPermissionDenied
+			}
+			return mfa.ListTrustedDevices(identityaccess.WithTraegerDevice(ctx, organizationID), accountID, 0)
+		},
+		RevokeTrustedDevice: func(ctx context.Context, accountID, organizationID, deviceID int64) error {
+			if organizationID <= 0 {
+				return identityaccess.ErrMFAPermissionDenied
+			}
+			return mfa.RevokeTrustedDevice(identityaccess.WithTraegerDevice(ctx, organizationID), accountID, 0, deviceID)
 		},
 	}
 }

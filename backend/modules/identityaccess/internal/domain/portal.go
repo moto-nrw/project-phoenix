@@ -78,8 +78,9 @@ type Portal struct {
 	// enrollment token, redeemable only there.
 	Challenge  bool
 	Enrollment bool
-	// TrustedDevice: a redeemed challenge may remember the browser. The
-	// Träger-Portal remembers none (#4651).
+	// TrustedDevice: a redeemed challenge may remember the browser. A
+	// portal without a school remembers it without one: the caterer portal
+	// at the account (#4497), the Träger-Portal at its Träger (#6955).
 	TrustedDevice bool
 	MFA           MFARule
 	// Push is empty for a portal without push messages.
@@ -97,7 +98,7 @@ var (
 	PortalCaterer = Portal{Name: "caterer", Claim: "caterer",
 		Persisted: true, Challenge: true, TrustedDevice: true, MFA: MFAAccountChoice}
 	PortalOrg = Portal{Name: "org", Claim: "org", Tenant: ShapeForbidden, Org: ShapeRequired,
-		Persisted: true, Challenge: true, Enrollment: true, MFA: MFAAlways, Push: PushPortalStaff}
+		Persisted: true, Challenge: true, Enrollment: true, TrustedDevice: true, MFA: MFAAlways, Push: PushPortalStaff}
 	PortalPlatform = Portal{Name: "platform", Claim: "platform", Tenant: ShapeOptional, Org: ShapeOptional,
 		Challenge: true, Enrollment: true, TrustedDevice: true, MFA: MFAOperator}
 

@@ -97,11 +97,15 @@ describe("CatererLoginPage (#4497)", () => {
       await screen.findByRole("heading", { name: "Code-Eingabe" }),
     ).toBeInTheDocument();
     expect(screen.getByText("k***@example.test")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("checkbox", { name: /90 Tage merken/ }));
     const inputs = (await screen.findAllByRole("textbox")).slice(0, 6);
     await act(async () => {
       fireEvent.change(inputs[0]!, { target: { value: "123456" } });
     });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^Bestätigen und dieses Gerät 90 Tage merken/,
+      }),
+    );
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const [url, init] = fetchMock.mock.calls[0]!;

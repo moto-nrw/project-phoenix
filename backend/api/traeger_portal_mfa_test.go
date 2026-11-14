@@ -152,6 +152,16 @@ func TestTraegerLockoutIsLiftedByTheOperatorReset(t *testing.T) {
 
 	code, session := traegerSignIn(t, portal, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
+	// A device the person remembered at the Träger (#6955).
+	deviceCtx := identityaccess.WithTraegerDevice(ctx, organizationID)
+	device, _, deviceErr := identity.IssueTrustedDevice(deviceCtx, account.ID, 0, "Firefox", nil)
+	require.NoError(t, deviceErr)
+	remembered := func() bool {
+		ok, err := identity.VerifyTrustedDevice(deviceCtx, account.ID, 0, device)
+		require.NoError(t, err)
+		return ok
+	}
+	require.True(t, remembered())
 
 	// Wrong codes until the second factor locks.
 	code, login := traegerLogin(t, portal, account.Email, password, 0)
@@ -198,6 +208,7 @@ func TestTraegerLockoutIsLiftedByTheOperatorReset(t *testing.T) {
 
 	_, _, err := identity.RefreshTokenWithAudit(tenant.WithUnitOfWork(context.Background(), unit), session.RefreshToken, "", "", "")
 	assert.ErrorIs(t, err, identityaccess.ErrInvalidToken, "the reset ends the running Träger session at its refresh")
+	assert.False(t, remembered(), "the reset forgets the devices remembered at the Träger")
 
 	code, login = traegerLogin(t, portal, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
@@ -205,6 +216,7 @@ func TestTraegerLockoutIsLiftedByTheOperatorReset(t *testing.T) {
 	code, session = traegerSignIn(t, portal, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
 	assert.NotEmpty(t, session.RefreshToken, "the lock is lifted: the new factor opens the Träger-Portal")
+	assert.False(t, remembered(), "setting the factor up again brings no forgotten device back")
 }
 
 // traegerSessionVerified reports whether the account has Träger sessions and
