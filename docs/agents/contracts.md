@@ -938,7 +938,7 @@ Backend paths in this section are relative to `backend/`:
   `/school/auth/mfa/trusted-devices`, `/caterer/auth/mfa/trusted-devices`,
   `/traeger/auth/mfa/trusted-devices`; operators keep their own table. A
   school's force-off override revokes the devices of both portals of that
-  school. Migration 20261114065038 marked existing school devices `tenant`:
+  school. Migration 20261114091126 marked existing school devices `tenant`:
   a Lehrkraft confirms the next moto schule sign-in with a code once more.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/portalauth`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,

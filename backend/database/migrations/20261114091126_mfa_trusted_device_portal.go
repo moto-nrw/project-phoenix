@@ -8,7 +8,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const mfaTrustedDevicePortalVersion = "20261114065038"
+const mfaTrustedDevicePortalVersion = "20261114091126"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
