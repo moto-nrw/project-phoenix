@@ -6423,6 +6423,26 @@ const TOOLTIP_SCOPE = [
   "src/components/teachers/caregiver-blocker-resolution-panel.tsx",
   "src/components/teachers/caregiver-capability-modal.tsx",
   "src/components/teachers/staff-list.tsx",
+  // Datenverwaltung: Geräte, Dateien, Gruppen, Räume, QR-Codes (#6775).
+  "src/components/database/grade-transitions/transition-editor.tsx",
+  "src/components/database/grade-transitions/transition-preview-modal.tsx",
+  "src/components/devices/devices-master-detail.tsx",
+  "src/components/files/files-page.tsx",
+  "src/components/files/folder-modal.tsx",
+  "src/components/files/traeger-documents-card.tsx",
+  "src/components/groups/group-transfer-modal.tsx",
+  "src/components/meal-plan/meal-billing-release-link.tsx",
+  "src/components/meal-plan/meal-caterer.tsx",
+  "src/components/meal-plan/meal-order-week.tsx",
+  "src/components/meal-plan/meal-participant-list.tsx",
+  "src/components/qr-code/qr-code-button.tsx",
+  "src/components/qr-code/qr-code-dialog.tsx",
+  "src/components/rooms/room-checkin-dialog.tsx",
+  "src/components/rooms/room-plan-tab.tsx",
+  "src/components/rooms/room-removal-modal.tsx",
+  "src/components/rooms/students-in-room-section.tsx",
+  "src/components/rooms/transit-students-section.tsx",
+  "src/components/statistics/care-time-overruns-section.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

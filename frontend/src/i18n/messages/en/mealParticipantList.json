@@ -54,5 +54,9 @@
   "weekNotRegistered": "not registered",
   "weekCountsLabel": "Number of meals per day",
   "weekCount": "{count, plural, one {# child} other {# children}}",
-  "weekClosed": "no meal"
+  "weekClosed": "no meal",
+  "changeDescription": "Opens this child's registration. Parents see changes in the parent portal",
+  "changeTooltip": "Opens a window to register or unregister a child.",
+  "changePastReason": "You can no longer change past days.",
+  "changeClosedReason": "There is no registration to change on closed days."
 }

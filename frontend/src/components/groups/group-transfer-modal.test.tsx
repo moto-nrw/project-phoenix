@@ -170,8 +170,9 @@ describe("GroupTransferModal", () => {
       />,
     );
 
-    const transferButton = screen.getByText("Übergeben");
-    expect(transferButton).toBeDisabled();
+    // Gesperrt mit Grund: aria-disabled statt disabled (#6643).
+    const transferButton = screen.getByRole("button", { name: "Übergeben" });
+    expect(transferButton).toHaveAttribute("aria-disabled", "true");
   });
 
   it("shows loading state during transfer", async () => {
@@ -247,8 +248,9 @@ describe("GroupTransferModal", () => {
       />,
     );
 
-    const transferButton = screen.getByText("Übergeben");
-    expect(transferButton).toBeDisabled();
+    // Gesperrt mit Grund: aria-disabled statt disabled (#6643).
+    const transferButton = screen.getByRole("button", { name: "Übergeben" });
+    expect(transferButton).toHaveAttribute("aria-disabled", "true");
   });
 
   it("shows a load failure instead of claiming that no staff are available", () => {

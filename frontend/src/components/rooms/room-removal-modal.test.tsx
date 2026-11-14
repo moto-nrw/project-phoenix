@@ -96,9 +96,9 @@ describe("RoomRemovalModal (#6845)", () => {
     mocks.fetchRoomRemovalImpact.mockResolvedValue(unused);
     renderModal();
 
+    expect(await screen.findByText(/wird nirgends genutzt/)).toBeVisible();
     expect(
-      await screen.findByText(/wird nirgends genutzt/),
+      screen.getByRole("heading", { name: "Raum löschen?" }),
     ).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Raum löschen?" })).toBeVisible();
   });
 });
