@@ -82,6 +82,7 @@ import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resour
 import {
   fetchHolidayContribution,
   fetchHolidayFamilyDebtorNumber,
+  type HolidayFamilyDebtorNumbers,
   type HolidayContribution,
 } from "~/lib/traeger-contributions-api";
 import {
@@ -114,6 +115,11 @@ const PDF_LABELS: AttachmentLabels = {
   popupBlocked:
     "Das PDF konnte nicht geöffnet werden. Bitte erlauben Sie neue Fenster.",
   errorObject: "die PDF-Datei",
+};
+
+const NO_FAMILY_DEBTOR_NUMBERS: HolidayFamilyDebtorNumbers = {
+  debtorNumber: "",
+  children: [],
 };
 
 const logger = createLogger({ component: "TraegerHolidayRegistrationPage" });
@@ -197,8 +203,9 @@ export default function TraegerHolidayRegistrationPage() {
   const [confirmation, setConfirmation] =
     useState<HolidayConfirmationSettings | null>(null);
   // The number the family already has at the Träger, proposed at the
-  // confirmation (#6692).
-  const [familyDebtorNumber, setFamilyDebtorNumber] = useState("");
+  // confirmation (#6692), and with a number per child each child's (#7007).
+  const [familyDebtorNumbers, setFamilyDebtorNumbers] =
+    useState<HolidayFamilyDebtorNumbers>(NO_FAMILY_DEBTOR_NUMBERS);
   // The exemption the confirmation applies; it starts with the parents'
   // statement and the preview follows it.
   const [exemption, setExemption] = useState(false);
@@ -231,7 +238,7 @@ export default function TraegerHolidayRegistrationPage() {
         setHealth(null);
         setContribution(null);
         setConfirmation(null);
-        setFamilyDebtorNumber("");
+        setFamilyDebtorNumbers(NO_FAMILY_DEBTOR_NUMBERS);
         setEditing(null);
       }
       throw error;
@@ -259,7 +266,7 @@ export default function TraegerHolidayRegistrationPage() {
       if (request !== latestRegistration.current) return;
       latestContribution.current++;
       setConfirmation(loadedConfirmation);
-      setFamilyDebtorNumber(loadedFamilyDebtorNumber);
+      setFamilyDebtorNumbers(loadedFamilyDebtorNumber);
       setRegistration(loadedRegistration);
       setHealth(loadedHealth);
       setContribution(loadedContribution);
@@ -506,7 +513,8 @@ export default function TraegerHolidayRegistrationPage() {
             previewPending={previewPending}
             debtorNumberRequired={confirmation?.debtorNumberRequired ?? false}
             debtorNumberFormat={confirmation?.debtorNumberFormat}
-            familyDebtorNumber={familyDebtorNumber}
+            familyDebtorNumber={familyDebtorNumbers.debtorNumber}
+            childDebtorNumbers={familyDebtorNumbers.children}
             exemption={exemption}
             onExemptionChange={changeExemption}
             costBearers={confirmation?.costBearers}

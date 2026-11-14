@@ -73,8 +73,11 @@ type CatererMFAVerification struct {
 // CatererSession is a session pair proven by a second factor. A remembered
 // device adds its signed cookie; an empty cookie remembers none.
 type CatererSession struct {
-	AccessToken            string
-	RefreshToken           string
+	AccessToken  string
+	RefreshToken string
+	// Email is the signed-in address; the parents portal claims its holiday
+	// registrations with it (ADR 0216).
+	Email                  string
 	TrustedDeviceCookie    string
 	TrustedDeviceExpiresAt time.Time
 }

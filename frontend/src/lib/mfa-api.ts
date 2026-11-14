@@ -6,7 +6,7 @@ import {
   type PortalKey,
 } from "./portal-paths";
 
-export type LoginScope = Exclude<PortalKey, "parent">;
+export type LoginScope = PortalKey;
 
 interface MFARequiredLoginResponse {
   status: "mfa_required";

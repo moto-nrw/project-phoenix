@@ -130,6 +130,19 @@ type BillingPosition struct {
 	CostCenterFallback string           `json:"-"`
 }
 
+// HolidayInvoiceKey names the invoices of a holiday registration that
+// follow one another (invoice, cancellation, the invoice issued again): the
+// registration's, ChildID 0, or one child's (#7007).
+type HolidayInvoiceKey struct {
+	RegistrationID int64
+	ChildID        int64
+}
+
+// InvoiceKey is the key of the invoices the document belongs to.
+func (d BillingDocument) InvoiceKey() HolidayInvoiceKey {
+	return HolidayInvoiceKey{RegistrationID: d.RegistrationID, ChildID: d.RegistrationChildID}
+}
+
 // BillingChild is a child of an invoice with its positions and the history
 // of its corrections. CarriedCorrections are the corrections of a cancelled
 // invoice a draft proposes (#5663); they are positions too. ChildID is zero
@@ -167,6 +180,12 @@ type PostalAddress struct {
 // cancellation, the credits and the replacing invoice of an issued invoice;
 // ReplacedCredits the credits of the cancelled invoice a draft replaces, which
 // it does not carry over (#5663).
+//
+// A holiday invoice bills its registration, or one child of it
+// (RegistrationChildID) when the Träger keeps the debtor number per child
+// (#7007): each child then has an invoice of its own with its number. The
+// first invoice of a registration decides; an invoice issued again, its
+// cancellation and its credits keep the shape of the invoice they follow.
 type BillingDocument struct {
 	ID    int64  `json:"id"`
 	RunID int64  `json:"run_id"`
@@ -182,6 +201,7 @@ type BillingDocument struct {
 	Number              string                `json:"number"`
 	IssuedOn            *calendar.Date        `json:"issued_on"`
 	RegistrationID      int64                 `json:"registration_id"`
+	RegistrationChildID int64                 `json:"registration_child_id"`
 	RecipientFirstName  string                `json:"recipient_first_name"`
 	RecipientLastName   string                `json:"recipient_last_name"`
 	RecipientEmail      string                `json:"recipient_email"`
@@ -219,14 +239,10 @@ type BillingRunDetail struct {
 	Unbilled                        int               `json:"unbilled"`
 	MissingDebtorNumbers            int               `json:"missing_debtor_numbers"`
 	PaymentTextMissingDebtorNumbers int               `json:"payment_text_missing_debtor_numbers"`
-	// SharedChildDebtorNumbers counts, when the Träger keeps a number per
-	// child (#7007), the invoices of several children: each carries one
-	// number, the registration's or its first child's.
-	SharedChildDebtorNumbers int             `json:"shared_child_debtor_numbers"`
-	NumberPattern            string          `json:"number_pattern"`
-	NumberRangeSet           bool            `json:"number_range_set"`
-	BilledInAdvance          bool            `json:"billed_in_advance"`
-	Letters                  *BillingLetters `json:"letters"`
+	NumberPattern                   string            `json:"number_pattern"`
+	NumberRangeSet                  bool              `json:"number_range_set"`
+	BilledInAdvance                 bool              `json:"billed_in_advance"`
+	Letters                         *BillingLetters   `json:"letters"`
 	// DueDates are the due dates of the run per payment method (#4689).
 	DueDates []RunDueDate `json:"due_dates"`
 	// DocumentKindState is the kind the run issues (#4688).

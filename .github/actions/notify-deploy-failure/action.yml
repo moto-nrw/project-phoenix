@@ -1,5 +1,5 @@
 name: Notify Deploy Failure
-description: Send email notification for deploy/rollback failures via Resend
+description: Send email notification for deploy/rollback failures via the Lettermint Sending API
 
 inputs:
   exit_code:
@@ -8,8 +8,8 @@ inputs:
   environment:
     description: "Target environment (staging, production)"
     required: true
-  resend_api_key:
-    description: "Resend API key"
+  lettermint_token:
+    description: "Lettermint project API token (sending only)"
     required: true
   run_url:
     description: "Full URL to the GitHub Actions run"
@@ -44,7 +44,7 @@ runs:
         COMMIT_URL: ${{ inputs.commit_url }}
         RUN_URL: ${{ inputs.run_url }}
         ACTOR: ${{ inputs.actor }}
-        RESEND_API_KEY: ${{ inputs.resend_api_key }}
+        LETTERMINT_TOKEN: ${{ inputs.lettermint_token }}
         NOTIFY_EMAILS: ${{ inputs.notify_emails }}
       run: |
         SHORT_SHA=$(echo "$INPUT_SHA" | cut -c1-7)
@@ -74,32 +74,46 @@ runs:
           LINK_TEXT="View failed deployment →"
         fi
 
-        COMMIT_HTML=""
         if [ -n "$COMMIT_URL" ]; then
           COMMIT_HTML="Commit: <a href=\"${COMMIT_URL}\">${SHORT_SHA}</a><br>"
+          COMMIT_TEXT="Commit: ${COMMIT_URL}"
         else
           COMMIT_HTML="SHA: <code>${SHORT_SHA}</code><br>"
+          COMMIT_TEXT="SHA: ${SHORT_SHA}"
         fi
 
         BODY="<p>${STATUS}</p><p><a href=\"${RUN_URL}\">${LINK_TEXT}</a></p><p>${COMMIT_HTML}Triggered by: ${ACTOR}</p>"
 
-        # Build JSON payload with jq to safely encode special characters for the Resend API.
+        # Plain-text part for clients that do not render HTML: the same facts without markup.
+        STATUS_TEXT=$(printf '%s' "${STATUS//<br>/$'\n'}" | sed 's/<[^>]*>//g')
+        TEXT=$(printf '%s\n\n%s %s\n\n%s\nTriggered by: %s' "$STATUS_TEXT" "$LINK_TEXT" "$RUN_URL" "$COMMIT_TEXT" "$ACTOR")
+
+        # Build JSON payload with jq to safely encode special characters for the Lettermint API.
+        # Only mail.moto-ogs.de is a verified Lettermint sending domain. Tracking stays off:
+        # an operational alert has no reason to carry pixels or rewritten links.
         # This entire block is best-effort — notification failures must never mask the real deploy failure.
         if ! PAYLOAD=$(jq -n \
-          --arg from "Phoenix CI <ci@ci.moto-app.de>" \
+          --arg from "moto CI <ci@mail.moto-ogs.de>" \
           --argjson to "$NOTIFY_EMAILS" \
+          --arg reply_to "dev@moto-ogs.de" \
           --arg subject "$SUBJECT" \
           --arg html "$BODY" \
-          '{from: $from, to: $to, subject: $subject, html: $html}' 2>&1); then
+          --arg text "$TEXT" \
+          '{from: $from, to: $to, reply_to: [$reply_to], subject: $subject, html: $html, text: $text,
+            settings: {track_opens: false, track_clicks: false}}' 2>&1); then
           echo "::warning::Failed to build email payload (non-critical): $PAYLOAD"
           exit 0
         fi
 
-        if ! HTTP_RESPONSE=$(curl -sS -o /tmp/resend_response.txt -w "%{http_code}" \
-          -X POST https://api.resend.com/emails \
-          -H "Authorization: Bearer $RESEND_API_KEY" \
+        RESPONSE_FILE="$RUNNER_TEMP/lettermint_response.txt"
+        # The token goes to curl through a header file on stdin, so it never appears in argv.
+        if ! HTTP_RESPONSE=$(printf 'x-lettermint-token: %s\n' "$LETTERMINT_TOKEN" \
+          | curl -sS -o "$RESPONSE_FILE" -w "%{http_code}" \
+          -X POST https://api.lettermint.co/v1/send \
+          -H @- \
           -H "Content-Type: application/json" \
-          -d "$PAYLOAD" 2>&1); then
+          -H "Accept: application/json" \
+          --data-binary "$PAYLOAD" 2>&1); then
           echo "::warning::Email notification request failed (non-critical): $HTTP_RESPONSE"
           exit 0
         fi
@@ -107,5 +121,5 @@ runs:
         if [ "$HTTP_RESPONSE" -ge 200 ] 2>/dev/null && [ "$HTTP_RESPONSE" -lt 300 ] 2>/dev/null; then
           echo "Email notification sent (HTTP $HTTP_RESPONSE)"
         else
-          echo "::warning::Email notification rejected (HTTP $HTTP_RESPONSE, non-critical): $(cat /tmp/resend_response.txt 2>/dev/null)"
+          echo "::warning::Email notification rejected (HTTP $HTTP_RESPONSE, non-critical): $(cat "$RESPONSE_FILE" 2>/dev/null)"
         fi

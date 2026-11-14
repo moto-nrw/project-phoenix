@@ -15,7 +15,8 @@ import (
 // (auth.traeger_parent_access). The parent sign-in opens its session only
 // when no guardian school that books Eltern-App opens the ordinary one. The
 // session names the Träger and no school, like the Träger session (ADR 0084),
-// carries no rights, follows no school's module booking and no second factor.
+// carries no rights and follows no school's module booking. It follows the
+// account's own second factor like every parent session (#7051).
 // Every mint, refresh and validation reads the access and the Träger again;
 // without either the session ends.
 
@@ -101,24 +102,6 @@ func liveTraegerParentOrganizations(ctx context.Context, s *AccountAuthenticatio
 		return err
 	})
 	return organizations, err
-}
-
-// issueTraegerParentTokens mints the parent session at the first active
-// Träger the account holds access at; found is false when there is none.
-func (s *AccountAuthentication) issueTraegerParentTokens(ctx context.Context, account domain.LoginAccount, email, ipAddress, userAgent string) (string, string, bool, error) {
-	organizations, err := s.traegerParentOrganizations(ctx, account.ID)
-	if err != nil {
-		return "", "", false, failed("parent login: read Träger access", err)
-	}
-	if len(organizations) == 0 {
-		return "", "", false, nil
-	}
-	minted, err := s.mintAccountSession(ctx, mintRequest{
-		portal: domain.PortalParent, account: account, email: email, orgID: organizations[0].ID,
-		op:    "parent login",
-		audit: s.schoollessAudit(ctx, account.ID, domain.AuthEventLogin, ipAddress, userAgent),
-	})
-	return minted.accessToken, minted.refreshToken, true, err
 }
 
 // hasTraegerParentAccess reports whether the parents portal serves the

@@ -646,7 +646,8 @@ maintenance jobs `migrate` and `bank-data-rekey` receive the privileged DSN. Rea
 before changing deployment environments or maintenance jobs.
 
 CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, `PRODUCTION_SSH_*`, and `DEMO_SSH_*` secrets;
-failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable. The
+deploy and rollback failure mails go through Lettermint with the `LETTERMINT_CI_TOKEN`
+secret to the recipients in the `DEPLOY_NOTIFY_EMAILS` repository variable. The
 PostHog dashboards use `POSTHOG_READ_API_KEY` (repository) and
 `POSTHOG_PERSONAL_API_KEY` (environment `posthog`); see
 [Nutzungsanalyse](../operations/nutzungsanalyse.md#dashboards-3604).

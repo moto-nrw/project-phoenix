@@ -81,6 +81,7 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "createParentDeleteHandler",
     "createParentPutHandler",
     "createParentPatchHandler",
+    "createParentJsonProxy",
     "parent.route",
     "parent.proxyFile",
     "proxyFile",

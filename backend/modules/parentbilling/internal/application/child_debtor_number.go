@@ -28,6 +28,8 @@ type ChildNumberStore interface {
 		today calendar.Date, onlyNew bool) ([]parentbilling.ChildDebtorNumber, error)
 	// DeleteChildDebtorNumber empties the number; the child stays known.
 	DeleteChildDebtorNumber(ctx context.Context, organizationID, accountID int64, familyEmail, childKey string) (*parentbilling.ChildDebtorNumber, error)
+	// DeleteChildDebtorNumbers empties a set of child numbers of one family.
+	DeleteChildDebtorNumbers(ctx context.Context, organizationID, accountID int64, familyEmail string, childKeys []string) ([]parentbilling.ChildDebtorNumber, error)
 	// ExtendChildDebtorNumbers keeps the numbers until the given later days.
 	ExtendChildDebtorNumbers(ctx context.Context, organizationID int64, numbers []parentbilling.ChildDebtorNumber) error
 	InsertChildDebtorNumberEvents(ctx context.Context, organizationID, accountID int64, action string,

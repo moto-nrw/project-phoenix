@@ -807,8 +807,8 @@ Backend paths in this section are relative to `backend/`:
   `/auth/holiday-parent-setups/{token}` of a holiday registration) gets the
   session kind `traeger_parent` at the Träger of its oldest access (ADR 0216):
   `scope=parent` with `org_id` and no `tenant_id`, its row kept at no school
-  (`organization_id`, `tenant_id` NULL). It carries no rights, follows no module
-  booking and no second factor; mint, refresh and validation re-read the
+  (`organization_id`, `tenant_id` NULL). It carries no rights and follows no
+  module booking; mint, refresh and validation re-read the
   access and the Träger (share locks after the account lock) and end the
   session without them; ending the Träger's sessions ends it too. Every parent
   route still authorizes through relationships, so it sees no school's data.
@@ -839,6 +839,26 @@ Backend paths in this section are relative to `backend/`:
   session; older sessions end at their next refresh or validation. Recovery is the
   operator's reset (`DELETE /operator/caterers/{id}/accounts/{accountId}/mfa`, reason, operator
   audit, notice mail); school admins have none.
+- The parents' second factor (ADR 0216 addendum, #7051) is voluntary and
+  is the account's e-mail factor: an account enrolled from a school is asked
+  for it here too. Once the account has it, `/parent/auth/login` answers
+  `mfa_required` with a `parent`-scope challenge that names no school, after
+  the portal's own refusals (no guardian school, Eltern-App not booked), so no
+  code goes to an account the portal refuses; a `mfa_trust_device` cookie of
+  a device the parents portal remembered skips it.
+  `/parent/auth/mfa/verify` mints the session (school or Träger kind) with
+  `mfa_verified`. Parents-portal devices carry `parent_portal` and name
+  neither school nor Träger; they never answer at the caterer portal, nor
+  the other way round. Mint and refresh refuse a parent session without proof
+  while the account has the factor; the per-page validation does not read
+  the enrollment (budget `identity.session_validate.parent`), so a session
+  from before the switch-on ends at its next refresh, within the access-token
+  lifetime. `/parent/me/mfa{,/start,/confirm,/disable}` manage the factor
+  (switch-on answers a new proven session; switch-off needs the password);
+  `/parent/me/mfa/trusted-devices` lists and revokes the devices. An account
+  without a guardian school cannot switch it on (`available: false`).
+  Recovery is the operator's reset at a school of the account
+  (`DELETE /operator/provisioning/schools/{id}/accounts/{accountId}/mfa`).
 - Träger login (ADR 0084, #4649) requires an active membership in
   `platform.organization_accounts` of an active Träger and mints `scope=org`
   with `org_id` and no `tenant_id`; an account in several Träger chooses one

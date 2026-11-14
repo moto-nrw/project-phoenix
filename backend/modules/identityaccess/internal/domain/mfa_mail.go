@@ -11,9 +11,12 @@ type AccountIdentity struct {
 	MFAResetGeneration int64
 	ID                 int64
 	Email              string
-	Active             bool
-	MFAAttempts        int
-	MFALockedUntil     *time.Time
+	// PortalLocale is the language the account chose in the parents portal,
+	// or nil.
+	PortalLocale   *string
+	Active         bool
+	MFAAttempts    int
+	MFALockedUntil *time.Time
 }
 
 // MFACodeMail is one e-mail code message. The template deliberately carries
@@ -37,6 +40,23 @@ type MFACodeMail struct {
 	// "remember this device" hint. Operators always have it on.
 	TrustedDeviceEnabled bool
 	TrustedDeviceDays    int
+	// Parent marks a code of the parents portal (#7051): it is written in
+	// Locale, the language the parent chose for the portal.
+	Parent bool
+	Locale string
+}
+
+// ForPortal marks a code of the parents portal and writes it in the
+// parent's language (#7051); every other portal's code stays German.
+func (m MFACodeMail) ForPortal(scope string, locale *string) MFACodeMail {
+	if scope != PortalParent.Name {
+		return m
+	}
+	m.Parent = true
+	if locale != nil {
+		m.Locale = *locale
+	}
+	return m
 }
 
 // TrustedDeviceMail notifies the account or operator holder that a
@@ -59,6 +79,10 @@ type TrustedDeviceMail struct {
 	// Traeger marks a device of the Träger-Portal (#6955): its holder
 	// manages it in the Träger account page, and a moto operator resets it.
 	Traeger bool
+	// Parent marks a device of the parents portal (#7051): its holder
+	// manages it in the portal's settings, in the language of Locale.
+	Parent bool
+	Locale string
 }
 
 // CatererMFAResetMail tells a caterer that a moto operator reset its second

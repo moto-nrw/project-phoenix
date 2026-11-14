@@ -1,0 +1,22 @@
+{{define "parent-trusted-device-added.html"}}
+{{template "header" .}}
+
+<div class="email-body" lang="{{.Lang}}">
+    {{template "moto-brand" .}}
+    <h1>{{.Title}}</h1>
+    <p>{{.Greeting}}</p>
+    <p>{{.Intro}}</p>
+
+    <div class="highlight-box">
+        <p><strong>{{.DeviceName}}:</strong> {{.DeviceLabel}}</p>
+        {{if .IPAddress}}<p><strong>{{.IPName}}:</strong> {{.IPAddress}}</p>{{end}}
+        <p><strong>{{.TimeName}}:</strong> {{.AddedAt}}</p>
+    </div>
+
+    <p class="security-note"><strong>{{.NotYouTitle}}</strong></p>
+    <p>{{.NotYou}}</p>
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">{{.Recovery}}</p>
+</div>
+
+{{template "footer" .}}
+{{end}}
