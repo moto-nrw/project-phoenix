@@ -133,9 +133,10 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   with its own environment (`internal/architecture`: `CGO_ENABLED=0`, policy
   tags) compiles actions the warm job's `go test -exec true ./...` never
   touches. Only running that test in the warm job, before the sweep, puts them
-  in the cache: locally 225 CPU s cold against 81 one commit later; in the
-  full suite the package took 21-28 s warm against 44-74 s (#7038). With
-  `-trimpath`, temporary directories do not change the action IDs.
+  in the cache: locally 225 CPU s cold against 81 one commit later. In CI the
+  restored cache already held two thirds of them (199 MB new): the package
+  took 21-28 s warm against 40-41 s, the job's busy CPU did not move (#7038).
+  With `-trimpath`, temporary directories do not change the action IDs.
 - Postgres stores SCRAM verifiers with 4096 iterations, paid by server and
   client on every login: 11.3 ms CPU per connection against 3.1 ms with
   `initdb --set scram_iterations=1` (pgbench -C). The setting covers the

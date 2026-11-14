@@ -98,9 +98,9 @@ jobs:
       # go list -export and packages.Load in child processes, with
       # CGO_ENABLED=0 and the policy build tags. The build above never runs
       # those compile actions; only running the tests fills them, before the
-      # sweep. Without them the package compiled cold in every pull request:
-      # 225 CPU s instead of 81 for a pull request one commit ahead (locally,
-      # 14.11.2026). The -trimpath of the checker's fixed build environment
+      # sweep. Without them every pull request compiled them again: the
+      # package took 40-41 s in the full suite against 21-28 s with them
+      # (#7038). The -trimpath of the checker's fixed build environment
       # keeps the tests' temporary directories out of the action IDs. One
       # test resolves origin/development, which the depth-1 checkout of a
       # development push already points at HEAD. A failure is the pull
