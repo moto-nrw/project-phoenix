@@ -6380,6 +6380,26 @@ const TOOLTIP_SCOPE = [
   "src/components/staff/shift-move-dialog.tsx",
   "src/components/staff/sick-report-modal.tsx",
   "src/components/staff/sonderarbeitszeiten-section.tsx",
+  // Datenverwaltung: Speiseplan, Gruppen, Räume, Statistik, Katalog (#6774).
+  "src/app/[tenant]/(protected)/meal-plan/freigabe/page.tsx",
+  "src/app/[tenant]/(protected)/meal-plan/page.tsx",
+  "src/app/[tenant]/(protected)/ogs-groups/overview/page.tsx",
+  "src/app/[tenant]/(protected)/ogs-groups/page.tsx",
+  "src/app/[tenant]/(protected)/rooms/[id]/page.tsx",
+  "src/app/[tenant]/(protected)/rooms/page.tsx",
+  "src/app/[tenant]/(protected)/statistics/page.tsx",
+  "src/components/activities/activity-management-modal.tsx",
+  "src/components/activities/quick-create-modal.tsx",
+  "src/components/analytics/analytics-consent-prompt.tsx",
+  "src/components/database/catalog-color-field.tsx",
+  "src/components/database/catalog/catalog-page.tsx",
+  "src/components/database/configs/devices.config.tsx",
+  "src/components/database/database-create-action.tsx",
+  "src/components/database/database-form.tsx",
+  "src/components/database/database-page-layout.tsx",
+  "src/components/database/detail-delete-button.tsx",
+  "src/components/database/grade-transitions/grade-transitions-manager.tsx",
+  "src/components/database/grade-transitions/graduates-modal.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

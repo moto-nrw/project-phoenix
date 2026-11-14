@@ -167,6 +167,7 @@ export function QuickCreateActivityModal({
         onClick={onClose}
         className="flex-1"
         disabled={isSubmitting}
+        noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
       >
         Abbrechen
       </Button>
@@ -178,6 +179,12 @@ export function QuickCreateActivityModal({
         className="flex-1"
         disabled={
           isSubmitting || loading || !form.name.trim() || !form.category_id
+        }
+        tooltip="Legt die Aktivität sofort an und trägt Sie als Leitung ein."
+        disabledReason={
+          !isSubmitting && !loading && (!form.name.trim() || !form.category_id)
+            ? "Geben Sie zuerst einen Namen ein und wählen Sie eine Kategorie."
+            : undefined
         }
       >
         {isSubmitting ? (

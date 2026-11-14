@@ -1375,6 +1375,7 @@ function OGSGroupPageContent() {
       variant="outline"
       size="md"
       onClick={() => router.push("/ferienwochen")}
+      tooltip="Öffnet die Ferienwochen, dort steht, welche Feriengäste kommen."
     >
       Zu den Ferienwochen
     </Button>
@@ -1547,6 +1548,7 @@ function OGSGroupPageContent() {
                   variant="ghost_tone"
                   size="compact"
                   onClick={() => router.push("/ferienwochen")}
+                  tooltip="Öffnet die Ferienwochen, dort steht, welche Feriengäste kommen."
                 >
                   Zu den Ferienwochen
                 </Button>

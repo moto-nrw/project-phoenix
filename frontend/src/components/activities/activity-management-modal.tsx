@@ -71,6 +71,7 @@ function NormalFooter({
             onClick={onShowDeleteConfirm}
             disabled={isSubmitting || isDeleting}
             aria-label="Aktivität löschen"
+            tooltip="Löscht die Aktivität endgültig, moto fragt vorher nach."
           >
             <Trash2 className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
           </Button>
@@ -84,6 +85,7 @@ function NormalFooter({
           size="md"
           onClick={onClose}
           disabled={isSubmitting || isDeleting}
+          noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
         >
           Abbrechen
         </Button>
@@ -95,6 +97,7 @@ function NormalFooter({
             form="activity-management-form"
             disabled={isSubmitting || loading || isDeleting}
             className="min-w-[100px]"
+            tooltip="Speichert die Änderungen an der Aktivität, sie gelten sofort."
           >
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
@@ -469,6 +472,7 @@ export function ActivityManagementModal({
         title="Aktivität löschen"
         description={`Möchten Sie die Aktivität „${activity.name}“ wirklich löschen? Das lässt sich nicht rückgängig machen.`}
         gate={{ mode: "twoStep" }}
+        confirmTooltip="Löscht die Aktivität sofort und endgültig."
         onConfirm={handleDelete}
         onClose={() => {
           clearDeleteErrors();

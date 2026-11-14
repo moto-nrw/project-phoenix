@@ -230,6 +230,11 @@ interface DatabaseFormProps<T = Record<string, unknown>> {
   readonly initialData?: Partial<T>;
   readonly isLoading?: boolean;
   readonly submitLabel: string;
+  /**
+   * What the submit button does (#6643). Pass a sentence when saving does
+   * more than store the entry, e.g. notifies someone.
+   */
+  readonly submitTooltip?: string;
   readonly stickyActions?: boolean; // Render sticky action bar like other entity forms
   /**
    * Ergänzt nachgeladene Felder mit ihren aktuellen Werten, ohne andere Werte
@@ -262,6 +267,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
   initialData,
   isLoading,
   submitLabel,
+  submitTooltip = "Speichert die Angaben, sie gelten sofort.",
   stickyActions = false,
   preserveDraftOnSectionsChange = false,
   sectionLevel = 2,
@@ -804,6 +810,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
                 onClick={onCancel}
                 className="flex-1"
                 disabled={isBusy}
+                noTooltip="Abbrechen schließt das Formular, ohne etwas zu speichern."
               >
                 Abbrechen
               </Button>
@@ -813,6 +820,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
                 data-setup-tour="form-submit"
                 className="flex-1"
                 disabled={isBusy}
+                tooltip={submitTooltip}
               >
                 {isBusy ? "Wird gespeichert..." : submitLabel}
               </Button>
@@ -825,10 +833,16 @@ export function DatabaseForm<T = Record<string, unknown>>({
                 size="md"
                 onClick={onCancel}
                 disabled={isBusy}
+                noTooltip="Abbrechen schließt das Formular, ohne etwas zu speichern."
               >
                 Abbrechen
               </Button>
-              <Button type="submit" size="md" disabled={isBusy}>
+              <Button
+                type="submit"
+                size="md"
+                disabled={isBusy}
+                tooltip={submitTooltip}
+              >
                 {isBusy ? "Wird gespeichert..." : submitLabel}
               </Button>
             </div>
