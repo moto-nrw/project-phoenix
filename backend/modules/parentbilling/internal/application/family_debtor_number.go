@@ -152,7 +152,12 @@ func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer pa
 		}
 		return h.rememberChildren(ctx, reviewer, registrations, number)
 	}
-	return h.rememberPayers(ctx, reviewer, registrations, number, choice, correctingID)
+	if err := h.rememberPayers(ctx, reviewer, registrations, number, choice, correctingID); err != nil {
+		return err
+	}
+	// Keep identities across scope changes, never the shared payer number.
+	// Family locks precede child locks in either scope.
+	return h.rememberChildNumbers(ctx, reviewer, registrations, nil)
 }
 
 // rememberPayers tells the families of the registrations the number, as
@@ -384,9 +389,22 @@ func (h *HolidayContributions) rememberChildren(ctx context.Context, reviewer pa
 	if err := h.knowFamilies(ctx, reviewer, registrations); err != nil {
 		return err
 	}
+	return h.rememberChildNumbers(ctx, reviewer, registrations, number)
+}
+
+// rememberChildNumbers also keeps identities without a number in payer
+// scope, so switching scope needs no registration to be confirmed again.
+func (h *HolidayContributions) rememberChildNumbers(ctx context.Context, reviewer parentbilling.HolidayReviewer,
+	registrations []parentbilling.HolidayRegistration, number *string,
+) error {
 	numbers := holidayChildNumbers(registrations, number, h.today())
 	if len(numbers) == 0 {
 		return nil
+	}
+	// A preserved number still serves the later booking, just as in the
+	// mandate import. Extending its use does not record a number change.
+	if err := h.store.ExtendChildDebtorNumbers(ctx, reviewer.OrganizationID, numbers); err != nil {
+		return fmt.Errorf("parent billing: keep the children's numbers through their bookings: %w", err)
 	}
 	saved, err := h.store.SaveChildDebtorNumbers(ctx, reviewer.OrganizationID, reviewer.AccountID, numbers, h.today(), true)
 	if err != nil {
