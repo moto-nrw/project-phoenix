@@ -63,9 +63,10 @@ describe("calendar-period-helpers", () => {
           studentEnrollmentCount: 1,
           supervisorCount: 2,
           activityInstanceCount: 3,
+          staffShiftSeriesCount: 2,
         }),
       ).toBe(
-        "1 Aktivitätsvorlage · 1 Schülerzuordnung · 2 Mitarbeitenden-Zuordnungen · 3 Termininstanzen",
+        "1 Aktivitätsvorlage · 1 Schülerzuordnung · 2 Mitarbeitenden-Zuordnungen · 3 Termininstanzen · 2 Schichtserien",
       );
     });
   });

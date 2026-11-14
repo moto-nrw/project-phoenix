@@ -108,6 +108,7 @@ export function TraegerLogoCard({
                 type="button"
                 variant="outline_danger"
                 size="md"
+                tooltip="Entfernt das Logo von allen Briefen. moto fragt vorher nach."
                 onClick={() => setConfirming(true)}
               >
                 Logo entfernen
@@ -119,6 +120,7 @@ export function TraegerLogoCard({
               size="md"
               isLoading={uploading}
               loadingText="Wird hochgeladen …"
+              tooltip="Wählt ein Bild und setzt es sofort als Logo auf alle Briefe."
               onClick={() => inputRef.current?.click()}
             >
               <ImageUp className="mr-2 h-4 w-4" aria-hidden="true" />

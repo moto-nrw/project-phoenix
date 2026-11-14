@@ -94,6 +94,11 @@ export function SepaMandateStatusCard({
           href={sepaMandatePath(contractId)}
           variant="outline"
           size="md"
+          tooltip={
+            inForce
+              ? "Öffnet die Mandatsseite mit Verlauf und Widerruf."
+              : "Öffnet die Mandatsseite, auf der Sie das Mandat erfassen."
+          }
         >
           {inForce ? "Mandat ansehen" : "Mandat erfassen"}
         </ButtonLink>

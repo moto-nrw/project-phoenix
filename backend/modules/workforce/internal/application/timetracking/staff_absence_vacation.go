@@ -165,6 +165,11 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
 		return nil, fmt.Errorf("failed to audit absence approval: %w", err)
 	}
+	// The approved request is in force: its full days leave the plans
+	// (#6847).
+	if err := s.cascadeAbsence(ctx, absence, decidedByStaffID, &actorAccountID); err != nil {
+		return nil, err
+	}
 	if err := s.notifyAbsenceDecision(ctx, absence); err != nil {
 		return nil, fmt.Errorf("enqueue absence mail: %w", err)
 	}
@@ -354,6 +359,13 @@ func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, 
 	}
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, ""); err != nil {
 		return fmt.Errorf("failed to audit absence cancellation: %w", err)
+	}
+	// Withdrawing an approved request gives its days back to the plans
+	// (#6847). A pending request never stamped anything.
+	if fromStatus == AbsenceStatusApproved {
+		if err := s.shiftPlanSyncer.ClearSickForRange(ctx, sickCascadeInput(absence, staffID, &actorAccountID)); err != nil {
+			return fmt.Errorf("absence not canceled — plan cascade reversal failed: %w", err)
+		}
 	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return nil

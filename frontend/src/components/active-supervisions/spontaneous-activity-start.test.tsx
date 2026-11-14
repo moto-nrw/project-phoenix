@@ -307,7 +307,7 @@ describe("SpontaneousActivityStart", () => {
 
     expect(
       screen.getByRole("button", { name: "Aktivität starten" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(onStart).not.toHaveBeenCalled();
   });
 
@@ -353,7 +353,7 @@ describe("SpontaneousActivityStart", () => {
     expect(screen.queryByText("Weitere Betreuer")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Aktivität starten" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("disables an occupied room so it cannot be selected for a new activity", async () => {

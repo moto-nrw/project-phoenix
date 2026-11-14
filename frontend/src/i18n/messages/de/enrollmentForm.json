@@ -4,6 +4,8 @@
     "download": "Herunterladen",
     "openLabel": "{label} öffnen",
     "downloadLabel": "{label} herunterladen",
+    "openHint": "Öffnet die PDF in einem neuen Tab.",
+    "downloadHint": "Speichert die PDF auf diesem Gerät.",
     "errorObject": "die PDF-Datei",
     "popupBlocked": "Bitte erlauben Sie das Öffnen eines neuen Fensters."
   },

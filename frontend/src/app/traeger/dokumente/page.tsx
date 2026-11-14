@@ -148,6 +148,7 @@ export default function TraegerDocumentsPage() {
             variant="primary"
             size="md"
             className="gap-2"
+            tooltip="Fügt ein Dokument hinzu, noch ohne Freigabe für Eltern und Schulen."
             onClick={() => setUploading(true)}
           >
             <UploadSimpleIcon className="h-4 w-4" aria-hidden="true" />

@@ -8,6 +8,16 @@ import { earlyCheckoutMinutes } from "~/lib/student-time-status";
 import type { SchoolCheckoutReason } from "~/lib/student-api";
 import { useTenantSafe } from "~/lib/tenant-context";
 
+/**
+ * Was die Knöpfe eines Abmelde-Dialogs bewirken (#6643). Kinderakte und
+ * Kinderliste nutzen dieselben Sätze, weil es dieselbe Aktion ist.
+ */
+export const CHECKOUT_HINTS = {
+  cancel: "Schließt nur den Dialog, das Kind bleibt angemeldet.",
+  toClass: "Trägt sofort ein, dass das Kind jetzt im Unterricht ist.",
+  home: "Meldet das Kind sofort ab, es gilt dann als zuhause.",
+} as const;
+
 /** Matches the backend limit (studentpresence.MaxCheckoutNoteLength). */
 const MAX_CHECKOUT_NOTE_LENGTH = 500;
 
@@ -133,6 +143,7 @@ export function useEarlyCheckoutDialog(
             type="button"
             variant="outline"
             size="md"
+            noTooltip="Abbrechen schließt nur den Dialog, ohne etwas zu ändern."
             onClick={() => setTarget(null)}
           >
             Abbrechen
@@ -141,6 +152,7 @@ export function useEarlyCheckoutDialog(
             type="button"
             variant="surface"
             size="md"
+            tooltip="Setzt das Kind auf „Im Unterricht“, ohne Grund für frühes Gehen."
             onClick={() => confirm("", "class")}
           >
             Geht zum Unterricht
@@ -149,6 +161,7 @@ export function useEarlyCheckoutDialog(
             type="button"
             variant={target?.room ? "danger" : "primary"}
             size="md"
+            tooltip="Meldet das Kind ab und speichert einen eingetragenen Grund."
             onClick={() => confirm(note)}
           >
             Geht nach Hause

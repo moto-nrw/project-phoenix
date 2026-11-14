@@ -21,6 +21,8 @@ export function EditActions({
   disabled = false,
   cancelDisabled = false,
   saveLabel = "Speichern",
+  saveTooltip,
+  disabledReason,
   savingLabel = "Speichert…",
   cancelLabel = "Abbrechen",
   saveType,
@@ -34,9 +36,21 @@ export function EditActions({
   saving?: boolean;
   /** Der Entwurf ist unvollständig oder ungültig; Abbrechen bleibt möglich. */
   disabled?: boolean;
+  /**
+   * Warum Speichern gerade gesperrt ist, solange `disabled` gilt: was fehlt
+   * oder zuerst geschehen muss („Ändern Sie zuerst ein Feld.“). Ohne Standard:
+   * Gesperrt ist es mal wegen fehlender Pflichtfelder, mal ohne Änderung.
+   */
+  disabledReason?: string;
   /** Eine laufende Operation muss vor dem Verwerfen abgeschlossen sein. */
   cancelDisabled?: boolean;
   saveLabel?: string;
+  /**
+   * Was Speichern außer Speichern tut (#6744), z. B. „Speichert die Zeiten
+   * und benachrichtigt die Eltern.“ Ohne Angabe keine Blase: ein reines
+   * „Speichern“ sagt schon alles.
+   */
+  saveTooltip?: string;
   savingLabel?: string;
   cancelLabel?: string;
   saveType?: "button" | "submit";
@@ -74,6 +88,7 @@ export function EditActions({
         onClick={onCancel}
         disabled={saving || cancelDisabled}
         className={buttonWidth}
+        noTooltip="Abbrechen verwirft nur den Entwurf, gespeichert bleibt der alte Stand."
       >
         {cancelLabel}
       </Button>
@@ -99,6 +114,10 @@ export function EditActions({
         size="md"
         onClick={onSave}
         disabled={saving || disabled}
+        // Während des Speicherns bleibt die native Sperre (#5608).
+        disabledReason={saving ? undefined : disabledReason}
+        // Ohne `saveTooltip` reicht das Wort: ein reines Speichern.
+        tooltip={saveTooltip}
         className={buttonWidth}
       >
         {saving ? savingLabel : saveLabel}

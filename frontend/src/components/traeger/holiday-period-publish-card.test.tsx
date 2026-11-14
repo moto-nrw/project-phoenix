@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -65,9 +71,11 @@ describe("HolidayPeriodPublishCard", () => {
     );
     expect(
       screen.getByRole("button", { name: "Veröffentlichen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
-      screen.getByText(/braucht der Ferienzeitraum mindestens eine Woche/),
+      screen.getByText(/braucht der Ferienzeitraum mindestens eine Woche/, {
+        selector: "p",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -81,9 +89,11 @@ describe("HolidayPeriodPublishCard", () => {
     );
     expect(
       screen.getByRole("button", { name: "Veröffentlichen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
-      screen.getByText("Bitte speichern Sie zuerst Ihre Änderungen."),
+      screen.getByText("Bitte speichern Sie zuerst Ihre Änderungen.", {
+        selector: "p",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -106,9 +116,7 @@ describe("HolidayPeriodPublishCard", () => {
     expect(mockPublish).not.toHaveBeenCalled();
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(
-      Array.from(dialog.querySelectorAll("button")).find(
-        (button) => button.textContent === "Veröffentlichen",
-      )!,
+      within(dialog).getByRole("button", { name: "Veröffentlichen" }),
     );
 
     await waitFor(() => expect(mockPublish).toHaveBeenCalledWith("5"));

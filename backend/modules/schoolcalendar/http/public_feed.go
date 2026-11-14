@@ -35,10 +35,12 @@ func PublicFeed(feeds PublicFeeds) http.HandlerFunc {
 				common.RenderStatus(w, r, http.StatusNotFound, "")
 				return
 			}
-			slog.Error("calendar feed failed",
-				"error", err.Error(),
-			)
-			common.RenderStatus(w, r, http.StatusInternalServerError, "")
+			if !common.ClientCanceled(r, err) {
+				slog.Error("calendar feed failed",
+					"error", err.Error(),
+				)
+			}
+			common.RenderUnexpectedFailure(w, r, err)
 			return
 		}
 		w.Header().Set("Content-Type", "text/calendar; charset=utf-8")

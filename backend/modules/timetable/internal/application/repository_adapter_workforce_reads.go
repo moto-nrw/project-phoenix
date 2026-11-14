@@ -142,6 +142,19 @@ func (r TimetableInstanceStaffReads) FindByStaffAndDateRange(ctx context.Context
 	return instanceStaffPointers(values, err, "find by staff and date range")
 }
 
+// FindByStaffIDsAndDateRange returns the assignments of the staff members in
+// the inclusive date range in one read; an empty staff set matches nothing.
+func (r TimetableInstanceStaffReads) FindByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to calendar.Date) ([]*timetable.InstanceStaff, error) {
+	if len(staffIDs) == 0 {
+		return []*timetable.InstanceStaff{}, nil
+	}
+	fromDay, toDay := from.String(), to.String()
+	values, err := r.staff.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{
+		StaffIDs: staffIDs, FromDate: &fromDay, ToDate: &toDay, OrderByActivityDateTime: true,
+	})
+	return instanceStaffPointers(values, err, "find by staff ids and date range")
+}
+
 // ListBySickAbsence returns the assignments a sick report stamped.
 func (r TimetableInstanceStaffReads) ListBySickAbsence(ctx context.Context, absenceID int64) ([]*timetable.InstanceStaff, error) {
 	values, err := r.staff.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{SickAbsenceID: &absenceID})

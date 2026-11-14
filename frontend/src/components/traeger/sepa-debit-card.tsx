@@ -65,6 +65,10 @@ const STEPS = [
   "Hier bestätigen",
 ] as const;
 
+/** Why the file and its confirmation wait while the Träger has no account. */
+const ACCOUNT_MISSING_REASON =
+  "Legen Sie zuerst eine Bankverbindung des Trägers als Standard fest.";
+
 /** The mandate page of a family. */
 function mandateHref(debit: SepaDebit): string {
   return traegerPath(`/traeger/abrechnung/lastschrift/${debit.contractId}`);
@@ -301,6 +305,14 @@ export function SepaDebitCard({
                 variant="outline"
                 size="md"
                 disabled={fileBlocked || !downloadedId || downloading}
+                disabledReason={
+                  fileBlocked
+                    ? ACCOUNT_MISSING_REASON
+                    : !downloadedId
+                      ? "Laden Sie zuerst die Datei herunter."
+                      : undefined
+                }
+                tooltip="Vermerkt die Lastschriften als eingereicht. moto fragt vorher nach."
                 onClick={() => setConfirming(true)}
               >
                 Bei der Bank eingereicht
@@ -324,6 +336,8 @@ export function SepaDebitCard({
                 variant="primary"
                 size="md"
                 disabled={fileBlocked}
+                disabledReason={ACCOUNT_MISSING_REASON}
+                tooltip="Lädt die Lastschriftdatei (SEPA) für Ihr Online-Banking herunter."
                 className="gap-2"
                 isLoading={downloading}
                 loadingText="Wird erstellt …"
@@ -349,6 +363,7 @@ export function SepaDebitCard({
                   href={traegerPath("/traeger/einstellungen/abrechnung")}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Einstellungen der Abrechnung mit den Bankverbindungen."
                 >
                   Bankverbindung öffnen
                 </ButtonLink>
@@ -483,6 +498,7 @@ function SepaDebitsLeftCard({
                 variant="surface"
                 size="compact"
                 aria-label={`Mandat prüfen: ${debit.recipientName}`}
+                tooltip="Öffnet das Mandat dieser Familie, damit Sie es klären."
               >
                 Mandat prüfen
               </ButtonLink>

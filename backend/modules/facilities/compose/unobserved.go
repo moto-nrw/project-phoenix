@@ -17,7 +17,8 @@ func NewUnobserved(db *bun.DB) (facilities.Capability, error) {
 		DeletionLock: func(context.Context) error { return nil },
 		// The legacy repository accepted deletes without service-level
 		// guards; graphs without the API root keep that path usable.
-		Usage:   applicationBindings.UnusedRooms{},
-		Observe: func(Observation) {},
+		Usage:      applicationBindings.UnusedRooms{},
+		References: applicationBindings.NoRoomReferences,
+		Observe:    func(Observation) {},
 	})
 }

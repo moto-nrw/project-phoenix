@@ -37,6 +37,16 @@ type sickReportCalls struct {
 	cascadeErr error
 }
 
+func (c *sickReportCalls) ApproveAbsence(context.Context, int64, int64, int64, string) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+	c.calls = append(c.calls, "approve")
+	return c.absence()
+}
+
+func (c *sickReportCalls) CancelAbsence(context.Context, int64, int64, int64) (workforce.SickCascadePlan, error) {
+	c.calls = append(c.calls, "cancel")
+	return c.plan, c.writeErr
+}
+
 func (c *sickReportCalls) CreateOwnAbsence(context.Context, int64, *int64, workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
 	c.calls = append(c.calls, "create own")
 	return c.absence()
@@ -89,9 +99,19 @@ func (c *sickReportCalls) ReassignSickStamps(context.Context, int64, int64) erro
 	return c.cascadeErr
 }
 
-func (c *sickReportCalls) LockSickReportWrite(_ context.Context, staffID, absenceID int64, dateStart, dateEnd string) error {
+func (c *sickReportCalls) LockSickReportWrite(_ context.Context, staffID, absenceID int64, _, dateStart, dateEnd string) error {
 	c.calls = append(c.calls, "lock", fmt.Sprint(staffID, "/", absenceID, " ", dateStart, "..", dateEnd))
 	return c.lockErr
+}
+
+func (c *sickReportCalls) AbsencePlanGaps(context.Context) ([]workforce.AbsencePlanGap, error) {
+	c.calls = append(c.calls, "gaps")
+	return nil, nil
+}
+
+func (c *sickReportCalls) MarkAbsenceInForce(_ context.Context, absenceID, _ int64, _ *int64) (bool, error) {
+	c.calls = append(c.calls, fmt.Sprint("mark-in-force ", absenceID))
+	return true, nil
 }
 
 func inSickReportTx() context.Context { return context.Background() }
@@ -129,6 +149,29 @@ func TestSickReportsApplyThePlanInOrderAfterTheWrite(t *testing.T) {
 	}, calls.calls)
 }
 
+// An approval and a withdrawal take plan effect since #6847: both run with
+// their plan in one unit of work behind the locks. A manager's approval names
+// no subject; the lock reads it from the stored absence (staff 0).
+func TestSickReportsApplyTheApprovalAndTheWithdrawalPlans(t *testing.T) {
+	t.Parallel()
+	calls := &sickReportCalls{plan: workforce.SickCascadePlan{
+		{Kind: workforce.SickCascadeMark, Report: workforce.SickCascadeInput{DateStart: "2026-03-02"}},
+	}}
+	reports := newSickReports(t, calls)
+
+	approved, err := reports.ApproveAbsence(inSickReportTx(), 42, 7, 12, "ok")
+	require.NoError(t, err)
+	assert.Equal(t, int64(42), approved.ID)
+
+	calls.plan = workforce.SickCascadePlan{{Kind: workforce.SickCascadeClear, Report: workforce.SickCascadeInput{DateStart: "2026-03-02"}}}
+	require.NoError(t, reports.CancelAbsence(inSickReportTx(), 11, 7, 42))
+
+	assert.Equal(t, []string{
+		"tx", "lock", "0/42 ..", "approve", "mark", "2026-03-02",
+		"tx", "lock", "11/42 ..", "cancel", "clear", "2026-03-02",
+	}, calls.calls)
+}
+
 func TestSickReportsFailClosed(t *testing.T) {
 	t.Parallel()
 	refused := errors.New("absence refused")
@@ -151,7 +194,7 @@ func TestSickReportsFailClosed(t *testing.T) {
 		kind    workforce.SickCascadeStepKind
 		message string
 	}{
-		{workforce.SickCascadeMark, "sick report saved nothing — plan cascade failed: plan write failed"},
+		{workforce.SickCascadeMark, "absence saved nothing — plan cascade failed: plan write failed"},
 		{workforce.SickCascadeClear, "absence not deleted — plan cascade reversal failed: plan write failed"},
 		{workforce.SickCascadeReconcile, "absence update saved nothing — plan cascade reconciliation failed: plan write failed"},
 		{workforce.SickCascadeReassign, "failed to merge absence — plan stamp reassignment failed: plan write failed"},
@@ -179,4 +222,23 @@ func TestNewSickReportsRequiresTheWritesTheCascadeAndTheUnitOfWork(t *testing.T)
 	require.Error(t, err)
 	_, err = shiftplansync.NewSickReports(calls, calls, nil)
 	require.Error(t, err)
+}
+
+// The take-over of an absence in force (#7021) runs its locks before the
+// cascade in one unit of work; a lock failure writes nothing.
+func TestSickReportsSyncAnAbsencePlanBehindItsLocks(t *testing.T) {
+	t.Parallel()
+	calls := &sickReportCalls{}
+	reports := newSickReports(t, calls)
+
+	applied, err := reports.SyncAbsencePlan(inSickReportTx(), 42, 12, nil)
+	require.NoError(t, err)
+	assert.True(t, applied)
+	assert.Equal(t, []string{"tx", "lock", "0/42 ..", "mark-in-force 42"}, calls.calls,
+		"the stored absence names its subject; the lock reads it (staff 0)")
+
+	calls.calls, calls.lockErr = nil, errors.New("lock timeout")
+	_, err = reports.SyncAbsencePlan(inSickReportTx(), 42, 12, nil)
+	require.ErrorIs(t, err, calls.lockErr)
+	assert.Equal(t, []string{"tx", "lock", "0/42 .."}, calls.calls, "no cascade without its locks")
 }

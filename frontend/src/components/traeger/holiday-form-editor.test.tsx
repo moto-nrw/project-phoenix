@@ -260,7 +260,7 @@ describe("HolidayFormEditor (#5198)", () => {
     expect(
       screen.getAllByText("Lebensmittelunverträglichkeiten").length,
     ).toBeGreaterThan(0);
-    expect(insert).toBeDisabled();
+    expect(insert).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText("Alle Fragen der Standardvorlage sind im Formular."),
     ).toBeInTheDocument();

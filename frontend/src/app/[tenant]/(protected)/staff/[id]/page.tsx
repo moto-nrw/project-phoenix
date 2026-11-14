@@ -658,6 +658,8 @@ export default function StaffDetailContent() {
       ? [
           {
             label: "Zwei-Faktor-Authentifizierung verwalten",
+            description:
+              "Schaltet den zweiten Anmeldeschritt ein oder aus oder setzt ihn zurück",
             icon: <KeyRound className="size-4" aria-hidden />,
             onClick: () => setMfaModalOpen(true),
           },
@@ -667,6 +669,8 @@ export default function StaffDetailContent() {
       ? [
           {
             label: "Betreuung verwalten",
+            description:
+              "Legt fest, ob die Person betreut oder nur in der Verwaltung arbeitet",
             icon: <Users className="size-4" aria-hidden />,
             onClick: () => setCaregiverModalOpen(true),
           },
@@ -676,6 +680,8 @@ export default function StaffDetailContent() {
       ? [
           {
             label: "Austritt planen",
+            description:
+              "Legt den letzten Arbeitstag fest, danach endet der Zugang",
             icon: <CalendarClock className="size-4" aria-hidden />,
             onClick: () => setShowPlannedExitModal(true),
           },
@@ -685,11 +691,15 @@ export default function StaffDetailContent() {
       ? [
           {
             label: "Austritt ändern",
+            description:
+              "Verschiebt den letzten Arbeitstag, danach endet der Zugang",
             icon: <CalendarClock className="size-4" aria-hidden />,
             onClick: () => setShowPlannedExitModal(true),
           },
           {
             label: "Austritt zurücknehmen",
+            description:
+              "Behält die Person mit Zugang im Team. moto fragt vorher nach",
             icon: <CalendarX className="size-4" aria-hidden />,
             onClick: () => setShowWithdrawExitModal(true),
           },
@@ -699,6 +709,8 @@ export default function StaffDetailContent() {
       ? [
           {
             label: "Löschen",
+            description:
+              "Entzieht den Zugang und entfernt die Person. moto fragt vorher nach",
             icon: <Trash2 className="size-4" aria-hidden />,
             destructive: true,
             onClick: () => setShowDeleteModal(true),

@@ -1236,7 +1236,9 @@ describe("GuardianFormModal", () => {
     expect(updatedPhoneInputs).toHaveLength(2);
 
     // Delete button should be available (since we have 2 phones)
-    const deleteButtons = screen.getAllByTitle("Entfernen");
+    const deleteButtons = screen.getAllByRole("button", {
+      name: /^Telefonnummer \d+ entfernen$/,
+    });
     expect(deleteButtons.length).toBeGreaterThan(0);
   });
 });

@@ -214,6 +214,7 @@ function OwnDienstplanContent() {
                   variant="outline"
                   size="md"
                   onClick={() => void mutateShifts()}
+                  tooltip="Lädt Ihre Schichten dieser Woche noch einmal."
                 >
                   Erneut laden
                 </Button>
@@ -229,6 +230,7 @@ function OwnDienstplanContent() {
                     variant="outline"
                     size="md"
                     onClick={() => void mutateProjection()}
+                    tooltip="Lädt Ihr Soll für diese Woche noch einmal."
                   >
                     Erneut laden
                   </Button>
@@ -258,6 +260,7 @@ function OwnDienstplanContent() {
                     variant="primary"
                     size="md"
                     onClick={() => updateParams({ d: nextShiftDate })}
+                    tooltip="Springt zur Woche mit Ihrer nächsten Schicht."
                   >
                     Zur nächsten Schicht
                   </Button>

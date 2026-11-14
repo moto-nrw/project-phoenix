@@ -14,6 +14,12 @@ import { SectionCard } from "~/components/ui/section-card";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { UploadSection } from "~/components/import/upload-section";
+import {
+  DISCARD_UPLOAD_HINT,
+  IMPORT_BLOCKED_BY_ERRORS,
+  IMPORT_BLOCKED_NOTHING_TO_IMPORT,
+  TEMPLATE_DOWNLOAD_HINT,
+} from "~/components/import/import-hints";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -570,6 +576,7 @@ export default function StudentImportPage() {
             type="button"
             variant="primary"
             size="field"
+            tooltip={TEMPLATE_DOWNLOAD_HINT}
             onClick={() => void handleDownloadTemplate()}
             className="gap-2"
           >
@@ -659,6 +666,7 @@ export default function StudentImportPage() {
               variant="outline"
               size="md"
               className="flex-1"
+              tooltip={DISCARD_UPLOAD_HINT}
               onClick={resetForm}
             >
               Abbrechen
@@ -676,6 +684,22 @@ export default function StudentImportPage() {
                   (stats.errors > 0 ||
                     importable === 0 ||
                     quotaNotice?.type === "error"))
+              }
+              disabledReason={
+                isImporting || isLoading
+                  ? undefined
+                  : stats.errors > 0
+                    ? IMPORT_BLOCKED_BY_ERRORS
+                    : quotaNotice?.type === "error"
+                      ? "Nehmen Sie zuerst Kinder aus der Datei, bis die freien Plätze reichen."
+                      : IMPORT_BLOCKED_NOTHING_TO_IMPORT
+              }
+              tooltip={
+                mode === "create"
+                  ? "Legt die neuen Kinder aus der Datei an."
+                  : mode === "update"
+                    ? "Ändert die vorhandenen Kinder nach der Datei."
+                    : "Legt neue Kinder an und ändert vorhandene nach der Datei."
               }
               onClick={() => void handleImport()}
             >

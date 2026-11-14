@@ -520,6 +520,7 @@ export function ChildOfferingAdjustment({
               variant="outline"
               size="md"
               onClick={() => void openEditor()}
+              tooltip="Öffnet die gebuchten Angebote des Kindes zum Ändern."
               className="inline-flex items-center justify-center gap-2"
             >
               <Pencil className="h-4 w-4" aria-hidden />
@@ -646,6 +647,7 @@ export function ChildOfferingAdjustment({
                   type="button"
                   variant="outline_danger"
                   onClick={removeAllCareDays}
+                  tooltip="Wählt alle Betreuungstage ab, wirksam erst nach dem Speichern."
                 >
                   Alle Betreuungstage entfernen
                 </Button>

@@ -260,23 +260,25 @@ export default function TraegerKostentraegerPage() {
                   {
                     label: "Anteil eintragen",
                     icon: PLUS_ICON,
+                    description:
+                      "Öffnet ein Fenster, um einen Anteil eines Kostenträgers einzutragen",
                     onClick: () => setTarget({ contract, share: null }),
                   },
                 ]
               : []),
             ...contract.shares.flatMap((share) => {
-              const description = `${share.costBearerName}, ${sharePeriod(share)}`;
+              const shareName = `${share.costBearerName}, ${sharePeriod(share)}`;
               return [
                 {
                   label: "Anteil ändern",
                   icon: PENCIL_ICON,
-                  description,
+                  description: `${shareName}. Öffnet ein Fenster zum Ändern`,
                   onClick: () => setTarget({ contract, share }),
                 },
                 {
                   label: "Anteil löschen",
                   icon: TRASH_ICON,
-                  description,
+                  description: `${shareName}. moto fragt vorher nach`,
                   destructive: true,
                   onClick: () => setDeleting({ contract, share }),
                 },
@@ -370,6 +372,7 @@ export default function TraegerKostentraegerPage() {
               href={traegerPath("/traeger/einstellungen/abrechnung")}
               variant="surface"
               size="compact"
+              tooltip="Öffnet die Einstellungen der Abrechnung, dort legen Sie Kostenträger an."
             >
               Kostenträger anlegen
             </ButtonLink>
@@ -390,6 +393,7 @@ export default function TraegerKostentraegerPage() {
                 type="button"
                 variant="surface"
                 size="compact"
+                tooltip="Zeigt nur die Kinder, deren Bescheid bald endet."
                 onClick={() => {
                   setShow("expiring");
                 }}
@@ -415,6 +419,7 @@ export default function TraegerKostentraegerPage() {
                   type="button"
                   variant="surface"
                   size="compact"
+                  tooltip="Leert die Suche und zeigt wieder alle Kinder."
                   onClick={() => {
                     setSearch("");
                     setShow("all");

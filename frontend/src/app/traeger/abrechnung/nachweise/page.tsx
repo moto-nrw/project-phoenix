@@ -224,24 +224,26 @@ export default function TraegerNachweisePage() {
                   {
                     label: `${EVIDENCE_KIND_LABELS[kind]} eintragen`,
                     icon: <Plus className="size-4" aria-hidden />,
+                    description:
+                      "Öffnet ein Fenster, um den Nachweis mit Prüfdatum einzutragen",
                     onClick: () =>
                       setTarget({ contract, kind, evidence: null }),
                   },
                 ]
               : []),
             ...existing.flatMap((evidence) => {
-              const description = evidencePeriod(evidence);
+              const period = evidencePeriod(evidence);
               return [
                 {
                   label: `${EVIDENCE_KIND_LABELS[kind]} ändern`,
                   icon: <Pencil className="size-4" aria-hidden />,
-                  description,
+                  description: `${period}. Öffnet ein Fenster zum Ändern`,
                   onClick: () => setTarget({ contract, kind, evidence }),
                 },
                 {
                   label: `${EVIDENCE_KIND_LABELS[kind]} löschen`,
                   icon: <Trash2 className="size-4" aria-hidden />,
-                  description,
+                  description: `${period}. moto fragt vorher nach`,
                   destructive: true,
                   onClick: () => setDeleting({ contract, evidence }),
                 },

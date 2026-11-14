@@ -8,6 +8,8 @@
 import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import {
+  BOOKING_TEXT_PLACEHOLDERS,
+  bookingTextSample,
   SOLL_DATES,
   SOLL_DECIMALS,
   SOLL_DELIMITERS,
@@ -17,8 +19,12 @@ import {
   sollFileName,
   sollPreview,
   sollSplitsLines,
+  unknownBookingTextPlaceholder,
 } from "~/components/traeger/finance-export-format";
-import { BOOKING_ACCOUNTS_PATH } from "~/components/traeger/finance-export-datev";
+import {
+  BOOKING_ACCOUNTS_HINT,
+  BOOKING_ACCOUNTS_PATH,
+} from "~/components/traeger/finance-export-datev";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -64,6 +70,14 @@ export function sollMappingErrors(
     if (mapping.headerRow && column.header.trim() === "") {
       errors[`columns.${index}.header`] = "Bitte einen Spaltennamen eingeben.";
     }
+    const unknown =
+      column.field === "booking_text"
+        ? unknownBookingTextPlaceholder(column.value)
+        : null;
+    if (unknown) {
+      errors[`columns.${index}.value`] =
+        `${unknown} kennt moto nicht. Wählen Sie einen Platzhalter darunter.`;
+    }
   });
   if (mapping.decimalSeparator === mapping.delimiter) {
     errors.decimal_separator =
@@ -74,6 +88,115 @@ export function sollMappingErrors(
       "Der Name braucht einmal {NR} und nur Buchstaben, Ziffern, Punkt, Strich und Unterstrich.";
   }
   return errors;
+}
+
+/**
+ * The pattern of a booking text (#7008): fixed words and placeholders that
+ * moto fills per row. A click on a placeholder puts it where the cursor
+ * stands; the example shows the text of the sample invoice.
+ */
+function BookingTextField({
+  column,
+  index,
+  error,
+  onChange,
+}: Readonly<{
+  column: SollColumn;
+  index: number;
+  error: string | undefined;
+  onChange: (column: SollColumn) => void;
+}>) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const caret = useRef<{ start: number; end: number } | null>(null);
+  const remember = (field: HTMLInputElement) => {
+    caret.current = {
+      start: field.selectionStart ?? field.value.length,
+      end: field.selectionEnd ?? field.value.length,
+    };
+  };
+  const insert = (token: string) => {
+    const pattern = column.value;
+    const end = Math.min(caret.current?.end ?? pattern.length, pattern.length);
+    const start = Math.min(caret.current?.start ?? pattern.length, end);
+    const before = start > 0 && pattern[start - 1] !== " " ? " " : "";
+    const after = end < pattern.length && pattern[end] !== " " ? " " : "";
+    const text = before + token + after;
+    const value = pattern.slice(0, start) + text + pattern.slice(end);
+    if (value.length > 60) return;
+    onChange({ ...column, value });
+    const next = start + before.length + token.length;
+    caret.current = { start: next, end: next };
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(next, next);
+    });
+  };
+  const example = bookingTextSample(column.value).trim();
+  const helpId = `booking-text-${index}-help`;
+  return (
+    <>
+      <Input
+        ref={inputRef}
+        controlSize="compact"
+        label="Text der Buchung"
+        name={`columns.${index}.value`}
+        value={column.value}
+        maxLength={60}
+        placeholder="SKB {Monat} {Kind}"
+        aria-describedby={helpId}
+        error={error}
+        onChange={(event) => {
+          onChange({ ...column, value: event.target.value });
+          remember(event.target);
+        }}
+        onSelect={(event) => remember(event.currentTarget)}
+      />
+      <InsetPanel
+        padding="md"
+        className="flex min-w-0 flex-col gap-3 sm:col-span-2 lg:col-span-3"
+      >
+        <p className="text-sm text-gray-600" id={helpId}>
+          Feste Wörter schreiben Sie selbst. Einen Platzhalter füllt moto für
+          jede Rechnung aus. Ein Klick setzt ihn ein.
+        </p>
+        <ul className="flex flex-wrap gap-2" aria-label="Platzhalter">
+          {BOOKING_TEXT_PLACEHOLDERS.map((placeholder) => (
+            <li key={placeholder.token} className="max-w-full min-w-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                tooltip="Fügt diesen Platzhalter in den Buchungstext ein."
+                disabled={column.value.length + placeholder.token.length >= 60}
+                disabledReason="Der Text hat schon fast 60 Zeichen."
+                onClick={() => insert(placeholder.token)}
+                className="max-w-full gap-2"
+              >
+                <code aria-hidden="true" className="shrink-0 text-gray-900">
+                  {placeholder.token}
+                </code>
+                <span className="min-w-0 truncate text-gray-500">
+                  <span className="sr-only">{`Platzhalter „${placeholder.label}“ einfügen`}</span>
+                  <span aria-hidden="true">{placeholder.label}</span>
+                </span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <p className="flex min-w-0 flex-col gap-1 border-t border-gray-200 pt-3 text-sm sm:flex-row sm:items-baseline sm:gap-2">
+          <span className="shrink-0 text-gray-500">
+            So steht es in der Datei:
+          </span>
+          <span
+            className="min-w-0 font-mono wrap-anywhere text-gray-900"
+            aria-live="polite"
+          >
+            {example || "–"}
+          </span>
+        </p>
+      </InsetPanel>
+    </>
+  );
 }
 
 function ColumnRow({
@@ -99,13 +222,33 @@ function ColumnRow({
   const position = index + 1;
   const menuItems = [
     ...(index > 0
-      ? [{ label: "Nach links schieben", onClick: () => onMove(-1) }]
+      ? [
+          {
+            label: "Nach links schieben",
+            description: "Tauscht die Spalte mit der Spalte links daneben.",
+            onClick: () => onMove(-1),
+          },
+        ]
       : []),
     ...(index < count - 1
-      ? [{ label: "Nach rechts schieben", onClick: () => onMove(1) }]
+      ? [
+          {
+            label: "Nach rechts schieben",
+            description: "Tauscht die Spalte mit der Spalte rechts daneben.",
+            onClick: () => onMove(1),
+          },
+        ]
       : []),
     ...(count > 1
-      ? [{ label: "Spalte entfernen", destructive: true, onClick: onRemove }]
+      ? [
+          {
+            label: "Spalte entfernen",
+            description:
+              "Nimmt die Spalte aus dem Entwurf; die Datei ändert sich beim Speichern.",
+            destructive: true,
+            onClick: onRemove,
+          },
+        ]
       : []),
   ];
   return (
@@ -155,6 +298,20 @@ function ColumnRow({
               onChange({ ...column, value: event.target.value })
             }
           />
+        ) : null}
+        {column.field === "booking_text" ? (
+          <BookingTextField
+            column={column}
+            index={index}
+            error={error(`columns.${index}.value`)}
+            onChange={onChange}
+          />
+        ) : null}
+        {column.field === "credit_amount" ? (
+          <p className="text-sm text-gray-600 sm:col-span-2 lg:col-span-1 lg:mt-7">
+            Stornos und Gutschriften stehen hier ohne Minus. Bei ihnen bleibt
+            die Spalte „Betrag“ leer.
+          </p>
         ) : null}
       </div>
       <div className="mt-7 shrink-0">
@@ -241,6 +398,8 @@ export function SollMappingEditor({
             variant="outline"
             size="md"
             disabled={draft.columns.length >= 40}
+            disabledReason="Entfernen Sie zuerst eine Spalte, mehr als 40 gehen nicht."
+            tooltip="Fügt rechts eine neue Spalte an, zuerst mit der Rechnungsnummer."
             onClick={() =>
               setColumns((columns) => [
                 ...columns,
@@ -298,6 +457,7 @@ export function SollMappingEditor({
                 href={traegerPath(BOOKING_ACCOUNTS_PATH)}
                 variant="ghost_tone"
                 size="compact"
+                tooltip={BOOKING_ACCOUNTS_HINT}
               >
                 Konten ansehen
               </ButtonLink>

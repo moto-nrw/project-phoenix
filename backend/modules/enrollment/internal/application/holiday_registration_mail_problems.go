@@ -9,9 +9,10 @@ import (
 
 var _ enrollment.HolidayRegistrationMailReview = (*HolidayRegistrationReview)(nil)
 
-// HolidayRegistrationMailProblems names the registrations of the period whose
-// receipt or acceptance mail did not reach the parents, in one read of the IDs
-// and one of the mails. It records no read: it names no personal data.
+// HolidayRegistrationMailProblems names the registrations of the period with a
+// mail that did not reach the parents, in one read of the registrations with
+// the keys of their closing day notices and one of the mails. It records no
+// read: it names no personal data.
 func (h *HolidayRegistrationReview) HolidayRegistrationMailProblems(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64) ([]enrollment.HolidayRegistrationMails, error) {
 	if err := holidayReviewKey(reviewer, periodID, 1); err != nil {
 		return nil, err
@@ -19,53 +20,109 @@ func (h *HolidayRegistrationReview) HolidayRegistrationMailProblems(ctx context.
 	if _, err := h.period(ctx, reviewer.OrganizationID, periodID, false); err != nil {
 		return nil, err
 	}
-	ids, err := h.store.ReadHolidayRegistrationIDs(ctx, reviewer.OrganizationID, periodID)
+	ids, byRegistration, err := h.registrationMails(ctx, reviewer.OrganizationID, periodID, 0)
 	if err != nil {
-		return nil, fmt.Errorf("enrollment: read holiday registration IDs: %w", err)
-	}
-	registrations := make([]enrollment.HolidayRegistrationSummary, len(ids))
-	summaries := make([]*enrollment.HolidayRegistrationSummary, len(ids))
-	for i, id := range ids {
-		registrations[i].ID = id
-		summaries[i] = &registrations[i]
-	}
-	if err := h.addMailProblems(ctx, reviewer.OrganizationID, summaries); err != nil {
 		return nil, err
 	}
 	mails := []enrollment.HolidayRegistrationMails{}
-	for _, registration := range registrations {
-		if len(registration.MailProblems) > 0 {
-			mails = append(mails, enrollment.HolidayRegistrationMails{RegistrationID: registration.ID, MailProblems: registration.MailProblems})
+	for _, id := range ids {
+		if problems := holidayMailProblems(byRegistration[id]); len(problems) > 0 {
+			mails = append(mails, enrollment.HolidayRegistrationMails{RegistrationID: id, MailProblems: problems})
 		}
 	}
 	return mails, nil
 }
 
-// addMailProblems names the receipt and acceptance mails of the registrations
-// that did not reach the parent who registered (#6737), in one read for all of
-// them. Without the mail states the review names none.
-func (h *HolidayRegistrationReview) addMailProblems(ctx context.Context, organizationID int64, registrations []*enrollment.HolidayRegistrationSummary) error {
-	if h.mailStates == nil || len(registrations) == 0 {
-		return nil
-	}
-	keys := make([]string, 0, 2*len(registrations))
-	for _, registration := range registrations {
-		keys = append(keys, holidayReceiptMailKey(registration.ID), holidayAcceptanceMailKey(registration.ID))
-	}
-	problems, err := h.mailStates.HolidayMailProblems(ctx, organizationID, keys)
+// addMails names every mail of the registration with its outcome and those
+// that did not reach the parents (#6737, #6976). Without the mail states the
+// detail names none.
+func (h *HolidayRegistrationReview) addMails(ctx context.Context, organizationID, periodID int64, detail *enrollment.HolidayRegistrationDetail) error {
+	_, byRegistration, err := h.registrationMails(ctx, organizationID, periodID, detail.ID)
 	if err != nil {
-		return fmt.Errorf("enrollment: read the mails of the holiday registrations: %w", err)
+		return err
 	}
-	for _, registration := range registrations {
-		mails := []struct{ kind, key string }{
-			{kind: enrollment.MailKindHolidayRegistrationReceived, key: holidayReceiptMailKey(registration.ID)},
-			{kind: enrollment.MailKindHolidayRegistrationAccepted, key: holidayAcceptanceMailKey(registration.ID)},
+	mails := byRegistration[detail.ID]
+	detail.MailProblems = holidayMailProblems(mails)
+	for _, mail := range mails {
+		outcome := enrollment.RequestMailOutcome{Kind: mail.Kind, Outcome: mail.Outcome}
+		if !mail.CreatedAt.IsZero() {
+			createdAt := mail.CreatedAt
+			outcome.CreatedAt = &createdAt
 		}
-		for _, mail := range mails {
-			if state, ok := problems[mail.key]; ok {
-				registration.MailProblems = append(registration.MailProblems, enrollment.HolidayRegistrationMailProblem{Kind: mail.kind, State: state})
-			}
-		}
+		detail.Mails = append(detail.Mails, outcome)
 	}
 	return nil
+}
+
+// registrationMails reads the registrations of the period, or the one
+// registration, and every mail to their parents, by registration: one read
+// of the registrations and one of the mails, flat in their number. A
+// family's closing day notice relates to one of its registrations; its key
+// assigns it to every registration it names. Without the mail states it
+// reads nothing.
+func (h *HolidayRegistrationReview) registrationMails(ctx context.Context, organizationID, periodID, registrationID int64) ([]int64, map[int64][]enrollment.HolidayMailState, error) {
+	if h.mailStates == nil {
+		return nil, nil, nil
+	}
+	ids, closureKeys, err := h.store.ReadHolidayRegistrationMailKeys(ctx, organizationID, periodID, registrationID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("enrollment: read holiday registration IDs: %w", err)
+	}
+	if len(ids) == 0 {
+		return ids, nil, nil
+	}
+	keys, byKey := closureMailKeys(ids, closureKeys)
+	states, err := h.mailStates.HolidayMails(ctx, organizationID, ids, keys)
+	if err != nil {
+		return nil, nil, fmt.Errorf("enrollment: read the mails of the holiday registrations: %w", err)
+	}
+	return ids, mailsByRegistration(ids, byKey, states), nil
+}
+
+// closureMailKeys lists each key of a closing day notice once, with the
+// registrations it names.
+func closureMailKeys(ids []int64, closureKeys map[int64][]string) ([]string, map[string][]int64) {
+	byKey := map[string][]int64{}
+	keys := []string{}
+	for _, id := range ids {
+		for _, key := range closureKeys[id] {
+			if _, seen := byKey[key]; !seen {
+				keys = append(keys, key)
+			}
+			byKey[key] = append(byKey[key], id)
+		}
+	}
+	return keys, byKey
+}
+
+// mailsByRegistration assigns a closing day notice to every registration its
+// key names and any other mail to the registration it relates to; a mail of
+// a registration outside ids stays out.
+func mailsByRegistration(ids []int64, byKey map[string][]int64, states []enrollment.HolidayMailState) map[int64][]enrollment.HolidayMailState {
+	wanted := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		wanted[id] = true
+	}
+	byRegistration := map[int64][]enrollment.HolidayMailState{}
+	for _, state := range states {
+		registrations, named := byKey[state.IdempotencyKey]
+		if !named && wanted[state.RegistrationID] {
+			registrations = []int64{state.RegistrationID}
+		}
+		for _, id := range registrations {
+			byRegistration[id] = append(byRegistration[id], state)
+		}
+	}
+	return byRegistration
+}
+
+// holidayMailProblems names the mails that did not reach the parents.
+func holidayMailProblems(mails []enrollment.HolidayMailState) []enrollment.HolidayRegistrationMailProblem {
+	var problems []enrollment.HolidayRegistrationMailProblem
+	for _, mail := range mails {
+		if mail.Problem != "" {
+			problems = append(problems, enrollment.HolidayRegistrationMailProblem{Kind: mail.Kind, State: mail.Problem})
+		}
+	}
+	return problems
 }

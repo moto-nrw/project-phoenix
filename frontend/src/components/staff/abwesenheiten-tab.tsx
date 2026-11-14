@@ -481,6 +481,7 @@ export function AbwesenheitenTab({
                 variant="primary"
                 size="md"
                 onClick={() => setBookingOpen(true)}
+                tooltip="Öffnet ein Formular, um eine Abwesenheit ohne Antrag einzutragen."
               >
                 <CalendarPlus className="mr-1.5 h-4 w-4" aria-hidden />
                 Abwesenheit eintragen
@@ -490,6 +491,7 @@ export function AbwesenheitenTab({
                 variant="outline"
                 size="md"
                 onClick={() => setSickStaff(staff)}
+                tooltip="Öffnet die Krankmeldung, sie passt Dienst- und Betreuungsplan an."
               >
                 <Thermometer className="mr-1.5 h-4 w-4" aria-hidden />
                 Krank melden
@@ -549,6 +551,7 @@ export function AbwesenheitenTab({
                   variant="ghost"
                   size="compact"
                   onClick={() => setOpeningModal(true)}
+                  tooltip="Öffnet den Resturlaub, der beim Start mit moto übrig war."
                 >
                   <CalendarClock className="mr-1.5 h-3.5 w-3.5" aria-hidden />
                   Urlaubs-Übernahme
@@ -665,6 +668,7 @@ export function AbwesenheitenTab({
               variant="outline"
               size="md"
               onClick={() => setRebookSelection(new Set())}
+              tooltip="Lässt Sie Einträge ankreuzen, um ihre Art zu ändern."
             >
               <ArrowLeftRight className="mr-1.5 h-4 w-4" aria-hidden />
               Art ändern
@@ -689,6 +693,7 @@ export function AbwesenheitenTab({
                 variant="outline"
                 size="md"
                 onClick={() => setRebookSelection(null)}
+                noTooltip="Abbrechen beendet die Auswahl, ohne etwas zu ändern."
               >
                 Abbrechen
               </Button>
@@ -697,7 +702,9 @@ export function AbwesenheitenTab({
                 variant="primary"
                 size="md"
                 disabled={selectedForRebook.length === 0}
+                disabledReason="Kreuzen Sie zuerst mindestens einen Eintrag an."
                 onClick={() => setRebookOpen(true)}
+                tooltip="Öffnet die Wahl der neuen Art und zeigt die Folgen vorher."
               >
                 Weiter
               </Button>
@@ -1103,7 +1110,7 @@ function AbsenceRow({
             size="icon"
             onClick={onDelete}
             aria-label={`${absenceRowActionNoun(row)} ${formatRange(row.date_start, row.date_end)} löschen`}
-            title={`${absenceRowActionNoun(row)} löschen`}
+            tooltip="Löscht diesen Eintrag. moto fragt vorher nach."
           >
             <Trash2 className="h-4 w-4" aria-hidden />
           </Button>
@@ -1237,7 +1244,13 @@ function VacationOpeningModal({
         title={`Urlaubs-Übernahme ${year}`}
         footer={
           <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" size="md" onClick={onClose}>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={onClose}
+              noTooltip="Schließen schließt nur den Dialog."
+            >
               Schließen
             </Button>
             <Button
@@ -1245,6 +1258,7 @@ function VacationOpeningModal({
               variant="outline_danger"
               size="md"
               onClick={() => onDelete(existing)}
+              tooltip="Löscht die Übernahme für dieses Jahr. moto fragt vorher nach."
             >
               <Trash2 className="mr-1.5 h-4 w-4" aria-hidden />
               Übernahme löschen
@@ -1285,6 +1299,16 @@ function VacationOpeningModal({
 
   const canSubmit =
     !submitting && effectiveDate !== "" && remainingValid && note.trim() !== "";
+  // Der Grund am gesperrten Knopf; beim Speichern bleibt er nativ gesperrt.
+  const submitBlockedReason = submitting
+    ? undefined
+    : effectiveDate === ""
+      ? "Wählen Sie zuerst einen Stichtag."
+      : !remainingValid
+        ? "Geben Sie zuerst den Resturlaub zum Stichtag ein."
+        : note.trim() === ""
+          ? "Geben Sie zuerst eine Begründung ein."
+          : undefined;
 
   return (
     <Modal
@@ -1299,6 +1323,7 @@ function VacationOpeningModal({
             size="md"
             onClick={onClose}
             disabled={submitting}
+            noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
           >
             Abbrechen
           </Button>
@@ -1308,6 +1333,8 @@ function VacationOpeningModal({
             size="md"
             onClick={handleSubmit}
             disabled={!canSubmit}
+            disabledReason={submitBlockedReason}
+            tooltip="Speichert den Resturlaub, moto rechnet die vorher genommenen Tage aus."
           >
             {submitting ? "…" : "Übernahme buchen"}
           </Button>

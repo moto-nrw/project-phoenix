@@ -1152,6 +1152,42 @@ export interface StaffAbsenceRequestRow extends Omit<
   updated_at?: string;
 }
 
+// Eine Abwesenheit in Kraft, deren Schichten und Betreuungsblöcke ab heute
+// noch nicht als abwesend im Plan stehen (#7021): eingetragen oder genehmigt,
+// bevor jede Art in die Pläne wirkte. Die Zahlen sind, was die Übernahme
+// ändern würde; von Hand abgesagte Schichten zählen nicht.
+export interface AbsencePlanGap {
+  absenceId: string;
+  staffId: string;
+  absenceType: string;
+  dateStart: string;
+  dateEnd: string;
+  openShifts: number;
+  openBlocks: number;
+}
+
+interface AbsencePlanGapWire {
+  absence_id: number;
+  staff_id: number;
+  absence_type: string;
+  date_start: string;
+  date_end: string;
+  open_shifts: number;
+  open_blocks: number;
+}
+
+function mapAbsencePlanGap(row: AbsencePlanGapWire): AbsencePlanGap {
+  return {
+    absenceId: String(row.absence_id),
+    staffId: String(row.staff_id),
+    absenceType: row.absence_type,
+    dateStart: row.date_start,
+    dateEnd: row.date_end,
+    openShifts: row.open_shifts,
+    openBlocks: row.open_blocks,
+  };
+}
+
 // Vacation takeover at the moto introduction (#2132): days already taken
 // before the Stichtag in the previous system. The row is its own audit
 // record (Stichtag, entered Resturlaub, note, actor).
@@ -1422,6 +1458,42 @@ class StaffAbsenceService {
     }
   }
 
+  // Abwesenheiten, die noch nicht im Plan stehen (#7021).
+  async listPlanGaps(): Promise<AbsencePlanGap[]> {
+    const response = await sessionFetch(`/api/staff/absences/plan-gaps`);
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch absence plan gaps: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as {
+      data: AbsencePlanGapWire[] | null;
+    };
+    return (json.data ?? []).map(mapAbsencePlanGap);
+  }
+
+  // Übernimmt eine Abwesenheit in Dienstplan und Betreuungsplan (#7021).
+  // false: Sie gilt nicht mehr (zurückgezogen oder gelöscht).
+  async syncPlan(absenceId: string): Promise<boolean> {
+    const response = await sessionFetch(
+      `/api/staff/absences/${encodeURIComponent(absenceId)}/plan-sync`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      },
+    );
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to sync absence plan: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as { data: { applied: boolean } };
+    return json.data.applied;
+  }
+
   // Tenant-wide open requests (status requested + question) for the /staff
   // inbox (#1419). Response rows carry only staff_id — callers join names
   // against the already-fetched staff list client-side.
@@ -1633,7 +1705,6 @@ import {
   MAX_TARGET_RANGE_DAYS,
   mapBalanceAdjustmentResponse,
   mapDailyProjectionResponse,
-  mapDailyTargetsResponse,
   mapMonthCloseResultResponse,
   mapMonthCloseSnapshotResponse,
   mapMonthSummaryResponse,
@@ -1642,7 +1713,6 @@ import {
   mapWorkSessionEditResponse,
   type BackendBalanceAdjustment,
   type BackendDailyProjection,
-  type BackendDailyTarget,
   type DayProjection,
   type BackendMonthCloseResult,
   type BackendMonthCloseSnapshot,
@@ -1753,43 +1823,21 @@ class StaffMonthSummaryService {
     return mapDailyProjectionResponse(json.data);
   }
 
-  // Admin counterpart to timeTrackingService.getScheduleTargets — the same
-  // date-valid Soll the Monatskarte is computed from, so card and table can
-  // never disagree after a schedule change (#1842).
-  async getScheduleTargets(
-    staffId: string,
-    from: string,
-    to: string,
-  ): Promise<ReadonlyMap<string, number>> {
-    const params = new URLSearchParams({ from, to, target_only: "true" });
-    const response = await sessionFetch(
-      `/api/staff/${staffId}/time-tracking/schedule-targets?${params}`,
-    );
-    if (!response.ok) {
-      throw await apiErrorFromResponse(
-        response,
-        `Failed to fetch schedule targets: ${response.statusText}`,
-      );
-    }
-    const json = (await response.json()) as {
-      data: BackendDailyTarget[] | null;
-    };
-    return mapDailyTargetsResponse(json.data);
-  }
-
   /**
-   * Same date-valid Soll as `getScheduleTargets`, for a range that may be
-   * longer than the endpoint's MAX_TARGET_RANGE_DAYS window. The Übersicht
-   * charts reach back to the configured account start ("Gesamt"), which can be
-   * years — one request would simply 400. The windows are fetched with bounded
-   * concurrency and merged; days repeat across no two windows, so the merge is
-   * a plain union.
+   * The same per-day projection as `getDailyProjection` (Soll, Gutschrift,
+   * Ist, Saldo), for a range that may be longer than the endpoint's
+   * MAX_TARGET_RANGE_DAYS window. The Übersicht charts reach back to the
+   * configured account start ("Gesamt"), which can be years — one request
+   * would simply 400. The windows are fetched with bounded concurrency and
+   * merged; days repeat across no two windows, so the merge is a plain union.
+   * The charts sum these server days instead of crediting absences themselves
+   * (#6847).
    */
-  async getScheduleTargetsRange(
+  async getDailyProjectionRange(
     staffId: string,
     from: string,
     to: string,
-  ): Promise<ReadonlyMap<string, number>> {
+  ): Promise<ReadonlyMap<string, DayProjection>> {
     // Windows are MAX_TARGET_RANGE_DAYS calendar days INCLUSIVE — one day
     // inside the endpoint's cap, which counts the gap between the bounds
     // rather than the days. Nothing rides on the last day of headroom, and a
@@ -1816,18 +1864,18 @@ class StaffMonthSummaryService {
     const chunks = await mapWithConcurrency(
       windows,
       MAX_TARGET_RANGE_CONCURRENCY,
-      (w) => this.getScheduleTargets(staffId, w.from, w.to),
+      (w) => this.getDailyProjection(staffId, w.from, w.to),
     );
-    const merged = new Map<string, number>();
+    const merged = new Map<string, DayProjection>();
     for (const chunk of chunks) {
-      for (const [day, minutes] of chunk) merged.set(day, minutes);
+      for (const [day, projection] of chunk) merged.set(day, projection);
     }
     return merged;
   }
 }
 
-// Upper bound on schedule-target windows fetched at once by
-// getScheduleTargetsRange. Four keeps the round-trips overlapping without
+// Upper bound on projection windows fetched at once by
+// getDailyProjectionRange. Four keeps the round-trips overlapping without
 // letting a long-lived account open a dozen+ concurrent DB-backed requests.
 const MAX_TARGET_RANGE_CONCURRENCY = 4;
 

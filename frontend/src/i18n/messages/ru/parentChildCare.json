@@ -39,7 +39,11 @@
     "requestSentPartlyTitle": "Сообщено и запрошено",
     "requestSentPartlyBody": "Свободные дни сообщены. По остальным дням {careTerm} проверит ваше сообщение. До тех пор действует её запись.",
     "errorObject": "сообщение об отсутствии",
-    "submitting": "Отправка …"
+    "submitting": "Отправка …",
+    "submitDirectTooltip": "Сразу сообщает об отсутствии ребёнка. {careTerm} видит это сразу.",
+    "submitRequestTooltip": "Сразу отправляет отсутствие как запрос. {careTerm} должна подтвердить.",
+    "submitTooltip": "Сразу отправляет сообщение об отсутствии в {careTerm}.",
+    "submitBlocked": "{careTerm} сейчас не принимает здесь сообщения об отсутствии."
   },
   "summary": {
     "none": "Нет сообщений об отсутствии",
@@ -106,7 +110,15 @@
     "statusApprovedChange": "Подтверждено, изменение сохранено.",
     "errorStaffConflictGeneric": "{careTerm} уже внесла изменение на этот день. Пожалуйста, свяжитесь с командой.",
     "submitting": "Отправка …",
-    "savingEdit": "Сохранение …"
+    "savingEdit": "Сохранение …",
+    "resetTooltip": "Удаляет ваше изменение на этот день. moto сначала спросит.",
+    "saveEditTooltip": "Изменяет ваш открытый запрос. {careTerm} ещё должна его подтвердить.",
+    "submitTooltip": "Сразу отправляет запрос в {careTerm} на подтверждение.",
+    "disabledBlocked": "{careTerm} не принимает здесь изменения забора ребёнка.",
+    "alreadyHomeBlocked": "Ваш ребёнок сегодня уже дома.",
+    "cutoffBlocked": "Время для изменений на сегодня прошло.",
+    "staffSetBlocked": "{careTerm} уже определила этот день.",
+    "loadBlocked": "Текущее время не загружено. Пожалуйста, обновите страницу."
   },
   "actions": {
     "sick": {
@@ -126,5 +138,6 @@
   },
   "requiredHint": "Поля со * нужно заполнить.",
   "timeFormatHint": "Время в формате 15:30",
-  "timeExample": "например 15:30"
+  "timeExample": "например 15:30",
+  "requestEditTooltip": "Открывает ваш открытый запрос для изменения."
 }

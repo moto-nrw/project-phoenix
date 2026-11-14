@@ -362,11 +362,35 @@ func assertRecipientPersistenceAndResponse(t *testing.T, module appointments.Own
 		guardianRecipient = recipients[0]
 	}
 	require.NotNil(t, guardianRecipient.GuardianProfileID)
-	require.NoError(t, module.UpdateAppointmentRecipientResponse(ctx, guardianRecipient.ID, appointments.ResponseStatusAccepted))
+	require.NoError(t, module.UpdateAppointmentRecipientResponse(ctx, appointments.RecipientResponse{RecipientID: guardianRecipient.ID, Status: appointments.ResponseStatusAccepted}))
 	responded, err := module.FindAppointmentRecipient(ctx, guardianRecipient.ID)
 	require.NoError(t, err)
 	assert.Equal(t, appointments.ResponseStatusAccepted, responded.Status)
 	assert.NotNil(t, responded.RespondedAt)
+	assertOccurrenceResponses(t, module, ctx, guardianRecipient.ID)
+}
+
+// assertOccurrenceResponses answers single dates of a series apart from the
+// series answer, and a new series answer drops them again (#6987).
+func assertOccurrenceResponses(t *testing.T, module appointments.Owner, ctx context.Context, recipientID int64) {
+	t.Helper()
+	first := appointments.NewDate(2026, time.November, 18)
+	second := appointments.NewDate(2026, time.November, 25)
+	require.NoError(t, module.UpdateAppointmentRecipientResponse(ctx, appointments.RecipientResponse{RecipientID: recipientID, OccurrenceDate: second, Status: appointments.ResponseStatusDeclined}))
+	require.NoError(t, module.UpdateAppointmentRecipientResponse(ctx, appointments.RecipientResponse{RecipientID: recipientID, OccurrenceDate: first, Status: appointments.ResponseStatusDeclined}))
+	require.NoError(t, module.UpdateAppointmentRecipientResponse(ctx, appointments.RecipientResponse{RecipientID: recipientID, OccurrenceDate: first, Status: appointments.ResponseStatusAccepted}))
+	answered, err := module.FindAppointmentRecipient(ctx, recipientID)
+	require.NoError(t, err)
+	assert.Equal(t, appointments.ResponseStatusAccepted, answered.Status, "a date answer keeps the series answer")
+	assert.Equal(t, map[appointments.Date]string{first: appointments.ResponseStatusAccepted, second: appointments.ResponseStatusDeclined}, answered.OccurrenceResponses)
+	assert.Equal(t, appointments.ResponseStatusDeclined, answered.StatusOn(second))
+	assert.Equal(t, appointments.ResponseStatusAccepted, answered.StatusOn(second.AddDays(7)), "a date without own answer takes the series answer")
+
+	require.NoError(t, module.UpdateAppointmentRecipientResponse(ctx, appointments.RecipientResponse{RecipientID: recipientID, Status: appointments.ResponseStatusDeclined}))
+	answered, err = module.FindAppointmentRecipient(ctx, recipientID)
+	require.NoError(t, err)
+	assert.Equal(t, appointments.ResponseStatusDeclined, answered.Status)
+	assert.Empty(t, answered.OccurrenceResponses, "a series answer holds for every date again")
 }
 
 func assertReminderClaimLifecycle(t *testing.T, module appointments.Owner, ctx context.Context, appointment *appointments.Appointment, guardianID int64, log *observationLog) {
@@ -406,7 +430,7 @@ func TestNamedAppointmentRecipientTablesEnforceTwoTenantRLS(t *testing.T) {
 
 	assertAppointmentRecipientTableCounts(t, db, firstCtx, firstTenantID)
 	assertAppointmentRecipientTableCounts(t, db, secondCtx, secondTenantID)
-	require.ErrorIs(t, module.UpdateAppointmentRecipientResponse(secondCtx, firstGuardianRecipientID, appointments.ResponseStatusDeclined), appointments.ErrAppointmentRecipientNotFound)
+	require.ErrorIs(t, module.UpdateAppointmentRecipientResponse(secondCtx, appointments.RecipientResponse{RecipientID: firstGuardianRecipientID, Status: appointments.ResponseStatusDeclined}), appointments.ErrAppointmentRecipientNotFound)
 	firstRecipient, err := module.FindAppointmentRecipient(firstCtx, firstGuardianRecipientID)
 	require.NoError(t, err)
 	assert.Equal(t, appointments.ResponseStatusPending, firstRecipient.Status)
@@ -602,7 +626,10 @@ func TestRecipientCommandsRejectInvalidInputs(t *testing.T) {
 			return err
 		},
 		"invalid response": func() error {
-			return module.UpdateAppointmentRecipientResponse(context.Background(), validID, "maybe")
+			return module.UpdateAppointmentRecipientResponse(context.Background(), appointments.RecipientResponse{RecipientID: validID, Status: "maybe"})
+		},
+		"pending for one occurrence": func() error {
+			return module.UpdateAppointmentRecipientResponse(context.Background(), appointments.RecipientResponse{RecipientID: validID, OccurrenceDate: validDate, Status: appointments.ResponseStatusPending})
 		},
 		"invalid claim": func() error {
 			_, err := module.ClaimReminderPushDelivery(context.Background(), validID, -1, validDate, validID)

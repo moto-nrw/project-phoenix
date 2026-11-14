@@ -6,3 +6,5 @@ backend/modules/organizationtenancy/return_register.json linguist-generated=true
 
 # DATEV booking batch goldens (#4694): Windows-1252 bytes with CR/LF, compared byte for byte.
 backend/modules/parentbilling/internal/application/testdata/datev/*.csv -text
+# Sollstellung goldens (#4693, #7008): CR/LF bytes, compared byte for byte.
+backend/modules/parentbilling/internal/application/testdata/sollstellung/*.csv -text

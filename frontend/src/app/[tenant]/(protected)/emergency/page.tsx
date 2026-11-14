@@ -81,6 +81,7 @@ export default function EmergencyPage() {
             loadingText="Erstelle PDF..."
             onClick={handlePrint}
             className="gap-3"
+            tooltip="Öffnet die Liste der anwesenden Kinder als PDF zum Drucken."
           >
             <Printer className="h-5 w-5" aria-hidden />
             Notfallliste drucken
@@ -92,6 +93,7 @@ export default function EmergencyPage() {
             disabled={isExporting}
             onClick={handleDownload}
             className="gap-3"
+            tooltip="Speichert die Liste der anwesenden Kinder als PDF auf Ihrem Gerät."
           >
             <Download className="h-5 w-5" aria-hidden />
             PDF herunterladen

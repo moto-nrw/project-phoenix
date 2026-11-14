@@ -66,7 +66,12 @@ export function ChoiceModal({
   // a check in onClose alone ran Modal's exit animation and left the dialog
   // open but invisible (#6567).
   const footer = (
-    <ModalCancelButton onClick={onClose}>Abbrechen</ModalCancelButton>
+    <ModalCancelButton
+      onClick={onClose}
+      noTooltip="Abbrechen schließt die Auswahl, ohne etwas zu ändern."
+    >
+      Abbrechen
+    </ModalCancelButton>
   );
 
   return (
@@ -92,6 +97,7 @@ export function ChoiceModal({
             size="md"
             disabled={isBusy || option.disabled}
             onClick={() => onSelect(option.value)}
+            noTooltip="Jede Wahl nennt ihre Folge selbst, in Beschriftung und Beschreibung."
             className="w-full"
           >
             <span className="flex w-full min-w-0 flex-col items-start text-left wrap-anywhere">

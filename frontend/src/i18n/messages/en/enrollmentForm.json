@@ -4,6 +4,8 @@
     "download": "Download",
     "openLabel": "Open {label}",
     "downloadLabel": "Download {label}",
+    "openHint": "Opens the PDF in a new tab.",
+    "downloadHint": "Saves the PDF on this device.",
     "errorObject": "the PDF file",
     "popupBlocked": "Please allow a new window to open."
   },

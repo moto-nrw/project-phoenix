@@ -300,7 +300,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // class follow-up port (+2).
 // ADR 0225: the Stammdaten decision's class follow-up port of
 // modules/careplan/compose (+3).
-const moduleComposeBudgetTotal = 13439
+const moduleComposeBudgetTotal = 13434
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC (ADR 0220 adds 13 to modules/careplan/compose), raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -453,7 +453,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0128: the student template days constructor (+5), by
 	// ADR 0144: the vacation hint constructor (+6) and by ADR 0224: the cohort
 	// rosters constructor (+5).
-	"modules/timetable/compose":                     1156,
+	"modules/timetable/compose":                     1151,
 	"modules/timetableblockdisplay/compose":         9,
 	"modules/timetableenrollmentprovenance/compose": 10,
 	"modules/timetableprojection/compose":           7,

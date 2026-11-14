@@ -394,7 +394,7 @@ describe("ClassTripBulkStatusModal in moto schule (#4799)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Auswahl aufheben" }));
     expect(
       screen.getByRole("button", { name: "Für 0 Kinder melden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "Alle auswählen" }));
     fireEvent.click(

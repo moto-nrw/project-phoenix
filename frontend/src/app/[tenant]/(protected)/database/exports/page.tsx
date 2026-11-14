@@ -213,6 +213,7 @@ export default function DatabaseExportsPage() {
                   type="button"
                   size="md"
                   variant="outline"
+                  tooltip="Öffnet ein Fenster, in dem Sie Spalten und Format wählen."
                   onClick={() =>
                     setStudentModal({
                       heading: `${preset.label} exportieren`,
@@ -241,6 +242,7 @@ export default function DatabaseExportsPage() {
                   type="button"
                   size="md"
                   variant="outline"
+                  tooltip="Öffnet ein Fenster, in dem Sie Monate und Format wählen."
                   onClick={() => setStaffBirthdayModalOpen(true)}
                 >
                   <Download className="mr-2 h-4 w-4" aria-hidden />

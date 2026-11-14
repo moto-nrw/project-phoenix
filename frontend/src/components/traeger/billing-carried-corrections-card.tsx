@@ -130,11 +130,15 @@ export function BillingCarriedCorrectionsCard({
                   items={[
                     {
                       label: "Ändern",
+                      description:
+                        "Öffnet die Korrektur, um Betrag und Begründung zu ändern.",
                       icon: <Pencil className="size-4" aria-hidden />,
                       onClick: () => onChange(row.child, row.carried),
                     },
                     {
                       label: "Entfernen",
+                      description:
+                        "Nimmt die Korrektur aus der neuen Rechnung. moto fragt vorher nach.",
                       icon: <Trash2 className="size-4" aria-hidden />,
                       onClick: () => setRemoving(row),
                     },

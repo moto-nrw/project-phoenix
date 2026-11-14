@@ -192,21 +192,6 @@ func TestInviteOperatorReportsACountFailure(t *testing.T) {
 	assert.Empty(t, f.invites.dispatched)
 }
 
-// The ledger is evidence, not a gate: a failed append is logged and the
-// invitation still goes out.
-func TestInviteOperatorSurvivesAFailedAuditAppend(t *testing.T) {
-	t.Parallel()
-
-	f := newOperatorProvisioningFixture(t)
-	inviter := f.seedInviter(1)
-	f.audit.err = errFakeStore
-
-	require.NoError(t, f.provisioning.InviteOperator(context.Background(), identityaccess.OperatorInvitationRequest{
-		Email: "invitee@example.com", CreatedBy: inviter.ID,
-	}))
-	assert.Len(t, f.invites.dispatched, 1)
-}
-
 func TestValidateOperatorInvitationRefusesASpentLink(t *testing.T) {
 	t.Parallel()
 
@@ -488,20 +473,6 @@ func TestInitiateOperatorEmailChangeRateLimitKeepsTheExistingLink(t *testing.T) 
 		"a refused request must not spend the operator's existing link")
 }
 
-func TestInitiateOperatorEmailChangeSurvivesAFailedAuditAppend(t *testing.T) {
-	t.Parallel()
-
-	f := newOperatorProvisioningFixture(t)
-	operator := f.seedOperatorWithEmail(1, "old@example.com")
-	f.audit.err = errFakeStore
-
-	require.NoError(t, f.provisioning.InitiateOperatorEmailChange(context.Background(), identityaccess.OperatorEmailChangeRequest{
-		OperatorID: operator.ID, NewEmail: "new@example.com", CurrentPassword: "secret",
-	}))
-	assert.Len(t, f.changes.verifications, 1)
-	assert.Len(t, f.changes.requested, 1)
-}
-
 func TestConfirmOperatorEmailChangeWritesTheAddressAndNotifiesTheOldOne(t *testing.T) {
 	t.Parallel()
 
@@ -608,4 +579,68 @@ func indexOfCall(calls []string, call string) int {
 		}
 	}
 	return len(calls) + 1
+}
+
+// --- ledger ----------------------------------------------------------------
+
+// Every flow files its ledger entry in the administrative transaction of the
+// change and fails with it (#6989): an invitation, an acceptance, a
+// revocation, a resend or an address change never commits without evidence.
+func TestOperatorProvisioningFlowsFailWithTheirLedgerEntry(t *testing.T) {
+	t.Parallel()
+
+	flows := map[string]struct {
+		action string
+		run    func(f *operatorProvisioningFixture) error
+	}{
+		"invite": {domain.OperatorAuditActionInvitationCreated, func(f *operatorProvisioningFixture) error {
+			inviter := f.seedInviter(1)
+			return f.provisioning.InviteOperator(context.Background(), identityaccess.OperatorInvitationRequest{Email: "invitee@example.com", CreatedBy: inviter.ID})
+		}},
+		"accept": {domain.OperatorAuditActionInvitationAccepted, func(f *operatorProvisioningFixture) error {
+			invitation := f.seedInvitation("invitee@example.com", "live-token", f.seedInviter(1).ID)
+			_, err := f.provisioning.AcceptOperatorInvitation(context.Background(), identityaccess.OperatorInvitationAcceptance{
+				Token: invitation.Token, DisplayName: "Neue Operatorin", Password: "StrongPass1!", IPAddress: "10.0.0.2",
+			})
+			return err
+		}},
+		"revoke": {domain.OperatorAuditActionInvitationRevoked, func(f *operatorProvisioningFixture) error {
+			inviter := f.seedInviter(1)
+			invitation := f.seedInvitation("invitee@example.com", "live-token", inviter.ID)
+			return f.provisioning.RevokeOperatorInvitationByActor(context.Background(), invitation.ID, inviter.ID, "10.0.0.1")
+		}},
+		"resend": {domain.OperatorAuditActionInvitationResent, func(f *operatorProvisioningFixture) error {
+			inviter := f.seedInviter(1)
+			invitation := f.seedInvitation("invitee@example.com", "live-token", inviter.ID)
+			return f.provisioning.ResendOperatorInvitation(context.Background(), invitation.ID, inviter.ID, "10.0.0.3")
+		}},
+		"initiate email change": {domain.OperatorAuditActionEmailChangeStarted, func(f *operatorProvisioningFixture) error {
+			operator := f.seedOperatorWithEmail(1, "old@example.com")
+			return f.provisioning.InitiateOperatorEmailChange(context.Background(), identityaccess.OperatorEmailChangeRequest{
+				OperatorID: operator.ID, NewEmail: "new@example.com", CurrentPassword: "secret",
+			})
+		}},
+		"confirm email change": {domain.OperatorAuditActionEmailChangeDone, func(f *operatorProvisioningFixture) error {
+			change := f.seedEmailChange(f.seedOperatorWithEmail(1, "old@example.com").ID, "new@example.com", "live-token")
+			_, err := f.provisioning.ConfirmOperatorEmailChange(context.Background(), change.Token, "10.0.0.5")
+			return err
+		}},
+	}
+	for name, flow := range flows {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newOperatorProvisioningFixture(t)
+			require.NoError(t, flow.run(f))
+			entries := f.audit.actions(flow.action)
+			require.Len(t, entries, 1)
+			assert.Equal(t, []string{flow.action}, f.audit.inTransaction, "the entry joins the change's transaction")
+
+			failing := newOperatorProvisioningFixture(t)
+			failing.audit.err = errFakeStore
+			err := flow.run(failing)
+			require.ErrorIs(t, err, identityaccess.ErrOperatorAuditUnavailable)
+			require.ErrorIs(t, err, errFakeStore)
+		})
+	}
 }

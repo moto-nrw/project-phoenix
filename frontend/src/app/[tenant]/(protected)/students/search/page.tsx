@@ -134,7 +134,11 @@ import { useBulkCheckinActions } from "~/components/students/use-bulk-checkin-ac
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
-import { canCheckInChildren, canExportStudents } from "~/lib/student-access";
+import {
+  canCheckInChildren,
+  canCheckInToRooms,
+  canExportStudents,
+} from "~/lib/student-access";
 import { useParentAnnouncementsAvailable } from "~/lib/hooks/use-parent-announcements-available";
 import {
   announcementPrefillPath,
@@ -146,6 +150,8 @@ import {
 } from "~/lib/personal-storage";
 import { KIND_PARAM } from "~/components/announcements/announcement-meta";
 import { SchoolCheckinSelectionBar } from "~/components/students/school-checkin-selection-bar";
+import { SchoolCheckinTargetPicker } from "~/components/students/school-checkin-target-picker";
+import { useCheckinTarget } from "~/lib/hooks/use-checkin-target";
 import type { SchoolCheckinAction } from "~/lib/student-api";
 import {
   SchoolCheckinMissingHint,
@@ -161,7 +167,10 @@ import {
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
-import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
+import {
+  CHECKOUT_HINTS,
+  useEarlyCheckoutDialog,
+} from "~/components/students/early-checkout-note";
 import { StudentSearchTransitCard } from "~/components/students/student-search-transit-card";
 import {
   useAttendanceWebEnabled,
@@ -1479,7 +1488,16 @@ function SearchPageContent() {
   // Ohne users:checkin (etwa als Gast, ADR 0091) scheiterte jeder Tipp.
   const checkinModeAvailable =
     isToday && attendanceWebEnabled && canCheckInChildren(session);
-  const schoolCheckin = useSchoolCheckinMode();
+  // „Anmelden in“ (#6953): binary schools and sessions without the move
+  // right see no target; a check-in then stays „Anwesend (ohne Raum)“.
+  const checkinTarget = useCheckinTarget(
+    checkinModeAvailable && canCheckInToRooms(session),
+  );
+  const refreshCheckinTargets = checkinTarget.refresh;
+  const schoolCheckin = useSchoolCheckinMode({
+    target: checkinTarget.target,
+    onTargetRefused: () => void refreshCheckinTargets(),
+  });
   // A checkout well before today's pickup time asks for an optional reason
   // (#3324); every other checkout keeps its current behaviour.
   const earlyCheckout = useEarlyCheckoutDialog((studentId, note, reason) => {
@@ -1989,7 +2007,13 @@ function SearchPageContent() {
     reloadStudentsRef.current = reloadStudents;
   });
   const reloadAction = (
-    <Button type="button" variant="outline" size="md" onClick={reloadStudents}>
+    <Button
+      type="button"
+      variant="outline"
+      size="md"
+      onClick={reloadStudents}
+      tooltip="Versucht noch einmal, die Liste der Kinder zu laden."
+    >
       Erneut laden
     </Button>
   );
@@ -2199,6 +2223,7 @@ function SearchPageContent() {
                 size="compact"
                 variant={isToday ? "primary" : "outline"}
                 onClick={() => updateSelectedDate(todayIso)}
+                tooltip="Zeigt, wo die Kinder heute gerade sind."
               >
                 Heute
               </Button>
@@ -2211,6 +2236,7 @@ function SearchPageContent() {
                   size="compact"
                   variant={selectedDate === tomorrowIso ? "primary" : "outline"}
                   onClick={() => updateSelectedDate(tomorrowIso)}
+                  tooltip="Zeigt, welche Kinder morgen laut Plan kommen."
                 >
                   Morgen
                 </Button>
@@ -3126,6 +3152,7 @@ function SearchPageContent() {
         checkinSelectMode={schoolCheckin.selectionActive}
         isCheckinSelected={schoolCheckin.selectedIds.has(studentIdStr)}
         isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
+        checkinTargetName={checkinTarget.target?.roomName ?? null}
         userGroups={myGroups}
         groupRooms={myGroupRooms}
         supervisedRooms={mySupervisedRooms}
@@ -3169,6 +3196,8 @@ function SearchPageContent() {
                   // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
                   // ohnehin nach einem Kind sucht.
                   label: "Abwesenheiten",
+                  description:
+                    "Öffnet die Übersicht, welche Kinder wann fehlen.",
                   icon: <CalendarRange className="h-4 w-4" aria-hidden />,
                   onClick: () => router.push("/absences"),
                 },
@@ -3177,6 +3206,8 @@ function SearchPageContent() {
                   ? [
                       {
                         label: "Exportieren",
+                        description:
+                          "Öffnet den Export der Kinder aus der aktuellen Filterung.",
                         icon: <Download className="h-4 w-4" aria-hidden />,
                         onClick: () => setIsExportOpen(true),
                         badge: rowsLoaded ? filteredStudents.length : undefined,
@@ -3195,6 +3226,8 @@ function SearchPageContent() {
                   ? [
                       {
                         label: "Elternbrief schreiben",
+                        description:
+                          "Öffnet einen neuen Brief an die Eltern der gezeigten Kinder.",
                         icon: <FileText className="h-4 w-4" aria-hidden />,
                         onClick: writeParentLetter,
                         badge: filteredStudents.length,
@@ -3306,6 +3339,7 @@ function SearchPageContent() {
                     variant="outline"
                     size="md"
                     onClick={clearAllFilters}
+                    tooltip="Hebt Suche, Filter und Sortierung auf und zeigt wieder heute."
                   >
                     Filter zurücksetzen
                   </Button>
@@ -3331,6 +3365,7 @@ function SearchPageContent() {
                     variant="outline"
                     size="md"
                     onClick={() => setPendingRoomCheckout(null)}
+                    noTooltip={CHECKOUT_HINTS.cancel}
                   >
                     Abbrechen
                   </Button>
@@ -3348,6 +3383,7 @@ function SearchPageContent() {
                       );
                       setPendingRoomCheckout(null);
                     }}
+                    tooltip={CHECKOUT_HINTS.toClass}
                   >
                     Geht zum Unterricht
                   </Button>
@@ -3363,6 +3399,7 @@ function SearchPageContent() {
                       );
                       setPendingRoomCheckout(null);
                     }}
+                    tooltip={CHECKOUT_HINTS.home}
                   >
                     Geht nach Hause
                   </Button>
@@ -3414,6 +3451,7 @@ function SearchPageContent() {
                     variant="outline"
                     size="compact"
                     onClick={() => updateSelectedDate(todayIso)}
+                    tooltip="Zeigt, wo die Kinder heute gerade sind."
                   >
                     Zurück zu heute
                   </Button>
@@ -3471,6 +3509,15 @@ function SearchPageContent() {
                 runningAction={runningBulkAction}
                 selectAll={checkinSelectAll}
                 disabled={schoolCheckin.isBulkRunning}
+                targetPicker={
+                  checkinTarget.available ? (
+                    <SchoolCheckinTargetPicker
+                      state={checkinTarget}
+                      layout="sheet"
+                      disabled={schoolCheckin.isBulkRunning}
+                    />
+                  ) : undefined
+                }
               />
             </div>
           )}
@@ -3489,6 +3536,15 @@ function SearchPageContent() {
               isRunning={schoolCheckin.isBulkRunning}
               runningAction={runningBulkAction}
               selectAll={checkinSelectAll}
+              targetRoomName={checkinTarget.target?.roomName ?? null}
+              targetPicker={
+                checkinTarget.available ? (
+                  <SchoolCheckinTargetPicker
+                    state={checkinTarget}
+                    disabled={schoolCheckin.isBulkRunning}
+                  />
+                ) : undefined
+              }
             />
           )}
 
@@ -3600,6 +3656,7 @@ function SearchPageContent() {
                       isCheckinPending={schoolCheckin.pendingIds.has(
                         studentIdStr,
                       )}
+                      checkinTargetName={checkinTarget.target?.roomName ?? null}
                       onCheckinClick={() => {
                         // Selection sub-mode (#2359): a tap only marks the child;
                         // nothing is written until the bar's bulk action runs.

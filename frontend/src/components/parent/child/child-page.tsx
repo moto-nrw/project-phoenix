@@ -496,6 +496,11 @@ function ChildAreaTabs({
               )}
               variant="outline"
               size="md"
+              tooltip={
+                booking
+                  ? conferenceT("entryActionBookedTooltip")
+                  : conferenceT("entryActionTooltip")
+              }
             >
               {booking
                 ? conferenceT("entryActionBooked")

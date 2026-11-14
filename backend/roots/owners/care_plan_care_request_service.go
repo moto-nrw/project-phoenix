@@ -200,11 +200,11 @@ func newRequestCapabilities(s *CareScheduleRequestService, messenger compose.Req
 		return c, fmt.Errorf("care request reads: %w", err)
 	}
 	submissionAdapter := requestSubmissionAdapter{s}
-	if c.submissions, err = compose.NewRequestSubmissions(s.RequestRecords, submissionAdapter, effects, s.todayDate); err != nil {
+	if c.submissions, err = compose.NewRequestSubmissions(s.RequestRecords, submissionAdapter, effects, c.diffs, s.todayDate); err != nil {
 		return c, fmt.Errorf("care request submissions: %w", err)
 	}
 	editAdapter := requestEditAdapter{submissionAdapter}
-	if c.edits, err = compose.NewRequestEdits(s.RequestRecords, editAdapter, effects, s.todayDate); err != nil {
+	if c.edits, err = compose.NewRequestEdits(s.RequestRecords, editAdapter, effects, c.diffs, s.todayDate); err != nil {
 		return c, fmt.Errorf("care request edits: %w", err)
 	}
 	decisionAdapter := requestDecisionAdapter{editAdapter}

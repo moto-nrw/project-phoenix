@@ -4969,6 +4969,22 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.scheduleReviewCommands.WeeklyImpactToken",
+      "binding_digest": "e1639396329a949e69f2d267233d4537",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.CareScheduleReviewQuery.WeeklyImpactToken",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.scheduleReviewCommands.WeeklyImpactToken",
+      "binding_digest": "e8f478e996b89250c55e806d39dd4f1b",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.CareScheduleReviewQuery.WeeklyImpactToken",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/ports.PickupScheduleRecords.DeleteDepartureException",
       "binding_digest": "116f64c508cc92711ef3d1138f480102",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.DepartureExceptions.DeleteDepartureException",
@@ -10719,6 +10735,22 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.ContextWithCompanionChangeRecorder",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan.CareScheduleReviewQuery.WeeklyImpactToken",
+      "binding_digest": "e1639396329a949e69f2d267233d4537",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests.WeeklyImpact.WeeklyImpactToken",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan.CareScheduleReviewQuery.WeeklyImpactToken",
+      "binding_digest": "e8f478e996b89250c55e806d39dd4f1b",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests.WeeklyImpact.WeeklyImpactToken",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.CareRequestEffects.RegisterDecision",

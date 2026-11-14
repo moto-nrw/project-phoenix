@@ -11,6 +11,7 @@ import "react-day-picker/style.css";
 import { parseISODate } from "~/lib/date-helpers";
 import type { DatePickerLabels } from "~/lib/date-picker-labels";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { ActionHint } from "./action-hint";
 import { ListboxDropdown } from "./listbox-dropdown";
 import {
   DAY_PICKER_CLASSNAMES,
@@ -35,8 +36,11 @@ import { Z_INDEX } from "./overlay-styles";
 // src/lib.
 const CALENDAR_LABELS = {
   clear: "Datum löschen",
+  clearHint: "Leert das Feld, danach ist kein Tag mehr gewählt.",
   previousMonth: "Vorheriger Monat",
+  previousMonthHint: "Blättert im Kalender einen Monat zurück.",
   nextMonth: "Nächster Monat",
+  nextMonthHint: "Blättert im Kalender einen Monat weiter.",
   month: "Monat",
   year: "Jahr",
   selectedDays: (count: number) => `${count} Tage ausgewählt`,
@@ -205,22 +209,24 @@ export function CalendarMonthHeader({
   if (variant === "range") {
     return (
       <div className="mb-3 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => onMonthChange(subMonths(month, 1))}
-          aria-label={labels.previousMonth}
-          // By finger the hit area grows to 44 px without moving the arrow.
-          className="relative rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
-        >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        <ActionHint text={labels.previousMonthHint}>
+          <button
+            type="button"
+            onClick={() => onMonthChange(subMonths(month, 1))}
+            aria-label={labels.previousMonth}
+            // By finger the hit area grows to 44 px without moving the arrow.
+            className="relative rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
           >
-            <ChevronPath direction="back" />
-          </svg>
-        </button>
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <ChevronPath direction="back" />
+            </svg>
+          </button>
+        </ActionHint>
         <span className="text-sm font-medium text-gray-900">
           {format(month, "MMMM yyyy", { locale })}
           {/* A phone shows one month, so the heading names only that one. */}
@@ -228,22 +234,24 @@ export function CalendarMonthHeader({
             ? null
             : ` – ${format(addMonths(month, 1), "MMMM yyyy", { locale })}`}
         </span>
-        <button
-          type="button"
-          onClick={() => onMonthChange(addMonths(month, 1))}
-          aria-label={labels.nextMonth}
-          // By finger the hit area grows to 44 px without moving the arrow.
-          className="relative rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
-        >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        <ActionHint text={labels.nextMonthHint}>
+          <button
+            type="button"
+            onClick={() => onMonthChange(addMonths(month, 1))}
+            aria-label={labels.nextMonth}
+            // By finger the hit area grows to 44 px without moving the arrow.
+            className="relative rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
           >
-            <ChevronPath direction="next" />
-          </svg>
-        </button>
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <ChevronPath direction="next" />
+            </svg>
+          </button>
+        </ActionHint>
       </div>
     );
   }
@@ -254,22 +262,24 @@ export function CalendarMonthHeader({
         compact ? "mb-3 gap-1" : "mb-4 gap-2"
       }`}
     >
-      <button
-        type="button"
-        aria-label={labels.previousMonth}
-        onClick={() => onMonthChange(subMonths(month, 1))}
-        // By finger the hit area grows to 44 px without moving the arrow.
-        className="relative shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
-      >
-        <svg
-          className="h-5 w-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+      <ActionHint text={labels.previousMonthHint}>
+        <button
+          type="button"
+          aria-label={labels.previousMonth}
+          onClick={() => onMonthChange(subMonths(month, 1))}
+          // By finger the hit area grows to 44 px without moving the arrow.
+          className="relative shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
         >
-          <ChevronPath direction="back" />
-        </svg>
-      </button>
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <ChevronPath direction="back" />
+          </svg>
+        </button>
+      </ActionHint>
       {monthYearNavigation ? (
         // Kit dropdowns, not native <select>: a native select opens an
         // OS-level popup, which cannot be styled to match the kit and does not
@@ -318,22 +328,24 @@ export function CalendarMonthHeader({
           {format(month, "MMMM yyyy", { locale })}
         </span>
       )}
-      <button
-        type="button"
-        aria-label={labels.nextMonth}
-        onClick={() => onMonthChange(addMonths(month, 1))}
-        // By finger the hit area grows to 44 px without moving the arrow.
-        className="relative shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
-      >
-        <svg
-          className="h-5 w-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+      <ActionHint text={labels.nextMonthHint}>
+        <button
+          type="button"
+          aria-label={labels.nextMonth}
+          onClick={() => onMonthChange(addMonths(month, 1))}
+          // By finger the hit area grows to 44 px without moving the arrow.
+          className="relative shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
         >
-          <ChevronPath direction="next" />
-        </svg>
-      </button>
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <ChevronPath direction="next" />
+          </svg>
+        </button>
+      </ActionHint>
     </div>
   );
 }

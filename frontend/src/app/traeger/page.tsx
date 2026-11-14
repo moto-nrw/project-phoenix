@@ -20,7 +20,10 @@ import {
   useOpenTraegerSchool,
 } from "~/components/traeger/use-open-traeger-school";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
-import { TRAEGER_HANDOFF_OPEN } from "~/lib/traeger-handoff";
+import {
+  TRAEGER_HANDOFF_OPEN,
+  TRAEGER_HANDOFF_OPEN_HINT,
+} from "~/lib/traeger-handoff";
 import { traegerPath } from "~/lib/traeger-url";
 
 const COLUMNS: DataTableColumn<TraegerSchool>[] = [
@@ -82,7 +85,7 @@ export default function TraegerSchoolsPage() {
                   variant="surface"
                   size="compact"
                   aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
-                  title="Öffnet in einem neuen Tab"
+                  tooltip={TRAEGER_HANDOFF_OPEN_HINT}
                   disabled={opening !== null}
                   onClick={(event) => {
                     // Die Aktion öffnet die Schul-App, nicht die Schulansicht.

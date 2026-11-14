@@ -31,7 +31,11 @@ skill is how to measure and decide.
    suites; `main.yml` or `lint.yml` runs all lint jobs (`detect-changes` in
    `main.yml`). A changed cache key makes the first run cold: rerun the job
    once (`gh run rerun <run> --job <job>`) and report warm and cold
-   separately. Runner noise is large; one run is not a measurement. Done when
+   separately. Runner noise is large; one run is not a measurement. A cache
+   only development writes is cold in every run of the PR that changes its
+   key or paths: a temporary commit that saves it from the PR makes reruns
+   warm. A rerun keeps the workflow of its run's commit, so rerunning two
+   variant runs in turn compares them on the same cache (#7032). Done when
    a before/after table covers every change type the edit affects.
 5. **Write the PR** with that table (vCPU-minutes, dollars, critical-path
    wall-clock) and the options you measured and rejected, with numbers.
@@ -61,7 +65,10 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   request runs cancelled.
 - **Cheap checkouts.** `fetch-depth: 1` with `filter: blob:none` unless the
   job reads history or blobs; t3code checks out only the manifests its change
-  detection reads.
+  detection reads. A comparison with one fixed commit needs only that commit:
+  `git fetch --depth=1 origin <sha>`. Only merge-base and ancestry checks need
+  history; the architecture ratchet's fetch took 30–45 s with `--unshallow`
+  and 0–1 s flat (#7032).
 - **Cache what downloads, not what links.** Cache toolchains and browsers by
   version. t3code measured a pnpm store on a sticky disk slower than a cache
   tarball (pnpm copies across filesystems instead of hard-linking).
@@ -70,6 +77,16 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   backend build cache grew from 2.2 to 9.65 GB in twelve hours and its
   restore from 15 to 75 s (#6784). `scripts/go-cache-sweep.sh` keeps the
   entries one run uses.
+- **One writer on development.** A cache saved by a pull request serves
+  that pull request alone; save shared entries on development pushes (the
+  default branch every pull request reads) and let pull requests only
+  restore: `backend-build-cache.yml` (#6784, architecture ratchet #6962),
+  `frontend-bundle-base.yml` (#7023). Writer and readers need the same
+  runner, env and key, so a test ties the two jobs together
+  (`scripts/architecture-build-cache.test.mjs`).
+- **`-trimpath` for a tree in a temporary directory.** Without it the
+  directory enters every Go action ID: the architecture ratchet extracted its
+  base into a new directory per run and compiled it cold every time (#6962).
 - **Cached test results need verification.** t3code caches per test file and
   reruns one hit per shard uncached. Here `go test -count=1` stays: database
   tests depend on state outside Go's cache key.
@@ -86,7 +103,7 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   visible; the image pulls slow checkout and cache restore by 1-5 s, because
   hosted setup shares one network link (#6985). setup-go's cache beside an own
   Go cache loads the build cache twice: `cache: false` with the modules in the
-  own cache saved 4-8 s.
+  own cache saved 4-8 s, in the architecture ratchet 10 s (#7032).
 - The seed smoke stalled on Blacksmith once (run 38232330367) and runs on a
   fresh hosted VM; test it repeatedly before moving it.
 - The nightly race run keeps four backend shards (`SPLIT_SUITES`): race
@@ -112,6 +129,19 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   about 920,000 SELECT and 313,000 INSERT statements. The local server's
   `fsync=off`, `full_page_writes=off` and `wal_level=minimal` changed nothing
   on the job's tmpfs.
+- A test that runs `go list -export` or `packages.Load` in a child process
+  with its own environment (`internal/architecture`: `CGO_ENABLED=0`, policy
+  tags) compiles actions the warm job's `go test -exec true ./...` never
+  touches. Only running that test in the warm job, before the sweep, puts them
+  in the cache: locally 225 CPU s cold against 81 one commit later. In CI the
+  restored cache already held two thirds of them (199 MB new): the package
+  took 21-28 s warm against 40-41 s, the job's busy CPU did not move (#7038).
+  With `-trimpath`, temporary directories do not change the action IDs.
+- Postgres stores SCRAM verifiers with 4096 iterations, paid by server and
+  client on every login: 11.3 ms CPU per connection against 3.1 ms with
+  `initdb --set scram_iterations=1` (pgbench -C). The setting covers the
+  superuser and every role created later. Full suite, same branch: 1153-1280
+  busy CPU s against 1292-1440 (#7038).
 - A typical feature pull request compiles more than it tests: `api` 21 times
   and `roots/owners` 7 times, 60 % of its compile CPU (#6914). `GOGC=400`
   for the toolchain alone saved 13 % of the build CPU locally; `-exec "env -u
@@ -119,8 +149,20 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
 - A job in front of the job that sets the wall-clock time costs its duration
   plus a runner start: "Select backend tests" took 40–67 s plus 6–15 s. The
   long job selects for itself, as t3code's does.
+- Blacksmith jobs keep `actions/cache` entries in Blacksmith's own store,
+  with GitHub's branch scoping: they are missing from `gh cache list`, do not
+  count against the 10 GB, and a GitHub-hosted job cannot read them. That
+  store holds 25 GB and evicts entries unused for seven days; `gh cache
+  delete` cannot reach them, so bound them with `scripts/go-cache-sweep.sh`.
+- Two cold `next experimental-analyze` builds of one tree differed by 1-4 B
+  on 256 of 257 routes in 16 of 33 pairs (13.11.), identical otherwise;
+  the ratchet tolerance is 2 % or 10 KiB.
 - Two cold Next.js builds started side by side on four cores took as long as
   one after the other (207 s against 210 s).
+- The architecture ratchet's projections (25–33 s) beside its check on four
+  vCPU, alternating reruns with a warm cache: 43–76 s against 59–86 s one
+  after the other. The check itself slowed down, the pair still gained 7–16 s
+  (#7032).
 - The script suite "restore" took 303–313 s on a hosted runner, 232 s of it
   the encrypted daily backup restore test; a change to
   `scripts/posthog-dashboards.mjs` alone waited for it. Pull requests now

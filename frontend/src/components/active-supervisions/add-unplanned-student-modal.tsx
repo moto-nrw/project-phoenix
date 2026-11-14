@@ -89,6 +89,7 @@ export function AddUnplannedStudentModal({
             size="md"
             onClick={handleClose}
             disabled={isAddingStudent}
+            noTooltip="Schließt nur das Fenster."
           >
             Abbrechen
           </Button>
@@ -96,6 +97,12 @@ export function AddUnplannedStudentModal({
             type="submit"
             form={formId}
             disabled={isAddingStudent || !target}
+            disabledReason={
+              load.kind === "loaded" && !isAddingStudent
+                ? "Wählen Sie zuerst ein Kind aus der Liste aus."
+                : undefined
+            }
+            tooltip="Trägt das Kind sofort als anwesend in diese Aktivität ein."
             variant="success"
             size="md"
           >

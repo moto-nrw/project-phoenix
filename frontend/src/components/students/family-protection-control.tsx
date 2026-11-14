@@ -228,6 +228,11 @@ function ProtectionAction({
       variant={compact ? "ghost" : "outline"}
       size="md"
       className={compact ? "gap-1.5" : undefined}
+      tooltip={
+        enabled
+          ? "Lässt Eltern wieder Anfragen teilen, moto fragt vorher nach dem Grund."
+          : "Verbirgt geteilte Anfragen vor anderen Eltern, moto fragt vorher nach dem Grund."
+      }
       onClick={open}
     >
       {compact ? (

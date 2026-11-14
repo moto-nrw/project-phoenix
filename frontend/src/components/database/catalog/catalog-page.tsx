@@ -90,10 +90,17 @@ interface CatalogRestore<T> {
 /** Endgültiges Löschen. Nur für Kataloge, deren Backend das kennt. */
 interface CatalogRemove<T> {
   readonly menuLabel: string;
-  readonly confirmTitle: string;
+  /** Titel der Rückfrage; je Eintrag, wenn das Entfernen archivieren kann. */
+  readonly confirmTitle: string | ((item: T) => string);
+  /** Beschriftung der beiden Bestätigungsstufen, wenn sie vom Eintrag
+   *  abhängt (archivieren statt löschen, #6845). */
+  readonly confirmLabels?: (
+    item: T,
+  ) => { readonly first: string; readonly confirm: string } | undefined;
   readonly describe: (item: T) => React.ReactNode;
   readonly run: (item: T) => Promise<unknown>;
-  readonly toast: (item: T) => string;
+  /** `result` ist die Antwort von `run`, etwa ob gelöscht oder archiviert. */
+  readonly toast: (item: T, result: unknown) => string;
 }
 
 export interface CatalogConfig<T extends CatalogItem> {
@@ -196,6 +203,10 @@ export function CatalogPage<T extends CatalogItem>({
   const [createOpen, setCreateOpen] = useState(false);
   const [retireTarget, setRetireTarget] = useState<T | null>(null);
   const [removeTarget, setRemoveTarget] = useState<T | null>(null);
+  const removeLabels =
+    removeTarget && config.remove?.confirmLabels
+      ? config.remove.confirmLabels(removeTarget)
+      : undefined;
   const [busy, setBusy] = useState(false);
   // Zählt jedes gespeicherte Formular hoch, damit `DatabaseForm` seine Felder
   // aus dem frisch geladenen Eintrag neu aufbaut (wie in den Räumen).
@@ -359,16 +370,21 @@ export function CatalogPage<T extends CatalogItem>({
     const target = removeTarget;
     const remove = config.remove;
     if (!target || !remove) return;
+    let removal: unknown;
     const result = await runWrite(
       "catalog_remove_failed",
-      () => remove.run(target),
+      async () => {
+        removal = await remove.run(target);
+      },
       () => {
         setRemoveTarget(null);
         select(null);
       },
     );
     if (!result.saved) setRemoveTarget(null);
-    if (result.saved && result.refreshed) toast.success(remove.toast(target));
+    if (result.saved && result.refreshed) {
+      toast.success(remove.toast(target, removal));
+    }
   }, [config, removeTarget, runWrite, select, toast]);
 
   const handleMove = useCallback(
@@ -722,11 +738,21 @@ export function CatalogPage<T extends CatalogItem>({
           {config.remove && items !== undefined && (
             <ConfirmDeleteModal
               isOpen={removeTarget !== null && items !== undefined}
-              title={config.remove.confirmTitle}
+              title={
+                typeof config.remove.confirmTitle === "function"
+                  ? removeTarget
+                    ? config.remove.confirmTitle(removeTarget)
+                    : ""
+                  : config.remove.confirmTitle
+              }
               description={
                 removeTarget ? config.remove.describe(removeTarget) : ""
               }
-              gate={{ mode: "twoStep" }}
+              gate={{
+                mode: "twoStep",
+                firstStepLabel: removeLabels?.first,
+              }}
+              confirmLabel={removeLabels?.confirm}
               loading={busy}
               error=""
               onConfirm={() => void handleRemove()}

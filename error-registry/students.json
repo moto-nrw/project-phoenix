@@ -434,6 +434,12 @@
       "legacy": "pickup_change_impact_changed"
     },
     {
+      "code": "students.care_request_plan_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_request_plan_changed"
+    },
+    {
       "code": "students.pickup_reset_requires_offering",
       "class": "business_rejection",
       "parameters": [],

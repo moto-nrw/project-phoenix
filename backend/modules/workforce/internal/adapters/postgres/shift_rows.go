@@ -78,9 +78,10 @@ type shiftTypeRow struct {
 	Description   string `bun:"description"`
 	// IsActive carries no default tag on purpose: bun would write DEFAULT for
 	// a false value and the column default is TRUE.
-	IsActive  bool      `bun:"is_active,notnull"`
-	CreatedAt time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	IsActive   bool       `bun:"is_active,notnull"`
+	ArchivedAt *time.Time `bun:"archived_at"`
+	CreatedAt  time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt  time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
 
 // requiredClock binds a wall clock to a TIME column. The clock is anchored at
@@ -141,13 +142,13 @@ func staffShiftsToDomain(rows []staffShiftRow) []domain.StaffShift {
 func shiftTypeFromDomain(value domain.ShiftType) *shiftTypeRow {
 	return &shiftTypeRow{
 		ID: value.ID, TenantID: value.TenantID, Name: value.Name, Color: value.Color,
-		Description: value.Description, IsActive: value.IsActive, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		Description: value.Description, IsActive: value.IsActive, ArchivedAt: value.ArchivedAt, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 
 func shiftTypeToDomain(row shiftTypeRow) domain.ShiftType {
 	return domain.ShiftType{
 		ID: row.ID, TenantID: row.TenantID, Name: row.Name, Color: row.Color,
-		Description: row.Description, IsActive: row.IsActive, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		Description: row.Description, IsActive: row.IsActive, ArchivedAt: row.ArchivedAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }

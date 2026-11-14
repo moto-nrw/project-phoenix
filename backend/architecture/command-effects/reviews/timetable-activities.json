@@ -34382,6 +34382,26 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/api.calendarPeriodUsage.UsageCounts",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable/http.CalendarPeriodUsage.UsageCounts",
+      "reason": "Read-only count: timetable-activities reaches modules/workforce.ShiftPlanReferenceQuery.ShiftPlanReferences (workforce) through api.calendarPeriodUsage.UsageCounts for the calendar period deletion preview (#6845). One tenant-scoped SELECT; no persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/workforce.ShiftPlanReferenceQuery.ShiftPlanReferences",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.calendarPeriodUsage.UsageCounts",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable/http.CalendarPeriodUsage.UsageCounts",
+      "reason": "Read-only count: timetable-activities reaches modules/workforce/compose.WorkTime.ShiftPlanReferences (workforce) through api.calendarPeriodUsage.UsageCounts for the calendar period deletion preview (#6845). One tenant-scoped SELECT; no persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/workforce/compose.WorkTime.ShiftPlanReferences",
+      "target_owner": "workforce"
+    },
+    {
       "adr": "0067",
       "binding": "github.com/moto-ogs/project-phoenix/modules/schoolcalendar.Calendar.AddCalendarPeriod",
       "classification": "leaf",
@@ -42685,9 +42705,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
-      "reason": "Pure value helper: the sick-report binding takes the range-blocking absence statuses from modules/workforce.RangeBlockingAbsenceStatuses (modules/workforce/absence.go), a constant list shared with the Workforce absence lifecycle and the shift-series materializer (#6302). No database access, mutation or lock.",
+      "reason": "Pure value helper: the absence binding takes the statuses with plan effect (reported, approved) from modules/workforce.PlanEffectiveAbsenceStatuses (modules/workforce/shiftplansync.go), a constant list shared with the shift-series materializer (#6847). No database access, mutation or lock.",
       "source_owner": "timetable-activities",
-      "target": "github.com/moto-ogs/project-phoenix/modules/workforce.RangeBlockingAbsenceStatuses",
+      "target": "github.com/moto-ogs/project-phoenix/modules/workforce.PlanEffectiveAbsenceStatuses",
       "target_owner": "workforce"
     },
     {
@@ -42695,7 +42715,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
-      "reason": "Reviewed read: the materializer lists the open sick reports of its window through modules/workforce/compose.WorkTime.ListStaffAbsences (modules/workforce/internal/application/absence.go:34), a plain filtered select in the caller's tenant transaction. No owned-row mutation or locking read (#6292). #6302 takes the status filter from modules/workforce.RangeBlockingAbsenceStatuses instead of a local copy; the read is unchanged.",
+      "reason": "Pure value helper: modules/workforce.StaffAbsence.HalfBoundaryDays (modules/workforce/absence.go) derives the half boundary days from the row's own fields (#6847). No database access, mutation or lock.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/workforce.StaffAbsence.HalfBoundaryDays",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
+      "reason": "Reviewed read: the materializer lists the absences in force of its window through modules/workforce/compose.WorkTime.ListStaffAbsences (modules/workforce/internal/application/absence.go:34), a plain filtered select in the caller's tenant transaction. No owned-row mutation or locking read (#6292). Since #6847 every type with plan effect counts, filtered by modules/workforce.PlanEffectiveAbsenceStatuses; the read is unchanged.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-ogs/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",
       "target_owner": "workforce"

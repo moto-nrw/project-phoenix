@@ -37,5 +37,6 @@
     "none": "As usual",
     "hint": "Only people you have added to your contacts.",
     "manageLink": "Add a new person to your contacts"
-  }
+  },
+  "proofPdfTooltip": "Saves the proof as a PDF on this device."
 }

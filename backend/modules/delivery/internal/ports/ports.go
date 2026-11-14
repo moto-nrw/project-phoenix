@@ -27,6 +27,7 @@ type Store interface {
 	Statuses(context.Context, int64, domain.Transport, string, int64) ([]domain.Intent, error)
 	TraegerEmailStatuses(context.Context, int64, string, int64) ([]domain.Intent, error)
 	TraegerEmailStatusesByKey(context.Context, int64, []string) ([]domain.Intent, error)
+	TraegerEmailStatusesOf(context.Context, int64, string, []int64, []string) ([]domain.Intent, error)
 	RetryFailedTraegerEmails(context.Context, int64, []string) (int64, error)
 	UnresolvedHolidayClosureEmails(context.Context, int64) ([]domain.Intent, error)
 	EmailStatus(context.Context, int64, int64) (domain.Intent, bool, error)

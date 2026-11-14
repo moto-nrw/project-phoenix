@@ -98,8 +98,9 @@ func (c staffAbsenceCapability) AbsencesForRange(ctx context.Context, staffID in
 	return publicAbsenceResponses(values), nil
 }
 
-// The sick-report writes run with a planner and return the plan changes they
-// asked for; the shift-plan-sync workflow applies them (#4825).
+// The absence writes with plan effect run with a planner and return the plan
+// changes they asked for; the shift-plan-sync workflow applies them (#4825,
+// #6847).
 
 func (c staffAbsenceCapability) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
 	absences, plan, err := planSickCascade(c.absences)
@@ -208,16 +209,28 @@ func (c staffAbsenceCapability) RequestVacation(ctx context.Context, staffID int
 	return c.absence(c.absences.RequestVacation(ctx, staffID, RequestVacationRequest(request)))
 }
 
-func (c staffAbsenceCapability) CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error {
-	return mapTimeTrackingFailure(c.absences.CancelAbsence(ctx, staffID, actorAccountID, absenceID))
+// CancelAbsence withdraws a request; withdrawing an approved one reverses its
+// plan cascade (#6847).
+func (c staffAbsenceCapability) CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) (workforce.SickCascadePlan, error) {
+	absences, plan, err := planSickCascade(c.absences)
+	if err != nil {
+		return nil, err
+	}
+	return plannedDeletion(plan, mapTimeTrackingFailure(absences.CancelAbsence(ctx, staffID, actorAccountID, absenceID)))
 }
 
 func (c staffAbsenceCapability) ResubmitAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64, note string) (*workforce.StaffAbsenceResponse, error) {
 	return c.absence(c.absences.ResubmitAbsence(ctx, staffID, actorAccountID, absenceID, note))
 }
 
-func (c staffAbsenceCapability) ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforce.StaffAbsenceResponse, error) {
-	return c.absence(c.absences.ApproveAbsence(ctx, absenceID, actorAccountID, decidedByStaffID, note))
+// ApproveAbsence approves a request; the approved absence cascades into the
+// plans (#6847).
+func (c staffAbsenceCapability) ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+	absences, plan, err := planSickCascade(c.absences)
+	if err != nil {
+		return nil, nil, err
+	}
+	return plannedAbsence(plan)(c.absence(absences.ApproveAbsence(ctx, absenceID, actorAccountID, decidedByStaffID, note)))
 }
 
 func (c staffAbsenceCapability) DenyAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, reason string) (*workforce.StaffAbsenceResponse, error) {

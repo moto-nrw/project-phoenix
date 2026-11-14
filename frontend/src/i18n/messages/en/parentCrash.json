@@ -1,5 +1,6 @@
 {
   "title": "The page could not be shown",
   "object": "the page",
-  "home": "Go to the start page"
+  "home": "Go to the start page",
+  "homeTooltip": "Opens the start page of the parent app."
 }

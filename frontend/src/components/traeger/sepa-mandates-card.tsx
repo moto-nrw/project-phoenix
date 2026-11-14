@@ -272,6 +272,8 @@ function MandateMenu({
         {
           icon: <Eye className="size-4" aria-hidden />,
           label: "Verlauf ansehen",
+          description:
+            "Zeigt, wer das Mandat wann erfasst oder widerrufen hat.",
           onClick: () => onHistory(mandate),
         },
         ...(mandate.revokedOn
@@ -279,6 +281,8 @@ function MandateMenu({
           : [
               {
                 label: "Widerrufen",
+                description:
+                  "Beendet das Mandat zu einem Datum. moto fragt vorher nach.",
                 icon: <Undo2 className="size-4" aria-hidden />,
                 destructive: true,
                 onClick: () => onRevoke(mandate),
@@ -582,6 +586,7 @@ export function SepaMandatesCard({
         type="button"
         variant="outline"
         size="md"
+        tooltip="Öffnet ein Fenster für das unterschriebene Mandat der Familie."
         onClick={() => setCreating(true)}
       >
         Mandat erfassen

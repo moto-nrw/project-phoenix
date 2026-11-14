@@ -196,6 +196,8 @@ describe("anonymous enrollment PDF actions", () => {
           download: "PDF speichern",
           openLabel: (label) => `${label} lesen`,
           downloadLabel: (label) => `${label} speichern`,
+          openHint: "Öffnet die PDF in einem neuen Tab.",
+          downloadHint: "Speichert die PDF auf diesem Gerät.",
           popupBlocked: "Bitte erlauben Sie neue Fenster.",
           errorObject: "die PDF-Datei",
         }}

@@ -29,9 +29,6 @@ func (r *shiftFixtureStore) Create(ctx context.Context, row *workforce.ShiftReco
 	}
 	return err
 }
-func (r *shiftFixtureStore) Delete(ctx context.Context, id int64) error {
-	return r.Capability.DeleteStaffShift(ctx, id)
-}
 func (r *shiftFixtureStore) FindByID(ctx context.Context, id int64) (*workforce.ShiftRecord, error) {
 	v, err := r.Capability.FindStaffShift(ctx, id)
 	return shiftToRow(v), err

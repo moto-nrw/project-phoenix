@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -14,6 +14,7 @@ import {
   type AdminRequestMail,
   getAdminRequestMails,
 } from "~/lib/enrollment-admin-api";
+import { formatBerlinDate, formatTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "RequestMailStatus" });
@@ -64,12 +65,25 @@ export function useRequestMails(requestId: string) {
   return { mails, loadError: load.error, refresh };
 }
 
+/**
+ * The mails to a family with their status. The defaults name the mails of an
+ * enrollment request; the holiday registrations of a Träger pass their own
+ * title, names and next step (#6976). A mail with `created_at` names when it
+ * came about, so two mails of one kind stay apart.
+ */
 export function RequestMailStatus({
   mails,
   loadError,
+  title = "E-Mails an die Familie",
+  labels = REQUEST_MAIL_LABELS,
+  note,
 }: Readonly<{
   mails: readonly AdminRequestMail[];
   loadError: ReturnType<typeof useRequestMails>["loadError"];
+  title?: string;
+  labels?: Readonly<Record<string, string>>;
+  /** A line under the list, in place of the hints of a school's address list. */
+  note?: ReactNode;
 }>) {
   return (
     <>
@@ -78,7 +92,7 @@ export function RequestMailStatus({
           Mail“ tells the school nothing. */}
       {mails.length > 0 && (
         <SectionCard
-          title="E-Mails an die Familie"
+          title={title}
           description="Hier sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind."
           className="mb-4"
         >
@@ -95,7 +109,13 @@ export function RequestMailStatus({
                   className="flex flex-wrap items-center justify-between gap-2 py-2"
                 >
                   <span className="text-sm text-gray-900">
-                    {REQUEST_MAIL_LABELS[mail.kind] ?? "E-Mail"}
+                    {labels[mail.kind] ?? "E-Mail"}
+                    {mail.created_at && (
+                      <span className="block text-xs text-gray-500">
+                        am {formatBerlinDate(mail.created_at)},{" "}
+                        {formatTime(mail.created_at)} Uhr
+                      </span>
+                    )}
                   </span>
                   {copy && (
                     <StatusBadge label={copy.label} tone={copy.tone} compact />
@@ -104,6 +124,7 @@ export function RequestMailStatus({
               );
             })}
           </ul>
+          {note && <p className="mt-2 text-sm text-gray-600">{note}</p>}
           {mails.some((mail) => mail.address_mark) && (
             <p className="mt-2 text-sm text-gray-600">
               An die Adresse dieser Anmeldung geht keine Mail raus. Bitte

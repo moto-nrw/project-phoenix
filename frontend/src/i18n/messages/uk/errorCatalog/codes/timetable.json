@@ -13,6 +13,7 @@
   "calendar_period_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "calendar_period_overlap_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "calendar_period_roster_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "calendar_period_shift_series_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "calendar_period_week_cycle_anchor_missing": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "closing_day_end_before_start": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "closing_day_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",

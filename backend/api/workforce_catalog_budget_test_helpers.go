@@ -10,8 +10,8 @@ import (
 	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
 )
 
-func NewShiftTypesRouterForBudgetTest(types workforce.ShiftTypeAdministration) chi.Router {
-	return newShiftTypesResource(types).Router()
+func NewShiftTypesRouterForBudgetTest(types workforce.ShiftTypeAdministration, references workforce.ShiftPlanReferenceQuery) chi.Router {
+	return newShiftTypesResource(types, references).Router()
 }
 
 func NewWorkTimeModelsRouterForBudgetTest(models workforceCompose.WorkTime, notifyChanged func(context.Context)) chi.Router {

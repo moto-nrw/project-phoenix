@@ -402,11 +402,6 @@
     },
     {
       "decision": "0090",
-      "id": "api/calendarPeriodUsage.UsageCounts",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "api/capabilityError.Error",
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
@@ -944,6 +939,11 @@
       "decision": "0158",
       "id": "api/parentBillingSettings.CareMonthRule",
       "reason": "ADR 0158 (#4684): Consumer-port adapter of the Elternabrechnung's settings port; it reads the month rule of the Träger through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed text into the port's answer."
+    },
+    {
+      "decision": "0121",
+      "id": "api/parentBillingSettings.DebtorNumberScope",
+      "reason": "ADR 0121 addendum (#5621), extended by #7007: Consumer-port adapter of the Elternabrechnung's settings port; it reads whom the Träger's debtor numbers name through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed text into the port's scope, the payer for any value it does not know."
     },
     {
       "decision": "0115",
@@ -1783,11 +1783,6 @@
     {
       "decision": "0090",
       "id": "roots/owners/EducationCaregivers.ListActiveCaregivers",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "roots/owners/EducationRooms.FindRoom",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

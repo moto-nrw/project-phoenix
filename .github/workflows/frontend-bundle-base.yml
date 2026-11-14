@@ -1,0 +1,113 @@
+name: Frontend bundle base
+
+# Measures each development commit's frontend bundle once, for "Frontend
+# build" in lint.yml: that job compares a pull request against a cold build of
+# its merge-base, and pull request bases are development commits. A cache
+# saved by a pull request is visible to that pull request only, so on 13.11.2026
+# 30 of 35 runs built their base cold (median 92 s, 76-148 s), and 12 runs
+# built only 8 different commits. development is the default branch: every
+# pull request, stacked ones included, can read what this job saves.
+#
+# The measurement is the same as the pull request's: same runner, Node, job
+# env and commands ("--prepare-ci <commit>", then "--build-base"), and the
+# same key, the commit's frontend source tree plus a hash of the build
+# configuration (Node, platform, build env, measurement scripts). A pull
+# request whose key differs, or that runs before this job is done, misses
+# and builds its base cold as before. bundle-workflow-permissions.node-test.mjs
+# keeps both jobs in step.
+#
+# Both jobs run on Blacksmith, whose transparent cache stores the entry
+# (about 4 KB, perf-results/bundle-base.json only) with GitHub's branch
+# scoping, outside the repository's 10 GB GitHub cache; unused entries expire
+# after seven days.
+
+on:
+  push:
+    branches:
+      - development
+    paths:
+      # The frontend tree is the key; the rest can change the configuration.
+      - 'frontend/**'
+      - '.github/workflows/frontend-bundle-base.yml'
+      - '.github/workflows/lint.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  # Every commit can become a pull request's base, so none is cancelled:
+  # 2 of 31 frontend pushes on 13.11.2026 came within four minutes of the
+  # previous one.
+  group: frontend-bundle-base-${{ github.sha }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  measure:
+    name: Measure development bundle base
+    if: github.ref == 'refs/heads/development'
+    # Same image and size as "Frontend build".
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    # Must equal "Frontend build" in lint.yml; part of the key.
+    env:
+      NEXT_PUBLIC_API_URL: "http://localhost:8080"
+      SKIP_ENV_VALIDATION: "true"
+      API_URL: "http://localhost:8080"
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
+      NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
+      NEXT_PUBLIC_APP_ENV: test
+      NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000"
+      NEXT_PUBLIC_CATERER_HOSTNAME: "caterer.localhost:3000"
+      NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.localhost:3000"
+      TENANT_DOMAIN: "localhost"
+      NEXT_PUBLIC_TENANT_DOMAIN: "localhost"
+      NEXTAUTH_URL: "http://localhost:3000"
+      NEXTAUTH_SECRET: "ci-bundle-ratchet-throwaway-secret"
+      AUTH_JWT_EXPIRY: "15m"
+      AUTH_JWT_REFRESH_EXPIRY: "168h"
+      METRICS_BEARER_TOKEN: "ci-bundle-ratchet-token"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Enable corepack
+        run: corepack enable
+
+      # The measurement scripts use Node built-ins only; the base build
+      # installs its own dependencies from this store in a temporary copy.
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: "pnpm"
+          cache-dependency-path: "frontend/pnpm-lock.yaml"
+
+      - name: Identify bundle observation source and configuration
+        id: bundle-key
+        working-directory: frontend
+        run: node scripts/perf/bundle-measurement.mjs --prepare-ci "$GITHUB_SHA"
+
+      - name: Restore merge-base bundle measurement
+        id: bundle-base-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: frontend/perf-results/bundle-base.json
+          key: ${{ steps.bundle-key.outputs.base-measurement-key }}
+
+      - name: Measure exact merge-base, cold unless already measured
+        working-directory: frontend
+        run: node scripts/perf/bundle-measurement.mjs --build-base
+
+      - name: Save merge-base bundle measurement
+        if: steps.bundle-base-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: frontend/perf-results/bundle-base.json
+          key: ${{ steps.bundle-key.outputs.base-measurement-key }}

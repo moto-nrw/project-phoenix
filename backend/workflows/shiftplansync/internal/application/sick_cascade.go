@@ -1,8 +1,9 @@
 // Package application holds the shift-plan-sync workflow's behaviour: the
-// #1843 sick cascade, where one sick report fans out into shift cancellations
+// #1843 sick cascade, where one absence fans out into shift cancellations
 // (Dienstplan) and per-day block absences (Betreuungsplan) and deleting the
-// report reverses exactly the rows it stamped, and the schedule substitution
-// moves.
+// absence reverses exactly the rows it stamped, and the schedule substitution
+// moves. Since #6847 every absence type in force cascades, not only a sick
+// report; the type decides the neutral labels the plans show.
 //
 // The cascade applies the workforce.SickCascadePlan Workforce's absence
 // writes return; SickReports runs both in one tenant transaction (#4825). Both
@@ -24,15 +25,14 @@ import (
 	"github.com/moto-ogs/project-phoenix/workflows/shiftplansync/ports"
 )
 
-// sickShiftChangeReason / sickBlockAbsenceReason are the neutral machine
-// labels the cascade writes. The absence note is deliberately NOT propagated:
-// plan surfaces (Dienstplan cells, block badges) are visible to the whole
-// team, while the note may carry private medical detail. Each label is its
-// plan owner's, which that owner's materializer writes as well (#6292, #6302).
-const (
-	sickShiftChangeReason  = workforce.SickShiftChangeReason
-	sickBlockAbsenceReason = timetable.SickBlockAbsenceReason
-)
+// The cascade writes neutral machine labels: workforce.ShiftChangeReasonFor
+// on shifts and timetable.BlockAbsenceReason on blocks, "Krankheit" and
+// "Krankmeldung" for a sick report, "Abwesenheit" for every other absence
+// (#6847). The absence note and a school's own art name are deliberately NOT
+// propagated: plan surfaces (Dienstplan cells, block badges) are visible to
+// the whole team, while the note may carry private medical detail. Each label
+// is its plan owner's, which that owner's materializer writes as well (#6292,
+// #6302).
 
 // TimetableRows are the Betreuungsplan rows the cascade selects for the
 // Timetable owner's deviation writes, and the Timetable owner's day lock of every day-wide
@@ -53,6 +53,10 @@ type TimetableRows interface {
 type SickStamps interface {
 	ListBySickAbsence(ctx context.Context, absenceID int64) ([]*timetable.InstanceStaff, error)
 	SetSickAbsence(ctx context.Context, assignmentID int64, absenceID *int64) (int64, error)
+	// FindByStaffIDsAndDateRange lists the assignments of the staff members
+	// in the inclusive date range in one read; the absence plan gaps compare
+	// them with the absences in force (#7021).
+	FindByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to calendar.Date) ([]*timetable.InstanceStaff, error)
 }
 
 // SickDeviations is the Timetable owner's sick-report write surface
@@ -104,7 +108,9 @@ type SickCascade interface {
 	ClearSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
 	ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error
 	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
-	LockSickReportWrite(ctx context.Context, staffID, absenceID int64, dateStart, dateEnd string) error
+	LockSickReportWrite(ctx context.Context, staffID, absenceID int64, absenceType, dateStart, dateEnd string) error
+	AbsencePlanGaps(ctx context.Context) ([]workforce.AbsencePlanGap, error)
+	MarkAbsenceInForce(ctx context.Context, absenceID, actorStaffID int64, actorAccountID *int64) (bool, error)
 }
 
 // NewSickCascade wires the #1843 cascade. Compose checks the dependencies and
@@ -154,7 +160,7 @@ func (s *sickCascade) MarkSickForRange(ctx context.Context, in workforce.SickCas
 	if err != nil {
 		return err
 	}
-	days := sickCascadeDays(report)
+	days := sickCascadeDays(report, s.todayDate())
 	if len(days) == 0 {
 		return nil
 	}
@@ -197,7 +203,7 @@ func (s *sickCascade) cancelShiftsForSickDays(ctx context.Context, report sickRe
 	for _, d := range days {
 		daySet[d] = true
 	}
-	reason := sickShiftChangeReason
+	reason := workforce.ShiftChangeReasonFor(report.absenceType)
 	today := s.todayDate()
 	for _, shift := range shifts {
 		cascades, err := s.shiftTakesSickCancellation(shift, daySet, today)
@@ -253,7 +259,7 @@ func (s *sickCascade) markBlocksForSickDays(ctx context.Context, report sickRepo
 	// Past days are never touched: a completed/historical instance records
 	// what actually happened (mirrors the deviations endpoints' past guard).
 	today := s.todayDate()
-	reason := sickBlockAbsenceReason
+	reason := timetable.BlockAbsenceReason(report.sick())
 	for _, d := range days {
 		if d.Before(today) {
 			continue
@@ -289,7 +295,7 @@ func (s *sickCascade) markBlocksForSickDay(ctx context.Context, report sickRepor
 			continue
 		}
 		if err := s.deviations.MarkSickAbsence(ctx, timetable.SickAbsenceMark{
-			AssignmentID: row.ID, Reason: reason, SickAbsenceID: report.absenceID, ActorAccountID: report.actorAccountID,
+			AssignmentID: row.ID, Reason: reason, SickAbsenceID: report.absenceID, Sick: report.sick(), ActorAccountID: report.actorAccountID,
 		}, activeTouched); err != nil {
 			return fmt.Errorf("sick cascade: mark block %d: %w", row.InstanceID, err)
 		}
@@ -341,7 +347,7 @@ func (s *sickCascade) ReconcileSickRange(ctx context.Context, beforeInput, after
 	if before.subjectStaffID != after.subjectStaffID || before.absenceID != after.absenceID {
 		return fmt.Errorf("sick reconcile: before and after must identify the same absence")
 	}
-	removed, added := sickCascadeDayDifference(before, after)
+	removed, added := sickCascadeDayDifference(before, after, s.todayDate())
 	if len(removed) == 0 && len(added) == 0 {
 		return nil
 	}
@@ -596,7 +602,7 @@ func (s *sickCascade) clearStampedBlocksForDay(ctx context.Context, report sickR
 		// The owner clears the block's understaffed acknowledgement when the
 		// restore leaves it fully staffed again.
 		if err := s.deviations.ClearSickAbsence(ctx, timetable.SickAbsenceClear{
-			AssignmentID: entry.row.ID, SickAbsenceID: report.absenceID, ActorAccountID: report.actorAccountID,
+			AssignmentID: entry.row.ID, SickAbsenceID: report.absenceID, Sick: report.sick(), ActorAccountID: report.actorAccountID,
 		}, activeTouched); err != nil {
 			return fmt.Errorf("sick clear: clear block %d: %w", entry.row.InstanceID, err)
 		}
@@ -648,6 +654,7 @@ func (s *sickCascade) instanceHasActiveSubstitute(ctx context.Context, instanceI
 // range once and every comparison below works on timezone.Date.
 type sickReport struct {
 	subjectStaffID int64
+	absenceType    string
 	absenceID      int64
 	actorStaffID   int64
 	actorAccountID *int64
@@ -676,12 +683,19 @@ func parseSickReport(in workforce.SickCascadeInput) (sickReport, error) {
 func stampScope(in workforce.SickCascadeInput) sickReport {
 	return sickReport{
 		subjectStaffID: in.SubjectStaffID,
+		absenceType:    in.AbsenceType,
 		absenceID:      in.AbsenceID,
 		actorStaffID:   in.ActorStaffID,
 		actorAccountID: in.ActorAccountID,
 		skipStartDay:   in.SkipStartDay,
 		skipEndDay:     in.SkipEndDay,
 	}
+}
+
+// sick reports whether the absence is a sick report, which names itself on
+// the plans; every other absence stays neutral.
+func (r sickReport) sick() bool {
+	return r.absenceType == workforce.AbsenceTypeSick
 }
 
 // shiftDate reads a stored shift's calendar day. A row the database returns is
@@ -695,18 +709,20 @@ func shiftDate(shift workforce.StaffShift) (calendar.Date, error) {
 	return date, nil
 }
 
-// sickCascadeDays expands the absence range into the full sick days, skipping
-// half boundary days — a half sick day never cascades (#1843 product rule).
-// The Timetable owner's SickReport decides each day, the rule the
-// materializer applies to blocks planned after the report (#6292).
-func sickCascadeDays(report sickReport) []calendar.Date {
+// sickCascadeDays expands the absence range into the full days, skipping
+// half boundary days — a half day never cascades (#1843 product rule). The
+// Timetable owner's SickReport decides each day, the rule the materializer
+// applies to blocks planned after the absence (#6292). Only the days of
+// cascadeWindow are expanded.
+func sickCascadeDays(report sickReport, today calendar.Date) []calendar.Date {
 	plan := timetable.SickReport{
-		AbsenceID: report.absenceID, StaffID: report.subjectStaffID,
+		AbsenceID: report.absenceID, StaffID: report.subjectStaffID, Sick: report.sick(),
 		DateStart: report.dateStart, DateEnd: report.dateEnd,
 		SkipStartDay: report.skipStartDay, SkipEndDay: report.skipEndDay,
 	}
+	from, to := cascadeWindow(report.dateStart, report.dateEnd, today)
 	var days []calendar.Date
-	for d := report.dateStart; !d.After(report.dateEnd); d = d.AddDays(1) {
+	for d := from; !d.After(to); d = d.AddDays(1) {
 		if plan.CoversFullDay(d) {
 			days = append(days, d)
 		}
@@ -714,9 +730,30 @@ func sickCascadeDays(report sickReport) []calendar.Date {
 	return days
 }
 
-func sickCascadeDayDifference(before, after sickReport) (removed, added map[calendar.Date]bool) {
-	beforeDays := dateSet(sickCascadeDays(before))
-	afterDays := dateSet(sickCascadeDays(after))
+// cascadeWindow bounds the days one cascade expands. A sick report spans at
+// most workforce.MaxSickAbsenceRangeDays and is never cut. Since #6847 every
+// absence type cascades, and an Elternzeit or an open-ended "Sonstige" can
+// run for years: the cascade then covers at most that many days from today
+// (or from a later start) and as many before it. Rows beyond the window do
+// not exist yet; the materializers stamp them when they plan them.
+func cascadeWindow(start, end, today calendar.Date) (calendar.Date, calendar.Date) {
+	span := workforce.MaxSickAbsenceRangeDays
+	if floor := today.AddDays(-span); start.Before(floor) {
+		start = floor
+	}
+	anchor := start
+	if anchor.Before(today) {
+		anchor = today
+	}
+	if ceiling := anchor.AddDays(span - 1); end.After(ceiling) {
+		end = ceiling
+	}
+	return start, end
+}
+
+func sickCascadeDayDifference(before, after sickReport, today calendar.Date) (removed, added map[calendar.Date]bool) {
+	beforeDays := dateSet(sickCascadeDays(before, today))
+	afterDays := dateSet(sickCascadeDays(after, today))
 	removed = make(map[calendar.Date]bool)
 	added = make(map[calendar.Date]bool)
 	for day := range beforeDays {

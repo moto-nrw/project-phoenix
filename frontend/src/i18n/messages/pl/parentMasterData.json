@@ -9,7 +9,8 @@
     "body": "Nie udało się zapisać jednej zmiany. Jeśli opuszczą Państwo stronę, zmiana przepadnie.",
     "leave": "Opuść mimo to",
     "stay": "Zostań tutaj",
-    "retry": "Spróbuj ponownie"
+    "retry": "Spróbuj ponownie",
+    "retryTooltip": "Ponownie zapisuje ostatnią zmianę."
   },
   "healthDirectHint": "Zmiany zapisują się od razu. Zespół {careTerm} widzi te informacje natychmiast.",
   "healthPlaceholder": "Na przykład alergie, nietolerancje lub ważne leki.",
@@ -41,7 +42,8 @@
     "submitting": "Wysyłanie prośby…",
     "cancel": "Anuluj",
     "noChange": "Proszę zmienić przynajmniej jedną informację.",
-    "required": "Zmienione pole nie może być puste."
+    "required": "Zmienione pole nie może być puste.",
+    "submitTooltip": "Od razu wysyła prośbę do {careTerm} do sprawdzenia."
   },
   "sections": {
     "child": "Dane osobowe",
@@ -131,7 +133,8 @@
     "decisionApplied": "To zostało zmienione:",
     "decisionConsidered": "Prośba o zmianę:",
     "decisionOverridden": "Zespół opieki nie dodał: {names}.",
-    "errorObject": "zarezerwowana opieka"
+    "errorObject": "zarezerwowana opieka",
+    "requestButtonTooltip": "Otwiera formularz, aby poprosić o inną opiekę."
   },
   "careOfferingsModal": {
     "title": "Zmień zapisane oferty",
@@ -198,7 +201,10 @@
     "noCourses": "Obecnie nie ma żadnych kursów.",
     "errorObjectList": "lista kursów",
     "errorObjectRequest": "prośba o kurs",
-    "errorObjectWithdraw": "wycofanie prośby o kurs"
+    "errorObjectWithdraw": "wycofanie prośby o kurs",
+    "requestTooltip": "Od razu wysyła prośbę o kurs do {careTerm}.",
+    "withdrawTooltip": "Od razu wycofuje prośbę o kurs.",
+    "requestBlocked": "Proszę najpierw napisać uzasadnienie."
   },
   "careSchedule": {
     "arrival": "Godzina przyjścia",
@@ -242,10 +248,15 @@
     "pendingNotice": "{careTerm} sprawdza Państwa zmianę. Do potwierdzenia obowiązuje dotychczasowy plan tygodnia.",
     "requestedAt": "Prośba wysłana {date}",
     "errorObject": "lista godzin opieki",
-    "requestErrorObject": "prośba o zmianę planu tygodnia"
+    "requestErrorObject": "prośba o zmianę planu tygodnia",
+    "requestButtonTooltip": "Otwiera formularz, aby poprosić o zmianę planu tygodnia.",
+    "requestSubmitTooltip": "Od razu wysyła prośbę do {careTerm} do sprawdzenia."
   },
   "errorObject": "zestawienie danych",
   "errorObjectChange": "zmiana",
   "errorObjectRequest": "prośba",
-  "errorNoEnrollment": "Państwa dziecko nie ma już ważnego zapisu. Proszę skontaktować się ze szkołą."
+  "errorNoEnrollment": "Państwa dziecko nie ma już ważnego zapisu. Proszę skontaktować się ze szkołą.",
+  "identityRequestButtonTooltip": "Otwiera formularz, aby poprosić o zmianę danych.",
+  "requestEditTooltip": "Otwiera Państwa otwartą prośbę do zmiany.",
+  "departureEditTooltip": "Otwiera odbiór na każdy dzień tygodnia. Zmiany sprawdza {careTerm}."
 }

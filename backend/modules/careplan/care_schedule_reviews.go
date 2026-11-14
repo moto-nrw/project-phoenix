@@ -16,6 +16,7 @@ type CareScheduleReviewQuery interface {
 	GetForReview(context.Context, int64) (*carerequests.HistoryItem, error)
 	ListPending(context.Context, RequestQueueFilter) ([]*CareScheduleReviewItem, *RequestCursor, error)
 	ListHistory(context.Context, RequestQueueFilter) ([]*CareScheduleHistoryItem, *RequestCursor, error)
+	carerequests.WeeklyImpact
 }
 
 type CareScheduleReviewItem = carerequests.ReviewItem

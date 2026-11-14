@@ -374,7 +374,7 @@ func newCodeMailpitServer(t *testing.T, recipient, code string) *testpkg.HTTPSer
 	return testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.URL.Path == "/api/v1/messages":
+		case r.URL.Path == "/api/v1/search":
 			_ = json.NewEncoder(w).Encode(mailpitMessageList{
 				Total: 1,
 				Messages: []mailpitMessageSummary{

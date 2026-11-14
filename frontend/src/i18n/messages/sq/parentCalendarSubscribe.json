@@ -19,5 +19,9 @@
   "loadObject": "lidhja e abonimit",
   "rotateObject": "lidhja e abonimit",
   "alreadyActive": "Lidhja juaj e abonimit është tashmë aktive. Për arsye sigurie nuk shfaqet sërish. Nëse nuk e keni më, krijoni një lidhje të re; e mëparshmja nuk do të vlejë më.",
-  "createNew": "Krijoni lidhje të re abonimi"
+  "createNew": "Krijoni lidhje të re abonimi",
+  "showLinkHint": "Shfaq lidhjen me të cilën kalendari juaj abonohet te takimet.",
+  "subscribeHint": "Hap aplikacionin e kalendarit për t'u abonuar te takimet.",
+  "rotateHint": "Krijon menjëherë një lidhje të re, e vjetra nuk vlen më.",
+  "copyLinkHint": "Kopjon lidhjen që ta ngjitni në kalendarin tuaj."
 }

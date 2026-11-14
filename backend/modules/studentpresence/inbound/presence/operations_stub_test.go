@@ -35,6 +35,7 @@ type stubPresenceOperations struct {
 	checkOutStudent            func(context.Context, int64, int64) (studentpresence.CheckoutOutcome, error)
 	assignTransitStudents      func(context.Context, []int64, int64, studentpresence.StudentMoveAuthorization) (studentpresence.TransitAssignResult, error)
 	moveStudentsToSession      func(context.Context, []int64, int64, studentpresence.StudentMoveAuthorization) (studentpresence.StudentMoveResult, error)
+	checkInStudentsToSession   func(context.Context, []int64, int64, int64, studentpresence.StudentMoveAuthorization, bool) (*studentpresence.StudentMoveResult, error)
 	moveStudentsToTransit      func(context.Context, []int64, studentpresence.StudentMoveAuthorization) (studentpresence.StudentMoveResult, error)
 	sessionVisitsWithDisplay   func(context.Context, int64) ([]studentpresence.VisitDisplay, error)
 	sessionRooms               func(context.Context, []int64) ([]studentpresence.SessionRoomSummary, error)
@@ -264,4 +265,11 @@ func (s *stubPresenceOperations) GetTrackingIndicators(ctx context.Context, stud
 // so error-classification tests exercise the unwrap path.
 func operationError(op string, err error) error {
 	return &presenceError{Op: op, Err: err}
+}
+
+func (s *stubPresenceOperations) CheckInStudentsToSessionAuthorized(ctx context.Context, studentIDs []int64, activeGroupID, staffID int64, auth studentpresence.StudentMoveAuthorization, keepPresent bool) (*studentpresence.StudentMoveResult, error) {
+	if s.checkInStudentsToSession != nil {
+		return s.checkInStudentsToSession(ctx, studentIDs, activeGroupID, staffID, auth, keepPresent)
+	}
+	return &studentpresence.StudentMoveResult{}, nil
 }

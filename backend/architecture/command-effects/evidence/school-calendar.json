@@ -842,7 +842,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/appointments.Capability.UpdateAppointmentRecipientResponse",
-      "binding_digest": "de3d48501ed99dedce606d893242f027",
+      "binding_digest": "ee2cc1582836b6b54efb57a268adbe46",
       "port": "github.com/moto-ogs/project-phoenix/modules/appointments.Capability.UpdateAppointmentRecipientResponse",
       "source_owner": "school-calendar",
       "target": "github.com/moto-ogs/project-phoenix/modules/appointments.Capability.UpdateAppointmentRecipientResponse",
@@ -850,7 +850,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/appointments.Capability.UpdateAppointmentRecipientResponse",
-      "binding_digest": "f9797687e5743e9aa7d007a5cf447cca",
+      "binding_digest": "10d3b511b96c0301937e2db962d7d8b9",
       "port": "github.com/moto-ogs/project-phoenix/modules/appointments.Capability.UpdateAppointmentRecipientResponse",
       "source_owner": "school-calendar",
       "target": "github.com/moto-ogs/project-phoenix/modules/appointments.Owner.UpdateAppointmentRecipientResponse",
@@ -858,7 +858,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/appointments.Owner.UpdateAppointmentRecipientResponse",
-      "binding_digest": "f9797687e5743e9aa7d007a5cf447cca",
+      "binding_digest": "10d3b511b96c0301937e2db962d7d8b9",
       "port": "github.com/moto-ogs/project-phoenix/modules/appointments.Capability.UpdateAppointmentRecipientResponse",
       "source_owner": "school-calendar",
       "target": "github.com/moto-ogs/project-phoenix/modules/appointments.Owner.UpdateAppointmentRecipientResponse",

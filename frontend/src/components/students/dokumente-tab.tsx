@@ -314,6 +314,7 @@ export function StudentDokumenteTab({
       { kind: "separator" },
       {
         label: "Löschen",
+        description: "moto fragt vorher nach, dann ist die Datei weg.",
         destructive: true,
         onClick: () => {
           deleteErrors.clear();
@@ -325,6 +326,7 @@ export function StudentDokumenteTab({
       return [
         {
           label: "Herunterladen",
+          description: "Speichert die Datei auf Ihrem Gerät.",
           href: studentDocumentsService.downloadUrl(studentId, doc.id),
           external: true,
           onClick: () => undefined,
@@ -336,11 +338,13 @@ export function StudentDokumenteTab({
     return [
       {
         label: "Öffnen",
+        description: "Öffnet die Unfallanzeige mit allen Angaben.",
         href: accidentReportPath(studentId, doc.id),
         onClick: () => undefined,
       },
       {
         label: "PDF herunterladen",
+        description: "Speichert die Unfallanzeige als PDF auf Ihrem Gerät.",
         href: studentAccidentReportsService.pdfUrl(studentId, doc.id),
         external: true,
         onClick: () => undefined,
@@ -366,6 +370,7 @@ export function StudentDokumenteTab({
               type="button"
               variant="outline"
               size="md"
+              tooltip="Öffnet ein Formular für eine neue Unfallanzeige zu diesem Kind."
               onClick={() => setAccidentOpen(true)}
             >
               Unfall erfassen

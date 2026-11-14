@@ -472,6 +472,37 @@ describe("SlideOver", () => {
     ).toBeInTheDocument();
   });
 
+  it("explains the close X and takes another sentence (#6744)", () => {
+    const { unmount } = render(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverHeader>
+            <SlideOverTitle>Titel</SlideOverTitle>
+          </SlideOverHeader>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Schließen" }),
+    ).toHaveAccessibleDescription("Schließt das Seitenfenster.");
+    unmount();
+
+    render(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverHeader
+            close={<SlideOverCloseButton tooltip="Schließt den Entwurf." />}
+          >
+            <SlideOverTitle>Titel</SlideOverTitle>
+          </SlideOverHeader>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Schließen" }),
+    ).toHaveAccessibleDescription("Schließt den Entwurf.");
+  });
+
   describe("pending (#6593)", () => {
     function deferred() {
       let resolve!: () => void;

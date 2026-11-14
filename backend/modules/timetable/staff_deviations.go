@@ -294,19 +294,24 @@ type BulkSubstitutionResult struct {
 	ClearedAcks   int
 }
 
-// SickAbsenceMark stamps one staff assignment absent for a sick report
-// (#1843). The assignment is the instance_staff row id.
+// SickAbsenceMark stamps one staff assignment absent for an absence that
+// takes plan effect (#1843, #6847). The assignment is the instance_staff row
+// id. Sick names a sick report; any other absence is logged as an ordinary
+// absence, so the history never calls a vacation a Krankmeldung.
 type SickAbsenceMark struct {
 	AssignmentID   int64
 	Reason         *string
 	SickAbsenceID  int64
+	Sick           bool
 	ActorAccountID *int64
 }
 
-// SickAbsenceClear releases one assignment a deleted sick report had stamped.
+// SickAbsenceClear releases one assignment a deleted, shortened or withdrawn
+// absence had stamped.
 type SickAbsenceClear struct {
 	AssignmentID   int64
 	SickAbsenceID  int64
+	Sick           bool
 	ActorAccountID *int64
 }
 

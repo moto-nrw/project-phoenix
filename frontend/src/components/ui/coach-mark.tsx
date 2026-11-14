@@ -384,6 +384,7 @@ export function CoachMark({
             variant="ghost"
             size="compact"
             onClick={onClose}
+            noTooltip="„Tour beenden“ schließt nur die Tour, an der Seite ändert sich nichts."
           >
             {closeLabel}
           </Button>
@@ -394,6 +395,7 @@ export function CoachMark({
                 variant="outline"
                 size="compact"
                 onClick={onBack}
+                noTooltip="Zurück zeigt nur den vorigen Schritt der Tour."
               >
                 {backLabel}
               </Button>
@@ -404,6 +406,7 @@ export function CoachMark({
                 variant="primary"
                 size="compact"
                 onClick={onNext}
+                noTooltip="Weiter zeigt nur den nächsten Schritt der Tour."
               >
                 {nextLabel}
               </Button>

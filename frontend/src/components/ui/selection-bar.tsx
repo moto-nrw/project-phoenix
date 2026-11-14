@@ -115,6 +115,7 @@ export const SelectionBar = forwardRef<HTMLDivElement, SelectionBarProps>(
                   size="compact"
                   onClick={onClear}
                   disabled={count === 0 || busy}
+                  tooltip="Entfernt die Auswahl, an den Einträgen ändert sich nichts."
                 >
                   Aufheben
                 </Button>

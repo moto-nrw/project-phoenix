@@ -107,6 +107,22 @@ function runDescription(run: BillingRunDetail): string {
   return "Vorschau aller bestätigten Anmeldungen ohne gültige Rechnung. Neue Bestätigungen kommen bis zur Freigabe dazu.";
 }
 
+/** Why „Lauf freigeben“ is blocked, in the order the warnings show. */
+function releaseBlockReason(run: BillingRunDetail): string | undefined {
+  if (run.previewCount === 0) {
+    return run.unbilled > 0
+      ? "Noch keine Rechnung: Den Anmeldungen fehlt ein festgehaltener Beitrag."
+      : "Der Lauf hat keine Rechnung zum Freigeben.";
+  }
+  if (run.legalRemedyMissing) {
+    return "Tragen Sie zuerst die Rechtsbehelfsbelehrung in der Vorlage „Bescheid“ ein.";
+  }
+  if (!run.numberRangeSet) {
+    return "Legen Sie zuerst das Muster der Rechnungsnummern fest.";
+  }
+  return undefined;
+}
+
 /** „3 Rechnungen mit Betrag haben keine Debitorennummer.“ */
 function invoicesWithoutDebtorNumber(count: number): string {
   return count === 1
@@ -128,6 +144,16 @@ function paymentTextWarning(run: BillingRunDetail): string {
       ? "Tragen Sie die Nummern vor dem Freigeben bei den Anmeldungen ein."
       : "Tragen Sie die Nummern vor dem Freigeben bei den Anmeldungen ein. Das Feld dafür erscheint, wenn in den Einstellungen unter „Allgemein“ im Bereich „Ferienbetreuung“ „Debitorennummer beim Bestätigen abfragen“ an ist.";
   return `${invoicesWithoutDebtorNumber(run.paymentTextMissingDebtorNumbers)} Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext. ${where}`;
+}
+
+/**
+ * Invoices of several children while the Träger keeps the number per child
+ * (#7007): each names one number, so the office knows before the release.
+ */
+function sharedChildNumbersText(count: number): string {
+  const invoices =
+    count === 1 ? "1 Rechnung gilt" : `${count} Rechnungen gelten`;
+  return `${invoices} für mehrere Kinder. Ihr Träger führt die Debitorennummer je Kind, die Rechnung nennt aber nur eine: die Nummer der Anmeldung oder, ohne sie, die des ersten Kindes.`;
 }
 
 export default function TraegerBillingRunPage() {
@@ -292,12 +318,17 @@ export default function TraegerBillingRunPage() {
           href={traegerPath(`/traeger/abrechnung/${run.id}/faelligkeiten`)}
           variant="ghost_tone"
           size="compact"
+          tooltip="Öffnet die Fälligkeiten der Rechnungen dieses Laufs zum Ändern."
         >
           Fälligkeiten ändern
         </ButtonLink>
       ) : undefined,
     })),
     ...mandatePoints.map((text) => ({ text })),
+    // With a number per child (#7007) an invoice of siblings names one.
+    ...(preview && run.sharedChildDebtorNumbers > 0
+      ? [{ text: sharedChildNumbersText(run.sharedChildDebtorNumbers) }]
+      : []),
   ];
   // Belongs to the invoice sum it is part of, not to the cost bearers'.
   const carriedNote =
@@ -355,6 +386,7 @@ export default function TraegerBillingRunPage() {
                 )}
                 variant="outline"
                 size="md"
+                tooltip="Öffnet den Ferienzeitraum, zu dem dieser Lauf gehört."
               >
                 <MotoConceptIcon
                   concept={holidayWeeksConcept}
@@ -369,6 +401,7 @@ export default function TraegerBillingRunPage() {
                 type="button"
                 variant="outline_danger"
                 size="md"
+                tooltip="moto fragt vorher nach, dann ist der Ferienzeitraum frei für einen neuen Lauf."
                 onClick={() => setConfirmingDiscard(true)}
               >
                 Leeren Lauf verwerfen
@@ -378,6 +411,7 @@ export default function TraegerBillingRunPage() {
                 type="button"
                 variant="primary"
                 size="md"
+                tooltip="Öffnet den offenen Lauf dieses Ferienzeitraums oder startet einen neuen."
                 onClick={() => void reissue()}
               >
                 Neuen Lauf starten
@@ -388,6 +422,8 @@ export default function TraegerBillingRunPage() {
                 variant="primary"
                 size="md"
                 disabled={!canRelease}
+                disabledReason={releaseBlockReason(run)}
+                tooltip="moto fragt vorher nach, dann sind alle Rechnungen mit Nummer festgeschrieben."
                 onClick={() => setConfirmingRelease(true)}
               >
                 Lauf freigeben
@@ -528,6 +564,7 @@ export default function TraegerBillingRunPage() {
                   )}
                   variant="outline"
                   size="md"
+                  tooltip="Öffnet die Fälligkeiten der Rechnungen dieses Laufs zum Ändern."
                 >
                   Fälligkeiten ändern
                 </ButtonLink>
@@ -612,6 +649,7 @@ export default function TraegerBillingRunPage() {
                   )}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Vorlage „Bescheid“ in den Einstellungen."
                 >
                   Vorlage öffnen
                 </ButtonLink>
@@ -627,6 +665,7 @@ export default function TraegerBillingRunPage() {
                   href={traegerPath("/traeger/einstellungen/abrechnung")}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Einstellungen für das Muster der Rechnungsnummern."
                 >
                   Abrechnungsvorgaben öffnen
                 </ButtonLink>

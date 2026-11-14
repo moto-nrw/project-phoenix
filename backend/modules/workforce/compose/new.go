@@ -41,11 +41,11 @@ type Dependencies struct {
 	StatutoryHolidays func(ctx context.Context, from, to string) (map[string]bool, error)
 }
 
-// WorkTime is the owner composition: its public capability and native shift
-// reads share one application service, transaction runtime and observer.
+// WorkTime is the owner composition; every facet shares one application service.
 type WorkTime interface {
 	workforce.Capability
 	workforce.WorkTimeModelCatalog
+	workforce.ShiftTypeRetirement
 	planning.ShiftReads
 }
 

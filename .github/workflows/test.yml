@@ -93,7 +93,16 @@ jobs:
           # wal_level=minimal change nothing here: on this tmpfs Postgres
           # took 50.7 % of the busy CPU seconds with them and 48.6-51.2 %
           # without (full suite, 13.11.2026).
-          POSTGRES_INITDB_ARGS: --set max_connections=300
+          #
+          # scram_iterations=1: the suite opens thousands of password logins,
+          # and a SCRAM verifier with the default 4096 iterations made Postgres
+          # and the client each derive the key 4096 times per login (11.3 ms
+          # CPU per connection against 3.1 ms, pgbench -C, 14.11.2026). initdb
+          # applies --set to the superuser password it stores and writes it to
+          # postgresql.conf, so the roles the migrations and the snapshot
+          # restore create get one-iteration verifiers too. Passwords are still
+          # checked; pg_hba keeps scram-sha-256 for TCP.
+          POSTGRES_INITDB_ARGS: --set max_connections=300 --set scram_iterations=1
         ports:
           - 5432:5432
         # Package database drops force checkpoints. These disposable databases
@@ -699,9 +708,12 @@ jobs:
           docker pull --quiet "${MAILPIT_IMAGE}" & mailpit_pull=$!
           wait "${postgres_pull}"
           wait "${mailpit_pull}"
+          # One-iteration SCRAM verifiers as in "Backend tests": logins cost
+          # less CPU, passwords are still checked.
           docker run --detach --name seed-postgres --publish 5432:5432 \
             --env POSTGRES_DB=phoenix_seed --env POSTGRES_USER=postgres \
             --env POSTGRES_PASSWORD=postgres --env TZ=Europe/Berlin \
+            --env POSTGRES_INITDB_ARGS="--set scram_iterations=1" \
             "${POSTGRES_IMAGE}" > /dev/null
           docker run --detach --name seed-mailpit --publish 1025:1025 --publish 8025:8025 \
             "${MAILPIT_IMAGE}" > /dev/null
@@ -906,11 +918,22 @@ jobs:
           echo "server did not become healthy in 60s"
           exit 1
 
-      - name: Seed all four profiles and verify enrollment, withdrawal, web and NFC flows
+      # The standing demo school (#3461) seeds beside the four profiles: one
+      # after the other took about a minute longer (#6962). It has a Träger
+      # of its own, so the Träger steps of either seed see only their own
+      # schools. The demo starts once the seed has invited its caterer:
+      # - by then the seed's operator login is done; both sign in as the
+      #   same operator, and a new MFA challenge voids the open one;
+      # - the outbox sends in order, and the demo's mail queued before the
+      #   caterer's invitation held it back past the seed's minute of waiting
+      #   (local run, caterer tables empty).
+      # The simulation moves the clock and starts after both.
+      - name: Seed all four profiles and the standing demo school, verify enrollment, withdrawal, web and NFC flows
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/devtools" seed \
+          started=$(date +%s)
+          "${RUNNER_TEMP}/bg-start" seed "${RUNNER_TEMP}/devtools" seed \
             --email "${OPERATOR_EMAIL}" \
             --password "${OPERATOR_PASSWORD}" \
             --pin "${OGS_DEVICE_PIN}" \
@@ -918,6 +941,41 @@ jobs:
             --tenant-slug vollbetrieb \
             --staff-password 'SeedSmoke1234%' \
             --admin-email ines.lindner@ganztag-nord.example
+          invited='^  caterer .* invited$'
+          for _ in $(seq 1 1500); do
+            grep -q "${invited}" "${RUNNER_TEMP}/seed.log" 2>/dev/null && break
+            test -s "${RUNNER_TEMP}/seed.status" && break
+            sleep 0.2
+          done
+          demo_started=$(date +%s)
+          if ! grep -q "${invited}" "${RUNNER_TEMP}/seed.log"; then
+            echo "the seed has not invited its caterer; the standing demo does not start"
+            "${RUNNER_TEMP}/bg-wait" seed 900 || true
+            exit 1
+          fi
+          # Reset only consumed challenge fixtures in this disposable CI
+          # database; keep production limits unchanged.
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
+            'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
+          "${RUNNER_TEMP}/bg-start" standing-demo "${RUNNER_TEMP}/devtools" demo \
+            --url http://localhost:8080 --uploads-root public/uploads --once --demo-standing-school
+          failed=0
+          echo "::group::Seed of the four profiles"
+          "${RUNNER_TEMP}/bg-wait" seed 900 || failed=1
+          echo "::endgroup::"
+          echo "::group::Standing demo school"
+          "${RUNNER_TEMP}/bg-wait" standing-demo 900 || failed=1
+          echo "::endgroup::"
+          echo "standing demo started $((demo_started - started))s after the seed"
+          for job in seed standing-demo; do
+            if test -s "${RUNNER_TEMP}/${job}.status"; then
+              echo "${job}: $(( $(stat -c %Y "${RUNNER_TEMP}/${job}.status") - started ))s after the start"
+            fi
+          done
+          test "${failed}" = 0
+          traeger=$(psql "${DB_DSN}" -At -c "SELECT o.slug FROM platform.schools s JOIN platform.organizations o ON o.id = s.organization_id WHERE s.slug = 'messe-demo'")
+          echo "Träger of the standing demo school: ${traeger}"
+          test "${traeger}" = demo-traeger-messe
 
       - name: Simulate a full care day
         if: ${{ matrix.scenario == 'profiles' }}
@@ -981,16 +1039,14 @@ jobs:
             test "${datev}" -gt 0
           done
 
-      - name: Provision and restart the standing demo school
+      # The standing school is the fallback of #3463 and keeps its coverage:
+      # provisioned beside the seed, restarted here from its stored state
+      # without an operator login. Its login's challenge stays for the
+      # coverage ratchet.
+      - name: Restart the standing demo school
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          # Reset only consumed challenge fixtures in this disposable CI
-          # database; keep production limits unchanged.
-          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
-            'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
-          # The standing school is the fallback of #3463 and keeps its coverage.
-          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once --demo-standing-school
           "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once --demo-standing-school
 
       # One demo school per demo access (#3463): queue what the serving backend

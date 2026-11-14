@@ -35,6 +35,24 @@ var paymentTextMaxLength = 600
 
 var parentBillingDefinitions = []config.Definition{
 	{
+		Key:             config.KeyParentBillingDebtorNumberScope,
+		Levels:          config.LevelTraeger,
+		Label:           "Debitorennummer gilt je",
+		Description:     "Zahler: Jeder Rechnungsempfänger hat eine Nummer, Geschwister teilen sie. Kind: Jedes Kind hat eine eigene Nummer. Wenn Sie umstellen, bleiben alle gespeicherten Nummern erhalten, und ausgestellte Rechnungen behalten ihre Nummer. Neue Rechnungen nehmen ab dann die Nummer nach der neuen Einstellung. Fehlt sie dort, bleibt die Rechnung ohne Nummer.",
+		Type:            config.FieldSelect,
+		Default:         "payer",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "ferien",
+		Category:        "ferien-bestaetigung",
+		SortOrder:       9,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Zahler (Rechnungsempfänger)", Value: "payer"},
+				{Label: "Kind", Value: "child"},
+			},
+		},
+	}, {
 		Key:             config.KeyParentBillingDebtorNumberOnConfirm,
 		Levels:          config.LevelTraeger,
 		Label:           "Debitorennummer beim Bestätigen abfragen",

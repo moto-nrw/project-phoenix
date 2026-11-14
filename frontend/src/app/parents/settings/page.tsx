@@ -82,7 +82,12 @@ function ParentSettingsContent() {
               {pageUrl ? (
                 <SamsungChromeInstructions pageUrl={pageUrl} />
               ) : (
-                <ButtonLink href={installHelpHref} variant="surface" size="md">
+                <ButtonLink
+                  href={installHelpHref}
+                  variant="surface"
+                  size="md"
+                  tooltip={t("appInstallGuideTooltip")}
+                >
                   {t("appInstallGuide")}
                 </ButtonLink>
               )}

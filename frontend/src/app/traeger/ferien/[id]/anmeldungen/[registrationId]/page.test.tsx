@@ -622,6 +622,177 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("lists every mail of the registration with its status (#6976)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      mails: [
+        {
+          kind: "holiday_registration_received",
+          outcome: "delivered",
+          createdAt: null,
+        },
+        {
+          kind: "holiday_registration_accepted",
+          outcome: "accepted",
+          createdAt: null,
+        },
+        { kind: "holiday_place_granted", outcome: "queued", createdAt: null },
+        { kind: "holiday_closure_notice", outcome: "blocked", createdAt: null },
+        {
+          kind: "holiday_parent_account_offer",
+          outcome: "undeliverable",
+          createdAt: null,
+        },
+      ],
+      mailProblems: [
+        { kind: "holiday_closure_notice", state: "blocked" },
+        { kind: "holiday_parent_account_offer", state: "failed" },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    const section = (
+      await screen.findByRole("heading", { name: "Mails" })
+    ).closest("section");
+    expect(section).not.toBeNull();
+    const rows = within(section!).getAllByRole("listitem");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "EingangsbestätigungZugestellt",
+      "Annahme-MailVersendet",
+      "Mail zum FerienplatzWird gesendet",
+      "Mail zu SchließtagenNicht gesendet",
+      "Mail zum ElternkontoNicht zustellbar",
+    ]);
+    expect(
+      within(section!).getByText(
+        "Bei mindestens einer Mail gibt es ein Problem. Informieren Sie die Familie am besten per Telefon. Prüfen Sie die E-Mail-Adresse unter „Eltern“ und ändern Sie sie, wenn sie falsch ist.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Mail zu Schließtagen wurde nicht gesendet. An diese Adresse gehen zurzeit keine Mails.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Mail zum Elternkonto hat die Eltern nicht erreicht.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps two closing day notices apart by their date (#6976)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      mails: [
+        {
+          kind: "holiday_closure_notice",
+          outcome: "send_failed",
+          createdAt: "2026-11-11T13:05:00Z",
+        },
+        {
+          kind: "holiday_closure_notice",
+          outcome: "unknown",
+          createdAt: "2026-11-12T08:30:00Z",
+        },
+      ],
+      mailProblems: [
+        { kind: "holiday_closure_notice", state: "failed" },
+        { kind: "holiday_closure_notice", state: "unknown" },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    const section = (
+      await screen.findByRole("heading", { name: "Mails" })
+    ).closest("section");
+    expect(
+      within(section!)
+        .getAllByRole("listitem")
+        .map((row) => row.textContent),
+    ).toEqual([
+      "Mail zu Schließtagenam 11.11.2026, 14:05 UhrFehlgeschlagen",
+      "Mail zu Schließtagenam 12.11.2026, 09:30 UhrErgebnis unbekannt",
+    ]);
+    expect(
+      screen.getByText(
+        "Die Mail zu Schließtagen hat die Eltern nicht erreicht.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Ob die Mail zu Schließtagen angekommen ist, ist unklar.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says what the parents did when they reported a mail or unsubscribed (#6976)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      mails: [
+        {
+          kind: "holiday_registration_received",
+          outcome: "complained",
+          createdAt: null,
+        },
+        {
+          kind: "holiday_registration_accepted",
+          outcome: "unsubscribed",
+          createdAt: null,
+        },
+      ],
+      mailProblems: [
+        { kind: "holiday_registration_received", state: "complained" },
+        { kind: "holiday_registration_accepted", state: "unsubscribed" },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Eltern haben die Eingangsbestätigung als unerwünscht gemeldet.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Nach der Annahme-Mail haben sich die Eltern von den Mails abgemeldet.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/wurde nicht gesendet/)).not.toBeInTheDocument();
+    const section = screen
+      .getByRole("heading", { name: "Mails" })
+      .closest("section");
+    expect(within(section!).getByText("Nicht zustellbar")).toBeInTheDocument();
+    expect(within(section!).getByText("Abgemeldet")).toBeInTheDocument();
+  });
+
+  it("shows no mail section before any mail exists (#6976)", async () => {
+    mockRegistration.mockResolvedValue({ ...HOLIDAY_REGISTRATION, mails: [] });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Eltern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Mails" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("says when moto deletes the registration and downloads it as a PDF (#6691)", async () => {
     mockRegistration.mockResolvedValue({
       ...HOLIDAY_REGISTRATION,

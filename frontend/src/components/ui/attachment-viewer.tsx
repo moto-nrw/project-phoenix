@@ -12,6 +12,7 @@ import {
 
 import { createLogger } from "~/lib/logger";
 import { useScrollLock } from "./overlay-stack";
+import { ActionHint } from "./action-hint";
 import { buttonClassName, Button } from "./button";
 import { CloseIcon } from "./close-icon";
 import { FileTypeIcon } from "./file-type-icon";
@@ -43,7 +44,11 @@ export interface AttachmentViewerLabels {
   readonly previous: string;
   readonly next: string;
   readonly download: string;
+  /** What download does (#6744), shown on hover and focus. */
+  readonly downloadHint: string;
   readonly openInNewTab: string;
+  /** What opening in a new tab does (#6744). */
+  readonly openInNewTabHint: string;
   /** Office files and every other type a browser cannot show. */
   readonly notViewable: string;
   /** A PDF on a device whose browser has no PDF viewer. */
@@ -57,7 +62,9 @@ const GERMAN_LABELS: AttachmentViewerLabels = {
   previous: "Vorheriger Anhang",
   next: "Nächster Anhang",
   download: "Herunterladen",
+  downloadHint: "Speichert die Datei auf Ihrem Gerät.",
   openInNewTab: "In neuem Tab öffnen",
+  openInNewTabHint: "Öffnet die Datei in einem neuen Tab.",
   notViewable:
     "Diese Datei lässt sich hier nicht anzeigen. Laden Sie sie herunter, um sie zu öffnen.",
   notViewableOnDevice:
@@ -181,19 +188,21 @@ export function AttachmentViewer({
               {labels.position(index + 1, items.length)}
             </p>
           ) : null}
-          <a
-            href={downloadHref}
-            download={item.name}
-            aria-label={`${labels.download}: ${item.name}`}
-            className={buttonClassName({
-              variant: "ghost_tone",
-              size: "icon",
-              className: "",
-            })}
-            data-icon-only=""
-          >
-            <Download className="h-5 w-5" aria-hidden="true" />
-          </a>
+          <ActionHint text={labels.downloadHint}>
+            <a
+              href={downloadHref}
+              download={item.name}
+              aria-label={`${labels.download}: ${item.name}`}
+              className={buttonClassName({
+                variant: "ghost_tone",
+                size: "icon",
+                className: "",
+              })}
+              data-icon-only=""
+            >
+              <Download className="h-5 w-5" aria-hidden="true" />
+            </a>
+          </ActionHint>
           <Button
             type="button"
             variant="ghost_tone"
@@ -353,31 +362,35 @@ function PdfBody({ item, downloadHref, loadFile, labels }: BodyProps) {
         className="pointer-events-auto aspect-auto min-h-0 flex-1"
       />
       <div className="pointer-events-auto flex flex-wrap justify-center gap-2">
-        <a
-          href={url ?? item.src}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={buttonClassName({
-            variant: "surface",
-            size: "compact",
-            className: "gap-1.5",
-          })}
-        >
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          {labels.openInNewTab}
-        </a>
-        <a
-          href={downloadHref}
-          download={item.name}
-          className={buttonClassName({
-            variant: "surface",
-            size: "compact",
-            className: "gap-1.5",
-          })}
-        >
-          <Download className="h-4 w-4" aria-hidden="true" />
-          {labels.download}
-        </a>
+        <ActionHint text={labels.openInNewTabHint}>
+          <a
+            href={url ?? item.src}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={buttonClassName({
+              variant: "surface",
+              size: "compact",
+              className: "gap-1.5",
+            })}
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            {labels.openInNewTab}
+          </a>
+        </ActionHint>
+        <ActionHint text={labels.downloadHint}>
+          <a
+            href={downloadHref}
+            download={item.name}
+            className={buttonClassName({
+              variant: "surface",
+              size: "compact",
+              className: "gap-1.5",
+            })}
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            {labels.download}
+          </a>
+        </ActionHint>
       </div>
     </div>
   );
@@ -408,32 +421,36 @@ function FilePanel({
       <p className="mt-4 text-base font-semibold break-words">{item.name}</p>
       {meta ? <p className="mt-1 text-xs text-gray-500">{meta}</p> : null}
       <p className="mt-4 text-sm text-gray-600">{text}</p>
-      <a
-        href={downloadHref}
-        download={item.name}
-        className={buttonClassName({
-          variant: "primary",
-          size: "md",
-          className: "mt-5 gap-2",
-        })}
-      >
-        <Download className="h-4 w-4" aria-hidden="true" />
-        {labels.download}
-      </a>
-      {openHref ? (
+      <ActionHint text={labels.downloadHint}>
         <a
-          href={openHref}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={downloadHref}
+          download={item.name}
           className={buttonClassName({
-            variant: "surface",
+            variant: "primary",
             size: "md",
-            className: "mt-2 gap-2",
+            className: "mt-5 gap-2",
           })}
         >
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          {labels.openInNewTab}
+          <Download className="h-4 w-4" aria-hidden="true" />
+          {labels.download}
         </a>
+      </ActionHint>
+      {openHref ? (
+        <ActionHint text={labels.openInNewTabHint}>
+          <a
+            href={openHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={buttonClassName({
+              variant: "surface",
+              size: "md",
+              className: "mt-2 gap-2",
+            })}
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            {labels.openInNewTab}
+          </a>
+        </ActionHint>
       ) : null}
     </div>
   );

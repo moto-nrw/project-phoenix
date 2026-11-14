@@ -1248,7 +1248,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p *OperatorProvisioning) RevokeOperatorInvitationByActor(ctx context.Context, invitationID, actorID int64, ipAddress string) error {\n\tif p == nil {\n\t\treturn errOperatorProvisioningUnavailable\n\t}\n\tctx = bindRuntime(p.attach, ctx)\n\tif err := p.tokens.RevokeInvitation(ctx, invitationID); err != nil {\n\t\treturn operatorProvisioningError(err)\n\t}\n\tp.record(ctx, domain.OperatorAuditEntry{OperatorID: actorID, Action: domain.OperatorAuditActionInvitationRevoked, ResourceType: domain.OperatorAuditResourceInvitation, ResourceID: \u0026invitationID, IPAddress: ipAddress}, \"invitation revocation\")\n\treturn nil\n}",
+      "evidence": "func (p *OperatorProvisioning) RevokeOperatorInvitationByActor(ctx context.Context, invitationID, actorID int64, ipAddress string) error {\n\tif p == nil {\n\t\treturn errOperatorProvisioningUnavailable\n\t}\n\tctx = bindRuntime(p.attach, ctx)\n\treturn operatorProvisioningError(p.tokens.RevokeInvitation(ctx, invitationID, func(txCtx context.Context) error {\n\t\treturn p.record(txCtx, domain.OperatorAuditEntry{OperatorID: actorID, Action: domain.OperatorAuditActionInvitationRevoked, ResourceType: domain.OperatorAuditResourceInvitation, ResourceID: \u0026invitationID, IPAddress: ipAddress})\n\t}))\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorProvisioning.RevokeOperatorInvitationByActor",
       "owner": "modules/identityaccess"
@@ -1363,13 +1363,6 @@
       "evidence": "func (t *OperatorTokens) RevokeExpiredEmailChanges(ctx context.Context) (result int, err error) {\n\terr = t.run(ctx, \"revoke_expired_operator_email_changes\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\trevoked, queryStats, revokeErr := t.store.RevokeExpiredOperatorEmailChanges(txCtx, t.now())\n\t\tstats.Add(queryStats)\n\t\tresult = revoked\n\t\treturn revokeErr\n\t})\n\treturn result, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeExpiredEmailChanges",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
-      "evidence": "func (t *OperatorTokens) RevokeInvitation(ctx context.Context, id int64) error {\n\treturn t.run(ctx, \"revoke_operator_invitation\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tchanged, queryStats, err := t.store.RevokeOperatorInvitation(txCtx, id, t.now())\n\t\tstats.Add(queryStats)\n\t\treturn stateChange(changed, err, identityaccess.ErrOperatorInvitationNotFound)\n\t})\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeInvitation",
       "owner": "modules/identityaccess"
     },
     {

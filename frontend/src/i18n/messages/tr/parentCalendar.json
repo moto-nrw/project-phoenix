@@ -30,5 +30,37 @@
   "moreEvents": "+ {count} daha",
   "responseRequired": "Yanıt gerekli",
   "errorObjectList": "randevu listesi",
-  "errorObjectResponse": "yanıt"
+  "errorObjectResponse": "yanıt",
+  "responseRequiredSeries": "Serideki tüm tarihler için yanıt",
+  "answerScope": {
+    "legend": "Yanıtınız şunun için geçerli",
+    "occurrence": "Sadece {date}",
+    "series": "Tüm tarihler",
+    "occurrenceHintOthers": "Serideki diğer tarihler yanıtlarını korur.",
+    "occurrenceHintOpen": "Serideki diğer tarihler yanıtsız kalır.",
+    "occurrenceHintKeeps": "Diğer tarihler için geçerli olan: {answer}.",
+    "seriesHint": "Yanıtınız bu serideki tüm tarihler için geçerlidir.",
+    "seriesHintReplaces": "Yanıtınız o zaman tek tek yanıtlananlar dahil tüm tarihler için geçerli olur."
+  },
+  "onlyThisDate": "Sadece bu tarih için",
+  "changeAnswer": "Yanıtı değiştir",
+  "acceptedOn": "{date} için katılım onaylandı.",
+  "declinedOn": "{date} için katılım reddedildi.",
+  "errorObjectOverview": "yanıtlar",
+  "responses": {
+    "title": "Yanıtlar",
+    "accepted": "Kabul",
+    "declined": "Ret",
+    "pending": "Açık",
+    "privacy": "Diğer velilerin adlarını göremezsiniz."
+  },
+  "openEventTooltip": "Bu randevunun ayrıntılarını gösterir veya gizler.",
+  "acceptTooltip": "Hemen kabul eder. Cevabı daha sonra yine değiştirebilirsiniz.",
+  "declineTooltip": "Hemen reddeder. Cevabı daha sonra yine değiştirebilirsiniz.",
+  "previousMonthTooltip": "Önceki ayın randevularını gösterir.",
+  "nextMonthTooltip": "Sonraki ayın randevularını gösterir.",
+  "previousMonthBlocked": "Takvim geçmiş ayları göstermez.",
+  "nextMonthBlocked": "Takvim sonraki ayları henüz göstermez.",
+  "closeTooltip": "Ayrıntıları kapatır ve takvimi yeniden gösterir.",
+  "changeAnswerTooltip": "“Katılıyoruz” ve “Katılmıyoruz” yeniden görünür. Yeni seçim yapana kadar cevabınız kalır."
 }

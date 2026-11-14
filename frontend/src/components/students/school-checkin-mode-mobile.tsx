@@ -1,12 +1,16 @@
 "use client";
 
 import { BELOW_MD } from "~/lib/hooks/use-media-query";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { CheckSquare, LogIn, LogOut, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { SelectionBar } from "~/components/ui/selection-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import {
+  CHECKIN_HINTS,
+  selectAllBlockedReason,
+} from "~/components/students/school-checkin-hints";
 import {
   leftOutLabel,
   type SelectAllControl,
@@ -20,6 +24,8 @@ const CHECKIN_BAR_OFFSET_VAR = "--moto-checkin-bar-offset";
 const CHECKIN_BAR_OFFSET = "7.25rem";
 const CHECKIN_SELECTION_BAR_OFFSET = "9.5rem";
 const CHECKIN_SELECTION_LEFT_OUT_BAR_OFFSET = "11.75rem";
+// The „Anmelden in“ row (#6953) adds a 44 px select and its gap.
+const CHECKIN_TARGET_ROW_OFFSET = "3.25rem";
 
 interface SchoolCheckinModeMobileProps {
   /** Whether the page is currently in check-in/out mode. */
@@ -40,6 +46,8 @@ interface SchoolCheckinModeMobileProps {
   readonly runningAction?: "in" | "out" | null;
   /** „Alle N auswählen“ for the children on screen (#4762). */
   readonly selectAll?: SelectAllControl;
+  /** „Anmelden in“ (#6953): where a check-in puts the children. */
+  readonly targetPicker?: ReactNode;
   /**
    * Locks the trigger, e.g. while a bulk request is in flight (#2359): the
    * hook ignores mode exits during a run, so "Fertig" mirrors that as a
@@ -74,14 +82,21 @@ export function SchoolCheckinModeMobile({
   onBulkAction,
   runningAction = null,
   selectAll,
+  targetPicker,
   disabled = false,
 }: SchoolCheckinModeMobileProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const leftOut =
     selectionActive && selectAll ? leftOutLabel(selectAll.leftOutCount) : null;
-  const selectionOffset = leftOut
-    ? CHECKIN_SELECTION_LEFT_OUT_BAR_OFFSET
-    : CHECKIN_SELECTION_BAR_OFFSET;
+  const baseOffset = selectionActive
+    ? leftOut
+      ? CHECKIN_SELECTION_LEFT_OUT_BAR_OFFSET
+      : CHECKIN_SELECTION_BAR_OFFSET
+    : CHECKIN_BAR_OFFSET;
+  const hasTargetRow = targetPicker !== undefined && targetPicker !== null;
+  const barOffset = hasTargetRow
+    ? `calc(${baseOffset} + ${CHECKIN_TARGET_ROW_OFFSET})`
+    : baseOffset;
 
   useEffect(() => {
     if (!attendanceWebEnabled || !isActive) return;
@@ -89,10 +104,7 @@ export function SchoolCheckinModeMobile({
     const mediaQuery = window.matchMedia(BELOW_MD);
     const publishOffset = () => {
       if (mediaQuery.matches) {
-        root.style.setProperty(
-          CHECKIN_BAR_OFFSET_VAR,
-          selectionActive ? selectionOffset : CHECKIN_BAR_OFFSET,
-        );
+        root.style.setProperty(CHECKIN_BAR_OFFSET_VAR, barOffset);
       } else {
         root.style.removeProperty(CHECKIN_BAR_OFFSET_VAR);
       }
@@ -103,7 +115,7 @@ export function SchoolCheckinModeMobile({
       mediaQuery.removeEventListener("change", publishOffset);
       root.style.removeProperty(CHECKIN_BAR_OFFSET_VAR);
     };
-  }, [attendanceWebEnabled, isActive, selectionActive, selectionOffset]);
+  }, [attendanceWebEnabled, isActive, barOffset]);
 
   if (!attendanceWebEnabled) return null;
   if (!isActive) {
@@ -113,6 +125,7 @@ export function SchoolCheckinModeMobile({
         onClick={onToggle}
         aria-pressed={false}
         aria-label="Kinder an- und abmelden"
+        tooltip={CHECKIN_HINTS.start}
         variant="surface"
         size="base"
         className="w-full gap-2"
@@ -167,6 +180,7 @@ export function SchoolCheckinModeMobile({
             onClick={onToggle}
             disabled={disabled}
             aria-label="Fertig, An- und Abmelde-Modus beenden"
+            tooltip={CHECKIN_HINTS.finish}
             className="shrink-0"
           >
             Fertig
@@ -206,10 +220,18 @@ export function SchoolCheckinModeMobile({
                 disabled={
                   selectAll.count === 0 || selectAll.allSelected || disabled
                 }
+                tooltip={CHECKIN_HINTS.selectAll}
+                disabledReason={selectAllBlockedReason(selectAll)}
               >
                 Alle {selectAll.count} auswählen
               </Button>
             ) : null}
+          </div>
+        ) : null}
+
+        {hasTargetRow ? (
+          <div className="mt-1.5 border-t border-gray-100 pt-1.5">
+            {targetPicker}
           </div>
         ) : null}
 
@@ -233,6 +255,10 @@ export function SchoolCheckinModeMobile({
                 onClearSelection === undefined
               }
               aria-label="Auswahl aufheben"
+              tooltip={CHECKIN_HINTS.clearSelection}
+              disabledReason={
+                selectedCount === 0 ? CHECKIN_HINTS.noneSelected : undefined
+              }
             >
               <X className="size-3.5" aria-hidden />
             </Button>
@@ -244,6 +270,10 @@ export function SchoolCheckinModeMobile({
               onClick={() => onBulkAction?.("in")}
               disabled={
                 selectedCount === 0 || disabled || onBulkAction === undefined
+              }
+              tooltip={CHECKIN_HINTS.checkIn}
+              disabledReason={
+                selectedCount === 0 ? CHECKIN_HINTS.noneSelected : undefined
               }
             >
               {runningAction === "in" ? (
@@ -261,6 +291,10 @@ export function SchoolCheckinModeMobile({
               onClick={() => onBulkAction?.("out")}
               disabled={
                 selectedCount === 0 || disabled || onBulkAction === undefined
+              }
+              tooltip={CHECKIN_HINTS.checkOut}
+              disabledReason={
+                selectedCount === 0 ? CHECKIN_HINTS.noneSelected : undefined
               }
             >
               {runningAction === "out" ? (

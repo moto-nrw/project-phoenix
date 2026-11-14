@@ -156,6 +156,7 @@ function HolidayRegistrationCard({
               variant="outline"
               size="md"
               className="shrink-0 max-sm:w-full"
+              tooltip={t("toDocumentsTooltip")}
             >
               {t("toDocuments")}
             </ButtonLink>

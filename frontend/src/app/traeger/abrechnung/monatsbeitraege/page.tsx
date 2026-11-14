@@ -223,6 +223,7 @@ export default function TraegerMonatsbeitraegePage() {
           variant="primary"
           size="md"
           disabled={!data}
+          tooltip="Öffnet ein Fenster, um einen Monatslauf für Monat und Schulen zu starten."
           onClick={() => setStarting(true)}
         >
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -258,6 +259,7 @@ export default function TraegerMonatsbeitraegePage() {
                   href={traegerPath("/traeger/abrechnung/preise")}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Preisliste, dort tragen Sie die Preise ein."
                 >
                   Preisliste öffnen
                 </ButtonLink>
