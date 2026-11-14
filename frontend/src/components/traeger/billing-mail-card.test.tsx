@@ -140,7 +140,7 @@ describe("BillingMailCard", () => {
   it.each([
     ["provider_blocked", "Nicht gesendet"],
     ["unsubscribed", "Abgemeldet"],
-    ["complained", "Nicht zustellbar"],
+    ["complained", "Als unerwünscht gemeldet"],
   ] as const)(
     "points to the print and offers no useless resend while the provider holds %s",
     async (mailOutcome, label) => {

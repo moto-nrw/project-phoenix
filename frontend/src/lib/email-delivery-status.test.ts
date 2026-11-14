@@ -24,6 +24,15 @@ describe("mailStatusCopy", () => {
     expect(mailStatusCopy("delivered")?.label).toBe("Zugestellt");
   });
 
+  it("never calls a reported mail undelivered (#6999)", () => {
+    expect(mailStatusCopy("complained")?.label).toBe(
+      "Als unerwünscht gemeldet",
+    );
+    expect(mailStatusCopy("complained")?.label).not.toBe(
+      mailStatusCopy("undeliverable")?.label,
+    );
+  });
+
   it("lets the mark of an address outrank the mail", () => {
     expect(mailStatusCopy("delivered", "failed")?.label).toBe("Adresse prüfen");
     expect(mailStatusCopy("accepted", "", true)?.label).toBe(
