@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { MailOutcome } from "~/lib/email-delivery-status";
 import { createLogger } from "~/lib/logger";
@@ -125,6 +126,21 @@ function holidayMailProblemText(
 }
 
 /**
+ * Brings a card of the page into view and moves the focus to its heading, so
+ * a keyboard or screen reader user lands there too. Without the card (the
+ * parents are being edited) nothing happens: the editor is already open.
+ */
+function showSection(id: string) {
+  const section = globalThis.document?.getElementById(id);
+  if (!section) return;
+  section.scrollIntoView?.({ block: "start" });
+  const heading = section.querySelector<HTMLElement>("h2, h3");
+  if (!heading) return;
+  heading.tabIndex = -1;
+  heading.focus({ preventScroll: true });
+}
+
+/**
  * The notice in the registration: every mail with a problem and what to do.
  * It is the one place for the next step; the list of mails below only shows
  * each mail's status (#6999).
@@ -133,15 +149,32 @@ export function HolidayRegistrationMailProblemsAlert({
   problems,
   outcomes,
   cancelled,
+  parentsSectionId,
 }: Readonly<{
   problems: readonly HolidayRegistrationMailProblem[];
   /** What became of each mail; it decides whether the address may be wrong. */
   outcomes: readonly MailOutcome[];
   cancelled: boolean;
+  /**
+   * The card with the parents' phone and address. Both next steps happen
+   * there, so the notice leads to it (#6999).
+   */
+  parentsSectionId: string;
 }>) {
   if (problems.length === 0) return null;
   return (
     <Alert
+      action={
+        <Button
+          type="button"
+          variant="surface"
+          size="compact"
+          tooltip="Springt zu Telefon und E-Mail-Adresse der Eltern."
+          onClick={() => showSection(parentsSectionId)}
+        >
+          Zu den Eltern
+        </Button>
+      }
       type="warning"
       title={
         problems.length === 1

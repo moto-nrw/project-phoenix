@@ -7,7 +7,15 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
@@ -623,6 +631,40 @@ describe("TraegerHolidayRegistrationPage", () => {
         "Die Annahme-Mail wurde nicht gesendet. An diese Adresse gehen zurzeit keine Mails.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("leads from the mail notice to the parents' phone and address (#6999)", async () => {
+    const scrolled = vi
+      .spyOn(Element.prototype, "scrollIntoView")
+      .mockImplementation(() => undefined);
+    onTestFinished(() => scrolled.mockRestore());
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      mails: [
+        {
+          kind: "holiday_registration_received",
+          outcome: "undeliverable",
+          createdAt: null,
+        },
+      ],
+      mailProblems: [
+        { kind: "holiday_registration_received", state: "failed" },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Zu den Eltern" }),
+    );
+
+    const parents = screen.getByRole("heading", { name: "Eltern" });
+    expect(parents).toHaveFocus();
+    expect(scrolled).toHaveBeenCalledWith({ block: "start" });
+    expect(scrolled.mock.contexts[0]).toBe(parents.closest("section"));
   });
 
   it("shows no mail warning while the mails are on their way (#6737)", async () => {

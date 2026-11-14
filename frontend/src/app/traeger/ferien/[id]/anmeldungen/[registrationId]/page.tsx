@@ -118,6 +118,8 @@ const PDF_LABELS: AttachmentLabels = {
 
 const logger = createLogger({ component: "TraegerHolidayRegistrationPage" });
 const TRAEGER_BILLING_RIGHT = "traeger_billing:manage";
+// The mail notice leads here: phone and address of the parents (#6999).
+const PARENTS_SECTION_ID = "eltern";
 
 // The edit states load with the first „Ändern“, not with the page.
 const editors = () => import("~/components/traeger/holiday-registration-edit");
@@ -495,6 +497,7 @@ export default function TraegerHolidayRegistrationPage() {
             problems={registration.mailProblems}
             outcomes={(registration.mails ?? []).map((mail) => mail.outcome)}
             cancelled={cancelled}
+            parentsSectionId={PARENTS_SECTION_ID}
           />
           <HolidayRegistrationStatusCard
             periodId={periodId}
@@ -604,6 +607,8 @@ export default function TraegerHolidayRegistrationPage() {
             />
           ) : (
             <SectionCard
+              id={PARENTS_SECTION_ID}
+              className="scroll-mt-24"
               leading={<ConceptIconTile concept={parentsConcept} />}
               title="Eltern"
               description={cancelled ? CANCELLED_EDIT_TEXT : undefined}
