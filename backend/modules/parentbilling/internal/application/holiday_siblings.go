@@ -91,12 +91,8 @@ func (m siblingMember) chainMember() holidayMember {
 func frozenHolidayBookings(lines []parentbilling.HolidayContributionLine, current []parentbilling.HolidayBooking) []parentbilling.HolidayBooking {
 	var bookings []parentbilling.HolidayBooking
 	for _, line := range lines {
-		if line.Kind == parentbilling.LineMeal && line.WeekStartsOn != nil && line.WeekEndsOn != nil && line.BookedDays != nil {
-			if i := slices.IndexFunc(bookings, func(b parentbilling.HolidayBooking) bool {
-				return b.LunchDays == 0 && pricesHolidayWeek(b, line.WeekID, *line.WeekStartsOn, *line.WeekEndsOn)
-			}); i >= 0 {
-				bookings[i].LunchDays, bookings[i].LunchCents = *line.BookedDays, line.AmountCents
-			}
+		if line.Kind == parentbilling.LineMeal {
+			withFrozenLunch(bookings, line)
 			continue
 		}
 		if line.Kind != parentbilling.LineBase || line.WeekStartsOn == nil || line.WeekEndsOn == nil {
@@ -116,6 +112,20 @@ func frozenHolidayBookings(lines []parentbilling.HolidayContributionLine, curren
 		bookings = append(bookings, booking)
 	}
 	return bookings
+}
+
+// withFrozenLunch gives the frozen booking of the meal line's week its
+// lunches and their price (#5631). The meal lines stand after the base
+// lines, so the booking is there already.
+func withFrozenLunch(bookings []parentbilling.HolidayBooking, line parentbilling.HolidayContributionLine) {
+	if line.WeekStartsOn == nil || line.WeekEndsOn == nil || line.BookedDays == nil {
+		return
+	}
+	if i := slices.IndexFunc(bookings, func(b parentbilling.HolidayBooking) bool {
+		return b.LunchDays == 0 && pricesHolidayWeek(b, line.WeekID, *line.WeekStartsOn, *line.WeekEndsOn)
+	}); i >= 0 {
+		bookings[i].LunchDays, bookings[i].LunchCents = *line.BookedDays, line.AmountCents
+	}
 }
 
 // ListHolidaySiblingGroups lists the groups of the period. They name only

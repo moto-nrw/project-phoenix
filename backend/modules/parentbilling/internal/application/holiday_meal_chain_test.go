@@ -35,7 +35,8 @@ func mealLines(child parentbilling.HolidayChildContribution) []parentbilling.Hol
 
 func TestLunchIsAPositionOfItsOwnAfterTheChain(t *testing.T) {
 	t.Parallel()
-	result := computeHolidayContribution([]parentbilling.HolidayChild{withLunch(chainChild(1, 1, 6500, 6500), 5)}, holidayRules{}, false, nil)
+	booked := withLunch(chainChild(1, 1, 6500, 6500), 5)
+	result := computeHolidayContribution([]parentbilling.HolidayChild{booked}, holidayRules{}, false, nil)
 
 	child := result.Children[0]
 	require.Len(t, child.Lines, 4)
@@ -45,7 +46,7 @@ func TestLunchIsAPositionOfItsOwnAfterTheChain(t *testing.T) {
 	assert.Equal(t, int64(2150), meal.AmountCents, "5 lunches at 4,30 € are 21,50 €")
 	assert.Equal(t, 5, *meal.BookedDays)
 	assert.Equal(t, calendar.NewDate(2027, 7, 5), *meal.WeekStartsOn)
-	assert.Equal(t, int64(1), meal.WeekID)
+	assert.Equal(t, booked.Bookings[0].WeekID, meal.WeekID)
 	assert.Empty(t, meal.TimeModelName)
 	assert.Equal(t, int64(2*6500+2*2150), result.TotalCents)
 }

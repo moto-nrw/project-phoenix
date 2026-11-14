@@ -31,7 +31,7 @@ export function holidayWeeksTopic(): HelpTopic {
       "Öffnen Sie `Ferienwochen`.",
       "Richtet Ihre OGS mehrere Wochen aus, wählen Sie oben die Woche.",
       "Lesen Sie unter `Je Zeitmodell` und `Je Heimatschule` die Zahlen.",
-      "Gibt es in der Woche Mittagessen, steht unter `Mittagessen je Tag`, wie viele Essen Sie für jeden Tag brauchen.",
+      "Gibt es in der Woche Mittagessen, steht unter `Mittagessen je Tag`, wie viele Essen für jeden Tag gebucht sind. An einem Schließtag Ihrer OGS entfällt das Essen.",
       "Kommen Kinder Ihrer OGS? Dann steht unter `Kinder Ihrer OGS`, ob sie eingeplant sind.",
       "Unter `Kinder` steht jedes Kind mit Geburtsdatum, Heimatschule und Zeitmodell.",
       "Bei einem Kind Ihrer OGS öffnen Sie mit `Akte öffnen` seine Kinderakte.",

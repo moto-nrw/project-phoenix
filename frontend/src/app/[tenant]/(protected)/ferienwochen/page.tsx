@@ -289,10 +289,17 @@ const lunchColumns: DataTableColumn<LunchDay>[] = [
   },
 ];
 
-/** "42 Essen in dieser Woche." */
+/**
+ * "20 Essen sind für diese Woche gebucht. …": the list counts what is
+ * booked; a closing day of the school itself is not taken off.
+ */
 function lunchTotalText(lunches: readonly LunchDay[]): string {
   const total = lunches.reduce((sum, day) => sum + day.count, 0);
-  return `${total} Essen in dieser Woche. Die Zahlen brauchen Sie für die Bestellung.`;
+  const booked =
+    total === 1
+      ? "1 Essen ist für diese Woche gebucht."
+      : `${total} Essen sind für diese Woche gebucht.`;
+  return `${booked} An einem Schließtag Ihrer OGS entfällt das Essen.`;
 }
 
 export default function FerienwochenPage() {
