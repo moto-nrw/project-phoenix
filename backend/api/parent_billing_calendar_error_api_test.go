@@ -42,6 +42,7 @@ func parentBillingCalendarRouter(t *testing.T, f reviewFixture, days owners.Holi
 		})
 	})
 	router.Mount("/traeger/holiday-contributions", holiday.TraegerRouter(ProtectedTraegerRoutes))
+	router.Mount("/traeger/holiday-quotes", holiday.QuoteRouter())
 	return testpkg.SessionVerifier(router)
 }
 

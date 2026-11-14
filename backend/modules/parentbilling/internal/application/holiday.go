@@ -401,7 +401,7 @@ func quotedBooking(week parentbilling.HolidayWeek, model parentbilling.HolidayTi
 	}
 	quoted := parentbilling.HolidayBooking{
 		WeekID: week.ID, WeekStartsOn: week.StartsOn, WeekEndsOn: week.EndsOn,
-		TimeModelID: model.ID, TimeModelName: model.Name, PriceCents: price, BookedDays: days, Days: chosen,
+		TimeModelID: model.ID, TimeModelName: model.Name, PriceCents: price, BookedDays: days, Days: chosen, Lunch: lunch,
 	}
 	if !lunch {
 		return quoted, ok

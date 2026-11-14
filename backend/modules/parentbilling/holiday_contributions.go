@@ -258,6 +258,8 @@ type HolidayBooking struct {
 	Promoted bool
 	// ReplacedWeeks preserves the lineage of replacements admitted later.
 	ReplacedWeeks []HolidayBookingReplacement
+	// Lunch records the explicit selection, even when no care days remain.
+	Lunch bool
 	// LunchDays is the number of lunches the booking takes and LunchCents
 	// their price, both zero without lunch (#5631).
 	LunchDays  int

@@ -7,7 +7,7 @@
 // einer Woche mit Mittagessen gehört, ob das Kind dort isst (#5631).
 
 import { School } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
@@ -441,6 +441,7 @@ function RebookingEditor({
   onLunchChange: (lunch: HolidayRebookingLunch) => void;
   error: Parameters<typeof FormErrorAlert>[0]["message"];
 }>) {
+  const lunchId = useId();
   // Booked means billed (ADR 0232): the confirmed contribution follows a
   // lunch added or taken off; an invoice already issued needs a correction.
   const lunchChanged = period.weeks.some(
@@ -584,11 +585,11 @@ function RebookingEditor({
               ) : null}
               {bookedWeek?.id && bookedWeek.lunchPriceCents != null ? (
                 <label
-                  htmlFor={`holiday-rebooking-lunch-${bookedWeek.id}`}
+                  htmlFor={`${lunchId}-lunch-${bookedWeek.id}`}
                   className="flex items-center gap-3 text-sm text-gray-900 sm:justify-end"
                 >
                   <Checkbox
-                    id={`holiday-rebooking-lunch-${bookedWeek.id}`}
+                    id={`${lunchId}-lunch-${bookedWeek.id}`}
                     checked={lunch[bookedWeek.id] ?? false}
                     onChange={(event) =>
                       onLunchChange({

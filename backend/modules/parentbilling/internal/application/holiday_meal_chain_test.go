@@ -18,6 +18,7 @@ import (
 // withLunch gives every booking of the child lunches at 4,30 € each.
 func withLunch(child parentbilling.HolidayChild, lunches int) parentbilling.HolidayChild {
 	for i := range child.Bookings {
+		child.Bookings[i].Lunch = true
 		child.Bookings[i].LunchDays, child.Bookings[i].LunchCents = lunches, int64(lunches)*430
 	}
 	return child
@@ -131,6 +132,7 @@ func TestARebookedLunchChangesTheFrozenContribution(t *testing.T) {
 
 	// The first week loses its lunch, the second keeps it.
 	current := withLunch(chainChild(1, 1, 9900, 9900), 4).Bookings
+	current[0].Lunch = false
 	current[0].LunchDays, current[0].LunchCents = 0, 0
 	frozen := frozenHolidayBookings(first.Children[0].Lines, current)
 	require.Len(t, frozen, 2)
@@ -142,6 +144,7 @@ func TestARebookedLunchChangesTheFrozenContribution(t *testing.T) {
 	// A week confirmed without lunch gains one at the price of today.
 	without := computeHolidayContribution([]parentbilling.HolidayChild{chainChild(1, 1, 6500, 6500)}, holidayRules{}, false, nil)
 	current = chainChild(1, 1, 9900, 9900).Bookings
+	current[1].Lunch = true
 	current[1].LunchDays, current[1].LunchCents = 5, 2500
 	frozen = frozenHolidayBookings(without.Children[0].Lines, current)
 	require.Len(t, frozen, 2)
@@ -242,4 +245,14 @@ func TestMealPositionNamesItsLunchesOnTheInvoice(t *testing.T) {
 	assert.Equal(t, &five, billingPosition(parentbilling.HolidayContributionLine{Kind: parentbilling.LineMeal, BookedDays: &five}).BookedDays)
 	assert.Nil(t, billingPosition(parentbilling.HolidayContributionLine{Kind: parentbilling.LineBase, BookedDays: &five}).BookedDays,
 		"only a meal position names a number on the invoice")
+}
+
+func TestFrozenLunchSurvivesWhenAllBookedDaysClose(t *testing.T) {
+	t.Parallel()
+	first := computeHolidayContribution([]parentbilling.HolidayChild{withLunch(chainChild(1, 1, 6500), 1)}, holidayRules{}, false, nil)
+	current := withLunch(chainChild(1, 1, 9900), 0).Bookings
+
+	frozen := frozenHolidayBookings(first.Children[0].Lines, current)
+	again := computeHolidayContribution([]parentbilling.HolidayChild{{ID: 1, Position: 1, Bookings: frozen}}, holidayRules{}, false, nil)
+	assert.True(t, sameContribution(first, again), "a later closing day does not deselect lunch or change its frozen amount")
 }

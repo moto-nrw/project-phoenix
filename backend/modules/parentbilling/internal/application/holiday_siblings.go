@@ -126,9 +126,10 @@ func withCurrentLunch(bookings, current []parentbilling.HolidayBooking) []parent
 		k := slices.IndexFunc(current, func(b parentbilling.HolidayBooking) bool {
 			return !b.Waitlisted && pricesHolidayWeek(b, frozen.WeekID, frozen.WeekStartsOn, frozen.WeekEndsOn)
 		})
-		if k < 0 || (frozen.LunchDays > 0 && current[k].LunchDays > 0) {
+		if k < 0 || (frozen.Lunch && current[k].Lunch) {
 			continue
 		}
+		bookings[i].Lunch = current[k].Lunch
 		bookings[i].LunchDays, bookings[i].LunchCents = current[k].LunchDays, current[k].LunchCents
 	}
 	return bookings
@@ -144,6 +145,7 @@ func withFrozenLunch(bookings []parentbilling.HolidayBooking, line parentbilling
 	if i := slices.IndexFunc(bookings, func(b parentbilling.HolidayBooking) bool {
 		return b.LunchDays == 0 && pricesHolidayWeek(b, line.WeekID, *line.WeekStartsOn, *line.WeekEndsOn)
 	}); i >= 0 {
+		bookings[i].Lunch = true
 		bookings[i].LunchDays, bookings[i].LunchCents = *line.BookedDays, line.AmountCents
 	}
 }
