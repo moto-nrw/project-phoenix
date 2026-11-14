@@ -40,7 +40,7 @@ import {
   rebookHolidayChild,
 } from "~/lib/traeger-holiday-registrations-api";
 import { traegerPath } from "~/lib/traeger-url";
-import { formatEuro, lunchCountText } from "./contribution-format";
+import { formatEuro } from "./contribution-format";
 import {
   type HolidayRebookingDays,
   type HolidayRebookingDraft,
@@ -314,7 +314,7 @@ export function HolidayRegistrationChildCard({
                     {booking.days && booking.days.length > 0
                       ? ` · ${holidayDayList(booking.days)}`
                       : ""}
-                    {booking.lunch ? ` · ${bookedLunchText(booking)}` : ""}
+                    {booking.lunch ? " · mit Mittagessen" : ""}
                   </span>
                   {cancelled ? null : (
                     <StatusBadge
@@ -403,17 +403,6 @@ export function HolidayRegistrationChildCard({
       </div>
     </SectionCard>
   );
-}
-
-/** "mit Mittagessen (5 Essen zu je 4,30 €)" of a booking with lunch. */
-function bookedLunchText(
-  booking: HolidayRegistrationChild["bookings"][number],
-): string {
-  const lunches = lunchCountText({
-    amountCents: booking.lunchPriceCents ?? 0,
-    bookedDays: booking.lunchDays ?? 0,
-  });
-  return lunches ? `mit Mittagessen (${lunches})` : "mit Mittagessen";
 }
 
 function weeksOverlap(

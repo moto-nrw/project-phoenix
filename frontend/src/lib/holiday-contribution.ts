@@ -37,7 +37,8 @@ export function lunchPriceOf(line: {
   readonly bookedDays?: number | null;
 }): number | null {
   if (!line.bookedDays || line.bookedDays <= 0) return null;
-  return Math.abs(line.amountCents) / line.bookedDays;
+  // Whole cent, like the invoice text (integer division in mealLabel).
+  return Math.trunc(Math.abs(line.amountCents) / line.bookedDays);
 }
 
 interface ChildContribution {
