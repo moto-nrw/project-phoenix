@@ -20,6 +20,7 @@ import { groupAccessConcept } from "~/lib/concepts/groupAccess";
 import { helpConcept } from "~/lib/concepts/help";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
 import { infoDisplaysConcept } from "~/lib/concepts/infoDisplays";
+import { payrollConcept } from "~/lib/concepts/payroll";
 import { reportsConcept } from "~/lib/concepts/reports";
 import { requestsConcept } from "~/lib/concepts/requests";
 import { roomsConcept } from "~/lib/concepts/rooms";
@@ -194,6 +195,14 @@ export const STAFF_NAV_ITEMS: readonly StaffNavItem[] = [
     ...STAFF_FLAT_PAGES.statistics,
     concept: reportsConcept,
     requiresAllPermissions: ["config:read", "users:read"],
+  },
+  {
+    // Lohnabrechnung (#6670 aus der Planung in die Verwaltung): die Routen
+    // schreibt das Backend mit config:manage, dasselbe Recht wie zuvor im
+    // Planungskatalog.
+    ...STAFF_FLAT_PAGES.payroll,
+    concept: payrollConcept,
+    requiresPermission: "config:manage",
   },
   {
     // Ferienwochen (#4665): Teilnehmerliste der ausrichtenden OGS. Das

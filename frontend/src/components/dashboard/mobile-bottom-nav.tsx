@@ -93,6 +93,7 @@ import {
   staffNavSettingOn,
 } from "./staff-nav-items";
 import {
+  getStaffNavDefaultOpenGroups,
   STAFF_NAV_BOTTOM,
   STAFF_NAV_CONCEPTS,
   STAFF_NAV_GROUPS,
@@ -593,12 +594,6 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
     tenantSlug,
     routingMode,
   );
-  // Offene Gruppen im Mehr-Menü (#7048): derselbe gespeicherte Stand wie in
-  // der Seitenleiste, die Gruppe der aktuellen Seite steht offen.
-  const { isGroupOpen, toggleGroup } = useSidebarGroups(
-    pathname,
-    searchParams.get("from"),
-  );
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
   // subdomain/operator/parent mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
@@ -618,6 +613,14 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Get session for role checking
   const { data: session } = useSession();
+  // Offene Gruppen im Mehr-Menü (#7048): derselbe gespeicherte Stand und
+  // dieselbe Voreinstellung der Rolle wie in der Seitenleiste (#6670), die
+  // Gruppe der aktuellen Seite steht offen.
+  const { isGroupOpen, toggleGroup } = useSidebarGroups(
+    pathname,
+    searchParams.get("from"),
+    getStaffNavDefaultOpenGroups(leadsSchool(session)),
+  );
   const changeRequestAccess = useChangeRequestAccess();
 
   // Get supervision state

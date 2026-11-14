@@ -87,7 +87,7 @@ describe("TodayNoticeList", () => {
 
     expect(
       await screen.findByText(
-        `${catalogText("general.unavailable", "die Anzeige der Tagesinformationen")} ${SAVED_BUT_STALE_SUFFIX}`,
+        `${catalogText("general.unavailable", "die Anzeige der Hinweise der Leitung")} ${SAVED_BUT_STALE_SUFFIX}`,
       ),
     ).toBeInTheDocument();
     expect(

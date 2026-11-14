@@ -6,7 +6,7 @@ import {
 } from "~/lib/route-wrapper.server";
 
 /**
- * Proxy GET /api/staff-notices → Backend. Alle Tagesinformationen des
+ * Proxy GET /api/staff-notices → Backend. Alle Hinweise des
  * Mandanten, neueste zuerst (Leitungssicht, inklusive abgeschalteter). Das
  * Backend verlangt Adminrecht.
  */

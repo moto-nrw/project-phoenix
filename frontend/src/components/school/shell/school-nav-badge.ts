@@ -24,7 +24,7 @@ export function schoolNavBadge(
     }
     case "notices": {
       const count = counts.notices?.pendingCount ?? 0;
-      return { count, ariaLabel: `${count} offene Tagesinformationen` };
+      return { count, ariaLabel: `${count} offene Hinweise der Leitung` };
     }
     default:
       return null;

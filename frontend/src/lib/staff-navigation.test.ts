@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { STAFF_FLAT_PAGES } from "~/lib/section-navigation";
 import {
+  getStaffNavDefaultOpenGroups,
   getStaffNavGroupForHref,
   getStaffNavGroupForPathname,
   STAFF_NAV_BOTTOM,
-  STAFF_NAV_DEFAULT_OPEN_GROUPS,
   STAFF_NAV_GROUPS,
   STAFF_NAV_SIMPLE_ENTRIES,
   STAFF_NAV_TOP,
@@ -42,7 +42,30 @@ describe("staff navigation tree", () => {
       "planung",
       "verwaltung",
     ]);
-    expect(STAFF_NAV_DEFAULT_OPEN_GROUPS).toEqual(["tagesbetrieb"]);
+  });
+
+  it("opens the group of the person's own work on a first visit (#6670)", () => {
+    expect(getStaffNavDefaultOpenGroups(true)).toEqual([
+      "tagesbetrieb",
+      "planung",
+    ]);
+    expect(getStaffNavDefaultOpenGroups(false)).toEqual([
+      "tagesbetrieb",
+      "team",
+    ]);
+  });
+
+  it("puts the own pages first in Team and the shared files last (#6670)", () => {
+    const team = STAFF_NAV_GROUPS.find((group) => group.key === "team");
+    const hrefs = (team?.entries ?? []).map((entry) =>
+      entry.kind === "page" ? entry.href : entry.section,
+    );
+    expect(hrefs.slice(0, 3)).toEqual([
+      STAFF_FLAT_PAGES.ownShiftPlan.href,
+      STAFF_FLAT_PAGES.calendar.href,
+      STAFF_FLAT_PAGES.timeTracking.href,
+    ]);
+    expect(hrefs.at(-1)).toBe(STAFF_FLAT_PAGES.dateien.href);
   });
 
   it("puts Alle Kinder directly below Meine Gruppen in the Tagesbetrieb (#4348)", () => {
@@ -81,7 +104,11 @@ describe("staff navigation tree", () => {
       expect(getStaffNavGroupForHref("/time-tracking")).toBe("team");
       expect(getStaffNavGroupForHref("/team-chat")).toBe("team");
       expect(getStaffNavGroupForHref("/dienstplan")).toBe("planung");
-      expect(getStaffNavGroupForHref("/dateien")).toBe("verwaltung");
+      // #6670: Dateien zu Team, Ferienwochen zu Eltern, Abrechnung aus der
+      // Planung in die Verwaltung.
+      expect(getStaffNavGroupForHref("/dateien")).toBe("team");
+      expect(getStaffNavGroupForHref("/ferienwochen")).toBe("eltern");
+      expect(getStaffNavGroupForHref("/payroll")).toBe("verwaltung");
     });
 
     it("returns null for the start and pinned pages", () => {
@@ -149,8 +176,9 @@ describe("simple staff navigation (#6956)", () => {
       "/students/search",
       "supervisions",
       "/rooms",
-      "/time-tracking",
+      // Team führt mit dem eigenen Kalender vor der Zeiterfassung (#6670).
       "/calendar",
+      "/time-tracking",
       "/tagesinformationen",
     ]);
   });

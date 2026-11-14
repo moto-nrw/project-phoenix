@@ -355,8 +355,8 @@ var gdpr_init_bewegungsdaten_5Definitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyGDPRStaffMessageRetentionDays,
-		Label:           "Team-Chat und Tagesinformationen aufbewahren (Tage)",
-		Description:     "Wie lange Nachrichten im internen Team-Chat gespeichert bleiben. Ältere Nachrichten werden automatisch gelöscht. Unterhaltungen ohne Nachrichten verschwinden danach aus der Übersicht. Beendete Tagesinformationen löscht moto nach derselben Zeit.",
+		Label:           "Team-Chat und Hinweise der Leitung aufbewahren (Tage)",
+		Description:     "Wie lange Nachrichten im internen Team-Chat gespeichert bleiben. Ältere Nachrichten werden automatisch gelöscht. Unterhaltungen ohne Nachrichten verschwinden danach aus der Übersicht. Beendete Hinweise der Leitung löscht moto nach derselben Zeit.",
 		Type:            config.FieldNumber,
 		Default:         365,
 		ReadPermission:  "config:read",

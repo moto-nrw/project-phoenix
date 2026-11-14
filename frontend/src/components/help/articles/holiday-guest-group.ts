@@ -23,7 +23,7 @@ export function holidayGuestGroupTopic(): HelpTopic {
       "Es gibt eine Gruppe für die Ferienwoche, zum Beispiel `Feriengruppe`. Eine neue Gruppe legen Sie unter `Gruppen` an.",
     ],
     steps: [
-      "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
+      "Klappen Sie in der Seitenleiste `Eltern` auf.",
       "Öffnen Sie `Ferienwochen`.",
       "Richtet Ihre OGS mehrere Wochen aus, wählen Sie oben die Woche.",
       "Wählen Sie unter `Feriengruppe` die Gruppe.",

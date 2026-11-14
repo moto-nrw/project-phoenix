@@ -58,20 +58,20 @@ export function StaffNoticesBlock() {
   const { shown, hidden } = useHomeCardRows(notices ?? [], MAX_NOTICES);
   const loadError = useSwrLoadError(
     error,
-    "die Liste der Tagesinformationen",
+    "die Liste der Hinweise der Leitung",
     () => mutate(),
   );
 
   return (
     <HomeCard
-      title="Tagesinformationen"
+      title="Hinweise der Leitung"
       leading={<HomeCardIcon concept={announcementsConcept} />}
       inlineActions
       actions={
         <HomeCardLink
           href={tenantPath("/tagesinformationen")}
-          label="Tagesinformationen: alle ansehen"
-          tooltip="Öffnet alle Tagesinformationen für das Team."
+          label="Hinweise der Leitung: alle ansehen"
+          tooltip="Öffnet alle Hinweise der Leitung für das Team."
         >
           Alle ansehen
         </HomeCardLink>

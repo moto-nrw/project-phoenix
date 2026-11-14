@@ -8,7 +8,7 @@ import { TodayNoticesCard } from "./today-notices-card";
 
 const LOAD_FAILED = catalogText(
   "general.unavailable",
-  "die Liste der Tagesinformationen",
+  "die Liste der Hinweise der Leitung",
 );
 
 const mutate = vi.hoisted(() => vi.fn());

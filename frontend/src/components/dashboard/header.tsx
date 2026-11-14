@@ -119,7 +119,7 @@ function schoolTitleForPath(pathname: string): string | null {
     pathname === "/tagesinformationen" ||
     pathname === "/school/tagesinformationen"
   ) {
-    return "Tagesinformationen";
+    return "Hinweise der Leitung";
   }
   // Kalender in moto schule (#4798).
   if (pathname === "/kalender" || pathname === "/school/kalender") {

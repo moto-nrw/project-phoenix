@@ -945,9 +945,9 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
         steps: [
           "`Tagesbetrieb`: alles für den laufenden Betreuungstag. Diese Gruppe ist schon aufgeklappt.",
           "`Eltern`: was Sie mit den Familien austauschen.",
-          "`Team`: Ihre Arbeitszeit, Ihr Kalender und Ihre Kolleginnen und Kollegen.",
-          "`Planung`: die Pläne Ihrer OGS.",
-          "`Verwaltung`: Stammdaten, Auswertungen und Dateien.",
+          "`Team`: Ihr Dienstplan, Ihr Kalender, Ihre Arbeitszeit, Ihre Kolleginnen und Kollegen und die gemeinsamen Dateien. Wer nicht plant, findet diese Gruppe beim ersten Besuch schon aufgeklappt.",
+          "`Planung`: die Pläne Ihrer OGS. Wer plant, findet diese Gruppe beim ersten Besuch schon aufgeklappt.",
+          "`Verwaltung`: Stammdaten, Auswertungen und die Lohnabrechnung.",
           "In jeder Gruppe steht oben, was im Alltag am häufigsten gebraucht wird.",
           "Sie sehen nur Gruppen, in denen etwas für Sie dabei ist.",
           "Ganz unten stehen `Notfall` und `Hilfe`. Wer die OGS verwaltet, findet dort auch `Einstellungen`.",
@@ -3321,7 +3321,7 @@ export const holidayGuestGroupTopic =
         "Es gibt eine Gruppe für die Ferienwoche, zum Beispiel `Feriengruppe`. Eine neue Gruppe legen Sie unter `Gruppen` an.",
       ],
       steps: [
-        "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
+        "Klappen Sie in der Seitenleiste `Eltern` auf.",
         "Öffnen Sie `Ferienwochen`.",
         "Richtet Ihre OGS mehrere Wochen aus, wählen Sie oben die Woche.",
         "Wählen Sie unter `Feriengruppe` die Gruppe.",
@@ -3484,7 +3484,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Der Träger hat Anmeldungen für diese Woche bestätigt.",
     ],
     steps: [
-      "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
+      "Klappen Sie in der Seitenleiste `Eltern` auf.",
       "Öffnen Sie `Ferienwochen`.",
       "Richtet Ihre OGS mehrere Wochen aus, wählen Sie oben die Woche.",
       "Lesen Sie unter `Je Zeitmodell` und `Je Heimatschule` die Zahlen.",
@@ -7559,7 +7559,7 @@ export const payrollTopic = function payrollTopic(): HelpTopic {
       {
         title: "Lohnarten und DATEV eintragen",
         steps: [
-          "Klappen Sie in der Seitenleiste `Planung` auf.",
+          "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
           "Öffnen Sie `Abrechnung`.",
           "Prüfen Sie oben unter `Vollständigkeit`, was noch fehlt.",
           "Tragen Sie unter `Feste Lohnarten` die Nummern Ihres Lohnsystems ein.",
@@ -8027,7 +8027,7 @@ export const schoolTraegerDocumentsTopic =
       icon: "Download",
       requirements: ["Sie dürfen die Dateien Ihrer Schule verwalten."],
       steps: [
-        "Klappen Sie in der Seitenleiste `Verwaltung` auf und öffnen Sie `Dateien`.",
+        "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Dateien`.",
         "Oben steht die Karte `Vom Träger`.",
         "Unter jedem Titel steht, für wen der Träger das Dokument freigegeben hat.",
         "Wählen Sie `Herunterladen`.",
@@ -8265,7 +8265,7 @@ export const sharedFilesTopic = function sharedFilesTopic(): HelpTopic {
       {
         title: "Eine Datei öffnen",
         steps: [
-          "Klappen Sie in der Seitenleiste `Verwaltung` auf und öffnen Sie `Dateien`.",
+          "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Dateien`.",
           "Wählen Sie links unter `Ordner` den passenden aus.",
           "Suchen Sie die Datei in der Liste.",
           // Live geprueft: die Aktionen liegen im Zeilenmenue und heissen
@@ -8306,19 +8306,19 @@ export const sharedFilesTopic = function sharedFilesTopic(): HelpTopic {
 export const staffNoticesTopic = function staffNoticesTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadStaffNotices,
-    title: "Tagesinformationen an das Team schreiben",
+    title: "Hinweise der Leitung an das Team schreiben",
     question: "Wie erreiche ich das ganze Team mit einem Hinweis?",
-    summary: "Eine Tagesinformation sehen alle, die heute arbeiten.",
+    summary: "Einen Hinweis der Leitung sehen alle, die heute arbeiten.",
     group: "planung",
     audience: "lead",
     icon: "Megaphone",
     image: "/help/screens/tagesinformationen-anlegen.webp",
     imageAlt:
-      "Das Fenster für eine neue Tagesinformation mit Titel, Hinweis, Empfängern und Wochentagen.",
+      "Das Fenster für einen neuen Hinweis mit Titel, Hinweis, Empfängern und Wochentagen.",
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf.",
-      "Öffnen Sie `Tagesinformationen`.",
-      "Wählen Sie `Neue Tagesinformation`.",
+      "Öffnen Sie `Hinweise der Leitung`.",
+      "Wählen Sie `Neuer Hinweis`.",
       "Tragen Sie `Titel` und `Hinweis` ein.",
       "Wählen Sie bei `Für wen` `Alle`, `Nur Betreuung` oder `Nur Lehrkräfte`.",
       "Wählen Sie bei `Wichtigkeit`, wie dringend der Hinweis ist.",
@@ -9986,14 +9986,14 @@ export const teacherNoClassesTopic =
 export const teacherNoticesTopic = function teacherNoticesTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.teacherNotices,
-    title: "Tagesinformationen lesen",
+    title: "Hinweise der Leitung lesen",
     question: "Wo stehen die Hinweise der OGS-Leitung?",
-    summary: "Unter `Tagesinformationen` steht, was für heute gilt.",
+    summary: "Unter `Hinweise der Leitung` steht, was für heute gilt.",
     group: "nachrichten",
     audience: "teacher",
     icon: "Megaphone",
     steps: [
-      "Öffnen Sie `Tagesinformationen`.",
+      "Öffnen Sie `Hinweise der Leitung`.",
       "Lesen Sie die Hinweise für heute.",
       "Wählen Sie bei Bedarf `Zur Kenntnis nehmen`.",
     ],
@@ -14126,7 +14126,7 @@ export const weekProtocolTopic = function weekProtocolTopic(
     result:
       "Das Protokoll ist abgeschlossen und ändert sich nicht mehr. Mit `PDF herunterladen` laden Sie es als PDF.",
     notes: [
-      "Jeden Abend hält moto fest, wer da war, wer fehlte und warum, welche Blöcke gelaufen oder ausgefallen sind und welche Tagesinformationen galten.",
+      "Jeden Abend hält moto fest, wer da war, wer fehlte und warum, welche Blöcke gelaufen oder ausgefallen sind und welche Hinweise der Leitung galten.",
       "Gesundheitsangaben stehen nicht im Protokoll. Bei einem fehlenden Kind steht nur der Grund, wie in der Tagesauswertung.",
       "Ältere Protokolle bleiben in der Liste. moto löscht sie nach der Frist für die Anwesenheit Ihrer Schule.",
     ],

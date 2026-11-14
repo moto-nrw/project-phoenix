@@ -79,18 +79,12 @@ describe("Tagesinformationen: Statuszeile bei Ladefehler (#2517)", () => {
 
     expect(
       await screen.findByText(
-        catalogText(
-          "general.unavailable",
-          "die Liste der Tagesinformationen von heute",
-        ),
+        catalogText("general.unavailable", "die Liste der Hinweise von heute"),
       ),
     ).toBeInTheDocument();
     expect(
       await screen.findByText(
-        catalogText(
-          "general.unavailable",
-          "die Liste aller Tagesinformationen",
-        ),
+        catalogText("general.unavailable", "die Liste aller Hinweise"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/0 heute/)).not.toBeInTheDocument();
@@ -104,10 +98,7 @@ describe("Tagesinformationen: Statuszeile bei Ladefehler (#2517)", () => {
 
     expect(
       await screen.findByText(
-        catalogText(
-          "general.unavailable",
-          "die Liste aller Tagesinformationen",
-        ),
+        catalogText("general.unavailable", "die Liste aller Hinweise"),
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("0 heute")).toBeInTheDocument();

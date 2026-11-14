@@ -376,17 +376,18 @@ describe("MobileBottomNav", () => {
 
     it("behält die offenen Gruppen nach dem Schließen des Menüs", () => {
       openMoreAsAdmin();
-      fireEvent.click(screen.getByRole("button", { name: "Planung" }));
+      // Für die Leitung steht Planung schon offen (#6670); Team klappt auf.
+      fireEvent.click(screen.getByRole("button", { name: "Team" }));
       fireEvent.click(screen.getByRole("button", { name: "Tagesbetrieb" }));
 
       // Ein Eintrag schließt das Menü.
       fireEvent.click(screen.getByText("Einstellungen"));
       expect(
-        screen.queryByRole("button", { name: "Planung" }),
+        screen.queryByRole("button", { name: "Team" }),
       ).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-      expect(screen.getByRole("button", { name: "Planung" })).toHaveAttribute(
+      expect(screen.getByRole("button", { name: "Team" })).toHaveAttribute(
         "aria-expanded",
         "true",
       );
@@ -395,7 +396,7 @@ describe("MobileBottomNav", () => {
       ).toHaveAttribute("aria-expanded", "false");
       expect(
         JSON.parse(localStorage.getItem("sidebar-open-groups") ?? "[]"),
-      ).toEqual(["planung"]);
+      ).toEqual(["planung", "team"]);
     });
 
     it("zeigt ungelesene Anmeldungen an der zugeklappten Gruppe Eltern", () => {
@@ -1249,7 +1250,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
       expect(screen.getByText("Räume")).toBeInTheDocument();
       expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
-      expect(screen.getByText("Tagesinformationen")).toBeInTheDocument();
+      expect(screen.getByText("Hinweise der Leitung")).toBeInTheDocument();
       expect(screen.getByText("Hilfe")).toBeInTheDocument();
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
       expect(screen.queryByText("Team-Chat")).not.toBeInTheDocument();

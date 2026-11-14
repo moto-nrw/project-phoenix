@@ -81,7 +81,7 @@ describe("StaffNoticeModal", () => {
 
     expect(
       await screen.findByText(
-        catalogText("general.server", "das Speichern der Tagesinformation"),
+        catalogText("general.server", "das Speichern des Hinweises"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/kaputt/)).not.toBeInTheDocument();

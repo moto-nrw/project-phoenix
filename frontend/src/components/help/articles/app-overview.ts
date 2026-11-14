@@ -33,9 +33,9 @@ export function appOverviewTopic(): HelpTopic {
         steps: [
           "`Tagesbetrieb`: alles für den laufenden Betreuungstag. Diese Gruppe ist schon aufgeklappt.",
           "`Eltern`: was Sie mit den Familien austauschen.",
-          "`Team`: Ihre Arbeitszeit, Ihr Kalender und Ihre Kolleginnen und Kollegen.",
-          "`Planung`: die Pläne Ihrer OGS.",
-          "`Verwaltung`: Stammdaten, Auswertungen und Dateien.",
+          "`Team`: Ihr Dienstplan, Ihr Kalender, Ihre Arbeitszeit, Ihre Kolleginnen und Kollegen und die gemeinsamen Dateien. Wer nicht plant, findet diese Gruppe beim ersten Besuch schon aufgeklappt.",
+          "`Planung`: die Pläne Ihrer OGS. Wer plant, findet diese Gruppe beim ersten Besuch schon aufgeklappt.",
+          "`Verwaltung`: Stammdaten, Auswertungen und die Lohnabrechnung.",
           "In jeder Gruppe steht oben, was im Alltag am häufigsten gebraucht wird.",
           "Sie sehen nur Gruppen, in denen etwas für Sie dabei ist.",
           "Ganz unten stehen `Notfall` und `Hilfe`. Wer die OGS verwaltet, findet dort auch `Einstellungen`.",

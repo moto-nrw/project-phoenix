@@ -28,14 +28,14 @@ describe("SchoolBottomNav", () => {
 
     expect(screen.getByText("Klassenansicht")).toBeInTheDocument();
     expect(screen.queryByText("Meine Aufsichten")).not.toBeInTheDocument();
-    expect(screen.queryByText("Tagesinformationen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Hinweise der Leitung")).not.toBeInTheDocument();
     expect(screen.queryByText("Hilfe")).not.toBeInTheDocument();
 
     expect(
       screen.getByRole("link", { name: "Meine Aufsichten" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Tagesinformationen" }),
+      screen.getByRole("link", { name: "Hinweise der Leitung" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Hilfe" })).toBeInTheDocument();
   });
@@ -96,7 +96,7 @@ describe("SchoolBottomNav", () => {
     );
 
     expect(
-      screen.getByLabelText("3 offene Tagesinformationen"),
+      screen.getByLabelText("3 offene Hinweise der Leitung"),
     ).toBeInTheDocument();
   });
 

@@ -122,6 +122,7 @@ import {
   type StaffNavItem,
 } from "./staff-nav-items";
 import {
+  getStaffNavDefaultOpenGroups,
   STAFF_NAV_BOTTOM,
   STAFF_NAV_CONCEPTS,
   STAFF_NAV_GROUPS,
@@ -264,6 +265,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
 // slug. No-op in subdomain mode.
 const TENANT_SCOPED_HREFS = new Set<string>([
   "/anfragen",
+  STAFF_FLAT_PAGES.payroll.href,
   ...PARENT_SUB_PAGES.map((page) => page.href),
   ...COMMUNICATION_SUB_PAGES.map((page) => page.href),
   ...PLANNING_SUB_PAGES.map((page) => page.href),
@@ -310,8 +312,8 @@ const ROW_BADGE_LABELS: Readonly<
   },
   "/tagesinformationen": {
     tone: COUNTER_TONE.staff,
-    one: "offene Tagesinformation",
-    noun: "offene Tagesinformationen",
+    one: "offener Hinweis der Leitung",
+    noun: "offene Hinweise der Leitung",
   },
 };
 
@@ -483,18 +485,23 @@ function SidebarContent({
     fromParam,
     "groups",
   );
-  // Die fünf Gruppen der Seitenleiste (#2826): Tagesbetrieb offen, der Rest
-  // zu, bis die Person etwas aufklappt oder eine Seite darin öffnet.
-  const { isGroupOpen, toggleGroup } = useSidebarGroups(pathname, fromParam);
-
   const userIsAdmin = hasRole(session, "admin");
   const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
   const canReadSupervisions = canReadSupervisionData(session);
   // Leitung der Einrichtung: Adminzuschnitt oder config:manage, das Recht
   // hinter Anmeldungen und Einstellungen (#3469). Entscheidet über die
-  // Anmeldungen und die Rolle der Hilfe, nicht über einzelne Rechte.
+  // Anmeldungen, die Rolle der Hilfe und die beim ersten Besuch offenen
+  // Gruppen, nicht über einzelne Rechte.
   const userLeadsSchool = leadsSchool(session);
+  // Die fünf Gruppen der Seitenleiste (#2826): beim ersten Besuch stehen der
+  // Tagesbetrieb und die Gruppe der eigenen Arbeit offen (#6670), der Rest
+  // bleibt zu, bis die Person etwas aufklappt oder eine Seite darin öffnet.
+  const { isGroupOpen, toggleGroup } = useSidebarGroups(
+    pathname,
+    fromParam,
+    getStaffNavDefaultOpenGroups(userLeadsSchool),
+  );
   // Elternmitteilungen (#1669) authoring is ADMIN-ONLY in v1: every
   // /api/parent-announcements route is guarded by the admin:* wildcard
   // (backend api/announcement/api.go), because the service does no per-caller

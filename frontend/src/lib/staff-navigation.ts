@@ -47,12 +47,14 @@ import { weekProtocolsConcept } from "~/lib/concepts/weekProtocols";
  *   Aufsicht, alle Kinder, Räume, Aktivitäten, Vertretungen und die offenen
  *   Anfragen. Für alle Rollen beim ersten Besuch geöffnet.
  * - **Eltern** — alles, was die Einrichtung mit den Familien austauscht,
- *   plus die Anmeldungen.
- * - **Team** — die eigene Arbeitszeit, der eigene Kalender, die Kollegen und
- *   die interne Kommunikation.
+ *   plus die Anmeldungen und die Teilnehmer der Ferienwochen.
+ * - **Team** — der eigene Dienstplan, der eigene Kalender, die eigene
+ *   Arbeitszeit, die Kollegen, die interne Kommunikation und die
+ *   gemeinsamen Dateien.
  * - **Planung** — die Pläne der Einrichtung; sichtbar nur, wenn die Person
  *   mindestens eine Planungsseite öffnen darf.
- * - **Verwaltung** — Stammdaten, Auswertungen, Dateien, Info-Displays.
+ * - **Verwaltung** — Stammdaten, Auswertungen, Lohnabrechnung,
+ *   Info-Displays.
  *
  * Innerhalb einer Gruppe steht oben, was im OGS-Alltag am häufigsten
  * gebraucht wird. Die Einschätzung stammt aus den Arbeitsabläufen, nicht aus
@@ -144,6 +146,11 @@ export const STAFF_NAV_GROUPS: readonly StaffNavGroup[] = [
     entries: [
       ...PARENT_SUB_PAGES.map((entry) => page(entry.href)),
       section("enrollments"),
+      // Die Teilnehmerliste der Ferienwochen ist das Ergebnis der
+      // Ferienanmeldung; Leitung und Büro suchen sie neben den Anmeldungen,
+      // nicht bei den Stammdaten (#6670). Eigener Eintrag mit eigenem Recht
+      // (config:read), nicht im Anmeldungen-Akkordeon (config:manage).
+      page(STAFF_FLAT_PAGES.holidayWeeks.href),
     ],
   },
   {
@@ -151,11 +158,17 @@ export const STAFF_NAV_GROUPS: readonly StaffNavGroup[] = [
     label: "Team",
     icon: UsersFourIcon,
     entries: [
-      page(STAFF_FLAT_PAGES.timeTracking.href),
+      // Die eigenen Seiten zuerst: wer neu ist, sucht zuerst „wann arbeite
+      // ich“, dann „Stunden buchen“ (#6670).
       page(STAFF_FLAT_PAGES.ownShiftPlan.href),
       page(STAFF_FLAT_PAGES.calendar.href),
+      page(STAFF_FLAT_PAGES.timeTracking.href),
       page(STAFF_FLAT_PAGES.staff.href),
       ...COMMUNICATION_SUB_PAGES.map((entry) => page(entry.href)),
+      // Die gemeinsame Ablage sieht jede Person. Unter „Verwaltung“ sucht
+      // eine Betreuungskraft sie nicht, die Gruppe liest sich als „Büro“
+      // (#6670).
+      page(STAFF_FLAT_PAGES.dateien.href),
     ],
   },
   {
@@ -172,8 +185,10 @@ export const STAFF_NAV_GROUPS: readonly StaffNavGroup[] = [
       section("database"),
       page(STAFF_FLAT_PAGES.dayLog.href),
       page(STAFF_FLAT_PAGES.statistics.href),
-      page(STAFF_FLAT_PAGES.holidayWeeks.href),
-      page(STAFF_FLAT_PAGES.dateien.href),
+      // Die Lohnabrechnung ist Büroarbeit am Monatsende, kein Plan. Sie hängt
+      // an config:manage, nicht am Planungsrecht: in der Planung sah eine
+      // Büro-Rolle eine Gruppe mit nur diesem Eintrag (#6670).
+      page(STAFF_FLAT_PAGES.payroll.href),
       page(STAFF_FLAT_PAGES.infoDisplays.href),
     ],
   },
@@ -231,12 +246,17 @@ export const STAFF_NAV_BOTTOM: readonly StaffNavEntry[] = [
 ];
 
 /**
- * Beim ersten Besuch steht nur der Tagesbetrieb offen. Was die Person danach
- * auf- oder zuklappt, merkt sich der Browser (use-sidebar-groups.ts).
+ * Welche Gruppen beim ersten Besuch offen stehen. Neben dem Tagesbetrieb die
+ * Gruppe der eigenen Arbeit: die Leitung plant, alle anderen finden in
+ * „Team“ ihren Dienstplan, Kalender und ihre Zeiterfassung. Zugeklappt
+ * fanden Schulen „Mein Kalender“ nicht (#6670). Was die Person danach auf-
+ * oder zuklappt, merkt sich der Browser (use-sidebar-groups.ts).
  */
-export const STAFF_NAV_DEFAULT_OPEN_GROUPS: readonly StaffNavGroupKey[] = [
-  "tagesbetrieb",
-];
+export function getStaffNavDefaultOpenGroups(
+  leadsSchool: boolean,
+): readonly StaffNavGroupKey[] {
+  return leadsSchool ? ["tagesbetrieb", "planung"] : ["tagesbetrieb", "team"];
+}
 
 /**
  * Das Symbol jeder Seite, geteilt von Seitenleiste und Mehr-Menü. Die
@@ -259,7 +279,6 @@ export const STAFF_NAV_CONCEPTS: Readonly<Record<string, MotoConcept>> = {
   "/lists": listsConcept,
   "/wochenprotokolle": weekProtocolsConcept,
   "/calendar-periods": calendarPeriodsConcept,
-  "/payroll": payrollConcept,
 };
 
 /**

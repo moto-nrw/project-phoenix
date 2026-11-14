@@ -27,13 +27,13 @@ describe("schoolNavBadge", () => {
         teamChat,
         notices: { pendingCount: 2 },
       }),
-    ).toEqual({ count: 2, ariaLabel: "2 offene Tagesinformationen" });
+    ).toEqual({ count: 2, ariaLabel: "2 offene Hinweise der Leitung" });
   });
 
   it("zählt null, solange die Tagesinformationen nicht geladen sind", () => {
     expect(schoolNavBadge(item("notices"), { teamChat })).toEqual({
       count: 0,
-      ariaLabel: "0 offene Tagesinformationen",
+      ariaLabel: "0 offene Hinweise der Leitung",
     });
   });
 

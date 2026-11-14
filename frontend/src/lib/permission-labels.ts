@@ -35,7 +35,7 @@ export const resourceLabels: Record<string, string> = {
   student_documents: "Unterlagen der Kinder",
   student_accidents: "Unfallanzeigen",
   enrollment_uploads: "Nachweise aus Anmeldungen",
-  staff_notices: "Tagesinformationen",
+  staff_notices: "Hinweise der Leitung",
   surveys: "Umfragen",
   class_day: "Klassenansicht",
   supervision: "Aufsichten",
@@ -280,7 +280,7 @@ const permissionDescriptions: Record<string, string> = {
     "Eine eigene Klasse nach dem Unterricht an die OGS übergeben",
   "class_day:parent_letter_write":
     "Elternbriefe an eine eigene Klasse schreiben und sehen, wer sie gelesen hat",
-  "staff_notices:read": "Tagesinformationen der Leitung lesen und bestätigen",
+  "staff_notices:read": "Hinweise der Leitung lesen und bestätigen",
 
   // Umfragen (#4781). Beantworten braucht kein Recht; dieses Recht legt an,
   // veröffentlicht und wertet aus. Auch dann sieht niemand, wer bei einer

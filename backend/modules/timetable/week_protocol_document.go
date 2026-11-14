@@ -200,7 +200,7 @@ func weekProtocolBlockCard(facts WeekProtocolDayFacts) WeekProtocolReportCard {
 }
 
 func weekProtocolNoticeCard(facts WeekProtocolDayFacts) WeekProtocolReportCard {
-	card := WeekProtocolReportCard{Title: "Tagesinformationen"}
+	card := WeekProtocolReportCard{Title: "Hinweise der Leitung"}
 	for _, notice := range facts.Notices {
 		card.Fields = append(card.Fields, WeekProtocolReportField{Label: notice.Title, Value: orDash(notice.Body)})
 	}

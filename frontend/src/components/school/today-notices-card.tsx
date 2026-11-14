@@ -34,7 +34,7 @@ export function TodayNoticesCard() {
   // Hinweise bleiben darunter stehen.
   const loadError = useSwrLoadError(
     error,
-    "die Liste der Tagesinformationen",
+    "die Liste der Hinweise der Leitung",
     () => mutate(),
   );
   const notices = data ?? [];
@@ -46,7 +46,7 @@ export function TodayNoticesCard() {
 
   return (
     <SectionCard
-      title="Tagesinformationen der OGS"
+      title="Hinweise der OGS-Leitung"
       testId="school-today-notices"
       action={
         <NavigationLink

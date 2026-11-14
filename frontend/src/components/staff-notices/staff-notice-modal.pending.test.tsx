@@ -35,13 +35,13 @@ describe("StaffNoticeModal pending lock (#6533)", () => {
   it("keeps the dialog shut while saving and unlocks it after a failure", async () => {
     const { save, onClose } = renderAndSave();
 
-    expectSaveLocksDialog("Neue Tagesinformation");
+    expectSaveLocksDialog("Neuer Hinweis");
 
     await act(async () => {
       save.reject(new ApiError("kaputt", 500, { code: "general.server" }));
     });
     expect(await screen.findByRole("alert")).toBeInTheDocument();
-    expectDialogUnlocked("Neue Tagesinformation");
+    expectDialogUnlocked("Neuer Hinweis");
     expect(screen.getByLabelText("Titel")).toHaveValue("Dienstbesprechung");
     expect(onClose).not.toHaveBeenCalled();
   });

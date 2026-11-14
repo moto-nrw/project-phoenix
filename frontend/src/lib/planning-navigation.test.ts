@@ -20,10 +20,16 @@ describe("planning navigation", () => {
     ["/dienstplan", "/dienstplan"],
     ["/vertretung", "/vertretung"],
     ["/lists", "/lists"],
-    ["/payroll", "/payroll"],
     ["/calendar-periods", "/calendar-periods"],
   ] as const)("maps %s to %s", (pathname, expected) => {
     expect(getActivePlanningSubPageHref(pathname)).toBe(expected);
+  });
+
+  it("no longer counts the payroll as a planning page (#6670)", () => {
+    // Die Abrechnung steht seit #6670 in der Verwaltung; ihr Recht
+    // (config:manage) prüft der Sidebar-Test der Verwaltung.
+    expect(getActivePlanningSubPageHref("/payroll")).toBeNull();
+    expect(isPlanningPageHref("/payroll")).toBe(false);
   });
 
   it("uses path-segment boundaries", () => {
@@ -64,7 +70,6 @@ describe("planning navigation", () => {
       "/lists": "schedules:manage",
       "/wochenprotokolle": "groups:manage",
       "/calendar-periods": "schedules:manage",
-      "/payroll": "config:manage",
     });
   });
 

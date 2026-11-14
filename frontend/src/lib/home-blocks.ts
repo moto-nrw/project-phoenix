@@ -356,7 +356,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
   {
     key: "section.staff_notices",
     kind: "section",
-    label: "Tagesinformationen",
+    label: "Hinweise der Leitung",
     description: "Hinweise der Leitung, die heute gelten.",
     concept: announcementsConcept,
     spans: SECTION_SPANS,

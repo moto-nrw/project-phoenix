@@ -38,16 +38,16 @@ export default function SchoolNoticesPage() {
       return;
     }
     void showLoadError(error, {
-      object: "die Tagesinformationen",
+      object: "die Hinweise der Leitung",
       retry: () => void mutate(),
     });
   }, [error, mutate, showLoadError, clearLoadError]);
 
   return (
     <TenantPage
-      title="Tagesinformationen"
+      title="Hinweise der Leitung"
       loading={isLoading && notices.length === 0}
-      loadingLabel="Tagesinformationen werden geladen…"
+      loadingLabel="Hinweise der Leitung werden geladen…"
       error={error ? load.error : null}
       empty={
         !error && notices.length === 0

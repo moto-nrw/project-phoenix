@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   getStaffNavGroupForPathname,
-  STAFF_NAV_DEFAULT_OPEN_GROUPS,
   STAFF_NAV_GROUPS,
   type StaffNavGroupKey,
 } from "~/lib/staff-navigation";
@@ -60,7 +59,8 @@ function withGroup(
  * Welche Gruppen der Seitenleiste offen stehen (#2826).
  *
  * Mehrere Gruppen können gleichzeitig offen sein; jede klappt unabhängig.
- * Beim ersten Besuch steht nur der Tagesbetrieb offen. Was die Person
+ * Beim ersten Besuch stehen `defaultGroups` offen
+ * (`getStaffNavDefaultOpenGroups`, je nach Rolle). Was die Person
  * auf- oder zuklappt, merkt sich der Browser (`sidebar-open-groups`). Die
  * Gruppe der aktuellen Seite öffnet sich von selbst, ohne die anderen zu
  * schließen; ein Seitenwechsel schließt nichts — sonst müsste man nach
@@ -79,10 +79,14 @@ function withGroup(
  * den gespeicherten Stand, bevor er gelesen ist (Reacts doppeltes Einhängen
  * im Entwicklungsmodus macht genau das sichtbar).
  */
-export function useSidebarGroups(pathname: string, fromParam?: string | null) {
+export function useSidebarGroups(
+  pathname: string,
+  fromParam: string | null | undefined,
+  defaultGroups: readonly StaffNavGroupKey[],
+) {
   const currentGroup = getStaffNavGroupForPathname(pathname, fromParam);
   const [openGroups, setOpenGroups] = useState<readonly StaffNavGroupKey[]>(
-    () => withGroup(STAFF_NAV_DEFAULT_OPEN_GROUPS, currentGroup),
+    () => withGroup(defaultGroups, currentGroup),
   );
   // Der jeweils letzte Stand, auch zwischen zwei Renderings: die Effekte
   // unten dürfen nicht auf einem veralteten `openGroups` aufsetzen.
@@ -113,6 +117,28 @@ export function useSidebarGroups(pathname: string, fromParam?: string | null) {
     // Nur einmal nach dem Einhängen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Die Rolle steht erst fest, wenn die Sitzung geladen ist. Bis die Person
+  // selbst etwas auf- oder zugeklappt hat (dann gibt es einen gespeicherten
+  // Stand), folgt die Anzeige der Voreinstellung der Rolle. Geschrieben wird
+  // dabei nichts: eine Voreinstellung ist keine Entscheidung der Person.
+  const defaultKey = defaultGroups.join(",");
+  const isFirstDefault = useRef(true);
+  useEffect(() => {
+    if (isFirstDefault.current) {
+      isFirstDefault.current = false;
+      return;
+    }
+    if (readStoredGroups()) return;
+    const next = withGroup(
+      defaultGroups,
+      getStaffNavGroupForPathname(pathname, fromParam),
+    );
+    latest.current = next;
+    setOpenGroups(next);
+    // Nur bei einer anderen Voreinstellung, nicht bei jedem Seitenwechsel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultKey]);
 
   useEffect(() => {
     if (!currentGroup || latest.current.includes(currentGroup)) return;

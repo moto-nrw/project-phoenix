@@ -89,11 +89,15 @@ test.describe("Planung navigation", () => {
     test.setTimeout(60_000);
     const sidebar = page.locator("aside");
 
-    // Die Gruppe Planung (#2826) ist beim ersten Besuch zu; die Gruppenzeile
-    // klappt sie auf, ohne zu navigieren.
+    // Für die Leitung steht die Gruppe Planung (#2826) beim ersten Besuch
+    // offen (#6670); die Gruppenzeile klappt sie zu und wieder auf, ohne zu
+    // navigieren.
     const planung = sidebar.getByRole("button", { name: "Planung" });
     await expect(planung).toBeVisible({ timeout: 30_000 });
+    await expect(planung).toHaveAttribute("aria-expanded", "true");
+    await planung.click();
     await expect(planung).toHaveAttribute("aria-expanded", "false");
+    await expect(sidebar.getByText("Betreuungsplan")).toHaveCount(0);
     await planung.click();
     await expect(planung).toHaveAttribute("aria-expanded", "true");
 
@@ -220,7 +224,11 @@ test.describe("Planung navigation", () => {
       name: "Planung",
       exact: true,
     });
+    // Wie in der Seitenleiste steht Planung für die Leitung offen (#6670).
+    await expect(planung).toHaveAttribute("aria-expanded", "true");
+    await planung.click();
     await expect(planung).toHaveAttribute("aria-expanded", "false");
+    await expect(drawer.getByText("Betreuungsplan")).toHaveCount(0);
     await planung.click();
     await expect(planung).toHaveAttribute("aria-expanded", "true");
 

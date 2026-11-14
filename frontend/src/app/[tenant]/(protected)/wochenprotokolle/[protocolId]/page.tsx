@@ -567,7 +567,7 @@ function DayFacts({ day }: Readonly<{ day: WeekProtocolDay }>) {
         </DaySection>
       </div>
       {day.notices.length > 0 && (
-        <DaySection title="Tagesinformationen" count={day.notices.length}>
+        <DaySection title="Hinweise der Leitung" count={day.notices.length}>
           <ul className="divide-y divide-gray-100">
             {day.notices.map((notice) => (
               <li key={notice.title} className="py-2">
