@@ -209,6 +209,7 @@ function TimeModelRow({
             size="compact"
             className="gap-1.5"
             aria-label={`Zeitmodell ${model.name || "ohne Namen"} archivieren`}
+            tooltip="Nimmt das Zeitmodell nach dem Speichern aus dem Angebot, Buchungen bleiben."
             onClick={() => onChange({ ...model, archived: true })}
           >
             <Archive className="h-4 w-4" aria-hidden="true" />
@@ -223,6 +224,7 @@ function TimeModelRow({
             variant="ghost"
             size="compact"
             aria-label={`Zeitmodell entfernen: ${model.name || "ohne Namen"}`}
+            tooltip="Nimmt das Zeitmodell aus der Woche, wirksam erst nach dem Speichern."
             onClick={onRemove}
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -308,6 +310,7 @@ export function HolidayWeekEditor({
             type="button"
             variant="outline_danger"
             size="md"
+            tooltip="Nimmt die Woche aus dem Ferienzeitraum, wirksam erst nach dem Speichern."
             onClick={onRemove}
           >
             Woche entfernen
@@ -417,6 +420,7 @@ export function HolidayWeekEditor({
               variant="outline"
               size="md"
               className="gap-2"
+              tooltip="Fügt der Woche ein leeres Zeitmodell mit Zeiten und Preis an."
               onClick={() =>
                 onChange({
                   ...week,

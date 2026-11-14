@@ -4,6 +4,8 @@
     "download": "Shkarko",
     "openLabel": "Hap {label}",
     "downloadLabel": "Shkarko {label}",
+    "openHint": "Hap PDF-në në një skedë të re.",
+    "downloadHint": "Ruan PDF-në në këtë pajisje.",
     "errorObject": "skedarin PDF",
     "popupBlocked": "Ju lutemi lejoni hapjen e një dritareje të re."
   },

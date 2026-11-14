@@ -2104,6 +2104,8 @@ export const dutyRosterTopic = function dutyRosterTopic(): HelpTopic {
     ],
     differences: [
       "Eine neue Schicht auf einem Schließtag löst eine Rückfrage aus.",
+      // #7021: Abwesenheiten von vor #6847 übernimmt die Leitung selbst.
+      "Steht über dem Plan `Abwesenheiten fehlen im Plan`? Diese Abwesenheiten gelten schon, die Personen stehen aber noch im Plan. Wählen Sie `In den Plan übernehmen` oder `Alle übernehmen`. Abgesagte Schichten und Vertretungen bleiben, wie sie sind. Soll die Person doch arbeiten, wählen Sie `Ausblenden`.",
       "Ist ein Tag nicht vollständig durch Schichten abgedeckt, weist moto darauf hin.",
     ],
     troubleshootingDetails: [
@@ -4918,7 +4920,8 @@ export const myScheduleTopic = function myScheduleTopic(): HelpTopic {
       "Sie haben einen Überblick über Ihre Termine und Einsätze. Das Kalender-Abo übernimmt neue, geänderte und abgesagte Einträge automatisch.",
     notes: [
       "Mit `Sa/So` blenden Sie das Wochenende ein. Eine Zahl zeigt, dass dort Einträge liegen.",
-      "Bei einer Einladung wählen Sie im geöffneten Termin `Zusagen` oder `Absagen`. Bei einer Reihe gilt die Antwort für alle Termine.",
+      "Bei einer Einladung wählen Sie im geöffneten Termin `Zusagen` oder `Absagen`. Bei einer Reihe wählen Sie vorher unter `Ihre Antwort gilt für`, ob die Antwort nur für diesen Termin oder für `Alle Termine` gilt.",
+      "`Teilnehmer` zeigt bei einer Reihe die Antworten für den geöffneten Termin.",
       "Beim Anlegen und Bearbeiten wählen Sie unter `Wer sieht die Teilnehmerübersicht?`, wer die Antworten sieht. Bei `Alle Eingeladenen` sehen Eltern nur, wie viele zugesagt und abgesagt haben, keine Namen.",
       "Legen Sie einen Termin an und wählen Sie `Alle Lehrkräfte`. Dann sehen die Lehrkräfte ihn in moto schule.",
     ],
@@ -5375,6 +5378,9 @@ export const ownAbsenceTopic = function ownAbsenceTopic(): HelpTopic {
       "Freizeitausgleich trägt nur ein, wer die Zeiten des Teams verwalten darf.",
     ],
     notes: [
+      "An ganzen Abwesenheitstagen fallen Ihre Schichten aus. Im Betreuungsplan stehen Sie als abwesend.",
+      "In den Plänen sieht das Team nur, ob Sie krank oder abwesend sind. Die Art und Ihre Bemerkung sieht es nicht.",
+      "Bei einem halben Tag bleiben Ihre Schichten stehen. Ihre Leitung ändert sie bei Bedarf.",
       "Ihre Abwesenheit steht danach in der Tabelle `Zeiterfassung` unter `Status`. Über das Stift-Symbol am Ende der Zeile öffnen Sie den Tag.",
       "Hat eine Art Ihrer OGS feste Tage, sehen Sie den Stand in der Karte `Kontingente`. Den Anspruch trägt Ihre Leitung ein.",
     ],
@@ -5612,6 +5618,7 @@ export const parentAnnouncementTopic =
         "Unter einer Mitteilung steht `Von …, Lehrkraft der Klasse … · nur zum Lesen`? Die hat eine Lehrkraft in moto schule geschrieben. Sie können sie lesen, ändern kann sie nur die Lehrkraft.",
         "Unter `Priorität` stehen `Info` und `Wichtig` zur Wahl.",
         "Mit `Ablaufdatum (optional)` blenden Sie die Mitteilung später wieder aus.",
+        "Eine Mitteilung bleibt bei den Kindern, die sie beim Veröffentlichen erreicht hat. Wechselt danach ein Kind die Klasse, behält es die Mitteilung. Die neue Klasse bekommt sie nicht. Das gilt auch für `Statistik` und Erinnerungen.",
       ],
       troubleshootingDetails: [
         "`Veröffentlichen` bleibt grau? Dann fehlt noch ein Empfänger.",
@@ -5646,13 +5653,15 @@ export const parentCalendarTopic = function parentCalendarTopic(): HelpTopic {
       "Ein Termin ist eine `Betreuungszeit`, eine `Einladung` oder ein `Termin`.",
       "Bei einer Einladung antworten Sie mit `Zusagen` oder `Absagen`.",
       "Danach steht am Termin `Zugesagt` oder `Abgesagt`.",
-      "Wiederholt sich ein Termin, gilt Ihre Antwort für alle Termine der Reihe.",
+      "Wiederholt sich ein Termin, wählen Sie unter `Ihre Antwort gilt für` zwischen `Nur am …` und `Alle Termine`. So sagen Sie zum Beispiel einem einzelnen Termin ab.",
+      "Eine Antwort ändern Sie im geöffneten Termin mit `Antwort ändern`.",
       "Unter `Rückmeldungen` sehen Sie, wie viele zugesagt und abgesagt haben. Namen anderer Eltern sehen Sie nicht.",
       "Rechts steht ein Monatskalender. Mit den Pfeilen wechseln Sie den Monat.",
       "Unter `Kalender abonnieren` holen Sie sich mit `Abo-Link anzeigen` die Termine in Ihren eigenen Kalender.",
     ],
     differences: [
       "Ein Termin trägt `Antwort erforderlich`? Dann wartet die OGS auf Ihre Antwort.",
+      "Steht am Termin `Nur für diesen Termin`? Dann gilt dort eine andere Antwort als für die übrigen Termine der Reihe.",
       "Hat die OGS abgesagt, steht dort `Von der OGS abgesagt`.",
       "Sie sehen keine `Rückmeldungen`? Dann zeigt die OGS sie bei diesem Termin nicht.",
       "Der Kalender zeigt die nächsten 3 Monate.",
@@ -6718,6 +6727,7 @@ export const parentLetterTopic = function parentLetterTopic(): HelpTopic {
     result:
       "Der Brief steht im Elternportal. Die erreichten Eltern bekommen zusätzlich eine E-Mail.",
     notes: [
+      "Unter `Status` zählen die Kinder, die der Brief beim Veröffentlichen erreicht hat. Wechselt danach ein Kind die Klasse, bleibt es in der Liste. Die neue Klasse bekommt den Brief nicht.",
       "Unter `Empfänger` steht bei jeder Mail, was aus ihr geworden ist. Steht dort `Adresse prüfen`, korrigieren Sie die Adresse beim Kind unter `Erziehungsberechtigte`.",
       "Unter `Wer erhält die E-Mail?` wählen Sie `Nur mit Portalzugang` oder `Alle Bezugspersonen`.",
       "Die Eltern bestätigen den Brief. Eine Bestätigung pro Kind genügt.",
@@ -9203,6 +9213,7 @@ export const teacherCalendarTopic = function teacherCalendarTopic(): HelpTopic {
         title: "Auf eine Einladung der OGS antworten",
         steps: [
           "Wählen Sie den Termin im Kalender.",
+          "Bei einer Reihe: Wählen Sie unter `Ihre Antwort gilt für`, ob die Antwort nur für diesen Termin oder für `Alle Termine` gilt.",
           "Wählen Sie `Zusagen` oder `Absagen`.",
         ],
       },
@@ -13435,7 +13446,7 @@ export const traegerSepaMandatesTopic =
         "Ob die App Mandate annimmt, sehen Sie unter `Abrechnungsvorgaben` in der Karte `Lastschrift` bei `Mandat in der Eltern-App`. Ohne Gläubiger-ID oder ohne Absender im Briefkopf nimmt die App kein Mandat an.",
         "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",
         "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Bei importierten Mandaten stehen dort auch Dateiname und Zeile. Kontodaten stehen dort nicht.",
-        "Zeilen ohne IBAN und ohne Mandatsreferenz übernimmt moto nicht. Die Vorschau zählt sie als „ohne Mandat“. Das sind meist Kinder, deren Familie ohne Lastschrift zahlt.",
+        "Für Zeilen ohne IBAN und ohne Mandatsreferenz legt moto kein Mandat an. Die Vorschau zählt sie als „ohne Mandat“. Das sind meist Kinder, deren Familie ohne Lastschrift zahlt. Eine Debitorennummer in so einer Zeile übernimmt moto trotzdem.",
         "Mandate übernimmt moto nur mit dem Stand `Bereit`. Fehlende Debitorennummern können Sie auch bei vorhandenen Mandaten übernehmen. Die Vorschau zählt jede Familie einmal. Unterschiedliche Nummern werden nicht übernommen. Korrigieren Sie die Datei und laden Sie sie noch einmal.",
         "Führt Ihr Träger die Debitorennummer je Kind, bekommt jedes Kind die Nummer seiner Zeile. Geschwister dürfen verschiedene Nummern haben. Damit moto das Kind erkennt, wählen Sie als Zahler die Vertragsnummer. Mit der E-Mail erkennt moto das Kind nur, wenn die Familie ein Kind mit Vertrag hat.",
         "Ein Mandat aus der Datei, mit dem schon abgebucht wurde, übernimmt moto als Folgelastschrift. Steht die letzte Abbuchung in der Datei, zählen die 36 Monate bis zum Verfall ab diesem Tag. Fehlt sie, zählen sie ab dem Import.",
@@ -13748,6 +13759,8 @@ export const vacationTopic = function vacationTopic(): HelpTopic {
     ],
     notes: [
       "Einen offenen oder zukünftigen genehmigten Antrag können Sie stornieren.",
+      "Ist der Antrag genehmigt, fallen Ihre Schichten an den ganzen Urlaubstagen aus. Im Betreuungsplan stehen Sie dann als abwesend. Das Team sieht dort nur `Abwesenheit`.",
+      "Stornieren Sie einen genehmigten Antrag, plant moto Sie an diesen Tagen wieder ein.",
       "Bei einer `Rückfrage` schreiben Sie eine Antwort und wählen `Antwort senden & erneut einreichen`.",
     ],
     related: [HELP_TOPICS.ownAbsence, HELP_TOPICS.correctWorkTime],

@@ -333,6 +333,7 @@ function ManualTemplateEntry({
               variant="surface"
               size="compact"
               aria-label={`Mit Angebot verbinden: ${about}`}
+              tooltip="Öffnet den Betreuungsplan, um den Regeltermin mit dem Angebot zu verbinden."
             >
               Mit Angebot verbinden
             </ButtonLink>
@@ -343,6 +344,7 @@ function ManualTemplateEntry({
             variant="surface"
             size="compact"
             aria-label={`Dort auch entfernen: ${about}`}
+            tooltip="Nimmt das Kind aus diesem Regeltermin, moto fragt vorher nach."
             onClick={() => onRemove(template)}
           >
             Dort auch entfernen
@@ -353,6 +355,7 @@ function ManualTemplateEntry({
           variant="surface"
           size="compact"
           aria-label={`Im Betreuungsplan ansehen: ${about}`}
+          tooltip="Öffnet die Regeltermine im Betreuungsplan ab dem Stichtag."
         >
           Im Betreuungsplan ansehen
         </ButtonLink>
@@ -442,6 +445,7 @@ function PickupOverrides({
             type="button"
             variant="surface"
             size="compact"
+            tooltip="Ersetzt die eingetragenen Abholzeiten sofort durch die gebuchten Zeiten."
             disabled={resetting}
             onClick={() => void takeBookedTimes()}
           >

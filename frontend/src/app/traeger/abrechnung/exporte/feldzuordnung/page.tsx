@@ -110,6 +110,7 @@ export default function TraegerSollMappingPage() {
             type="button"
             variant="outline"
             size="md"
+            tooltip="moto fragt vorher nach, dann gilt wieder die Spaltenfolge von moto."
             onClick={() => setConfirmReset(true)}
           >
             Vorgabe wiederherstellen

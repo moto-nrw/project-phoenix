@@ -310,6 +310,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/api/staff-shifts/{id}/cancellation"}:                                  notCaptured,
 	{http.MethodPut, "/api/staff-shifts/{id}/move"}:                                          notCaptured,
 	{http.MethodPost, "/api/staff/"}:                                                         notCaptured,
+	{http.MethodPost, "/api/staff/absences/{absenceId}/plan-sync"}:                           event("absence_plan_synced"),
 	{http.MethodPost, "/api/staff/absences/{absenceId}/approve"}:                             notCaptured,
 	{http.MethodPost, "/api/staff/absences/{absenceId}/deny"}:                                notCaptured,
 	{http.MethodPost, "/api/staff/absences/{absenceId}/question"}:                            notCaptured,

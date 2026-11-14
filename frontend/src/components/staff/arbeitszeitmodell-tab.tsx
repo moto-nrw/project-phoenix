@@ -226,6 +226,7 @@ export function ArbeitszeitmodellTab({
               variant="outline"
               size="md"
               onClick={() => setEditing(true)}
+              tooltip="Öffnet das Arbeitszeitmodell dieser Person zum Bearbeiten."
             >
               Bearbeiten
             </Button>
@@ -650,10 +651,16 @@ function ModeChoice({
   );
 }
 
-const MANAGE_TEMPLATES_LINK = {
-  href: "/database/work-time-models",
-  label: "Arbeitszeitmodelle verwalten",
-} as const;
+// Eigene Komponente statt Objekt mit `href` und `label`: so ein Objekt hält
+// `ui-kit/menu-item-needs-description` für einen Menüeintrag.
+function ManageTemplatesLink() {
+  return (
+    <CatalogManageLink
+      href="/database/work-time-models"
+      label="Arbeitszeitmodelle verwalten"
+    />
+  );
+}
 
 function TemplateSelector({
   templates: allTemplates,
@@ -679,7 +686,7 @@ function TemplateSelector({
           Es gibt noch keine Vorlagen. Legen Sie eine unter „Arbeitszeitmodelle“
           an. Oder speichern Sie ein eigenes Modell als Vorlage.
         </InsetPanel>
-        <CatalogManageLink {...MANAGE_TEMPLATES_LINK} />
+        <ManageTemplatesLink />
       </div>
     );
   }
@@ -705,7 +712,7 @@ function TemplateSelector({
         placeholder="Bitte wählen…"
       />
       {selected && <TemplatePreviewBlock model={selected} />}
-      <CatalogManageLink {...MANAGE_TEMPLATES_LINK} />
+      <ManageTemplatesLink />
     </div>
   );
 }

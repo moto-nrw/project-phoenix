@@ -160,7 +160,9 @@ describe("SepaImportPreviewCard", () => {
       screen.getAllByText(/Geschwister haben verschiedene Nummern/).length,
     ).toBeGreaterThan(0);
     expect(
-      screen.getAllByText("Debitorennummer 10 0001 wird eingetragen.").length,
+      screen.getAllByText(
+        "Debitorennummer 10 0001 wird bei der Familie eingetragen.",
+      ).length,
     ).toBeGreaterThan(0);
   });
 

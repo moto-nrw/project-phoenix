@@ -23,7 +23,7 @@ type instanceStaffReconciliation struct {
 	byStaff      map[int64][]*activityContract.SupervisorPlanned
 	priorByStaff map[int64][]*activityContract.SupervisorPlanned
 	existing     map[instanceStudentPair]*scheduleModel.InstanceStaff
-	sickDays     map[staffDay]int64
+	sickDays     map[staffDay]absenceStamp
 	created      int
 	removed      int
 	repointed    int

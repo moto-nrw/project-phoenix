@@ -540,8 +540,14 @@ describe("StudentSearchPage — school check-in wiring", () => {
     });
 
     expect(screen.getByText("0 ausgewählt")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Anmelden/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Abmelden/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Anmelden/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /Abmelden/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("marks only the requested bulk action as running until it settles", async () => {
@@ -794,7 +800,7 @@ describe("StudentSearchPage — school check-in wiring", () => {
 
       expect(
         screen.getByRole("button", { name: "Alle 3 auswählen" }),
-      ).toBeDisabled();
+      ).toHaveAttribute("aria-disabled", "true");
     });
 
     it("names the children still missing after Anmelden", async () => {

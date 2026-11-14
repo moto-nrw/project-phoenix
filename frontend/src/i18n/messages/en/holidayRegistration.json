@@ -203,5 +203,6 @@
     "parent": "Parent",
     "guardian": "Legal guardian",
     "relative": "Relative"
-  }
+  },
+  "accountHintLoginTooltip": "Opens the sign-in, then brings you back here."
 }

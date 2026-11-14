@@ -255,11 +255,14 @@ func (r *SessionRepository) UpdateLastActivity(ctx context.Context, id int64, at
 }
 
 // FindActiveSessionsOlderThan finds active sessions that haven't had activity
-// since the cutoff time. Devices are resolved through the Device Fleet owner
-// so the session check can see their online status.
+// since the cutoff time and have no child checked in: while children are in
+// the room, the team may still check children in through the app during a
+// terminal outage, so the session must stay their target (#6977). Devices are
+// resolved through the Device Fleet owner so the session check can see their
+// online status.
 func (r *SessionRepository) FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*ActiveGroupRow, error) {
 	groups, err := r.query(ctx, studentpresence.LiveGroupFilter{
-		OpenOnly: true, DeviceManagedOnly: true, LastActivityBefore: &cutoffTime,
+		OpenOnly: true, DeviceManagedOnly: true, LastActivityBefore: &cutoffTime, WithoutOpenVisitsOnly: true,
 	})
 	if err != nil {
 		return nil, err

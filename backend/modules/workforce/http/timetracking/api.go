@@ -535,7 +535,7 @@ func (rs *Resource) cancelAbsence(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := tenant.FromContext(r.Context())
 	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
-		return rs.StaffAbsenceService.CancelAbsence(ctx, staffID, userClaims.AccountID, absenceID)
+		return rs.AbsenceWrites.CancelAbsence(ctx, staffID, userClaims.AccountID, absenceID)
 	}); err != nil {
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return

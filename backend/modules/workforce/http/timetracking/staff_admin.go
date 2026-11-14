@@ -18,11 +18,17 @@ import (
 )
 
 // AdminAbsenceWrites are the manager's absence writes on a staff member's
-// behalf that may cascade a sick report into the plans (#1843). The root
-// binds the shift-plan-sync workflow's entry (#4825).
+// behalf that may cascade an absence into the plans (#1843), the approval of
+// a request among them (#6847). The root binds the shift-plan-sync
+// workflow's entry (#4825).
 type AdminAbsenceWrites interface {
+	ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforce.StaffAbsenceResponse, error)
 	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
 	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
+	// AbsencePlanGaps and SyncAbsencePlan serve the take-over of absences
+	// whose plan effect predates #6847 (#7021).
+	AbsencePlanGaps(ctx context.Context) ([]workforce.AbsencePlanGap, error)
+	SyncAbsencePlan(ctx context.Context, absenceID, actorStaffID int64, actorAccountID *int64) (bool, error)
 }
 
 // StaffAdminResource serves the workforce half of /api/staff.
@@ -308,6 +314,12 @@ func (rs *StaffAdminResource) registerAbsenceRoutes(r chi.Router, withTx common.
 	r.With(vacation, withTx).Post("/absences/{absenceId}/approve", rs.approveAbsence)
 	r.With(vacation, withTx).Post("/absences/{absenceId}/deny", rs.denyAbsence)
 	r.With(vacation, withTx).Post("/absences/{absenceId}/question", rs.questionAbsence)
+	// Absences in force whose shifts and blocks still lack their effect, and
+	// the take-over of one of them (#7021). Both permissions cascade absences
+	// into the plans (approval, booking), so either reaches them. One absence
+	// per request keeps the locks of two absences out of one transaction.
+	r.With(either, withTx).Get("/absences/plan-gaps", rs.listAbsencePlanGaps)
+	r.With(either, withTx).Post("/absences/{absenceId}/plan-sync", rs.syncAbsencePlan)
 
 	// The vacation quota belongs to the time-tracking tier, not to the
 	// personnel record: reading is vacation:approve or time_tracking:manage,

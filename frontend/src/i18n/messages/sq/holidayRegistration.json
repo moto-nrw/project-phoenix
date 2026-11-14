@@ -203,5 +203,6 @@
     "parent": "Prind",
     "guardian": "Kujdestar ligjor",
     "relative": "I afërm"
-  }
+  },
+  "accountHintLoginTooltip": "Hap hyrjen, pastaj ktheheni këtu."
 }

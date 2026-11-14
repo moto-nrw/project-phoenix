@@ -27,5 +27,8 @@
   "booked": "Ви записані на {time}.",
   "cancelled": "Ваш запис скасовано.",
   "errorObject": "батьківську консультацію",
-  "errorObjectBooking": "запис"
+  "errorObjectBooking": "запис",
+  "cancelTooltip": "Скасовує зустріч, час звільняється. moto спершу перепитає.",
+  "entryActionTooltip": "Відкриває вільний час дня зустрічей для запису.",
+  "entryActionBookedTooltip": "Відкриває вашу зустріч, там її можна перенести або скасувати."
 }

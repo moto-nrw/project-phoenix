@@ -104,6 +104,8 @@ const PDF_LABELS: AttachmentLabels = {
   download: "Herunterladen",
   openLabel: (label) => `${label} öffnen`,
   downloadLabel: (label) => `${label} herunterladen`,
+  openHint: "Öffnet die PDF in einem neuen Tab.",
+  downloadHint: "Speichert die PDF auf diesem Gerät.",
   popupBlocked:
     "Das PDF konnte nicht geöffnet werden. Bitte erlauben Sie neue Fenster.",
   errorObject: "die PDF-Datei",
@@ -412,6 +414,7 @@ export default function TraegerHolidayRegistrationPage() {
         variant="outline"
         size="md"
         aria-label={label}
+        tooltip="Öffnet diese Angaben zum Bearbeiten, ohne Nachricht an die Eltern."
         onClick={() => setEditing(section)}
       >
         Ändern
@@ -521,6 +524,7 @@ export default function TraegerHolidayRegistrationPage() {
                     type="button"
                     variant="outline"
                     size="md"
+                    tooltip="moto fragt vorher nach, dann zählen die Kinder einzeln beim Ferienbeitrag."
                     onClick={() => setConfirmingSplit(true)}
                   >
                     Trennen

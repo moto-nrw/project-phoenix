@@ -150,6 +150,27 @@ function feeNoticeHeldText(held: readonly CareFeeNoticeHold[]): string {
   return `${subject} Der Monat bleibt gesperrt. Dieser Lauf rechnet dafür keine Betreuung ab. Wollen Sie den Monat abrechnen, stellen Sie einen neuen Bescheid aus.`;
 }
 
+/** Why „Lauf freigeben“ is blocked, in the order the warnings show. */
+function releaseBlockReason(run: CareRunDetail): string | undefined {
+  if (run.previewCount === 0) {
+    if (run.excludedCount > 0 || (run.freeOfCharge ?? 0) > 0) return undefined;
+    if (run.unpriced.length > 0) {
+      return "Noch keine Rechnung: Für einige Kinder fehlt ein Preis.";
+    }
+    if (run.duplicates.length > 0) {
+      return "Noch keine Rechnung: Einige Kinder haben einen doppelten Vertrag.";
+    }
+    return "Der Lauf hat keine Rechnung zum Freigeben.";
+  }
+  if (run.legalRemedyMissing) {
+    return "Tragen Sie zuerst die Rechtsbehelfsbelehrung in der Vorlage „Bescheid“ ein.";
+  }
+  if (!run.numberRangeSet) {
+    return "Legen Sie zuerst das Muster der Rechnungsnummern für Monatsbeiträge fest.";
+  }
+  return undefined;
+}
+
 function notBilledLabel(children: number, released = false): string {
   if (children === 1) {
     return `1 Kind mit doppeltem Vertrag ${released ? "ist" : "wird"} nicht abgerechnet.`;
@@ -368,6 +389,7 @@ export default function TraegerCareRunPage() {
           href={traegerPath(dueDatesHref)}
           variant="ghost_tone"
           size="compact"
+          tooltip="Öffnet die Fälligkeiten der Rechnungen dieses Laufs zum Ändern."
         >
           Fälligkeiten ändern
         </ButtonLink>
@@ -382,6 +404,7 @@ export default function TraegerCareRunPage() {
               href={traegerPath("/traeger/abrechnung/kinderzahl")}
               variant="ghost_tone"
               size="compact"
+              tooltip="Öffnet die Kinderzahl der Familien zum Bestätigen."
             >
               Kinderzahl prüfen
             </ButtonLink>
@@ -439,6 +462,7 @@ export default function TraegerCareRunPage() {
             type="button"
             variant="outline_danger"
             size="md"
+            tooltip="moto fragt vorher nach, dann ist der Monat frei für einen neuen Lauf."
             onClick={() => setConfirmingDiscard(true)}
           >
             Leeren Lauf verwerfen
@@ -449,6 +473,12 @@ export default function TraegerCareRunPage() {
             variant="primary"
             size="md"
             disabled={!canRelease}
+            disabledReason={releaseBlockReason(run)}
+            tooltip={
+              run.previewCount === 0
+                ? "moto fragt vorher nach, dann ist der Lauf ohne Rechnungen abgeschlossen."
+                : "moto fragt vorher nach, dann sind alle Rechnungen mit Nummer festgeschrieben."
+            }
             onClick={() => setConfirming(true)}
           >
             Lauf freigeben
@@ -544,6 +574,7 @@ export default function TraegerCareRunPage() {
               href={traegerPath("/traeger/abrechnung/jahresbescheide")}
               variant="surface"
               size="compact"
+              tooltip="Öffnet die Jahresbescheide, dort starten Sie einen neuen Jahreslauf."
             >
               Neuen Bescheid ausstellen
             </ButtonLink>
@@ -682,6 +713,7 @@ export default function TraegerCareRunPage() {
                       variant="outline"
                       size="compact"
                       aria-label="Rechnungsdatum ändern"
+                      tooltip="Öffnet ein Fenster, um das Rechnungsdatum des Laufs zu ändern."
                       onClick={() => setEditingDate(true)}
                     >
                       Ändern
@@ -707,6 +739,7 @@ export default function TraegerCareRunPage() {
                       variant="outline"
                       size="compact"
                       aria-label="Fälligkeiten ändern"
+                      tooltip="Öffnet die Fälligkeiten der Rechnungen dieses Laufs zum Ändern."
                     >
                       Ändern
                     </ButtonLink>
@@ -783,6 +816,7 @@ export default function TraegerCareRunPage() {
                   )}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Vorlage „Bescheid“ in den Einstellungen."
                 >
                   Vorlage öffnen
                 </ButtonLink>
@@ -798,6 +832,7 @@ export default function TraegerCareRunPage() {
                   href={traegerPath("/traeger/einstellungen/abrechnung")}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Einstellungen für das Muster der Rechnungsnummern."
                 >
                   Abrechnungsvorgaben öffnen
                 </ButtonLink>
@@ -814,6 +849,7 @@ export default function TraegerCareRunPage() {
                     type="button"
                     variant="surface"
                     size="compact"
+                    tooltip="Öffnet die Rechnung, dort nehmen Sie die Änderung zurück."
                     onClick={() => openAmend(conflicted)}
                   >
                     Rechnung öffnen
@@ -832,6 +868,7 @@ export default function TraegerCareRunPage() {
                   href={traegerPath("/traeger/abrechnung/kinderzahl")}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Kinderzahl der Familien zum Bestätigen."
                 >
                   Kinderzahl prüfen
                 </ButtonLink>

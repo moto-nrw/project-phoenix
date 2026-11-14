@@ -89,6 +89,7 @@ export default function TraegerSepaImportPage() {
       logger.error("sepa_import_log_load_failed", { error: errorText(err) });
       await showLogError(err, {
         object: "die Liste der Importe",
+        // oxlint-disable-next-line ui-kit/menu-item-needs-description -- Aktion der Fehlermeldung, kein Menüeintrag.
         action: { label: "Erneut laden", onClick: () => void loadLog() },
       });
     }
@@ -247,6 +248,7 @@ export default function TraegerSepaImportPage() {
                     href={traegerPath(LASTSCHRIFT)}
                     variant="primary"
                     size="md"
+                    tooltip="Öffnet die Lastschrift mit allen Mandaten."
                   >
                     Zur Lastschrift
                   </ButtonLink>
@@ -256,6 +258,7 @@ export default function TraegerSepaImportPage() {
                     size="md"
                     onClick={restart}
                     disabled={applying}
+                    tooltip="Startet einen neuen Import mit einer anderen Datei."
                   >
                     Weitere Datei laden
                   </Button>
@@ -278,6 +281,7 @@ export default function TraegerSepaImportPage() {
                     href={traegerPath("/traeger/einstellungen/abrechnung")}
                     variant="ghost_tone"
                     size="compact"
+                    tooltip="Öffnet die Einstellungen der Abrechnung für die Gläubiger-ID."
                   >
                     Zu den Einstellungen
                   </ButtonLink>
@@ -303,6 +307,7 @@ export default function TraegerSepaImportPage() {
                     size="md"
                     onClick={restart}
                     disabled={applying}
+                    tooltip="Verwirft die gelesene Datei, ohne etwas zu übernehmen."
                   >
                     Andere Datei
                   </Button>
@@ -351,6 +356,7 @@ export default function TraegerSepaImportPage() {
                       type="button"
                       variant="outline"
                       size="md"
+                      tooltip="Liest die Datei noch einmal und prüft jede Zeile."
                       onClick={() =>
                         void read(file, result?.mapping ?? null, answers)
                       }

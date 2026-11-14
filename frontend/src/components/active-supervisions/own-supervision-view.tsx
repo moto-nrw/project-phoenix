@@ -20,6 +20,7 @@ import {
   reopenBannerMessage,
   useReopenBanner,
 } from "~/components/active-supervisions/use-reopen-banner";
+import { REOPEN_TOOLTIP } from "~/components/active-supervisions/supervision-action-hints";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
 import { usePlannedWindowRefresh } from "~/components/active-supervisions/planned-window";
@@ -268,6 +269,7 @@ export function OwnSupervisionView() {
               isLoading={actions.isReopeningInstance}
               loadingText="Wird zurückgenommen…"
               onClick={() => void actions.handleReopenTimetableInstance()}
+              tooltip={REOPEN_TOOLTIP}
             >
               Rückgängig
             </Button>

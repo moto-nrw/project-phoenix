@@ -266,6 +266,7 @@ export function BookingLeftoverHints({
               aria-expanded={expanded}
               aria-controls={openListId}
               onClick={() => setExpanded((current) => !current)}
+              noTooltip="Klappt nur die Liste auf oder zu, ohne etwas zu ändern."
             >
               {expanded ? (
                 <>
@@ -308,6 +309,7 @@ export function BookingLeftoverHints({
                   aria-label={`Hinweis wieder zeigen: ${leftover.studentName} in „${leftover.templateName}“`}
                   onClick={() => void decide(leftover, false)}
                   disabled={busyKey === bookingLeftoverKey(leftover)}
+                  tooltip="Holt den Hinweis zurück in die offene Liste oben."
                 >
                   Hinweis wieder zeigen
                 </Button>
@@ -377,6 +379,7 @@ function OpenLeftoverActions({
           aria-label={`Entfernen: ${about}`}
           onClick={() => onRemove(leftover)}
           disabled={busy}
+          tooltip="moto fragt vorher nach und nimmt das Kind an diesen Tagen heraus."
         >
           Entfernen
         </Button>
@@ -388,6 +391,7 @@ function OpenLeftoverActions({
         aria-label={`Bleibt so: ${about}`}
         onClick={() => onKeep(leftover)}
         disabled={busy}
+        tooltip="Lässt das Kind im Regeltermin und schließt den Hinweis."
       >
         Bleibt so
       </Button>

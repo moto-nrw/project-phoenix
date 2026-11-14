@@ -273,6 +273,9 @@ export default function TraegerVertragPage() {
   const canSend =
     isDraft || contract?.status === "versendet" || contract?.status === "aktiv";
   const lastMail = contract?.mailings[0];
+  const sendBlockedReason = lastMail
+    ? contractSendBlockedReason(lastMail, isDraft)
+    : undefined;
   const party = contract?.parties[0];
   const planned = contract
     ? plannedVersion(contract.versions, today)
@@ -305,6 +308,7 @@ export default function TraegerVertragPage() {
   if (refreshInCard) {
     headMenu.push({
       label: "Versand aktualisieren",
+      description: "Holt den neuesten Stand der Mails an die Eltern.",
       icon: <RotateCw className="h-4 w-4" aria-hidden="true" />,
       onClick: () => {
         if (!refreshing) void refreshDelivery();
@@ -314,6 +318,8 @@ export default function TraegerVertragPage() {
   if (contract && resendInCard && !sendBlocked) {
     headMenu.push({
       label: "Erneut senden",
+      description:
+        "moto fragt vorher nach, dann geht der Vertrag noch einmal an die Eltern.",
       icon: <Send className="h-4 w-4" aria-hidden="true" />,
       onClick: () => setConfirmingSend(true),
     });
@@ -321,6 +327,7 @@ export default function TraegerVertragPage() {
   if (contract && sendInHead) {
     headMenu.push({
       label: "PDF herunterladen",
+      description: "Speichert den Vertrag als PDF auf Ihrem Gerät.",
       icon: <Download className="h-4 w-4" aria-hidden="true" />,
       onClick: () => void download(),
     });
@@ -328,6 +335,7 @@ export default function TraegerVertragPage() {
   if (isDraft) {
     headMenu.push({
       label: "Entwurf verwerfen",
+      description: "moto fragt vorher nach, dann wird der Entwurf gelöscht.",
       icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
       destructive: true,
       onClick: () => setConfirmDiscard(true),
@@ -369,6 +377,12 @@ export default function TraegerVertragPage() {
                 variant={isDraft ? "success" : "outline"}
                 size="md"
                 disabled={sendBlocked}
+                tooltip={
+                  isDraft
+                    ? "moto fragt vorher nach, dann geht der Vertrag per E-Mail und in die Eltern-App."
+                    : "moto fragt vorher nach, dann geht der Vertrag noch einmal an die Eltern."
+                }
+                disabledReason={sendBlockedReason}
                 onClick={() => setConfirmingSend(true)}
               >
                 <Send className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -383,6 +397,7 @@ export default function TraegerVertragPage() {
                 type="button"
                 variant="outline"
                 size="md"
+                tooltip="Speichert den Vertrag als PDF auf Ihrem Gerät."
                 onClick={() => void download()}
               >
                 <Download className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -607,6 +622,7 @@ export default function TraegerVertragPage() {
                           variant="surface"
                           size="compact"
                           disabled={refreshing}
+                          tooltip="Holt den neuesten Stand der Mails an die Eltern."
                           onClick={() => void refreshDelivery()}
                         >
                           <RotateCw
@@ -624,6 +640,8 @@ export default function TraegerVertragPage() {
                           variant="surface"
                           size="compact"
                           disabled={sendBlocked}
+                          tooltip="moto fragt vorher nach, dann geht der Vertrag noch einmal an die Eltern."
+                          disabledReason={sendBlockedReason}
                           onClick={() => setConfirmingSend(true)}
                         >
                           <Send className="mr-1.5 h-4 w-4" aria-hidden="true" />
@@ -701,6 +719,7 @@ export default function TraegerVertragPage() {
                       type="submit"
                       variant="primary"
                       disabled={sending || refreshing}
+                      tooltip="Schickt den Vertrag sofort an die neue Adresse."
                     >
                       {sending ? "Wird gesendet …" : "An diese Adresse senden"}
                     </Button>
@@ -775,6 +794,30 @@ function contractMailBadge(mailing: ContractMailing): {
       tone: MAIL_STATE_TONES[mailing.state],
     }
   );
+}
+
+// Why „Vertrag senden“ / „Erneut senden“ is blocked, short enough for the
+// bubble; the hold notice on the page gives the details (#6747).
+function contractSendBlockedReason(
+  mailing: ContractMailing,
+  isDraft: boolean,
+): string | undefined {
+  if (mailing.state === "queued")
+    return "Die letzte Mail wartet noch auf den Versand.";
+  if (isDraft) return undefined;
+  switch (mailing.sendBlock) {
+    case "stopped":
+      return "Die Schule hat Mails an diese Person gestoppt, klären Sie das mit ihr.";
+    case "address":
+    case "provider":
+      return "Die Adresse ist gesperrt, senden Sie unter „Versand“ an eine andere.";
+    case "provider_unknown":
+      return "Die Sperre der Adresse lässt sich gerade nicht prüfen, bitte später versuchen.";
+    case "delayed":
+      return "Die letzte Mail kommt verspätet noch an, neu gesendet käme sie doppelt.";
+    default:
+      return undefined;
+  }
 }
 
 // The reason and the next step as they are now. "Prüfen Sie die Adresse" only

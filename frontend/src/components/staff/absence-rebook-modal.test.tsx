@@ -259,7 +259,7 @@ describe("AbsenceRebookModal", () => {
     expect(
       await screen.findByText(/Nicht genug Tage: Krank-Urlaubstag reicht/),
     ).toBeInTheDocument();
-    expect(submitButton()).toBeDisabled();
+    expect(submitButton()).toHaveAttribute("aria-disabled", "true");
   });
 
   it("shows why a rebooking is blocked and keeps it disabled", async () => {
@@ -281,7 +281,7 @@ describe("AbsenceRebookModal", () => {
         ),
       ),
     ).toBeInTheDocument();
-    expect(submitButton()).toBeDisabled();
+    expect(submitButton()).toHaveAttribute("aria-disabled", "true");
   });
 
   it("reports a failed preview without enabling the save", async () => {
@@ -297,7 +297,7 @@ describe("AbsenceRebookModal", () => {
         catalogText("general.server", "die Änderung der Art"),
       ),
     ).toBeInTheDocument();
-    expect(submitButton()).toBeDisabled();
+    expect(submitButton()).toHaveAttribute("aria-disabled", "true");
 
     // Wiederholen rechnet die Folgen neu; danach lässt sich speichern.
     mocks.rebookAbsences.mockResolvedValue(rebooking());

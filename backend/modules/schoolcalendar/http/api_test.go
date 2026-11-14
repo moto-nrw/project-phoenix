@@ -58,6 +58,8 @@ type fakeCalendarService struct {
 	respondErr       error
 	gotRespondID     int64
 	gotRespondStatus string
+	gotRespondDate   calendarSvc.Date
+	gotOverviewDate  calendarSvc.Date
 
 	options       *calendarSvc.RecipientOptions
 	optionsErr    error
@@ -165,21 +167,23 @@ func (f *fakeCalendarService) EnqueueDueAppointmentReminders(context.Context, ti
 	return 0, nil
 }
 
-func (f *fakeCalendarService) GetStaffAppointmentOverview(context.Context, int64) (*calendarSvc.AppointmentOverview, error) {
+func (f *fakeCalendarService) GetStaffAppointmentOverview(_ context.Context, _ int64, occurrenceDate calendarSvc.Date) (*calendarSvc.AppointmentOverview, error) {
+	f.gotOverviewDate = occurrenceDate
+	return &calendarSvc.AppointmentOverview{OccurrenceDate: occurrenceDate}, nil
+}
+
+func (f *fakeCalendarService) GetParentAppointmentOverview(context.Context, int64, int64, calendarSvc.Date) (*calendarSvc.AppointmentOverview, error) {
 	return nil, nil
 }
 
-func (f *fakeCalendarService) GetParentAppointmentOverview(context.Context, int64, int64) (*calendarSvc.AppointmentOverview, error) {
-	return nil, nil
-}
-
-func (f *fakeCalendarService) RespondToStaffInvitation(_ context.Context, recipientID int64, status string) error {
+func (f *fakeCalendarService) RespondToStaffInvitation(_ context.Context, recipientID int64, answer calendarSvc.InvitationAnswer) error {
 	f.gotRespondID = recipientID
-	f.gotRespondStatus = status
+	f.gotRespondStatus = answer.Status
+	f.gotRespondDate = answer.OccurrenceDate
 	return f.respondErr
 }
 
-func (f *fakeCalendarService) RespondToParentInvitation(context.Context, int64, int64, string) error {
+func (f *fakeCalendarService) RespondToParentInvitation(context.Context, int64, int64, calendarSvc.InvitationAnswer) error {
 	return nil
 }
 
@@ -537,6 +541,66 @@ func TestRespondPassesRecipientAndStatus(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(42), service.gotRespondID)
 	assert.Equal(t, appointmentcap.ResponseStatusAccepted, service.gotRespondStatus)
+	assert.True(t, service.gotRespondDate.IsZero(), "an answer without a date holds for the whole series")
+}
+
+// An answer and the overview can name one date of a series (#6987).
+func TestRespondAndOverviewPassTheOccurrenceDate(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeCalendarService{}
+	rs := &Resource{service: service}
+	req := requestWithURLParam(
+		httptest.NewRequest(http.MethodPost, "/recipients/42/response", strings.NewReader(`{"status":"declined","occurrence_date":"2026-11-25"}`)),
+		"recipientId",
+		"42",
+	)
+	w := httptest.NewRecorder()
+	rs.respond(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, calendarSvc.Date("2026-11-25"), service.gotRespondDate)
+	assert.Equal(t, appointmentcap.ResponseStatusDeclined, service.gotRespondStatus)
+
+	invalid := requestWithURLParam(
+		httptest.NewRequest(http.MethodPost, "/recipients/42/response", strings.NewReader(`{"status":"declined","occurrence_date":"25.11.2026"}`)),
+		"recipientId",
+		"42",
+	)
+	w = httptest.NewRecorder()
+	rs.respond(w, invalid)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	overview := requestWithURLParam(
+		httptest.NewRequest(http.MethodGet, "/appointments/7/overview?occurrence_date=2026-11-25", nil),
+		"appointmentId",
+		"7",
+	)
+	w = httptest.NewRecorder()
+	rs.appointmentOverview(w, overview)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, calendarSvc.Date("2026-11-25"), service.gotOverviewDate)
+	assert.Contains(t, w.Body.String(), `"occurrence_date":"2026-11-25"`)
+
+	// A date that does not take place answers with its own code.
+	service.respondErr = calendarSvc.ErrOccurrenceUnavailable
+	cancelled := requestWithURLParam(
+		httptest.NewRequest(http.MethodPost, "/recipients/42/response", strings.NewReader(`{"status":"declined","occurrence_date":"2026-12-02"}`)),
+		"recipientId",
+		"42",
+	)
+	w = httptest.NewRecorder()
+	rs.respond(w, cancelled)
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"calendar.occurrence_unavailable"`)
+
+	badOverview := requestWithURLParam(
+		httptest.NewRequest(http.MethodGet, "/appointments/7/overview?occurrence_date=morgen", nil),
+		"appointmentId",
+		"7",
+	)
+	w = httptest.NewRecorder()
+	rs.appointmentOverview(w, badOverview)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestRespondRejectsInvalidRecipientID(t *testing.T) {

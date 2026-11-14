@@ -260,6 +260,9 @@ function formatTimeFromDate(date: Date): string {
 
 const DEFAULT_BREAK_MINUTES = 30;
 const BREAK_STEP_MINUTES = 15;
+const ABSENCE_RANGE_MISSING = "Wählen Sie zuerst Von und Bis.";
+const BREAK_START_TOOLTIP =
+  "Startet sofort eine Pause mit der gewählten Dauer.";
 const MIN_BREAK_MINUTES = 15;
 const MAX_BREAK_MINUTES = 240;
 
@@ -796,6 +799,11 @@ function ClockInCard({
     }
   };
 
+  // Während Laden, Ladefehler oder Speichern bleibt der Knopf nativ gesperrt:
+  // dann gibt es keinen fachlichen Grund zu nennen.
+  const reasonOnceReady = (reason: string) =>
+    stampingDisabled || actionLoading ? undefined : reason;
+
   const handleBreakStepperChange = (direction: 1 | -1) => {
     setIndividualBreakMinutes((current) =>
       Math.min(
@@ -829,6 +837,10 @@ function ClockInCard({
           actionLoading ||
           individualBreakMinutes <= MIN_BREAK_MINUTES
         }
+        disabledReason={reasonOnceReady(
+          `Kürzer als ${MIN_BREAK_MINUTES} Minuten geht nicht.`,
+        )}
+        tooltip={`Verkürzt die geplante Pause um ${BREAK_STEP_MINUTES} Minuten.`}
         onClick={() => handleBreakStepperChange(-1)}
         className="h-[4.5rem] w-[4.5rem] !rounded-[1.75rem] border border-gray-200 shadow-none sm:h-12 sm:w-12 sm:!rounded-xl"
       >
@@ -862,6 +874,10 @@ function ClockInCard({
           actionLoading ||
           individualBreakMinutes >= MAX_BREAK_MINUTES
         }
+        disabledReason={reasonOnceReady(
+          `Länger als ${MAX_BREAK_MINUTES} Minuten geht nicht.`,
+        )}
+        tooltip={`Verlängert die geplante Pause um ${BREAK_STEP_MINUTES} Minuten.`}
         onClick={() => handleBreakStepperChange(1)}
         className="h-[4.5rem] w-[4.5rem] !rounded-[1.75rem] border border-gray-200 shadow-none sm:h-12 sm:w-12 sm:!rounded-xl"
       >
@@ -887,6 +903,7 @@ function ClockInCard({
       variant="primary"
       disabled={stampingDisabled || actionLoading}
       onClick={() => void handleSelectBreakDuration(individualBreakMinutes)}
+      tooltip={BREAK_START_TOOLTIP}
       className="mx-auto w-full max-w-sm"
     >
       Starten
@@ -901,6 +918,7 @@ function ClockInCard({
         variant="primary"
         disabled={stampingDisabled || actionLoading}
         onClick={() => void handleSelectBreakDuration(individualBreakMinutes)}
+        tooltip={BREAK_START_TOOLTIP}
         className="mx-auto mt-6 w-full max-w-sm"
       >
         Starten
@@ -959,6 +977,7 @@ function ClockInCard({
                 disabled={stampingDisabled || actionLoading}
                 className={`${STAMP_BUTTON_BASE} border-moto-red text-moto-red hover:bg-moto-red/5 h-16 w-16`}
                 aria-label="Abwesenheit melden"
+                tooltip="Öffnet ein Fenster, um eine Abwesenheit einzutragen."
               >
                 <svg
                   className="h-7 w-7"
@@ -980,8 +999,12 @@ function ClockInCard({
                 variant="ghost"
                 onClick={handleCheckIn}
                 disabled={stampingDisabled || actionLoading || mode === null}
+                disabledReason={reasonOnceReady(
+                  "Wählen Sie zuerst oben Ihren Status.",
+                )}
                 className={getCheckInButtonClassName(mode)}
                 aria-label="Einstempeln"
+                tooltip="Startet Ihre Arbeitszeit im gewählten Status."
               >
                 {actionLoading ? (
                   <SpinnerIcon className="h-5 w-5" />
@@ -1022,6 +1045,7 @@ function ClockInCard({
                     disabled={stampingDisabled || actionLoading}
                     className={getBreakButtonClassName(true, breakMins)}
                     aria-label="Pause beenden"
+                    tooltip="Beendet die Pause sofort, Ihre Arbeitszeit läuft weiter."
                   >
                     <svg
                       className="h-5 w-5"
@@ -1051,6 +1075,7 @@ function ClockInCard({
                         disabled={stampingDisabled || actionLoading}
                         className={getBreakButtonClassName(false, breakMins)}
                         aria-label="Pause starten"
+                        tooltip="Öffnet die Auswahl, wie lange die Pause dauert."
                         aria-expanded={breakMenuOpen}
                         aria-haspopup="dialog"
                         aria-controls={
@@ -1138,6 +1163,10 @@ function ClockInCard({
                 variant="ghost"
                 onClick={handleCheckOut}
                 disabled={stampingDisabled || actionLoading || isOnBreak}
+                disabledReason={reasonOnceReady(
+                  "Beenden Sie zuerst die Pause.",
+                )}
+                tooltip="Stempelt Sie aus und beendet Ihre Arbeitszeit."
                 className={`${STAMP_BUTTON_BASE} hover:border-moto-red hover:text-moto-red h-12 w-12 border-gray-300 text-gray-500 disabled:opacity-50`}
                 aria-label="Ausstempeln"
               >
@@ -1249,9 +1278,9 @@ function ClockInStatsStrip({
   metrics,
 }: {
   // Every figure is date-valid, straight from the backend month model
-  // (usePeriodMetrics, #1842). Never computeStaffMetrics: that one prices
-  // historical days at the CURRENT schedule and contradicts the Monatskarte
-  // further down the page after a contract change. null = loading.
+  // (usePeriodMetrics, #1842, #6847). Never price days in the browser: a
+  // browser-side calculation contradicted the Monatskarte and the daily rows
+  // after a contract change. null = loading.
   readonly metrics: PeriodMetrics;
 }) {
   const { week, month, accountBalanceMinutes } = metrics;
@@ -1514,6 +1543,11 @@ function BreakActivityLog({
             onClick={() => setExpanded(!expanded)}
             aria-expanded={expanded}
             className="w-full"
+            tooltip={
+              expanded
+                ? "Zeigt wieder nur die letzten Zeiten."
+                : "Zeigt alle Arbeits- und Pausenzeiten dieses Tages."
+            }
           >
             {expanded
               ? "Weniger anzeigen"
@@ -2001,14 +2035,20 @@ function ModalActions({
   onConfirm,
   confirmLabel,
   cancelLabel = "Abbrechen",
+  confirmTooltip,
   confirmDisabled = false,
+  confirmDisabledReason,
   cancelDisabled = false,
 }: {
   readonly onCancel: () => void;
   readonly onConfirm: () => void;
   readonly confirmLabel: string;
   readonly cancelLabel?: string;
+  /** What confirming does, in one sentence (#6643). */
+  readonly confirmTooltip: string;
   readonly confirmDisabled?: boolean;
+  /** Why confirming is blocked; leave unset while saving. */
+  readonly confirmDisabledReason?: string;
   readonly cancelDisabled?: boolean;
 }) {
   return (
@@ -2019,6 +2059,7 @@ function ModalActions({
         size="md"
         onClick={onCancel}
         disabled={cancelDisabled}
+        noTooltip="Schließt nur das Fenster, ohne etwas zu speichern."
         className="flex-1"
       >
         {cancelLabel}
@@ -2029,6 +2070,8 @@ function ModalActions({
         size="md"
         onClick={onConfirm}
         disabled={confirmDisabled}
+        disabledReason={confirmDisabledReason}
+        tooltip={confirmTooltip}
         className="flex-1"
       >
         {confirmLabel}
@@ -2096,6 +2139,7 @@ function BackfillFooter({
         variant="outline"
         size="md"
         onClick={onClose}
+        noTooltip="Schließt nur das Fenster."
         className="flex-1"
       >
         Schließen
@@ -2106,6 +2150,7 @@ function BackfillFooter({
           variant="primary"
           size="md"
           onClick={onBackfill}
+          tooltip="Öffnet Ihre Zeiterfassung in der Verwaltung, um den Tag nachzutragen."
           className="flex-1"
         >
           Nachtragen
@@ -2340,6 +2385,12 @@ function EditSessionModal({
     endChanged && !endTime && initialEnd ? STORED_END_NOT_CLEARABLE_HINT : null;
   const hasUnresolvableTime =
     startProblem !== null || endProblem !== null || endClearedProblem !== null;
+  // Der Grund steht auch am Feld; die Blase am Knopf sagt, was zuerst fehlt.
+  const sessionSaveBlockedReason = saving
+    ? undefined
+    : !startTime || hasInvalidTimeRange || hasUnresolvableTime
+      ? "Prüfen Sie zuerst die markierten Uhrzeiten."
+      : "Wählen oder schreiben Sie zuerst einen Grund.";
 
   const handleBreakDurationChange = (breakId: string, minutes: number) => {
     setBreakDurations((prev) => {
@@ -2486,6 +2537,7 @@ function EditSessionModal({
       onCancel={onClose}
       onConfirm={handleSave}
       confirmLabel={saving ? "Speichern…" : "Speichern"}
+      confirmTooltip="Speichert die Korrektur im Verlauf, den Sie und die Leitung sehen."
       confirmDisabled={
         saving ||
         !startTime ||
@@ -2493,6 +2545,7 @@ function EditSessionModal({
         hasInvalidTimeRange ||
         hasUnresolvableTime
       }
+      confirmDisabledReason={sessionSaveBlockedReason}
     />
   );
 
@@ -2505,12 +2558,20 @@ function EditSessionModal({
       onCancel={onClose}
       onConfirm={handleAbsenceSave}
       confirmLabel={absenceSaving ? "Speichern…" : "Speichern"}
+      confirmTooltip="Übernimmt die Änderungen an dieser Abwesenheit."
       confirmDisabled={absenceSaving || !absDateStart || !absDateEnd}
+      confirmDisabledReason={absenceSaving ? undefined : ABSENCE_RANGE_MISSING}
     />
   );
 
   const readOnlyAbsenceFooter = (
-    <Button type="button" variant="outline" size="md" onClick={onClose}>
+    <Button
+      type="button"
+      variant="outline"
+      size="md"
+      onClick={onClose}
+      noTooltip="Schließt nur das Fenster."
+    >
       Schließen
     </Button>
   );
@@ -2837,6 +2898,7 @@ function EditSessionModal({
                       size="compact"
                       onClick={handleAbsenceDelete}
                       disabled={save.pending}
+                      tooltip="Löscht die Abwesenheit sofort, moto protokolliert die Löschung."
                     >
                       {absenceDeleting
                         ? "Abwesenheit wird gelöscht…"
@@ -2961,7 +3023,9 @@ function CreateAbsenceModal({
           onCancel={onClose}
           onConfirm={handleSave}
           confirmLabel={saving ? "Speichern…" : "Speichern"}
+          confirmTooltip="Trägt die Abwesenheit sofort in Ihre Zeiterfassung ein."
           confirmDisabled={saving || !dateStart || !dateEnd}
+          confirmDisabledReason={saving ? undefined : ABSENCE_RANGE_MISSING}
         />
       }
     >
@@ -3943,6 +4007,7 @@ function TimeTrackingContent() {
                 href={tenantPath("/mein-dienstplan")}
                 variant="outline"
                 size="md"
+                tooltip="Öffnet Ihre geplanten Schichten der Woche."
               >
                 <CalendarRange
                   className="mr-1.5 h-4 w-4 shrink-0"
@@ -4017,6 +4082,7 @@ function TimeTrackingContent() {
                   if (status) void executeCheckIn(status);
                 }}
                 confirmLabel="Trotzdem einstempeln"
+                confirmTooltip="Stempelt Sie trotz der Abwesenheit sofort ein."
               />
             }
           >
@@ -4063,6 +4129,16 @@ function TimeTrackingContent() {
                 onConfirm={confirmDeviationReason}
                 confirmDisabled={
                   deviationSubmitting || deviationReason.trim() === ""
+                }
+                confirmDisabledReason={
+                  deviationSubmitting
+                    ? undefined
+                    : "Geben Sie zuerst einen kurzen Grund an."
+                }
+                confirmTooltip={
+                  pendingDeviation?.action === "check_in"
+                    ? "Stempelt Sie ein und speichert den Grund beim Eintrag."
+                    : "Stempelt Sie aus und speichert den Grund beim Eintrag."
                 }
                 confirmLabel={
                   pendingDeviation?.action === "check_in"

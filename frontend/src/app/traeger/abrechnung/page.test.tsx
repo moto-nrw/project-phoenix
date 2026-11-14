@@ -128,7 +128,9 @@ describe("TraegerAbrechnungPage", () => {
         /Es gibt noch keinen veröffentlichten Ferienzeitraum/,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Lauf starten/ })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /Lauf starten/ }),
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   describe("filtered to a holiday period (#5688)", () => {

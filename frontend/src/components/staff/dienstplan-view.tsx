@@ -16,6 +16,7 @@ import { Printer, Settings2 } from "lucide-react";
 import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
+import { AbsencePlanGaps } from "~/components/staff/absence-plan-gaps";
 import { DienstplanHalbjahrGrid } from "~/components/staff/dienstplan-halbjahr-grid";
 import { DienstplanHoursCard } from "~/components/staff/dienstplan-hours-card";
 import { DienstplanPersonWeekGrid } from "~/components/staff/dienstplan-person-week-grid";
@@ -197,6 +198,10 @@ function DienstplanContent() {
     refreshPlanCaches,
     mutateShiftTypes,
   } = useDienstplanData(weekFrom, weekTo);
+  const staffById = useMemo(
+    () => new Map(sortedStaff.map((member) => [member.id, member])),
+    [sortedStaff],
+  );
 
   // Ladefehler stehen dort, wo die Daten fehlen (#2514): der Wochenplan als
   // Fehler des Gerüsts, Schichtarten und Kalenderzeiträume über dem Raster.
@@ -649,6 +654,14 @@ function DienstplanContent() {
     >
       <LoadErrorAlert error={periodsLoad.error} className="mb-3" />
       <LoadErrorAlert error={holidayWeeks.loadError} className="mb-3" />
+      {/* Abwesenheiten von vor #6847, deren Tage noch im Plan stehen
+          (#7021). Über dem Raster, weil sie jede Ansicht betreffen. */}
+      <AbsencePlanGaps
+        enabled={sessionStatus === "authenticated" && canEdit}
+        staffById={staffById}
+        onPlansChanged={refreshAfterPlanMutation}
+        onShowWeek={(day) => updateUrlParams({ d: day, view: null })}
+      />
       {content}
 
       {modal && (

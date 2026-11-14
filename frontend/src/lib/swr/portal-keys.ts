@@ -225,6 +225,10 @@ export const studentKeys = {
 } as const;
 
 export const timetableKeys = {
+  // Abwesenheiten, die noch nicht im Plan stehen (#7021). Ein Präfix der
+  // Planänderungen (PLAN_CACHE_KEY_PREFIXES), damit jede Schicht- oder
+  // Abwesenheitsänderung im Dienstplan die Liste neu lädt.
+  absencePlanGaps: "absence-plan-gaps",
   offeringGaps: (periodId: string) =>
     `offering-gaps-${encodeURIComponent(periodId)}`,
   // Schulferien (#5345): der Hinweis und die Liste eines Fensters.

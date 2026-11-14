@@ -57,6 +57,7 @@ export function CalendarPeriodsActions({
         size="md"
         onClick={state.beginCreateSemester}
         className="shrink-0 gap-2"
+        tooltip="Öffnet ein Formular, in dem das nächste Halbjahr schon eingetragen ist."
       >
         <MotoConceptIcon
           concept={calendarPeriodsConcept}
@@ -71,6 +72,7 @@ export function CalendarPeriodsActions({
         size="md"
         onClick={state.beginCreate}
         className="shrink-0 gap-2"
+        tooltip="Öffnet ein leeres Formular für einen neuen Kalenderzeitraum."
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
         Zeitraum anlegen
@@ -236,6 +238,7 @@ export function CalendarPeriodsEditor({
               {
                 label: "Bearbeiten",
                 icon: <Pencil className="h-4 w-4" aria-hidden />,
+                description: "Öffnet den Zeitraum zum Ändern",
                 onClick: () => beginEdit(period),
               },
             ]}

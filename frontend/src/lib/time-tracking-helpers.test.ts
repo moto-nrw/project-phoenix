@@ -9,7 +9,6 @@ import type {
 } from "./time-tracking-helpers";
 import {
   mapDailyProjectionResponse,
-  targetsFromProjection,
   mapWorkSessionResponse,
   mapWorkSessionBreakResponse,
   mapWorkSessionHistoryResponse,
@@ -1133,23 +1132,5 @@ describe("mapDailyProjectionResponse", () => {
   it("liefert für eine leere Antwort eine leere Map", () => {
     expect(mapDailyProjectionResponse(null).size).toBe(0);
     expect(mapDailyProjectionResponse(undefined).size).toBe(0);
-  });
-});
-
-describe("targetsFromProjection", () => {
-  it("schneidet nur das Soll heraus", () => {
-    const projection = mapDailyProjectionResponse([
-      {
-        date: "2026-08-19",
-        target_minutes: 480,
-        credit_minutes: 480,
-        actual_minutes: 0,
-        balance_minutes: 0,
-      },
-    ]);
-
-    expect([...targetsFromProjection(projection)]).toEqual([
-      ["2026-08-19", 480],
-    ]);
   });
 });

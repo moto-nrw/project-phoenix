@@ -51,5 +51,6 @@
     "fri": "Freitag",
     "sat": "Samstag",
     "sun": "Sonntag"
-  }
+  },
+  "submitTooltip": "Schließt den Vertrag sofort verbindlich mit dem Träger ab."
 }

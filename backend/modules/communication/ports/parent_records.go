@@ -9,6 +9,7 @@ import (
 
 type ParentAnnouncementRepository interface {
 	communication.StaffAnnouncementRecords
+	communication.AnnouncementRecipientRecords
 	communication.PortalAnnouncementAccess
 	ParentDeclarationRepository
 	AnnouncementDrafts

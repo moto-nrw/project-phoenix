@@ -163,6 +163,9 @@ function DebtorCell({
                 label: number
                   ? "Debitorennummer ändern"
                   : "Debitorennummer eintragen",
+                description: number
+                  ? "Öffnet ein Fenster, um die Debitorennummer zu ändern"
+                  : "Öffnet ein Fenster, um die Debitorennummer einzutragen",
                 icon: number ? (
                   <Pencil aria-hidden="true" className="h-4 w-4" />
                 ) : (
@@ -245,6 +248,9 @@ function ChildDebtorCell({
                 label: complete
                   ? "Nummern der Kinder ändern"
                   : "Nummern der Kinder eintragen",
+                description: complete
+                  ? "Öffnet ein Fenster, um die Nummern der Kinder zu ändern"
+                  : "Öffnet ein Fenster, um die Nummern der Kinder einzutragen",
                 icon: complete ? (
                   <Pencil aria-hidden="true" className="h-4 w-4" />
                 ) : (
@@ -648,6 +654,7 @@ export default function TraegerBillingFamiliesPage() {
                       type="button"
                       variant="outline"
                       size="md"
+                      tooltip="Leert Suche und Filter und zeigt wieder alle Familien."
                       onClick={resetFilters}
                     >
                       {emptySearch.actionLabel}

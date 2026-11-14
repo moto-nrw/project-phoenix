@@ -208,6 +208,38 @@ func TestSEPAMandateImportTakesOverDebtorNumbersPerChild(t *testing.T) {
 	assert.Zero(t, familyNumbers, "no family number")
 }
 
+// A child whose family pays without a mandate still has its row in the
+// file: the import takes over its number per child, though the preview of
+// the mandates leaves the row out.
+func TestSEPAMandateImportTakesOverTheNumberOfAChildWithoutMandate(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Debitorenimport ohne Mandat")
+	mia, noah, family := siblingContracts(t, f, f.office.schools[0])
+	saveCreditor(t, f, map[string]any{"creditor_id": sepaCreditorID, "prenotification_days": 14, "missing_mandate": "transfer"})
+	childScope(t, f)
+	csv := []byte(strings.Join([]string{
+		"Mandatsreferenz;Unterschriftsdatum;IBAN;Kontoinhaber;Vertrag;Lastschriftart;kinder-Debitorennummer",
+		fmt.Sprintf("OGS-M1;15.08.2024;%s;Eva Beispiel;%d;FRST;50 0001", sepaIBAN, mia),
+		fmt.Sprintf(";;;Eva Beispiel;%d;;50 0002", noah),
+	}, "\r\n") + "\r\n")
+	fields := map[string]string{"mapping": `{"columns":{"reference":"Mandatsreferenz","signed_on":"Unterschriftsdatum","iban":"IBAN",` +
+		`"account_holder":"Kontoinhaber","payer":"Vertrag","sequence":"Lastschriftart","debtor_number":"kinder-Debitorennummer"},` +
+		`"payer_key":"contract_id","creditor_from_traeger":true,"confirmed_creditor_id":"DE98ZZZ09999999999"}`}
+	rec := importForm(t, f.traeger, f.office.token, sepaImportPreviewPath, "ogs.csv", csv, fields)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	preview := decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes())
+	assert.Equal(t, 1, preview.Counts["without_mandate"])
+	assert.Equal(t, 2, preview.Counts["debtor_numbers"], "the preview counts the number of the child without a mandate")
+	rec = applyImport(t, f.traeger, f.office.token, "ogs.csv", csv, fields)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.Equal(t, []listedChild{{"Mia", "Beispiel", "50 0001"}, {"Noah", "Beispiel", "50 0002"}},
+		childrenOf(listChildFamilies(t, f, f.office.token), family))
+	var mandates int
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM parent_billing.sepa_mandates WHERE organization_id = ?`,
+		f.office.organization).Scan(context.Background(), &mandates))
+	assert.Equal(t, 1, mandates, "the row without a mandate stores none")
+}
+
 func childrenOf(families []childListedFamily, family string) []listedChild {
 	for _, listed := range families {
 		if listed.FamilyEmail == family {

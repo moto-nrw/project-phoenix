@@ -56,6 +56,7 @@ export function HolidayPeriodPublishCard({
             href={traegerPath(`/traeger/ferien/${period.id}/anmeldungen`)}
             variant="outline"
             size="md"
+            tooltip="Öffnet die Liste der Anmeldungen zu diesem Ferienzeitraum."
           >
             Anmeldungen prüfen
           </ButtonLink>
@@ -102,7 +103,8 @@ export function HolidayPeriodPublishCard({
           variant="outline"
           size="md"
           disabled={blocker !== null}
-          aria-describedby={blocker ? "holiday-publish-blocker" : undefined}
+          disabledReason={blocker ?? undefined}
+          tooltip="Gibt die Anmeldung für alle Schulen des Zeitraums frei. moto fragt vorher nach."
           onClick={() => setConfirming(true)}
         >
           Veröffentlichen
@@ -110,7 +112,7 @@ export function HolidayPeriodPublishCard({
       }
     >
       <div className="space-y-2 text-sm text-gray-700">
-        {blocker ? <p id="holiday-publish-blocker">{blocker}</p> : null}
+        {blocker ? <p>{blocker}</p> : null}
         <p>Den Link für Eltern gibt es nach dem Veröffentlichen.</p>
       </div>
       <ConfirmationModal

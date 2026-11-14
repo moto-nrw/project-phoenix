@@ -327,6 +327,8 @@ export function NewMessageModal({
                 variant="success"
                 size="md"
                 disabled={!target}
+                disabledReason="Wählen Sie zuerst ein Kind aus."
+                tooltip="Zeigt, welchen Eltern dieses Kindes Sie schreiben können."
               >
                 Weiter
               </Button>
@@ -344,6 +346,7 @@ export function NewMessageModal({
                   variant="link"
                   size="md"
                   onClick={resetToStudentStep}
+                  tooltip="Führt zurück zur Auswahl des Kindes."
                   className="gap-1"
                 >
                   <ArrowLeft className="h-4 w-4" /> Anderes Kind wählen

@@ -19,5 +19,9 @@
   "loadObject": "abonelik bağlantısı",
   "rotateObject": "abonelik bağlantısı",
   "alreadyActive": "Abonelik bağlantınız zaten etkin. Güvenlik nedeniyle yeniden gösterilmez. Artık elinizde yoksa yeni bir bağlantı oluşturun; eski bağlantı o zaman geçerliliğini yitirir.",
-  "createNew": "Yeni abonelik bağlantısı oluştur"
+  "createNew": "Yeni abonelik bağlantısı oluştur",
+  "showLinkHint": "Takviminizin randevulara abone olduğu bağlantıyı gösterir.",
+  "subscribeHint": "Randevulara abone olmak için takvim uygulamanızı açar.",
+  "rotateHint": "Hemen yeni bir bağlantı oluşturur, eskisi artık geçerli olmaz.",
+  "copyLinkHint": "Bağlantıyı takviminize yapıştırabilmeniz için kopyalar."
 }

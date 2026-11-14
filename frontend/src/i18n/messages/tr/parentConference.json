@@ -27,5 +27,8 @@
   "booked": "Saat {time} randevunuz alındı.",
   "cancelled": "Randevunuz iptal edildi.",
   "errorObject": "veli görüşmesi",
-  "errorObjectBooking": "randevu"
+  "errorObjectBooking": "randevu",
+  "cancelTooltip": "Randevuyu iptal eder, saat boşalır. moto önce sorar.",
+  "entryActionTooltip": "Veli görüşme gününün boş saatlerini rezervasyon için açar.",
+  "entryActionBookedTooltip": "Randevunuzu açar, orada erteleyebilir veya iptal edebilirsiniz."
 }

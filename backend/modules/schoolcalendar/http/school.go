@@ -167,12 +167,12 @@ func (rs *Resource) respondSchoolInvitation(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	var req responseRequest
+	var req calendarService.InvitationAnswer
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.service.RespondToSchoolInvitation(r.Context(), recipientID, req.Status); err != nil {
+	if err := rs.service.RespondToSchoolInvitation(r.Context(), recipientID, req); err != nil {
 		renderCalendarError(w, r, err)
 		return
 	}

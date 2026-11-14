@@ -203,5 +203,6 @@
     "parent": "Ebeveyn",
     "guardian": "Vasi",
     "relative": "Akraba"
-  }
+  },
+  "accountHintLoginTooltip": "Girişi açar, ardından buraya geri dönersiniz."
 }

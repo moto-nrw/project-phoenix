@@ -55,6 +55,7 @@ export function CareLettersSummaryCard({
           href={href}
           variant={created || loadError ? "outline" : "primary"}
           size="md"
+          tooltip="Öffnet die Seite mit den Schreiben dieses Laufs."
         >
           {created || loadError ? "Schreiben öffnen" : "Schreiben erstellen"}
         </ButtonLink>

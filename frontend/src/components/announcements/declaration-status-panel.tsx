@@ -382,6 +382,12 @@ export function DeclarationStatusPanel({
             size="md"
             onClick={() => void remind()}
             disabled={busy !== null || waiting === 0}
+            disabledReason={
+              waiting === 0
+                ? "Gerade gibt es niemanden, den moto erinnern kann."
+                : undefined
+            }
+            tooltip="Schickt sofort eine E-Mail an Eltern, die noch nicht geantwortet haben."
             isLoading={busy === "remind"}
             loadingText="Wird gesendet …"
             className="gap-1.5"

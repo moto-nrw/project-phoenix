@@ -80,6 +80,10 @@ import { DashboardSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "HomePage" });
 
+/** „Anpassen“ und „Bausteine hinzufügen“ öffnen dasselbe Anpassen (#6755). */
+const EDIT_HOME_TOOLTIP =
+  "Zeigt die Bausteine zum Verschieben, Hinzufügen und Entfernen.";
+
 // Alles, was aus den Betriebszahlen (/analytics) lebt. Steht keiner dieser
 // Bausteine auf der Fläche, wird die Abfrage gar nicht erst gestellt (#2875).
 const ANALYTICS_BLOCKS: readonly HomeBlockKey[] = [
@@ -471,6 +475,7 @@ function HomeContent() {
               size="md"
               disabled={saving}
               onClick={cancelEditing}
+              tooltip="Verwirft Ihre Änderungen an der Startseite."
             >
               Abbrechen
             </Button>
@@ -480,6 +485,7 @@ function HomeContent() {
               size="md"
               disabled={saving}
               onClick={save}
+              tooltip="Speichert die neue Anordnung Ihrer Startseite."
             >
               Fertig
             </Button>
@@ -487,7 +493,7 @@ function HomeContent() {
         ) : (
           // Auf allen Breiten nur das Symbol (#4346): als Textknopf war
           // „Anpassen" größer als alles, wofür man die Startseite öffnet.
-          // Name und Tooltip sagen „Anpassen". Die Kopfkarte gibt dem
+          // Der Name sagt „Anpassen", der Tooltip die Folge (#6755). Die Kopfkarte gibt dem
           // Symbolknopf dieselbe Höhe wie „Abbrechen" und „Fertig".
           // Die Blase steht rechtsbündig, weil der Knopf am rechten Rand
           // sitzt. Zeigen, Fokus oder Antippen laden das Anpassen schon vor
@@ -505,7 +511,7 @@ function HomeContent() {
               variant="outline"
               size="icon"
               aria-label="Anpassen"
-              tooltip="Anpassen"
+              tooltip={EDIT_HOME_TOOLTIP}
               disabled={!homeLayoutReady}
               onClick={startEditing}
             >
@@ -567,6 +573,7 @@ function HomeContent() {
                 onPointerEnter={preloadHomeBoardEditor}
                 onFocus={preloadHomeBoardEditor}
                 onClick={startEditing}
+                tooltip={EDIT_HOME_TOOLTIP}
               >
                 Bausteine hinzufügen
               </Button>

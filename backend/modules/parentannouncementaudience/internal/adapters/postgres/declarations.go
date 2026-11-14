@@ -164,7 +164,7 @@ const declarationChildrenForAccountSQL = `
 			FROM users.parent_announcements a
 			JOIN users.parent_announcement_targets pt
 				ON pt.announcement_id = a.id AND pt.tenant_id = a.tenant_id
-			JOIN users.student_profiles s ON s.tenant_id = a.tenant_id` + studentMembershipJoins + ` AND (` + studentTargetMatchFeed + `
+			JOIN users.student_profiles s ON s.tenant_id = a.tenant_id` + studentMembershipJoins + ` AND (` + studentReachedFeed + `
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 				AND sm.status <> 'alumnus'

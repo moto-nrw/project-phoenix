@@ -42,12 +42,15 @@ const RATE_TYPE_ITEMS = (
 function ModalFooter({
   formId,
   saving,
-  disabled,
+  disabledReason,
+  tooltip,
   onCancel,
 }: {
   readonly formId: string;
   readonly saving: boolean;
-  readonly disabled: boolean;
+  /** Why „Anlegen“ is locked; `null` while the form is complete. */
+  readonly disabledReason: string | null;
+  readonly tooltip: string;
   readonly onCancel: () => void;
 }) {
   return (
@@ -58,6 +61,7 @@ function ModalFooter({
         size="md"
         onClick={onCancel}
         disabled={saving}
+        noTooltip="Schließt den Dialog, ohne etwas anzulegen."
       >
         Abbrechen
       </Button>
@@ -68,7 +72,9 @@ function ModalFooter({
         size="md"
         isLoading={saving}
         loadingText="Wird angelegt …"
-        disabled={saving || disabled}
+        disabled={saving || disabledReason !== null}
+        disabledReason={disabledReason ?? undefined}
+        tooltip={tooltip}
       >
         Anlegen
       </Button>
@@ -137,7 +143,14 @@ export function CreateWageTypeModal({
         <ModalFooter
           formId={formId}
           saving={saving}
-          disabled={name.trim() === "" || !numberValid}
+          disabledReason={
+            name.trim() === ""
+              ? "Geben Sie zuerst eine Bezeichnung ein."
+              : numberValid
+                ? null
+                : "Die Lohnartnummer braucht 1 bis 4 Ziffern."
+          }
+          tooltip="Legt die Lohnart für Zuschläge und Abwesenheitsarten an."
           onCancel={close}
         />
       }
@@ -272,7 +285,16 @@ export function CreateSurchargeRuleModal({
         <ModalFooter
           formId={formId}
           saving={saving}
-          disabled={!complete}
+          disabledReason={
+            !windowValid
+              ? "Wählen Sie zwei verschiedene Uhrzeiten."
+              : rateValue === null
+                ? "Geben Sie zuerst eine Zahl größer als 0 ein."
+                : selectedWageType === ""
+                  ? "Wählen Sie zuerst eine Lohnart aus."
+                  : null
+          }
+          tooltip="Legt die Regel an, abgeschlossene Monate bleiben unverändert."
           onCancel={close}
         />
       }

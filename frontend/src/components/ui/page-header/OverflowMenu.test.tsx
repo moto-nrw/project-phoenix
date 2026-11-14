@@ -649,6 +649,28 @@ describe("OverflowMenu", () => {
     );
   });
 
+  it("shows the line of a link entry and describes the entry by it", () => {
+    render(
+      <OverflowMenu
+        items={[
+          {
+            label: "Einladung zurücknehmen",
+            description: "moto fragt vorher nach.",
+            href: "/einladungen",
+            onClick: vi.fn(),
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+
+    const entry = screen.getByRole("menuitem", {
+      name: "Einladung zurücknehmen",
+    });
+    expect(entry).toHaveAccessibleDescription("moto fragt vorher nach.");
+    expect(screen.getByText("moto fragt vorher nach.")).toBeVisible();
+  });
+
   it("draws the trigger as a kit button and keeps its menu semantics", () => {
     render(
       <OverflowMenu

@@ -32,7 +32,20 @@
   "errorObjectList": "the list of appointments",
   "errorObjectResponse": "the reply",
   "responseRequiredSeries": "Reply for every date in the series",
-  "seriesAnswer": "Your reply applies to every date in this series.",
+  "answerScope": {
+    "legend": "Your reply applies to",
+    "occurrence": "Only on {date}",
+    "series": "All dates",
+    "occurrenceHintOthers": "The other dates of the series keep their reply.",
+    "occurrenceHintOpen": "The other dates of the series stay open.",
+    "occurrenceHintKeeps": "The other dates still have: {answer}.",
+    "seriesHint": "Your reply applies to every date in this series.",
+    "seriesHintReplaces": "Your reply then applies to every date, also those answered one by one."
+  },
+  "onlyThisDate": "Only for this date",
+  "changeAnswer": "Change reply",
+  "acceptedOn": "Accepted for {date}.",
+  "declinedOn": "Declined for {date}.",
   "errorObjectOverview": "the replies",
   "responses": {
     "title": "Replies",
@@ -40,5 +53,14 @@
     "declined": "Declined",
     "pending": "Open",
     "privacy": "You do not see other parents' names."
-  }
+  },
+  "openEventTooltip": "Shows or hides the details of this appointment.",
+  "acceptTooltip": "Accepts right away. You can still change the answer later.",
+  "declineTooltip": "Declines right away. You can still change the answer later.",
+  "previousMonthTooltip": "Shows the appointments of the previous month.",
+  "nextMonthTooltip": "Shows the appointments of the next month.",
+  "previousMonthBlocked": "The calendar does not show past months.",
+  "nextMonthBlocked": "The calendar does not show later months yet.",
+  "closeTooltip": "Closes the details and shows the calendar again.",
+  "changeAnswerTooltip": "Shows Accept and Decline again. Your answer stays until you choose again."
 }

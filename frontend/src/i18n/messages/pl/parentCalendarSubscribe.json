@@ -19,5 +19,9 @@
   "loadObject": "link subskrypcji",
   "rotateObject": "link subskrypcji",
   "alreadyActive": "Państwa link subskrypcji jest już aktywny. Ze względów bezpieczeństwa nie zostanie pokazany ponownie. Jeśli już go Państwo nie mają, proszę utworzyć nowy link. Dotychczasowy przestanie wtedy działać.",
-  "createNew": "Utwórz nowy link subskrypcji"
+  "createNew": "Utwórz nowy link subskrypcji",
+  "showLinkHint": "Pokazuje link, przez który Państwa kalendarz subskrybuje terminy.",
+  "subscribeHint": "Otwiera aplikację kalendarza, aby zasubskrybować terminy.",
+  "rotateHint": "Od razu tworzy nowy link, dotychczasowy przestaje działać.",
+  "copyLinkHint": "Kopiuje link, aby mogli go Państwo wkleić w kalendarzu."
 }

@@ -39,7 +39,11 @@
     "requestSentPartlyTitle": "Bildirildi ve talep edildi",
     "requestSentPartlyBody": "Boş günler bildirildi. Diğer günler için {careTerm} bildiriminizi kontrol edecek. O zamana kadar onun kaydı geçerlidir.",
     "errorObject": "devamsızlık bildirimi",
-    "submitting": "Bildiriliyor …"
+    "submitting": "Bildiriliyor …",
+    "submitDirectTooltip": "Çocuğunuzun yokluğunu hemen bildirir. {careTerm} bunu hemen görür.",
+    "submitRequestTooltip": "Yokluğu hemen talep olarak gönderir. {careTerm} onaylamalıdır.",
+    "submitTooltip": "Yokluk bildirimini hemen {careTerm} ekibine gönderir.",
+    "submitBlocked": "{careTerm} şu anda burada yokluk bildirimi almıyor."
   },
   "summary": {
     "none": "Mazeret bildirimi yok",
@@ -106,7 +110,15 @@
     "statusApprovedChange": "Onaylandı, değişiklik uygulandı.",
     "errorStaffConflictGeneric": "{careTerm} bu gün için zaten bir değişiklik girdi. Lütfen ekiple iletişime geçin.",
     "submitting": "Gönderiliyor …",
-    "savingEdit": "Kaydediliyor …"
+    "savingEdit": "Kaydediliyor …",
+    "resetTooltip": "Bu gün için değişikliğinizi kaldırır. moto önce sorar.",
+    "saveEditTooltip": "Açık talebinizi değiştirir. {careTerm} yine de onaylamalıdır.",
+    "submitTooltip": "Talebi onay için hemen {careTerm} ekibine gönderir.",
+    "disabledBlocked": "{careTerm} burada alınış değişikliği almıyor.",
+    "alreadyHomeBlocked": "Çocuğunuz bugün zaten evde.",
+    "cutoffBlocked": "Bugün için değişiklik süresi doldu.",
+    "staffSetBlocked": "{careTerm} bu günü zaten belirledi.",
+    "loadBlocked": "Mevcut saatler eksik. Lütfen sayfayı yeniden yükleyin."
   },
   "actions": {
     "sick": {
@@ -126,5 +138,6 @@
   },
   "requiredHint": "* işaretli alanlar doldurulmalıdır.",
   "timeFormatHint": "Saat biçimi: 15:30",
-  "timeExample": "örn. 15:30"
+  "timeExample": "örn. 15:30",
+  "requestEditTooltip": "Açık talebinizi değiştirmek için açar."
 }

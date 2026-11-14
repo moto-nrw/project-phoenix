@@ -129,7 +129,10 @@ function importButton() {
 
 function expectNoImport() {
   const button = importButton();
-  if (button) expect(button).toBeDisabled();
+  // Blocked with a reason (#6761): `aria-disabled`, natively off while it loads.
+  if (button && !button.hasAttribute("disabled")) {
+    expect(button).toHaveAttribute("aria-disabled", "true");
+  }
   expect(api.applySepaImport).not.toHaveBeenCalled();
 }
 

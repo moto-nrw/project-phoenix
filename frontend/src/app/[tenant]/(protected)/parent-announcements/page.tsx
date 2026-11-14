@@ -186,6 +186,8 @@ const KIND_COPY: Record<
     title: string;
     action: string;
     ariaLabel: string;
+    /** What the create button opens (#6643). */
+    createHint: string;
     emptyTitle: string;
     emptyBody: string;
     // Sets this tab apart from a neighbour with a similar name (#4781).
@@ -196,6 +198,7 @@ const KIND_COPY: Record<
     title: "Elternmitteilungen",
     action: "Mitteilung",
     ariaLabel: "Neue Elternmitteilung erstellen",
+    createHint: "Öffnet das Formular für eine neue Mitteilung an Eltern.",
     emptyTitle: "Keine Mitteilungen",
     emptyBody: "Erstellen Sie eine neue Mitteilung für die Eltern.",
   },
@@ -203,6 +206,7 @@ const KIND_COPY: Record<
     title: "Elternbriefe",
     action: "Elternbrief",
     ariaLabel: "Neuen Elternbrief erstellen",
+    createHint: "Öffnet das Formular für einen neuen Elternbrief.",
     emptyTitle: "Keine Elternbriefe",
     emptyBody:
       "Ein Elternbrief geht gleichzeitig ins Elternportal und per E-Mail und wird von den Eltern bestätigt.",
@@ -211,6 +215,7 @@ const KIND_COPY: Record<
     title: "Elternumfragen",
     action: "Umfrage",
     ariaLabel: "Neue Umfrage erstellen",
+    createHint: "Öffnet das Formular für eine neue Frage an Eltern.",
     emptyTitle: "Keine Umfragen",
     emptyBody:
       "Stellen Sie den Eltern eine Frage, zum Beispiel ob ihr Kind zum Sommerfest kommt.",
@@ -220,6 +225,7 @@ const KIND_COPY: Record<
     title: "Einverständnisse",
     action: "Einverständnis",
     ariaLabel: "Neues Einverständnis erstellen",
+    createHint: "Öffnet das Formular für ein neues Einverständnis der Eltern.",
     emptyTitle: "Keine Einverständnisse",
     emptyBody:
       "Hier bitten Sie Eltern um ihr Einverständnis, zum Beispiel für einen Ausflug. Eltern stimmen für jedes Kind zu oder lehnen ab.",
@@ -670,6 +676,7 @@ function ParentAnnouncementsContent() {
           size="md"
           onClick={openCreate}
           aria-label={copy.ariaLabel}
+          tooltip={copy.createHint}
           className="gap-1.5"
         >
           <Plus className="h-4 w-4" aria-hidden />
@@ -735,6 +742,7 @@ function ParentAnnouncementsContent() {
                           setSearchTerm("");
                           setStatusFilter("all");
                         }}
+                        tooltip="Leert Suche und Filter und zeigt wieder alle Einträge."
                       >
                         Filter zurücksetzen
                       </Button>
@@ -1460,6 +1468,13 @@ function AnnouncementFormModal({
     latestSubmitRef.current = (publish) => void handleSubmit(publish);
   });
 
+  // Veröffentlichen fragt nicht nach: der Satz sagt, wer sofort was bekommt.
+  const publishHint = isLetterForm
+    ? "Veröffentlicht den Brief sofort und schickt ihn den Empfängern per E-Mail."
+    : sendEmail
+      ? "Veröffentlicht sofort und benachrichtigt die gewählten Eltern auch per E-Mail."
+      : "Veröffentlicht sofort und benachrichtigt die gewählten Eltern.";
+
   const footer =
     // On a phone every row of the wrapping footer fills the width, so no
     // button hangs alone at the right edge (#5758).
@@ -1470,6 +1485,7 @@ function AnnouncementFormModal({
           variant="outline"
           size="md"
           onClick={onClose}
+          noTooltip="Schließt das Formular ohne Speichern, das Wort sagt es."
           className="grow sm:grow-0"
         >
           Abbrechen
@@ -1478,6 +1494,7 @@ function AnnouncementFormModal({
           type="button"
           size="md"
           onClick={goNext}
+          tooltip="Prüft den Inhalt und führt zur Wahl der Empfänger."
           className="grow sm:grow-0"
         >
           Weiter
@@ -1491,6 +1508,7 @@ function AnnouncementFormModal({
           size="md"
           onClick={() => setStep(0)}
           disabled={submitting !== null}
+          tooltip="Führt zurück zum Inhalt, Ihre Eingaben bleiben erhalten."
           className="grow sm:grow-0"
         >
           Zurück
@@ -1503,6 +1521,7 @@ function AnnouncementFormModal({
           isLoading={submitting === "draft"}
           loadingText="Wird gespeichert…"
           disabled={submitting === "publish"}
+          tooltip="Speichert den Entwurf. Eltern sehen noch nichts."
           className="grow sm:grow-0"
         >
           Als Entwurf speichern
@@ -1514,6 +1533,7 @@ function AnnouncementFormModal({
           isLoading={submitting === "publish"}
           loadingText="Wird veröffentlicht…"
           disabled={submitting === "draft"}
+          tooltip={publishHint}
           className="grow gap-1.5 sm:grow-0"
         >
           <Send className="size-4" aria-hidden />
@@ -1631,6 +1651,7 @@ function AnnouncementFormModal({
                               variant="ghost_danger"
                               size="icon"
                               onClick={() => removeOptionAt(index)}
+                              tooltip="Nimmt diese Antwort aus der Liste."
                               aria-label={`Antwort ${index + 1} entfernen`}
                               className="shrink-0"
                             >
@@ -1646,6 +1667,8 @@ function AnnouncementFormModal({
                         size="md"
                         onClick={addOption}
                         disabled={optionRows.length >= MAX_POLL_OPTIONS}
+                        disabledReason={`Mehr als ${MAX_POLL_OPTIONS} Antworten gehen nicht. Entfernen Sie zuerst eine.`}
+                        tooltip="Fügt ein leeres Feld für eine weitere Antwort hinzu."
                         className="mt-3 gap-2"
                       >
                         <Plus className="h-4 w-4" aria-hidden />
@@ -2047,6 +2070,7 @@ function AnnouncementFormModal({
                             // Während des Speicherns lädt die Schleife genau
                             // diese Liste hoch; entfernt wird danach.
                             disabled={save.pending}
+                            tooltip="Nimmt die Datei wieder aus dem Anhang."
                           >
                             Entfernen
                           </Button>
@@ -2079,6 +2103,12 @@ function AnnouncementFormModal({
                           attachmentBusy || attachmentCount >= MAX_ATTACHMENTS
                         }
                         onClick={() => fileInputRef.current?.click()}
+                        disabledReason={
+                          attachmentCount >= MAX_ATTACHMENTS
+                            ? `Mehr als ${MAX_ATTACHMENTS} Dateien gehen nicht. Entfernen Sie zuerst eine.`
+                            : undefined
+                        }
+                        tooltip="Öffnet Ihre Dateien, um einen Anhang auszuwählen."
                       >
                         Datei auswählen
                       </Button>

@@ -173,7 +173,13 @@ function ModalFooter({
   const t = useCareTermTranslations("parentMasterData.careSchedule");
   return (
     <>
-      <Button type="button" variant="outline" size="md" onClick={onClose}>
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        noTooltip="Schließt den Dialog, ohne etwas zu senden."
+        onClick={onClose}
+      >
         {t("cancel")}
       </Button>
       <Button
@@ -181,6 +187,7 @@ function ModalFooter({
         size="md"
         isLoading={submitting}
         loadingText={t("requestSubmitting")}
+        tooltip={t("requestSubmitTooltip")}
         onClick={onSubmit}
       >
         {t("requestSubmit")}

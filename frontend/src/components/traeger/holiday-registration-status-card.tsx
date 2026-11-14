@@ -647,6 +647,7 @@ export function HolidayRegistrationStatusCard({
           isLoading={running === "reopen"}
           loadingText="Öffnet …"
           disabled={running !== null}
+          tooltip="Öffnet die Anmeldung wieder, damit Sie stornieren oder umbuchen können."
           onClick={() => void run("reopen")}
         >
           Wieder öffnen
@@ -658,6 +659,7 @@ export function HolidayRegistrationStatusCard({
             variant="outline_danger"
             size="md"
             disabled={running !== null}
+            tooltip="Storniert die Anmeldung, Nachrückende bekommen eine E-Mail. moto fragt vorher nach."
             onClick={() => setConfirmingCancel(true)}
           >
             Stornieren
@@ -669,6 +671,7 @@ export function HolidayRegistrationStatusCard({
             isLoading={running === "freeze"}
             loadingText="Friert ein …"
             disabled={running !== null}
+            tooltip="Sperrt die Anmeldung sofort gegen Stornieren und Umbuchen."
             onClick={() => void run("freeze")}
           >
             Einfrieren
@@ -681,6 +684,7 @@ export function HolidayRegistrationStatusCard({
           variant="outline"
           size="md"
           disabled={running !== null}
+          tooltip="Öffnet das Feld für die Debitorennummer dieser Anmeldung."
           onClick={() => setEditingDebtorNumber(true)}
         >
           {registration.debtorNumber
@@ -696,6 +700,7 @@ export function HolidayRegistrationStatusCard({
           isLoading={running === "confirm"}
           loadingText="Bestätigt …"
           disabled={confirmBlocked}
+          tooltip="Bestätigt die Anmeldung und schickt den Eltern sofort die Zusage per E-Mail."
           onClick={() => confirmRef.current?.requestSubmit()}
         >
           Bestätigen
@@ -814,7 +819,12 @@ export function HolidayRegistrationStatusCard({
         {invoiced && billingHref ? (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <p>Die Rechnung dieser Anmeldung steht in der Abrechnung.</p>
-            <ButtonLink href={billingHref} variant="outline" size="compact">
+            <ButtonLink
+              href={billingHref}
+              variant="outline"
+              size="compact"
+              tooltip="Öffnet die Abrechnung mit der Rechnung dieser Anmeldung."
+            >
               Zur Abrechnung
             </ButtonLink>
           </div>

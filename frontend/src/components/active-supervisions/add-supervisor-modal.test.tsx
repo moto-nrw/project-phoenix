@@ -129,7 +129,10 @@ describe("AddSupervisorModal", () => {
         "Alle verfügbaren Betreuungskräfte sind schon eingetragen.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("blocks a stale action when the user no longer supervises the session", async () => {
@@ -153,7 +156,10 @@ describe("AddSupervisorModal", () => {
         "Sie beaufsichtigen diese Betreuung nicht mehr. Deshalb können Sie niemanden hinzufügen.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(
       screen.queryByLabelText("Betreuer auswählen"),
     ).not.toBeInTheDocument();
@@ -214,6 +220,9 @@ describe("AddSupervisorModal", () => {
       screen.queryByText("supervision not running"),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Hinzufügen" }),
+    ).not.toHaveAttribute("aria-disabled");
     expect(onAdded).not.toHaveBeenCalled();
     expect(showSuccess).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();

@@ -337,6 +337,8 @@ export function BillingRunOverviewCard({
     if (onCancel && !isCredited(document)) {
       items.push({
         label: "Rechnung stornieren",
+        description:
+          "Öffnet ein Fenster, um die ganze Rechnung mit Begründung zurückzunehmen.",
         icon: <Undo2 className="size-4" aria-hidden />,
         onClick: () => onCancel(document),
       });
@@ -347,6 +349,8 @@ export function BillingRunOverviewCard({
         if (left <= 0) continue;
         items.push({
           label: `Gutschrift für ${child.firstName}`,
+          description:
+            "Öffnet ein Fenster, um für dieses Kind einen Betrag gutzuschreiben.",
           icon: <ReceiptText className="size-4" aria-hidden />,
           onClick: () => onCredit(document, child, left),
         });
@@ -473,6 +477,8 @@ export function BillingRunOverviewCard({
             items={[
               {
                 label: "Aufschlüsselung zeigen",
+                description:
+                  "Zeigt, wie sich der Betrag für jedes Kind zusammensetzt.",
                 icon: <Eye className="size-4" aria-hidden />,
                 onClick: () => setShownKey(rowKey(document)),
               },
@@ -480,6 +486,8 @@ export function BillingRunOverviewCard({
                 ? [
                     {
                       label: "Schreiben ansehen",
+                      description:
+                        "Zeigt das Schreiben dieser Rechnung als PDF.",
                       icon: <Eye className="size-4" aria-hidden />,
                       onClick: () => openPreview(document),
                     },
@@ -489,6 +497,8 @@ export function BillingRunOverviewCard({
                 ? [
                     {
                       label: "Versand und Exporte ansehen",
+                      description:
+                        "Zeigt, wann die Rechnung ausgestellt, verschickt und exportiert wurde.",
                       onClick: () => setHistoryId(document.id),
                     },
                   ]
@@ -496,6 +506,8 @@ export function BillingRunOverviewCard({
               ...(onCorrect
                 ? document.children.map((child) => ({
                     label: `Betrag für ${child.firstName} korrigieren`,
+                    description:
+                      "Öffnet ein Fenster, um den Betrag mit Begründung zu ändern.",
                     icon: <Pencil className="size-4" aria-hidden />,
                     onClick: () => onCorrect(document, child),
                   }))
@@ -505,6 +517,8 @@ export function BillingRunOverviewCard({
                 ? [
                     {
                       label: "Schreiben herunterladen",
+                      description:
+                        "Lädt das Schreiben dieser Rechnung als PDF herunter.",
                       icon: <Download className="size-4" aria-hidden />,
                       onClick: () => onDownloadLetter(document),
                     },
@@ -584,6 +598,11 @@ export function BillingRunOverviewCard({
             variant="outline"
             size="md"
             className="max-md:hidden"
+            tooltip={
+              breakdownShown
+                ? "Blendet die Beträge je Kind in der Liste wieder aus."
+                : "Zeigt in jeder Zeile die Beträge für jedes Kind."
+            }
             onClick={() => setBreakdownShown((shown) => !shown)}
           >
             {breakdownShown

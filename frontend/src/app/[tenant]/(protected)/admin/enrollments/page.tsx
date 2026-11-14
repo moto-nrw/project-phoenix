@@ -112,6 +112,7 @@ export default function AdminEnrollmentsPage() {
           items={[
             {
               label: "Alle als gelesen markieren",
+              description: "Markiert alle Anmeldungen nur für Sie als gelesen.",
               onClick: handleMarkAllRead,
             },
             ...(emailState === "unavailable"

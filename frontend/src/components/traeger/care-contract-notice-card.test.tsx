@@ -335,7 +335,7 @@ describe("CareContractNoticeCard (#4682)", () => {
     const submit = document.querySelector(
       'button[form="care-contract-notice-form"]',
     )!;
-    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-disabled", "true");
     fireEvent.change(screen.getByLabelText(/Abgesendet am/), {
       target: { value: "2026-09-01" },
     });

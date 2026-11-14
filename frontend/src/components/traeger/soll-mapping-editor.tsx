@@ -21,7 +21,10 @@ import {
   sollSplitsLines,
   unknownBookingTextPlaceholder,
 } from "~/components/traeger/finance-export-format";
-import { BOOKING_ACCOUNTS_PATH } from "~/components/traeger/finance-export-datev";
+import {
+  BOOKING_ACCOUNTS_HINT,
+  BOOKING_ACCOUNTS_PATH,
+} from "~/components/traeger/finance-export-datev";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -163,6 +166,7 @@ function BookingTextField({
                 type="button"
                 variant="outline"
                 size="compact"
+                tooltip="Fügt diesen Platzhalter in den Buchungstext ein."
                 disabled={column.value.length + placeholder.token.length >= 60}
                 disabledReason="Der Text hat schon fast 60 Zeichen."
                 onClick={() => insert(placeholder.token)}
@@ -180,7 +184,9 @@ function BookingTextField({
           ))}
         </ul>
         <p className="flex min-w-0 flex-col gap-1 border-t border-gray-200 pt-3 text-sm sm:flex-row sm:items-baseline sm:gap-2">
-          <span className="shrink-0 text-gray-500">So steht es in der Datei:</span>
+          <span className="shrink-0 text-gray-500">
+            So steht es in der Datei:
+          </span>
           <span
             className="min-w-0 font-mono wrap-anywhere text-gray-900"
             aria-live="polite"
@@ -216,13 +222,33 @@ function ColumnRow({
   const position = index + 1;
   const menuItems = [
     ...(index > 0
-      ? [{ label: "Nach links schieben", onClick: () => onMove(-1) }]
+      ? [
+          {
+            label: "Nach links schieben",
+            description: "Tauscht die Spalte mit der Spalte links daneben.",
+            onClick: () => onMove(-1),
+          },
+        ]
       : []),
     ...(index < count - 1
-      ? [{ label: "Nach rechts schieben", onClick: () => onMove(1) }]
+      ? [
+          {
+            label: "Nach rechts schieben",
+            description: "Tauscht die Spalte mit der Spalte rechts daneben.",
+            onClick: () => onMove(1),
+          },
+        ]
       : []),
     ...(count > 1
-      ? [{ label: "Spalte entfernen", destructive: true, onClick: onRemove }]
+      ? [
+          {
+            label: "Spalte entfernen",
+            description:
+              "Nimmt die Spalte aus dem Entwurf; die Datei ändert sich beim Speichern.",
+            destructive: true,
+            onClick: onRemove,
+          },
+        ]
       : []),
   ];
   return (
@@ -372,6 +398,8 @@ export function SollMappingEditor({
             variant="outline"
             size="md"
             disabled={draft.columns.length >= 40}
+            disabledReason="Entfernen Sie zuerst eine Spalte, mehr als 40 gehen nicht."
+            tooltip="Fügt rechts eine neue Spalte an, zuerst mit der Rechnungsnummer."
             onClick={() =>
               setColumns((columns) => [
                 ...columns,
@@ -429,6 +457,7 @@ export function SollMappingEditor({
                 href={traegerPath(BOOKING_ACCOUNTS_PATH)}
                 variant="ghost_tone"
                 size="compact"
+                tooltip={BOOKING_ACCOUNTS_HINT}
               >
                 Konten ansehen
               </ButtonLink>

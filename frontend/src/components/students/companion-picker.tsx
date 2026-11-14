@@ -299,6 +299,7 @@ export function CompanionPicker({
                 variant="ghost"
                 size="icon"
                 aria-label={`${companionDisplayName(companion)} entfernen`}
+                tooltip="Nimmt das Kind aus der Liste, es gilt erst nach dem Speichern."
                 onClick={() => removeCompanion(companion.companion_student_id)}
               >
                 <X className="h-4 w-4" aria-hidden />
@@ -342,6 +343,7 @@ export function CompanionPicker({
                 type="button"
                 variant="ghost"
                 size="compact"
+                noTooltip="Verknüpft das Kind nicht, am Heimweg ändert sich nichts."
                 onClick={() => setPending(null)}
               >
                 Abbrechen
@@ -350,6 +352,7 @@ export function CompanionPicker({
                 type="button"
                 variant="primary"
                 size="compact"
+                tooltip="Ergänzt den Heimweg des anderen Kindes und verknüpft beide beim Speichern."
                 onClick={() => {
                   onExtensionConfirmed?.({
                     companion_student_id: pending.result.id,
@@ -421,6 +424,7 @@ export function CompanionPicker({
               type="button"
               variant="ghost"
               size="md"
+              noTooltip="Schließt nur die Suche, es wird kein Kind verknüpft."
               onClick={closePicker}
             >
               Abbrechen
@@ -434,6 +438,7 @@ export function CompanionPicker({
           type="button"
           variant="outline"
           size="md"
+          tooltip="Öffnet die Suche nach einem Kind, mit dem dieses Kind heimgeht."
           onClick={() => setPickerOpen(true)}
         >
           <Plus className="mr-1.5 h-4 w-4" aria-hidden />

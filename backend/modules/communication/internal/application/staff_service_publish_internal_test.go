@@ -25,6 +25,9 @@ type fakeAnnouncementRepo struct {
 	updateCalls  int
 	publishCalls int
 	deleteCalls  int
+	// recorded holds tenant and announcement of the last recording (#6988);
+	// nil until a publication recorded its children.
+	recorded []int64
 	// editOnPublish, when set, replaces the stored row the instant PublishIfDraft
 	// runs — simulating a concurrent edit that committed while PublishIfDraft was
 	// blocked on the row lock. The pre-publish load still sees the original.
@@ -69,6 +72,14 @@ func (f *fakeAnnouncementRepo) Update(_ context.Context, _ *StaffParentAnnouncem
 
 func (f *fakeAnnouncementRepo) SetPublished(_ context.Context, _ int64, publishedAt *time.Time) error {
 	f.announcement.PublishedAt = publishedAt
+	if publishedAt == nil {
+		f.recorded = nil
+	}
+	return nil
+}
+
+func (f *fakeAnnouncementRepo) RecordRecipients(_ context.Context, tenantID, id int64) error {
+	f.recorded = []int64{tenantID, id}
 	return nil
 }
 
@@ -497,6 +508,33 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 		event.Priority != communication.PriorityNormal ||
 		event.DeepLink != "/" {
 		t.Fatalf("unexpected guardian notification metadata: %+v", event)
+	}
+}
+
+// A publication records the children it reaches (#6988) in its own
+// transaction, and a retraction drops the record again.
+func TestPublish_RecordsTheReachedChildren(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeAnnouncementRepo{announcement: draftAnnouncement(false)}
+	svc := NewService(ServiceConfig{
+		Repo:     repo,
+		Settings: &fakeSettings{enabled: true},
+		Logger:   slog.Default(),
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.NewParentDeliveryPolicy())
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+	want := []int64{repo.announcement.GetTenantID(), repo.announcement.ID}
+	if !slices.Equal(repo.recorded, want) {
+		t.Fatalf("recorded %v, want %v", repo.recorded, want)
+	}
+	if _, err := svc.Unpublish(context.Background(), repo.announcement.ID); err != nil {
+		t.Fatalf("unpublish failed: %v", err)
+	}
+	if repo.recorded != nil {
+		t.Fatalf("retraction kept the recorded children %v", repo.recorded)
 	}
 }
 

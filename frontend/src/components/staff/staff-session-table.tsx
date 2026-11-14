@@ -78,10 +78,9 @@ const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 // stale. Beyond the sessions, absences and month aggregates: the daily
 // projection, which since #2443 no longer carries the day's Soll alone but the
 // server-computed Ist, Gutschrift and Saldo — exactly the numbers this save
-// just moved. The account-range chart key
-// ("staff-schedule-targets-account-<id>-…") is deliberately NOT matched: it is
-// fetched with target_only=true and holds pure Soll, which no session edit can
-// change. The id-less "time-tracking-schedule-targets-" / month-summary keys
+// just moved. The Übersicht charts' account-range key
+// ("staff-schedule-targets-<id>-account-…") matches too: the charts sum that
+// projection's Ist and Saldo (#6847). The id-less "time-tracking-schedule-targets-" / month-summary keys
 // belong to the self-service portal and matter when the manager is editing
 // their OWN days. useSWRAuth prefixes keys with the tenant slug
 // ("phoenix:staff-history-…"), so a plain startsWith match would never fire —

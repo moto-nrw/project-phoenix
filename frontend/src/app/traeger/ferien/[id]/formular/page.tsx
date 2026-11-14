@@ -12,7 +12,10 @@ import {
   holidayPeriodTabs,
 } from "~/components/traeger/holiday-period-head";
 import { HolidayFormEditor } from "~/components/traeger/holiday-form-editor";
-import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
+import {
+  HOLIDAY_BILLING_HINT,
+  useHolidayPeriodBillingHref,
+} from "~/components/traeger/use-holiday-period-billing-href";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { billingConcept } from "~/lib/concepts/billing";
 import { ButtonLink } from "~/components/ui/button";
@@ -97,7 +100,12 @@ export default function TraegerHolidayFormPage() {
       )}
       actions={
         billingHref ? (
-          <ButtonLink href={billingHref} variant="outline" size="md">
+          <ButtonLink
+            href={billingHref}
+            variant="outline"
+            size="md"
+            tooltip={HOLIDAY_BILLING_HINT}
+          >
             <MotoConceptIcon
               concept={billingConcept}
               size={18}

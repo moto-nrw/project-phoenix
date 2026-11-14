@@ -97,7 +97,9 @@ func TestAbsenceMailOutboxIsAtomicWithDecision(t *testing.T) {
 				case "resubmit":
 					_, err = service.StaffAbsences.ResubmitAbsence(txCtx, requester.ID, requesterAccount.ID, absenceID, "Updated request")
 				case "approve":
-					_, err = service.StaffAbsences.ApproveAbsence(txCtx, absenceID, approverAccount.ID, approver.ID, "Approved")
+					// The mail is the approval's; its plan cascade is the
+					// shift-plan-sync workflow's and has its own suite.
+					_, _, err = service.StaffAbsences.ApproveAbsence(txCtx, absenceID, approverAccount.ID, approver.ID, "Approved")
 				case "decline":
 					_, err = service.StaffAbsences.DenyAbsence(txCtx, absenceID, approverAccount.ID, approver.ID, "Declined")
 				case "question":

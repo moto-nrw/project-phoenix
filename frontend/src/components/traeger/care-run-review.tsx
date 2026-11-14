@@ -204,6 +204,7 @@ export function CareExcludedCard({
                 loadingText="Wird aufgenommen …"
                 disabled={returning !== null}
                 aria-label={`Wieder aufnehmen: ${invoiceKindLabel(invoice)} von ${childName(invoice)}`}
+                tooltip="Nimmt die Rechnung sofort wieder in diesen Lauf auf."
                 onClick={() => onInclude(invoice)}
               >
                 Wieder aufnehmen
@@ -344,6 +345,7 @@ function DebitHintsCard({
             href={traegerPath("/traeger/einstellungen/abrechnung")}
             variant="outline"
             size="md"
+            tooltip="Öffnet die Einstellungen zur Abrechnung des Trägers."
           >
             Gläubiger-ID eintragen
           </ButtonLink>
@@ -352,6 +354,7 @@ function DebitHintsCard({
             href={traegerPath(dueDatesHref)}
             variant="outline"
             size="md"
+            tooltip="Öffnet die Seite, auf der Sie die Abbuchungstage ändern."
           >
             Fälligkeiten ändern
           </ButtonLink>
@@ -388,6 +391,11 @@ function DebitHintsCard({
                 variant="surface"
                 size="compact"
                 aria-label={`${mandateAction(item)}: ${item.family}`}
+                tooltip={
+                  item.payment?.debitGap === "mandate_missing"
+                    ? "Öffnet die Familie, dort erfassen Sie das Lastschrift-Mandat."
+                    : "Öffnet das Lastschrift-Mandat dieser Familie."
+                }
               >
                 {mandateAction(item)}
               </ButtonLink>
@@ -425,6 +433,11 @@ function DebitHintsCard({
           size="compact"
           className="mt-3"
           aria-expanded={expanded}
+          tooltip={
+            expanded
+              ? "Zeigt wieder nur die ersten Einträge der Liste an."
+              : "Zeigt weitere Einträge unten in der Liste an."
+          }
           onClick={() => setExpanded((value) => !value)}
         >
           {expanded

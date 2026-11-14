@@ -1,0 +1,10 @@
+{
+  "codes": [
+    {
+      "code": "calendar.occurrence_unavailable",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "calendar.occurrence_unavailable"
+    }
+  ]
+}

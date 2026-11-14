@@ -558,18 +558,18 @@ type VacationQuotaReader interface {
 }
 
 // OwnAbsences serves the staff member's own absences and vacation requests.
-// The absence writes that may cascade a sick report are SickReportWrites.
+// The absence writes with plan effect, the withdrawal of an approved request
+// among them, are SickReportWrites.
 type OwnAbsences interface {
 	VacationQuotaReader
 	ListAbsences(ctx context.Context, staffID int64, filter StaffAbsenceListFilter) ([]*StaffAbsenceResponse, error)
 	RequestVacation(ctx context.Context, staffID int64, request RequestVacationRequest) (*StaffAbsenceResponse, error)
-	CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error
 	ResubmitAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64, note string) (*StaffAbsenceResponse, error)
 }
 
 // AbsenceRequestReview serves the manager's decisions on vacation requests.
+// The approval takes plan effect and is a SickReportWrites write.
 type AbsenceRequestReview interface {
-	ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*StaffAbsenceResponse, error)
 	DenyAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, reason string) (*StaffAbsenceResponse, error)
 	QuestionAbsence(ctx context.Context, absenceID, actorAccountID int64, note string) (*StaffAbsenceResponse, error)
 	ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error)

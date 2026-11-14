@@ -107,8 +107,8 @@ function NotesCell({ row }: Readonly<{ row: ImportRow }>) {
  */
 function withoutMandateText(count: number): string {
   return count === 1
-    ? "1 Zeile ohne Mandat: Sie hat keine IBAN und keine Mandatsreferenz. moto übernimmt sie nicht. Das ist kein Fehler."
-    : `${count} Zeilen ohne Mandat: Sie haben keine IBAN und keine Mandatsreferenz. moto übernimmt sie nicht. Das ist kein Fehler.`;
+    ? "1 Zeile ohne Mandat: Sie hat keine IBAN und keine Mandatsreferenz. moto legt dafür kein Mandat an, übernimmt aber eine Debitorennummer aus der Zeile. Das ist kein Fehler."
+    : `${count} Zeilen ohne Mandat: Sie haben keine IBAN und keine Mandatsreferenz. moto legt dafür kein Mandat an, übernimmt aber eine Debitorennummer aus der Zeile. Das ist kein Fehler.`;
 }
 
 export function SepaImportPreviewCard({
@@ -269,6 +269,12 @@ export function SepaImportPreviewCard({
             size="md"
             onClick={onApply}
             disabled={disabled || importable === 0}
+            disabledReason={
+              disabled
+                ? "Übernehmen geht erst, wenn moto die Datei geprüft hat."
+                : "In der Datei ist keine Zeile bereit zum Übernehmen."
+            }
+            tooltip="Übernimmt die bereiten Zeilen sofort in die Verträge der Familien."
             isLoading={applying}
             loadingText="Wird übernommen …"
           >

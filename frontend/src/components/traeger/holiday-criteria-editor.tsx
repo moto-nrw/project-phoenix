@@ -134,6 +134,12 @@ function CriterionRow({
             variant="ghost"
             size="icon"
             disabled={disabled || index === 0}
+            disabledReason={
+              index === 0
+                ? "Dieses Kriterium hat schon die höchste Priorität."
+                : undefined
+            }
+            tooltip="Schiebt das Kriterium eine Stelle höher, es zählt dann mehr."
             aria-label={`„${label}“ nach oben, höhere Priorität`}
             onClick={() => onMove(-1)}
           >
@@ -144,6 +150,12 @@ function CriterionRow({
             variant="ghost"
             size="icon"
             disabled={disabled || index === count - 1}
+            disabledReason={
+              index === count - 1
+                ? "Dieses Kriterium hat schon die niedrigste Priorität."
+                : undefined
+            }
+            tooltip="Schiebt das Kriterium eine Stelle tiefer, es zählt dann weniger."
             aria-label={`„${label}“ nach unten, niedrigere Priorität`}
             onClick={() => onMove(1)}
           >
@@ -156,8 +168,8 @@ function CriterionRow({
               {
                 label: "Entfernen",
                 description: draft.answered
-                  ? "Gegebene Antworten bleiben gespeichert."
-                  : undefined,
+                  ? "Wirksam erst nach dem Speichern. Gegebene Antworten bleiben gespeichert."
+                  : "Nimmt das Kriterium aus der Liste, wirksam erst nach dem Speichern.",
                 destructive: true,
                 onClick: onRemove,
               },
@@ -373,6 +385,7 @@ export function HolidayCriteriaEditor({
                     className="gap-1.5"
                     disabled={saving}
                     aria-label={`Vorlage „${template.name}“ hinzufügen`}
+                    tooltip="Fügt das Kriterium unten an, wirksam erst nach dem Speichern."
                     onClick={() =>
                       setDrafts((current) => [
                         ...current,
@@ -390,6 +403,7 @@ export function HolidayCriteriaEditor({
                   size="compact"
                   className="gap-1.5"
                   disabled={saving}
+                  tooltip="Fügt ein leeres Kriterium an, das Sie selbst benennen."
                   onClick={() =>
                     setDrafts((current) => [...current, emptyCriterion()])
                   }

@@ -37,5 +37,6 @@
     "none": "Jak zwykle",
     "hint": "Tylko osoby zapisane w kontaktach.",
     "manageLink": "Dodaj nową osobę do kontaktów"
-  }
+  },
+  "proofPdfTooltip": "Zapisuje potwierdzenie jako PDF na tym urządzeniu."
 }

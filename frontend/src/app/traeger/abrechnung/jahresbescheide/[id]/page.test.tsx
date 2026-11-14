@@ -171,7 +171,7 @@ describe("TraegerCareNoticeRunPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Bescheide ausstellen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByRole("link", { name: "Vorlage öffnen" }),
     ).toHaveAttribute(
