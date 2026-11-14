@@ -120,7 +120,7 @@ func TestCareContractImportTakesOverExistingContractsOnce(t *testing.T) {
 	assert.Equal(t, 2, preview.Counts.Ready)
 	assert.Equal(t, 1, preview.Counts.Invalid)
 	assert.Equal(t, 1, preview.Counts.Conflict)
-	assert.Equal(t, 2, preview.Counts.DebtorNumbers, "both siblings carry the number of their payer")
+	assert.Equal(t, 1, preview.Counts.DebtorNumbers, "siblings share the number of their payer")
 	assert.Equal(t, []string{"mon", "tue", "wed"}, preview.Rows[0].Weekdays, "the module's own days")
 	assert.Equal(t, "2028-07-31", *preview.Rows[0].EndsOn, "the contract ends with the phase of its module")
 	assert.Equal(t, "new", preview.Rows[0].DebtorNumberStatus)

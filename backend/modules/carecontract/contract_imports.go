@@ -93,9 +93,10 @@ const (
 	// ContractImportProblemOutsidePhase is a first day after the module's
 	// enrollment phase has ended.
 	ContractImportProblemOutsidePhase = "outside_phase"
-	// ContractImportProblemAfterStart is a conclusion after the first day
-	// of the contract or after today.
-	ContractImportProblemAfterStart = "after_start"
+	// ContractImportProblemBeforePhase is a module whose enrollment phase
+	// begins only after the first day of the contract, or after today for a
+	// contract that runs already.
+	ContractImportProblemBeforePhase = "before_phase"
 	// ContractImportProblemRepeated is a child another row of the file
 	// names for the same school.
 	ContractImportProblemRepeated = "repeated"
@@ -240,7 +241,8 @@ type ContractImportCounts struct {
 	Conflict  int `json:"conflict"`
 	Invalid   int `json:"invalid"`
 	Imported  int `json:"imported"`
-	// DebtorNumbers counts the rows whose debtor number the import takes
+	// DebtorNumbers counts the payers, or the children when the Träger
+	// keeps a number per child (#7007), whose debtor number the import takes
 	// over; DebtorConflicts the rows whose number it leaves.
 	DebtorNumbers   int `json:"debtor_numbers"`
 	DebtorConflicts int `json:"debtor_conflicts"`

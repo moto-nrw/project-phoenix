@@ -3,9 +3,11 @@
 // Zuordnung der Spalten beim Vertragsimport (#4723): je Feld eines Vertrags
 // die Spalte der Datei, aus der es kommt, in drei Gruppen: Kind, Betreuung,
 // Eltern und Abrechnung. moto schlägt die Spalten aus den Überschriften vor;
-// jede Änderung liest die Datei neu. Hat die Datei keine Spalte für die
+// jede Änderung liest die Datei neu. Sind alle Pflichtfelder zugeordnet,
+// klappt die Karte zu, damit die Zeilen direkt unter der Datei stehen. Hat die Datei keine Spalte für die
 // Schule oder das Modul, wählt das Büro sie einmal für alle Zeilen.
 
+import { useState } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { SectionCard } from "~/components/ui/section-card";
 import { SectionLabel } from "~/components/ui/section-label";
@@ -53,6 +55,7 @@ export function CareContractImportMappingCard({
   disabled: boolean;
   onChange: (mapping: ContractImportMapping) => void;
 }>) {
+  const [open, setOpen] = useState(false);
   const columnOptions = [
     { value: UNMAPPED, label: "Nicht zuordnen" },
     ...headers
@@ -76,6 +79,13 @@ export function CareContractImportMappingCard({
     }
     return CONTRACT_IMPORT_FIELD_HINTS[field];
   };
+  // Once every required field has its column the card folds away, so the
+  // rows stand right under the file; it opens again on request.
+  const complete = unmapped.length === 0;
+  const collapsed = complete && !open;
+  const mapped = Object.values(mapping.columns).filter(
+    (header) => header !== UNMAPPED,
+  ).length;
   const schoolForAll = mapping.columns.school === UNMAPPED;
   const moduleForAll = mapping.columns.module === UNMAPPED;
   const modules = moduleNames(schools, mapping.schoolId);
@@ -83,7 +93,14 @@ export function CareContractImportMappingCard({
   return (
     <SectionCard
       title="Spalten zuordnen"
-      description="Wählen Sie für jedes Feld die Spalte aus Ihrer Datei. moto hat schon passende Spalten vorgeschlagen."
+      description={
+        collapsed
+          ? `${mapped} von ${Object.keys(mapping.columns).length} Feldern sind zugeordnet, alle Pflichtfelder sind dabei.`
+          : "Wählen Sie für jedes Feld die Spalte aus Ihrer Datei. moto hat schon passende Spalten vorgeschlagen."
+      }
+      collapsible={complete}
+      collapsed={collapsed}
+      onCollapsedChange={(next) => setOpen(!next)}
     >
       <div className="flex flex-col gap-6">
         {CONTRACT_IMPORT_GROUPS.map((group) => (

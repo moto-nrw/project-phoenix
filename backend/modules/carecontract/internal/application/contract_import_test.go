@@ -35,7 +35,9 @@ func importFixture() ([]importSchool, templateIndex) {
 	north := importSchool{school: carecontract.School{ID: 1, Name: "Grundschule Nord"},
 		offerings: []carecontract.Offering{last, year(10, "OGS bis 14 Uhr"), year(11, "OGS bis 16 Uhr", "mon", "tue", "wed", "thu")}}
 	north.modules = north.offerings[1:]
-	south := importSchool{school: carecontract.School{ID: 2, Name: "Grundschule Süd"}, offerings: []carecontract.Offering{year(20, "Ganztag")}}
+	later := year(21, "Später")
+	later.ServiceStart, later.ServiceEnd = importDay(2027, 8, 1), importDay(2028, 7, 31)
+	south := importSchool{school: carecontract.School{ID: 2, Name: "Grundschule Süd"}, offerings: []carecontract.Offering{year(20, "Ganztag"), later}}
 	south.modules = south.offerings
 	terms := carecontract.TemplateInput{TermKind: carecontract.TermOpenEnded, NoticeMonths: 3, NoticeTo: carecontract.NoticeMonthEnd}
 	return []importSchool{north, south}, templateIndex{{1, 10}: terms, {1, 11}: terms}
@@ -90,10 +92,13 @@ func TestContractImportMappingSettlesTheOnlySchoolAndModule(t *testing.T) {
 	headers := []string{"Vorname", "Nachname", "Vertragsbeginn", "Zahler"}
 	suggested := suggestContractImportMapping(headers)
 
-	one := settleContractImportMapping(suggested, schools[1:])
+	only := schools[1]
+	only.offerings = only.offerings[:1]
+	only.modules = only.offerings
+	one := settleContractImportMapping(suggested, []importSchool{only})
 	assert.Equal(t, int64(2), one.SchoolID)
 	assert.Equal(t, "Ganztag", one.ModuleName)
-	_, unmapped, err := resolveContractImportMapping(headers, one, schools[1:])
+	_, unmapped, err := resolveContractImportMapping(headers, one, []importSchool{only})
 	require.NoError(t, err)
 	assert.Empty(t, unmapped)
 
@@ -172,11 +177,12 @@ func TestContractImportRowProblems(t *testing.T) {
 	}{
 		"names and start are required": {map[int]string{0: "", 6: "", 8: ""},
 			[]string{"child_first_name:missing", "party_last_name:missing", "effective_from:missing"}},
-		"a birthday in the future":   {map[int]string{2: "01.01.2030"}, []string{"child_birth_date:future"}},
-		"a date that is none":        {map[int]string{6: "bald"}, []string{"effective_from:invalid"}},
-		"an unknown school":          {map[int]string{3: "Grundschule West"}, []string{"school:unknown"}},
-		"an unknown module":          {map[int]string{4: "Hort"}, []string{"module:unknown"}},
-		"a module of an ended phase": {map[int]string{3: "Grundschule Nord", 4: "OGS bis 14 Uhr", 6: "01.08.2025", 7: "31.07.2026"}, []string{"ends_on:ended"}},
+		"a birthday in the future":          {map[int]string{2: "01.01.2030"}, []string{"child_birth_date:future"}},
+		"a date that is none":               {map[int]string{6: "bald"}, []string{"effective_from:invalid"}},
+		"an unknown school":                 {map[int]string{3: "Grundschule West"}, []string{"school:unknown"}},
+		"an unknown module":                 {map[int]string{4: "Hort"}, []string{"module:unknown"}},
+		"a module whose phase begins later": {map[int]string{3: "grundschule süd", 4: "Später", 6: "01.12.2026"}, []string{"module:before_phase"}},
+		"a module of an ended phase":        {map[int]string{3: "Grundschule Nord", 4: "OGS bis 14 Uhr", 6: "01.08.2025", 7: "31.07.2026"}, []string{"ends_on:ended"}},
 		"a module without conditions": {map[int]string{3: "grundschule süd", 4: "Ganztag"},
 			[]string{"module:conditions_missing"}},
 		"a weekday the module does not run on": {map[int]string{4: "OGS bis 16 Uhr", 5: "Mo, Fr"}, []string{"weekdays:not_offered"}},
@@ -188,6 +194,17 @@ func TestContractImportRowProblems(t *testing.T) {
 		assert.Equal(t, carecontract.ContractImportInvalid, row.Status, name)
 		assert.Equal(t, test.problems, problemsOf(row), name)
 	}
+}
+
+// A contract that runs for years books the module of the running phase and
+// keeps its own first day.
+func TestContractImportRowKeepsTheStartOfAnOlderContract(t *testing.T) {
+	t.Parallel()
+	candidate := importCheckOf(t).candidate(importRow(map[int]string{6: "01.08.2024"}), 2)
+	require.Equal(t, carecontract.ContractImportReady, candidate.row.Status, problemsOf(candidate.row))
+	assert.Equal(t, importDay(2024, 8, 1), candidate.row.EffectiveFrom)
+	assert.Equal(t, int64(10), candidate.contract.Version.Services[0].CareOfferingID, "the module of the running school year")
+	assert.Equal(t, calendar.NewDate(2024, 8, 1).BerlinMidnight(), candidate.contract.ConcludedAt)
 }
 
 // Two modules in one cell make one contract over both; it has no price of

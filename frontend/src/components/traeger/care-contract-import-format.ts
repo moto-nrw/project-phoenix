@@ -100,10 +100,34 @@ const WEEKDAY_SHORT: Record<string, string> = {
   sun: "So",
 };
 
-/** „Mo, Di, Do“; „–“ ohne Tage. */
+const WEEKDAY_ORDER = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+/**
+ * „Mo–Fr“, „Mo, Mi, Fr“ oder „Mo–Mi, Fr“: drei und mehr Tage in Folge
+ * stehen als Spanne. „–“ ohne Tage.
+ */
 export function contractImportWeekdays(weekdays: readonly string[]): string {
-  if (weekdays.length === 0) return "–";
-  return weekdays.map((day) => WEEKDAY_SHORT[day] ?? day).join(", ");
+  const days = WEEKDAY_ORDER.filter((day) => weekdays.includes(day));
+  if (days.length === 0) return "–";
+  const parts: string[] = [];
+  for (let start = 0; start < days.length;) {
+    let end = start;
+    while (
+      end + 1 < days.length &&
+      WEEKDAY_ORDER.indexOf(days[end + 1] ?? "") ===
+        WEEKDAY_ORDER.indexOf(days[end] ?? "") + 1
+    ) {
+      end++;
+    }
+    const first = WEEKDAY_SHORT[days[start] ?? ""] ?? "";
+    const last = WEEKDAY_SHORT[days[end] ?? ""] ?? "";
+    if (end - start >= 2) parts.push(`${first}–${last}`);
+    else
+      for (let i = start; i <= end; i++)
+        parts.push(WEEKDAY_SHORT[days[i] ?? ""] ?? "");
+    start = end + 1;
+  }
+  return parts.join(", ");
 }
 
 /** „ab 01.08.2026“ oder „01.08.2026 bis 31.07.2027“; „–“ ohne Beginn. */
@@ -179,6 +203,8 @@ export function contractImportProblemText(
       return "Der Vertrag ist schon beendet. moto übernimmt nur laufende Verträge.";
     case "outside_phase":
       return "Das Schuljahr des Moduls ist schon vorbei.";
+    case "before_phase":
+      return "Das Schuljahr des Moduls hat noch nicht begonnen.";
     case "repeated":
       return row.repeatsLine === null
         ? "Das Kind steht mehrmals in der Datei."

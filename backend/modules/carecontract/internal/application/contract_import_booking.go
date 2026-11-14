@@ -86,6 +86,12 @@ func (r rowReader) modules(school importSchool, from calendar.Date) []carecontra
 	var modules []carecontract.Offering
 	for _, name := range names {
 		module, code := pickImportModule(school.offerings, name, reference)
+		if code == "" && module.ServiceStart != nil && reference.Before(*module.ServiceStart) {
+			// An older contract books the module of the running phase; a
+			// module whose phase has not begun by the reference day is none
+			// the child can be in yet.
+			code = carecontract.ContractImportProblemBeforePhase
+		}
 		if code != "" {
 			r.problem(carecontract.ContractImportFieldModule, code)
 			return nil

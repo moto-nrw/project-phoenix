@@ -204,10 +204,16 @@ const CONCLUSION_METHOD_LABELS: Record<ConclusionMethod, string> = {
 
 /**
  * The conclusion in one line: „Am 06.11.2026 um 16:12 Uhr, bei der Annahme
- * der Anmeldung“.
+ * der Anmeldung“. An imported paper contract knows only its day (#4723): it
+ * is stored at midnight and shows without a time.
  */
 export function formatConclusion(conclusion: ContractConclusion): string {
-  return `Am ${formatBerlinDate(conclusion.at)} um ${formatBerlinTime(conclusion.at)} Uhr, ${CONCLUSION_METHOD_LABELS[conclusion.method]}`;
+  const time = formatBerlinTime(conclusion.at);
+  const when =
+    conclusion.method === "papier" && time === "00:00"
+      ? `Am ${formatBerlinDate(conclusion.at)}`
+      : `Am ${formatBerlinDate(conclusion.at)} um ${time} Uhr`;
+  return `${when}, ${CONCLUSION_METHOD_LABELS[conclusion.method]}`;
 }
 
 export const CONCLUSION_MODE_LABELS: Record<ConclusionMode, string> = {

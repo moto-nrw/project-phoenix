@@ -179,14 +179,19 @@ func (i *ContractImports) evaluate(ctx context.Context, reviewer carecontract.Re
 		result.Applied = true
 	}
 	shown := map[int64][]int64{}
+	numbers := map[string]bool{}
 	for _, candidate := range candidates {
 		row := candidate.row
 		result.Rows = append(result.Rows, row)
 		countContractImportRow(&result.Counts, row)
+		if row.DebtorNumberStatus == carecontract.ContractDebtorNumberNew {
+			numbers[debtorNumberTarget(result.DebtorNumberScope, row)] = true
+		}
 		if row.ContractID > 0 {
 			shown[row.SchoolID] = append(shown[row.SchoolID], row.ContractID)
 		}
 	}
+	result.Counts.DebtorNumbers = len(numbers)
 	return shown, trail(ctx, i.store, organizationID, reviewer.AccountID, 0, 0, ActionRead,
 		map[string]any{"view": "import", "rows": len(candidates), "applied": result.Applied})
 }
@@ -286,13 +291,24 @@ func countContractImportRow(counts *carecontract.ContractImportCounts, row carec
 		counts.Imported++
 	}
 	switch row.DebtorNumberStatus {
-	case "":
-	case carecontract.ContractDebtorNumberNew:
-		counts.DebtorNumbers++
-	case carecontract.ContractDebtorNumberSame:
+	case "", carecontract.ContractDebtorNumberNew, carecontract.ContractDebtorNumberSame:
 	default:
 		counts.DebtorConflicts++
 	}
+}
+
+// debtorNumberTarget names whom the number of a row goes to: the payer, so
+// siblings count once, or the child when the Träger keeps a number per
+// child.
+func debtorNumberTarget(scope string, row carecontract.ContractImportRow) string {
+	target := strings.ToLower(row.PartyEmail)
+	if scope == carecontract.ContractDebtorNumberPerChild {
+		target += "\x1f" + foldImportName(row.ChildFirstName) + "\x1f" + foldImportName(row.ChildLastName)
+		if row.ChildBirthDate != nil {
+			target += "\x1f" + row.ChildBirthDate.String()
+		}
+	}
+	return target
 }
 
 // contractImportState names the mapping, whom a debtor number goes to and
