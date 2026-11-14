@@ -248,8 +248,8 @@ export function ChangeTraegerRolesModal({
         <p className="text-sm text-gray-600">
           Rollen für{" "}
           <span className="font-medium wrap-anywhere">{member?.email}</span>.
-          Die Änderung gilt nach wenigen Minuten, spätestens bei der nächsten
-          Anmeldung.
+          Neue Rollen gelten nach wenigen Minuten. Nehmen Sie eine Rolle weg,
+          wird die Person sofort abgemeldet.
         </p>
         <TraegerRoleChoice
           value={roles}

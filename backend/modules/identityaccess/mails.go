@@ -394,6 +394,7 @@ func TraegerAccountChangeMail(notice TraegerAccountChangeNotice, origin string) 
 		Content: map[string]any{
 			"TraegerName":    notice.TraegerName,
 			"Removed":        removed,
+			"Withdrawn":      TraegerRolesWithdrawn(notice.RolesBefore, notice.RolesAfter),
 			"Self":           notice.ActorAccountID == notice.TargetAccountID,
 			"ActorEmail":     notice.ActorEmail,
 			"Date":           occurred.Format("02.01.2006"),
