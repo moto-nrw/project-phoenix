@@ -147,7 +147,9 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/parent/me/children/44/meal-participation",
 		"/parent/me/children/44/meal-participation/2026-10-14",
 		// The conversation comes after every step that leaves a note in the
-		// chat, so it ends with the OGS's answer.
+		// chat, so it ends with the OGS's answer. The child card shows its
+		// new messages first (#6486).
+		"/api/settings/values/operations.parent_message_card_badge_enabled",
 		"/parent/me/messages/children/44", "/api/messages/threads/91",
 		"/parent/me/messages/children/44", "/api/messages/threads/91",
 		"/parent/me/messages/children/44", "/api/messages/threads/91",

@@ -159,7 +159,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/compact-student-card.tsx",
-    lines: [88],
+    lines: [91],
     reason: "Kinderkarte im Raster, öffnet das Profil: Kachel",
   },
   {

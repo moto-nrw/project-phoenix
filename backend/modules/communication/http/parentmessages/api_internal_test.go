@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/moto-ogs/project-phoenix/modules/communication"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,18 @@ func TestParentMessageWireContractPreservesJSONPayloadAndStringIDs(t *testing.T)
 	encoded, err := json.Marshal(response)
 	require.NoError(t, err)
 	assert.JSONEq(t, `[{"id":"7","sender_kind":"guardian","sender_name":"Erika","body":"Ja","created_at":"2026-09-04T08:15:00Z","kind":"request","event_type":"care","request_type":"pickup","request_status":"open","payload":{"answer":"Ja"},"ref_table":"schedule.requests","ref_id":"12","applied_by":"34","decision_reason":"bestätigt","read_by_staff":true,"read_by_guardian":true}]`, string(encoded))
+}
+
+func TestParentSystemEventWireContractPreservesActorKind(t *testing.T) {
+	t.Parallel()
+	for _, actor := range []string{"guardian", "staff"} {
+		response := toMessageResponses([]communication.ParentMessage{{
+			SenderKind: "system", EventType: "request_status", EventActorKind: actor,
+		}})
+		encoded, err := json.Marshal(response)
+		require.NoError(t, err)
+		assert.Contains(t, string(encoded), `"event_actor_kind":"`+actor+`"`)
+	}
 }
 
 func TestParentMessageHTTPErrorContract(t *testing.T) {
@@ -214,4 +227,43 @@ func TestParentMessageCorrelationOnlyBelongsToItsAuthor(t *testing.T) {
 	group := &communication.ParentGroupThreadDetail{Messages: []communication.ParentGroupMessage{{ID: 7, SenderAccountID: 12, ClientMessageID: "same-key"}}}
 	require.Equal(t, "same-key", toGroupThreadDetail(group, 12).Messages[0].ClientMessageID)
 	require.Empty(t, toGroupThreadDetail(group, 34).Messages[0].ClientMessageID)
+}
+
+type teamHandlingDouble struct {
+	threadID, handledUpTo int64
+	err                   error
+}
+
+func (d *teamHandlingDouble) MarkParentMessageThreadHandled(_ context.Context, threadID, handledUpTo int64) error {
+	d.threadID, d.handledUpTo = threadID, handledUpTo
+	return d.err
+}
+
+// "Als gelesen bestätigen" (#6486): the route parses the thread and the
+// displayed boundary and maps a boundary outside the thread to 409.
+func TestMarkThreadHandledRoute(t *testing.T) {
+	t.Parallel()
+	serve := func(handling *teamHandlingDouble, body string) int {
+		rs := &Resource{TeamHandling: handling}
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/threads/9/handled", strings.NewReader(body))
+		routeCtx := chi.NewRouteContext()
+		routeCtx.URLParams.Add("threadId", "9")
+		rs.markThreadHandled(recorder, request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, routeCtx)))
+		return recorder.Code
+	}
+
+	ok := &teamHandlingDouble{}
+	assert.Equal(t, http.StatusOK, serve(ok, `{"handled_up_to_message_id":"42"}`))
+	assert.Equal(t, int64(9), ok.threadID)
+	assert.Equal(t, int64(42), ok.handledUpTo)
+
+	for _, body := range []string{`{}`, `{"handled_up_to_message_id":"0"}`, `{"handled_up_to_message_id":"x"}`, `nope`} {
+		untouched := &teamHandlingDouble{}
+		assert.Equal(t, http.StatusBadRequest, serve(untouched, body), body)
+		assert.Zero(t, untouched.threadID, body)
+	}
+
+	stale := &teamHandlingDouble{err: communication.ErrParentMessageHandledBoundaryRequired}
+	assert.Equal(t, http.StatusConflict, serve(stale, `{"handled_up_to_message_id":"42"}`))
 }

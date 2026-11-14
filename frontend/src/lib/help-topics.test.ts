@@ -26,7 +26,10 @@ const PROTECTED_PAGES_ROOT = resolve(
 function collectPageFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = resolve(directory, entry.name);
-    if (entry.isDirectory()) return collectPageFiles(path);
+    if (entry.isDirectory()) {
+      // Slot pages overlay canonical pages, whose help mapping is checked.
+      return entry.name.startsWith("@") ? [] : collectPageFiles(path);
+    }
     return entry.name === "page.tsx" ? [path] : [];
   });
 }

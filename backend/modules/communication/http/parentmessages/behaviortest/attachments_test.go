@@ -52,9 +52,9 @@ func attachmentFixture(t *testing.T) (chi.Router, testpkg.ParentChain) {
 	require.NoError(t, err)
 	require.NoError(t, settings.Settings.SetValue(testpkg.Ctx(t), "operations.parent_notes_enabled", true, nil, nil))
 	persons := owners.ParentMessagePeopleWithLeaders{ParentMessagePeople: owners.BindParentMessagePeople(directory), ParentMessageLeadership: owners.BindParentMessageLeadership(people.Staff, owners.NewPeopleIdentityAccess(database, nil))}
-	svc, groups, attachments := compose.NewParentMessaging(compose.ParentMessagingConfig{ThreadRepo: repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(db), ReadRepo: repos.ParentMessageRead, Persons: persons, UserContext: owners.StaffStudentReads{}, Session: api.CommunicationSession{}, Settings: settingsValues.NewParentMessagingValues(settings.Settings), Broadcaster: realtime.NewHub(slog.Default()), DB: db, Logger: slog.Default(), Observe: func(compose.Observation) {}, GroupAudience: owners.NewParentGroupAudience(database)}, owners.CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+	svc, groups, attachments, handling := compose.NewParentMessaging(compose.ParentMessagingConfig{ThreadRepo: repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(db), ReadRepo: repos.ParentMessageRead, Persons: persons, UserContext: owners.StaffStudentReads{}, Session: api.CommunicationSession{}, Settings: settingsValues.NewParentMessagingValues(settings.Settings), Broadcaster: realtime.NewHub(slog.Default()), DB: db, Logger: slog.Default(), Observe: func(compose.Observation) {}, GroupAudience: owners.NewParentGroupAudience(database)}, owners.CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	routes := api.NewMessageAttachmentRoutesForTests(attachments, common.RequiresPermission(permissions.UsersRead))
-	return messaging.NewResource(svc, groups).Router(api.ProtectedTenantRoutesWith(routes.Register)), testpkg.CreateTestParentGuardianChain(t, db)
+	return messaging.NewResource(svc, groups, handling).Router(api.ProtectedTenantRoutesWith(routes.Register)), testpkg.CreateTestParentGuardianChain(t, db)
 }
 
 func staffToken(t *testing.T, name string, grants ...string) string {

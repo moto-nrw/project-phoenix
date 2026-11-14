@@ -362,6 +362,7 @@ const PREFIX_HELP_TOPICS: ReadonlyArray<
   ["/students", HELP_TOPICS.studentSearch],
   ["/staff", HELP_TOPICS.findStaff],
   ["/messages/groups", HELP_TOPICS.parentGroupMessage],
+  ["/parent-attention", HELP_TOPICS.parentMessage],
   ["/messages", HELP_TOPICS.parentMessage],
   ["/parent-announcements", HELP_TOPICS.leadParentAnnouncement],
   ["/rooms", HELP_TOPICS.rooms],

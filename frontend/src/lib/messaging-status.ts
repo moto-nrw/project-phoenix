@@ -85,6 +85,7 @@ export interface ChatMessage {
   // older payload still renders as a bubble.
   readonly kind?: MessageKind;
   readonly event_type?: string;
+  readonly event_actor_kind?: MessageSenderKind;
   readonly request_type?: WireRequestType;
   readonly request_status?: RequestStatus;
   // Deep-link reference to the underlying request row (e.g.

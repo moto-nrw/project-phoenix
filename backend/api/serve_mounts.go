@@ -160,7 +160,7 @@ func mountCommunicationRoutes(
 	}
 	// Fotos und Dateien in den Nachrichten an Eltern (#6685), hinter demselben Recht wie die Nachrichten.
 	attachments := newMessageAttachmentRoutes(chat.ParentAttachments, logger.With("handler", "message-attachments"), apiCommon.RequiresPermission(permissions.UsersRead))
-	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging, chat.GroupThreads).Router(ProtectedTenantRoutesWith(attachments.Register)))
+	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging, chat.GroupThreads, chat.TeamHandling).Router(ProtectedTenantRoutesWith(attachments.Register)))
 	tenant.Mount("/parent-announcements", announcementAPI.NewResource(announcements, newDeclarationReports()).Router(ProtectedTenantRoutes))
 	// Umfragen an Eltern oder Mitarbeitende (#4781).
 	tenant.Mount("/surveys", announcementAPI.NewSurveyResource(surveys, newDeclarationReports()).Router(ProtectedTenantRoutes))

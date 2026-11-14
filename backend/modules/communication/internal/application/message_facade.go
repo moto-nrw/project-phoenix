@@ -175,6 +175,7 @@ func (m *parentMessaging[I, T, M, G]) MarkParentMessageThreadUnread(ctx context.
 	})
 	return err
 }
+
 func (m *parentMessaging[I, T, M, G]) MarkAllParentMessagesRead(ctx context.Context) (int, error) {
 	return observeMessageResult(ctx, m.observe, "parent_messages.mark_all_read", func(runCtx context.Context) (int, error) {
 		count, err := m.service.MarkAllRead(runCtx)
@@ -348,7 +349,7 @@ func mapParentMessage(row *ParentMessage) (communication.ParentMessage, error) {
 	}
 	return communication.ParentMessage{
 		ID: row.ID, SenderAccountID: row.SenderAccountID, SenderKind: row.SenderKind, SenderName: row.SenderName,
-		ClientMessageID: row.ClientMessageID, SendReplayed: row.SendReplayed, Body: row.Body, CreatedAt: row.CreatedAt, Kind: row.Kind, EventType: row.EventType,
+		ClientMessageID: row.ClientMessageID, SendReplayed: row.SendReplayed, Body: row.Body, CreatedAt: row.CreatedAt, Kind: row.Kind, EventType: row.EventType, EventActorKind: row.EventActorKind,
 		RequestType: row.RequestType, RequestStatus: row.RequestStatus, Payload: payload,
 		RefTable: row.RefTable, RefID: row.RefID, AppliedAt: row.AppliedAt, AppliedBy: row.AppliedBy,
 		DecisionReason: row.DecisionReason, ReadByStaff: row.ReadByStaff, ReadByGuardian: row.ReadByGuardian,

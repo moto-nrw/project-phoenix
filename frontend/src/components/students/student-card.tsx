@@ -1,6 +1,8 @@
 // components/students/student-card.tsx
 // Shared student card component used across OGS groups and active supervisions pages
 
+import { ParentAttentionBadge } from "~/components/students/parent-attention-badge";
+import { useParentAttentionEnabled } from "~/lib/hooks/use-parent-attention";
 import { useDataPrefetchIntent } from "~/components/ui/data-prefetch-intent";
 import type { ReactNode } from "react";
 import { tileCardSurface } from "~/components/ui/tile-card";
@@ -251,8 +253,9 @@ export function StudentCard({
   const dataIntent = useDataPrefetchIntent(
     checkinMode || selectMode ? null : `/students/${studentId}`,
   );
+  const parentAttentionEnabled = useParentAttentionEnabled();
 
-  return (
+  const card = (
     <button
       key={studentId}
       type="button"
@@ -271,7 +274,7 @@ export function StudentCard({
       data-checkin-selected={isSelectedCard || undefined}
       data-day-home-change={dayChangeKind}
       style={selectedRingStyle}
-      className={`${tileCardSurface({ padding: "none" })} flex cursor-pointer flex-col disabled:cursor-wait disabled:opacity-70`}
+      className={`${tileCardSurface({ padding: "none" })} flex cursor-pointer flex-col disabled:cursor-wait disabled:opacity-70 ${parentAttentionEnabled ? "h-full" : ""}`}
     >
       <div
         className={`relative ${hasTapStrip || dayChangeLabel ? "p-3 pb-0 sm:p-5 sm:pb-0" : "p-3 sm:p-5"}`}
@@ -406,6 +409,20 @@ export function StudentCard({
         </div>
       ) : null}
     </button>
+  );
+
+  if (!parentAttentionEnabled) return card;
+  // Neue Elternnachrichten (#6486): die Zahl sitzt neben, nicht in der
+  // Kachel, weil ein Knopf keinen zweiten Knopf enthalten darf.
+  return (
+    <div className="relative h-full">
+      {card}
+      <ParentAttentionBadge
+        studentId={studentId}
+        studentName={`${firstName ?? ""} ${lastName ?? ""}`.trim()}
+        className="absolute -top-2 -right-2 z-10"
+      />
+    </div>
   );
 }
 

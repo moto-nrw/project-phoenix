@@ -65,6 +65,9 @@ type CommunicationMessaging struct {
 	StaffMessaging communication.StaffMessagingRuntime
 	// GroupThreads is the OGS side of the group threads (#4784).
 	GroupThreads communication.ParentGroupThreadCapability
+	// TeamHandling confirms guardian activity for the team without a reply
+	// (#6486).
+	TeamHandling communication.ParentMessageTeamHandling
 	// ParentAttachments and StaffAttachments are the photos and files of
 	// the two chat families (#6685); PortalAttachments is the guardian's
 	// side of the first.
@@ -99,7 +102,7 @@ func BuildCommunicationMessaging(
 		LoginImages: settings, ParentsURL: env.Links.ParentsURL, Observe: env.Observe.Communication,
 		GroupAudience: NewParentGroupAudience(db),
 	}
-	messaging, groupThreads, parentAttachments := communicationCompose.NewParentMessaging(messagingConfig, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+	messaging, groupThreads, parentAttachments, teamHandling := communicationCompose.NewParentMessaging(messagingConfig, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	staffMessaging, staffAttachments := communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		DB:          db.Pool(),
 		ThreadRepo:  staffStore.NewStaffMessageThreadRepository(db.Pool()),
@@ -109,7 +112,7 @@ func BuildCommunicationMessaging(
 		Preferences: notifications.Preferences, Observe: env.Observe.Communication,
 	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	return CommunicationMessaging{
-		Messaging: messaging, StaffMessaging: staffMessaging, GroupThreads: groupThreads,
+		Messaging: messaging, StaffMessaging: staffMessaging, GroupThreads: groupThreads, TeamHandling: teamHandling,
 		ParentAttachments: parentAttachments, StaffAttachments: staffAttachments,
 		PortalAttachments: communicationCompose.NewPortalMessageAttachments(db.Pool()),
 	}

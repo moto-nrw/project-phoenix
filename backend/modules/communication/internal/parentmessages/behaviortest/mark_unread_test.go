@@ -351,4 +351,49 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 	onlyUnread, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), disabled.ListInbox, true)
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread)
+
+	// A stale card cannot confirm for the team either (#6486). The switch is
+	// checked before the boundary, so any positive boundary is refused.
+	err = testpkg.TenantCommand2(t, ctx, f.db, disabled.MarkParentMessageThreadHandled, threadID, threadID)
+	require.ErrorIs(t, err, messaging.ErrMessagingDisabled)
+}
+
+// "Als gelesen bestätigen" on the child card (#6486): one staff member confirms
+// the guardian activity they saw for the whole team, without a reply.
+func TestMarkHandled_ConfirmsForTheWholeTeam(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, true)
+	_, colleague := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
+	threadID := startReadThread(t, f)
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkUnread, threadID))
+	assertTeamUnread(t, f, colleague.ID, 1)
+
+	detail, err := testpkg.TenantQuery1(t, adminCtx(t, f.staffAccount), f.db, f.svc.GetThread, threadID)
+	require.NoError(t, err)
+	seen := detail.Messages[len(detail.Messages)-1].ID
+
+	f.bc.Reset()
+	require.NoError(t, testpkg.TenantCommand2(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkParentMessageThreadHandled, threadID, seen))
+	assert.Equal(t, 1, parentEventCount(f.bc, realtime.EventParentMessageUnreadChanged), "confirming wakes the other staff tabs")
+	assertTeamUnread(t, f, f.staffAccount, 0)
+	assertTeamUnread(t, f, colleague.ID, 0)
+
+	// A guardian message after the confirmed boundary counts again for everyone.
+	createGuardianMessage(t, f.db, f.chain, threadID, "Noch eine Frage")
+	assertTeamUnread(t, f, f.staffAccount, 1)
+	assertTeamUnread(t, f, colleague.ID, 1)
+}
+
+func TestMarkHandled_RejectsBoundaryOutsideTheThread(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, true)
+	threadID := startReadThread(t, f)
+
+	err := testpkg.TenantCommand2(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkParentMessageThreadHandled, threadID, int64(0))
+	require.ErrorIs(t, err, messaging.ErrHandledBoundaryRequired)
+	err = testpkg.TenantCommand2(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkParentMessageThreadHandled, threadID, int64(1<<40))
+	require.ErrorIs(t, err, messaging.ErrHandledBoundaryRequired)
+	assertTeamUnread(t, f, f.staffAccount, 0)
 }

@@ -17,5 +17,6 @@ POST /api/messages/mark-all-read -> eltern_app
 POST /api/messages/threads -> eltern_app
 POST /api/messages/threads/open -> eltern_app
 POST /api/messages/threads/{threadId} -> eltern_app
+POST /api/messages/threads/{threadId}/handled -> eltern_app
 POST /api/messages/threads/{threadId}/unread -> eltern_app
 PUT /api/messages/count-scope -> eltern_app

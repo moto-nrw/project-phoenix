@@ -28,7 +28,8 @@ function collectPageRoutes(
   const routes: string[] = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      if (skip.has(entry.name)) continue;
+      // Parallel slots reuse canonical routes; they are not full pages.
+      if (skip.has(entry.name) || entry.name.startsWith("@")) continue;
       // Route groups such as (public) do not appear in the URL.
       const segment = /^\(.+\)$/.test(entry.name)
         ? []

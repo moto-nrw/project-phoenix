@@ -403,6 +403,7 @@ describe("Button", () => {
       disclosure: true,
       day_chip: true,
       day_chip_stacked: true,
+      count_badge: true,
     };
     for (const variant of Object.keys(allVariants) as ButtonVariant[]) {
       const greyRest = buttonClassName({ variant, size: "md", className: "" })
@@ -435,6 +436,7 @@ describe("Button", () => {
       "disclosure",
       "day_chip",
       "day_chip_stacked",
+      "count_badge",
     ] as const;
     for (const variant of variants) {
       expect(

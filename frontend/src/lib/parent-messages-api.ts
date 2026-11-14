@@ -286,6 +286,23 @@ export async function markThreadUnread(threadId: string): Promise<void> {
 }
 
 /**
+ * Confirm the guardian activity up to the given message for the whole team,
+ * without a reply (#6486). Colleagues no longer see it as new; parents see no
+ * change. The message id is the last one the dialog showed, so a message that
+ * arrived meanwhile stays new.
+ */
+export async function confirmThreadForTeam(
+  threadId: string,
+  handledUpToMessageId: string,
+): Promise<void> {
+  await postEnvelope<null>(
+    `/api/messages/threads/${encodeURIComponent(threadId)}/handled`,
+    { handled_up_to_message_id: handledUpToMessageId },
+    "Die Nachricht wurde nicht als gelesen bestätigt.",
+  );
+}
+
+/**
  * Clear the caller's own unread numbers for every conversation they see as
  * unread. Colleagues see no change, and parents get no read receipt (#3673).
  * Returns the caller's new unread count: above zero only while conversations

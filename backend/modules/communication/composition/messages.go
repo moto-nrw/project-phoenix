@@ -40,9 +40,9 @@ type ParentMessagingConfig struct {
 	GroupAudience    communication.ParentGroupAudienceReads
 }
 
-// NewParentMessaging also returns the OGS side of the group threads (#4784)
-// and the photos and files of both (#6685).
-func NewParentMessaging(cfg ParentMessagingConfig, runtime parentMessages.Runtime, policy deliveryPorts.ParentDeliveryPolicy) (communication.ParentMessagingCapability, communication.ParentGroupThreadCapability, communication.MessageAttachmentCapability) {
+// NewParentMessaging also returns the OGS side of the group threads (#4784),
+// the photos and files of both (#6685) and the team confirmation (#6486).
+func NewParentMessaging(cfg ParentMessagingConfig, runtime parentMessages.Runtime, policy deliveryPorts.ParentDeliveryPolicy) (communication.ParentMessagingCapability, communication.ParentGroupThreadCapability, communication.MessageAttachmentCapability, communication.ParentMessageTeamHandling) {
 	service := parentMessages.NewService(parentMessages.Config{
 		Attachments: messageAttachmentStore(cfg.DB),
 		ThreadRepo:  parentMessages.NewThreadRepository(cfg.ThreadRepo), MessageRepo: parentMessages.NewMessageRepository(cfg.MessageRepo), ReadRepo: parentMessages.NewReadRepository(cfg.ReadRepo),
@@ -52,7 +52,7 @@ func NewParentMessaging(cfg ParentMessagingConfig, runtime parentMessages.Runtim
 		CountPreferences: newCountPreferences(cfg.DB), Groups: cfg.UserContext,
 		GroupThreads: parentpostgres.NewGroupThreadStore(parentDatabase(cfg.DB)), GroupAudience: cfg.GroupAudience, Leaders: cfg.Persons,
 	}, runtime, policy)
-	return deliveryPorts.NewParentMessagingFacade(service, parentMessages.NativeFacadeRows(), parentMessages.NativeFacadeErrors(), communicationPostgres.NewMessageObservation(cfg.Observe)), service, service
+	return deliveryPorts.NewParentMessagingFacade(service, parentMessages.NativeFacadeRows(), parentMessages.NativeFacadeErrors(), communicationPostgres.NewMessageObservation(cfg.Observe)), service, service, service
 }
 
 // messageAttachmentStore is the attachment store over the ambient tenant

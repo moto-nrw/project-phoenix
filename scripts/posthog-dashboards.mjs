@@ -271,12 +271,12 @@ export const FEATURES = Object.freeze([
   {
     name: 'Nachrichten und Elternbriefe',
     pages: {
-      ogs: ['/messages/**', '/team-chat/**', '/parent-announcements/**', '/umfragen/**'],
+      ogs: ['/messages/**', '/parent-attention/:studentId', '/team-chat/**', '/parent-announcements/**', '/umfragen/**'],
       parents: ['/messages/**', '/news/**'],
       school: ['/nachrichten/**', '/elternbriefe/**'],
     },
     events: [
-      'parent_message_sent', 'staff_message_sent', 'parent_message_marked_unread', 'parent_messages_marked_all_read',
+      'parent_message_sent', 'staff_message_sent', 'parent_message_marked_unread', 'parent_message_confirmed_for_team', 'parent_messages_marked_all_read',
       'parent_message_count_scope_changed', 'parent_declaration_submitted', 'staff_notice_acknowledged',
       'class_parent_letter_sent', 'staff_group_created',
     ],

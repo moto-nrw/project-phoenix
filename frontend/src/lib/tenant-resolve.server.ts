@@ -17,6 +17,7 @@ export interface TenantResolveResponse {
   student_photos_enabled?: boolean;
   booked_modules?: string[];
   parent_messaging_enabled?: boolean;
+  parent_message_card_badge_enabled?: boolean;
   staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
   caldav_enabled?: boolean;

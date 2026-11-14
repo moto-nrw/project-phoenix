@@ -23,11 +23,14 @@ type Resource struct {
 	Service communication.ParentMessagingCapability
 	// Groups serves the group threads (#4784); nil leaves them unmounted.
 	Groups communication.ParentGroupThreadCapability
+	// TeamHandling serves "Als gelesen bestätigen" (#6486); nil leaves the
+	// route unmounted.
+	TeamHandling communication.ParentMessageTeamHandling
 }
 
 // NewResource wires the staff messaging resource.
-func NewResource(service communication.ParentMessagingCapability, groups communication.ParentGroupThreadCapability) *Resource {
-	return &Resource{Service: service, Groups: groups}
+func NewResource(service communication.ParentMessagingCapability, groups communication.ParentGroupThreadCapability, handling communication.ParentMessageTeamHandling) *Resource {
+	return &Resource{Service: service, Groups: groups, TeamHandling: handling}
 }
 
 // Router returns the chi router scoped to /messages.
@@ -56,6 +59,9 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 		r.With(read, withTx).Get("/threads/{threadId}", rs.getThread)
 		r.With(read, withTx).Post("/threads/{threadId}", rs.postMessage)
 		r.With(read, withTx).Post("/threads/{threadId}/unread", rs.markThreadUnread)
+		if rs.TeamHandling != nil {
+			r.With(read, withTx).Post("/threads/{threadId}/handled", rs.markThreadHandled)
+		}
 		r.With(read, withTx).Get("/students/{studentId}/guardians", rs.listGuardians)
 		r.With(read, withTx).Get("/reachable-students", rs.listReachableStudents)
 		r.With(read, withTx).Get("/students/{studentId}/threads", rs.listStudentThreads)
@@ -133,6 +139,7 @@ type MessageResponse struct {
 	CreatedAt       time.Time       `json:"created_at"`
 	Kind            string          `json:"kind"`
 	EventType       string          `json:"event_type,omitempty"`
+	EventActorKind  string          `json:"event_actor_kind,omitempty"`
 	RequestType     string          `json:"request_type,omitempty"`
 	RequestStatus   string          `json:"request_status,omitempty"`
 	Payload         json.RawMessage `json:"payload,omitempty"`
@@ -227,6 +234,7 @@ func toMessageResponses(messages []communication.ParentMessage, viewer ...int64)
 			CreatedAt:        m.CreatedAt,
 			Kind:             m.Kind,
 			EventType:        m.EventType,
+			EventActorKind:   m.EventActorKind,
 			RequestType:      m.RequestType,
 			RequestStatus:    m.RequestStatus,
 			Payload:          m.Payload,
@@ -395,6 +403,35 @@ func (rs *Resource) markThreadUnread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, nil, "Thread marked unread")
+}
+
+// MarkHandledRequest names the last timeline row the client displayed.
+type MarkHandledRequest struct {
+	HandledUpToMessageID string `json:"handled_up_to_message_id"`
+}
+
+// markThreadHandled confirms the guardian activity for the whole team without a
+// reply (#6486): the child card's "Als gelesen bestätigen".
+func (rs *Resource) markThreadHandled(w http.ResponseWriter, r *http.Request) {
+	threadID, ok := parseInt64Param(w, r, "threadId", "thread")
+	if !ok {
+		return
+	}
+	var req MarkHandledRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
+		return
+	}
+	handledUpToMessageID, err := strconv.ParseInt(req.HandledUpToMessageID, 10, 64)
+	if err != nil || handledUpToMessageID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid handled message ID")))
+		return
+	}
+	if err := rs.TeamHandling.MarkParentMessageThreadHandled(r.Context(), threadID, handledUpToMessageID); err != nil {
+		renderMessagingError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Thread confirmed for the team")
 }
 
 func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {

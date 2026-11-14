@@ -74,6 +74,7 @@ const (
 	KeyParentExcusedRequiresApproval         = configModel.KeyParentExcusedRequiresApproval
 	KeyParentNewsEnabled                     = configModel.KeyParentNewsEnabled
 	KeyParentNotesEnabled                    = configModel.KeyParentNotesEnabled
+	KeyParentMessageCardBadgeEnabled         = configModel.KeyParentMessageCardBadgeEnabled
 	KeyParentPickupChangeCutoffTime          = configModel.KeyParentPickupChangeCutoffTime
 	KeyParentPickupChangeEnabled             = configModel.KeyParentPickupChangeEnabled
 	KeyParentRequestGroupLeaderReviewEnabled = configModel.KeyParentRequestGroupLeaderReviewEnabled

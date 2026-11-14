@@ -8,7 +8,10 @@ const PROTECTED_DIR = path.dirname(fileURLToPath(import.meta.url));
 function collectPageFiles(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {
     const entryPath = path.join(directory, entry);
-    if (statSync(entryPath).isDirectory()) return collectPageFiles(entryPath);
+    if (statSync(entryPath).isDirectory()) {
+      // Parallel slots are overlays, not a second page scaffold.
+      return entry.startsWith("@") ? [] : collectPageFiles(entryPath);
+    }
     return entry === "page.tsx" ? [entryPath] : [];
   });
 }
@@ -34,6 +37,7 @@ function pageId(page: { id: string }): string {
 type Bauart = "sammlung" | "objekt" | "werkzeug" | "einstellungen";
 
 const BAUART: Readonly<Record<string, Bauart>> = {
+  "parent-attention/[studentId]/page.tsx": "objekt",
   // Bauart 1 — Sammlung: eine Liste von Objekten eines Typs.
   "absences/page.tsx": "sammlung",
   "activities/page.tsx": "sammlung",

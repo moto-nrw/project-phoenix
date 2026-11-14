@@ -242,7 +242,10 @@ const (
 	KeyParentMessageStaffNameVisible   = "operations.parent_message_staff_name_visible"
 	// KeyParentMessageLeadershipEnabled lets parents write to the leadership
 	// only, in a second conversation per child (#5200).
-	KeyParentMessageLeadershipEnabled        = "operations.parent_message_leadership_enabled"
+	KeyParentMessageLeadershipEnabled = "operations.parent_message_leadership_enabled"
+	// KeyParentMessageCardBadgeEnabled shows new parent messages and open
+	// parent requests as a count on the child card (#6486).
+	KeyParentMessageCardBadgeEnabled         = "operations.parent_message_card_badge_enabled"
 	KeyParentPickupChangeEnabled             = "operations.parent_pickup_change_enabled"
 	KeyParentPickupChangeCutoffTime          = "operations.parent_pickup_change_cutoff_time"
 	KeyParentGuardianManagementEnabled       = "operations.parent_guardian_management_enabled"

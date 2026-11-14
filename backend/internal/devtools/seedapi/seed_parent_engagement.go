@@ -394,6 +394,11 @@ func seedParentConversationFiles(rt *Runtime, auth AuthRef, path string, threadI
 }
 
 func seedParentConversation(rt *Runtime, auth AuthRef, studentID int64) error {
+	// Neue Elternnachrichten auf der Kinderkachel (#6486): jede
+	// Entwicklungsumgebung zeigt die Zahl auf den Karten.
+	if _, err := rt.Client.PutWithAuth(rt.TenantAuth, "/api/settings/values/operations.parent_message_card_badge_enabled", map[string]any{"value": true}); err != nil {
+		return fmt.Errorf("enable parent message card badge: %w", err)
+	}
 	path := fmt.Sprintf("/parent/me/messages/children/%d", studentID)
 	var threadID int64
 	for _, turn := range seedParentConversationTurns {

@@ -89,7 +89,7 @@ describe("ProtectedLayout", () => {
 
   it("renders children inside BreadcrumbProvider and AppShell", () => {
     render(
-      <ProtectedLayout>
+      <ProtectedLayout parentAttention={null}>
         <div data-testid="child">Content</div>
       </ProtectedLayout>,
     );
@@ -102,7 +102,7 @@ describe("ProtectedLayout", () => {
 
   it("führt den Rückweg einer Seite in die Schule", () => {
     render(
-      <ProtectedLayout>
+      <ProtectedLayout parentAttention={null}>
         <TenantPage title="Raum 1" back backHref="/rooms" />
       </ProtectedLayout>,
     );
@@ -115,7 +115,7 @@ describe("ProtectedLayout", () => {
 
   it("nests AppShell inside BreadcrumbProvider", () => {
     render(
-      <ProtectedLayout>
+      <ProtectedLayout parentAttention={null}>
         <span>Nested</span>
       </ProtectedLayout>,
     );
@@ -144,7 +144,7 @@ describe("ProtectedLayout", () => {
     shellAuth.current = { status: "authenticated", user: { id: "5" } };
 
     render(
-      <ProtectedLayout>
+      <ProtectedLayout parentAttention={null}>
         <div>Geschützter Inhalt</div>
       </ProtectedLayout>,
     );
@@ -185,7 +185,7 @@ describe("ProtectedLayout", () => {
     localStorage.setItem("moto-pwa-install-hint-visits", "1");
 
     render(
-      <ProtectedLayout>
+      <ProtectedLayout parentAttention={null}>
         <div>Geschützter Inhalt</div>
       </ProtectedLayout>,
     );

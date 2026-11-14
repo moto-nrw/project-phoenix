@@ -44,6 +44,22 @@ var parentFeaturesDefinitions = []config.Definition{
 		DependsOn:       config.DependsOnEq(config.KeyParentNotesEnabled, true),
 	},
 	{
+		// Zahl auf der Kinderkachel (#6486): neue Elternnachrichten und offene
+		// Anfragen, die die Person entscheiden darf. Standard aus, damit
+		// bestehende Schulen nicht überrascht werden.
+		Key:             config.KeyParentMessageCardBadgeEnabled,
+		Label:           "Neue Elternnachrichten auf der Kinderkachel",
+		Description:     "Eine blaue Zahl auf der Kinderkachel zeigt neue Nachrichten und offene Anfragen der Eltern. Das Team öffnet und erledigt sie direkt dort.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       62,
+		DependsOn:       config.DependsOnEq(config.KeyParentNotesEnabled, true),
+	},
+	{
 		// Leitungs-Unterhaltungen (#5200). Eltern sehen die Auswahl nur, wenn
 		// auch mindestens ein Konto das Recht dazu hat. Ausgeschaltet bleiben
 		// bestehende Unterhaltungen lesbar; neue beginnt niemand.
