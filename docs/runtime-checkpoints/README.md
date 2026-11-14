@@ -526,7 +526,6 @@ issue at most; it stays opt-in instead of being deleted.
 | `TestIdentityPersistenceRuntimeEvidence` | `modules/identityaccess/inbound/account` | [identity-persistence-3226.md](identity-persistence-3226.md) |
 | `TestAccountSessionRuntimeEvidence` | `modules/identityaccess/integration` | [account-sessions-2720.md](account-sessions-2720.md) |
 | `TestOperatorRuntimeEvidence` | `modules/identityaccess/integration` | [operator-sessions-2720.md](operator-sessions-2720.md) |
-| `TestAccountPasskeyRuntimeEvidence`, `TestOperatorPasskeyRuntimeEvidence` | `modules/identityaccess/integration` | #2724, no evidence file |
 | `TestOperatorMFARuntimeEvidence` | `modules/identityaccess/integration` | #2723, no evidence file |
 | `TestOperatorTokenRuntimeEvidence` | `modules/identityaccess/integration` | #2722, no evidence file |
 | `TestOffboardingRuntimeEvidence` | `modules/peopledirectory/contracttest` | [staff-offboarding-2709.md](staff-offboarding-2709.md) |
@@ -548,7 +547,7 @@ the table:
 
 ```bash
 PHX_TEST_RUNTIME_EVIDENCE=1 scripts/run-go-toolchain.sh go -C backend test \
-  -tags=testhooks ./... -count=1 -parallel 8 -v -run '^Test((EmergencySnapshot|IdentityMembership|DataImport|DeviceScan|FileStorage|Link|IdentityPersistence|AccountPasskey|AccountSession|OperatorMFA|OperatorPasskey|Operator|OperatorToken|Offboarding|RequestReview|Reminder|GradeTransition|SessionEnd|PlanExport|Dienstplan|StudentDeletion)RuntimeEvidence|(SlotList|UnregisteredTagScan|OGSGroupLive|UnclaimedClaim|WorkforceOwner)Runtime|(GroupRecovery|StudentPresence|InstanceAssignment)MigrationRuntime)$'
+  -tags=testhooks ./... -count=1 -parallel 8 -v -run '^Test((EmergencySnapshot|IdentityMembership|DataImport|DeviceScan|FileStorage|Link|IdentityPersistence|AccountSession|OperatorMFA|Operator|OperatorToken|Offboarding|RequestReview|Reminder|GradeTransition|SessionEnd|PlanExport|Dienstplan|StudentDeletion)RuntimeEvidence|(SlotList|UnregisteredTagScan|OGSGroupLive|UnclaimedClaim|WorkforceOwner)Runtime|(GroupRecovery|StudentPresence|InstanceAssignment)MigrationRuntime)$'
 ```
 
 A new flow measurement calls

@@ -75,6 +75,20 @@ type DeviceBinding struct {
 	ParentPortal   bool
 }
 
+// Realm is the one reading of a binding: whose device it is.
+func (b DeviceBinding) Realm() DeviceRealm {
+	switch {
+	case b.TenantID > 0:
+		return DeviceOfSchool
+	case b.OrganizationID > 0:
+		return DeviceOfTraeger
+	case b.ParentPortal:
+		return DeviceOfParentPortal
+	default:
+		return DeviceOfAccount
+	}
+}
+
 // Binding is the portal the device was remembered at.
 func (d AccountTrustedDevice) Binding() DeviceBinding {
 	return DeviceBinding{TenantID: d.TenantID, OrganizationID: d.OrganizationID, ParentPortal: d.ParentPortal}

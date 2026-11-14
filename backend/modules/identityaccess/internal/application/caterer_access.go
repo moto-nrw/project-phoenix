@@ -405,32 +405,14 @@ func (c *CatererAccess) catererSchools(ctx context.Context, accountID int64) (do
 		schools []int64
 	)
 	err := globalIdentityRead(ctx, c.runtime, func(readCtx context.Context) error {
-		found, _, err := c.findCaterer(readCtx, accountID, &caterer)
-		switch {
-		case err != nil:
-			return err
-		case !found:
-			return domain.ErrAccountNotCaterer
-		}
-		schools, _, err = c.store.ListCatererSchools(readCtx, caterer.ID)
-		if err != nil {
-			return err
-		}
-		// School liveness belongs to Organisation & Tenancy. Resolve the
-		// linked schools in bulk before the portal opens any tenant.
-		schools, err = c.auth.liveSchoolIDs(readCtx, schools)
+		var err error
+		caterer, schools, err = c.auth.suppliedSchools(readCtx, accountID)
 		return err
 	})
 	if err != nil {
 		return domain.Caterer{}, nil, failed("find caterer schools", err)
 	}
 	return caterer, schools, nil
-}
-
-func (c *CatererAccess) findCaterer(ctx context.Context, accountID int64, into *domain.Caterer) (bool, domain.OperationStats, error) {
-	caterer, found, stats, err := c.store.FindCatererOfAccount(ctx, accountID)
-	*into = caterer
-	return found, stats, err
 }
 
 // buildCatererMetadata is the claims material of a caterer token: the

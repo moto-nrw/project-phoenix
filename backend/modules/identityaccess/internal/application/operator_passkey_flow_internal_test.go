@@ -59,6 +59,8 @@ func (s *fakeOperatorPasskeySessions) IssueTokensForAuthenticatedOperator(_ cont
 // fakeOperatorPasskeyStore serves the credential and ceremony halves of the
 // operator passkey store. A missing row is found=false.
 type fakeOperatorPasskeyStore struct {
+	// stats is what every statement reports.
+	stats       domain.OperationStats
 	rows        []domain.OperatorPasskeyCredential
 	err         error
 	alreadyGone bool
@@ -73,49 +75,49 @@ type fakeOperatorPasskeyStore struct {
 }
 
 func (s *fakeOperatorPasskeyStore) InsertOperatorPasskey(_ context.Context, credential domain.OperatorPasskeyCredential) (domain.OperatorPasskeyCredential, domain.OperationStats, error) {
-	return credential, domain.OperationStats{}, s.err
+	return credential, s.stats, s.err
 }
 
 func (s *fakeOperatorPasskeyStore) ListActiveOperatorPasskeys(context.Context, int64) ([]domain.OperatorPasskeyCredential, domain.OperationStats, error) {
-	return s.rows, domain.OperationStats{}, s.err
+	return s.rows, s.stats, s.err
 }
 
 func (s *fakeOperatorPasskeyStore) FindActiveOperatorPasskey(context.Context, []byte, []byte) (domain.OperatorPasskeyCredential, bool, domain.OperationStats, error) {
 	if s.err != nil {
-		return domain.OperatorPasskeyCredential{}, false, domain.OperationStats{}, s.err
+		return domain.OperatorPasskeyCredential{}, false, s.stats, s.err
 	}
 	if len(s.rows) == 0 {
-		return domain.OperatorPasskeyCredential{}, false, domain.OperationStats{}, nil
+		return domain.OperatorPasskeyCredential{}, false, s.stats, nil
 	}
-	return s.rows[0], true, domain.OperationStats{}, nil
+	return s.rows[0], true, s.stats, nil
 }
 
 func (s *fakeOperatorPasskeyStore) UpdateOperatorPasskeyAfterUse(context.Context, int64, []byte, time.Time) (bool, domain.OperationStats, error) {
-	return true, domain.OperationStats{}, s.err
+	return true, s.stats, s.err
 }
 
 func (s *fakeOperatorPasskeyStore) RevokeOperatorPasskey(_ context.Context, operatorID, id int64, _ time.Time) (bool, domain.OperationStats, error) {
 	s.revokedOperatorID, s.revokedCredentialID = operatorID, id
 	if s.err != nil {
-		return false, domain.OperationStats{}, s.err
+		return false, s.stats, s.err
 	}
-	return !s.alreadyGone, domain.OperationStats{}, nil
+	return !s.alreadyGone, s.stats, nil
 }
 
 func (s *fakeOperatorPasskeyStore) InsertOperatorPasskeySession(_ context.Context, session domain.OperatorPasskeySession) (domain.OperatorPasskeySession, domain.OperationStats, error) {
 	stored := session
 	s.createdSession = &stored
-	return session, domain.OperationStats{}, s.createErr
+	return session, s.stats, s.createErr
 }
 
 func (s *fakeOperatorPasskeyStore) ConsumeOperatorPasskeySession(context.Context, string, string, time.Time) (domain.OperatorPasskeySession, bool, domain.OperationStats, error) {
 	if s.consumeErr != nil {
-		return domain.OperatorPasskeySession{}, false, domain.OperationStats{}, s.consumeErr
+		return domain.OperatorPasskeySession{}, false, s.stats, s.consumeErr
 	}
 	if s.consumedSession == nil {
-		return domain.OperatorPasskeySession{}, false, domain.OperationStats{}, nil
+		return domain.OperatorPasskeySession{}, false, s.stats, nil
 	}
-	return *s.consumedSession, true, domain.OperationStats{}, nil
+	return *s.consumedSession, true, s.stats, nil
 }
 
 var _ ports.OperatorPasskeyStore = (*fakeOperatorPasskeyStore)(nil)
@@ -647,4 +649,79 @@ func TestOperatorPasskeyCredentialErrors(t *testing.T) {
 	gone := newOperatorPasskeyFlows(t, &fakeOperatorPasskeyStore{alreadyGone: true}, []domain.Operator{operator}, nil, nil, nil)
 	err = gone.RevokeCredential(context.Background(), operator.ID, 2)
 	require.ErrorIs(t, err, identityaccess.ErrPasskeyNotFound, "a passkey that is gone, revoked or foreign is not found")
+}
+
+// The record operations report under stable names with the statement's
+// statistics and the public error class; dashboards and alerts key on them.
+func TestOperatorPasskeyRecordsObserveStableOperations(t *testing.T) {
+	t.Parallel()
+
+	var observed []ports.Observation
+	service := New(newFakeStore(), newFakeStore(), newFakeStore(), fakeTransaction{}, (&fakeRuntime{}).TenantID, NewObserver(func(observation ports.Observation) {
+		observed = append(observed, observation)
+	}))
+	ctx := context.Background()
+	credential := domain.OperatorPasskeyCredential{OperatorID: 7, UserHandle: []byte("handle"), CredentialID: []byte("credential"), CredentialJSON: json.RawMessage(`{}`), Name: "Laptop"}
+	session := domain.OperatorPasskeySession{ID: "session", Purpose: domain.PasskeySessionPurposeLogin, RPID: "localhost", ExpectedOrigin: "http://localhost", SessionJSON: json.RawMessage(`{}`), ExpiresAt: time.Now().Add(time.Minute)}
+
+	present := NewOperatorPasskey(service, &fakeOperatorPasskeyStore{stats: domain.OperationStats{Queries: 1, Rows: 1}, rows: []domain.OperatorPasskeyCredential{credential}, consumedSession: &session})
+	_, err := present.CreateCredential(ctx, credential)
+	require.NoError(t, err)
+	_, err = present.ListActiveCredentials(ctx, 7)
+	require.NoError(t, err)
+	_, err = present.FindActiveCredential(ctx, credential.CredentialID, credential.UserHandle)
+	require.NoError(t, err)
+	require.NoError(t, present.RecordUse(ctx, 1, json.RawMessage(`{}`), time.Now()))
+	require.NoError(t, present.RevokeCredential(ctx, 7, 1, time.Now()))
+	_, err = present.CreateSession(ctx, session)
+	require.NoError(t, err)
+	_, err = present.ConsumeSession(ctx, session.ID, session.Purpose, time.Now())
+	require.NoError(t, err)
+
+	gone := NewOperatorPasskey(service, &fakeOperatorPasskeyStore{stats: domain.OperationStats{Queries: 1}, alreadyGone: true})
+	_, err = gone.FindActiveCredential(ctx, credential.CredentialID, credential.UserHandle)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorPasskeyNotFound)
+	require.ErrorIs(t, gone.RevokeCredential(ctx, 7, 1, time.Now()), identityaccess.ErrOperatorPasskeyNotFound)
+	_, err = gone.ConsumeSession(ctx, session.ID, session.Purpose, time.Now())
+	require.ErrorIs(t, err, identityaccess.ErrOperatorPasskeySessionNotFound)
+
+	type reported struct {
+		operation string
+		rows      int64
+		code      string
+	}
+	var got []reported
+	for _, observation := range observed {
+		got = append(got, reported{observation.Operation, observation.Stats.Rows, identityaccess.ErrorCode(observation.Err)})
+		assert.EqualValues(t, 1, observation.Stats.Queries, observation.Operation)
+	}
+	assert.Equal(t, []reported{
+		{"create_operator_passkey", 1, "none"},
+		{"list_active_operator_passkeys", 1, "none"},
+		{"find_active_operator_passkey", 1, "none"},
+		{"record_operator_passkey_use", 1, "none"},
+		{"revoke_operator_passkey", 1, "none"},
+		{"create_operator_passkey_session", 1, "none"},
+		{"consume_operator_passkey_session", 1, "none"},
+		{"find_active_operator_passkey", 0, "not_found"},
+		{"revoke_operator_passkey", 0, "not_found"},
+		{"consume_operator_passkey_session", 0, "not_found"},
+	}, got)
+}
+
+// A record the domain refuses never reaches the store.
+func TestOperatorPasskeyRecordsValidateBeforeTheStore(t *testing.T) {
+	t.Parallel()
+
+	service := New(newFakeStore(), newFakeStore(), newFakeStore(), fakeTransaction{}, (&fakeRuntime{}).TenantID, func(ports.Observation) {})
+	store := &fakeOperatorPasskeyStore{}
+	records := NewOperatorPasskey(service, store)
+	ctx := context.Background()
+
+	_, err := records.CreateCredential(ctx, domain.OperatorPasskeyCredential{OperatorID: 7, UserHandle: []byte("handle"), CredentialID: []byte("credential"), CredentialJSON: json.RawMessage(`{`)})
+	require.ErrorIs(t, err, domain.ErrPasskeyJSONInvalid)
+	_, err = records.CreateSession(ctx, domain.OperatorPasskeySession{ID: "session", Purpose: "recovery", RPID: "localhost", ExpectedOrigin: "http://localhost", SessionJSON: json.RawMessage(`{}`), ExpiresAt: time.Now().Add(time.Minute)})
+	require.Error(t, err)
+	assert.Nil(t, store.createdSession, "a ceremony with an unsupported purpose is not stored")
+	require.ErrorIs(t, records.RecordUse(ctx, 1, json.RawMessage(`{`), time.Now()), domain.ErrPasskeyJSONInvalid)
 }

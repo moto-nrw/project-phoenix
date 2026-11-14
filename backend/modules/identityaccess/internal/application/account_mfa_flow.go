@@ -470,15 +470,6 @@ func (f *AccountMFAFlows) RevokeTrustedDevice(ctx context.Context, accountID, te
 	return identityaccess.ErrMFAPermissionDenied
 }
 
-// challengeDeviceHint is the remember-device line of a code mail; a portal
-// that remembers no device offers none.
-func (f *AccountMFAFlows) challengeDeviceHint(ctx context.Context, tenantID int64, scope string) (bool, int) {
-	if portal, ok := domain.PortalNamed(scope); !ok || !portal.TrustedDevice {
-		return false, 0
-	}
-	return f.trustedDeviceHint(ctx, tenantID)
-}
-
 func (f *AccountMFAFlows) trustedDeviceHint(ctx context.Context, tenantID int64) (bool, int) {
 	if !f.IsTrustedDeviceEnabled(ctx, tenantID) {
 		return false, 0
@@ -499,15 +490,16 @@ func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountI
 			slog.Any("error", err))
 		return errors.New("could not load account for trusted-device-added mail")
 	}
+	realm := device.Binding().Realm()
 	locale := ""
-	if device.ParentPortal && account.PortalLocale != nil {
+	if realm == domain.DeviceOfParentPortal && account.PortalLocale != nil {
 		locale = *account.PortalLocale
 	}
 	return f.mail.NotifyTrustedDeviceAdded(ctx, domain.TrustedDeviceMail{
 		Recipient: account.Email, ReferenceID: accountID,
 		DeviceLabel: domain.ShortenUserAgent(userAgent), RequestIP: domain.AuditIPString(ip),
 		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: days,
-		Caterer: device.Binding() == domain.DeviceBinding{}, Traeger: device.OrganizationID > 0, Parent: device.ParentPortal, Locale: locale,
+		Caterer: realm == domain.DeviceOfAccount, Traeger: realm == domain.DeviceOfTraeger, Parent: realm == domain.DeviceOfParentPortal, Locale: locale,
 	}, device.ID)
 }
 
