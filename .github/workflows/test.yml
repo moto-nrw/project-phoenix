@@ -405,19 +405,24 @@ jobs:
           # Single pass produces junit.xml. No retries: flaky tests should fail
           # loudly, not be hidden. gotestsum propagates race/test failures.
           #
-          # GOGC=400 is for the compiler, vet and the linker only: they are
+          # GOGC=400 is for the compiler and the linker only: they are
           # short-lived and spent 13 % less CPU with it (549 against 480 CPU s
           # in the median of four alternating builds of a typical selection,
           # 11/2026; GOGC=off saved 18 % but leaves memory unbounded). -exec
           # starts every test binary without it, so tests run as before.
+          #
+          # -vet=off: "Backend lint" (lint.yml) runs every analyzer of go
+          # test's vet subset on the same packages, test files included, and
+          # spent 38-55 CPU s per full suite here. backend-build-cache.yml
+          # builds with the same flag, so it saves no vet results.
           GOGC=400 "${measure[@]}" go tool gotestsum --format pkgname-and-test-fails \
             --junitfile junit.xml --jsonfile go-test.json \
-            -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" \
+            -- "${race_flags[@]}" -count=1 -vet=off -parallel 8 -p "$PACKAGE_WORKERS" \
             -exec "env -u GOGC" \
             -debug-actiongraph="$RUNNER_TEMP/actiongraph.json" "${packages[@]}"
 
       # The job keeps its cores busy, so its wall time follows CPU work. This
-      # table says whose: the compiler, vet and the linker from Go's action
+      # table says whose: the compiler and the linker from Go's action
       # graph, Postgres from its cgroup, and the test binaries as the rest.
       # Compare it before and after a change instead of the job duration,
       # which varies by minutes between runs of one commit (#6784).
