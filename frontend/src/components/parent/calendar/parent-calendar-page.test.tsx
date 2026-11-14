@@ -650,9 +650,7 @@ describe("ParentCalendarPage", () => {
     );
     const dialog = screen.getByRole("dialog", { name: "Elternabend" });
     expect(
-      within(dialog).getByText(
-        "Sie bekommen für diesen Termin keine Erinnerung.",
-      ),
+      within(dialog).getByText("Sie bekommen dazu keine Erinnerung."),
     ).toBeInTheDocument();
   });
 

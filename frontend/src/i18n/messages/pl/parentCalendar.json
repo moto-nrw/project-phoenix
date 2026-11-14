@@ -47,7 +47,7 @@
   "acceptedOn": "Przyjęto na {date}.",
   "declinedOn": "Odrzucono na {date}.",
   "noReminder": "Bez przypomnienia",
-  "noReminderDetail": "Nie otrzymają Państwo przypomnienia o tym terminie.",
+  "noReminderDetail": "Nie otrzymają Państwo przypomnienia.",
   "errorObjectOverview": "odpowiedzi",
   "responses": {
     "title": "Odpowiedzi",

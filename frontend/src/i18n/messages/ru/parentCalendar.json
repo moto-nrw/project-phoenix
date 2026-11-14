@@ -47,7 +47,7 @@
   "acceptedOn": "Подтверждено на {date}.",
   "declinedOn": "Отклонено на {date}.",
   "noReminder": "Без напоминания",
-  "noReminderDetail": "Вы не получите напоминание об этом событии.",
+  "noReminderDetail": "Напоминание не придёт.",
   "errorObjectOverview": "ответы",
   "responses": {
     "title": "Ответы",

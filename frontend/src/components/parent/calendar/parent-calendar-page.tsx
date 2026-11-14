@@ -664,7 +664,7 @@ function CalendarListEvent({
             </span>
           ) : null}
           {state === "declined" ? (
-            <span className="ms-auto inline-flex items-center gap-1 text-xs font-normal text-gray-500">
+            <span className="flex basis-full items-center gap-1 ps-5.5 text-xs font-normal text-gray-500">
               <BellSlashIcon size={14} aria-hidden="true" />
               {t("noReminder")}
             </span>

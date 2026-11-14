@@ -47,7 +47,7 @@
   "acceptedOn": "{date} için katılım onaylandı.",
   "declinedOn": "{date} için katılım reddedildi.",
   "noReminder": "Hatırlatma yok",
-  "noReminderDetail": "Bu randevu için hatırlatma almayacaksınız.",
+  "noReminderDetail": "Bunun için hatırlatma almayacaksınız.",
   "errorObjectOverview": "yanıtlar",
   "responses": {
     "title": "Yanıtlar",

@@ -47,7 +47,7 @@
   "acceptedOn": "U pranua për {date}.",
   "declinedOn": "U refuzua për {date}.",
   "noReminder": "Pa kujtesë",
-  "noReminderDetail": "Nuk do të merrni kujtesë për këtë takim.",
+  "noReminderDetail": "Nuk do të merrni kujtesë.",
   "errorObjectOverview": "përgjigjet",
   "responses": {
     "title": "Përgjigjet",
