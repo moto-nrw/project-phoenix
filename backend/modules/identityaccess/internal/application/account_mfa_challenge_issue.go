@@ -58,7 +58,7 @@ func (f *AccountMFAFlows) startChallenge(ctx context.Context, accountID, tenantI
 	// the enrollment-confirm and passkey-registration paths look a code up
 	// by account, and only these columns keep that lookup inside its portal.
 	createdAt := f.now()
-	enabled, days := f.challengeDeviceHint(ctx, tenantID, scope)
+	enabled, days := f.trustedDeviceHint(ctx, tenantID)
 	challenge, send, err := f.enqueueChallenge(ctx, domain.AccountMFAChallenge{
 		AccountID: accountID, Scope: scope, TenantID: tenantID, CodeHash: codeHash,
 		ExpiresAt: createdAt.Add(domain.MFAChallengeTTL), ConsumedAt: &createdAt, IPAddress: ip,
