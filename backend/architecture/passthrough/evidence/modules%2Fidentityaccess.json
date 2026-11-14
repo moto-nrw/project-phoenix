@@ -1199,13 +1199,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil || claims.Scope != domain.PortalPlatform.Name {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.StartOperatorMFAChallenge(ctx, claims.AccountID, ip, \u0026claims.CredentialGeneration)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ResendChallenge",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
       "evidence": "func (p *OperatorPasskey) ListActiveCredentials(ctx context.Context, operatorID int64) (result []domain.OperatorPasskeyCredential, err error) {\n\terr = p.run(ctx, \"list_active_operator_passkeys\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tcredentials, queryStats, listErr := p.store.ListActiveOperatorPasskeys(txCtx, operatorID)\n\t\tstats.Add(queryStats)\n\t\tif listErr != nil {\n\t\t\treturn listErr\n\t\t}\n\t\tresult = credentials\n\t\treturn nil\n\t})\n\treturn result, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorPasskey.ListActiveCredentials",

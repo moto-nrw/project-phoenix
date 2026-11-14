@@ -857,11 +857,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ResendChallenge",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/identityaccess/internal/application/OperatorPasskey.ListActiveCredentials",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

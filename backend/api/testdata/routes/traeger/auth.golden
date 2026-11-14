@@ -4,6 +4,8 @@ POST /traeger/auth/login
 POST /traeger/auth/mfa/enroll/confirm
 POST /traeger/auth/mfa/enroll/start
 POST /traeger/auth/mfa/resend
+POST /traeger/auth/mfa/step-up
+POST /traeger/auth/mfa/step-up/verify
 POST /traeger/auth/mfa/verify
 POST /traeger/auth/password-reset
 POST /traeger/auth/password-reset/confirm

@@ -920,6 +920,7 @@ func TestSendsAuthMailMatchesThePortalMailRoutes(t *testing.T) {
 		"/auth/mfa/resend": true, "/operator/auth/mfa/resend": true, "/school/mfa/resend": true,
 		"/traeger/auth/mfa/resend": true, "/caterer/auth/mfa/resend": true,
 		"/caterer/account/mfa/start": true, "/caterer/auth/passkeys/enrollment/challenge": true,
+		"/traeger/auth/mfa/step-up": true, "/traeger/auth/mfa/step-up/verify": false,
 		"/auth/login": false, "/parent/auth/login": false, "/auth/password-reset/confirm": false,
 		"/auth/mfa/verify": false, "/auth/passkeys/login/verify": false, "/caterer/account/mfa/confirm": false,
 	} {

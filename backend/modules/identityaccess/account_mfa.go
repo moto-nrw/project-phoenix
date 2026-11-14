@@ -56,37 +56,13 @@ const (
 	MFAChallengeScopeOrg = "org"
 )
 
-// MFAEmailCodeLength is the number of decimal digits in an e-mail code. The
-// HTTP surfaces validate the body against it before a code reaches the flow.
-const MFAEmailCodeLength = 6
-
-// MFALockoutThreshold and MFALockoutDuration are the failure policy the MFA
-// gate applies when a school set no security.account_lockout_* override. The
-// PIN lockout shares them, so the 5-attempt / 15-minute rule has one source
-// of truth across the platform (#586).
+// The fixed code policy, as the flows apply it (internal/domain/mfa.go):
+// a code lives MFAChallengeTTL, and MFALockoutThreshold failed codes lock an
+// operator's second factor. A school's lockout follows its
+// security.account_lockout_* settings instead.
 const (
+	MFAChallengeTTL     = 10 * time.Minute
 	MFALockoutThreshold = 5
-	MFALockoutDuration  = 15 * time.Minute
-)
-
-// The code policy the flows apply. The window and the cap are an abuse
-// defense, not a UX knob, and stay fixed; the remember-device lifetime is
-// the fallback the school's security.mfa_trusted_device_days overrides.
-const (
-	MFAChallengeTTL                   = 10 * time.Minute
-	MFAEmailRateLimitWindow           = 15 * time.Minute
-	MFAEmailRateLimitMaxSent          = 3
-	MFATrustedDeviceCookieDefaultDays = 90
-)
-
-// The modes a school's security.mfa_mode setting takes, and the role whose
-// holders required_admins gates on.
-const (
-	MFAModeOff            = "off"
-	MFAModeRequiredAll    = "required_all"
-	MFAModeRequiredAdmins = "required_admins"
-	// AdminRoleName is the role required_admins looks for.
-	AdminRoleName = "admin"
 )
 
 // The admin-override values. There is no "none" row: its absence is the

@@ -131,13 +131,9 @@ func (f *OperatorMFAFlows) StartOperatorMFAChallenge(ctx context.Context, operat
 	if err := f.requireChallengeRateLimit(ctx, operatorID); err != nil {
 		return "", err
 	}
-	plainCode, err := domain.GenerateEmailCode()
+	plainCode, codeHash, err := newMFAEmailCode(f.codes)
 	if err != nil {
-		return "", fmt.Errorf("generate email code: %w", err)
-	}
-	codeHash, err := f.codes.HashShortCode(plainCode)
-	if err != nil {
-		return "", fmt.Errorf("hash email code: %w", err)
+		return "", err
 	}
 
 	createdAt := f.now()
@@ -207,11 +203,11 @@ func (f *OperatorMFAFlows) VerifyOperatorMFAChallenge(ctx context.Context, chall
 	return identityaccess.OperatorMFAProof{OperatorID: claims.AccountID, CredentialGeneration: challenge.credentialGeneration}, nil
 }
 
-// ResendChallenge re-issues a code for the challenge the token names and
+// resendChallenge re-issues a code for the challenge the token names and
 // returns the renewed JWT, so the frontend can replace the in-flight token.
 // The renewed code is bound to the generation of the challenge it renews: a
 // code mailed before a password change renews into nothing (#6308).
-func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
+func (f *OperatorMFAFlows) resendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	claims, err := f.codec.ParseChallengeToken(challengeToken)
 	if err != nil || claims.Scope != domain.PortalPlatform.Name {
 		return "", identityaccess.ErrMFAChallengeTokenInvalid
@@ -381,7 +377,7 @@ func (f *OperatorMFAFlows) holdProof(txCtx context.Context, proof identityaccess
 // operator half-disabled: a credential gone while remember-device cookies
 // still verify, or a counter stuck at the threshold.
 func (f *OperatorMFAFlows) Disable(ctx context.Context, operatorID int64) error {
-	err := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+	return f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		if err := f.records.DeleteCredentials(txCtx, operatorID); err != nil {
 			return fmt.Errorf("delete operator credential: %w", err)
 		}
@@ -393,10 +389,6 @@ func (f *OperatorMFAFlows) Disable(ctx context.Context, operatorID int64) error 
 		}
 		return f.recordAudit(txCtx, operatorID, domain.OperatorAuditActionMFADisabled, nil, nil, nil)
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // ===== Trusted devices =====
@@ -555,30 +547,20 @@ func (f *OperatorMFAFlows) activateDeliveredChallenge(ctx context.Context, chall
 }
 
 func (f *OperatorMFAFlows) requireChallengeRateLimit(ctx context.Context, operatorID int64) error {
-	// The hard cap of three codes per fifteen minutes is an abuse defense,
-	// so a failed count refuses the send instead of waving it through:
-	// ignoring the error meant the cap silently stopped existing exactly
-	// when the database was least healthy.
-	since := f.now().Add(-domain.OperatorMFARateLimitWindow)
-	count, err := f.records.CountChallengesSince(ctx, operatorID, since)
+	sent, err := f.records.CountChallengesSince(ctx, operatorID, f.now().Add(-domain.OperatorMFARateLimitWindow))
 	if err != nil {
 		f.logger.Warn("operator mfa rate-limit lookup failed; refusing to issue a code",
 			slog.Int64("operator_id", operatorID),
 			slog.String("error", err.Error()))
-		return identityaccess.ErrMFAStatusUnavailable
 	}
-	if count >= domain.OperatorMFARateLimitMaxSent {
-		return identityaccess.ErrMFARateLimited
-	}
-
-	return nil
+	return codeSendCap(sent, err, domain.OperatorMFARateLimitMaxSent)
 }
 
 func (f *OperatorMFAFlows) ResendOperatorMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	if f == nil {
 		return "", identityaccess.ErrOperatorMFAUnavailable
 	}
-	token, err := f.ResendChallenge(ctx, challengeToken, ip)
+	token, err := f.resendChallenge(ctx, challengeToken, ip)
 	return token, operatorError(err)
 }
 

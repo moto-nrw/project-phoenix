@@ -73,7 +73,7 @@ export interface MFAChallengeCopy {
 }
 
 /** The German copy of a portal's code step. */
-function germanMFAChallengeCopy(scope: LoginScope): MFAChallengeCopy {
+export function germanMFAChallengeCopy(scope: LoginScope): MFAChallengeCopy {
   return {
     back: "Zurück",
     backLabel: "Zurück zum Login",
@@ -183,6 +183,16 @@ interface MFAChallengeFormProps {
   readonly organizationId?: string;
   /** The texts; the German default fits every portal. */
   readonly copy?: MFAChallengeCopy;
+  /**
+   * Redeems the code somewhere else than the portal's sign-in, such as the
+   * code step in a running Träger session (#7068). Defaults to the sign-in's
+   * verify of the scope.
+   */
+  readonly verify?: (params: {
+    challengeToken: string;
+    code: string;
+    rememberDevice: boolean;
+  }) => Promise<MFAResult>;
 }
 
 export function MFAChallengeForm({
@@ -197,6 +207,7 @@ export function MFAChallengeForm({
   trustedDeviceDays = 90,
   organizationId,
   copy: givenCopy,
+  verify,
 }: MFAChallengeFormProps) {
   const copy = givenCopy ?? germanMFAChallengeCopy(scope);
   // Nothing is preselected: the device is remembered only when the person
@@ -236,12 +247,18 @@ export function MFAChallengeForm({
       setIsVerifying(true);
       clearError();
       try {
-        const tokens = await verifyMFA(scope, {
-          challengeToken: activeToken,
-          code: submittedCode,
-          rememberDevice,
-          organizationId,
-        });
+        const tokens = verify
+          ? await verify({
+              challengeToken: activeToken,
+              code: submittedCode,
+              rememberDevice,
+            })
+          : await verifyMFA(scope, {
+              challengeToken: activeToken,
+              code: submittedCode,
+              rememberDevice,
+              organizationId,
+            });
         await onSuccess(tokens);
       } catch (err) {
         if (await onError?.(err)) {
@@ -266,6 +283,7 @@ export function MFAChallengeForm({
       scope,
       activeToken,
       organizationId,
+      verify,
       onSuccess,
       onError,
       clearError,

@@ -90,6 +90,7 @@ type Resource struct {
 	profiles       identityaccess.TraegerMemberProfiles
 	organization   TraegerOrganizationRouter
 	schoolSessions identityaccess.TraegerSchoolSessions
+	stepUp         identityaccess.TraegerSessionStepUp
 }
 
 // NewResource builds the Träger-Portal resource: the school list, the
@@ -99,12 +100,13 @@ type Resource struct {
 // accounts serves the Träger-Büro account routes (#4650), profiles the
 // names of its people (#4693) and
 // schoolSessions the Absprung into a school (#4654), resets the password
-// reset (#5149); without them those routes answer 500.
-func NewResource(auth AuthRuntime, mfa MFARuntime, resets common.PasswordResetRoutes, schools, holidayPeriods, accessLog, settings, masterData TraegerRouter, accounts identityaccess.TraegerAccountManagement, profiles identityaccess.TraegerMemberProfiles, organization TraegerOrganizationRouter, schoolSessions identityaccess.TraegerSchoolSessions) *Resource {
+// reset (#5149) and stepUp the code step in the running session (#7068);
+// without them those routes answer 500.
+func NewResource(auth AuthRuntime, mfa MFARuntime, resets common.PasswordResetRoutes, schools, holidayPeriods, accessLog, settings, masterData TraegerRouter, accounts identityaccess.TraegerAccountManagement, profiles identityaccess.TraegerMemberProfiles, organization TraegerOrganizationRouter, schoolSessions identityaccess.TraegerSchoolSessions, stepUp identityaccess.TraegerSessionStepUp) *Resource {
 	if schools == nil || holidayPeriods == nil || accessLog == nil || settings == nil || masterData == nil || organization == nil {
 		panic("traeger portal: the school list, holiday period, access log, settings, master data and Träger routes are required")
 	}
-	return &Resource{auth: auth, mfa: mfa, resets: resets, schools: schools, holidayPeriods: holidayPeriods, accessLog: accessLog, settings: settings, masterData: masterData, accounts: accounts, profiles: profiles, organization: organization, schoolSessions: schoolSessions}
+	return &Resource{auth: auth, mfa: mfa, resets: resets, schools: schools, holidayPeriods: holidayPeriods, accessLog: accessLog, settings: settings, masterData: masterData, accounts: accounts, profiles: profiles, organization: organization, schoolSessions: schoolSessions, stepUp: stepUp}
 }
 
 var errLoginUnavailable = errors.New("the Träger sessions are not composed")
@@ -142,6 +144,17 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
 			r.Get("/mfa/trusted-devices", rs.listTrustedDevices)
 			r.Delete("/mfa/trusted-devices/{"+portalauth.TrustedDeviceIDParam+"}", rs.revokeTrustedDevice)
+			// The code step in the running session (#7068) opens a school
+			// that accepts no remembered device; it mails a code like the
+			// sign-in and shares its limiter.
+			r.Group(func(r chi.Router) {
+				if authRateLimiter != nil {
+					r.Use(authRateLimiter)
+				}
+				r.Use(common.RequiresPermission(identityaccess.TraegerRightSchoolSwitch))
+				r.Post("/mfa/step-up", rs.stepUpStart)
+				r.Post("/mfa/step-up/verify", rs.stepUpVerify)
+			})
 		})
 	})
 	r.Mount("/invitations", rs.invitationRouter(authRateLimiter))

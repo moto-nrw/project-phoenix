@@ -137,9 +137,12 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	// The names of the Träger-Büro (#4693); a route-sized test identity
 	// without them answers 500 on those routes, the serving root refuses it.
 	profiles, _ := identity.(identityaccess.TraegerMemberProfiles)
+	// The code step in the running Träger session (#7068); a route-sized
+	// test identity without it answers 500 on those routes.
+	stepUp, _ := identity.(identityaccess.TraegerSessionStepUp)
 	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity),
 		portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeTraeger), overviewRoutes, holidayPeriods,
-		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, profiles, overviewRoutes, identity), nil
+		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, profiles, overviewRoutes, identity, stepUp), nil
 }
 
 // TraegerPortalSettings is the Träger level of the settings system as the
