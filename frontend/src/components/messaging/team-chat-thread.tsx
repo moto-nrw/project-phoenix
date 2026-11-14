@@ -397,6 +397,11 @@ export function TeamChatThread({
         type="button"
         variant="outline"
         size="md"
+        tooltip={
+          showMembers
+            ? "Zeigt wieder die Nachrichten des Gruppenchats."
+            : "Zeigt, wer im Gruppenchat ist."
+        }
         onClick={() => setView(showMembers ? "chat" : "members")}
       >
         {showMembers ? "Zum Verlauf" : `Mitglieder (${members.length})`}

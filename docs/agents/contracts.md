@@ -807,8 +807,8 @@ Backend paths in this section are relative to `backend/`:
   `/auth/holiday-parent-setups/{token}` of a holiday registration) gets the
   session kind `traeger_parent` at the Träger of its oldest access (ADR 0216):
   `scope=parent` with `org_id` and no `tenant_id`, its row kept at no school
-  (`organization_id`, `tenant_id` NULL). It carries no rights, follows no module
-  booking and no second factor; mint, refresh and validation re-read the
+  (`organization_id`, `tenant_id` NULL). It carries no rights and follows no
+  module booking; mint, refresh and validation re-read the
   access and the Träger (share locks after the account lock) and end the
   session without them; ending the Träger's sessions ends it too. Every parent
   route still authorizes through relationships, so it sees no school's data.
@@ -839,6 +839,26 @@ Backend paths in this section are relative to `backend/`:
   session; older sessions end at their next refresh or validation. Recovery is the
   operator's reset (`DELETE /operator/caterers/{id}/accounts/{accountId}/mfa`, reason, operator
   audit, notice mail); school admins have none.
+- The parents' second factor (ADR 0216 addendum, #7051) is voluntary and
+  is the account's e-mail factor: an account enrolled from a school is asked
+  for it here too. Once the account has it, `/parent/auth/login` answers
+  `mfa_required` with a `parent`-scope challenge that names no school, after
+  the portal's own refusals (no guardian school, Eltern-App not booked), so no
+  code goes to an account the portal refuses; a `mfa_trust_device` cookie of
+  a device the parents portal remembered skips it.
+  `/parent/auth/mfa/verify` mints the session (school or Träger kind) with
+  `mfa_verified`. Parents-portal devices carry `parent_portal` and name
+  neither school nor Träger; they never answer at the caterer portal, nor
+  the other way round. Mint and refresh refuse a parent session without proof
+  while the account has the factor; the per-page validation does not read
+  the enrollment (budget `identity.session_validate.parent`), so a session
+  from before the switch-on ends at its next refresh, within the access-token
+  lifetime. `/parent/me/mfa{,/start,/confirm,/disable}` manage the factor
+  (switch-on answers a new proven session; switch-off needs the password);
+  `/parent/me/mfa/trusted-devices` lists and revokes the devices. An account
+  without a guardian school cannot switch it on (`available: false`).
+  Recovery is the operator's reset at a school of the account
+  (`DELETE /operator/provisioning/schools/{id}/accounts/{accountId}/mfa`).
 - Träger login (ADR 0084, #4649) requires an active membership in
   `platform.organization_accounts` of an active Träger and mints `scope=org`
   with `org_id` and no `tenant_id`; an account in several Träger chooses one
@@ -886,7 +906,31 @@ Backend paths in this section are relative to `backend/`:
   `POST /auth/switch-tenant` (a second tab of the same Träger) re-check the
   active membership, the right, an active school of that Träger and the
   second-factor proof inherited from the Träger session; failures answer 404
-  `traeger.school_not_found`, 403, or 401 `identity.mfa_session_required`. A
+  `traeger.school_not_found`, 403, or 401 `identity.mfa_session_required`.
+  A Träger session whose factor only a remembered device proved
+  (`auth.tokens.mfa_by_device`, carried by refresh, Absprung and switch) is
+  refused with 403 `traeger.school_requires_code` at a school whose
+  `security.mfa_trusted_device_enabled` is off or unreadable (#6955), on
+  `POST /traeger/school-sessions` and on `POST /auth/switch-tenant` of a
+  Träger school session into a school of the Träger where the account holds
+  no mapping. The Träger portal then offers the code step in the running
+  session (#7068): `POST /traeger/auth/mfa/step-up` (right
+  `traeger_school:switch`, auth limiter, mail counted like a resend) mails an
+  org-scope code with the sign-in's cap, and `POST
+  /traeger/auth/mfa/step-up/verify` `{challenge_token, code}` redeems it for
+  the session's account (pinned before the code is compared) and mints a new
+  Träger family with `mfa_by_device` false through the session mint, which
+  retires the presented family with the recovery grace and keeps its switch
+  lineage. The BFF installs the pair and answers `{session_renewed}`; when it
+  cannot install it, the portal runs its logout and signs in once without
+  the device cookie (the BFF drops it for `ignore_trusted_device`); the
+  school app links to the Träger login with
+  `?mit-code=1`, where a running Träger session ends only through the button
+  „Abmelden und mit Code anmelden“, never by the visit. A switch into a
+  school where the account holds its own mapping, and a switch between the
+  account's own schools, answer 401 `identity.mfa_session_required` and sign
+  in at the target school. The school's
+  `mfa_trusted_device_days` is not applied at the Absprung. A
   switch to a school where the account holds its own mapping keeps its own
   role. Every Absprung writes `traeger_school_switch` (metadata
   `organization_id`) to the school's `audit.auth_events` in the mint
@@ -921,10 +965,14 @@ Backend paths in this section are relative to `backend/`:
 - Every account portal answers a refused sign-in, MFA step, exchange, switch,
   refresh or passkey sign-in through the owner's rule tables in
   `modules/identityaccess/inbound/portalauth`, so one refusal has one status and
-  code in every portal; the parents login keeps `care.invalid_credentials`
-  (`ParentLoginRules`). The caterer portal may not import that package and keeps
-  its table in `workflows/catererportal/http/errors.go`; the operator keeps its
-  own bodies. Each enrollment route group mounts
+  code in every portal. A portal's own refusals precede the shared tables
+  and live with the portal: the parents login keeps `care.invalid_credentials`
+  (`inbound/parentauth/errors.go`), the caterer's sign-in and second factor
+  answer from `inbound/catererauth/errors.go`. The caterer portal workflow may
+  not import `portalauth` and keeps the table of its own routes in
+  `workflows/catererportal/http/errors.go`; the operator keeps its own bodies.
+  The remembered devices and the switch-off of a voluntary factor answer
+  through the portal's own table (`portalauth.Refusal`). Each enrollment route group mounts
   `sessiontoken.EnrollmentAuthenticatorFor(portal)`, which admits only that
   portal's enrollment token with the school its shape demands. An exchange
   prepares the trusted device (policy and MFA reset generation), mints, then
@@ -934,8 +982,7 @@ Backend paths in this section are relative to `backend/`:
   that says so; no request without it stores a device. Each portal lists and
   revokes the own devices behind its session: `/auth/mfa/trusted-devices`
   (tenant), `/school/auth/mfa/trusted-devices`, `/traeger/auth/…`,
-  `/caterer/auth/…`, `/operator/auth/…`. The parents portal has no second
-  factor.
+  `/caterer/auth/…`, `/operator/auth/…`, `/parent/me/mfa/trusted-devices`.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/portalauth`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
   the token wire schema in `modules/identityaccess/tokenprimitives/session_wire.go`, and trusted-device settings

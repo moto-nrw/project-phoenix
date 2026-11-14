@@ -125,7 +125,7 @@ func TestDecodersRefuseForeignAndMalformedTokens(t *testing.T) {
 		"refresh: token not a string": {refreshErr(refresh(map[string]any{"token": float64(7)})), "claim token is not a string"},
 		"challenge: enrollment flag":  {challengeErr(pending("mfa_pending", map[string]any{"mfa_enrollment_pending": true})), "token is a pending-MFA-enrollment token, not a challenge"},
 		"challenge: no account":       {challengeErr(pending("mfa_pending", map[string]any{"account_id": float64(0)})), "missing required claim: account_id"},
-		"challenge: parent scope":     {challengeErr(pending("mfa_pending", map[string]any{"scope": "parent"})), `invalid scope claim: "parent"`},
+		"challenge: unknown scope":    {challengeErr(pending("mfa_pending", map[string]any{"scope": "unknown"})), `invalid scope claim: "unknown"`},
 		"challenge: not pending":      {challengeErr(pending("other", nil)), "token is not a pending-MFA challenge"},
 		"challenge: expired":          {challengeErr(pending("mfa_pending", map[string]any{"exp": float64(now.Add(-time.Minute).Unix())})), "challenge token expired"},
 		"enrollment: challenge flag":  {enrollmentErr(pending("mfa_enrollment_pending", map[string]any{"mfa_pending": true})), "token is a pending-MFA challenge, not an enrollment token"},

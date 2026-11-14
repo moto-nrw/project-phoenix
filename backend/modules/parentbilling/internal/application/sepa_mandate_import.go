@@ -41,6 +41,10 @@ type MandateImportStore interface {
 	SetFamilyDebtorNumbers(ctx context.Context, organizationID, accountID int64, numbers []parentbilling.FamilyDebtorNumber) error
 	// ChildNumberStore keeps the numbers of the children (#7007).
 	ChildNumberStore
+	// FamilyBillings reads the families of the Träger with their numbers,
+	// InsertFamilyBillingEvents records a read in their trail (#7009).
+	FamilyBillings(ctx context.Context, organizationID int64) ([]parentbilling.FamilyBilling, error)
+	InsertFamilyBillingEvents(ctx context.Context, organizationID, accountID int64, action string, families []parentbilling.FamilyBilling) error
 }
 
 // importRequiredFields are the fields every import needs a column for.
@@ -145,8 +149,10 @@ func bindCreditorChoice(mapping *parentbilling.SEPAMandateImportMapping, credito
 // names the required fields without a column.
 func importColumns(headers []string, mapping parentbilling.SEPAMandateImportMapping) (importColumnIndex, []string, error) {
 	errs := validation.Errors{}
-	if mapping.PayerKey != parentbilling.PayerByEmail && mapping.PayerKey != parentbilling.PayerByContract {
-		errs["payer_key"] = errors.New("must be email or contract_id")
+	switch mapping.PayerKey {
+	case parentbilling.PayerByEmail, parentbilling.PayerByContract, parentbilling.PayerByDebtorNumber:
+	default:
+		errs["payer_key"] = errors.New("must be email, contract_id or debtor_number")
 	}
 	index := importColumnIndex{creditorFromTraeger: mapping.CreditorFromTraeger, payerKey: mapping.PayerKey, fields: map[string]int{}}
 	for field, header := range mappingHeaders(mapping.Columns) {
@@ -203,6 +209,8 @@ func countImportRow(counts *parentbilling.SEPAMandateImportCounts, status string
 		counts.Clarify++
 	case parentbilling.ImportRowDuplicate:
 		counts.Duplicate++
+	case parentbilling.ImportRowSameMandate:
+		counts.SameMandate++
 	case parentbilling.ImportRowConflict:
 		counts.Conflict++
 	case parentbilling.ImportRowInvalid:
@@ -222,6 +230,11 @@ func (m *SEPAMandates) evaluateImport(ctx context.Context, reviewer parentbillin
 	if err != nil {
 		return nil, err
 	}
+	if columns.payerKey == parentbilling.PayerByDebtorNumber {
+		if err := m.indexPayerNumbers(ctx, reviewer.OrganizationID, &payers); err != nil {
+			return nil, err
+		}
+	}
 	existing, err := m.store.SEPAMandates(ctx, reviewer.OrganizationID, "")
 	if err != nil {
 		return nil, err
@@ -240,6 +253,9 @@ func (m *SEPAMandates) evaluateImport(ctx context.Context, reviewer parentbillin
 		if err := m.assignImportedNumbers(ctx, reviewer, candidates, table, columns); err != nil {
 			return nil, err
 		}
+	}
+	if err := m.recordPayerNumberReads(ctx, reviewer, payers, candidates); err != nil {
+		return nil, err
 	}
 	return candidates, nil
 }
@@ -282,8 +298,12 @@ func (p importPayers) countChild(payer importPayer) {
 		p.children[payer.family] = map[string]bool{}
 	}
 	p.children[payer.family][key] = true
-	if child := parentbilling.ChildDebtorNumberKey(payer.family, key); payer.until.After(p.childUntil[child]) {
+	child := parentbilling.ChildDebtorNumberKey(payer.family, key)
+	if payer.until.After(p.childUntil[child]) {
 		p.childUntil[child] = payer.until
+	}
+	if current, ok := p.byChild[child]; !ok || payer.until.After(current.until) {
+		p.byChild[child] = payer
 	}
 }
 
@@ -314,7 +334,7 @@ func (m *SEPAMandates) importPayers(ctx context.Context, organizationID int64) (
 		return importPayers{}, fmt.Errorf("parent billing: read the contract parties for the import: %w", err)
 	}
 	payers := importPayers{byContract: map[int64]importPayer{}, byFamily: map[string]importPayer{}, children: map[string]map[string]bool{},
-		childUntil: map[string]calendar.Date{}}
+		childUntil: map[string]calendar.Date{}, byChild: map[string]importPayer{}}
 	for _, id := range ids {
 		recipient := recipients[id]
 		payer := importPayer{contractID: id, family: parentbilling.FamilyKey(recipient.Email),

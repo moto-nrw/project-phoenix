@@ -128,6 +128,10 @@ export function StaffList({
                 items={[
                   {
                     label: inviteLabel,
+                    description:
+                      teacher.external_account_status === "invitation_pending"
+                        ? "Öffnet ein Fenster, um die Einladung zum Zugang neu per E-Mail zu senden."
+                        : "Öffnet ein Fenster, um der Person per E-Mail einen eigenen Zugang zu geben.",
                     onClick: () => onInviteExternal(teacher),
                   },
                 ]}

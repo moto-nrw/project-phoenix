@@ -61,27 +61,29 @@ export function NotificationBridge() {
         ? `${detail.title}: ${detail.body}`
         : detail.title;
       const deepLink = detail.deepLink;
-      const action =
-        deepLink && isSafeAppRelativePath(deepLink)
-          ? {
-              label: "Öffnen",
-              onClick: () =>
-                router.push(
-                  tenantNotificationPath(
-                    deepLink,
-                    tenantSlug,
-                    window.location.hostname,
+      const options = {
+        action:
+          deepLink && isSafeAppRelativePath(deepLink)
+            ? {
+                label: "Öffnen",
+                onClick: () =>
+                  router.push(
+                    tenantNotificationPath(
+                      deepLink,
+                      tenantSlug,
+                      window.location.hostname,
+                    ),
                   ),
-                ),
-            }
-          : undefined;
+              }
+            : undefined,
+      };
 
       // High priority renders as warning (amber) so it stands out; everything
       // else as info. Errors stay reserved for actual failures.
       if (detail.priority === "high") {
-        toast.warning(message, { duration: 8000, action });
+        toast.warning(message, { ...options, duration: 8000 });
       } else {
-        toast.info(message, { duration: 6000, action });
+        toast.info(message, { ...options, duration: 6000 });
       }
     };
 

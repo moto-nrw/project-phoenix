@@ -101,7 +101,7 @@ export function GapJumpList({
           aria-expanded={open}
           aria-haspopup="dialog"
           aria-controls={open ? panelId : undefined}
-          title={`${label} — Sprungliste öffnen`}
+          tooltip="Zeigt die Termine ohne genug Personal, um direkt hinzuspringen."
         >
           <StatusDot className="bg-moto-orange" decorative />
           {label}

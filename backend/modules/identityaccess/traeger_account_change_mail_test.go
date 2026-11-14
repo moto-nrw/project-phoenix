@@ -43,6 +43,15 @@ func TestTraegerAccountChangeMailRendersBothChanges(t *testing.T) {
 	assert.Contains(t, body, "Jetzt: <strong>Abrechnung und Nur lesen</strong>")
 	assert.Contains(t, body, "wenden Sie sich an leitung@example.test")
 	assert.Contains(t, body, "mailto:kontakt@moto-ogs.de")
+	assert.Contains(t, body, "Die neuen Rollen gelten nach wenigen Minuten.", "an added role reaches the session later")
+	assert.NotContains(t, body, "abgemeldet")
+
+	// A withdrawn role ends the person's sessions at once (#6850).
+	notice.RolesBefore, notice.RolesAfter = notice.RolesAfter, notice.RolesBefore
+	body = render(identityaccess.TraegerAccountChangeMail(notice, "https://moto.example"))
+	assert.Contains(t, body, "Sie wurden deshalb im Träger-Portal abgemeldet. Melden Sie sich neu an.")
+	assert.NotContains(t, body, "gelten nach wenigen Minuten")
+	notice.RolesBefore, notice.RolesAfter = notice.RolesAfter, notice.RolesBefore
 
 	notice.Action, notice.RolesAfter = identityaccess.TraegerAccountMemberRemoved, nil
 	notice.ActorAccountID, notice.ActorEmail = notice.TargetAccountID, notice.TargetEmail

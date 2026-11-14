@@ -188,7 +188,7 @@ describe("Umfrage answering in the detail view", () => {
     );
     expect(
       screen.getByRole("button", { name: "Antwort speichern" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("dims the complete short poll card when the poll is closed", () => {
@@ -420,7 +420,7 @@ describe("Umfrage answering in the detail view", () => {
     expect(screen.queryByRole("radio", { name: "Ja" })).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Antwort speichern" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   // The whole card is the button. A bold action word in its last line read as

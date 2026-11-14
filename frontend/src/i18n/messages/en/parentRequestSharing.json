@@ -12,5 +12,8 @@
   "close": "Close window",
   "errorObjectRecipients": "the list of recipients",
   "errorObjectSelection": "the selection",
-  "optionsHint": "You can still send the request and share it later."
+  "optionsHint": "You can still send the request and share it later.",
+  "buttonTooltip": "Opens a window where you choose who sees the request.",
+  "saveTooltip": "Saves who may see the request and the reply.",
+  "closeTooltip": "Closes the window; the selection stays unchanged."
 }

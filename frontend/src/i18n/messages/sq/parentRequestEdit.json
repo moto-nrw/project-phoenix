@@ -15,5 +15,7 @@
   "saving": "Po ruhet …",
   "cancel": "Anulo",
   "close": "Mbyll dritaren",
-  "errorObject": "kërkesa"
+  "errorObject": "kërkesa",
+  "closeTooltip": "Mbyll dritaren; kërkesa mbetet e pandryshuar.",
+  "submitTooltip": "E zëvendëson kërkesën menjëherë; {careTerm} vendos për versionin e ri."
 }

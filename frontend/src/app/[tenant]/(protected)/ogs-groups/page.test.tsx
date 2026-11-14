@@ -230,7 +230,6 @@ vi.mock("~/lib/location-helper", async (importOriginal) => {
       HOME: "#DC2626",
       GROUP_ROOM: "#83CD2D",
     },
-    LOCATION_STATUSES: { PRESENT: "Anwesend" },
     isPresentLocation: vi.fn((location?: string | null) =>
       (location ?? "").startsWith("Anwesend"),
     ),
@@ -409,6 +408,15 @@ vi.mock("~/components/students/student-card", () => ({
   StudentAbsenceRow: ({ label, note }: { label: string; note?: string }) => (
     <div data-testid="student-absence-row">
       Kommt heute nicht ({label}){note && <span>Notiz: {note}</span>}
+    </div>
+  ),
+  PlannedActivityRows: ({
+    activities,
+  }: {
+    activities?: readonly { title: string }[];
+  }) => (
+    <div data-testid="planned-activity-rows">
+      {(activities ?? []).map((activity) => activity.title).join(", ")}
     </div>
   ),
 }));
@@ -985,6 +993,158 @@ describe("OGSGroupPage", () => {
       expect(screen.getByText(/15:30 Uhr/)).toBeInTheDocument();
     });
   });
+
+  it("puts today's offerings between arrival and pickup (#6487)", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Raum 101",
+            arrival_time: "11:45",
+            planned_activities: [
+              { title: "Töpfer-AG", start_time: "14:00", end_time: "15:00" },
+              { title: "Handball", start_time: "15:15", end_time: "16:00" },
+            ],
+          }),
+        ],
+        roomStatus: { "1": { in_group_room: true } },
+        pickupTimes: new Map([
+          ["1", { pickupTime: "16:30", isException: false, dayNotes: [] }],
+        ]),
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    const activities = await screen.findByTestId("planned-activity-rows");
+    expect(activities).toHaveTextContent("Töpfer-AG, Handball");
+    const order = Array.from(
+      screen
+        .getByTestId("extra-content")
+        .querySelectorAll(
+          "[data-testid='arrival-time-row'], [data-testid='planned-activity-rows'], [data-testid='pickup-time-row']",
+        ),
+    ).map((row) => row.getAttribute("data-testid"));
+    expect(order).toEqual([
+      "arrival-time-row",
+      "planned-activity-rows",
+      "pickup-time-row",
+    ]);
+  });
+
+  it.each([
+    ["arrival", "Anwesend - Raum 101"],
+    ["pickup", "Anwesend - Raum 101"],
+    ["arrival", "Schulhof"],
+    ["pickup", "Unterwegs"],
+    ["arrival", "Im Unterricht"],
+    ["pickup", ""],
+  ])(
+    "keeps offerings despite a timeless %s exception when checked in at %s (#6487)",
+    async (exception, currentLocation) => {
+      vi.mocked(useSWRAuth).mockReturnValue({
+        data: liveData({
+          students: [
+            wireStudent({
+              id: 1,
+              first_name: "Max",
+              last_name: "Mustermann",
+              current_location: currentLocation,
+              actual_arrival_time:
+                currentLocation === "Im Unterricht" ? undefined : "08:00",
+              day_planning_status: "not_coming_today",
+              day_planning_label: "Arzttermin",
+              arrival_is_exception: exception === "arrival",
+              arrival_time: exception === "arrival" ? undefined : "11:45",
+              planned_activities: [
+                { title: "Töpfer-AG", start_time: "14:00", end_time: "15:00" },
+              ],
+            }),
+          ],
+          roomStatus: {
+            "1": { in_group_room: currentLocation.includes("Raum") },
+          },
+          pickupTimes: new Map([
+            [
+              "1",
+              {
+                pickupTime: exception === "pickup" ? undefined : "16:30",
+                isException: exception === "pickup",
+                dayNotes: [],
+              },
+            ],
+          ]),
+        }),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+      render(<OGSGroupPage />);
+
+      expect(
+        await screen.findByTestId("planned-activity-rows"),
+      ).toHaveTextContent("Töpfer-AG");
+    },
+  );
+
+  it.each(["arrival", "pickup"])(
+    "shows no offerings for a child at home with a timeless %s exception (#6487)",
+    async (exception) => {
+      vi.mocked(useSWRAuth).mockReturnValue({
+        data: liveData({
+          students: [
+            wireStudent({
+              id: 1,
+              first_name: "Max",
+              last_name: "Mustermann",
+              current_location: "Zuhause",
+              actual_arrival_time: "08:00",
+              arrival_is_exception: exception === "arrival",
+              arrival_time: exception === "arrival" ? undefined : "11:45",
+              arrival_notes: "Arzttermin",
+              planned_activities: [
+                { title: "Töpfer-AG", start_time: "14:00", end_time: "15:00" },
+              ],
+            }),
+          ],
+          roomStatus: { "1": { in_group_room: false } },
+          pickupTimes: new Map([
+            [
+              "1",
+              {
+                pickupTime: exception === "pickup" ? undefined : "16:30",
+                isException: exception === "pickup",
+                dayNotes: [],
+              },
+            ],
+          ]),
+        }),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+      render(<OGSGroupPage />);
+
+      expect(await screen.findByTestId("arrival-time-row")).toHaveAttribute(
+        "data-is-absent",
+        String(exception === "arrival"),
+      );
+      expect(
+        screen.queryByTestId("planned-activity-rows"),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("handles pickup times with day notes correctly", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({

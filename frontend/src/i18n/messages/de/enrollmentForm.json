@@ -272,5 +272,23 @@
     "title": "Unterschrift",
     "description": "Bitte unterschreiben Sie die Anmeldung. Ohne Unterschrift geht sie nicht an die {careTerm}.",
     "required": "Bitte unterschreiben Sie die Anmeldung."
+  },
+  "buttonHints": {
+    "addGuardian": "Fügt Felder für eine weitere erziehungsberechtigte Person hinzu.",
+    "removeGuardian": "Entfernt die Angaben zu dieser Person sofort aus dem Formular.",
+    "addChild": "Fügt Felder für ein weiteres Kind hinzu.",
+    "removeChild": "Entfernt die Angaben zu diesem Kind sofort aus dem Formular.",
+    "adopt": "Trägt dieses Kind mit seinen gespeicherten Angaben in die Anmeldung ein.",
+    "adopted": "Dieses Kind steht schon in der Anmeldung.",
+    "submit": "Sendet die Anmeldung sofort an die {careTerm} und Ihnen eine Bestätigung.",
+    "previewSubmit": "In der Vorschau können Sie die Anmeldung nicht absenden.",
+    "captchaPending": "Bitte schließen Sie zuerst die Sicherheitsprüfung ab.",
+    "captchaUnavailable": "Absenden geht gerade nicht, bitte wenden Sie sich an die {careTerm}.",
+    "addPhone": "Fügt eine Zeile für eine weitere Telefonnummer hinzu.",
+    "removePhone": "Entfernt diese Nummer sofort aus dem Formular.",
+    "addContact": "Fügt Felder für einen weiteren Kontakt hinzu.",
+    "removeContact": "Entfernt diesen Kontakt sofort aus dem Formular.",
+    "chooseFile": "Öffnet die Dateiauswahl Ihres Geräts.",
+    "details": "Öffnet den ganzen Text zum Lesen."
   }
 }

@@ -301,6 +301,7 @@ export default function SchoolCalendarPage() {
             href={schoolPath(SCHOOL_PARENT_CONFERENCES_ROUTE)}
             variant="outline"
             size="md"
+            tooltip="Öffnet die Elternsprechtage Ihrer Klasse."
           >
             Elternsprechtag
           </ButtonLink>
@@ -310,6 +311,7 @@ export default function SchoolCalendarPage() {
             size="md"
             className="gap-1.5"
             onClick={openCreate}
+            tooltip="Öffnet einen neuen Schultermin für OGS und Lehrkräfte."
           >
             <Plus className="h-4 w-4" aria-hidden />
             Neuer Termin

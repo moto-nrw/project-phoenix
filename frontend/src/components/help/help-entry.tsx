@@ -268,6 +268,7 @@ export function HelpEntry({
                     presenceMode: presenceMode ?? "unknown",
                   })
                 }
+                tooltip="Zeigt die Anleitung passend zu Ihren Antworten."
               >
                 Zur Anleitung
               </Button>
@@ -283,6 +284,7 @@ export function HelpEntry({
                     presenceMode: "unknown",
                   })
                 }
+                tooltip="Zeigt die Anleitung mit allen Wegen, ohne Ihre Antworten."
               >
                 Überspringen
               </Button>
@@ -292,6 +294,7 @@ export function HelpEntry({
                 size="md"
                 className="ms-auto"
                 onClick={() => setRole(null)}
+                noTooltip="Führt nur zurück zur Frage, wer Sie sind."
               >
                 Zurück
               </Button>

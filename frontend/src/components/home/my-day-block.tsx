@@ -15,6 +15,7 @@ import { BlockState } from "~/components/home/day-flow-block";
 import { blockStaffNames } from "~/components/timetable/block-row-parts";
 import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import {
+  dayPlanLinkTooltip,
   HomeCardLink,
   HomeMoreRow,
   upcomingFirst,
@@ -27,7 +28,10 @@ import {
   hasOpenEnd,
 } from "~/lib/block-children";
 import { useDayPlanHref, useDayPlanLabel } from "~/lib/hooks/use-day-plan-href";
-import { useStartOwnBlock } from "~/components/home/use-start-own-block";
+import {
+  START_OWN_BLOCK_TOOLTIP,
+  useStartOwnBlock,
+} from "~/components/home/use-start-own-block";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -61,6 +65,7 @@ const MAX_ROWS = 5;
 export function MyDayBlock() {
   const dayPlanHref = useDayPlanHref();
   const dayPlanLabel = useDayPlanLabel();
+  const dayPlanTooltip = dayPlanLinkTooltip(dayPlanHref);
   const tenantPath = useTenantAwarePath();
   const now = useBerlinClock();
   const { data, error, isLoading, mutate } = useSWRAuth<
@@ -121,7 +126,11 @@ export function MyDayBlock() {
       leading={<HomeCardIcon concept={carePlanConcept} />}
       inlineActions
       actions={
-        <HomeCardLink href={dayPlanHref} label={`Mein Tag: ${dayPlanLabel}`}>
+        <HomeCardLink
+          href={dayPlanHref}
+          label={`Mein Tag: ${dayPlanLabel}`}
+          tooltip={dayPlanTooltip}
+        >
           {dayPlanLabel}
         </HomeCardLink>
       }
@@ -292,6 +301,7 @@ function BlockRow({
                 variant="success"
                 disabled={busy}
                 onClick={() => onStart(block)}
+                tooltip={START_OWN_BLOCK_TOOLTIP}
               >
                 {busy ? "Startet..." : "Starten"}
               </Button>

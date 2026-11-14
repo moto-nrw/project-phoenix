@@ -1,10 +1,11 @@
 import { StrictMode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   TRAEGER_HANDOFF_BACK,
   TRAEGER_HANDOFF_FAILED_TITLE,
   TRAEGER_HANDOFF_OPENING,
+  TRAEGER_HANDOFF_SESSION_CHECK_TIMEOUT_MS,
 } from "~/lib/traeger-handoff";
 import TraegerHandoffPage from "./page";
 
@@ -24,8 +25,10 @@ vi.mock("~/env.client", () => ({
 }));
 
 const signIn = vi.fn();
+const session = vi.hoisted(() => ({ status: "unauthenticated" }));
 vi.mock("next-auth/react", () => ({
   signIn: (...args: unknown[]) => signIn(...args) as unknown,
+  useSession: () => ({ data: null, status: session.status }),
 }));
 
 const assign = vi.fn();
@@ -36,6 +39,7 @@ function open(hash: string) {
 }
 
 beforeEach(() => {
+  session.status = "unauthenticated";
   signIn.mockReset().mockResolvedValue({ error: undefined });
   assign.mockReset();
   vi.stubGlobal("location", {
@@ -51,6 +55,43 @@ beforeEach(() => {
 });
 
 describe("TraegerHandoffPage (#4654)", () => {
+  it("redeems only after the session check answered, so its CSRF cookie cannot replace signIn's (#6955)", async () => {
+    session.status = "loading";
+    const view = open("#token=handoff-token");
+
+    expect(screen.getByText(TRAEGER_HANDOFF_OPENING)).toBeInTheDocument();
+    await Promise.resolve();
+    expect(signIn).not.toHaveBeenCalled();
+    expect(globalThis.location.hash).toBe("#token=handoff-token");
+
+    session.status = "unauthenticated";
+    view.rerender(<TraegerHandoffPage />);
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+    expect(signIn).toHaveBeenCalledTimes(1);
+    expect(signIn).toHaveBeenCalledWith("credentials", {
+      redirect: false,
+      traegerHandoff: "handoff-token",
+    });
+  });
+
+  it("gives up on a session check that never answers and shows the failure card (#6955)", () => {
+    vi.useFakeTimers();
+    session.status = "loading";
+    open("#token=handoff-token");
+
+    act(() => {
+      vi.advanceTimersByTime(TRAEGER_HANDOFF_SESSION_CHECK_TIMEOUT_MS - 1);
+    });
+    expect(screen.getByText(TRAEGER_HANDOFF_OPENING)).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(screen.getByText(TRAEGER_HANDOFF_FAILED_TITLE)).toBeInTheDocument();
+    expect(signIn).not.toHaveBeenCalled();
+    expect(globalThis.location.hash).toBe("");
+  });
+
   it("redeems the hand-off token, removes it from the address and opens the start page", async () => {
     open("#token=handoff-token");
 

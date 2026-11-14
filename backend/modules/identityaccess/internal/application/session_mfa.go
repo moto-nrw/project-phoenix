@@ -14,9 +14,11 @@ import (
 // boundary, including refresh hand-off recovery, and without locks at a
 // session validation (r). Legacy sessions have no proof.
 // A Träger session minted before the duty or one whose proof an MFA reset
-// revoked is refused at mint, refresh and validation. A caterer session
-// needs its proof once the caterer switched its second factor on (#4497): a
-// session minted before that ends at its next refresh or validation.
+// revoked is refused at mint, refresh and validation. A caterer or parent
+// session needs its proof once the account has a second factor (#4497,
+// #7051): a session minted before that ends at its next refresh, and at its
+// next validation where the portal reads the enrollment there
+// (domain.Portal.FactorAtValidation).
 func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID, tenantID int64, scope string, verified bool, r factReads) error {
 	if !s.mfa.Configured() {
 		return nil
@@ -28,7 +30,10 @@ func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID
 		}
 		return nil
 	case domain.MFAAccountChoice:
-		return s.requireCatererSessionMFA(ctx, accountID, verified)
+		if portal, _ := domain.PortalOfPersisted(scope); !r.locked && !portal.FactorAtValidation {
+			return nil
+		}
+		return s.requireAccountChoiceSessionMFA(ctx, accountID, verified)
 	case domain.MFASchoolPolicy:
 	default:
 		return nil
@@ -50,12 +55,12 @@ func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID
 	return nil
 }
 
-// requireCatererSessionMFA reads the caterer's own choice: the enrollment of
-// its account, never a school's mode, on the mint's or the refresh's
+// requireAccountChoiceSessionMFA reads the account's own choice: its
+// enrollment, never a school's mode, on the mint's or the refresh's
 // transaction. A password mint that races the switch-on commits a session
 // without proof; like every session from before the switch-on, it ends at
 // its next refresh, which reads the committed enrollment.
-func (s *AccountAuthentication) requireCatererSessionMFA(ctx context.Context, accountID int64, verified bool) error {
+func (s *AccountAuthentication) requireAccountChoiceSessionMFA(ctx context.Context, accountID int64, verified bool) error {
 	if verified {
 		return nil
 	}
@@ -81,10 +86,15 @@ func (s *AccountAuthentication) switchMFAProof(ctx context.Context, accountID in
 		}
 		return false, identityaccess.ErrMFAStatusUnavailable
 	}
-	now := time.Now()
+	return liveVerifiedHead(domain.AccountSession(source), accountID, scope, time.Now()), nil
+}
+
+// liveVerifiedHead reports a family head of the account in that portal that
+// carries second-factor proof and is neither rotated nor expired.
+func liveVerifiedHead(source domain.AccountSession, accountID int64, scope string, now time.Time) bool {
 	return source.AccountID == accountID && source.PortalScope == scope &&
 		source.MFAVerified && source.RotatedAt == nil && source.Expiry.After(now) &&
-		(source.FamilyExpiryCap == nil || source.FamilyExpiryCap.After(now)), nil
+		(source.FamilyExpiryCap == nil || source.FamilyExpiryCap.After(now))
 }
 
 // adoptSourceFamily checks the family a switch presents: it must still live,
@@ -101,6 +111,8 @@ func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID
 	// that runs after this switch commits finds the new family through it
 	// (#5422); one that ran before left no source family to switch from.
 	session.SwitchedFromFamilyID = domain.SwitchLineage(source)
+	// How the source proved its factor travels with it (#6955).
+	session.MFAByDevice = source.MFAByDevice
 	// A family issued before #5422 cannot escape its transition deadline
 	// by switching on: the new family keeps it (capLegacyLineage).
 	if deadline := legacyDeadline(source); deadline != nil {

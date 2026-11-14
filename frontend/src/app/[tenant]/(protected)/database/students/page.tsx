@@ -375,7 +375,6 @@ function StudentsPageContent() {
           `„${displayName}“ ist angelegt. Die Angaben unter Datenschutz wurden aber nicht gespeichert. Bitte öffnen Sie das Kind und tragen Sie sie dort nach.`,
           {
             duration: 0,
-            // oxlint-disable-next-line ui-kit/menu-item-needs-description -- Knopf in einer Hinweismeldung, kein Menüeintrag; die Meldung selbst erklärt ihn.
             action: {
               label: "Öffnen",
               onClick: () => router.push(objectHref(newStudent)),

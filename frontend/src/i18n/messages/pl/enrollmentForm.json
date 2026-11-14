@@ -272,5 +272,23 @@
     "title": "Podpis",
     "description": "Prosimy podpisać zgłoszenie. Bez podpisu nie trafi ono do {careTerm}.",
     "required": "Prosimy podpisać zgłoszenie."
+  },
+  "buttonHints": {
+    "addGuardian": "Dodaje pola dla kolejnej osoby uprawnionej do opieki.",
+    "removeGuardian": "Od razu usuwa dane tej osoby z formularza.",
+    "addChild": "Dodaje pola dla kolejnego dziecka.",
+    "removeChild": "Od razu usuwa dane tego dziecka z formularza.",
+    "adopt": "Wpisuje to dziecko z zapisanymi danymi do zgłoszenia.",
+    "adopted": "To dziecko jest już w zgłoszeniu.",
+    "submit": "Od razu wysyła zgłoszenie do {careTerm}, a Państwu potwierdzenie.",
+    "previewSubmit": "W podglądzie nie można wysłać zgłoszenia.",
+    "captchaPending": "Prosimy najpierw zakończyć kontrolę bezpieczeństwa.",
+    "captchaUnavailable": "Wysłanie nie jest teraz możliwe, prosimy o kontakt z {careTerm}.",
+    "addPhone": "Dodaje wiersz na kolejny numer telefonu.",
+    "removePhone": "Od razu usuwa ten numer z formularza.",
+    "addContact": "Dodaje pola dla kolejnego kontaktu.",
+    "removeContact": "Od razu usuwa ten kontakt z formularza.",
+    "chooseFile": "Otwiera wybór plików na Państwa urządzeniu.",
+    "details": "Otwiera pełny tekst do przeczytania."
   }
 }

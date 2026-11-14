@@ -61,6 +61,7 @@ export function MessagesBlock() {
         <HomeCardLink
           href={allHref}
           label="Ungelesene Nachrichten: Posteingang öffnen"
+          tooltip="Öffnet Ihren Posteingang mit allen Nachrichten."
         >
           Posteingang
         </HomeCardLink>

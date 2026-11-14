@@ -133,6 +133,7 @@ export function TraegerDocumentsCard({
                   aria-label={`Herunterladen: ${document.title}`}
                   disabled={busyId === document.id}
                   onClick={() => void download(document)}
+                  tooltip="Speichert das Dokument des Trägers auf Ihrem Gerät."
                 >
                   <DownloadSimpleIcon className="h-4 w-4" aria-hidden="true" />
                   Herunterladen

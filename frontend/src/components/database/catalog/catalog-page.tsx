@@ -90,6 +90,9 @@ interface CatalogRestore<T> {
 /** Endgültiges Löschen. Nur für Kataloge, deren Backend das kennt. */
 interface CatalogRemove<T> {
   readonly menuLabel: string;
+  /** Zeile unter dem Menüeintrag (#6643), etwa wenn Löschen archivieren
+   *  kann; sonst der Standardsatz. */
+  readonly menuDescription?: string;
   /** Titel der Rückfrage; je Eintrag, wenn das Entfernen archivieren kann. */
   readonly confirmTitle: string | ((item: T) => string);
   /** Beschriftung der beiden Bestätigungsstufen, wenn sie vom Eintrag
@@ -454,6 +457,12 @@ export function CatalogPage<T extends CatalogItem>({
               size="icon"
               aria-label={`${row.name} nach oben`}
               disabled={busy || index === 0}
+              tooltip="Schiebt den Eintrag in der Auswahl eine Stelle nach oben."
+              disabledReason={
+                !busy && index === 0
+                  ? "Der Eintrag steht schon ganz oben."
+                  : undefined
+              }
               onClick={() => void handleMove(item, -1)}
             >
               <ChevronUp className="size-4" aria-hidden="true" />
@@ -464,6 +473,12 @@ export function CatalogPage<T extends CatalogItem>({
               size="icon"
               aria-label={`${row.name} nach unten`}
               disabled={busy || index === visibleActive.length - 1}
+              tooltip="Schiebt den Eintrag in der Auswahl eine Stelle nach unten."
+              disabledReason={
+                !busy && index === visibleActive.length - 1
+                  ? "Der Eintrag steht schon ganz unten."
+                  : undefined
+              }
               onClick={() => void handleMove(item, 1)}
             >
               <ChevronDown className="size-4" aria-hidden="true" />
@@ -506,6 +521,8 @@ export function CatalogPage<T extends CatalogItem>({
             ? [
                 {
                   label: config.restore.menuLabel,
+                  description:
+                    "Bietet den Eintrag sofort wieder zur Auswahl an.",
                   disabled: busy,
                   onClick: () => void handleRestore(selected),
                 },
@@ -515,6 +532,8 @@ export function CatalogPage<T extends CatalogItem>({
             ? [
                 {
                   label: config.retire.menuLabel,
+                  description:
+                    "Nimmt den Eintrag nur für Neues aus der Auswahl, moto fragt vorher nach.",
                   disabled: busy,
                   onClick: () => setRetireTarget(selected),
                 },
@@ -525,6 +544,9 @@ export function CatalogPage<T extends CatalogItem>({
                 { kind: "separator" as const },
                 {
                   label: config.remove.menuLabel,
+                  description:
+                    config.remove.menuDescription ??
+                    "Löscht den Eintrag, moto fragt vorher nach.",
                   destructive: true,
                   disabled: busy,
                   onClick: () => setRemoveTarget(selected),

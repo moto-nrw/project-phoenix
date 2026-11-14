@@ -233,6 +233,7 @@ export function RoomCheckinDialog({
             size="md"
             onClick={close}
             disabled={saving}
+            noTooltip="Schließt das Fenster, kein Kind wird angemeldet."
           >
             Abbrechen
           </Button>

@@ -203,6 +203,7 @@ const PARENT_DRAFT_TOPICS: readonly HelpTopic[] = [
   // --- Einstieg und Konto ---
   articles.parentAccountTopic(),
   articles.parentLoginTopic(),
+  articles.parentSignInCodeTopic(),
   articles.parentFirstStepsTopic(),
   articles.parentInstallAppTopic(),
   articles.parentNotificationsTopic(),

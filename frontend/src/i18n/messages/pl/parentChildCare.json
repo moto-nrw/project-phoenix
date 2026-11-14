@@ -123,13 +123,11 @@
   "actions": {
     "sick": {
       "label": "Zgłoszenie choroby",
-      "shortLabel": "Zgłoszenie choroby",
-      "hint": "Zgłoś chorobę dziecka na jeden dzień lub kilka dni"
+      "shortLabel": "Zgłoszenie choroby"
     },
     "pickup": {
       "label": "Zmień godzinę odbioru na jeden dzień",
-      "shortLabel": "Zmień godzinę odbioru",
-      "hint": "Zmień godzinę odbioru na jeden wybrany dzień"
+      "shortLabel": "Zmień godzinę odbioru"
     }
   },
   "request": {

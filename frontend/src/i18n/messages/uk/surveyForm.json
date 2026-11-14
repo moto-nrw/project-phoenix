@@ -25,5 +25,7 @@
   "submitObject": "ваша відповідь",
   "participated": "Відповідь надіслано",
   "needsAnswer": "Потрібна відповідь",
-  "questionLabel": "Питання {number} з {total}"
+  "questionLabel": "Питання {number} з {total}",
+  "submitTooltip": "Одразу надсилає вашу відповідь до школи, з вашим іменем.",
+  "submitTooltipAnonymous": "Одразу надсилає вашу відповідь до школи, без вашого імені."
 }

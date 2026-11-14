@@ -44,5 +44,14 @@
   "withdrawn": "Withdrawn",
   "showConfirmation": "View confirmation",
   "terminationInReview": "Cancelled, end date under review",
-  "familyChildren": "Enter children in your family"
+  "familyChildren": "Enter children in your family",
+  "downloadTooltip": "Downloads the document as a PDF to your device.",
+  "downloadFileTooltip": "Downloads the file to your device.",
+  "signNowTooltip": "Opens the contract for you to read and sign.",
+  "familyChildrenTooltip": "Opens the page where you state how many children you have.",
+  "familyChildrenViewTooltip": "Shows how many children in your family the provider counts.",
+  "cancelContractTooltip": "Opens the termination; nothing is sent until the next page.",
+  "withdrawContractTooltip": "Opens the withdrawal; nothing is sent until the next page.",
+  "showConfirmationTooltip": "Shows the termination with the end date and confirmation.",
+  "showWithdrawalTooltip": "Shows the withdrawal with its confirmation."
 }

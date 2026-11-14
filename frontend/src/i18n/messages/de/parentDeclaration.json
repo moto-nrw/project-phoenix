@@ -95,5 +95,16 @@
     "title": "Sie haben Fassung {version} am {date} Uhr zugestimmt.",
     "note": "Die Schule hat den Text danach geändert. Ihre Zustimmung zu diesem Text gilt, bis Sie sie widerrufen.",
     "endsToo": "Damit endet auch Ihre Zustimmung zu Fassung {version}."
+  },
+  "actionTooltip": {
+    "agreed": "Stimmt für {name} zu, moto fragt vorher nach.",
+    "declined": "Lehnt für {name} ab, moto fragt vorher nach.",
+    "revoked": "Nimmt Ihre Zustimmung für {name} zurück, moto fragt vorher nach.",
+    "revokeEarlier": "Nimmt Ihre Zustimmung zu Fassung {version} zurück, moto fragt vorher nach."
+  },
+  "confirmTooltip": {
+    "agreed": "Speichert Ihre Zustimmung sofort, die Schule sieht sie.",
+    "declined": "Speichert Ihre Ablehnung sofort, die Schule sieht sie.",
+    "revoked": "Widerruft Ihre Zustimmung sofort, die Schule sieht das."
   }
 }

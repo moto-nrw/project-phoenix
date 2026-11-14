@@ -21,7 +21,8 @@
     "title": "Tatil kayıtlarınız",
     "showAll": "Tümünü göster",
     "showAllLabel": "Tüm tatil kayıtlarını göster",
-    "more": "{count, plural, one {# kayıt daha} other {# kayıt daha}}"
+    "more": "{count, plural, one {# kayıt daha} other {# kayıt daha}}",
+    "showAllTooltip": "Çocuklarınızın tüm tatil kayıtlarının listesini açar."
   },
   "toDocumentsTooltip": "Onay ve faturayla birlikte belgelerinizi açar."
 }

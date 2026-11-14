@@ -379,6 +379,34 @@ Entscheidung:
 5. **Einsehen und entfernen** kann jede Person unter „Konto“. Das
    Zurücksetzen des Faktors durch das moto-Team und jede Passwortänderung
    beenden auch die gemerkten Geräte.
+6. **Beim Absprung gewinnt das „Aus“ der Schule.** Eine Sitzung hält fest,
+   ob nur ein gemerktes Gerät den zweiten Faktor bewiesen hat
+   (`auth.tokens.mfa_by_device`); Erneuern, Absprung (Abschnitt 5) und
+   Schulwechsel tragen das Merkmal weiter. Hat eine Schule
+   `security.mfa_trusted_device_enabled` aus, oder ist die Einstellung nicht
+   lesbar, lehnt der Absprung eine solche Sitzung mit 403
+   `traeger.school_requires_code` ab. Das Träger-Portal bietet dann „Code
+   anfordern“ (#7068): Die Person gibt den per E-Mail geschickten Code in
+   der laufenden Sitzung ein, ohne sich abzumelden. Der Code gilt wie bei
+   der Anmeldung (gleiche Grenzen, gleiche Mail); die Sitzung wechselt dabei
+   in eine neue Familie ohne das Merkmal, die alte endet nach der
+   Schonfrist des Erneuerns, und die Abstammung bleibt, sodass das Abmelden
+   auch die zuvor geöffneten Schulsitzungen beendet. Gelingt das Einsetzen
+   der neuen Sitzung nicht, führt das Portal zur Anmeldung, die das
+   gemerkte Gerät einmal außer Acht lässt. Eine mit Code bewiesene
+   Träger-Sitzung öffnet jede Schule. Die Gültigkeitsdauer der Schule
+   (`mfa_trusted_device_days`) gilt beim Absprung nicht: Das Gerät des
+   Trägers behält seine eigene. Derselbe Schritt gilt für den Wechsel einer
+   Sitzung in eine andere Schule. Wechselt eine Absprung-Sitzung (zweiter
+   Tab) in eine Schule des Trägers, an der die Person kein eigenes Konto hat,
+   antwortet der Wechsel 403 `traeger.school_requires_code`, und die
+   Schul-App führt mit „Mit Code neu anmelden“ ins Träger-Portal
+   (`/login?mit-code=1`). Dort beendet erst der Knopf „Abmelden und mit Code
+   anmelden“ eine laufende Träger-Sitzung, mit der Abmeldung des Portals; der
+   Seitenaufruf allein meldet nicht ab. Hat die Person an der Zielschule ein
+   eigenes Konto, nimmt der Wechsel den normalen Weg: 401
+   `identity.mfa_session_required` und die Anmeldung an der Zielschule
+   („Zur Schulanmeldung“), wie beim Wechsel zwischen eigenen Schulen.
 
 Nicht entschieden: ein Gerät für alle Schulen eines Kontos. Es bleibt bei
 einem Merken pro Schule und pro Portal.

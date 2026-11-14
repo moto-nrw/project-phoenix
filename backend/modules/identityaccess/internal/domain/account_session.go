@@ -30,7 +30,11 @@ type AccountSession struct {
 	Identifier     *string
 	PortalScope    string
 	MFAVerified    bool
-	FamilyID       string
+	// MFAByDevice: only a remembered device proved the second factor
+	// (#6955); a school that switched remembered devices off asks for the
+	// code at an Absprung or a switch.
+	MFAByDevice bool
+	FamilyID    string
 	// SwitchedFromFamilyID names the origin of the session's switch lineage:
 	// the login family a school switch descends from, or the Träger family
 	// of an Absprung. It outlives the origin's rows (#5422).
@@ -75,22 +79,14 @@ func (s *AccountSession) Validate() error {
 	return nil
 }
 
-// traegerShapeHolds: only a Träger session, an OGS session the Träger
-// opened through the Absprung (ADR 0084 section 5) and a parent session at a
-// Träger (ADR 0216) name a Träger.
+// traegerShapeHolds: only a session of a kind that names a Träger carries
+// one, with the school its kind demands.
 func (s *AccountSession) traegerShapeHolds() bool {
-	switch {
-	case s.PortalScope == PortalOrg.Name:
-		return PortalOrg.Holds(s.TenantID, s.OrganizationID)
-	case s.OrganizationID <= 0:
-		return true
-	case s.SessionKind() == SessionKindTraegerSchool:
-		return s.TenantID > 0
-	case s.SessionKind() == SessionKindTraegerParent:
-		return s.TenantID == 0
-	default:
-		return false
+	tenant, names := traegerKinds[s.SessionKind()]
+	if !names {
+		return s.OrganizationID <= 0
 	}
+	return s.OrganizationID > 0 && tenant.holds(s.TenantID)
 }
 
 // AccountSessionLiveness narrows a listing by the expiry of the sessions.
@@ -132,6 +128,9 @@ func (s AccountSession) SessionKind() SessionKind {
 // KeptAtSchool reports whether the session belongs to a school; a legacy
 // row without a portal does, a parent session at a Träger does not.
 func (s AccountSession) KeptAtSchool() bool {
+	if tenant, names := traegerKinds[s.SessionKind()]; names {
+		return tenant != ShapeForbidden
+	}
 	portal, ok := PortalOfPersisted(s.PortalScope)
-	return !ok || (portal.KeptAtSchool() && s.SessionKind() != SessionKindTraegerParent)
+	return !ok || portal.KeptAtSchool()
 }

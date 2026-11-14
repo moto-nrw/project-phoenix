@@ -667,6 +667,7 @@ export function DienstplanHalbjahrGrid({
               type="button"
               variant="outline"
               size="md"
+              tooltip="Öffnet die Planungszeiträume, um einen Zeitraum anzulegen."
               onClick={() => router.push("/calendar-periods")}
             >
               Zu den Planungszeiträumen

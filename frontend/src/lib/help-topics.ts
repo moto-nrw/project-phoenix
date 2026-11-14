@@ -189,6 +189,7 @@ export const HELP_TOPICS = {
   // Schritt für Schritt gegen die App geprüft.
   parentAccount: "eltern-konto-einrichten",
   parentLogin: "als-elternteil-anmelden",
+  parentSignInCode: "anmeldung-mit-code-fuer-eltern",
   parentFirstSteps: "erste-schritte-im-elternportal",
   parentInstallApp: "moto-als-app-fuer-eltern",
   parentNotifications: "benachrichtigungen-einstellen",

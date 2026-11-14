@@ -210,7 +210,7 @@ export const PORTALS = {
     },
     passwordLogin: {
       // care.not_a_guardian is reachable only after the password check
-      // (LoginParentWithAudit), so naming it confirms nothing to a stranger.
+      // (ParentAccess.LoginParent), so naming it confirms nothing to a stranger.
       refusals: [
         "identity.session_account_inactive",
         "care.not_a_guardian",

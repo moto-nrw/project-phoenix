@@ -112,8 +112,7 @@ function OperatorCaterersPageContent() {
                 setResetTarget(null);
                 void mutate();
               }}
-              scope="caterer"
-              catererId={resetTarget.id}
+              target={{ kind: "caterer", catererId: resetTarget.id }}
               accountId={resetTarget.accountId}
               accountLabel={`${resetTarget.name} (${resetTarget.email})`}
             />

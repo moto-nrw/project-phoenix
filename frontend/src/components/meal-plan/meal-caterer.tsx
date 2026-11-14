@@ -278,6 +278,8 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
           items={[
             {
               label: "Widerrufen",
+              description:
+                "Macht den Link in der E-Mail ungültig. moto fragt vorher nach",
               destructive: true,
               onClick: () => setRevokeTarget(invitation),
             },
@@ -297,6 +299,8 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
         items={[
           {
             label: "Belieferung beenden",
+            description:
+              "Beendet die Belieferung, der Caterer sieht nichts mehr. moto fragt vorher nach",
             destructive: true,
             onClick: () => setEndOpen(true),
           },
@@ -309,6 +313,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
         size="md"
         className="gap-2"
         onClick={openInvite}
+        tooltip="Öffnet ein Formular, um Ihren Caterer per E-Mail einzuladen."
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
         Caterer einladen
@@ -386,6 +391,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
               size="md"
               onClick={() => setInviteOpen(false)}
               disabled={sending}
+              noTooltip="Schließt das Fenster, ohne eine Einladung zu senden."
             >
               Abbrechen
             </Button>
@@ -401,6 +407,8 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
                 form.email.trim() === "" ||
                 form.catererName.trim() === ""
               }
+              tooltip="Schickt dem Caterer sofort eine E-Mail mit dem Link zu seinem Zugang."
+              disabledReason="Geben Sie zuerst Name und E-Mail-Adresse des Caterers ein."
             >
               Einladung senden
             </Button>
@@ -463,6 +471,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
         onConfirm={() => void confirmRevoke()}
         title="Einladung widerrufen?"
         confirmText="Widerrufen"
+        confirmTooltip="Macht den Link in der Einladung sofort ungültig."
         cancelText="Abbrechen"
         confirmVariant="danger"
         isConfirmLoading={working}
@@ -479,6 +488,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
         onConfirm={() => void confirmEnd()}
         title="Belieferung beenden"
         confirmText="Beenden"
+        confirmTooltip="Beendet die Belieferung sofort, der Caterer sieht nichts mehr."
         cancelText="Abbrechen"
         confirmVariant="danger"
         isConfirmLoading={working}

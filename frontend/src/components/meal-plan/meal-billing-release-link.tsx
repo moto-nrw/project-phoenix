@@ -25,6 +25,7 @@ export function MealBillingReleaseLink() {
       href={tenantPath("/meal-plan/freigabe")}
       variant="outline"
       size="md"
+      tooltip="Öffnet die Monatszählung, die Sie für die Abrechnung freigeben."
     >
       Mensa-Freigabe
     </ButtonLink>

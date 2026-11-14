@@ -883,6 +883,7 @@ export function StudentNotizenTab({
                   ? [
                       {
                         label: "Bearbeiten",
+                        description: "Öffnet die Notiz zum Ändern.",
                         onClick: () => startEdit(note),
                       },
                     ]
@@ -891,6 +892,8 @@ export function StudentNotizenTab({
                   ? [
                       {
                         label: "Löschen",
+                        description:
+                          "Löscht die Notiz, moto fragt vorher nach.",
                         destructive: true,
                         onClick: () => {
                           deleteErrors.clear();
@@ -919,7 +922,12 @@ export function StudentNotizenTab({
       loading={isLoading}
       action={
         composing || isLoading ? undefined : (
-          <Button type="button" size="md" onClick={startCompose}>
+          <Button
+            type="button"
+            size="md"
+            onClick={startCompose}
+            tooltip="Öffnet ein Feld für eine neue Notiz zu diesem Kind."
+          >
             Neue Notiz
           </Button>
         )

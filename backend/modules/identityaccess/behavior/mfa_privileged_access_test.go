@@ -234,3 +234,44 @@ func checkRevokedDeviceAtMint(t *testing.T, schoolPortal bool) {
 	require.ErrorIs(t, err, identityaccess.ErrInvalidToken)
 	assert.Nil(t, result, "revoked device proof must never create a completed login")
 }
+
+// TestSwitchFromADeviceProvenSessionHonoursTheTargetSchool: a session whose
+// second factor only a device remembered at school A proved does not carry
+// that proof into school B once B switched remembered devices off (#6955),
+// also after a refresh; B asks for a direct sign-in with a code. A target that allows remembered
+// devices takes the proof as before.
+func TestSwitchFromADeviceProvenSessionHonoursTheTargetSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := newMFATestModule(t, db, withDeliveringMailer(nil)...)
+	service := newFixtureAuthService(t, db, module.Auth)
+	email, accountID, schoolA, slugA := registerAccountAtTenant(t, db, service, "device-switch")
+	refusing, slugRefusing := newSchoolTenant(t, db)
+	allowing, slugAllowing := newSchoolTenant(t, db)
+	testpkg.EnsureAccountTenant(t, db, accountID, refusing)
+	testpkg.EnsureAccountTenant(t, db, accountID, allowing)
+	for _, school := range []int64{schoolA, refusing, allowing} {
+		_, err := db.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES (?, 'security.mfa_mode', '"required_all"'::jsonb)`, school)
+		require.NoError(t, err)
+	}
+	_, err := db.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES (?, 'security.mfa_trusted_device_enabled', 'false'::jsonb)`, refusing)
+	require.NoError(t, err)
+	require.NoError(t, enrollMFA(testpkg.TenantContext(schoolA), t, db, module.MFA, accountID))
+	ctx := context.Background()
+	cookie, _, err := module.MFA.IssueTrustedDevice(ctx, accountID, schoolA, "test-device", nil)
+	require.NoError(t, err)
+
+	result, err := service.LoginWithMFAGate(ctx, email, testPassword, "", "", slugA, cookie)
+	require.NoError(t, err)
+	require.Equal(t, identityaccess.LoginStatusAuthenticated, result.Status, "the remembered device proves the factor at school A")
+	// The refresh keeps how the factor was proven.
+	_, _, err = service.RefreshTokenWithAudit(ctx, result.RefreshToken, "", "", "")
+	require.NoError(t, err)
+	family := tokenFamilyID(t, db, accountID, 0)
+
+	_, _, err = service.SwitchTenant(ctx, accountID, slugRefusing, family, "", "")
+	require.ErrorIs(t, err, identityaccess.ErrSwitchRequiresCodeProof, "a school without remembered devices asks for a sign-in there with the code")
+	_, refresh, err := service.SwitchTenant(ctx, accountID, slugAllowing, family, "", "")
+	require.NoError(t, err, "a school that allows remembered devices takes the proof")
+	assert.NotEmpty(t, refresh)
+}

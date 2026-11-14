@@ -27,5 +27,8 @@
   "changesAdded": "{count, plural, one {на # ребёнка больше} few {на # детей больше} many {на # детей больше} other {на # детей больше}}",
   "changesRemoved": "{count, plural, one {на # ребёнка меньше} few {на # детей меньше} many {на # детей меньше} other {на # детей меньше}}",
   "deliveryHeader": "Список поставок на неделю",
-  "errorObjectDelivery": "список поставок"
+  "errorObjectDelivery": "список поставок",
+  "deliveryDownloadDescription": "Скачивает список поставок на эту неделю",
+  "monthExportDescription": "Открывает окно для выбора месяца и формата",
+  "monthDownloadDescription": "Скачивает заказанные обеды по каждому ребёнку за этот месяц"
 }

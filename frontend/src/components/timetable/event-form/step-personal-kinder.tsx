@@ -834,6 +834,12 @@ export function StepPersonalKinder({
                 targetCohort.memberIds.length === 0 ||
                 missingTargetCohortCount === 0
               }
+              disabledReason={
+                targetCohort.memberIds.length === 0
+                  ? "In dieser Auswahl gibt es gerade keine Kinder."
+                  : "Alle diese Kinder stehen schon in der Liste."
+              }
+              tooltip="Wählt diese Kinder zusätzlich fest für den Termin aus."
             >
               {targetCohortButtonLabel}
             </Button>

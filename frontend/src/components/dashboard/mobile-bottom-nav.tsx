@@ -2,6 +2,7 @@
 // Ultra-minimalist mobile navigation following Instagram/Twitter/Uber patterns
 "use client";
 
+import { REMINDERS_LINK_TOOLTIP } from "~/components/home/home-link-tooltips";
 import { Alert } from "~/components/ui/alert";
 import { SectionLabel } from "~/components/ui/section-label";
 import { ListGroupHeader } from "~/components/ui/list-group-header";
@@ -1116,6 +1117,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     variant="surface"
                     size="md"
                     className="w-full justify-start gap-3"
+                    tooltip="Wechselt zurück in die Träger-App."
                   >
                     <MobileNavIcon
                       item={{
@@ -1240,6 +1242,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   <Button
                     type="button"
                     onClick={simpleNav.toggle}
+                    tooltip={simpleNav.toggleTooltip}
                     variant="ghost"
                     size="md"
                     className="w-full justify-start gap-3"
@@ -1273,6 +1276,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       variant="ghost"
                       size="md"
                       className="w-full justify-start gap-3"
+                      tooltip={REMINDERS_LINK_TOOLTIP}
                     >
                       <Bell
                         className="h-5 w-5 text-gray-600"
@@ -1293,6 +1297,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       variant="ghost"
                       size="md"
                       className="w-full justify-start gap-3"
+                      tooltip="Öffnet ein Fenster, um moto aus Sicht einer Person zu sehen."
                     >
                       <Eye
                         className="h-5 w-5 text-gray-600"
@@ -1318,6 +1323,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     variant={isActiveRoute(profileUrl) ? "surface" : "ghost"}
                     size="md"
                     className="w-full justify-start gap-3"
+                    tooltip="Öffnet Ihr Profil mit Name, Bild und Passwort."
                   >
                     <MobileNavIcon
                       item={{ iconKey: "profile" }}
@@ -1336,6 +1342,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   variant="ghost"
                   size="md"
                   className="w-full justify-start gap-3"
+                  tooltip="Meldet Sie auf diesem Gerät ab, moto fragt vorher nach."
                 >
                   <MobileNavIcon
                     item={{ iconKey: "profile", concept: logoutConcept }}

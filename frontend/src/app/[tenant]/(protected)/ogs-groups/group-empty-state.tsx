@@ -48,7 +48,13 @@ export function groupEmptyState({
       ? "Dieser Gruppe ist noch kein Kind zugeordnet. Ordnen Sie ein Kind in der Kindersuche zu, oder wählen Sie oben eine andere Gruppe."
       : "Dieser Gruppe ist noch kein Kind zugeordnet. Ordnen Sie ein Kind in der Kindersuche dieser Gruppe zu.",
     action: (
-      <Button type="button" variant="outline" size="md" onClick={onOpenSearch}>
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={onOpenSearch}
+        tooltip="Öffnet die Kindersuche, dort ordnen Sie Kinder der Gruppe zu."
+      >
         Zur Kindersuche
       </Button>
     ),

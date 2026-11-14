@@ -443,6 +443,11 @@ function TeachersPageContent() {
                     ? () => setShowInviteModal(true)
                     : openExternalCreate
                 }
+                tooltip={
+                  canManageUsers
+                    ? "Öffnet die Einladung, eine E-Mail geht erst nach dem Absenden."
+                    : "Öffnet ein leeres Formular für eine externe Person."
+                }
                 menuItems={createMenuItems}
               />
             ) : null}

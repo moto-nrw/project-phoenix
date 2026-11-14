@@ -478,6 +478,8 @@ export default function AnfragenPage() {
           ? [
               {
                 label: "Neue Anfragen abonnieren",
+                description:
+                  "Zeigt Ihren persönlichen Link für neue Elternanfragen",
                 onClick: () => setRequestFeedOpen(true),
               },
             ]

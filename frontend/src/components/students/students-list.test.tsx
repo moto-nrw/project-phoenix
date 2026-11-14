@@ -603,18 +603,21 @@ describe("StudentsList", () => {
     });
 
     it("disables the bulk action while nothing is selected", () => {
+      const onEndCare = vi.fn();
       render(
         <StudentsList
           {...selectionProps}
           students={[makeStudent("1")]}
           selectionMode
           selectedStudentIds={new Set()}
-          onEndCare={vi.fn()}
+          onEndCare={onEndCare}
         />,
       );
-      expect(
-        screen.getByRole("button", { name: "Betreuung beenden" }),
-      ).toBeDisabled();
+      const button = screen.getByRole("button", { name: "Betreuung beenden" });
+      // disabledReason (#6767) keeps the button focusable for its reason.
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(button);
+      expect(onEndCare).not.toHaveBeenCalled();
     });
 
     it("labels a planned exit in the list", () => {

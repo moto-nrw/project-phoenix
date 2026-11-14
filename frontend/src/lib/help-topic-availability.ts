@@ -225,6 +225,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.leadModules]: "lead",
   [HELP_TOPICS.parentAccount]: "parent",
   [HELP_TOPICS.parentLogin]: "parent",
+  [HELP_TOPICS.parentSignInCode]: "parent",
   [HELP_TOPICS.parentFirstSteps]: "parent",
   [HELP_TOPICS.parentInstallApp]: "parent",
   [HELP_TOPICS.parentNotifications]: "parent",

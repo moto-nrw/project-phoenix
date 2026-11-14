@@ -214,6 +214,12 @@ export function MultiSelectField({
           size="compact"
           onClick={allVisibleSelected ? clearVisible : selectVisible}
           disabled={visibleIds.length === 0}
+          disabledReason="Die Liste zeigt gerade niemanden, den Sie wählen können."
+          tooltip={
+            allVisibleSelected
+              ? "Nimmt alle gerade gezeigten Einträge aus der Auswahl."
+              : "Wählt alle Einträge aus, die Suche und Filter gerade zeigen."
+          }
         >
           {allVisibleSelected ? "Sichtbare abwählen" : "Sichtbare auswählen"}
         </Button>
@@ -243,6 +249,7 @@ export function MultiSelectField({
             variant="ghost"
             size="compact"
             onClick={() => onChange(value.filter((id) => protectedSet.has(id)))}
+            tooltip="Nimmt alle gewählten Einträge heraus, die sich hier ändern lassen."
           >
             Auswahl leeren
           </Button>
@@ -258,6 +265,7 @@ export function MultiSelectField({
               setClassFilter("all");
               setGroupFilter("all");
             }}
+            tooltip="Leert Suche und Filter und zeigt wieder alle Einträge."
           >
             Filter zurücksetzen
           </Button>

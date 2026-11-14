@@ -317,6 +317,7 @@ export function GraduatesModal({
                 variant="outline"
                 size="md"
                 onClick={onClose}
+                noTooltip="Schließen schließt nur das Fenster, ohne etwas zu ändern."
               >
                 Schließen
               </Button>
@@ -327,6 +328,8 @@ export function GraduatesModal({
                   size="md"
                   disabled={selectedIds.length === 0}
                   onClick={() => setConfirmOpen(true)}
+                  tooltip="Löscht die gewählten Kinder mit allen Daten, moto fragt vorher nach."
+                  disabledReason="Wählen Sie zuerst mindestens ein Kind aus."
                 >
                   Endgültig löschen
                 </Button>
@@ -364,6 +367,7 @@ export function GraduatesModal({
               ? "1 Kind endgültig löschen"
               : `${selectedIds.length} Kinder endgültig löschen`
           }
+          confirmTooltip="Löscht die Kinder sofort mit allen Daten, für immer."
           onConfirm={handlePurge}
           onClose={() => setConfirmOpen(false)}
           loading={isPurging}

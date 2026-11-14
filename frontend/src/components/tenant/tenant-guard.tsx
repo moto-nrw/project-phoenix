@@ -13,7 +13,11 @@ import { clientEnv } from "~/env.client";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { useTenant } from "~/lib/tenant-context";
 import { isDemoEntryPath } from "~/lib/demo-access";
-import { isTraegerHandoffPath } from "~/lib/traeger-handoff";
+import {
+  TRAEGER_SIGN_IN_WITH_CODE_LABEL,
+  isTraegerHandoffPath,
+  traegerSignInWithCodeUrl,
+} from "~/lib/traeger-handoff";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
@@ -127,6 +131,11 @@ function GuardedTenant({
   const switchInFlight = useRef(false);
   const [failedTenantId, setFailedTenantId] = useState<number | null>(null);
   const [mfaRequiredTenantId, setMfaRequiredTenantId] = useState<number | null>(
+    null,
+  );
+  // A session from the Träger-Portal that the target school refused for
+  // its remembered device (#6955): the way back leads to the Träger-Portal.
+  const [traegerCodeTenantId, setTraegerCodeTenantId] = useState<number | null>(
     null,
   );
   const [recheck, setRecheck] = useState(0);
@@ -407,6 +416,7 @@ function GuardedTenant({
       switchAttempts.current = { targetTenantId: null, count: 0 };
       setFailedTenantId(null);
       setMfaRequiredTenantId(null);
+      setTraegerCodeTenantId(null);
       clearSwitchError();
       return;
     }
@@ -417,6 +427,7 @@ function GuardedTenant({
       switchAttempts.current = { targetTenantId: urlTenantId, count: 0 };
       setFailedTenantId(null);
       setMfaRequiredTenantId(null);
+      setTraegerCodeTenantId(null);
       clearSwitchError();
     }
 
@@ -504,8 +515,14 @@ function GuardedTenant({
           const needsMFA =
             err instanceof ApiError &&
             err.code === "identity.mfa_session_required";
+          const needsTraegerCode =
+            err instanceof ApiError &&
+            err.code === "traeger.school_requires_code";
           setFailedTenantId(switchTargetTenantId);
           setMfaRequiredTenantId(needsMFA ? switchTargetTenantId : null);
+          setTraegerCodeTenantId(
+            needsTraegerCode ? switchTargetTenantId : null,
+          );
           // The reason shows next to "Erneut versuchen" below; that button
           // is the retry, so the alert carries none of its own.
           void showSwitchError(credentialError(err, NO_ACCESS), {
@@ -545,7 +562,12 @@ function GuardedTenant({
       <div className="mx-auto flex min-h-[200px] max-w-3xl items-center p-4">
         <div className="w-full space-y-3">
           <LoadErrorAlert error="moto kann gerade nicht prüfen, bei welcher Schule Sie angemeldet sind. Bitte versuchen Sie es gleich noch einmal." />
-          <Button type="button" size="md" onClick={checkSessionSchool}>
+          <Button
+            type="button"
+            size="md"
+            onClick={checkSessionSchool}
+            tooltip="Prüft noch einmal, bei welcher Schule Sie angemeldet sind."
+          >
             Erneut versuchen
           </Button>
         </div>
@@ -614,10 +636,22 @@ function GuardedTenant({
               }
             />
             <span className="flex flex-wrap gap-2">
-              {mfaRequiredTenantId === urlTenantId ? (
+              {traegerCodeTenantId === urlTenantId ? (
                 <Button
                   type="button"
                   size="md"
+                  tooltip="Öffnet die Anmeldung im Träger-Portal. Dort fragt moto nach dem Code."
+                  onClick={() => {
+                    globalThis.location.assign(traegerSignInWithCodeUrl());
+                  }}
+                >
+                  {TRAEGER_SIGN_IN_WITH_CODE_LABEL}
+                </Button>
+              ) : mfaRequiredTenantId === urlTenantId ? (
+                <Button
+                  type="button"
+                  size="md"
+                  tooltip={`Meldet Sie ab und öffnet die Anmeldung von ${tenant.name}.`}
                   onClick={() => {
                     void import("./tenant-relogin")
                       .then(({ reloginAtTenant }) =>
@@ -635,6 +669,7 @@ function GuardedTenant({
                   <Button
                     type="button"
                     size="md"
+                    tooltip={`Versucht noch einmal, zu ${tenant.name} zu wechseln.`}
                     onClick={() => {
                       switchAttempts.current = {
                         targetTenantId: urlTenantId,
@@ -651,6 +686,7 @@ function GuardedTenant({
                     type="button"
                     size="md"
                     variant="outline"
+                    tooltip="Meldet Sie ab und öffnet die Anmeldung."
                     onClick={() => {
                       void signOut({ callbackUrl: "/" }).catch(
                         (err: unknown) => {

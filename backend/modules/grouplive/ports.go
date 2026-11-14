@@ -227,6 +227,10 @@ type Planning interface {
 	// TimetablePlannedStudentIDs are the students with a planned timetable
 	// instance on the date whose care day still expects them.
 	TimetablePlannedStudentIDs(ctx context.Context, studentIDs []int64, date Date) (map[int64]bool, error)
+	// PlannedActivities are the offerings (AG, Extern) each student is
+	// planned for on the date (#6487): no cancelled, care or duty blocks,
+	// by start time.
+	PlannedActivities(ctx context.Context, studentIDs []int64, date Date) (map[int64][]PlannedActivity, error)
 	// DecideDay applies the shared day-planning precedence.
 	DecideDay(inputs DayInputs) DayDecision
 	// AtSchoolBeforeCheckIn applies the owner's rule for "Schule": an
@@ -274,6 +278,9 @@ type Settings interface {
 	TrackingIndicatorLabels(ctx context.Context) ([]string, error)
 	// CareDayEnd is the school's session end as "HH:MM".
 	CareDayEnd(ctx context.Context) (string, error)
+	// StudentCardActivitiesEnabled reports whether the child cards show the
+	// day's planned offerings (#6487).
+	StudentCardActivitiesEnabled(ctx context.Context) (bool, error)
 }
 
 // Calendar supplies the tenant's calendar day and wall-clock rendering.

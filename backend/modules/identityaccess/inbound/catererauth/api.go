@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
@@ -44,7 +45,7 @@ func (rs *Resource) MountSignIn(r chi.Router) {
 func (rs *Resource) MountSession(r chi.Router) {
 	r.Get("/account/mfa", rs.mfaStatus)
 	r.Get("/auth/mfa/trusted-devices", rs.listTrustedDevices)
-	r.Delete("/auth/mfa/trusted-devices/{deviceId}", rs.revokeTrustedDevice)
+	r.Delete("/auth/mfa/trusted-devices/{"+portalauth.TrustedDeviceIDParam+"}", rs.revokeTrustedDevice)
 	r.Get("/auth/passkeys", rs.listPasskeys)
 	r.Delete("/auth/passkeys/{passkeyId}", rs.revokePasskey)
 	r.Post("/auth/passkeys/register/verify", rs.passkeyRegisterVerify)

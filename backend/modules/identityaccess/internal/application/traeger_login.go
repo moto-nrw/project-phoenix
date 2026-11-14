@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"slices"
 
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
@@ -91,7 +90,7 @@ func (s *AccountAuthentication) traegerSecondFactor(ctx context.Context, account
 			MaskedEmail: result.MaskedEmail, OrganizationID: organizationID,
 		}, nil
 	}
-	if s.trustedDeviceVerified(identityaccess.WithTraegerDevice(ctx, organizationID), account.ID, 0, in.trustedDeviceCookie) {
+	if s.trustedDeviceVerified(portalDeviceContext(ctx, domain.PortalOrg, organizationID), account.ID, 0, in.trustedDeviceCookie) {
 		return s.mintTraegerSession(ctx, account, organizationID, mintProof{kind: proofTrustedDevice, trustedDeviceCookie: in.trustedDeviceCookie}, in.ipAddress, in.userAgent)
 	}
 	result, err := s.mfaChallengeResult(ctx, account, 0, domain.PortalOrg, in.ipAddress)
@@ -145,7 +144,7 @@ func (s *AccountAuthentication) IssueTraegerTokensForVerifiedMFA(ctx context.Con
 func (s *AccountAuthentication) mintTraegerSession(ctx context.Context, account domain.LoginAccount, organizationID int64, proof mintProof, ipAddress, userAgent string) (*identityaccess.TraegerLoginResult, error) {
 	minted, err := s.mintAccountSession(ctx, mintRequest{
 		portal: domain.PortalOrg, account: account, orgID: organizationID, proof: proof,
-		audit: s.traegerLoginAudit(ctx, account.ID, ipAddress, userAgent),
+		audit: s.schoollessAudit(ctx, account.ID, domain.AuthEventLogin, ipAddress, userAgent),
 	})
 	if err != nil {
 		return nil, err
@@ -166,19 +165,6 @@ func (s *AccountAuthentication) CheckPasswordLogin(ctx context.Context, email, p
 	}
 	account, err := s.validateLoginCredentials(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent)
 	return account.ID, err
-}
-
-// traegerLoginAudit files the sign-in in the authentication ledger of the
-// account's first school. That ledger is school-scoped; a person who works
-// only in the Träger-Büro has no school to file it in (ADR 0084), so the
-// sign-in is only logged.
-func (s *AccountAuthentication) traegerLoginAudit(ctx context.Context, accountID int64, ipAddress, userAgent string) *mintAudit {
-	schoolID, _, err := s.resolveAccountTenantDefault(ctx, accountID)
-	if err != nil {
-		s.logger.Info("Träger sign-in without a school ledger", slog.Int64("account_id", accountID))
-		return nil
-	}
-	return &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: schoolID}
 }
 
 // listTraegerOrganizations reads the Träger of the account outside the mint;

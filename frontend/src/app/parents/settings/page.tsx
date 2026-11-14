@@ -25,6 +25,7 @@ import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { activeParentSettingsSection } from "~/components/parent/shell/parent-nav-items";
 import { ParentSection } from "~/components/parent/shell/parent-section";
+import { ParentSignInSection } from "~/components/parent/parent-sign-in-section";
 import { SamsungChromeInstructions } from "~/components/tenant/pwa-install-hint";
 import { ButtonLink } from "~/components/ui/button";
 import { buildHelpHref, HELP_TOPICS } from "~/lib/help-topics";
@@ -99,6 +100,8 @@ function ParentSettingsContent() {
           <PushNotificationSection portal="parent" />
         </>
       ) : null}
+
+      {section.key === "signIn" ? <ParentSignInSection /> : null}
 
       {section.key === "privacy" ? <ParentAnalyticsConsentSection /> : null}
     </ParentPage>

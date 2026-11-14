@@ -213,6 +213,7 @@ export function ExcusedRequestReviewItem({
       }
       busy={busy}
       approveDisabled={partialDays.length > 0 && !replaceConfirmed}
+      approveDisabledReason="Bestätigen Sie zuerst unten, dass die Teilentschuldigung ersetzt wird."
       approveReasonRequired={approveReasonRequired}
       decisionDisabledReason={decisionDisabledReason}
       onApprove={() => void decide(true)}

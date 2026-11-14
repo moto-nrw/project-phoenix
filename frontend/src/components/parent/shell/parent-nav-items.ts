@@ -28,6 +28,7 @@ import { settingsConcept } from "~/lib/concepts/settings";
 import { languageConcept } from "~/lib/concepts/language";
 import { notificationsConcept } from "~/lib/concepts/notifications";
 import { privacyConcept } from "~/lib/concepts/privacy";
+import { signInConcept } from "~/lib/concepts/signIn";
 
 /**
  * Woher ein Zaehler kommt. Die Huelle loest das zu einer Zahl auf, damit diese
@@ -188,7 +189,7 @@ export const PARENT_MORE_BADGE_SOURCES: readonly ParentNavBadgeSource[] = [
 
 export interface ParentSettingsSection {
   /** Der Wert von `?tab=` in der Adresse. */
-  readonly key: "notifications" | "language" | "privacy";
+  readonly key: "notifications" | "signIn" | "language" | "privacy";
   /** Schluessel im Katalog "parentNav". */
   readonly tKey: string;
   readonly concept: MotoConcept;
@@ -205,6 +206,8 @@ export const PARENT_SETTINGS_SECTIONS: readonly ParentSettingsSection[] = [
     tKey: "notifications",
     concept: notificationsConcept,
   },
+  // Die Anmeldung mit Code per E-Mail (#7051).
+  { key: "signIn", tKey: "signIn", concept: signInConcept },
   { key: "language", tKey: "language", concept: languageConcept },
   { key: "privacy", tKey: "privacy", concept: privacyConcept },
 ];

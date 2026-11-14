@@ -34,6 +34,8 @@ interface OTPInputGridProps {
    */
   readonly onChange?: (code: string) => void;
   readonly ariaLabel?: string;
+  /** The label of one digit box; the German default reads „Stelle N“. */
+  readonly digitLabel?: (position: number) => string;
   readonly autoFocus?: boolean;
 }
 
@@ -47,6 +49,9 @@ interface OTPInputGridProps {
  * Shared by MFAChallengeForm and MFAEnrollmentScreen; introduced to
  * collapse 82 lines of UX logic that were duplicated across both.
  */
+/** The German label of one digit box. */
+const germanDigitLabel = (position: number) => `Stelle ${position}`;
+
 export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
   function OTPInputGrid(
     {
@@ -55,6 +60,7 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
       onComplete,
       onChange,
       ariaLabel = "Bestätigungscode",
+      digitLabel = germanDigitLabel,
       autoFocus = true,
     },
     ref,
@@ -210,8 +216,8 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
             onKeyDown={(e) => handleKeyDown(index, e)}
             onPaste={handlePaste}
             disabled={disabled}
-            aria-label={`Stelle ${index + 1}`}
-            className="focus-visible:ring-moto-blue h-14 w-12 rounded-lg border-0 bg-white text-center text-2xl font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 disabled:bg-gray-50 disabled:text-gray-400"
+            aria-label={digitLabel(index + 1)}
+            className="focus-visible:ring-moto-blue h-14 w-0 max-w-12 min-w-0 flex-1 rounded-lg border-0 bg-white text-center text-2xl font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 disabled:bg-gray-50 disabled:text-gray-400"
           />
         ))}
       </div>

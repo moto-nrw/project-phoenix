@@ -214,7 +214,10 @@ async function loginThroughUI(
   ]);
   if (!response.ok())
     throw new Error(`Test-Login fehlgeschlagen (${response.status()}).`);
-  const result = (await response.json()) as { status?: string };
+  const result = (await response.json()) as {
+    status?: string;
+    trusted_device_enabled?: boolean;
+  };
   const enrollment = result.status === "mfa_enrollment_required";
   if (enrollment) {
     await page
@@ -228,6 +231,13 @@ async function loginThroughUI(
     await input.fill(code);
     if (enrollment) {
       await page.getByRole("button", { name: "Weiter zum Dashboard" }).click();
+    } else if (result.trusted_device_enabled !== false) {
+      // Match the UI's default and finish MFA without remembering a test device.
+      await page
+        .getByRole("button", {
+          name: /^(?:Nur dieses Mal bestätigen|Nein, nur anmelden)/,
+        })
+        .click();
     }
   }
   // The email field disappears at the MFA step too. Only a real session proves

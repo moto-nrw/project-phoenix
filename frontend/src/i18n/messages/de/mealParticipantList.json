@@ -54,5 +54,9 @@
   "weekNotRegistered": "nicht angemeldet",
   "weekCountsLabel": "Essen pro Tag",
   "weekCount": "{count, plural, one {# Kind} other {# Kinder}}",
-  "weekClosed": "kein Essen"
+  "weekClosed": "kein Essen",
+  "changeDescription": "Öffnet die Anmeldung des Kindes. Eltern sehen Änderungen im Elternportal",
+  "changeTooltip": "Öffnet ein Fenster, um ein Kind an- oder abzumelden.",
+  "changePastReason": "Vergangene Tage können Sie nicht mehr ändern.",
+  "changeClosedReason": "An geschlossenen Tagen gibt es keine Anmeldung zu ändern."
 }

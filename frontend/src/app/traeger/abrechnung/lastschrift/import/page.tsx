@@ -89,7 +89,6 @@ export default function TraegerSepaImportPage() {
       logger.error("sepa_import_log_load_failed", { error: errorText(err) });
       await showLogError(err, {
         object: "die Liste der Importe",
-        // oxlint-disable-next-line ui-kit/menu-item-needs-description -- Aktion der Fehlermeldung, kein Menüeintrag.
         action: { label: "Erneut laden", onClick: () => void loadLog() },
       });
     }

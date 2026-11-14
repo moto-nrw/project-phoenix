@@ -67,6 +67,8 @@ const ROUTES: Record<string, () => Promise<{ POST: unknown }>> = {
     import("./caterer/account/mfa/disable/route"),
   "caterer/account/mfa/confirm": () =>
     import("./caterer/account/mfa/confirm/route"),
+  "parent/me/mfa/disable": () => import("./parent/me/mfa/disable/route"),
+  "parent/me/mfa/confirm": () => import("./parent/me/mfa/confirm/route"),
   "parent/me/children/[studentId]/pickup-signature-statement": () =>
     import("./parent/me/children/[studentId]/pickup-signature-statement/route"),
 };
@@ -142,6 +144,12 @@ describe("routes that carry the current password or a code", () => {
       { currentPassword: SECRET },
     ],
     ["caterer/account/mfa/confirm", "caterer.localhost:3000", { code: SECRET }],
+    [
+      "parent/me/mfa/disable",
+      "parents.localhost:3000",
+      { currentPassword: SECRET },
+    ],
+    ["parent/me/mfa/confirm", "parents.localhost:3000", { code: SECRET }],
   ])("%s sends it once after a 401", async (route, host, body) => {
     const response = await post(route, host, body);
 

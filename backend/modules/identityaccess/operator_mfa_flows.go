@@ -21,14 +21,10 @@ var (
 	ErrOperatorMFAUnavailable = errors.New("operator mfa is not composed")
 )
 
-// The operator code policy. Operators have no per-school settings, so these
-// values are the policy, not a fallback.
-const (
-	OperatorMFAChallengeTTL          = 10 * time.Minute
-	OperatorMFARateLimitWindow       = 15 * time.Minute
-	OperatorMFARateLimitMaxSent      = 3
-	OperatorMFATrustedDeviceDuration = 90 * 24 * time.Hour
-)
+// OperatorMFARateLimitMaxSent is the number of codes one operator may have
+// sent within the flows' window (internal/domain/mfa.go). Operators have no
+// per-school settings, so it is the policy, not a fallback.
+const OperatorMFARateLimitMaxSent = 3
 
 // OperatorMFAProof is what a redeemed operator code hands the exchange: the
 // operator and the credential generation of the password check the code

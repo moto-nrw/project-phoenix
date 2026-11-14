@@ -29,7 +29,15 @@ const UNMAPPED = "";
 const PAYER_KEYS: { value: PayerKey; label: string }[] = [
   { value: "email", label: PAYER_KEY_LABELS.email },
   { value: "contract_id", label: PAYER_KEY_LABELS.contract_id },
+  { value: "debtor_number", label: PAYER_KEY_LABELS.debtor_number },
 ];
+
+const PAYER_KEY_HINTS: Record<PayerKey, string> = {
+  email: "Die E-Mail-Adresse aus dem Vertrag der Familie.",
+  contract_id: "Die Nummer des Vertrags in moto, zum Beispiel 1042.",
+  debtor_number:
+    "Die Debitorennummer, die moto schon kennt: je Kind oder je Zahler, wie in den Einstellungen.",
+};
 
 export function SepaImportMappingCard({
   headers,
@@ -92,11 +100,10 @@ export function SepaImportMappingCard({
             onChange={(payerKey) => onChange({ ...mapping, payerKey })}
             fullWidth
             wrap
+            minSegmentWidth={150}
           />
           <p className="mt-2 text-xs text-gray-500">
-            {mapping.payerKey === "email"
-              ? "Die E-Mail-Adresse aus dem Vertrag der Familie."
-              : "Die Nummer des Vertrags in moto, zum Beispiel 1042."}
+            {PAYER_KEY_HINTS[mapping.payerKey]}
           </p>
         </div>
         {withoutCreditorColumn ? (

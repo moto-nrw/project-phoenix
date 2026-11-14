@@ -475,6 +475,7 @@ export function DienstplanResourceGrid({
       items.push({
         label: "Wochenraster öffnen",
         icon: <MotoConceptIcon concept={staffPlanConcept} size={18} />,
+        description: "Zeigt die Woche nur dieser Person.",
         onClick: () => onOpenPersonWeek(member),
       });
     }
@@ -485,6 +486,7 @@ export function DienstplanResourceGrid({
       items.push({
         label: "Krank melden",
         icon: <MotoConceptIcon concept={sickConcept} size={18} />,
+        description: "Öffnet ein Fenster für die Krankmeldung.",
         onClick: () => onSickReport(member),
       });
     }
@@ -492,11 +494,14 @@ export function DienstplanResourceGrid({
       items.push({
         label: "Für heute abwesend melden",
         icon: <MotoConceptIcon concept={notArrivalConcept} size={18} />,
+        description:
+          "Öffnet den Vertretungsplan, um eine Vertretung einzutragen.",
         onClick: () => router.push(`/vertretung?d=${absenceEntryDate}`),
       });
       items.push({
         label: "Zeiterfassung öffnen",
         icon: <MotoConceptIcon concept={timeTrackingConcept} size={18} />,
+        description: "Zeigt die erfassten Arbeitszeiten dieser Person.",
         onClick: () => router.push(timeTrackingHref(member)),
       });
     }
@@ -585,6 +590,8 @@ export function DienstplanResourceGrid({
           {
             label: "Verschieben nach",
             icon: <ArrowRightLeft className="h-4 w-4" aria-hidden />,
+            description:
+              "Legt die Schicht auf eine andere Person oder einen anderen Tag.",
             onClick: () => setMoveTarget({ member, shift }),
           },
         ];

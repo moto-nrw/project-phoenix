@@ -27,6 +27,16 @@ var (
 	// ErrTraegerSchoolNotFound reports a school that is unknown, inactive or
 	// deleted, or that belongs to another Träger.
 	ErrTraegerSchoolNotFound = errors.New("the school does not belong to the Träger")
+	// ErrSchoolRequiresCodeProof reports a session that came from the
+	// Träger-Portal (Absprung or a switch between schools of the Träger)
+	// whose second factor only a remembered device proved, refused by a
+	// school that switched remembered devices off or whose setting cannot be
+	// read (#6955): the person signs in to the Träger-Portal with a code.
+	ErrSchoolRequiresCodeProof = errors.New("the school accepts no second factor proven only by a remembered device")
+	// ErrSwitchRequiresCodeProof is the same refusal for a switch between
+	// schools of the account's own memberships: the person signs in at the
+	// target school with a code.
+	ErrSwitchRequiresCodeProof = errors.New("the target school accepts no second factor proven only by a remembered device")
 )
 
 // The Träger roles of ADR 0084 section 4. In version 1 each is a fixed bundle
@@ -220,4 +230,37 @@ type TraegerSchoolSessionRequest struct {
 // it is short-lived and single-use.
 type TraegerSchoolSessions interface {
 	StartTraegerSchoolSession(ctx context.Context, request TraegerSchoolSessionRequest) (string, error)
+}
+
+// TraegerStepUpRequest names the running Träger session a code step proves
+// the second factor for (#7068). Account, Träger and family come from that
+// session, never from the request body.
+type TraegerStepUpRequest struct {
+	AccountID      int64
+	OrganizationID int64
+	FamilyID       string
+	IPAddress      string
+	UserAgent      string
+}
+
+// TraegerStepUpChallenge is the e-mailed code of a step: the challenge token
+// the code is redeemed with and the masked address it went to.
+type TraegerStepUpChallenge struct {
+	ChallengeToken string
+	MaskedEmail    string
+}
+
+// TraegerSessionStepUp proves the second factor by code in the running
+// Träger session (#7068), for a school that accepts no factor proven only by
+// a remembered device (ErrSchoolRequiresCodeProof). StartTraegerStepUp mails
+// an org-scope code with the limits of the sign-in. CompleteTraegerStepUp
+// takes the redeemed code of the session's account and rotates the session
+// into a new family whose factor the code proved (mfa_by_device false); the
+// presented family is retired in the same transaction, under the account
+// lock refresh and logout take, and keeps its switch lineage. A presented
+// family that is no longer the account's live session at that Träger is
+// refused with ErrInvalidToken.
+type TraegerSessionStepUp interface {
+	StartTraegerStepUp(ctx context.Context, request TraegerStepUpRequest) (TraegerStepUpChallenge, error)
+	CompleteTraegerStepUp(ctx context.Context, request TraegerStepUpRequest, proof VerifiedMFAChallenge) (*TraegerLoginResult, error)
 }

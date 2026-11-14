@@ -3,6 +3,7 @@ package identityaccess
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -178,9 +179,9 @@ const (
 // are validated against the Träger roles; an empty set is invalid. A change
 // that would leave the Träger-Büro without a person holding the role
 // Leitung is refused with ErrTraegerLastLeader; only a person with
-// Leitung grants, withdraws or removes Leitung (#5471). Changed roles reach
-// a session at its next refresh; a removal ends the person's Träger sessions
-// at once.
+// Leitung grants, withdraws or removes Leitung (#5471). Added roles reach
+// a session at its next refresh; a withdrawn role (TraegerRolesWithdrawn) and
+// a removal end the person's Träger sessions at once (#6850).
 type TraegerAccountManagement interface {
 	ListTraegerBuero(ctx context.Context, actor TraegerActor) (TraegerBuero, error)
 	InviteTraegerAccount(ctx context.Context, actor TraegerActor, email string, roles []string) (TraegerInvitation, error)
@@ -233,4 +234,10 @@ type TraegerOperatorInvitation interface {
 	ListTraegerInvitationsForOperator(ctx context.Context, organizationID int64) ([]TraegerInvitation, error)
 	ResendTraegerInvitationForOperator(ctx context.Context, organizationID, invitationID int64) (TraegerInvitation, error)
 	RevokeTraegerInvitationForOperator(ctx context.Context, organizationID, invitationID int64) (TraegerInvitation, error)
+}
+
+// TraegerRolesWithdrawn tells whether after lacks a role of before: the
+// change takes a right away from the person (#6850).
+func TraegerRolesWithdrawn(before, after []string) bool {
+	return slices.ContainsFunc(before, func(role string) bool { return !slices.Contains(after, role) })
 }

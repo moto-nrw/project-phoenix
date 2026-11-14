@@ -234,7 +234,7 @@ func (rs *Resource) listTrustedDevices(w http.ResponseWriter, r *http.Request) {
 	}
 	portalauth.ListTrustedDevices(w, r, func(ctx context.Context) ([]identityaccess.AccountTrustedDevice, error) {
 		return rs.MFAService.ListTrustedDevices(ctx, int64(claims.ID), claims.TenantID)
-	})
+	}, portalauth.RefuseMFA)
 }
 
 // revokeTrustedDevice forgets one remembered device of the Lehrkraft at the
@@ -246,7 +246,7 @@ func (rs *Resource) revokeTrustedDevice(w http.ResponseWriter, r *http.Request) 
 	}
 	portalauth.RevokeTrustedDevice(w, r, func(ctx context.Context, deviceID int64) error {
 		return rs.MFAService.RevokeTrustedDevice(ctx, int64(claims.ID), claims.TenantID, deviceID)
-	})
+	}, portalauth.RefuseMFA)
 }
 
 func (rs *Resource) deviceClaims(w http.ResponseWriter, r *http.Request) (sessiontoken.AppClaims, bool) {

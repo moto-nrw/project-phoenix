@@ -69,6 +69,7 @@ import { EmptyStudentResults } from "~/components/students/empty-student-results
 import {
   StudentCard,
   PickupTimeRow,
+  PlannedActivityRows,
   ArrivalTimeRow,
   StudentAbsenceRow,
   StudentInfoRow,
@@ -136,7 +137,10 @@ import {
   getTimeStatusSortRank,
   type StudentDayTimes,
 } from "~/lib/student-time-status";
-import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
+import {
+  getDayPlanningNotComingLabel,
+  hasActualAttendance,
+} from "~/lib/day-planning-helper";
 
 import { createLogger } from "~/lib/logger";
 import { type SidebarMemory, useSidebarMemory } from "~/lib/sidebar-memory";
@@ -287,6 +291,7 @@ function mapStudentForOgsPage(student: OgsLiveWireStudent): Student {
     day_planning_label: student.day_planning_label,
     pending_excused_note: student.pending_excused_note,
     teacher_hints: student.teacher_hints,
+    planned_activities: student.planned_activities,
     class_handover: student.class_handover,
     actual_arrival_time: student.actual_arrival_time,
     actual_pickup_time: student.actual_pickup_time,
@@ -1291,6 +1296,18 @@ function OGSGroupPageContent() {
                             );
                           }
                           const day = getOgsStudentDay(student, pickupTimes);
+                          const arrivalAbsent =
+                            (student.arrival_is_exception ?? false) &&
+                            !student.arrival_time;
+                          // As in day planning, attendance (including a return
+                          // to class) takes precedence over absence exceptions.
+                          const notHereToday =
+                            !hasActualAttendance(student) &&
+                            !isInClassLocation(student.current_location) &&
+                            (arrivalAbsent ||
+                              ((studentPickup?.isException ?? false) &&
+                                !studentPickup?.pickupTime &&
+                                !student.actual_pickup_time));
                           return (
                             <>
                               <ArrivalTimeRow
@@ -1299,14 +1316,18 @@ function OGSGroupPageContent() {
                                 isException={
                                   student.arrival_is_exception ?? false
                                 }
-                                isAbsent={
-                                  (student.arrival_is_exception ?? false) &&
-                                  !student.arrival_time
-                                }
+                                isAbsent={arrivalAbsent}
                                 notes={student.arrival_notes}
                                 now={now}
                                 day={day}
+                                prominent
                               />
+                              {/* Tagesablauf (#6487): Kommen, Angebote, Gehen. */}
+                              {notHereToday ? null : (
+                                <PlannedActivityRows
+                                  activities={student.planned_activities}
+                                />
+                              )}
                               <PickupTimeRow
                                 pickupTime={studentPickup?.pickupTime}
                                 actualTime={student.actual_pickup_time}
@@ -1323,6 +1344,7 @@ function OGSGroupPageContent() {
                                 }
                                 now={now}
                                 day={day}
+                                prominent
                               />
                             </>
                           );
@@ -1375,6 +1397,7 @@ function OGSGroupPageContent() {
       variant="outline"
       size="md"
       onClick={() => router.push("/ferienwochen")}
+      tooltip={HOLIDAY_WEEKS_TOOLTIP}
     >
       Zu den Ferienwochen
     </Button>
@@ -1547,6 +1570,7 @@ function OGSGroupPageContent() {
                   variant="ghost_tone"
                   size="compact"
                   onClick={() => router.push("/ferienwochen")}
+                  tooltip={HOLIDAY_WEEKS_TOOLTIP}
                 >
                   Zu den Ferienwochen
                 </Button>
@@ -1583,6 +1607,9 @@ function OGSGroupPageContent() {
 }
 
 // Main component with Suspense wrapper
+const HOLIDAY_WEEKS_TOOLTIP =
+  "Öffnet die Ferienwochen, dort steht, welche Feriengäste kommen.";
+
 export default function OGSGroupPage() {
   return (
     <OpenCareModeGuard>

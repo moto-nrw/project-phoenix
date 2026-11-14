@@ -93,7 +93,7 @@ export function RemindersBell() {
           aria-expanded={isOpen}
           aria-haspopup="dialog"
           aria-controls={isOpen ? panelId : undefined}
-          title="Erinnerungen"
+          tooltip="Zeigt Ihre Erinnerungen, ohne die Seite zu verlassen."
           className="relative"
         >
           <Bell className="h-5 w-5" />

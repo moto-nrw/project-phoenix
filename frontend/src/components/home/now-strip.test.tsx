@@ -196,9 +196,11 @@ describe("NowStrip (#2180)", () => {
     expect(
       screen.queryByRole("link", { name: "Meine Gruppe" }),
     ).not.toBeInTheDocument();
-    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(
-      ["Alle Kinder"],
-    );
+    // Der Name, nicht textContent: die Erklärung am Link steht versteckt im
+    // Link selbst (#6777).
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAccessibleName("Alle Kinder");
   });
 
   it("zeigt bei einem laufenden spontanen Einsatz kein Platzhalter-Ende", () => {
@@ -346,9 +348,11 @@ describe("NowStrip (#2180)", () => {
     render(<NowStrip access={allowed} context={context(allowed)} />);
 
     expect(screen.getByText(/08\.09\.2026/)).toBeInTheDocument();
-    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(
-      ["Alle Kinder"],
-    );
+    // Der Name, nicht textContent: die Erklärung am Link steht versteckt im
+    // Link selbst (#6777).
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAccessibleName("Alle Kinder");
   });
 
   // Auch wer betreut, sieht, wie viele Kinder da sind (#4347): neben dem

@@ -168,7 +168,6 @@ function InviteModeDependentEmptyState({
         error={{
           message:
             "Die Einladungs-Einstellung konnte nicht geladen werden. Darum ist unklar, warum hier keine Anfragen stehen.",
-          // oxlint-disable-next-line ui-kit/menu-item-needs-description -- Wiederholen im Fehlerkasten, kein Menüeintrag.
           retry: { label: "Wiederholen", onClick: state.retry },
           attempt: 0,
         }}
