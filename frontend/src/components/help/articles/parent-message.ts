@@ -50,7 +50,7 @@ export function parentMessageTopic(): HelpTopic {
           "Das geht nur, wenn die Schule unter `Einstellungen` den Schalter `Neue Elternnachrichten auf der Kinderkachel` eingeschaltet hat. Die blaue Zahl oben rechts an der Kachel zählt neue Nachrichten und offene Anfragen der Eltern.",
         steps: [
           "Tippen Sie auf die blaue Zahl an der Kinderkachel, zum Beispiel in Ihrer Gruppe.",
-          "Lesen Sie die neuen Nachrichten.",
+          "Lesen Sie die Elternnachrichten. Auch frühere Nachrichten sind sichtbar.",
           "Wählen Sie `Als gelesen bestätigen`. Dann sieht das ganze Team die Nachricht nicht mehr als neu.",
           "Oder wählen Sie `Antworten`. moto öffnet dann die Unterhaltung.",
           "Eine offene Anfrage geben Sie unten im selben Fenster frei oder lehnen sie ab.",

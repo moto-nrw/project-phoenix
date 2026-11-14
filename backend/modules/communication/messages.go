@@ -99,6 +99,7 @@ type ParentMessage struct {
 	CreatedAt       time.Time
 	Kind            string
 	EventType       string
+	EventActorKind  string
 	RequestType     string
 	RequestStatus   string
 	Payload         json.RawMessage

@@ -7,6 +7,11 @@ import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { Modal } from "~/components/ui/modal";
+import { MessageAttachments } from "~/components/ui/message-attachments";
+import {
+  PARENT_MESSAGE_ATTACHMENTS,
+  fetchMessageAttachmentFile,
+} from "~/lib/message-attachments";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
 import { SectionLabel } from "~/components/ui/section-label";
@@ -35,39 +40,16 @@ interface UnreadConversation {
   readonly lastShownId: string | null;
 }
 
-/**
- * Die neuen Nachrichten der Eltern einer Unterhaltung: die letzten
- * `unread_count` Einträge, die nicht vom Team stammen. Eine neue Anfrage
- * zählt nicht als Nachricht; sie steht unten bei den Anfragen.
- */
-export function newParentMessages(
+/** The same counterpart classification as the backend, without stale count slicing. */
+export function parentMessagesInSnapshot(
   messages: readonly Message[],
-  unreadCount: number,
 ): Message[] {
-  const fromParents = messages.filter(
+  return messages.filter(
     (message) =>
-      message.sender_kind !== "staff" &&
-      message.event_type !== "request_created",
-  );
-  return unreadCount > 0 ? fromParents.slice(-unreadCount) : [];
-}
-
-async function loadUnreadConversations(
-  studentId: string,
-): Promise<UnreadConversation[]> {
-  const threads = (await fetchStudentThreads(studentId)).filter(
-    (thread) => thread.unread_count > 0,
-  );
-  // Öffnen gilt als gelesen für die eigene Person, wie im Posteingang.
-  return Promise.all(
-    threads.map(async (thread) => {
-      const detail = await fetchThread(thread.thread_id);
-      return {
-        thread,
-        messages: newParentMessages(detail.messages, thread.unread_count),
-        lastShownId: detail.messages.at(-1)?.id ?? null,
-      };
-    }),
+      message.event_type !== "request_created" &&
+      (message.sender_kind === "guardian" ||
+        (message.sender_kind === "system" &&
+          message.event_actor_kind === "guardian")),
   );
 }
 
@@ -103,6 +85,13 @@ function ConversationCard({
             <p className="whitespace-pre-line text-gray-900">
               {messageText(message)}
             </p>
+            {message.attachments?.length ? (
+              <MessageAttachments
+                attachments={message.attachments}
+                downloadUrl={PARENT_MESSAGE_ATTACHMENTS.downloadUrl}
+                loadFile={fetchMessageAttachmentFile}
+              />
+            ) : null}
           </InsetPanel>
         ))}
         <div className="flex flex-wrap gap-2 pt-1">
@@ -113,7 +102,7 @@ function ConversationCard({
             >
               Für das Team als gelesen bestätigt.
             </p>
-          ) : (
+          ) : conversation.lastShownId !== null ? (
             <Button
               type="button"
               variant="success"
@@ -125,7 +114,7 @@ function ConversationCard({
             >
               Als gelesen bestätigen
             </Button>
-          )}
+          ) : null}
           <Button
             type="button"
             variant="surface"
@@ -152,25 +141,79 @@ function MessagesSection({ studentId }: Readonly<{ studentId: string }>) {
     () => new Set(),
   );
   const [confirming, setConfirming] = useState<string | null>(null);
-  const loadRef = useRef<() => Promise<void>>(async () => undefined);
+  const loadRef = useRef<(threads?: readonly InboxThread[]) => Promise<void>>(
+    async () => undefined,
+  );
 
-  const load = useCallback(async () => {
-    clear();
-    try {
-      setConversations(await loadUnreadConversations(studentId));
-      // Gelesen für die eigene Person: die Zahl auf den Kacheln folgt.
-      window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
-    } catch (err: unknown) {
-      logger.warn("parent_attention_messages_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setConversations([]);
-      void showLoadError(err, {
-        object: "die Nachrichten",
-        retry: () => loadRef.current(),
-      });
-    }
-  }, [clear, showLoadError, studentId]);
+  const load = useCallback(
+    async (retryThreads?: readonly InboxThread[]) => {
+      clear();
+      try {
+        const threads =
+          retryThreads ??
+          (await fetchStudentThreads(studentId)).filter(
+            (thread) => thread.unread_count > 0,
+          );
+        const results = await Promise.allSettled(
+          threads.map(async (thread) => {
+            // The endpoint marks this exact message snapshot as personally read.
+            // Show all its parent-side content, including older messages, so a
+            // stale list count or a concurrent arrival can never hide a read row.
+            const detail = await fetchThread(thread.thread_id);
+            const messages = parentMessagesInSnapshot(detail.messages);
+            return {
+              thread,
+              messages,
+              lastShownId: messages.at(-1)?.id ?? null,
+            };
+          }),
+        );
+        const loaded: UnreadConversation[] = [];
+        const failed: InboxThread[] = [];
+        let failure: unknown;
+        results.forEach((result, index) => {
+          if (result.status === "fulfilled") loaded.push(result.value);
+          else {
+            const thread = threads[index];
+            if (thread) failed.push(thread);
+            failure = result.reason;
+          }
+        });
+        setConversations((previous) => {
+          const merged = new Map(
+            (previous ?? []).map((conversation) => [
+              conversation.thread.thread_id,
+              conversation,
+            ]),
+          );
+          for (const conversation of loaded)
+            merged.set(conversation.thread.thread_id, conversation);
+          return [...merged.values()];
+        });
+        if (loaded.length > 0)
+          window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
+        if (failed.length > 0) {
+          logger.warn("parent_attention_messages_load_failed", {
+            error: failure instanceof Error ? failure.message : String(failure),
+          });
+          void showLoadError(failure, {
+            object: "die Nachrichten",
+            retry: () => loadRef.current(failed),
+          });
+        }
+      } catch (err: unknown) {
+        logger.warn("parent_attention_messages_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setConversations((previous) => previous ?? []);
+        void showLoadError(err, {
+          object: "die Nachrichten",
+          retry: () => loadRef.current(retryThreads),
+        });
+      }
+    },
+    [clear, showLoadError, studentId],
+  );
 
   useEffect(() => {
     loadRef.current = load;
@@ -256,9 +299,9 @@ export function ParentAttentionDialog({
     >
       <div className="space-y-6">
         {attention.messages > 0 ? (
-          <section className="space-y-3" aria-label="Neue Nachrichten">
-            <SectionLabel>Neue Nachrichten</SectionLabel>
-            <MessagesSection studentId={studentId} />
+          <section className="space-y-3" aria-label="Nachrichten">
+            <SectionLabel>Nachrichten</SectionLabel>
+            <MessagesSection key={studentId} studentId={studentId} />
           </section>
         ) : null}
         {attention.requests > 0 ? (

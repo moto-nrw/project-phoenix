@@ -139,6 +139,7 @@ type MessageResponse struct {
 	CreatedAt       time.Time       `json:"created_at"`
 	Kind            string          `json:"kind"`
 	EventType       string          `json:"event_type,omitempty"`
+	EventActorKind  string          `json:"event_actor_kind,omitempty"`
 	RequestType     string          `json:"request_type,omitempty"`
 	RequestStatus   string          `json:"request_status,omitempty"`
 	Payload         json.RawMessage `json:"payload,omitempty"`
@@ -233,6 +234,7 @@ func toMessageResponses(messages []communication.ParentMessage, viewer ...int64)
 			CreatedAt:        m.CreatedAt,
 			Kind:             m.Kind,
 			EventType:        m.EventType,
+			EventActorKind:   m.EventActorKind,
 			RequestType:      m.RequestType,
 			RequestStatus:    m.RequestStatus,
 			Payload:          m.Payload,

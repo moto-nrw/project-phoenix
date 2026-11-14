@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parentAttentionLabel } from "~/components/students/parent-attention-badge";
-import { newParentMessages } from "~/components/students/parent-attention-dialog";
+import { parentMessagesInSnapshot } from "~/components/students/parent-attention-dialog";
 import type { Message } from "~/lib/parent-messages-api";
 
 function message(
@@ -32,8 +32,8 @@ describe("parentAttentionLabel", () => {
   });
 });
 
-describe("newParentMessages", () => {
-  it("shows the last unread parent messages, never staff replies or new-request pills", () => {
+describe("parentMessagesInSnapshot", () => {
+  it("shows the complete parent snapshot, never staff replies or new-request pills", () => {
     const thread = [
       message("1", "guardian"),
       message("2", "staff"),
@@ -45,7 +45,33 @@ describe("newParentMessages", () => {
       message("5", "guardian"),
     ];
 
-    expect(newParentMessages(thread, 2).map((m) => m.id)).toEqual(["3", "5"]);
-    expect(newParentMessages(thread, 0)).toEqual([]);
+    expect(parentMessagesInSnapshot(thread).map((m) => m.id)).toEqual([
+      "1",
+      "3",
+      "5",
+    ]);
+    expect(parentMessagesInSnapshot([])).toEqual([]);
+  });
+
+  it("attributes system events to their actor and excludes new requests on either side", () => {
+    const thread = [
+      message("parent-event", "system", {
+        event_type: "request_status",
+        event_actor_kind: "guardian",
+      }),
+      message("staff-event", "system", {
+        event_type: "request_status",
+        event_actor_kind: "staff",
+      }),
+      message("unknown-event", "system", { event_type: "request_status" }),
+      message("new-request", "system", {
+        event_type: "request_created",
+        event_actor_kind: "guardian",
+      }),
+      message("parent-request", "guardian", { event_type: "request_created" }),
+    ];
+    expect(parentMessagesInSnapshot(thread).map((m) => m.id)).toEqual([
+      "parent-event",
+    ]);
   });
 });

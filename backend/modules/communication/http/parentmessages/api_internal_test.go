@@ -32,6 +32,18 @@ func TestParentMessageWireContractPreservesJSONPayloadAndStringIDs(t *testing.T)
 	assert.JSONEq(t, `[{"id":"7","sender_kind":"guardian","sender_name":"Erika","body":"Ja","created_at":"2026-09-04T08:15:00Z","kind":"request","event_type":"care","request_type":"pickup","request_status":"open","payload":{"answer":"Ja"},"ref_table":"schedule.requests","ref_id":"12","applied_by":"34","decision_reason":"bestätigt","read_by_staff":true,"read_by_guardian":true}]`, string(encoded))
 }
 
+func TestParentSystemEventWireContractPreservesActorKind(t *testing.T) {
+	t.Parallel()
+	for _, actor := range []string{"guardian", "staff"} {
+		response := toMessageResponses([]communication.ParentMessage{{
+			SenderKind: "system", EventType: "request_status", EventActorKind: actor,
+		}})
+		encoded, err := json.Marshal(response)
+		require.NoError(t, err)
+		assert.Contains(t, string(encoded), `"event_actor_kind":"`+actor+`"`)
+	}
+}
+
 func TestParentMessageHTTPErrorContract(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

@@ -12,9 +12,9 @@ import {
   type ParentAttention,
 } from "~/lib/parent-attention";
 import { fetchInboxWithFilters } from "~/lib/parent-messages-api";
-import { useSWRAuth } from "~/lib/swr";
+import { useLiveRefreshInterval, useSWRAuth } from "~/lib/swr";
 import { messageKeys } from "~/lib/swr/portal-keys";
-import { useTenantSafe } from "~/lib/tenant-context";
+import { useModuleBooked, useTenantSafe } from "~/lib/tenant-context";
 
 /** Ereignisse, nach denen die Zahlen auf den Kinderkacheln neu geladen werden. */
 const REFRESH_EVENTS = [
@@ -70,8 +70,11 @@ export function useParentAttentionEnabled(): boolean {
 function useParentAttentionMap(): ReadonlyMap<string, ParentAttention> | null {
   const enabled = useParentAttentionEnabled();
   const { data: session } = useSession();
+  const elternAppBooked = useModuleBooked("eltern_app");
   const readsMessages =
-    isAdmin(session) || hasPermission(session, "users:read");
+    elternAppBooked &&
+    (isAdmin(session) || hasPermission(session, "users:read"));
+  const refreshInterval = useLiveRefreshInterval();
   const { canReviewParentRequests, isLoading: accessLoading } =
     useChangeRequestAccess();
   // Nachrichten und Anfragen hängen an getrennten Rechten: wer nur Anfragen
@@ -91,7 +94,7 @@ function useParentAttentionMap(): ReadonlyMap<string, ParentAttention> | null {
       ]);
       return countParentAttention(threads, requests);
     },
-    { revalidateOnFocus: true, keepPreviousData: true },
+    { refreshInterval, revalidateOnFocus: true, keepPreviousData: false },
   );
 
   useEffect(() => {

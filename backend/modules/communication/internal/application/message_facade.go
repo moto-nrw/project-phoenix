@@ -349,7 +349,7 @@ func mapParentMessage(row *ParentMessage) (communication.ParentMessage, error) {
 	}
 	return communication.ParentMessage{
 		ID: row.ID, SenderAccountID: row.SenderAccountID, SenderKind: row.SenderKind, SenderName: row.SenderName,
-		ClientMessageID: row.ClientMessageID, SendReplayed: row.SendReplayed, Body: row.Body, CreatedAt: row.CreatedAt, Kind: row.Kind, EventType: row.EventType,
+		ClientMessageID: row.ClientMessageID, SendReplayed: row.SendReplayed, Body: row.Body, CreatedAt: row.CreatedAt, Kind: row.Kind, EventType: row.EventType, EventActorKind: row.EventActorKind,
 		RequestType: row.RequestType, RequestStatus: row.RequestStatus, Payload: payload,
 		RefTable: row.RefTable, RefID: row.RefID, AppliedAt: row.AppliedAt, AppliedBy: row.AppliedBy,
 		DecisionReason: row.DecisionReason, ReadByStaff: row.ReadByStaff, ReadByGuardian: row.ReadByGuardian,
