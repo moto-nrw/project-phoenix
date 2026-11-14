@@ -426,6 +426,7 @@ import {
   loginResult,
   missingMenuDifferences,
   parentAnnouncementSteps,
+  SIMPLE_NAV_DIFFERENCE,
   unavailableNfcTopic,
   unknownNfcTopic,
 } from "./help-article-shared";
@@ -951,6 +952,20 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
         ],
       },
       {
+        // Einstellung „Einfache Seitenleiste für die Betreuung“ (#6956);
+        // Liste: STAFF_NAV_SIMPLE_ENTRIES in lib/staff-navigation.ts.
+        title: "Die einfache Seitenleiste",
+        description:
+          "Ihre OGS kann für die Betreuung eine einfache Seitenleiste einschalten. Dann stehen dort nur die Seiten für den Betreuungsalltag, ohne Überschriften zum Aufklappen.",
+        ordered: false,
+        steps: [
+          "Sie suchen eine Seite, die nicht dabei ist? Wählen Sie ganz unten `Alle Seiten anzeigen`. Auf dem Handy steht der Knopf unter `Mehr`.",
+          "Mit `Weniger Seiten anzeigen` kommen Sie zur einfachen Seitenleiste zurück.",
+          "moto merkt sich Ihre Wahl auf diesem Gerät.",
+          "Wer die OGS leitet, sieht immer alle Seiten. Die Leitung schaltet die einfache Seitenleiste unter `Einstellungen` › `Betrieb` ein.",
+        ],
+      },
+      {
         title: "Auf dem Handy oder Tablet",
         steps: [
           "Nutzen Sie die Leiste unten, um häufige Bereiche zu öffnen.",
@@ -984,6 +999,7 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
       "Sie wissen, wo Sie die wichtigsten Bereiche und die passende Hilfe finden.",
     differences: [
       "Welche Bereiche Sie sehen, hängt von Ihrer Rolle und den Einstellungen Ihrer OGS ab.",
+      "Sie sehen keine Überschriften wie `Tagesbetrieb` oder `Team`? Dann hat Ihre OGS die einfache Seitenleiste eingeschaltet. Alle Seiten zeigt `Alle Seiten anzeigen` ganz unten.",
       "Unter `Bausteine` fehlt eine Karte? Dann steht sie schon auf Ihrer Startseite. Oder Ihre Rolle oder Ihre OGS sieht sie nicht vor.",
       // Kopfzeile aus BrandTraegerLine (#4656): nur bei einem Träger mit
       // mehreren Schulen, und nur am Computer, wo auch der Schulname steht.
@@ -1254,6 +1270,7 @@ export const carePlanTopic = function carePlanTopic(
     differences: [
       // Live geprueft: die Kopfzeile des Reiters traegt das Kennzeichen.
       "Steht oben rechts `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     notes: [
       // #4766: Filter Gruppe und Person, auch in der Leseansicht.
@@ -1658,6 +1675,7 @@ export const correctWorkTimeTopic = function correctWorkTimeTopic(): HelpTopic {
     differences: [
       "Einen vollständig fehlenden Arbeitstag trägt nur nach, wer die Zeiten des Teams verwalten darf.",
       "Ein abgeschlossener Monat kann nachträgliche Änderungen anzeigen, sein übertragener Saldo bleibt jedoch festgeschrieben.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     troubleshootingDetails: [
       "Der Beginn darf nicht in der Zukunft liegen. Wählen Sie eine Uhrzeit, die schon vorbei ist.",
@@ -3001,6 +3019,7 @@ export const findStaffTopic = function findStaffTopic(
       "Unter `Ehemalige` können Sie frühere Beschäftigungen nur lesen. Die Personalakte zeigt den Zeitraum, Stammdaten und frühere Arbeitszeiten. Welche Angaben Sie sehen, hängt von Ihren Rechten ab.",
       "Personaldokumente wurden beim Austritt endgültig gelöscht. Sie stehen auch in der früheren Personalakte nicht mehr bereit.",
       "Mit `Zurück zu den Mitarbeitenden` kommen Sie wieder zur Auswahl `Ehemalige`. Eine Wiederaufnahme erfolgt beim Einladen.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     notes: [
       "Hat jemand früher bei Ihnen gearbeitet? Wählen Sie in der Auswahl `Ehemalige`. Die Karte zeigt den Zeitraum in moto. Öffnen Sie die Karte für die früheren Angaben.",
@@ -4929,6 +4948,7 @@ export const myScheduleTopic = function myScheduleTopic(): HelpTopic {
     ],
     differences: [
       "Das Kalender-Abo ist nur zum Lesen. Änderungen in Ihrem persönlichen Kalender werden nicht an moto übertragen.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     related: [HELP_TOPICS.carePlan, HELP_TOPICS.trackWorkTime],
   };
@@ -5378,6 +5398,7 @@ export const ownAbsenceTopic = function ownAbsenceTopic(): HelpTopic {
       "Ihre OGS kann zusätzliche Abwesenheitsarten anbieten.",
       "Urlaub beantragen Sie in der Karte `Urlaub` und nicht über diese Aktion.",
       "Freizeitausgleich trägt nur ein, wer die Zeiten des Teams verwalten darf.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     notes: [
       "An ganzen Abwesenheitstagen fallen Ihre Schichten aus. Im Betreuungsplan stehen Sie als abwesend.",
@@ -5504,6 +5525,7 @@ export const ownShiftPlanTopic = function ownShiftPlanTopic(): HelpTopic {
       "Auf dem Handy finden Sie `Mein Dienstplan` unten unter `Mehr`. Dort stehen die Schichten als Liste je Tag statt im Wochenraster.",
       "Sie können den Plan hier nur ansehen. Änderungen trägt die Leitung im Dienstplan ein.",
       "Auf dem Handy erscheinen Samstag und Sonntag nur mit einer Schicht. Bei einem Sonntagsdienst kann im Wochenraster auch der Samstag erscheinen.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     troubleshootingDetails: [
       "`Mein Dienstplan` fehlt? Dann plant Ihre OGS die Schichten nicht in moto.",
@@ -8516,6 +8538,7 @@ export const staffSurveysTopic = function staffSurveysTopic(): HelpTopic {
     differences: [
       "Sehen Sie die Reiter `Alle Umfragen` und `Für Sie`? Dann dürfen Sie Umfragen auch anlegen. Ihre eigenen offenen Umfragen stehen unter `Für Sie`.",
       "Steht dort `Keine offenen Umfragen`? Dann hat Ihre Schule gerade keine Umfrage an das Team.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     image: "/help/screens/umfrage-beantworten.webp",
     imageAlt:
@@ -10259,6 +10282,7 @@ export const teamChatTopic = function teamChatTopic(): HelpTopic {
       "Nachrichten im Team-Chat können nicht nachträglich geändert oder gelöscht werden.",
       "Der Bereich fehlt? Dann hat Ihre OGS den Team-Chat nicht eingeschaltet.",
       "Neue Mitglieder eines Gruppenchats sehen die Nachrichten ab ihrem Beitritt, nicht die älteren.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     notes: [
       "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie bis zu 5 Dateien an eine Nachricht: Fotos, PDF, Word, Excel oder PowerPoint, je höchstens 10 MB. Ein Foto öffnen Sie mit einem Tipp groß.",
@@ -10324,6 +10348,7 @@ export const trackWorkTimeTopic = function trackWorkTimeTopic(): HelpTopic {
       "Nach der gewählten Pausenlänge läuft die Arbeitszeit automatisch weiter.",
       "Ihr `Ist` ist etwas länger oder kürzer als die gestempelten Zeiten? Dann zählt Ihre OGS eine Wegpackzeit dazu oder rundet. Der Hinweis steht in der Zeile, zum Beispiel `+5 Min. Wegpackzeit`.",
       "Steht unten `Kein Soll hinterlegt`? Dann zählen Krankheit und Urlaub 0 Stunden. Die Monatskarte zeigt diese Tage mit `ohne Soll`. Das Soll trägt die Leitung ein.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     related: [HELP_TOPICS.correctWorkTime, HELP_TOPICS.nfcWorkTime],
   };
@@ -13840,6 +13865,7 @@ export const vacationTopic = function vacationTopic(): HelpTopic {
       "Der Antrag erscheint unter `Meine Anträge`. Dort sehen Sie, ob er offen, genehmigt, abgelehnt oder zur Rückfrage zurückgegeben wurde.",
     differences: [
       "Krankheit, Fortbildung und andere Abwesenheiten melden Sie über `Abwesend` in der Stempeluhr. Dafür stellen Sie keinen Urlaubsantrag.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     notes: [
       "Einen offenen oder zukünftigen genehmigten Antrag können Sie stornieren.",
@@ -14075,6 +14101,7 @@ export const workTimeHintsTopic = function workTimeHintsTopic(): HelpTopic {
     differences: [
       "Im Monat reicht die erste oder letzte Woche über den Monatsrand. `Summe KW` zählt dann die ganze Woche.",
       "Korrigieren Sie einen Tag, prüft moto ihn nach dem Speichern neu. Der Hinweis im Dialog zeigt den bisher gespeicherten Stand.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     related: [
       HELP_TOPICS.trackWorkTime,

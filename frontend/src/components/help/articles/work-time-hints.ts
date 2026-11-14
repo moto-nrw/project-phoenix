@@ -1,5 +1,6 @@
 import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
+import { SIMPLE_NAV_DIFFERENCE } from "../help-article-shared";
 
 // Hinweise zu Pausen und Höchstarbeitszeit (#4804). Nur Hinweise, sie sperren
 // nichts. Werte und Grenzen bewertet der Server.
@@ -45,6 +46,7 @@ export function workTimeHintsTopic(): HelpTopic {
     differences: [
       "Im Monat reicht die erste oder letzte Woche über den Monatsrand. `Summe KW` zählt dann die ganze Woche.",
       "Korrigieren Sie einen Tag, prüft moto ihn nach dem Speichern neu. Der Hinweis im Dialog zeigt den bisher gespeicherten Stand.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     related: [
       HELP_TOPICS.trackWorkTime,

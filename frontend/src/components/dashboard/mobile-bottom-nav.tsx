@@ -93,15 +93,18 @@ import {
   STAFF_NAV_BOTTOM,
   STAFF_NAV_CONCEPTS,
   STAFF_NAV_GROUPS,
+  STAFF_NAV_SIMPLE_ENTRIES,
   STAFF_NAV_TOP,
   type StaffNavEntry,
   type StaffNavSectionKey,
 } from "~/lib/staff-navigation";
+import { useSimpleStaffNav } from "~/lib/hooks/use-simple-staff-nav";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { LogoutModal } from "~/components/auth/logout-modal";
 import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
 import { RefreshButton } from "./header/refresh-button";
 import { Bell, Eye } from "lucide-react";
+import { ListBulletsIcon } from "@phosphor-icons/react/ssr";
 import { accountsConcept } from "~/lib/concepts/accounts";
 import { mealPlanConcept } from "~/lib/concepts/mealPlan";
 import { activitiesConcept } from "~/lib/concepts/activities";
@@ -741,6 +744,10 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Kinder nur über „Alle Kinder“ (#1321): Gruppe und Aufsicht verlassen die
   // Leiste wie in der Seitenleiste; „Suchen“ steht dann auch für ihre Seiten.
   const childSearchOnlyNavigation = useChildSearchOnlyNavigation();
+  // Einfache Seitenleiste (#6956): das Mehr-Menü zeigt dann nur die Seiten
+  // des Betreuungsalltags, ohne Gruppen. Die Reiter unten stehen ohnehin in
+  // dieser Liste.
+  const simpleNav = useSimpleStaffNav(session ?? null);
   const staffMessagingEnabled = useStaffMessagingEnabled();
   // Betreuungsplan-Flag für den Tagesplan-Eintrag (#2383): vom Tenant-Resolve,
   // damit es auch ohne config:read aufgelöst ist.
@@ -971,11 +978,19 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
         ]
       : [
           { key: "top", label: null, items: entriesToItems(STAFF_NAV_TOP) },
-          ...STAFF_NAV_GROUPS.map((group) => ({
-            key: group.key,
-            label: group.label,
-            items: entriesToItems(group.entries),
-          })),
+          ...(simpleNav.active
+            ? [
+                {
+                  key: "simple",
+                  label: null,
+                  items: entriesToItems(STAFF_NAV_SIMPLE_ENTRIES),
+                },
+              ]
+            : STAFF_NAV_GROUPS.map((group) => ({
+                key: group.key,
+                label: group.label,
+                items: entriesToItems(group.entries),
+              }))),
           {
             key: "bottom",
             label: null,
@@ -1165,6 +1180,26 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     })}
                   </div>
                 ))}
+                {/* Ausgeblendet heißt nicht gesperrt (#6956): jede Person
+                    wechselt selbst zwischen beiden Ansichten, wie unten in
+                    der Seitenleiste. */}
+                {mode === "teacher" && simpleNav.available ? (
+                  <Button
+                    type="button"
+                    onClick={simpleNav.toggle}
+                    variant="ghost"
+                    size="md"
+                    className="w-full justify-start gap-3"
+                  >
+                    <ListBulletsIcon
+                      className="h-5 w-5 text-gray-600"
+                      aria-hidden="true"
+                    />
+                    <span className="text-base font-medium">
+                      {simpleNav.toggleLabel}
+                    </span>
+                  </Button>
+                ) : null}
               </div>
               {(mode === "teacher" ||
                 mode === "operator" ||

@@ -1,3 +1,4 @@
+import { SIMPLE_NAV_DIFFERENCE } from "~/components/help/help-article-shared";
 import { readdirSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -248,13 +249,15 @@ describe("getParentHelpTopicForPath", () => {
       id: HELP_TOPICS.appOverview,
       group: "einstieg",
     });
-    // Am Computer, Wie die Seitenleiste geordnet ist, Auf dem Handy oder
-    // Tablet, Die Startseite anpassen (#4347), Hilfe öffnen.
+    // Am Computer, Wie die Seitenleiste geordnet ist, Die einfache
+    // Seitenleiste (#6956), Auf dem Handy oder Tablet, Die Startseite
+    // anpassen (#4347), Hilfe öffnen.
     expect(
       caregiverTopics[3]?.instructionGroups?.map((group) => group.title),
     ).toEqual([
       "Am Computer",
       "Wie die Seitenleiste geordnet ist",
+      "Die einfache Seitenleiste",
       "Auf dem Handy oder Tablet",
       "Die Startseite anpassen",
       "Hilfe öffnen",
@@ -297,6 +300,7 @@ describe("getParentHelpTopicForPath", () => {
     ]);
     expect(caregiverTopics[7]?.differences).toEqual([
       "Steht oben rechts `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",
+      SIMPLE_NAV_DIFFERENCE,
     ]);
     // Der Tagesplan steht in der App ganz oben im Tagesbetrieb und folgt in
     // der Hilfe auf den Betreuungsplan (#2383).

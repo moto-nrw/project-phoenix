@@ -90,6 +90,7 @@ export const KEPT_STORAGE_KEYS: readonly string[] = [
   "collection-view:*", // Kacheln oder Tabelle, Spalten (#3834)
   "moto.*.notification-setup.v1*", // Geräte-Einrichtung erledigt oder später
   "parent-first-steps:v1:*", // Fortschritt der ersten Schritte, Elternportal
+  "simple-staff-nav-show-all:*", // „Alle Seiten anzeigen“ gewählt (#6956)
   // Gewählte Sprache, die das Elternportal noch speichern muss.
   "phoenix_parent_unsynced_locale*",
   // Gerätelayout.

@@ -181,6 +181,12 @@ export interface TenantInfo {
    */
   childSearchOnlyNavigation?: boolean;
   /**
+   * Staff who do not lead the school see the simple navigation
+   * (operations.simple_staff_navigation, #6956): only the pages of the daily
+   * care work. Missing metadata is off, which keeps every page.
+   */
+  simpleStaffNavigation?: boolean;
+  /**
    * The school's term for its care in the fixed texts of the enrollment flow
    * (enrollment.care_facility_term, #6042), „OGS“ by default. Read it through
    * `useCareFacilityTerm`, which also covers missing metadata.
@@ -238,6 +244,7 @@ interface TenantResolveResponse {
   early_checkout_note_tolerance_minutes?: number;
   weekend_follows_friday?: boolean;
   child_search_only_navigation?: boolean;
+  simple_staff_navigation?: boolean;
   care_facility_term?: string;
 }
 
@@ -398,6 +405,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       ),
       weekendFollowsFriday: data.weekend_follows_friday === true,
       childSearchOnlyNavigation: data.child_search_only_navigation === true,
+      simpleStaffNavigation: data.simple_staff_navigation === true,
       careFacilityTerm: normalizeCareFacilityTerm(data.care_facility_term),
     };
   } catch {
