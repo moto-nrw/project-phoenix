@@ -98,24 +98,33 @@ func (m *SEPAMandates) ImportSEPAMandates(ctx context.Context, reviewer parentbi
 		}
 		result.Applied = true
 	}
-	withMandate, withoutMandate := rowsWithMandate(candidates)
-	for _, candidate := range withMandate {
+	shown, withoutMandate := importPreviewRows(candidates)
+	for _, candidate := range shown {
 		result.Rows = append(result.Rows, candidate.row)
 		countImportRow(&result.Counts, candidate.row.Status)
 	}
-	countDebtorNumbers(&result.Counts, candidates, withMandate)
+	countDebtorNumbers(&result.Counts, candidates)
 	result.Counts.WithoutMandate = withoutMandate
 	return result, nil
 }
 
-// rowsWithMandate leaves out the rows with neither an IBAN nor a
-// reference and counts them (#7009). Their empty mandate status keeps them
-// out of validation and storing, but their family and debtor number take
-// part in reconciliation and are taken over with the others; only the
-// preview of the mandates leaves them out.
-func rowsWithMandate(candidates []importCandidate) ([]importCandidate, int) {
-	kept := slices.DeleteFunc(slices.Clone(candidates), func(candidate importCandidate) bool { return candidate.row.Status == "" })
-	return kept, len(candidates) - len(kept)
+// importPreviewRows omits mandate-free rows unless their debtor number
+// needs attention. A copy marks these as conflicts only in the answer;
+// their empty mandate status still prevents validation or mandate writes.
+func importPreviewRows(candidates []importCandidate) ([]importCandidate, int) {
+	shown := make([]importCandidate, 0, len(candidates))
+	withoutMandate := 0
+	for _, candidate := range candidates {
+		if candidate.row.Status == "" {
+			withoutMandate++
+			if !debtorNumberConflict(candidate.row.DebtorNumberStatus) {
+				continue
+			}
+			candidate.row.Status = parentbilling.ImportRowConflict
+		}
+		shown = append(shown, candidate)
+	}
+	return shown, withoutMandate
 }
 
 // bindCreditorChoice keeps the office's choice that the file holds the

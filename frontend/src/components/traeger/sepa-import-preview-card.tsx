@@ -103,12 +103,12 @@ function NotesCell({ row }: Readonly<{ row: ImportRow }>) {
 
 /**
  * Rows without IBAN and reference are children whose family pays without
- * a mandate (#7009): the import leaves them out and says so once.
+ * a mandate (#7009): only number conflicts appear as rows.
  */
 function withoutMandateText(count: number): string {
   return count === 1
-    ? "1 Zeile ohne Mandat: Sie hat keine IBAN und keine Mandatsreferenz. moto legt dafür kein Mandat an, übernimmt aber eine Debitorennummer aus der Zeile. Das ist kein Fehler."
-    : `${count} Zeilen ohne Mandat: Sie haben keine IBAN und keine Mandatsreferenz. moto legt dafür kein Mandat an, übernimmt aber eine Debitorennummer aus der Zeile. Das ist kein Fehler.`;
+    ? "1 Zeile ohne Mandat: Sie hat keine IBAN und keine Mandatsreferenz. moto legt dafür kein Mandat an. Fehlende Debitorennummern werden übernommen, solange es keinen Konflikt gibt. Konflikte sehen Sie mit Zeilennummer unten."
+    : `${count} Zeilen ohne Mandat: Sie haben keine IBAN und keine Mandatsreferenz. moto legt dafür kein Mandat an. Fehlende Debitorennummern werden übernommen, solange es keinen Konflikt gibt. Konflikte sehen Sie mit Zeilennummer unten.`;
 }
 
 export function SepaImportPreviewCard({
@@ -177,7 +177,6 @@ export function SepaImportPreviewCard({
         <span className="text-gray-500 tabular-nums">{row.line}</span>
       ),
       sortValue: (row) => row.line,
-      stacked: "hidden",
     },
     {
       key: "family",

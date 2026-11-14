@@ -234,6 +234,20 @@ func TestSEPAMandateImportTakesOverTheNumberOfAChildWithoutMandate(t *testing.T)
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	assert.Equal(t, []listedChild{{"Mia", "Beispiel", "50 0001"}, {"Noah", "Beispiel", "50 0002"}},
 		childrenOf(listChildFamilies(t, f, f.office.token), family))
+	// A later file must expose the number conflict even without a mandate.
+	conflicting := []byte(strings.ReplaceAll(string(csv), "50 0002", "50 0009"))
+	rec = importForm(t, f.traeger, f.office.token, sepaImportPreviewPath, "ogs.csv", conflicting, fields)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	preview = decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes())
+	assert.Equal(t, 1, preview.Counts["debtor_conflicts"])
+	assert.Equal(t, 1, preview.Counts["without_mandate"])
+	require.Len(t, preview.Rows, 2, "a number conflict without a mandate stays visible")
+	assert.Equal(t, 3, preview.Rows[1].Line, "the conflict names its original file line")
+	assert.Contains(t, rec.Body.String(), `"debtor_number_status":"differs"`)
+	rec = applyImport(t, f.traeger, f.office.token, "ogs.csv", conflicting, fields)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.Equal(t, []listedChild{{"Mia", "Beispiel", "50 0001"}, {"Noah", "Beispiel", "50 0002"}},
+		childrenOf(listChildFamilies(t, f, f.office.token), family), "the conflict never overwrites the child's number")
 	var mandates int
 	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM parent_billing.sepa_mandates WHERE organization_id = ?`,
 		f.office.organization).Scan(context.Background(), &mandates))
@@ -312,6 +326,17 @@ func TestHolidayFamilyOfSeveralChildrenIsListedWithANumberPerChild(t *testing.T)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"family_email":"eva.muster@example.org"`, "the family is listed before any invoice")
 	assert.Equal(t, "", f.familyNumber(t, "eva.muster@example.org"), "with no number of its own")
+	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, "/traeger/billing-families/children", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	children := childrenOf(decodeSchoolPortalData[[]childListedFamily](t, rec.Body.Bytes()), "eva.muster@example.org")
+	require.Len(t, children, 2, "all holiday children stay available for number entry")
+	for _, child := range children {
+		assert.Empty(t, child.DebtorNumber, "the shared registration number names no single child")
+	}
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPut, childDebtorNumberPath, map[string]any{
+		"family_email": "eva.muster@example.org", "child_first_name": "Lia", "child_last_name": "Muster",
+		"child_birth_date": "2018-03-01", "debtor_number": "70002"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }
 
 // A child of the holiday care without a contract stays known once its
