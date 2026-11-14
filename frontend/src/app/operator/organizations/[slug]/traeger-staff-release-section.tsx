@@ -166,6 +166,7 @@ export function TraegerStaffReleaseSection({
         state ? (
           release ? (
             <Button
+              size="md"
               type="button"
               variant="outline_danger"
               disabled={state.records > 0}
@@ -177,6 +178,7 @@ export function TraegerStaffReleaseSection({
             </Button>
           ) : (
             <Button
+              size="md"
               type="button"
               variant="primary"
               tooltip="Hält die Erklärung des Trägers fest und schaltet die Personalakten frei."
@@ -204,6 +206,12 @@ export function TraegerStaffReleaseSection({
           </DataField>
           <DataField label="Personalakten">{state.records}</DataField>
         </DataGrid>
+      ) : null}
+      {release && state && state.records > 0 ? (
+        <p className="mt-3 text-sm text-gray-600">
+          Zurücknehmen geht erst, wenn der Träger alle Personalakten im
+          Träger-Portal aufgelöst hat.
+        </p>
       ) : null}
 
       <FormModal

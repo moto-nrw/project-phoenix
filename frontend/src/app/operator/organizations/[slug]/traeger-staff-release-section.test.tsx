@@ -83,6 +83,9 @@ describe("TraegerStaffReleaseSection", () => {
     });
     expect(withdraw).toHaveAttribute("aria-disabled", "true");
     expect(
+      screen.getByText(/Zurücknehmen geht erst, wenn der Träger alle/),
+    ).toBeInTheDocument();
+    expect(
       screen.getByText("Vereinbarung mit der Vertretung liegt vor"),
     ).toBeInTheDocument();
   });

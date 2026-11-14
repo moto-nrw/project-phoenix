@@ -109,6 +109,7 @@ function PersonnelNumberCard({
       action={
         editing ? undefined : (
           <Button
+            size="md"
             type="button"
             variant="outline"
             className="gap-2"
@@ -235,6 +236,7 @@ function FinancialCard({
           <span className="flex flex-wrap gap-2">
             {record.hasFinancial && !revealed ? (
               <Button
+                size="md"
                 type="button"
                 variant="outline"
                 className="gap-2"
@@ -248,6 +250,7 @@ function FinancialCard({
               </Button>
             ) : null}
             <Button
+              size="md"
               type="button"
               variant="outline"
               className="gap-2"
@@ -293,7 +296,7 @@ function FinancialCard({
       ) : (
         <DataGrid columns={4}>
           {FINANCIAL_FIELDS.map(([key, label]) => (
-            <DataField key={key} label={label} mono>
+            <DataField key={key} label={label} mono={Boolean(shown[key])}>
               {shown[key] ?? "Nicht hinterlegt"}
             </DataField>
           ))}
