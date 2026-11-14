@@ -274,6 +274,8 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // cascade instead of forwarding the write (-2).
 // Raised by ADR 0230: Timetable's set-based assignment read of the absence
 // plan gaps (+1).
+// Lowered by #7081: Identity & Access keeps one name for the operator's
+// resend of a code (-1).
 const modulePassthroughOwnerBudgetTotal = 1399
 
 // modulePassthroughOwnerBudgets is the register: module directory →
@@ -308,7 +310,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/facilities":     13,
 	"modules/feedback":       2,
 	"modules/filestorage":    6,
-	// Raised by ADR 0077: the caterer flows.
+	// Raised by ADR 0077: the caterer flows. Lowered by #7081: one name for
+	// the operator's resend of a code.
 	"modules/identityaccess": 206,
 	"modules/mealplan":       1,
 	// Raised by ADR 0112: the Träger logo read of the Träger-Portal.

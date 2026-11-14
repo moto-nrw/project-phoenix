@@ -224,8 +224,10 @@ PR 1:
 PR 2:
 
 - `parent_security_mails_test.go`: three `assert.Len` comparisons of the
-  tables removed. One table of one struct per language cannot hold a
-  language with a missing part; the test still renders every language.
+  tables removed: one table of one struct per language cannot hold a
+  language without one of the mails. The lengths also caught a language
+  without a footer; the test now asserts the footer and its label on every
+  rendered mail instead.
 - `operator_mfa_flow_internal_test.go`: no change (the renamed
   `resendChallenge` has no test caller).
 - Added `TestPublicCodePolicyIsTheDomains` and

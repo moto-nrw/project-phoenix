@@ -21,6 +21,8 @@ func TestParentSecurityMailsSpeakEveryPortalLanguage(t *testing.T) {
 		for name, mail := range map[string]Mail{"code": code, "device": device} {
 			content := mail.Content.(map[string]any)
 			assert.Equal(t, lang, content["Lang"], "%s %s", lang, name)
+			assert.NotEmpty(t, content["FooterText"], "%s %s has its footer", lang, name)
+			assert.NotEmpty(t, content["PoweredByLabel"], "%s %s names the logo", lang, name)
 			rendered := fmt.Sprint(content)
 			assert.NotContains(t, rendered, "%!", "%s %s fills in every number", lang, name)
 			assert.Contains(t, rendered, "90", "%s %s names the days", lang, name)

@@ -297,8 +297,8 @@ func parentMFAResetMail(message MFAResetByAdminMail, origin string) Mail {
 
 // withFooter adds the footer of the language to a mail's content.
 func withFooter(lang string, content map[string]any) map[string]any {
-	copy := parentCopies[lang]
-	content["FooterText"], content["PoweredByLabel"] = copy.FooterText, copy.PoweredByLabel
+	text := parentCopies[lang]
+	content["FooterText"], content["PoweredByLabel"] = text.FooterText, text.PoweredByLabel
 	return content
 }
 
