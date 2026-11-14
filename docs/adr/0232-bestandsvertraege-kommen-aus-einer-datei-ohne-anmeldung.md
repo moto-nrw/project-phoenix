@@ -57,7 +57,9 @@ entschieden, den Import für SJR Pforzheim vorzuziehen (Kommentar in #4723).
    er schon vorher, beginnt Version 1 mit der Phase, und der frühere Tag
    bleibt als Abschlusstag stehen. Er endet früher nur mit einem Ende aus der
    Datei oder einer festen Laufzeit. So rechnet die Elternabrechnung nie einen
-   Monat vor der Phase mit deren Modul ab.
+   Monat vor der Phase mit deren Modul ab. Eine Datei ohne Spalte für die
+   Schule, das Modul oder den ersten Vertragstag bekommt sie einmal für alle
+   Zeilen: Der Stammdaten-Export von OGS Connect (#7009) nennt keine davon.
 5. **Keine Dubletten.** Hat ein Kind an der Schule einen Vertrag, der weder
    widerrufen noch beendet ist, bekommt es keinen zweiten. Verglichen werden
    Schule und Name; zwei verschiedene Geburtsdaten trennen zwei Kinder, ein
@@ -78,11 +80,29 @@ entschieden, den Import für SJR Pforzheim vorzuziehen (Kommentar in #4723).
    `FamilyNumbers`): eine vorhandene Nummer bleibt, widersprüchliche Zeilen
    übernehmen keine, eine Zeile ohne Mail-Adresse der Eltern nennt keine
    Familie und übernimmt keine.
+   **Geändert am 14.11.2026:** Der Stammdaten-Export von OGS Connect hat
+   keine Mail-Adressen; ohne Nummer findet der Mandatsimport (#7009) keinen
+   Zahler. Eine Zeile ohne Mail-Adresse ist deshalb eine eigene Familie, die
+   moto über ihren Vertrag kennt (`parentbilling.ContractFamilyKey`,
+   Schlüssel `contract:<Vertrag>`). Ihre Nummer wird übernommen, je Zahler
+   wie je Kind. Derselbe Schlüssel gilt überall, wo die Elternabrechnung die
+   Familie eines Vertrags bildet: Abweichung und Nummer der Familie, Mandat
+   (Import und von Hand), Monatsrechnung, Essen, Bescheid, Nummer je Kind.
+   Der Schlüssel ist keine Adresse: Niemand bekommt darüber Post, und die
+   Oberfläche zeigt „Vertrag Nr. …“. Er ergänzt ADR 0164 Punkt 4, der die
+   Familie über die Mail-Adresse bestimmt; die Geschwisterfolge kannte den
+   Schlüssel schon (`familyOf`).
 8. **Zugriff und Protokoll.** Der Import liest die Angebote jeder Schule in
    deren Tenant-Transaktion (Stammdaten, keine Personendaten), schreibt in der
    Träger-Transaktion und trägt danach in das Zugriffsprotokoll jeder Schule
    ein, deren Verträge er gezeigt oder angelegt hat (ADR 0084 §7). Die Datei
    wird nie gespeichert.
+
+9. **Zeile ohne Eltern.** Nennt eine Zeile weder Namen noch Mail-Adresse
+   der Eltern (im Export von OGS Connect die Kinder ohne Mandat), speichert
+   moto den Vertrag ohne Vertragspartner und sagt das in der Vorschau. Nennt
+   sie Vorname oder Mail-Adresse, aber keinen Nachnamen, ist sie
+   unvollständig.
 
 ## Register
 
@@ -114,6 +134,13 @@ Die Entscheidung ändert diese Register (ADR 0057 Punkt 5, ADR 0070):
   noch einmal versenden und unterschreiben lassen, obwohl er gilt.
 - **Eigene Tabelle für Importe.** Der Verlauf des Vertrags trägt Datei und
   Zeile schon, wie beim Mandatsimport.
+- **Familie ohne Mail-Adresse über die Debitorennummer bilden.** Geschwister
+  mit derselben Nummer wären eine Familie, aber die Rechnung sucht die Nummer
+  über die Familie, nicht umgekehrt, und bei einer Nummer je Kind (#7007)
+  trennt sie Geschwister ohnehin.
+- **Debitorennummer am Vertrag speichern.** Die Nummer gehört der
+  Elternabrechnung (ADR 0088); der Mandatsimport und die Rechnung lesen sie
+  dort.
 - **Vertrag ohne Modul.** Die Elternabrechnung rechnet je Wochentag und
   Modul; ein Vertrag ohne Modul wäre nicht abrechenbar.
 
@@ -124,6 +151,15 @@ Die Entscheidung ändert diese Register (ADR 0057 Punkt 5, ADR 0070):
   Eltern lesen 0.
 - Die Rückgabe an den Träger enthält die neue Spalte; das Lebenszyklus- und
   das Rückgaberegister sind angepasst.
-- Offen: Verknüpfung importierter Verträge mit Kindern der Schule (Punkt 6),
-  Debitorennummer für Zeilen ohne Mail-Adresse der Eltern (Punkt 7): Sie
-  braucht einen anderen Schlüssel der Familie als die Mail-Adresse.
+- Geschwister ohne Mail-Adresse sind getrennte Familien: kein
+  Geschwisterrabatt zwischen ihnen, und ein Mandat mit derselben Referenz für
+  zwei von ihnen zeigt der Mandatsimport als Konflikt. Mit Mail-Adresse in
+  der Datei gilt das nicht.
+- Eine Familie ohne Mail-Adresse bekommt keine Mail und sieht nichts in der
+  Eltern-App; Rechnungen gehen ihr auf Papier zu. Ein Vertrag ohne
+  Vertragspartner hat eine Rechnung ohne Empfängernamen, bis das Büro einen
+  abweichenden Rechnungsempfänger einträgt.
+- Die Mail-Adresse eines Vertragspartners lässt sich heute nicht ändern. Wer
+  das einführt, zieht Nummer, Abweichung und Mandat vom Schlüssel des
+  Vertrags auf die Adresse um.
+- Offen: Verknüpfung importierter Verträge mit Kindern der Schule (Punkt 6).

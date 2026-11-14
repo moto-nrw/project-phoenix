@@ -153,6 +153,16 @@ func (r rowReader) date(field string, required bool) *calendar.Date {
 	return &date
 }
 
+// firstDay is the first day of the contract: the day the row names, or the
+// day the office chose for a file without that column.
+func (r rowReader) firstDay() *calendar.Date {
+	if chosen := r.check.index.effectiveFrom; chosen != nil && !r.check.index.has(carecontract.ContractImportFieldEffectiveFrom) {
+		day := *chosen
+		return &day
+	}
+	return r.date(carecontract.ContractImportFieldEffectiveFrom, true)
+}
+
 // candidate reads one row.
 func (c *contractImportCheck) candidate(cells []string, line int) importCandidate {
 	candidate := importCandidate{row: carecontract.ContractImportRow{Line: line, Problems: []carecontract.ContractImportProblem{},
@@ -168,7 +178,7 @@ func (c *contractImportCheck) candidate(cells []string, line int) importCandidat
 		row.ChildBirthDate = nil
 	}
 	party := reader.party()
-	row.EffectiveFrom = reader.date(carecontract.ContractImportFieldEffectiveFrom, true)
+	row.EffectiveFrom = reader.firstDay()
 	fileEnd := reader.date(carecontract.ContractImportFieldEndsOn, false)
 	concludedOn := reader.date(carecontract.ContractImportFieldConcludedOn, false)
 	if concludedOn != nil && concludedOn.After(c.today) {
@@ -202,14 +212,24 @@ func (c *contractImportCheck) candidate(cells []string, line int) importCandidat
 	return candidate
 }
 
-// party reads the contract party: the last name is required, the mail
-// address must be one when the file gives it.
+// party reads the contract party: a row that names a parent needs the last
+// name, and the mail address must be one when the file gives it. A row that
+// names no parent at all, as for a child whose family pays without a
+// mandate in the master data of OGS Connect, stores a contract without a
+// party and says so.
 func (r rowReader) party() ports.NewParty {
 	party := ports.NewParty{
 		FirstName: r.text(carecontract.ContractImportFieldPartyFirstName, false),
-		LastName:  r.text(carecontract.ContractImportFieldPartyLastName, true),
+		LastName:  r.text(carecontract.ContractImportFieldPartyLastName, false),
 	}
 	email := strings.TrimSpace(r.check.index.cell(r.cells, carecontract.ContractImportFieldPartyEmail))
+	switch {
+	case party.LastName != "":
+	case party.FirstName == "" && email == "":
+		r.row.Hints = append(r.row.Hints, carecontract.ContractImportHintNoParty)
+	default:
+		r.problem(carecontract.ContractImportFieldPartyLastName, carecontract.ContractImportProblemMissing)
+	}
 	if email != "" {
 		parsed, err := mail.ParseAddress(email)
 		if err != nil || parsed.Address != email || utf8.RuneCountInString(email) > maxImportEmailLength {

@@ -19,7 +19,7 @@ func importedStatuses(rows []importedNumber) []string {
 
 // Per payer, siblings share a number: equal numbers are taken over once,
 // different ones not at all; a stored number is never overwritten, and a
-// row without an address names no family (#4723, #4693).
+// row without an address is a family of its own (#4723, #4693).
 func TestContractImportNumbersPerPayer(t *testing.T) {
 	t.Parallel()
 	birth := calendar.NewDate(2019, 5, 3)
@@ -35,10 +35,30 @@ func TestContractImportNumbersPerPayer(t *testing.T) {
 	}, parentbilling.DebtorNumberFormat{}, false)
 	decideImportedNumbers(rows, map[string]string{"kim@example.org": "60000", "lea@example.org": "70006"}, false)
 	assert.Equal(t, []string{parentbilling.DebtorNumberNew, parentbilling.DebtorNumberNew, parentbilling.DebtorNumberSiblingsDiffer,
-		parentbilling.DebtorNumberSiblingsDiffer, parentbilling.DebtorNumberNoFamily, parentbilling.DebtorNumberDiffers,
+		parentbilling.DebtorNumberSiblingsDiffer, parentbilling.DebtorNumberNew, parentbilling.DebtorNumberDiffers,
 		parentbilling.DebtorNumberSame, parentbilling.DebtorNumberInvalid}, importedStatuses(rows))
 	assert.Equal(t, "70001", rows[0].number.DebtorNumber, "the number is stored trimmed")
 	assert.Equal(t, "eva@example.org", rows[0].number.FamilyEmail)
+	assert.Equal(t, "line:6", rows[4].key, "a preview has no contract yet: the row stands for its family")
+}
+
+// A row without a mail address belongs to the family of its contract, and
+// siblings without one stay apart: each keeps the number of its row, per
+// payer as per child (ADR 0232).
+func TestContractImportNumbersWithoutAMailAddressGoToTheContract(t *testing.T) {
+	t.Parallel()
+	numbers := []parentbilling.ContractImportNumber{
+		{Line: 2, ContractID: 41, ChildFirstName: "Tom", ChildLastName: "Ohne", DebtorNumber: "70004"},
+		{Line: 3, ContractID: 42, ChildFirstName: "Ida", ChildLastName: "Ohne", DebtorNumber: "70005"},
+	}
+	rows := readImportedNumbers(numbers, parentbilling.DebtorNumberFormat{}, false)
+	decideImportedNumbers(rows, map[string]string{"contract:42": "70005"}, false)
+	assert.Equal(t, []string{parentbilling.DebtorNumberNew, parentbilling.DebtorNumberSame}, importedStatuses(rows))
+	assert.Equal(t, "contract:41", rows[0].number.FamilyEmail)
+	assert.True(t, parentbilling.IsContractFamily(rows[0].key))
+
+	perChild := readImportedNumbers(numbers, parentbilling.DebtorNumberFormat{}, true)
+	assert.Equal(t, parentbilling.ChildDebtorNumberKey("contract:41", parentbilling.ChildKey("Tom", "Ohne", nil)), perChild[0].key)
 }
 
 // Per child, siblings keep their own numbers; rows of one child that

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
@@ -86,7 +88,7 @@ func readImportedNumbers(numbers []parentbilling.ContractImportNumber, format pa
 	rows := make([]importedNumber, len(numbers))
 	for i, number := range numbers {
 		row := importedNumber{number: number}
-		family := parentbilling.FamilyKey(number.FamilyEmail)
+		family := importedFamilyKey(number)
 		normalized, err := parentbilling.NormalizeDebtorNumber(number.DebtorNumber, format)
 		row.number.FamilyEmail = family
 		switch {
@@ -99,8 +101,6 @@ func readImportedNumbers(numbers []parentbilling.ContractImportNumber, format pa
 		}
 		child := parentbilling.ChildKey(number.ChildFirstName, number.ChildLastName, number.ChildBirthDate)
 		switch {
-		case family == "":
-			row.status = firstStatus(row.status, parentbilling.DebtorNumberNoFamily)
 		case perChild && child == "":
 			row.status = firstStatus(row.status, parentbilling.DebtorNumberNoChild)
 		case perChild:
@@ -112,6 +112,21 @@ func readImportedNumbers(numbers []parentbilling.ContractImportNumber, format pa
 	}
 	return rows
 }
+
+// importedFamilyKey is the family a row belongs to: the mail address of the
+// contract party, else the contract itself (ContractFamilyKey). A preview
+// has stored no contract yet; there the row stands for the family its
+// contract will be, which no stored number and no other row shares.
+func importedFamilyKey(number parentbilling.ContractImportNumber) string {
+	if key := parentbilling.ContractFamilyKey(number.FamilyEmail, number.ContractID); key != "" {
+		return key
+	}
+	return previewFamilyPrefix + strconv.Itoa(number.Line)
+}
+
+// previewFamilyPrefix starts the key of a row of a preview without a mail
+// address and without a contract; it is never stored.
+const previewFamilyPrefix = "line:"
 
 func firstStatus(status, fallback string) string {
 	if status != "" {
@@ -194,7 +209,8 @@ func (n *ContractImportNumbers) save(ctx context.Context, reviewer parentbilling
 	var children []parentbilling.ChildDebtorNumber
 	at := map[string]int{}
 	for _, row := range rows {
-		if row.status != parentbilling.DebtorNumberNew {
+		// Only a stored contract or a mail address names a family to keep.
+		if row.status != parentbilling.DebtorNumberNew || strings.HasPrefix(row.number.FamilyEmail, previewFamilyPrefix) {
 			continue
 		}
 		number := row.number

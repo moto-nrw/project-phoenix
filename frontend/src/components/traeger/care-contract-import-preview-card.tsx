@@ -39,12 +39,15 @@ function NotesCell({ row }: Readonly<{ row: ContractImportRow }>) {
   if (row.status === "duplicate" && !row.hints.includes("imported_before")) {
     lines.unshift("Das Kind hat an dieser Schule schon einen Vertrag.");
   }
-  // A hint matters only where the row leads somewhere: a moved start for a
-  // row moto takes over, an earlier import for the row it leaves.
+  // A hint matters only where the row leads somewhere: a moved start or a
+  // missing parent for a row moto takes over, an earlier import for the row
+  // it leaves.
   const ready = row.status === "ready" || row.status === "imported";
   lines.push(
     ...row.hints
-      .filter((hint) => (hint === "start_moved" ? ready : true))
+      .filter((hint) =>
+        hint === "start_moved" || hint === "no_party" ? ready : true,
+      )
       .map(contractImportHintText),
   );
   const debtor = contractImportDebtorText(row);

@@ -5,6 +5,7 @@
 // Nummer bei jeder neuen Ferienanmeldung der Familie vor.
 
 import { useEffect, useRef, useState } from "react";
+import { familyKeyLabel } from "~/lib/family-key";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
 import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
@@ -122,7 +123,9 @@ export function FamilyDebtorNumberModal({
               <span className="font-medium text-gray-900">{name}</span>
             ) : null}
             {name ? " · " : null}
-            <span className="break-all">{family.familyEmail}</span>
+            <span className="break-all">
+              {familyKeyLabel(family.familyEmail)}
+            </span>
           </p>
         ) : null}
         <Input

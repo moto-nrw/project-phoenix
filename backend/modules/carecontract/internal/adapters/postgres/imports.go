@@ -98,7 +98,8 @@ func importedRecordOf(contract ports.ImportedContract) importedRecord {
 }
 
 // insertImportedContractsSQL stores every contract of the file with its
-// first version, that version's services and its party in one statement. A
+// first version, that version's services and its party, if the row names
+// one, in one statement. A
 // contract whose import key the school already has is left out, so the
 // caller sees fewer contracts than it gave. The contract starts as a draft,
 // as the Träger policy demands of every insert.
@@ -137,6 +138,7 @@ const insertImportedContractsSQL = `WITH input AS (
 ), party AS (
 	INSERT INTO care_contract.contract_parties (organization_id, contract_id, first_name, last_name, email)
 	SELECT ?, c.id, c.party_first_name, c.party_last_name, c.party_email FROM contract AS c
+	WHERE c.party_last_name <> ''
 )
 SELECT c.line, c.id AS contract_id FROM contract AS c`
 

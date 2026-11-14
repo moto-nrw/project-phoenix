@@ -191,8 +191,11 @@ func (t *BillingTerms) SaveFamilyBilling(ctx context.Context, reviewer parentbil
 	if err != nil {
 		return nil, fmt.Errorf("parent billing: read the contract party: %w", err)
 	}
-	key := parentbilling.FamilyKey(recipients[input.ContractID].Email)
-	if key == "" {
+	// A contract of another Träger is not among the recipients and names
+	// no family.
+	recipient, known := recipients[input.ContractID]
+	key := parentbilling.ContractFamilyKey(recipient.Email, input.ContractID)
+	if !known || key == "" {
 		return nil, parentbilling.ErrFamilyUnknown
 	}
 	stored, err := t.store.FamilyBillingOf(ctx, reviewer.OrganizationID, key)

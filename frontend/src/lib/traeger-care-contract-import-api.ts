@@ -34,7 +34,7 @@ export type ContractImportRowStatus =
 
 /** What the import does with the debtor number of a row; "" without one. */
 type ContractDebtorNumberStatus =
-  "" | "new" | "same" | "differs" | "rows_differ" | "invalid" | "no_family";
+  "" | "new" | "same" | "differs" | "rows_differ" | "invalid";
 
 /** Header of the column each field comes from; "" leaves it unmapped. */
 type ContractImportColumns = Readonly<Record<ContractImportField, string>>;
@@ -45,6 +45,11 @@ export interface ContractImportMapping {
   readonly schoolId: string;
   /** The module of every row of a file without a module column; "" with one. */
   readonly moduleName: string;
+  /**
+   * The first day of every contract of a file without a column for it, as
+   * `YYYY-MM-DD`; "" with a column.
+   */
+  readonly effectiveFrom: string;
 }
 
 interface ContractImportProblem {
@@ -66,7 +71,7 @@ export interface ContractImportRow {
   readonly partyName: string;
   readonly partyEmail: string;
   readonly problems: readonly ContractImportProblem[];
-  /** Notes that do not hold the row back: "start_moved", "imported_before". */
+  /** Notes that do not hold the row back: "start_moved", "imported_before", "no_party". */
   readonly hints: readonly string[];
   /** The stored contract, or the running one a duplicate row found. */
   readonly contractId: string | null;
@@ -133,6 +138,7 @@ interface BackendMapping {
   columns: Record<ContractImportField, string>;
   school_id: number;
   module_name: string;
+  effective_from: string | null;
 }
 
 interface BackendRow {
@@ -198,6 +204,7 @@ function toBackendMapping(mapping: ContractImportMapping): BackendMapping {
     columns: { ...mapping.columns },
     school_id: mapping.schoolId === "" ? 0 : Number(mapping.schoolId),
     module_name: mapping.moduleName,
+    effective_from: mapping.effectiveFrom === "" ? null : mapping.effectiveFrom,
   };
 }
 
@@ -235,6 +242,7 @@ function mapImportResult(result: BackendResult): ContractImportResult {
         ? String(result.mapping.school_id)
         : "",
       moduleName: result.mapping.module_name ?? "",
+      effectiveFrom: result.mapping.effective_from ?? "",
     },
     unmapped: result.unmapped ?? [],
     schools: (result.schools ?? []).map((school) => ({

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
@@ -25,10 +26,9 @@ var contractImportFields = []string{
 }
 
 // contractImportRequired are the fields every import needs a column for;
-// the school and the module need a column or a choice.
+// the first day, the school and the module need a column or a choice.
 var contractImportRequired = []string{
 	carecontract.ContractImportFieldChildFirstName, carecontract.ContractImportFieldChildLastName,
-	carecontract.ContractImportFieldEffectiveFrom, carecontract.ContractImportFieldPartyLastName,
 }
 
 // contractImportHeaderNames are the header names moto maps without help,
@@ -117,9 +117,10 @@ func contractImportHeaders(columns carecontract.ContractImportColumns) map[strin
 // each mapped column and the choices for a file without a school or a
 // module column.
 type contractImportIndex struct {
-	fields     map[string]int
-	schoolID   int64
-	moduleName string
+	fields        map[string]int
+	schoolID      int64
+	moduleName    string
+	effectiveFrom *calendar.Date
 }
 
 func (index contractImportIndex) has(field string) bool {
@@ -142,6 +143,9 @@ func (index contractImportIndex) cell(cells []string, field string) string {
 // schools that offer one. A column always goes before a choice.
 func settleContractImportMapping(mapping carecontract.ContractImportMapping, schools []importSchool) carecontract.ContractImportMapping {
 	mapping.ModuleName = strings.TrimSpace(mapping.ModuleName)
+	if mapping.Columns.EffectiveFrom != "" {
+		mapping.EffectiveFrom = nil
+	}
 	if mapping.Columns.School != "" {
 		mapping.SchoolID = 0
 	} else if mapping.SchoolID == 0 && len(schools) == 1 {
@@ -182,7 +186,8 @@ func importModuleNames(schools []importSchool, schoolID int64) []string {
 // choice.
 func resolveContractImportMapping(headers []string, mapping carecontract.ContractImportMapping, schools []importSchool) (contractImportIndex, []string, error) {
 	refused := map[string]string{}
-	index := contractImportIndex{fields: map[string]int{}, schoolID: mapping.SchoolID, moduleName: mapping.ModuleName}
+	index := contractImportIndex{fields: map[string]int{}, schoolID: mapping.SchoolID, moduleName: mapping.ModuleName,
+		effectiveFrom: mapping.EffectiveFrom}
 	used := map[string]string{}
 	for _, field := range contractImportFields {
 		header := contractImportHeaders(mapping.Columns)[field]
@@ -202,14 +207,25 @@ func resolveContractImportMapping(headers []string, mapping carecontract.Contrac
 	if mapping.SchoolID != 0 && !slices.ContainsFunc(schools, func(s importSchool) bool { return s.school.ID == mapping.SchoolID }) {
 		refused["school_id"] = "unknown"
 	}
+	if mapping.EffectiveFrom != nil && mapping.EffectiveFrom.Before(earliestImportDay) {
+		refused[carecontract.ContractImportFieldEffectiveFrom] = "invalid"
+	}
 	if len(refused) > 0 {
 		return contractImportIndex{}, nil, &carecontract.ValidationError{Fields: refused}
 	}
+	return index, index.unmapped(), nil
+}
+
+// unmapped names the required fields without a column or a choice.
+func (index contractImportIndex) unmapped() []string {
 	unmapped := []string{}
 	for _, field := range contractImportRequired {
 		if !index.has(field) {
 			unmapped = append(unmapped, field)
 		}
+	}
+	if !index.has(carecontract.ContractImportFieldEffectiveFrom) && index.effectiveFrom == nil {
+		unmapped = append(unmapped, carecontract.ContractImportFieldEffectiveFrom)
 	}
 	if !index.has(carecontract.ContractImportFieldSchool) && index.schoolID == 0 {
 		unmapped = append(unmapped, carecontract.ContractImportFieldSchool)
@@ -217,7 +233,7 @@ func resolveContractImportMapping(headers []string, mapping carecontract.Contrac
 	if !index.has(carecontract.ContractImportFieldModule) && index.moduleName == "" {
 		unmapped = append(unmapped, carecontract.ContractImportFieldModule)
 	}
-	return index, unmapped, nil
+	return unmapped
 }
 
 // importWeekdayNames are the names a file gives a weekday, folded.

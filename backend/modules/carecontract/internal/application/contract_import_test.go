@@ -315,3 +315,51 @@ func TestReadContractImportTableRefusesWhatIsNoCSV(t *testing.T) {
 	_, err := readContractImportTable(make([]byte, carecontract.MaxContractImportFileBytes+1), "")
 	require.ErrorIs(t, err, carecontract.ErrContractImportFileTooLarge)
 }
+
+// A file without the first day of the contracts, such as the master data
+// of OGS Connect, takes one day the office chose for every row; a column
+// goes before the choice.
+func TestContractImportTakesAChosenFirstDayForEveryRow(t *testing.T) {
+	t.Parallel()
+	schools, templates := importFixture()
+	headers := []string{"Nachname Kind", "Vorname Kind", "", "Debitor-Nr.", "Kontoinhaber", "IBAN", "Mandat ist gültig ab", ""}
+	mapping := settleContractImportMapping(suggestContractImportMapping(headers), schools)
+	mapping.SchoolID, mapping.ModuleName = schools[0].school.ID, "OGS bis 14 Uhr"
+	_, unmapped, err := resolveContractImportMapping(headers, mapping, schools)
+	require.NoError(t, err)
+	assert.Equal(t, []string{carecontract.ContractImportFieldEffectiveFrom}, unmapped)
+
+	mapping.EffectiveFrom = importDay(2026, 9, 1)
+	index, unmapped, err := resolveContractImportMapping(headers, mapping, schools)
+	require.NoError(t, err)
+	require.Empty(t, unmapped)
+	check := newContractImportCheck(index, schools, templates, nil, importToday)
+	row := check.candidate([]string{"Beispiel", "Lia", "", "70001", "Eva Beispiel", "", "01.03.2024 00:00", ""}, 2).row
+	require.Equal(t, carecontract.ContractImportReady, row.Status, problemsOf(row))
+	assert.Equal(t, importDay(2026, 9, 1), row.EffectiveFrom)
+	assert.Empty(t, row.Hints)
+
+	mapping.Columns.EffectiveFrom = "Mandat ist gültig ab"
+	assert.Nil(t, settleContractImportMapping(mapping, schools).EffectiveFrom, "a column goes before the choice")
+
+	mapping.Columns.EffectiveFrom, mapping.EffectiveFrom = "", importDay(1989, 12, 31)
+	_, _, err = resolveContractImportMapping(headers, mapping, schools)
+	var invalid *carecontract.ValidationError
+	require.ErrorAs(t, err, &invalid)
+	assert.Equal(t, map[string]string{carecontract.ContractImportFieldEffectiveFrom: "invalid"}, invalid.Fields)
+}
+
+// A row that names no parent at all still is a contract: it has no party
+// and says so. A row that names a parent's first name or mail address
+// without the last name is incomplete.
+func TestContractImportRowWithoutParentsHasNoParty(t *testing.T) {
+	t.Parallel()
+	candidate := importCheckOf(t).candidate(importRow(map[int]string{8: "", 9: ""}), 2)
+	require.Equal(t, carecontract.ContractImportReady, candidate.row.Status, problemsOf(candidate.row))
+	assert.Equal(t, []string{carecontract.ContractImportHintNoParty}, candidate.row.Hints)
+	assert.Empty(t, candidate.row.PartyName)
+	assert.Equal(t, ports.NewParty{}, candidate.contract.Party)
+
+	incomplete := importCheckOf(t).candidate(importRow(map[int]string{8: ""}), 2).row
+	assert.Equal(t, []string{"party_last_name:missing"}, problemsOf(incomplete))
+}

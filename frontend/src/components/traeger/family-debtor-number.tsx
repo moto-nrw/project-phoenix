@@ -7,6 +7,7 @@
 // welche Nummer gilt. moto überschreibt nie still.
 
 import { History } from "lucide-react";
+import { familyKeyLabel } from "~/lib/family-key";
 import { Button } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { InsetPanel } from "~/components/ui/inset-panel";
@@ -85,9 +86,9 @@ export function FamilyDebtorNumberConflictDialog({
 }>) {
   const multiple = (conflict?.families.length ?? 0) > 1;
   const description = multiple
-    ? `Für diese Familien sind andere Nummern gemerkt: ${conflict?.families.map((family) => `${family.familyEmail}: ${family.familyNumber}`).join("; ")}. Bitte wählen Sie für alle genannten Familien.`
+    ? `Für diese Familien sind andere Nummern gemerkt: ${conflict?.families.map((family) => `${familyKeyLabel(family.familyEmail)}: ${family.familyNumber}`).join("; ")}. Bitte wählen Sie für alle genannten Familien.`
     : conflict?.familyEmail
-      ? `Für die Familie ${conflict.familyEmail} ist schon eine andere Nummer gemerkt. Bitte wählen Sie.`
+      ? `Für die Familie ${familyKeyLabel(conflict.familyEmail)} ist schon eine andere Nummer gemerkt. Bitte wählen Sie.`
       : "Für diese Familie ist schon eine andere Nummer gemerkt. Bitte wählen Sie.";
   return (
     <ChoiceModal

@@ -4,13 +4,18 @@
 // die Spalte der Datei, aus der es kommt, in drei Gruppen: Kind, Betreuung,
 // Eltern und Abrechnung. moto schlägt die Spalten aus den Überschriften vor;
 // jede Änderung liest die Datei neu. Sind alle Pflichtfelder zugeordnet,
-// klappt die Karte zu, damit die Zeilen direkt unter der Datei stehen. Hat die Datei keine Spalte für die
-// Schule oder das Modul, wählt das Büro sie einmal für alle Zeilen.
+// klappt die Karte zu, damit die Zeilen direkt unter der Datei stehen. Hat
+// die Datei keine Spalte für die Schule, das Modul oder den Vertragsbeginn,
+// wählt das Büro sie einmal für alle Zeilen.
 
 import { useState } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { DatePicker } from "~/components/ui/date-picker";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { FieldLabel } from "~/components/ui/field-label";
 import { SectionCard } from "~/components/ui/section-card";
 import { SectionLabel } from "~/components/ui/section-label";
+import { parseISODate, toISODate } from "~/lib/date-helpers";
 import type {
   ContractImportField,
   ContractImportMapping,
@@ -24,6 +29,13 @@ import {
 } from "./care-contract-import-format";
 
 const UNMAPPED = "";
+
+/** Fields the office can also set once for every row of the file. */
+const CHOSEN_FOR_ALL: ReadonlySet<ContractImportField> = new Set([
+  "school",
+  "module",
+  "effective_from",
+]);
 
 /** The module names a file can name: of the chosen school, else of all. */
 function moduleNames(
@@ -70,6 +82,10 @@ export function CareContractImportMappingCard({
       // A column goes before the choice for all rows.
       schoolId: field === "school" && header !== "" ? "" : mapping.schoolId,
       moduleName: field === "module" && header !== "" ? "" : mapping.moduleName,
+      effectiveFrom:
+        field === "effective_from" && header !== ""
+          ? ""
+          : mapping.effectiveFrom,
     });
   const hint = (field: ContractImportField): string | undefined => {
     if (field === "debtor_number") {
@@ -88,6 +104,8 @@ export function CareContractImportMappingCard({
   ).length;
   const schoolForAll = mapping.columns.school === UNMAPPED;
   const moduleForAll = mapping.columns.module === UNMAPPED;
+  const startForAll = mapping.columns.effective_from === UNMAPPED;
+  const startMissing = missing.has("effective_from");
   const modules = moduleNames(schools, mapping.schoolId);
 
   return (
@@ -121,9 +139,7 @@ export function CareContractImportMappingCard({
                   disabled={disabled}
                   hint={hint(field)}
                   error={
-                    missing.has(field) &&
-                    field !== "school" &&
-                    field !== "module"
+                    missing.has(field) && !CHOSEN_FOR_ALL.has(field)
                       ? "Bitte eine Spalte wählen."
                       : null
                   }
@@ -175,6 +191,44 @@ export function CareContractImportMappingCard({
                       : null
                   }
                 />
+              ) : null}
+              {group.fields.includes("effective_from") && startForAll ? (
+                <div>
+                  <FieldLabel htmlFor="contract-import-start-for-all" required>
+                    Vertragsbeginn für alle Zeilen
+                  </FieldLabel>
+                  <DatePicker
+                    id="contract-import-start-for-all"
+                    name="effective_from"
+                    value={
+                      mapping.effectiveFrom
+                        ? parseISODate(mapping.effectiveFrom)
+                        : undefined
+                    }
+                    onChange={(date) =>
+                      onChange({
+                        ...mapping,
+                        effectiveFrom: date ? toISODate(date) : "",
+                      })
+                    }
+                    minDate={parseISODate("1990-01-01")}
+                    monthYearNavigation
+                    disabled={disabled}
+                    invalid={startMissing}
+                    ariaDescribedBy={
+                      startMissing
+                        ? "contract-import-start-for-all-error"
+                        : undefined
+                    }
+                    hint="Ihre Datei hat keine Spalte für den Vertragsbeginn. Dann beginnen alle Verträge an diesem Tag."
+                  />
+                  {startMissing ? (
+                    <FieldErrorHint
+                      id="contract-import-start-for-all-error"
+                      message="Bitte eine Spalte oder einen Tag wählen."
+                    />
+                  ) : null}
+                </div>
               ) : null}
             </div>
           </fieldset>

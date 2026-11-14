@@ -17,8 +17,9 @@ import (
 //     number moto keeps is never overwritten.
 //   - Rows of one payer (or, per child, of one child) with different numbers
 //     take over none of them.
-//   - A row without a mail address names no family (FamilyKey) and takes
-//     over no number.
+//   - A row without a mail address is a family of its own, known by its
+//     contract (ContractFamilyKey): its number is taken over for that
+//     contract, and siblings without a mail address stay apart.
 //   - A number outside the format of the Träger (#6675) is not taken over.
 
 // ContractImportNumber is the debtor number a row of the file names for the
@@ -39,7 +40,7 @@ type ContractImportNumber struct {
 // ContractImportNumberDecision is what happens with the number of a row:
 // the number as it is stored and one of DebtorNumberNew, DebtorNumberSame,
 // DebtorNumberDiffers, DebtorNumberSiblingsDiffer, DebtorNumberRowsDiffer,
-// DebtorNumberInvalid, DebtorNumberNoFamily and DebtorNumberNoChild.
+// DebtorNumberInvalid and DebtorNumberNoChild.
 type ContractImportNumberDecision struct {
 	Line         int
 	DebtorNumber string

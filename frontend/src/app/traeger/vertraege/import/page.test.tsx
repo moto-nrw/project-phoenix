@@ -80,6 +80,7 @@ function preview(
       },
       schoolId: "1",
       moduleName: "OGS bis 16 Uhr",
+      effectiveFrom: "",
     },
     unmapped: [],
     schools: [
@@ -218,6 +219,28 @@ describe("Vertragsimport", () => {
         mapping: expect.objectContaining({ schoolId: "1", moduleName: "" }),
       }),
     );
+  });
+
+  it("asks for the first day of a file without that column", async () => {
+    const base = preview();
+    await choose(
+      preview({
+        mapping: {
+          ...base.mapping,
+          columns: { ...base.mapping.columns, effective_from: "" },
+        },
+        unmapped: ["effective_from"],
+        fingerprint: "",
+        rows: [],
+        counts: { ...base.counts, ready: 0, duplicate: 0 },
+      }),
+    );
+    expect(
+      screen.getByText("Vertragsbeginn für alle Zeilen"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte eine Spalte oder einen Tag wählen."),
+    ).toBeInTheDocument();
   });
 
   it("names missing contract conditions as the step that comes first", async () => {

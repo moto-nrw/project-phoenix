@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -310,6 +311,10 @@ func countContractImportRow(counts *carecontract.ContractImportCounts, row carec
 // child.
 func debtorNumberTarget(scope string, row carecontract.ContractImportRow) string {
 	target := strings.ToLower(row.PartyEmail)
+	if target == "" {
+		// Without a mail address the contract of the row is its family.
+		target = "line:" + strconv.Itoa(row.Line)
+	}
 	if scope == carecontract.ContractDebtorNumberPerChild {
 		target += "\x1f" + foldImportName(row.ChildFirstName) + "\x1f" + foldImportName(row.ChildLastName)
 		if row.ChildBirthDate != nil {

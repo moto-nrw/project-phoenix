@@ -2,7 +2,6 @@ package application
 
 import (
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
@@ -256,7 +255,7 @@ func familyOf(entry *careChainEntry) string {
 	if email := strings.ToLower(strings.TrimSpace(entry.invoice.Recipient.Email)); email != "" {
 		return email
 	}
-	return "contract:" + strconv.FormatInt(entry.invoice.ContractID, 10)
+	return parentbilling.ContractFamilyKey("", entry.invoice.ContractID)
 }
 
 // rankedCareChild is a child of a family as a rule counts it.

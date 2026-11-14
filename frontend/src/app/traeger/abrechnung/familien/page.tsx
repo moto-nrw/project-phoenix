@@ -15,6 +15,7 @@
 // Familien mit Vertrag stehen hier schon vor der ersten Rechnung.
 
 import { Pencil, Plus } from "lucide-react";
+import { familyKeyLabel } from "~/lib/family-key";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
@@ -135,7 +136,7 @@ function DebtorCell({
     return <ChildDebtorCell family={family} onChange={onChange} />;
   }
   const others = otherInvoiceNumbers(family);
-  const name = familyName(family) || family.familyEmail;
+  const name = familyName(family) || familyKeyLabel(family.familyEmail);
   const number = family.familyDebtorNumber;
   return (
     <span className="block min-w-0 sm:w-40">
@@ -202,7 +203,7 @@ function ChildDebtorCell({
   onChange: (family: BillingFamily) => void;
 }>) {
   const children = family.children ?? [];
-  const name = familyName(family) || family.familyEmail;
+  const name = familyName(family) || familyKeyLabel(family.familyEmail);
   const complete = children.every((child) => child.debtorNumber);
   return (
     <span className="flex min-w-0 items-start justify-between gap-3 sm:w-56">
@@ -293,11 +294,11 @@ function familyColumns(
                     event.stopPropagation()
                   }
                 >
-                  {familyName(family) || family.familyEmail}
+                  {familyName(family) || familyKeyLabel(family.familyEmail)}
                 </NavigationLink>
               ) : (
                 <span className="truncate font-medium text-gray-900">
-                  {familyName(family) || family.familyEmail}
+                  {familyName(family) || familyKeyLabel(family.familyEmail)}
                 </span>
               )}
               {family.holidayOnly ? (

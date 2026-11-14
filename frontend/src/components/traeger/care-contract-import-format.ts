@@ -42,14 +42,12 @@ export const CONTRACT_IMPORT_GROUPS: readonly {
   },
 ];
 
-/** Felder, die jede Datei als Spalte braucht. */
+/**
+ * Felder, die jede Datei als Spalte braucht. Schule, Modul und
+ * Vertragsbeginn brauchen eine Spalte oder eine Wahl für alle Zeilen.
+ */
 export const REQUIRED_CONTRACT_IMPORT_FIELDS: ReadonlySet<ContractImportField> =
-  new Set([
-    "child_first_name",
-    "child_last_name",
-    "effective_from",
-    "party_last_name",
-  ]);
+  new Set(["child_first_name", "child_last_name"]);
 
 export const CONTRACT_IMPORT_FIELD_LABELS: Record<ContractImportField, string> =
   {
@@ -77,8 +75,10 @@ export const CONTRACT_IMPORT_FIELD_HINTS: Partial<
     "Frühestens der Beginn des Schuljahrs, in dem das Modul läuft.",
   ends_on: "Ohne Datum endet der Vertrag mit dem Schuljahr des Moduls.",
   concluded_on: "Ohne Spalte gilt der Vertragsbeginn.",
-  party_last_name: "Die Person, die den Vertrag unterschrieben hat.",
-  party_email: "Nötig für Rechnungen und für die Debitorennummer.",
+  party_last_name:
+    "Die Person, die den Vertrag unterschrieben hat. Ohne Spalte hat der Vertrag keinen Vertragspartner.",
+  party_email:
+    "Nötig für Rechnungen per Mail. Geschwister erkennt moto nur über dieselbe Adresse.",
 };
 
 export const CONTRACT_IMPORT_STATUS: Record<
@@ -223,6 +223,8 @@ export function contractImportHintText(hint: string): string {
       return "Der Vertrag lief schon vorher. In moto beginnt er mit dem Schuljahr des Moduls.";
     case "imported_before":
       return "moto hat diesen Vertrag schon einmal importiert. Er ist inzwischen beendet.";
+    case "no_party":
+      return "Die Zeile nennt keine Eltern. Der Vertrag hat dann keinen Vertragspartner.";
     default:
       return hint;
   }
@@ -243,8 +245,6 @@ export function contractImportDebtorText(
       return "Debitorennummer: In der Datei stehen verschiedene Nummern für denselben Zahler. moto übernimmt keine.";
     case "invalid":
       return "Debitorennummer passt nicht zu Ihrem Nummernformat.";
-    case "no_family":
-      return "Debitorennummer nicht übernommen: Die E-Mail der Eltern fehlt.";
     default:
       return null;
   }

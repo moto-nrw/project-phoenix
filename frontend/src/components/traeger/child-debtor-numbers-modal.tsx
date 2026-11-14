@@ -6,6 +6,7 @@
 // Nummern. Die nächste Monatsrechnung eines Kindes nimmt seine Nummer.
 
 import { useEffect, useRef, useState } from "react";
+import { familyKeyLabel } from "~/lib/family-key";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
@@ -163,7 +164,9 @@ export function ChildDebtorNumbersModal({
               <span className="font-medium text-gray-900">{name}</span>
             ) : null}
             {name ? " · " : null}
-            <span className="break-all">{family.familyEmail}</span>
+            <span className="break-all">
+              {familyKeyLabel(family.familyEmail)}
+            </span>
           </p>
         ) : null}
         <p className="text-sm text-gray-600">

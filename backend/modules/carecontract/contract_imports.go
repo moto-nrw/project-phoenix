@@ -114,6 +114,9 @@ const (
 	// ContractImportHintImportedBefore is a duplicate whose contract an
 	// earlier import stored and that has ended or was withdrawn since.
 	ContractImportHintImportedBefore = "imported_before"
+	// ContractImportHintNoParty is a row that names no parent: the contract
+	// is stored without a contract party, as the file knows none.
+	ContractImportHintNoParty = "no_party"
 )
 
 // What the import does with the debtor number of a row; the
@@ -131,9 +134,6 @@ const (
 	ContractDebtorNumberRowsDiffer = "rows_differ"
 	// ContractDebtorNumberInvalid is no number in the format of the Träger.
 	ContractDebtorNumberInvalid = "invalid"
-	// ContractDebtorNumberNoFamily is a row without a mail address of the
-	// contract party: the Elternabrechnung knows a family by its address.
-	ContractDebtorNumberNoFamily = "no_family"
 )
 
 // Whom a debtor number of the Träger names (#7007).
@@ -186,8 +186,9 @@ type ContractImportColumns struct {
 }
 
 // ContractImportMapping is how the rows of a file become contracts. A file
-// of one school, or with one module for every child, needs no column for
-// it: SchoolID names the school and ModuleName the module of every row.
+// of one school, with one module for every child or without the first day
+// of the contracts needs no column for it: SchoolID names the school,
+// ModuleName the module and EffectiveFrom the first day of every row.
 type ContractImportMapping struct {
 	Columns ContractImportColumns `json:"columns"`
 	// SchoolID is the school of every row of a file without a school
@@ -196,6 +197,10 @@ type ContractImportMapping struct {
 	// ModuleName is the module of every row of a file without a module
 	// column, by its name at the row's school; empty with a column.
 	ModuleName string `json:"module_name"`
+	// EffectiveFrom is the first day of the contract of every row of a file
+	// without a column for it, such as the master data of OGS Connect; nil
+	// with a column.
+	EffectiveFrom *calendar.Date `json:"effective_from"`
 }
 
 // ContractImportRequest is one look at a file: the preview when Apply is

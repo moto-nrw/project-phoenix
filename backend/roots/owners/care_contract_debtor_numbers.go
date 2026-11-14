@@ -65,8 +65,9 @@ func (n CareContractDebtorNumbers) DecideImportedDebtorNumbers(ctx context.Conte
 
 // careContractDebtorNumberStatus names the Elternabrechnung's decision in
 // the words of the import of contracts. Rows that disagree are one status
-// there, whether they name one payer or one child; a row without a child
-// cannot come from a contract, which always names one.
+// there, whether they name one payer or one child. A row of a contract
+// always names a child and a family (its mail address, else its contract),
+// so the statuses for a row without one do not come from this import.
 func careContractDebtorNumberStatus(status string) string {
 	switch status {
 	case parentbilling.DebtorNumberNew:
@@ -77,8 +78,6 @@ func careContractDebtorNumberStatus(status string) string {
 		return carecontract.ContractDebtorNumberDiffers
 	case parentbilling.DebtorNumberSiblingsDiffer, parentbilling.DebtorNumberRowsDiffer:
 		return carecontract.ContractDebtorNumberRowsDiffer
-	case parentbilling.DebtorNumberNoFamily, parentbilling.DebtorNumberNoChild:
-		return carecontract.ContractDebtorNumberNoFamily
 	}
 	return carecontract.ContractDebtorNumberInvalid
 }

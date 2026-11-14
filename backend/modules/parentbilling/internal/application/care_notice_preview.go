@@ -167,7 +167,7 @@ func retainFailedAssessments(final, review careMonth, previous map[int64]parentb
 		if invoice, assessed := months[month]; assessed {
 			// Keep the assessment, not an outdated contract party.
 			invoice.Recipient = recipients[contractID]
-			invoice.FamilyEmail = parentbilling.FamilyKey(invoice.Recipient.Email)
+			invoice.FamilyEmail = parentbilling.ContractFamilyKey(invoice.Recipient.Email, contractID)
 			drafts = append(drafts, invoice)
 		}
 	}
@@ -306,7 +306,7 @@ func (n *CareFeeNotices) withPayments(ctx context.Context, organizationID int64,
 	for i := range notices {
 		family := notices[i].FamilyEmail
 		if family == "" {
-			family = parentbilling.FamilyKey(notices[i].Recipient.Email)
+			family = parentbilling.ContractFamilyKey(notices[i].Recipient.Email, notices[i].ContractID)
 		}
 		invoice := parentbilling.CareInvoice{Recipient: notices[i].Recipient, Service: parentbilling.ServiceCare,
 			FamilyEmail: family}

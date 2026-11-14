@@ -230,8 +230,11 @@ func (m *SEPAMandates) familyOf(ctx context.Context, organizationID, contractID 
 	if err != nil {
 		return "", fmt.Errorf("parent billing: read the contract party: %w", err)
 	}
-	key := parentbilling.FamilyKey(recipients[contractID].Email)
-	if key == "" {
+	// A contract of another Träger is not among the recipients and names
+	// no family.
+	recipient, known := recipients[contractID]
+	key := parentbilling.ContractFamilyKey(recipient.Email, contractID)
+	if !known || key == "" {
 		return "", parentbilling.ErrFamilyUnknown
 	}
 	return key, nil

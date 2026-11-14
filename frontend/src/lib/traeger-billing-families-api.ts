@@ -7,6 +7,7 @@
  */
 
 import type { BillingDocumentKind } from "./traeger-billing-api";
+import { familyKeyEmail } from "~/lib/family-key";
 import {
   type BackendDebtorNumberFormat,
   type DebtorNumberFormat,
@@ -371,7 +372,7 @@ export function withFamilyChildren(
       id: "0",
       recipientFirstName: family.recipientFirstName,
       recipientLastName: family.recipientLastName,
-      recipientEmail: family.familyEmail,
+      recipientEmail: familyKeyEmail(family.familyEmail),
       debtorNumbers: [],
       payments: [],
       paymentMethods: [],

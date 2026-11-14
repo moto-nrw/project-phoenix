@@ -286,3 +286,90 @@ func TestCareContractImportLogQueryBudgetIsFlat(t *testing.T) {
 	assert.Len(t, measure().Statements, len(first.Statements), "the log reads the same statements for any number of imports")
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_contract_imports", first)
 }
+
+// ogsConnectMasterFile is a file in the layout of the master data export of
+// OGS Connect (#7009), with invented data: NUL where a CSV has quotes, two
+// unnamed columns, no mail address, no first day of the contract, no school
+// and no module, and a child whose family pays without a mandate.
+func ogsConnectMasterFile() []byte {
+	line := func(cells ...string) string {
+		return "\x00" + strings.Join(cells, "\x00;\x00") + "\x00"
+	}
+	return []byte(strings.Join([]string{
+		line("Nachname Kind ", " Vorname Kind", "", "Debitor-Nr.", "Kontoinhaber", "IBAN", "Mandatsreferenz", "Unterschriftsdatum",
+			"Mandat ist gültig ab", "Lastschriftart", ""),
+		line("Beispiel", "Lia", "", "70001", "Eva Beispiel", sepaIBAN, "SJR-0001", "01.02.2024 14:05", "01.03.2024 00:00", "RCUR", ""),
+		line("Muster", "Ben", "", "70002", "", "", "", "", "", "", ""),
+	}, "\r\n") + "\r\n")
+}
+
+// The master data of OGS Connect goes through both imports without a change
+// to the file (#4723, #7009): the contracts first, with the school, the
+// module and the first day chosen for every row, a child without parents
+// and the debtor numbers kept for contracts that name no mail address; then
+// the mandates, whose payers the debtor numbers name.
+func TestCareContractImportTakesTheOGSConnectMasterDataBeforeItsMandates(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Stammdaten OGS Connect")
+	ctx := context.Background()
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	file := ogsConnectMasterFile()
+
+	rec := importForm(t, f.traeger, f.office.token, contractImportPreviewPath, "csv-export-stammdaten.csv", file, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	suggested := decodeSchoolPortalData[contractImportBody](t, rec.Body.Bytes())
+	assert.Equal(t, []string{"effective_from", "school"}, suggested.Unmapped, "the file names no first day and no school")
+
+	fields := map[string]string{"mapping": fmt.Sprintf(`{"columns":{"child_first_name":"Vorname Kind","child_last_name":"Nachname Kind",`+
+		`"party_last_name":"Kontoinhaber","debtor_number":"Debitor-Nr."},"school_id":%d,"module_name":"Offene Ganztagsschule",`+
+		`"effective_from":"2027-08-01"}`, f.school)}
+	rec = importForm(t, f.traeger, f.office.token, contractImportPreviewPath, "csv-export-stammdaten.csv", file, fields)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	preview := decodeSchoolPortalData[contractImportBody](t, rec.Body.Bytes())
+	require.Empty(t, preview.Unmapped)
+	require.Equal(t, 2, preview.Counts.Ready, rec.Body.String())
+	assert.Equal(t, 2, preview.Counts.DebtorNumbers, "without a mail address each contract is a family of its own")
+	assert.Equal(t, "new", preview.Rows[1].DebtorNumberStatus)
+	assert.Contains(t, rec.Body.String(), `"hints":["no_party"]`, "the child without parents says so")
+
+	fields["fingerprint"] = preview.Fingerprint
+	rec = importForm(t, f.traeger, f.office.token, contractImportPath, "csv-export-stammdaten.csv", file, fields)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	applied := decodeSchoolPortalData[contractImportBody](t, rec.Body.Bytes())
+	require.Equal(t, 2, applied.Counts.Imported)
+	lia, ben := applied.Rows[0].ContractID, applied.Rows[1].ContractID
+	var numbers []string
+	require.NoError(t, f.db.NewRaw(`SELECT family_email || '=' || debtor_number FROM parent_billing.family_billing
+		WHERE organization_id = ? AND care_contract_id IN (?, ?) ORDER BY debtor_number`, f.office.organization, lia, ben).Scan(ctx, &numbers))
+	assert.Equal(t, []string{fmt.Sprintf("contract:%d=70001", lia), fmt.Sprintf("contract:%d=70002", ben)}, numbers)
+	var parties int
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM care_contract.contract_parties WHERE contract_id = ?`, ben).Scan(ctx, &parties))
+	assert.Zero(t, parties, "a row without parents stores no contract party")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, contractPath(ben, ""), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// The same file again changes nothing: the numbers are the stored ones.
+	delete(fields, "fingerprint")
+	rec = importForm(t, f.traeger, f.office.token, contractImportPreviewPath, "csv-export-stammdaten.csv", file, fields)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, 2, decodeSchoolPortalData[contractImportBody](t, rec.Body.Bytes()).Counts.Duplicate)
+
+	// The mandate import finds the payer of the row by the number the
+	// contract import kept and stores the mandate for that contract.
+	billing := traegerColleague(t, f.reviewFixture, identityaccess.TraegerRoleBilling)
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPut, sepaCreditorPath,
+		map[string]any{"creditor_id": sepaCreditorID, "prenotification_days": 14, "missing_mandate": "transfer"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = importForm(t, f.traeger, billing, sepaImportPreviewPath, "csv-export-stammdaten.csv", file, ogsConnectMapping())
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	mandates := decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes())
+	require.Len(t, mandates.Rows, 1, "the row without a mandate is skipped: "+rec.Body.String())
+	require.Equal(t, "ready", mandates.Rows[0].Status, rec.Body.String())
+	assert.Equal(t, lia, mandates.Rows[0].ContractID)
+	rec = applyImport(t, f.traeger, billing, "csv-export-stammdaten.csv", file, ogsConnectMapping())
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	var family string
+	require.NoError(t, f.db.NewRaw(`SELECT family_email FROM parent_billing.sepa_mandates WHERE organization_id = ?`,
+		f.office.organization).Scan(ctx, &family))
+	assert.Equal(t, fmt.Sprintf("contract:%d", lia), family)
+}

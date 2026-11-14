@@ -4,6 +4,7 @@
 // backend checks the same again; these only point at the field early.
 
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
+import { familyKeyLabel } from "~/lib/family-key";
 import type {
   MandateAction,
   MandateKind,
@@ -118,7 +119,7 @@ export function mandateEventActor(
 /** The name of the family of a mandate. */
 export function mandateFamily(mandate: SepaMandate): string {
   const name = `${mandate.partyFirstName} ${mandate.partyLastName}`.trim();
-  return name || mandate.familyEmail;
+  return name || familyKeyLabel(mandate.familyEmail);
 }
 
 export {

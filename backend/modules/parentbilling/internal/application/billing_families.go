@@ -84,11 +84,10 @@ func (f *BillingFamilies) ListBillingFamilies(ctx context.Context, reviewer pare
 	if err != nil {
 		return nil, fmt.Errorf("parent billing: read family contracts: %w", err)
 	}
-	contracts := make(map[string]bool, len(contracted))
-	for _, key := range contracted {
-		contracts[key] = true
+	families := withFamilyRows(details, rows, familiesUnderContract(contracted, keys))
+	if err := f.nameContractFamilies(ctx, reviewer.OrganizationID, families, rows); err != nil {
+		return nil, err
 	}
-	families := withFamilyRows(details, rows, contracts)
 	slices.SortStableFunc(families, func(a, b parentbilling.BillingFamily) int {
 		for _, order := range []int{
 			strings.Compare(strings.ToLower(a.RecipientLastName), strings.ToLower(b.RecipientLastName)),
@@ -107,6 +106,57 @@ func (f *BillingFamilies) ListBillingFamilies(ctx context.Context, reviewer pare
 		return 0
 	})
 	return families, nil
+}
+
+// familiesUnderContract marks the families with a care contract: those the
+// Betreuungsvertrag found by their mail address, and every family moto
+// knows only by its contract.
+func familiesUnderContract(contracted, keys []string) map[string]bool {
+	contracts := make(map[string]bool, len(contracted))
+	for _, key := range contracted {
+		contracts[key] = true
+	}
+	for _, key := range keys {
+		if parentbilling.IsContractFamily(key) {
+			contracts[key] = true
+		}
+	}
+	return contracts
+}
+
+// nameContractFamilies gives the families without a document that moto
+// knows only by their contract (ADR 0232) the name of the contract party,
+// in one read. Their key is no mail address and is not shown as one.
+func (f *BillingFamilies) nameContractFamilies(ctx context.Context, organizationID int64, families []parentbilling.BillingFamily,
+	rows []parentbilling.FamilyBilling,
+) error {
+	contractOf := map[string]int64{}
+	var ids []int64
+	for _, row := range rows {
+		if parentbilling.IsContractFamily(row.FamilyEmail) && row.ContractID > 0 {
+			contractOf[row.FamilyEmail] = row.ContractID
+			ids = append(ids, row.ContractID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	recipients, err := f.careContracts.Recipients(ctx, organizationID, ids)
+	if err != nil {
+		return fmt.Errorf("parent billing: read the contract parties of the families: %w", err)
+	}
+	for i := range families {
+		family := &families[i]
+		id, ok := contractOf[family.FamilyEmail]
+		if !ok || family.ID != 0 {
+			continue
+		}
+		family.RecipientEmail = ""
+		if family.RecipientFirstName == "" && family.RecipientLastName == "" {
+			family.RecipientFirstName, family.RecipientLastName = recipients[id].FirstName, recipients[id].LastName
+		}
+	}
+	return nil
 }
 
 // BillingFamily reads one family with its documents, the newest first, and
@@ -138,7 +188,8 @@ func (f *BillingFamilies) BillingFamily(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.BillingFamilyDetail{}, fmt.Errorf("parent billing: read family contracts: %w", err)
 	}
-	family.BillingFamily = withFamilyRow(family.BillingFamily, family.Documents, row, slices.Contains(contracted, family.FamilyEmail))
+	family.BillingFamily = withFamilyRow(family.BillingFamily, family.Documents, row,
+		slices.Contains(contracted, family.FamilyEmail) || parentbilling.IsContractFamily(family.FamilyEmail))
 	if row != nil {
 		if err := f.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingRead,
 			[]parentbilling.FamilyBilling{*row}); err != nil {

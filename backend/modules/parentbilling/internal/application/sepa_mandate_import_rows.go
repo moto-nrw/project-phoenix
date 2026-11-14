@@ -263,7 +263,9 @@ func (c *importCheck) payerOf(candidate *importCandidate, value string) (importP
 	case parentbilling.PayerByDebtorNumber:
 		return c.payers.payerOfNumber(candidate, value)
 	default:
-		if payer, found := c.payers.byFamily[parentbilling.FamilyKey(value)]; found {
+		// Only a mail address names a family here: the key of a family
+		// without one is no value of a file.
+		if payer, found := c.payers.byFamily[parentbilling.FamilyKey(value)]; found && !parentbilling.IsContractFamily(payer.family) {
 			return payer, ""
 		}
 	}

@@ -337,7 +337,7 @@ func (m *SEPAMandates) importPayers(ctx context.Context, organizationID int64) (
 		childUntil: map[string]calendar.Date{}, byChild: map[string]importPayer{}}
 	for _, id := range ids {
 		recipient := recipients[id]
-		payer := importPayer{contractID: id, family: parentbilling.FamilyKey(recipient.Email),
+		payer := importPayer{contractID: id, family: parentbilling.ContractFamilyKey(recipient.Email, id),
 			firstName: recipient.FirstName, lastName: recipient.LastName, until: until[id], child: children[id]}
 		payers.byContract[id] = payer
 		payers.countChild(payer)
