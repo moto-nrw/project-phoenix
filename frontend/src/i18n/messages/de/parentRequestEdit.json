@@ -17,5 +17,5 @@
   "close": "Fenster schließen",
   "errorObject": "die Anfrage",
   "closeTooltip": "Schließt das Fenster, die Anfrage bleibt unverändert.",
-  "submitTooltip": "Speichert die geänderte Anfrage, die {careTerm} entscheidet dann darüber."
+  "submitTooltip": "Ersetzt die Anfrage sofort, die {careTerm} entscheidet über die neue Fassung."
 }

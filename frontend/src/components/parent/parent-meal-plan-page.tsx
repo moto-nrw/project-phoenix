@@ -172,6 +172,7 @@ function WeekNavigation({
   mondayISO,
   weekRange,
   weekReady,
+  editing = false,
   onWeekChange,
   actions,
 }: Readonly<{
@@ -180,6 +181,8 @@ function WeekNavigation({
   mondayISO: string;
   weekRange: string;
   weekReady: boolean;
+  /** Eine offene Änderung sperrt den Wochenwechsel, bis sie gespeichert ist. */
+  editing?: boolean;
   onWeekChange: (offset: WeekOffset) => void;
   /** Aktionen für die ganze Woche: rechts neben dem Wochenwechsel, auf dem
       Handy darunter in voller Breite. */
@@ -188,6 +191,15 @@ function WeekNavigation({
   lastWeekReason: string;
 }>) {
   const t = useCareTermTranslations("parentMealPlan");
+  const ready = weekReady && !editing;
+  // Der Grund steht nur bei einer Sperre durch den Stand der Seite, nicht
+  // während die Woche lädt.
+  const blockedReason = (atEnd: boolean, endReason: string) =>
+    editing
+      ? t("weekEditingReason")
+      : weekReady && atEnd
+        ? endReason
+        : undefined;
   const weekLabel =
     weekOffset === 0
       ? t("thisWeek")
@@ -207,12 +219,11 @@ function WeekNavigation({
           size="icon"
           aria-label={t("previousWeek")}
           tooltip={t("previousWeekTooltip")}
-          disabled={!weekReady || weekOffset === 0}
-          disabledReason={
-            weekReady && weekOffset === 0
-              ? t("previousWeekDisabledReason")
-              : undefined
-          }
+          disabled={!ready || weekOffset === 0}
+          disabledReason={blockedReason(
+            weekOffset === 0,
+            t("previousWeekDisabledReason"),
+          )}
           onClick={() => onWeekChange((weekOffset - 1) as WeekOffset)}
         >
           <CaretLeftIcon size={16} weight="bold" aria-hidden="true" />
@@ -235,10 +246,8 @@ function WeekNavigation({
           size="icon"
           aria-label={t("nextWeek")}
           tooltip={t("nextWeekTooltip")}
-          disabled={!weekReady || weekOffset >= lastWeek}
-          disabledReason={
-            weekReady && weekOffset >= lastWeek ? lastWeekReason : undefined
-          }
+          disabled={!ready || weekOffset >= lastWeek}
+          disabledReason={blockedReason(weekOffset >= lastWeek, lastWeekReason)}
           onClick={() => onWeekChange((weekOffset + 1) as WeekOffset)}
         >
           <CaretRightIcon size={16} weight="bold" aria-hidden="true" />
@@ -836,7 +845,8 @@ function ParticipationWeek({
           lastWeekReason={t("lastParticipationWeekReason")}
           mondayISO={mondayISO}
           weekRange={weekRange}
-          weekReady={weekReady && !isEditing}
+          weekReady={weekReady}
+          editing={isEditing}
           onWeekChange={onWeekChange}
           actions={
             weekReady && !loading && (weekRegistrable || weekCancellable) ? (

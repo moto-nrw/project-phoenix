@@ -72,7 +72,7 @@
   "inboxActive": "Mandati u dha",
   "inboxButtonTooltip": "Hap mandatin e debitit direkt për këtë kontratë.",
   "revokeTooltip": "E revokon mandatin për këtë llogari. moto pyet më parë.",
-  "revokeConfirmTooltip": "E revokon mandatin menjëherë; nga fatura e ardhshme pa tërheqje.",
+  "revokeConfirmTooltip": "E revokon mandatin menjëherë për të gjitha faturat e mëtejshme.",
   "revokeCloseTooltip": "Mbyll dritaren; mandati mbetet i vlefshëm.",
   "downloadTooltip": "Ruan tekstin e mandatit si skedar në pajisjen tuaj.",
   "nextTooltip": "Kontrollon të dhënat tuaja dhe tregon tekstin e mandatit.",

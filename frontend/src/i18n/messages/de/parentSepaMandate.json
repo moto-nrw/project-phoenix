@@ -72,7 +72,7 @@
   "inboxActive": "Lastschrift erteilt",
   "inboxButtonTooltip": "Öffnet das Lastschrift-Mandat zu diesem Vertrag.",
   "revokeTooltip": "Widerruft das Mandat für dieses Konto. moto fragt vorher nach.",
-  "revokeConfirmTooltip": "Widerruft das Mandat sofort, ab der nächsten Rechnung gibt es keine Abbuchung.",
+  "revokeConfirmTooltip": "Widerruft das Mandat sofort für alle weiteren Rechnungen.",
   "revokeCloseTooltip": "Schließt das Fenster, das Mandat bleibt gültig.",
   "downloadTooltip": "Speichert den Text des Mandats als Datei auf Ihrem Gerät.",
   "nextTooltip": "Prüft Ihre Angaben und zeigt den Text des Mandats.",

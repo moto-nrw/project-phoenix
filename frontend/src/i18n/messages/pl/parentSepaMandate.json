@@ -72,10 +72,10 @@
   "inboxActive": "Polecenie zapłaty udzielone",
   "inboxButtonTooltip": "Otwiera mandat do polecenia zapłaty dla tej umowy.",
   "revokeTooltip": "Odwołuje mandat dla tego konta. moto najpierw zapyta.",
-  "revokeConfirmTooltip": "Od razu odwołuje mandat; od następnej faktury bez obciążeń.",
-  "revokeCloseTooltip": "Zamyka okno; mandat pozostaje ważne.",
+  "revokeConfirmTooltip": "Od razu odwołuje mandat dla wszystkich kolejnych faktur.",
+  "revokeCloseTooltip": "Zamyka okno; mandat pozostaje ważny.",
   "downloadTooltip": "Zapisuje tekst mandatu jako plik na Twoim urządzeniu.",
   "nextTooltip": "Sprawdza Twoje dane i pokazuje tekst mandatu.",
-  "backTooltip": "Ponownie pokazuje dane konta; mandat nie jest jeszcze udzielone.",
+  "backTooltip": "Ponownie pokazuje dane konta; mandat nie jest jeszcze udzielony.",
   "grantTooltip": "Od razu udziela mandatu; potem organ prowadzący może pobierać."
 }

@@ -92,5 +92,6 @@
   "editDayTooltip": "Otwiera zgłoszenie na ten dzień do zmiany.",
   "registerDayTooltip": "Zaznacza zgłoszenie; obowiązuje dopiero po zapisaniu.",
   "unregisterDayTooltip": "Zaznacza wypisanie; obowiązuje dopiero po zapisaniu.",
-  "useRegularTooltip": "Przywraca dla tego dnia stałe dni, po zapisaniu."
+  "useRegularTooltip": "Przywraca na ten dzień stałe zgłoszenie, po zapisaniu.",
+  "weekEditingReason": "Najpierw zapisz lub odrzuć swoją zmianę."
 }

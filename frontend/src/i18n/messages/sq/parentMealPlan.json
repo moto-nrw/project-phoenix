@@ -92,5 +92,6 @@
   "editDayTooltip": "Hap regjistrimin për këtë ditë për ta ndryshuar.",
   "registerDayTooltip": "Shënon regjistrimin; vlen vetëm pasi ta ruani.",
   "unregisterDayTooltip": "Shënon çregjistrimin; vlen vetëm pasi ta ruani.",
-  "useRegularTooltip": "E kthen ditën te ditët e rregullta, pasi ta ruani."
+  "useRegularTooltip": "Përdor regjistrimin e rregullt për këtë ditë, pasi ta ruani.",
+  "weekEditingReason": "Fillimisht ruani ose hidhni poshtë ndryshimin."
 }

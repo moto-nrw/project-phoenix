@@ -17,5 +17,5 @@
   "close": "Pencereyi kapat",
   "errorObject": "talep",
   "closeTooltip": "Pencereyi kapatır; talep değişmeden kalır.",
-  "submitTooltip": "Değiştirilen talebi kaydeder; ardından {careTerm} karar verir."
+  "submitTooltip": "Talebi hemen değiştirir; {careTerm} yeni hali hakkında karar verir."
 }

@@ -72,7 +72,7 @@
   "inboxActive": "Otomatik ödeme verildi",
   "inboxButtonTooltip": "Bu sözleşmenin otomatik ödeme talimatını açar.",
   "revokeTooltip": "Bu hesap için talimatı iptal eder. moto önce sorar.",
-  "revokeConfirmTooltip": "Talimatı hemen iptal eder; sonraki faturadan itibaren tahsilat olmaz.",
+  "revokeConfirmTooltip": "Talimatı sonraki tüm faturalar için hemen iptal eder.",
   "revokeCloseTooltip": "Pencereyi kapatır; talimat geçerli kalır.",
   "downloadTooltip": "Talimat metnini cihazınıza dosya olarak kaydeder.",
   "nextTooltip": "Bilgilerinizi kontrol eder ve talimat metnini gösterir.",

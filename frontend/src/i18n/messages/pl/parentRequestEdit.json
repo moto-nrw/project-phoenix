@@ -17,5 +17,5 @@
   "close": "Zamknij okno",
   "errorObject": "prośba",
   "closeTooltip": "Zamyka okno; prośba pozostaje bez zmian.",
-  "submitTooltip": "Zapisuje zmienioną prośbę; potem decyduje {careTerm}."
+  "submitTooltip": "Od razu zastępuje prośbę; {careTerm} decyduje o nowej wersji."
 }

@@ -21,5 +21,7 @@
   "linkHint": "İmzalayana kadar sayıyı burada değiştirebilirsiniz.",
   "enrollmentHint": "Çocuğunuz kabul edilene kadar sayıyı burada değiştirebilirsiniz.",
   "sendTooltip": "Sayıyı kontrol için hemen kuruma gönderir.",
-  "enrollmentSendTooltip": "Sayıyı ileride yapılacak bakım sözleşmeniz için kaydeder."
+  "enrollmentSendTooltip": "Sayıyı ileride yapılacak bakım sözleşmeniz için kaydeder.",
+  "decrementTooltip": "Bir çocuk eksik sayar.",
+  "incrementTooltip": "Bir çocuk fazla sayar."
 }

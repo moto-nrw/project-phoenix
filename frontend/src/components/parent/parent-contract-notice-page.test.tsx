@@ -265,6 +265,7 @@ describe("ParentContractNoticePage (#4682, § 312k BGB)", () => {
     expect(
       screen.getByRole("button", { name: "Jetzt kündigen" }),
     ).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Jetzt kündigen" }));
     expect(mocks.declareMyContractNotice).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("radio", { name: /31.01.2027/ }));
     expect(

@@ -186,6 +186,8 @@ export function ParentFamilyChildrenCard({
                     canIncrement={children < MAX_CHILDREN}
                     decrementLabel={t("less")}
                     incrementLabel={t("more")}
+                    decrementTooltip={t("decrementTooltip")}
+                    incrementTooltip={t("incrementTooltip")}
                     error={saveError.fieldError("children")}
                   />
                 </div>

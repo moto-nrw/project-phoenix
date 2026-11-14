@@ -86,11 +86,12 @@
   "saveRegularDaysTooltip": "Saves the new regular days for your child.",
   "saveDayTooltip": "Saves the registration for this day.",
   "registerWeekTooltip": "Registers your child right away for every day of this week still open.",
-  "cancelWeekTooltip": "Cancels your child for this week. moto asks you first.",
-  "cancelWeekConfirmTooltip": "Cancels your child right away for every day still open.",
+  "cancelWeekTooltip": "Cancels your child's meals for this week. moto asks you first.",
+  "cancelWeekConfirmTooltip": "Cancels your child's meals right away for every day still open.",
   "cancelWeekCloseTooltip": "Closes the window; the registration stays as it is.",
   "editDayTooltip": "Opens the registration for this day so you can change it.",
   "registerDayTooltip": "Notes the registration; it only counts once you save.",
   "unregisterDayTooltip": "Notes the cancellation; it only counts once you save.",
-  "useRegularTooltip": "Sets the day back to the regular days, once you save."
+  "useRegularTooltip": "Uses the regular registration for this day, once you save.",
+  "weekEditingReason": "First save or discard your change."
 }

@@ -21,5 +21,7 @@
   "linkHint": "Deri në nënshkrim mund ta ndryshoni numrin këtu.",
   "enrollmentHint": "Derisa fëmija juaj të pranohet, mund ta ndryshoni numrin këtu.",
   "sendTooltip": "E dërgon numrin menjëherë te ofruesi për kontroll.",
-  "enrollmentSendTooltip": "Ruan numrin për kontratën tuaj të ardhshme të kujdesit."
+  "enrollmentSendTooltip": "Ruan numrin për kontratën tuaj të ardhshme të kujdesit.",
+  "decrementTooltip": "Numëron një fëmijë më pak.",
+  "incrementTooltip": "Numëron një fëmijë më shumë."
 }

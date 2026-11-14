@@ -21,5 +21,7 @@
   "linkHint": "You can change the number here until you sign.",
   "enrollmentHint": "You can change the number here until your child is accepted.",
   "sendTooltip": "Sends the number to the provider right away for checking.",
-  "enrollmentSendTooltip": "Saves the number for your later care contract."
+  "enrollmentSendTooltip": "Saves the number for your later care contract.",
+  "decrementTooltip": "Counts one child fewer.",
+  "incrementTooltip": "Counts one child more."
 }

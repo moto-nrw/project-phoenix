@@ -50,8 +50,8 @@
   "signNowTooltip": "Hap kontratën për ta lexuar dhe nënshkruar.",
   "familyChildrenTooltip": "Hap faqen ku jepni numrin e fëmijëve tuaj.",
   "familyChildrenViewTooltip": "Tregon sa fëmijë të familjes suaj numëron ofruesi.",
-  "cancelContractTooltip": "Hap anulimin; dërgohet vetëm në faqen tjetër.",
+  "cancelContractTooltip": "Hap ndërprerjen; dërgohet vetëm në faqen tjetër.",
   "withdrawContractTooltip": "Hap tërheqjen; dërgohet vetëm në faqen tjetër.",
-  "showConfirmationTooltip": "Tregon anulimin me datën e mbarimit dhe konfirmimin.",
+  "showConfirmationTooltip": "Tregon ndërprerjen me datën e mbarimit dhe konfirmimin.",
   "showWithdrawalTooltip": "Tregon tërheqjen me konfirmimin e saj."
 }

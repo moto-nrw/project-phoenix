@@ -21,5 +21,7 @@
   "linkHint": "Do podpisania mogą Państwo tutaj zmienić tę liczbę.",
   "enrollmentHint": "Do przyjęcia dziecka mogą Państwo tutaj zmienić tę liczbę.",
   "sendTooltip": "Od razu wysyła liczbę do organu prowadzącego do sprawdzenia.",
-  "enrollmentSendTooltip": "Zapisuje liczbę do Twojej przyszłej umowy o opiekę."
+  "enrollmentSendTooltip": "Zapisuje liczbę do Twojej przyszłej umowy o opiekę.",
+  "decrementTooltip": "Liczy o jedno dziecko mniej.",
+  "incrementTooltip": "Liczy o jedno dziecko więcej."
 }

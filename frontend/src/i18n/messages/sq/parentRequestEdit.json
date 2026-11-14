@@ -17,5 +17,5 @@
   "close": "Mbyll dritaren",
   "errorObject": "kërkesa",
   "closeTooltip": "Mbyll dritaren; kërkesa mbetet e pandryshuar.",
-  "submitTooltip": "Ruan kërkesën e ndryshuar; pastaj vendos {careTerm}."
+  "submitTooltip": "E zëvendëson kërkesën menjëherë; {careTerm} vendos për versionin e ri."
 }

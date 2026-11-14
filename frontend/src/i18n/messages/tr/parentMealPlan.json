@@ -92,5 +92,6 @@
   "editDayTooltip": "Bu günün kaydını değiştirmeniz için açar.",
   "registerDayTooltip": "Kaydı not eder; ancak kaydettikten sonra geçerli olur.",
   "unregisterDayTooltip": "İptali not eder; ancak kaydettikten sonra geçerli olur.",
-  "useRegularTooltip": "Günü kaydettikten sonra sabit günlere geri döndürür."
+  "useRegularTooltip": "Kaydettikten sonra bu gün için sabit kaydı kullanır.",
+  "weekEditingReason": "Önce değişikliğinizi kaydedin veya iptal edin."
 }
