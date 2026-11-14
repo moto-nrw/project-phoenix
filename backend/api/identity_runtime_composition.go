@@ -62,6 +62,8 @@ func SchoolPortalMFA(mfa identityaccess.AccountMFA) schoolPortal.MFARuntime {
 			return mfa.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: proof.AccountID, TenantID: proof.TenantID, Scope: identityaccess.MFAChallengeScopeSchool, MFAResetGeneration: proof.MFAResetGeneration})
 		},
 		PrepareTrustedDevice: mfa.PrepareTrustedDevice,
+		ListTrustedDevices:   mfa.ListTrustedDevices,
+		RevokeTrustedDevice:  mfa.RevokeTrustedDevice,
 	}
 }
 

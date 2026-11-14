@@ -169,7 +169,7 @@ export function TrustedDevicesSection({
         <EmptyState
           variant="compact"
           title="Sie haben aktuell keine vertrauten Geräte gespeichert."
-          description="Beim nächsten Login können Sie ein Gerät merken lassen, um den 2FA-Code dort zu überspringen."
+          description="Wenn moto beim Anmelden nach einem Code fragt, können Sie Ihr Gerät dort merken."
         />
       )}
       {!loading && !loadFailed && devices && devices.length > 0 && (

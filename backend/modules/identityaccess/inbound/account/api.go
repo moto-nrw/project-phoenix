@@ -294,7 +294,7 @@ func (rs *Resource) mountAuthenticatedRoutes(r chi.Router, configureSession func
 	// service so this stays a plain authenticated route.
 	r.Route("/mfa", func(r chi.Router) {
 		r.Get("/trusted-devices", rs.mfaListTrustedDevices)
-		r.Delete("/trusted-devices/{deviceId}", rs.mfaRevokeTrustedDevice)
+		r.Delete("/trusted-devices/{"+portalauth.TrustedDeviceIDParam+"}", rs.mfaRevokeTrustedDevice)
 	})
 	r.Route("/passkeys", func(r chi.Router) {
 		r.Get("/", rs.passkeyList)
