@@ -19,6 +19,6 @@
   "enabling": "Turning on …",
   "remindLaterTooltip": "Closes this window; moto reminds you again in one week.",
   "enableTooltip": "Turns on notifications for all topics on this device.",
-  "installAppTooltip": "Lets your browser install moto as an app on this device.",
+  "installAppTooltip": "Installs moto as an app on this device.",
   "closeGuideTooltip": "Closes the guide; moto reminds you again after one day."
 }

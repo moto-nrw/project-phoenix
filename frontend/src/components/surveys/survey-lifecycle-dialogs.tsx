@@ -34,6 +34,23 @@ import { reportsConcept } from "~/lib/concepts/reports";
 
 const logger = createLogger({ component: "SurveyLifecycle" });
 
+/**
+ * Wer bei Veröffentlichen und Erinnern etwas bekommt, für Knopf und Menü.
+ * Mitarbeitende erinnert moto nur per App, und nur wer Benachrichtigungen
+ * zu Umfragen eingeschaltet hat; Eltern per App und E-Mail (#6776).
+ */
+function surveyRecipients(survey: Pick<Survey, "audience">) {
+  return survey.audience === "staff"
+    ? {
+        publish: "an die Mitarbeitenden",
+        remind: "Mitarbeitende ohne Antwort, die Benachrichtigungen erhalten",
+      }
+    : {
+        publish: "an die gewählten Eltern",
+        remind: "Eltern ohne Antwort per App und E-Mail",
+      };
+}
+
 interface DialogProps {
   readonly survey: Survey;
   readonly onClose: () => void;
@@ -109,11 +126,7 @@ export function PublishSurveyDialog({ survey, onClose, onDone }: DialogProps) {
       onConfirm={() => void confirm()}
       title="Umfrage veröffentlichen"
       confirmText="Jetzt veröffentlichen"
-      confirmTooltip={
-        survey.audience === "staff"
-          ? "Schickt die Umfrage sofort an die Mitarbeitenden."
-          : "Schickt die Umfrage sofort an die gewählten Eltern."
-      }
+      confirmTooltip={`Schickt die Umfrage sofort ${surveyRecipients(survey).publish}.`}
       cancelText="Abbrechen"
       isConfirmLoading={pending}
       loadingText="Wird veröffentlicht …"
@@ -206,11 +219,7 @@ export function RemindSurveyDialog({
       onConfirm={() => void confirm()}
       title="An die Umfrage erinnern"
       confirmText="Erinnerung senden"
-      confirmTooltip={
-        survey.audience === "staff"
-          ? "Erinnert sofort alle Mitarbeitenden ohne Antwort per App."
-          : "Erinnert sofort alle Eltern ohne Antwort per App und E-Mail."
-      }
+      confirmTooltip={`Erinnert sofort ${surveyRecipients(survey).remind}.`}
       cancelText="Abbrechen"
       isConfirmLoading={pending}
       loadingText="Wird gesendet …"
@@ -303,10 +312,7 @@ export function buildSurveyMenuItems(
     items.push({
       label: "Veröffentlichen",
       icon: <Send className="size-4" aria-hidden />,
-      description:
-        survey.audience === "staff"
-          ? "Schickt die Umfrage an die Mitarbeitenden. moto fragt vorher nach"
-          : "Schickt die Umfrage an die gewählten Eltern. moto fragt vorher nach",
+      description: `Schickt die Umfrage ${surveyRecipients(survey).publish}. moto fragt vorher nach`,
       onClick: handlers.onPublish,
     });
   }
@@ -334,10 +340,7 @@ export function buildSurveyMenuItems(
       {
         label: "Erinnern",
         icon: <BellRing className="size-4" aria-hidden />,
-        description:
-          survey.audience === "staff"
-            ? "Erinnert Mitarbeitende ohne Antwort per App. moto fragt vorher nach"
-            : "Erinnert Eltern ohne Antwort per App und E-Mail. moto fragt vorher nach",
+        description: `Erinnert ${surveyRecipients(survey).remind}. moto fragt vorher nach`,
         onClick: handlers.onRemind,
       },
       {

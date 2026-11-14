@@ -258,7 +258,7 @@ export function GroupMembersPanel({
           type="button"
           variant="outline_danger"
           size="md"
-          tooltip="Nimmt Sie aus dem Gruppenchat. moto fragt vorher nach."
+          tooltip="Nimmt Sie aus dem Gruppenchat, moto fragt vorher nach."
           onClick={() => setLeaving(true)}
         >
           Gruppenchat verlassen

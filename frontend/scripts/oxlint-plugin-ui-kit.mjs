@@ -6184,7 +6184,6 @@ const TOOLTIP_SCOPE = [
   "src/components/messaging/team-group-modals.tsx",
   "src/components/messaging/team-group-parts.tsx",
   "src/components/messaging/new-team-message-modal.tsx",
-  "src/components/messaging/request-status-badge.tsx",
   "src/components/notifications/notification-setup-dialog.tsx",
   "src/components/staff-notices/staff-notice-acknowledgements-modal.tsx",
   "src/components/staff-notices/staff-notice-modal.tsx",
