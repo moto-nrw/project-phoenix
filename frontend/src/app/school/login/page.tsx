@@ -27,7 +27,10 @@ import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { hasSessionAccess } from "~/lib/session-access";
 import { requestSchoolPasswordReset } from "~/lib/auth-api";
 import { schoolPath } from "~/lib/school-url";
-import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
+import {
+  clearSessionErrorFromUrl,
+  useSessionExpiredNotice,
+} from "~/lib/login-session-notice";
 import { login as loginApi } from "~/lib/mfa-api";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
@@ -48,26 +51,9 @@ interface MFAEnrollmentStep {
   email: string;
 }
 
-function clearSessionErrorFromUrl() {
-  const url = new URL(window.location.href);
-  const hadSessionError =
-    url.searchParams.get("error") === "SessionRequired" ||
-    url.searchParams.get("error") === "SessionExpired";
-
-  if (!hadSessionError) return;
-
-  url.searchParams.delete("error");
-  url.searchParams.delete("callbackUrl");
-
-  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
-  window.history.replaceState({}, "", nextUrl);
-}
-
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // Ein Hinweis, kein Fehler: die Sitzung ist abgelaufen (aus der URL).
-  const [sessionExpired, setSessionExpired] = useState(false);
   // Fehler laufen über den gemeinsamen Weg: Katalogtext je Code im
   // Fehlerkasten des Formulars, Feldfehler am Feld.
   const formRef = useRef<HTMLFormElement>(null);
@@ -86,6 +72,8 @@ function LoginForm() {
   const [enrollmentStep, setEnrollmentStep] =
     useState<MFAEnrollmentStep | null>(null);
   const searchParams = useSearchParams();
+  const [sessionExpired, setSessionExpired] =
+    useSessionExpiredNotice(searchParams);
   const targetTenantSlug = searchParams.get("tenant") ?? undefined;
   const { data: session, status } = useSession();
 
@@ -133,24 +121,6 @@ function LoginForm() {
 
     void checkAndRedirect();
   }, [status, session, enrollmentStep]);
-
-  // Session-abgelaufen-Hinweis, außer nach bewusstem Logout.
-  useEffect(() => {
-    const urlError = searchParams.get("error");
-    if (urlError === "SessionRequired" || urlError === "SessionExpired") {
-      let deliberate = false;
-      try {
-        deliberate = sessionStorage.getItem(DELIBERATE_LOGOUT_KEY) === "1";
-        sessionStorage.removeItem(DELIBERATE_LOGOUT_KEY);
-      } catch {
-        // sessionStorage unavailable
-      }
-      if (!deliberate) {
-        setSessionExpired(true);
-      }
-      clearSessionErrorFromUrl();
-    }
-  }, [searchParams]);
 
   const isCheckingAuth = checkingAuth || status === "loading";
   const isSubmitting = isLoading || awaitingRedirect;

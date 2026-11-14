@@ -40,11 +40,13 @@ vi.mock("~/components/settings/trusted-devices-section", () => ({
   TrustedDevicesSection: () => <p>Gemerkte Geräte (Karte)</p>,
 }));
 
-vi.mock("~/lib/caterer-mfa-api", () => ({
-  fetchCatererMFAStatus: () => mfa.status(),
-  startCatererMFA: () => mfa.start(),
-  confirmCatererMFA: (...args: unknown[]) => mfa.confirm(...args),
-  disableCatererMFA: (...args: unknown[]) => mfa.disable(...args),
+vi.mock("~/lib/email-code-factor-api", () => ({
+  emailCodeFactorApi: () => ({
+    status: () => mfa.status(),
+    start: () => mfa.start(),
+    confirm: (...args: unknown[]) => mfa.confirm(...args),
+    disable: (...args: unknown[]) => mfa.disable(...args),
+  }),
 }));
 
 import CatererAccountPage from "./page";

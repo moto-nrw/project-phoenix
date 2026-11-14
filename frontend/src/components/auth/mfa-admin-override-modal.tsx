@@ -49,25 +49,23 @@ interface Props {
   readonly accountId: string;
   readonly accountLabel: string;
   /**
-   * Which surface is hosting the modal — drives which set of API
-   * helpers we call. Defaults to "tenant" so existing usage (and tests)
-   * keep working without changes. The operator dashboard passes
-   * "operator" + the relevant schoolId so the proxy hits
-   * /api/operator/provisioning/schools/{schoolId}/accounts/{accountId}/mfa
-   * instead of the tenant /auth/accounts/{accountId}/mfa path.
-   * "traeger" is the operator's reset of a Träger-Büro member (#4651):
-   * reset only, scoped by the Träger membership. The Träger-Portal
-   * requires the second factor without exception, so no override is
-   * offered and no override state is loaded.
-   * "caterer" is the operator's reset of a caterer (#4497): reset only,
-   * scoped by the caterer. A caterer switches the second factor on
-   * voluntarily, so there is no override either.
+   * Whose second factor the modal changes and from where. "tenant" is a
+   * school admin at their own school. The others are the operator's: at a
+   * school, with the account-wide override; for a Träger-Büro member
+   * (#4651), reset only, because the Träger-Portal requires the second
+   * factor without exception; for a caterer (#4497), reset only, because a
+   * caterer switches the second factor on voluntarily.
    */
-  readonly scope?: "tenant" | "operator" | "traeger" | "caterer";
-  readonly schoolId?: string;
-  readonly organizationId?: string;
-  readonly catererId?: string;
+  readonly target?: MFAAdminTarget;
 }
+
+type MFAAdminTarget =
+  | { readonly kind: "tenant" }
+  | { readonly kind: "operator"; readonly schoolId: string }
+  | { readonly kind: "traeger"; readonly organizationId: string }
+  | { readonly kind: "caterer"; readonly catererId: string };
+
+const TENANT_TARGET: MFAAdminTarget = { kind: "tenant" };
 
 function overrideLabel(override: MFAAdminOverride): string {
   switch (override) {
@@ -85,11 +83,9 @@ export function MFAAdminOverrideModal({
   onClose,
   accountId,
   accountLabel,
-  scope = "tenant",
-  schoolId,
-  organizationId,
-  catererId,
+  target = TENANT_TARGET,
 }: Props) {
+  const scope = target.kind;
   const toast = useToast();
   const [view, setView] = useState<View>({ kind: "form" });
   const [reason, setReason] = useState("");
@@ -254,21 +250,20 @@ export function MFAAdminOverrideModal({
     setIsWorking(true);
     resetErrors.clear();
     try {
-      if (scope === "caterer") {
-        if (!catererId) {
-          throw new Error("catererId is required for caterer scope");
-        }
-        await operatorAdminResetCatererMFA(catererId, accountId, trimmed);
-      } else if (scope === "traeger") {
-        if (!organizationId) {
-          throw new Error("organizationId is required for traeger scope");
-        }
-        await operatorAdminResetTraegerMFA(organizationId, accountId, trimmed);
-      } else if (scope === "operator") {
-        if (!schoolId) {
-          throw new Error("schoolId is required for operator scope");
-        }
-        await operatorAdminResetMFA(schoolId, accountId, trimmed);
+      if (target.kind === "caterer") {
+        await operatorAdminResetCatererMFA(
+          target.catererId,
+          accountId,
+          trimmed,
+        );
+      } else if (target.kind === "traeger") {
+        await operatorAdminResetTraegerMFA(
+          target.organizationId,
+          accountId,
+          trimmed,
+        );
+      } else if (target.kind === "operator") {
+        await operatorAdminResetMFA(target.schoolId, accountId, trimmed);
       } else {
         await adminResetMFA(accountId, trimmed);
       }
@@ -344,12 +339,9 @@ export function MFAAdminOverrideModal({
     setOverrideWorking(true);
     overrideErrors.clear();
     try {
-      if (scope === "operator") {
-        if (!schoolId) {
-          throw new Error("schoolId is required for operator scope");
-        }
+      if (target.kind === "operator") {
         await operatorAdminSetMFAOverride(
-          schoolId,
+          target.schoolId,
           accountId,
           selectedOverride,
           trimmed,

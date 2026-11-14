@@ -39,7 +39,10 @@ import { requestTraegerPasswordReset } from "~/lib/auth-api";
 import { hasSessionAccess } from "~/lib/session-access";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
-import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
+import {
+  clearSessionErrorFromUrl,
+  useSessionExpiredNotice,
+} from "~/lib/login-session-notice";
 import { endTraegerSession } from "~/lib/shell-auth-context";
 import {
   clearTraegerSignInWithCode,
@@ -62,19 +65,6 @@ const SHELL_COPY = {
   subtitle: "Melden Sie sich mit Ihrem moto-Konto an.",
 } as const;
 
-function clearSessionErrorFromUrl() {
-  const url = new URL(window.location.href);
-  const error = url.searchParams.get("error");
-  if (error !== "SessionRequired" && error !== "SessionExpired") return;
-  url.searchParams.delete("error");
-  url.searchParams.delete("callbackUrl");
-  window.history.replaceState(
-    {},
-    "",
-    `${url.pathname}${url.search}${url.hash}`,
-  );
-}
-
 interface MFAStep {
   readonly challengeToken: string;
   readonly maskedEmail: string;
@@ -91,7 +81,6 @@ interface EnrollmentStep {
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [sessionExpired, setSessionExpired] = useState(false);
   // A school asked for a sign-in with code (#6955): the next sign-in in
   // this tab ignores the remembered device. Read, never consumed, while
   // rendering; the server renders no hint.
@@ -119,6 +108,8 @@ function LoginForm() {
   const latestSubmitRef = useRef<() => void>(() => undefined);
   const isCleaningSessionRef = useRef(false);
   const searchParams = useSearchParams();
+  const [sessionExpired, setSessionExpired] =
+    useSessionExpiredNotice(searchParams);
   const { data: session, status } = useSession();
 
   // A school tab sends the person here to sign in with code (#6955): the
@@ -167,22 +158,6 @@ function LoginForm() {
       window.location.href = traegerPath("/traeger");
     }
   }, [status, session, enrollmentStep]);
-
-  useEffect(() => {
-    const urlError = searchParams.get("error");
-    if (urlError !== "SessionRequired" && urlError !== "SessionExpired") {
-      return;
-    }
-    let deliberate = false;
-    try {
-      deliberate = sessionStorage.getItem(DELIBERATE_LOGOUT_KEY) === "1";
-      sessionStorage.removeItem(DELIBERATE_LOGOUT_KEY);
-    } catch {
-      // sessionStorage unavailable: show the note, it does no harm.
-    }
-    if (!deliberate) setSessionExpired(true);
-    clearSessionErrorFromUrl();
-  }, [searchParams]);
 
   // A reset link without token leads here to ask for a new link: the dialog
   // opens at once, and the address forgets the request.
