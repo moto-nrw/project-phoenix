@@ -98,9 +98,17 @@ describe("Elternsprechtag in moto schule (#4801)", () => {
   it("offers no new day without an assigned class", () => {
     mockList([], []);
     renderPage();
-    expect(
-      screen.getByRole("button", { name: /Neuer Elternsprechtag/ }),
-    ).toBeDisabled();
+    // Gesperrt mit Grund (#6757): aria-disabled, der Knopf nennt den Grund,
+    // und ein Klick öffnet kein Formular.
+    const create = screen.getByRole("button", {
+      name: /Neuer Elternsprechtag/,
+    });
+    expect(create).toHaveAttribute("aria-disabled", "true");
+    expect(create).toHaveAccessibleDescription(
+      "Dafür brauchen Sie eine eigene Klasse. Die OGS-Leitung ordnet sie zu.",
+    );
+    fireEvent.click(create);
+    expect(screen.queryByLabelText("Tag")).toBeNull();
     expect(
       screen.getByText(/Ihnen ist keine Klasse zugeordnet/),
     ).toBeInTheDocument();

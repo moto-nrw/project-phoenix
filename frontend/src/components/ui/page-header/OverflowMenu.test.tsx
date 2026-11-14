@@ -191,6 +191,26 @@ describe("OverflowMenu", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  it("names why a blocked trigger does not open (#6757)", () => {
+    render(
+      <OverflowMenu
+        disabled
+        disabledReason="Es gibt noch nichts zum Exportieren."
+        items={[{ label: "Export", onClick: () => undefined }]}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /Weitere Aktionen/i });
+    expect(trigger).toBeEnabled();
+    expect(trigger).toHaveAttribute("aria-disabled", "true");
+    expect(trigger).toHaveAccessibleDescription(
+      "Es gibt noch nichts zum Exportieren.",
+    );
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("closes on Escape", () => {
     render(
       <OverflowMenu items={[{ label: "Export", onClick: () => undefined }]} />,

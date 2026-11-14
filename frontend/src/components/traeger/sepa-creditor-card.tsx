@@ -246,7 +246,7 @@ export function SepaCreditorCard({
           type="button"
           variant="outline"
           size="md"
-          tooltip="Öffnet Gläubiger-ID, Vorabankündigung und Regel ohne Mandat zum Bearbeiten."
+          tooltip="Öffnet Gläubiger-ID, Vorabankündigung und Regel ohne Mandat zum Ändern."
           onClick={() => setEditing(true)}
         >
           Ändern

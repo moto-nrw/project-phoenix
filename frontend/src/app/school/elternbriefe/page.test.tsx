@@ -247,8 +247,14 @@ describe("Elternbriefe in moto schule (#4800)", () => {
     expect(
       screen.getByText(/Ihnen ist keine Klasse zugeordnet/),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Neuer Elternbrief/ }),
-    ).toBeDisabled();
+    // Gesperrt mit Grund (#6757): aria-disabled, der Knopf nennt den Grund,
+    // und ein Klick öffnet kein Formular.
+    const create = screen.getByRole("button", { name: /Neuer Elternbrief/ });
+    expect(create).toHaveAttribute("aria-disabled", "true");
+    expect(create).toHaveAccessibleDescription(
+      "Dafür brauchen Sie eine eigene Klasse. Die OGS-Leitung ordnet sie zu.",
+    );
+    fireEvent.click(create);
+    expect(screen.queryByLabelText(/Betreff/)).toBeNull();
   });
 });

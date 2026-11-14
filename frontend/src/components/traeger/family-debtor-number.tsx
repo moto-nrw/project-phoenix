@@ -62,6 +62,7 @@ export function FamilyDebtorNumberHint({
         size="compact"
         onClick={() => onAdopt(familyNumber)}
         aria-label={`Debitorennummer ${familyNumber} übernehmen`}
+        tooltip="Trägt die Nummer ins Feld ein. Gespeichert wird erst beim Bestätigen."
         className="ml-7 shrink-0 sm:ml-0"
       >
         Übernehmen

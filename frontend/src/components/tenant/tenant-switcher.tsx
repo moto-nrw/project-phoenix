@@ -186,7 +186,6 @@ export function BrandTenantSwitcher({
             ...(err instanceof ApiError &&
             err.code === "identity.mfa_session_required"
               ? {
-                  // oxlint-disable-next-line ui-kit/menu-item-needs-description -- Aktion der Fehlermeldung, kein Menüeintrag.
                   action: {
                     label: "Zur Schulanmeldung",
                     onClick: openTargetLogin,

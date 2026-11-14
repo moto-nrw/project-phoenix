@@ -180,6 +180,11 @@ export function TraegerHolidayClosureNotices({
         size="md"
         onClick={() => void notifyAll()}
         isLoading={notifyingAll}
+        tooltip={
+          suggested.length > 0
+            ? "Sendet allen betroffenen Eltern sofort eine E-Mail."
+            : "Sendet die nicht zugestellten E-Mails sofort noch einmal."
+        }
         loadingText="Wird gesendet..."
       >
         <Mail className="h-4 w-4" aria-hidden="true" />
@@ -257,6 +262,7 @@ export function TraegerHolidayClosureNotices({
               variant="surface"
               size="compact"
               aria-label={`Eltern informieren: ${row.title}`}
+              tooltip="Sendet den Eltern der betroffenen Kinder sofort eine E-Mail."
               onClick={() => void notify(row.notice)}
             >
               <Mail className="h-4 w-4" aria-hidden="true" />
@@ -303,6 +309,7 @@ export function TraegerHolidayClosureNotices({
               aria-expanded={expanded}
               aria-controls={openListId}
               onClick={toggleExpanded}
+              noTooltip="Zeigt nur mehr oder weniger Zeilen, an den Hinweisen ändert sich nichts."
             >
               {expanded ? (
                 <>

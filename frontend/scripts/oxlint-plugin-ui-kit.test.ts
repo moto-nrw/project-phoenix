@@ -4903,18 +4903,51 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
     expect(output).toContain(RULE);
   });
 
-  it("covers listed folders and files, and nothing outside the list", async () => {
+  // Abschluss #6757: die Regel gilt überall, außer in den Ausnahmen des
+  // Epics #6643. Alle Pfade laufen in einem oxlint-Lauf.
+  const COVERED = [
+    "src/components/students/probe.tsx",
+    "src/app/[tenant]/(protected)/students/probe/page.tsx",
+    "src/app/traeger/abrechnung/probe/page.tsx",
+    "src/app/parents/children/probe.tsx",
+    "src/app/school/kalender/probe.tsx",
+    "src/lib/probe.tsx",
+    "src/components/auth/logout-modal.tsx",
+    "src/app/not-found.tsx",
+  ];
+  const EXEMPT = [
+    "src/app/operator/probe/page.tsx",
+    "src/components/operator/probe.tsx",
+    "src/app/caterer/probe/page.tsx",
+    "src/components/caterer/probe.tsx",
+    "src/app/lohnbuero/[link]/probe.tsx",
+    "src/app/[tenant]/page.tsx",
+    "src/app/traeger/login/page.tsx",
+    "src/app/parents/reset-password/page.tsx",
+    "src/app/school/invite/page.tsx",
+    "src/app/caterer/einladung/[schoolId]/[token]/page.tsx",
+    "src/app/parents/accept-guardian-invite/page.tsx",
+    "src/components/auth/probe.tsx",
+    "src/app/[tenant]/(public)/anmeldung/probe/page.tsx",
+    "src/app/page.tsx",
+    "src/app/start/page.tsx",
+    "src/app/demo/page.tsx",
+    "src/app/parents/demo/probe.tsx",
+    "src/components/demo/probe.tsx",
+    "src/components/settings/probe.stories.tsx",
+    "src/components/settings/probe.test.tsx",
+    "src/test/probe.tsx",
+  ];
+
+  it("covers the whole frontend except the exemptions of the epic", async () => {
     const source = probe(`<Button>Löschen</Button>`);
-    const [school, traeger, outside, story] = await Promise.all([
-      lintSource(source, "src/app/[tenant]/(protected)/settings/probe.tsx"),
-      lintSource(source, "src/app/traeger/einstellungen/probe/page.tsx"),
-      lintSource(source, "src/components/students/probe.tsx"),
-      lintSource(source, "src/components/settings/probe.stories.tsx"),
-    ]);
-    expect(school.output).toContain(RULE);
-    expect(traeger.output).toContain(RULE);
-    expect(outside.output).not.toContain(RULE);
-    expect(story.output).not.toContain(RULE);
+    const results = await Promise.all(
+      [...COVERED, ...EXEMPT].map((path) => lintSource(source, path)),
+    );
+    const reported = [...COVERED, ...EXEMPT].filter((_, index) =>
+      results[index]?.output.includes(RULE),
+    );
+    expect(reported).toEqual(COVERED);
   });
 });
 
@@ -5017,15 +5050,48 @@ describe.concurrent("ui-kit/menu-item-needs-description", () => {
     }
   });
 
-  it("uses the tooltip scope list", async () => {
+  it("uses the paths of button-needs-tooltip", async () => {
     const source = probe(`{ label: "Entfernen", onClick: go }`);
-    const [traeger, outside, test] = await Promise.all([
+    const [traeger, student, operator, test] = await Promise.all([
       lintSource(source, "src/app/traeger/einstellungen/probe/page.tsx"),
       lintSource(source, "src/components/students/probe.tsx"),
+      lintSource(source, "src/app/operator/probe/page.tsx"),
       lintSource(source, "src/components/settings/probe.test.tsx"),
     ]);
     expect(traeger.output).toContain(RULE);
-    expect(outside.output).not.toContain(RULE);
+    expect(student.output).toContain(RULE);
+    expect(operator.output).not.toContain(RULE);
     expect(test.output).not.toContain(RULE);
+  });
+
+  // #6757: Navigationsziele und die Knöpfe einer Meldung haben die Form
+  // eines Menüeintrags, sind aber keiner.
+  it("ignores navigation targets and the action of a notice", async () => {
+    const { output } = await lintSource(
+      probe(
+        [
+          `{ label: "Datenverwaltung", href: "/database" }`,
+          `{ message: "Fehler", retry: { label: "Wiederholen", onClick: go } }`,
+          `{ message: "Neu", action: props.hint ? { label: "Öffnen", onClick: go } : undefined }`,
+          `{ message: "Neu", action: props.hint && { label: "Öffnen", onClick: go } }`,
+          `{ message: "Neu", retry: extra.retry ?? { label: "Erneut", onClick: go } }`,
+        ].join(",\n"),
+      ),
+      IN_SCOPE,
+    );
+    expect(output).not.toContain(RULE);
+    expect(output).not.toMatch(/error|Parse/i);
+  });
+
+  it("still checks an entry kept in a variable or pushed onto a list", async () => {
+    const { output } = await lintSource(
+      `declare const go: () => void;
+      const items: { label: string; onClick: () => void }[] = [];
+      const edit = { label: "Ändern", onClick: go };
+      items.push(edit, { label: "Löschen", onClick: go });
+      export { items };`,
+      IN_SCOPE,
+    );
+    expect(output.split(RULE).length - 1).toBe(2);
   });
 });

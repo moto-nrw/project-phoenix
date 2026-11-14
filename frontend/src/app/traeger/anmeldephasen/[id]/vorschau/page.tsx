@@ -124,7 +124,12 @@ export default function TraegerCatalogPreviewPage() {
       statsLoading={loading && !rollout}
       actions={
         rollout ? (
-          <ButtonLink href={phaseHref} variant="primary" size="md">
+          <ButtonLink
+            href={phaseHref}
+            variant="primary"
+            size="md"
+            tooltip="Öffnet die Anmeldephase mit dem neuen Stand."
+          >
             Zur Anmeldephase
           </ButtonLink>
         ) : (
@@ -135,6 +140,7 @@ export default function TraegerCatalogPreviewPage() {
               size="md"
               onClick={() => void loadPreview()}
               disabled={loading || rollingOut}
+              tooltip="Berechnet die Vorschau mit dem aktuellen Stand neu. Es ändert sich nichts."
             >
               Vorschau neu laden
             </Button>
@@ -144,6 +150,12 @@ export default function TraegerCatalogPreviewPage() {
               size="md"
               onClick={() => void release()}
               disabled={!preview || loading || preview.schools.length === 0}
+              disabledReason={
+                preview && !loading && preview.schools.length === 0
+                  ? "Wählen Sie zuerst in der Anmeldephase die Schulen aus."
+                  : undefined
+              }
+              tooltip="Überträgt die Anmeldephase sofort an die Schulen der Vorschau."
               isLoading={rollingOut}
               loadingText="Wird übertragen…"
             >

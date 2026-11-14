@@ -244,7 +244,7 @@ function ReportDetails({
             variant="outline"
             size="md"
             onClick={onEdit}
-            tooltip="Öffnet die Angaben zum Unfall zum Bearbeiten."
+            tooltip="Öffnet die Angaben zum Unfall zum Ändern."
           >
             Ändern
           </Button>

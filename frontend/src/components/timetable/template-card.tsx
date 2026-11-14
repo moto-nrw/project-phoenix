@@ -167,7 +167,7 @@ export function TemplateCard({
               items={[
                 {
                   label: "Bearbeiten",
-                  description: "Öffnet den Regeltermin zum Bearbeiten",
+                  description: "Öffnet den Regeltermin zum Ändern",
                   onClick: () => onEdit(template),
                 },
                 {

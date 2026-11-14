@@ -128,7 +128,7 @@ export function ContributionRulesCard({
           items={[
             {
               label: "Ändern",
-              description: "Öffnet die Regel zum Bearbeiten.",
+              description: "Öffnet die Regel zum Ändern.",
               icon: <Pencil className="size-4" aria-hidden />,
               onClick: () => setEdit({ kind: "change", rule }),
             },

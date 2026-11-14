@@ -125,7 +125,12 @@ export default function TraegerCatalogPhasePage() {
       actions={
         phase ? (
           <>
-            <ButtonLink href={previewHref} variant="primary" size="md">
+            <ButtonLink
+              href={previewHref}
+              variant="primary"
+              size="md"
+              tooltip="Zeigt, was die Schulen bekommen. Übertragen wird erst dort."
+            >
               Vorschau ansehen
             </ButtonLink>
             {withdrawn ? null : (

@@ -414,7 +414,7 @@ export default function TraegerHolidayRegistrationPage() {
         variant="outline"
         size="md"
         aria-label={label}
-        tooltip="Öffnet diese Angaben zum Bearbeiten, ohne Nachricht an die Eltern."
+        tooltip="Öffnet diese Angaben zum Ändern, ohne Nachricht an die Eltern."
         onClick={() => setEditing(section)}
       >
         Ändern

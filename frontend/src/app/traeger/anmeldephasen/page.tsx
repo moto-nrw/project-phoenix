@@ -115,6 +115,7 @@ export default function TraegerCatalogPhasesPage() {
           href={traegerPath("/traeger/anmeldephasen/neu")}
           variant="primary"
           size="md"
+          tooltip="Öffnet eine neue Anmeldephase. Die Schulen sehen sie erst nach der Freigabe."
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           Anmeldephase anlegen

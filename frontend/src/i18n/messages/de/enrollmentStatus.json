@@ -223,7 +223,7 @@
   "errorObjectProof": "der Nachweis",
   "buttonHints": {
     "parentApp": "Öffnet die Eltern-App, dort ändern Sie die Betreuung.",
-    "editFull": "Öffnet die Anmeldung zum Bearbeiten.",
+    "editFull": "Öffnet die Anmeldung zum Ändern.",
     "requestChange": "Öffnet die Anmeldung, um eine Änderung bei der {careTerm} anzufragen.",
     "withdrawChild": "Zieht die Anmeldung dieses Kindes zurück, moto fragt vorher nach.",
     "withdrawAll": "Zieht die Anmeldung für alle Kinder zurück, moto fragt vorher nach.",

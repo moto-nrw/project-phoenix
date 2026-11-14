@@ -292,6 +292,12 @@ function SchoolParentConferences() {
           className="gap-1.5"
           onClick={openCreate}
           disabled={!!error || classes.length === 0}
+          disabledReason={
+            noClasses
+              ? "Dafür brauchen Sie eine eigene Klasse. Die OGS-Leitung ordnet sie zu."
+              : undefined
+          }
+          tooltip="Öffnet ein Formular für Zeitfenster, die Eltern dann buchen können."
         >
           <Plus className="h-4 w-4" aria-hidden />
           Neuer Elternsprechtag
@@ -503,6 +509,7 @@ function SchoolParentConferences() {
                 size="md"
                 className="gap-1.5"
                 onClick={() => window.print()}
+                tooltip="Öffnet das Druckfenster für die Liste der Zeitfenster."
               >
                 <Printer className="h-4 w-4" aria-hidden />
                 Drucken
@@ -512,6 +519,7 @@ function SchoolParentConferences() {
                 variant="outline"
                 size="md"
                 onClick={() => openEdit(selected)}
+                tooltip="Öffnet den Elternsprechtag zum Ändern."
               >
                 Ändern
               </Button>
@@ -523,6 +531,7 @@ function SchoolParentConferences() {
                   deleteErrors.clear();
                   setDeleteTarget(selected);
                 }}
+                tooltip="Löscht den Tag und sagt alle Buchungen ab. moto fragt vorher nach."
               >
                 Löschen
               </Button>

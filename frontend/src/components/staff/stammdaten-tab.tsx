@@ -520,7 +520,7 @@ export function StammdatenTab({
             variant="surface"
             size="md"
             onClick={startEditing}
-            tooltip="Öffnet die Stammdaten dieser Person zum Bearbeiten."
+            tooltip="Öffnet die Stammdaten dieser Person zum Ändern."
           >
             Bearbeiten
           </Button>

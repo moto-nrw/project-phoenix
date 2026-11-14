@@ -1185,8 +1185,7 @@ export function ClassDayClass({
                           items={[
                             {
                               label: "Ändern",
-                              description:
-                                "Öffnet die Hausaufgabe zum Bearbeiten",
+                              description: "Öffnet die Hausaufgabe zum Ändern",
                               onClick: () => homeworkForm.openEdit(entry),
                             },
                             {

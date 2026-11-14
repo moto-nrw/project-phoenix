@@ -237,6 +237,12 @@ export default function SchoolParentLettersPage() {
           className="gap-1.5"
           onClick={openCreate}
           disabled={!!classesError || classes.length === 0}
+          disabledReason={
+            noClasses
+              ? "Dafür brauchen Sie eine eigene Klasse. Die OGS-Leitung ordnet sie zu."
+              : undefined
+          }
+          tooltip="Öffnet einen neuen Brief an die Eltern Ihrer Klasse."
         >
           <Plus className="h-4 w-4" aria-hidden />
           Neuer Elternbrief

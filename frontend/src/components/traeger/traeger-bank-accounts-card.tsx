@@ -151,7 +151,7 @@ export function TraegerBankAccountsCard({
           items={[
             {
               label: "Ändern",
-              description: "Öffnet die Bankverbindung zum Bearbeiten.",
+              description: "Öffnet die Bankverbindung zum Ändern.",
               icon: <Pencil className="size-4" aria-hidden />,
               onClick: () => setEdit({ kind: "change", account }),
             },

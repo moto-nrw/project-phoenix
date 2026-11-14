@@ -50,6 +50,12 @@ interface OverflowMenuProps {
   /** Prevents opening the menu while its actions are unavailable. */
   readonly disabled?: boolean;
   /**
+   * Why the menu cannot open (#6757), like `Button`'s `disabledReason`: with
+   * `disabled`, the trigger stays focusable as `aria-disabled`, opens nothing
+   * and shows the reason on hover, focus and tap.
+   */
+  readonly disabledReason?: string;
+  /**
    * Trigger footprint. `"default"` is the 36px page-header kebab; `"sm"` is a
    * compact 24px kebab with a smaller icon and a more muted default color, for
    * dense inline chrome (e.g. a shift block in the Dienstplan grid) where the
@@ -129,6 +135,7 @@ export function OverflowMenu({
   triggerTabIndex,
   onOpen,
   disabled = false,
+  disabledReason,
   triggerSize = "default",
   triggerClassName = "",
   triggerContent,
@@ -425,19 +432,22 @@ export function OverflowMenu({
 
   if (items.length === 0) return null;
 
-  const triggerHint =
-    triggerTooltip ??
-    (triggerRole === undefined
-      ? triggerContent == null
-        ? kitDefault(KEBAB_TOOLTIP)
-        : kitDefault(TEXT_TRIGGER_TOOLTIP)
-      : undefined);
+  const blocked = disabled && Boolean(disabledReason?.trim());
+  const triggerHint = blocked
+    ? disabledReason
+    : (triggerTooltip ??
+      (triggerRole === undefined
+        ? triggerContent == null
+          ? kitDefault(KEBAB_TOOLTIP)
+          : kitDefault(TEXT_TRIGGER_TOOLTIP)
+        : undefined));
   const trigger = (
     <button
       ref={triggerRef}
       type="button"
       onClick={handleOpen}
-      disabled={disabled}
+      disabled={disabled && !blocked}
+      aria-disabled={blocked || undefined}
       role={triggerRole}
       aria-selected={triggerAriaSelected}
       tabIndex={triggerTabIndex}
@@ -467,7 +477,9 @@ export function OverflowMenu({
       data-setup-tour={tourTarget}
     >
       {triggerHint ? (
-        <ActionHint text={triggerHint}>{trigger}</ActionHint>
+        <ActionHint text={triggerHint} showOnTap={blocked}>
+          {trigger}
+        </ActionHint>
       ) : (
         trigger
       )}

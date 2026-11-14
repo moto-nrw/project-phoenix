@@ -6008,514 +6008,51 @@ const noHandRolledCopyField = {
 // ein unbekannter Spread hinter `tooltip`/`noTooltip`, wird gemeldet: Er kann
 // die Erklärung überschreiben, und der Spread davor kostet nichts.
 //
-// Die Regel gilt nur in TOOLTIP_SCOPE. Die Liste wächst nur: Jedes
-// Bereichs-Ticket des Epics trägt seine Ordner oder Dateien ein. Ordner enden
-// auf „/“, alles andere ist eine einzelne Datei. Das Abschluss-Ticket (#6757)
-// ersetzt die Liste durch „überall außer Ausnahmen“.
-// `ui-kit/menu-item-needs-description` (#6745) nutzt dieselbe Liste.
+// Die Regel gilt im ganzen Frontend außer in TOOLTIP_EXEMPT (#6757). Die
+// Ausnahmen nennt das Epic #6643: Operator-Portal, Caterer-Portal,
+// Lohnbüro-Link, Login-, Passwort- und Einladungsseiten, öffentliche Seiten,
+// Demo, Stories und Tests. Ordner enden auf „/“, alles andere ist eine
+// einzelne Datei; TOOLTIP_EXEMPT_RE fängt Seiten, die in jedem Portal unter
+// demselben Ordnernamen liegen. TOOLTIP_EXEMPT_KEEP nimmt Dateien aus einem
+// ausgenommenen Ordner wieder auf, die in den Portalen gerendert werden.
+// `ui-kit/menu-item-needs-description` (#6745) nutzt dieselben Grenzen.
 
-const TOOLTIP_SCOPE = [
-  // Einstellungen der Schule und des Trägers, begonnen in #6669.
-  "src/app/[tenant]/(protected)/settings/",
-  "src/app/traeger/einstellungen/",
-  "src/components/settings/",
-  // Kit-Bausteine bringen ihre Standardtexte selbst mit (#6744).
-  "src/components/ui/",
-  // Kinder – Seiten Kinderliste und Eltern (#6748).
-  "src/app/[tenant]/(protected)/eltern/bankverbindungen/page.tsx",
-  "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx",
-  "src/app/[tenant]/(protected)/students/[id]/page.tsx",
-  "src/app/[tenant]/(protected)/students/[id]/room-history/page.tsx",
-  "src/app/[tenant]/(protected)/students/[id]/unfallanzeigen/[reportId]/page.tsx",
-  "src/app/[tenant]/(protected)/students/search/page.tsx",
-  "src/app/[tenant]/(protected)/students/search/use-child-scope-tabs.tsx",
-  // Träger-Seiten Übersicht, Ferien, Verträge, Dokumente, Schulen und
-  // Schließtage (#6747).
-  "src/app/traeger/page.tsx",
-  "src/app/traeger/dokumente/page.tsx",
-  "src/app/traeger/dokumente/[id]/page.tsx",
-  "src/app/traeger/ferien/page.tsx",
-  "src/app/traeger/ferien/[id]/anmeldungen/[registrationId]/page.tsx",
-  "src/app/traeger/ferien/[id]/anmeldungen/page.tsx",
-  "src/app/traeger/ferien/[id]/formular/page.tsx",
-  "src/app/traeger/ferien/[id]/page.tsx",
-  "src/app/traeger/ferien/[id]/vergabe/page.tsx",
-  "src/app/traeger/schliesstage/page.tsx",
-  "src/app/traeger/schulen/[id]/page.tsx",
-  "src/app/traeger/uebersicht/page.tsx",
-  "src/app/traeger/vertraege/page.tsx",
-  "src/app/traeger/vertraege/[id]/page.tsx",
-  "src/components/traeger/booking-accounts-cards.tsx",
-  // Träger-Abrechnung, Seiten (#6746).
-  "src/app/traeger/abrechnung/page.tsx",
-  "src/app/traeger/abrechnung/[id]/page.tsx",
-  "src/app/traeger/abrechnung/exporte/feldzuordnung/page.tsx",
-  "src/app/traeger/abrechnung/exporte/konten/page.tsx",
-  "src/app/traeger/abrechnung/exporte/page.tsx",
-  "src/app/traeger/abrechnung/familien/page.tsx",
-  "src/app/traeger/abrechnung/jahresbescheide/[id]/bescheid/[contractId]/page.tsx",
-  "src/app/traeger/abrechnung/jahresbescheide/[id]/page.tsx",
-  "src/app/traeger/abrechnung/jahresbescheide/[id]/versand/page.tsx",
-  "src/app/traeger/abrechnung/jahresbescheide/page.tsx",
-  "src/app/traeger/abrechnung/kinderzahl/page.tsx",
-  "src/app/traeger/abrechnung/kostentraeger/page.tsx",
-  "src/app/traeger/abrechnung/lastschrift/import/page.tsx",
-  "src/app/traeger/abrechnung/lastschrift/page.tsx",
-  "src/app/traeger/abrechnung/monatsbeitraege/[id]/page.tsx",
-  "src/app/traeger/abrechnung/monatsbeitraege/[id]/rechnung/[contractId]/page.tsx",
-  "src/app/traeger/abrechnung/monatsbeitraege/[id]/schreiben/page.tsx",
-  "src/app/traeger/abrechnung/monatsbeitraege/page.tsx",
-  "src/app/traeger/abrechnung/nachweise/page.tsx",
-  // Anmeldung – Ferienwochen und Verwaltung der Anmeldungen (#6749).
-  "src/app/[tenant]/(protected)/ferienwochen/holiday-guest-group-card.tsx",
-  "src/app/[tenant]/(protected)/ferienwochen/page.tsx",
-  "src/components/enrollment/admin-child-data-correction.tsx",
-  "src/components/enrollment/admin-enrollment-change-requests.tsx",
-  "src/components/enrollment/admin-enrollment-detail.tsx",
-  "src/components/enrollment/admin-enrollment-phase-detail.tsx",
-  "src/components/enrollment/admin-enrollment-signature.tsx",
-  "src/components/enrollment/admin-enrollments-list.tsx",
-  "src/components/enrollment/attachment-editor.tsx",
-  "src/components/enrollment/attachment-list.tsx",
-  "src/components/enrollment/care-offerings-editor.tsx",
-  "src/components/enrollment/child-offering-adjustment.tsx",
-  // Mitarbeitende: Seiten, Einladungen, Rollen, Abwesenheiten (#6750).
-  "src/app/[tenant]/(protected)/admin/enrollments/page.tsx",
-  "src/app/[tenant]/(protected)/staff/[id]/page.tsx",
-  "src/app/[tenant]/(protected)/staff/page.tsx",
-  "src/components/admin/guardian-approval-queue.tsx",
-  "src/components/admin/invitation-form.tsx",
-  "src/components/admin/pending-invitations-list.tsx",
-  "src/components/roles/role-permissions-tab.tsx",
-  "src/components/roles/roles-master-detail.tsx",
-  "src/components/staff-preview/staff-preview-banner.tsx",
-  "src/components/staff-preview/staff-preview-modal.tsx",
-  "src/components/staff/absence-booking-modal.tsx",
-  "src/components/staff/absence-decision-modals.tsx",
-  "src/components/staff/absence-rebook-modal.tsx",
-  "src/components/staff/absence-request-row.tsx",
-  "src/components/staff/abwesenheiten-tab.tsx",
-  "src/components/staff/admin-session-edit-modal.tsx",
-  "src/components/staff/allowance-card.tsx",
-  "src/components/staff/arbeitszeitmodell-tab.tsx",
-  // Zeiterfassung, Lohn und Abwesenheiten (#6752).
-  "src/app/[tenant]/(protected)/absences/page.tsx",
-  "src/app/[tenant]/(protected)/payroll/page.tsx",
-  "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-  "src/components/payroll/payroll-rule-modals.tsx",
-  "src/components/time-tracking/edit-history-accordion.tsx",
-  "src/components/time-tracking/leave-requests-card.tsx",
-  "src/components/time-tracking/monatskarte.tsx",
-  "src/components/time-tracking/own-dienstplan-view.tsx",
-  "src/components/time-tracking/vacation-request-modal.tsx",
-  // Datenverwaltung: Seiten AGs, Datenbank, Infobildschirme, Listen (#6753).
-  "src/app/[tenant]/(protected)/activities/page.tsx",
-  "src/app/[tenant]/(protected)/database/exports/page.tsx",
-  "src/app/[tenant]/(protected)/database/personal/import/page.tsx",
-  "src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx",
-  "src/app/[tenant]/(protected)/database/personal/page.tsx",
-  "src/app/[tenant]/(protected)/database/qualifications/page.tsx",
-  "src/app/[tenant]/(protected)/database/shift-types/page.tsx",
-  "src/app/[tenant]/(protected)/database/students/class-list/import/page.tsx",
-  "src/app/[tenant]/(protected)/database/students/class-list/page.tsx",
-  "src/app/[tenant]/(protected)/database/students/ended-care/page.tsx",
-  "src/app/[tenant]/(protected)/database/students/import/page.tsx",
-  "src/app/[tenant]/(protected)/database/students/page.tsx",
-  "src/app/[tenant]/(protected)/info-displays/page.tsx",
-  "src/app/[tenant]/(protected)/lists/page.tsx",
-  // Planung: Kalender, Vertretungen, Betreuungsplan, Schließzeiten (#6751).
-  "src/app/[tenant]/(protected)/calendar/page.tsx",
-  "src/app/[tenant]/(protected)/substitutions/page.tsx",
-  "src/components/calendar/calendar-subscribe-panel.tsx",
-  "src/components/calendar/personal-calendar.tsx",
-  "src/components/planning/calendar-periods-editor.tsx",
-  "src/components/planning/closing-day-modal.tsx",
-  "src/components/planning/closing-days-editor.tsx",
-  "src/components/timetable/betreuungsplan-view.tsx",
-  "src/components/timetable/booking-leftover-hints.tsx",
-  "src/components/timetable/bulk-substitution-modal.tsx",
-  // Planung: Vertretung, Tagesplan, Vorlagen, Stundenplan (#6773).
-  "src/components/timetable/substitution-person-card.tsx",
-  "src/components/timetable/substitution-slide-over.tsx",
-  "src/components/timetable/tagesplan-view.tsx",
-  "src/components/timetable/template-card.tsx",
-  "src/components/timetable/template-list.tsx",
-  "src/components/timetable/timetable-add-menu.tsx",
-  "src/components/timetable/timetable-event-modal.tsx",
-  "src/components/timetable/vertretung-day-list.tsx",
-  "src/components/timetable/vertretung-view.tsx",
-  // Planung: Termine, Konflikte, Angebote, Serien (#6772).
-  "src/components/timetable/calendar-period-modal.tsx",
-  "src/components/timetable/conflict-warnings-banner.tsx",
-  "src/components/timetable/event-form/multi-select-field.tsx",
-  "src/components/timetable/event-form/offering-suggestion-row.tsx",
-  "src/components/timetable/event-form/step-personal-kinder.tsx",
-  "src/components/timetable/event-form/step-wiederholung.tsx",
-  "src/components/timetable/event-form/weekday-roster-section.tsx",
-  "src/components/timetable/gap-jump-list.tsx",
-  "src/components/timetable/instance-detail-modal.tsx",
-  "src/components/timetable/offering-gap-hints.tsx",
-  "src/components/timetable/offering-preview-list.tsx",
-  "src/components/timetable/period-switcher-dropdown.tsx",
-  "src/components/timetable/pickup-extension-dialog.tsx",
-  "src/components/timetable/roster-deviation-hint.tsx",
-  "src/components/timetable/school-vacation-hints-core.tsx",
-  "src/components/timetable/series-roster-review.tsx",
-  "src/components/timetable/staff-pool-slide-over.tsx",
-  // Kommunikation: Nachrichten, Ankündigungen, Umfragen (#6754).
-  "src/app/[tenant]/(protected)/messages/",
-  "src/app/[tenant]/(protected)/parent-announcements/",
-  "src/app/[tenant]/(protected)/umfragen/",
-  "src/components/announcements/announcement-detail.tsx",
-  "src/components/announcements/announcement-lifecycle-dialogs.tsx",
-  "src/components/announcements/announcement-reminder-dialog.tsx",
-  "src/components/announcements/declaration-status-panel.tsx",
-  "src/components/announcements/letter-status-panel.tsx",
-  "src/components/announcements/parent-target-picker.tsx",
-  "src/components/messaging/chat-bubble.tsx",
-  "src/components/messaging/message-composer.tsx",
-  "src/components/messaging/new-group-message-modal.tsx",
-  "src/components/messaging/new-message-modal.tsx",
-  "src/components/messaging/pickup-request-detail-modal.tsx",
-  // Kommunikation: Team-Chat, Hinweise, Benachrichtigungen, Umfragen (#6776).
-  "src/components/messaging/team-chat-frames.tsx",
-  "src/components/messaging/team-chat-inbox.tsx",
-  "src/components/messaging/team-chat-thread.tsx",
-  "src/components/messaging/team-group-modals.tsx",
-  "src/components/messaging/team-group-parts.tsx",
-  "src/components/messaging/new-team-message-modal.tsx",
-  "src/components/notifications/notification-setup-dialog.tsx",
-  "src/components/staff-notices/staff-notice-acknowledgements-modal.tsx",
-  "src/components/staff-notices/staff-notice-modal.tsx",
-  "src/components/staff-notices/today-notice-list.tsx",
-  "src/components/surveys/survey-answer-modal.tsx",
-  "src/components/surveys/survey-create-slide-over.tsx",
-  "src/components/surveys/survey-editor-fields.tsx",
-  "src/components/surveys/survey-lifecycle-dialogs.tsx",
-  "src/components/surveys/survey-meta.tsx",
-  "src/components/surveys/survey-questionnaire.tsx",
-  "src/components/surveys/survey-results.tsx",
-  // Alltag: Aufsicht, Tagesprotokoll, Notfall, Startseite, Profil (#6755).
-  "src/app/[tenant]/(protected)/active-supervisions/page.tsx",
-  "src/app/[tenant]/(protected)/day-log/page.tsx",
-  "src/app/[tenant]/(protected)/emergency/page.tsx",
-  "src/app/[tenant]/(protected)/home/page.tsx",
-  "src/app/[tenant]/(protected)/profile/page.tsx",
-  "src/app/[tenant]/(protected)/tagesinformationen/page.tsx",
-  "src/app/[tenant]/(protected)/wochenprotokolle/[protocolId]/page.tsx",
-  "src/components/active-supervisions/add-supervisor-modal.tsx",
-  "src/components/active-supervisions/add-unplanned-student-modal.tsx",
-  "src/components/active-supervisions/hand-over-supervision-modal.tsx",
-  "src/components/active-supervisions/open-room-sections.tsx",
-  "src/components/active-supervisions/own-supervision-view.tsx",
-  "src/components/active-supervisions/past-blocks-section.tsx",
-  "src/components/active-supervisions/planned-now-section.tsx",
-  "src/components/active-supervisions/present-children-picker.tsx",
-  "src/components/active-supervisions/spontaneous-activity-start.tsx",
-  "src/components/active-supervisions/states.tsx",
-  "src/components/active-supervisions/timetable-roster.tsx",
-  "src/components/active/unclaimed-rooms.tsx",
-  // Elternportal: Kind, Kalender, Buchungen, Kurse, Vertrag, Ferienanmeldung,
-  // Einstellungen (#6756).
-  "src/app/parents/children/[id]/elternsprechtag/page.tsx",
-  "src/app/parents/error.tsx",
-  "src/app/parents/ferienanmeldung/[token]/page.tsx",
-  "src/app/parents/settings/page.tsx",
-  "src/components/parent/calendar/parent-calendar-page.tsx",
-  "src/components/parent/care-contract-signing-view.tsx",
-  "src/components/parent/care-schedule-request-modal.tsx",
-  "src/components/parent/child-care.tsx",
-  "src/components/parent/child-master-data-request-modal.tsx",
-  "src/components/parent/child-master-data.tsx",
-  "src/components/parent/child/booked-care-section.tsx",
-  "src/components/parent/child/child-consents-section.tsx",
-  "src/components/parent/child/child-day-card.tsx",
-  "src/components/parent/child/child-page.tsx",
-  "src/components/parent/child/courses-section.tsx",
-  "src/components/parent/child/weekly-schedule-section.tsx",
-  "src/components/parent/parent-holiday-registrations-page.tsx",
-  // Elternportal: Startseite, Anfragen, Dokumente, Mittagessen, Lastschrift
-  // (#6780).
-  "src/components/parent/parent-contract-notice-page.tsx",
-  "src/components/parent/parent-documents-page.tsx",
-  "src/components/parent/parent-family-children-card.tsx",
-  "src/components/parent/parent-meal-plan-page.tsx",
-  "src/components/parent/parent-sepa-mandate-entry.tsx",
-  "src/components/parent/parent-sepa-mandate-view.tsx",
-  "src/components/parent/request-edit-modal.tsx",
-  "src/components/parent/request-sharing-control.tsx",
-  "src/components/parent/start/holiday-offers.tsx",
-  "src/components/parent/start/holiday-registration-entries.tsx",
-  "src/components/parent/start/todo-list.tsx",
-  // Elternportal: Sorgeberechtigte, Neuigkeiten, Angebote, Erste Schritte
-  // (#6779).
-  "src/components/parent/guardians-panel.tsx",
-  "src/components/parent/news/declaration-proof-page.tsx",
-  "src/components/parent/news/declaration-section.tsx",
-  "src/components/parent/news/news-components.tsx",
-  "src/components/parent/offering-change-request-modal.tsx",
-  "src/components/parent/ogs-conversation.tsx",
-  "src/components/parent/onboarding/parent-first-steps.tsx",
-  // Träger: Betreuungsverträge, Dokumente und Familien (#6762).
-  "src/components/traeger/care-contract-change-card.tsx",
-  "src/components/traeger/care-contract-change-modal.tsx",
-  "src/components/traeger/care-contract-create-modal.tsx",
-  "src/components/traeger/care-contract-notice-card.tsx",
-  "src/components/traeger/care-contract-notice-modal.tsx",
-  "src/components/traeger/care-contract-paper-modal.tsx",
-  "src/components/traeger/care-contract-signature-card.tsx",
-  "src/components/traeger/care-contract-versions.tsx",
-  "src/components/traeger/care-invoice-amendments.tsx",
-  "src/components/traeger/care-letters-card.tsx",
-  "src/components/traeger/care-letters-summary-card.tsx",
-  "src/components/traeger/care-meal-school-card.tsx",
-  "src/components/traeger/care-notice-run-start-modal.tsx",
-  "src/components/traeger/care-price-list-card.tsx",
-  "src/components/traeger/care-price-module-editor.tsx",
-  "src/components/traeger/care-rules-card.tsx",
-  "src/components/traeger/care-run-invoices.tsx",
-  "src/components/traeger/care-run-letter-invoices.tsx",
-  "src/components/traeger/care-run-meals.tsx",
-  "src/components/traeger/care-run-review.tsx",
-  "src/components/traeger/care-run-start-modal.tsx",
-  "src/components/traeger/document-template-placeholders-card.tsx",
-  "src/components/traeger/document-template-versions-card.tsx",
-  "src/components/traeger/family-billing-form.tsx",
-  // Träger-Abrechnung: Bausteine für Beiträge, SEPA, Finanzen, Exporte (#6761).
-  "src/components/traeger/billing-carried-corrections-card.tsx",
-  "src/components/traeger/billing-document-card.tsx",
-  "src/components/traeger/billing-letter-preview.tsx",
-  "src/components/traeger/billing-letters-card.tsx",
-  "src/components/traeger/billing-letters-modal.tsx",
-  "src/components/traeger/billing-mail-card.tsx",
-  "src/components/traeger/billing-run-overview-card.tsx",
-  "src/components/traeger/billing-terms-card.tsx",
-  "src/components/traeger/contribution-rules-card.tsx",
-  "src/components/traeger/cost-bearer-totals-card.tsx",
-  "src/components/traeger/cost-bearers-card.tsx",
-  "src/components/traeger/export-file-number-card.tsx",
-  "src/components/traeger/finance-export-datev.tsx",
-  "src/components/traeger/finance-export-tables.tsx",
-  "src/components/traeger/number-range-card.tsx",
-  "src/components/traeger/sepa-creditor-card.tsx",
-  "src/components/traeger/sepa-debit-card.tsx",
-  "src/components/traeger/sepa-import-preview-card.tsx",
-  "src/components/traeger/sepa-mandate-status-card.tsx",
-  "src/components/traeger/sepa-mandates-card.tsx",
-  "src/components/traeger/soll-mapping-editor.tsx",
-  // Träger: Ferienbetreuung und Elternbriefe (#6763).
-  "src/components/traeger/holiday-allocation-decision-modal.tsx",
-  "src/components/traeger/holiday-allocation-mode-field.tsx",
-  "src/components/traeger/holiday-allocation-week.tsx",
-  "src/components/traeger/holiday-bulk-confirm-modal.tsx",
-  "src/components/traeger/holiday-criteria-editor.tsx",
-  "src/components/traeger/holiday-form-editor.tsx",
-  "src/components/traeger/holiday-period-form.tsx",
-  "src/components/traeger/holiday-period-publish-card.tsx",
-  "src/components/traeger/holiday-registration-child-card.tsx",
-  "src/components/traeger/holiday-registration-criteria-card.tsx",
-  "src/components/traeger/holiday-registration-edit.tsx",
-  "src/components/traeger/holiday-registration-proof-card.tsx",
-  "src/components/traeger/holiday-registration-status-card.tsx",
-  "src/components/traeger/holiday-week-editor.tsx",
-  "src/components/traeger/holiday-week-places.tsx",
-  "src/components/traeger/holiday-wish.tsx",
-  "src/components/traeger/letter-file-view.tsx",
-  "src/components/traeger/traeger-account-history.tsx",
-  "src/components/traeger/traeger-bank-accounts-card.tsx",
-  "src/components/traeger/traeger-document-upload-modal.tsx",
-  "src/components/traeger/traeger-logo-card.tsx",
-  // Kinder: Sorgeberechtigte und Anwesenheit (#6764).
-  "src/components/guardians/guardian-contact-actions.tsx",
-  "src/components/guardians/guardian-form-modal.tsx",
-  "src/components/guardians/guardian-list.tsx",
-  "src/components/guardians/guardian-picker-panel.tsx",
-  "src/components/guardians/student-guardian-manager.tsx",
-  "src/components/guardians/student-payment-card.tsx",
-  "src/components/students/aggregated-request-list.tsx",
-  "src/components/students/attendance-correction-modal.tsx",
-  // Kinder – Betreuung, Klasse, Begleitung, Kurse, Dokumente (#6765).
-  "src/components/students/care-exit-modal.tsx",
-  "src/components/students/care-plan-editor-modal.tsx",
-  "src/components/students/care-plan-impact.tsx",
-  "src/components/students/care-plan-view.tsx",
-  "src/components/students/care-request-review-item.tsx",
-  "src/components/students/care-resume-modal.tsx",
-  "src/components/students/care-schedule-manager.tsx",
-  "src/components/students/care-weekly-plan-editor.tsx",
-  "src/components/students/care-weekly-plan-modal.tsx",
-  "src/components/students/class-arrival-exception-panel.tsx",
-  "src/components/students/class-bulk-arrival-modal.tsx",
-  "src/components/students/class-trip-bulk-status-modal.tsx",
-  "src/components/students/companion-picker.tsx",
-  "src/components/students/course-waitlist.tsx",
-  "src/components/students/dokumente-tab.tsx",
-  // Kinder: Abholung, Familie, Anfragen, Abmeldung, Auswahl (#6766).
-  "src/components/students/early-checkout-note.tsx",
-  "src/components/students/enrollment-request-item.tsx",
-  "src/components/students/family-protection-control.tsx",
-  "src/components/students/offering-request-review-item.tsx",
-  "src/components/students/parent-messages-card.tsx",
-  "src/components/students/personal-info-edit-panel.tsx",
-  "src/components/students/pickup-adjustment-decision.tsx",
-  "src/components/students/planned-status-days-modal.tsx",
-  "src/components/students/request-feed-dialog.tsx",
-  "src/components/students/request-history-item.tsx",
-  "src/components/students/request-review-card.tsx",
-  "src/components/students/requests/bulk-approval-panel.tsx",
-  "src/components/students/requests/conflict-decision-group.tsx",
-  "src/components/students/requests/request-case-detail.tsx",
-  "src/components/students/requests/request-decision-row.tsx",
-  "src/components/students/requests/withdrawal-cards.tsx",
-  "src/components/students/school-checkin-fab.tsx",
-  "src/components/students/school-checkin-missing-hint.tsx",
-  "src/components/students/school-checkin-mode-mobile.tsx",
-  "src/components/students/school-checkin-selection-bar.tsx",
-  "src/components/students/selection-bulk-invite-modal.tsx",
-  "src/components/students/selection-bulk-pickup-modal.tsx",
-  // Kinder: Kinderakte und Kinderliste (#6767).
-  "src/components/students/student-checkout-section.tsx",
-  "src/components/students/student-create-modal.tsx",
-  "src/components/students/student-detail-components.tsx",
-  "src/components/students/student-enrollments-tab.tsx",
-  "src/components/students/student-notizen-tab.tsx",
-  "src/components/students/student-photo-section.tsx",
-  "src/components/students/student-record-actions.tsx",
-  "src/components/students/student-selection-bar.tsx",
-  "src/components/students/students-list.tsx",
-  "src/components/students/use-bulk-checkin-actions.tsx",
-  // Anmeldung: Phasen, Rechtstexte, Wiederanmeldung, Ferienangebote (#6769).
-  "src/components/enrollment/legal-blocks-section.tsx",
-  "src/components/enrollment/phase-enrollment-actions.tsx",
-  "src/components/enrollment/phase-expiry-warnings.tsx",
-  "src/components/enrollment/phase-response-overview.tsx",
-  "src/components/enrollment/phases-editor.tsx",
-  "src/components/enrollment/public-link-copy-button.tsx",
-  "src/components/enrollment/rollover-form.tsx",
-  "src/components/enrollment/rollover-review-queue.tsx",
-  "src/components/enrollment/translations-section.tsx",
-  "src/components/holiday-registration/holiday-registration-contribution.tsx",
-  "src/components/holiday-registration/holiday-registration-form.tsx",
-  "src/components/holiday-registration/holiday-registration-sections.tsx",
-  "src/components/holiday-registration/holiday-registration-summary.tsx",
-  // Anmeldung: Anmeldungen und Anmeldeformular (#6768).
-  "src/components/enrollment/enrollment-file-upload.tsx",
-  "src/components/enrollment/enrollment-form-consent.tsx",
-  "src/components/enrollment/enrollment-form-contact-inputs.tsx",
-  "src/components/enrollment/enrollment-form-editor.tsx",
-  "src/components/enrollment/enrollment-form-overview.tsx",
-  "src/components/enrollment/enrollment-form.tsx",
-  "src/components/enrollment/enrollment-renewal-banners.tsx",
-  "src/components/enrollment/enrollment-signature-status.tsx",
-  "src/components/enrollment/enrollment-status-view.tsx",
-  "src/components/enrollment/file-field-editor.tsx",
-  "src/components/enrollment/form-field-builder.tsx",
-  "src/components/enrollment/form-preview.tsx",
-  "src/components/enrollment/form-template-builder-sections.tsx",
-  "src/components/enrollment/form-template-detail.tsx",
-  // Mitarbeitende: Dienste, Dokumente, Externe, Konto, Krankmeldung (#6770).
-  "src/components/staff/dienstplan-halbjahr-grid.tsx",
-  "src/components/staff/dienstplan-person-week-grid.tsx",
-  "src/components/staff/dienstplan-resource-grid.tsx",
-  "src/components/staff/dienstplan-view.tsx",
-  "src/components/staff/dokumente-tab.tsx",
-  "src/components/staff/external-caregiver-dialogs.tsx",
-  "src/components/staff/external-caregiver-entry.tsx",
-  "src/components/staff/former-employment-details.tsx",
-  "src/components/staff/klassen-tab.tsx",
-  "src/components/staff/konto-tab.tsx",
-  "src/components/staff/month-close-modal.tsx",
-  "src/components/staff/planned-exit-modal.tsx",
-  "src/components/staff/shift-edit-modal.tsx",
-  "src/components/staff/shift-move-dialog.tsx",
-  "src/components/staff/sick-report-modal.tsx",
-  "src/components/staff/sonderarbeitszeiten-section.tsx",
-  // Datenverwaltung: Speiseplan, Gruppen, Räume, Statistik, Katalog (#6774).
-  "src/app/[tenant]/(protected)/meal-plan/freigabe/page.tsx",
-  "src/app/[tenant]/(protected)/meal-plan/page.tsx",
-  "src/app/[tenant]/(protected)/ogs-groups/overview/page.tsx",
-  "src/app/[tenant]/(protected)/ogs-groups/page.tsx",
-  "src/app/[tenant]/(protected)/rooms/[id]/page.tsx",
-  "src/app/[tenant]/(protected)/rooms/page.tsx",
-  "src/app/[tenant]/(protected)/statistics/page.tsx",
-  "src/components/activities/activity-management-modal.tsx",
-  "src/components/activities/quick-create-modal.tsx",
-  "src/components/analytics/analytics-consent-prompt.tsx",
-  "src/components/database/catalog-color-field.tsx",
-  "src/components/database/catalog/catalog-page.tsx",
-  "src/components/database/configs/devices.config.tsx",
-  "src/components/database/database-create-action.tsx",
-  "src/components/database/database-form.tsx",
-  "src/components/database/database-page-layout.tsx",
-  "src/components/database/detail-delete-button.tsx",
-  "src/components/database/grade-transitions/grade-transitions-manager.tsx",
-  "src/components/database/grade-transitions/graduates-modal.tsx",
-  // Mitarbeitende: Akte, Stammdaten, Stundenkonto, Zeiterfassung (#6771).
-  "src/components/staff/staff-audit-log.tsx",
-  "src/components/staff/staff-export-button.tsx",
-  "src/components/staff/staff-session-table.tsx",
-  "src/components/staff/staff-time-accounts-table.tsx",
-  "src/components/staff/staff-time-export-modal.tsx",
-  "src/components/staff/stammdaten-section-forms.tsx",
-  "src/components/staff/stammdaten-tab.tsx",
-  "src/components/staff/stundenkonto-panel.tsx",
-  "src/components/staff/zeiterfassung-tab.tsx",
-  "src/components/teachers/caregiver-blocker-resolution-panel.tsx",
-  "src/components/teachers/caregiver-capability-modal.tsx",
-  "src/components/teachers/staff-list.tsx",
-  // Alltag: Startseiten-Bausteine, Kopfleiste, Hilfe, Klassentag (#6777).
-  "src/components/class-day/class-arrival-exception-dialog.tsx",
-  "src/components/class-day/class-day-class.tsx",
-  "src/components/class-day/class-day-overview.tsx",
-  "src/components/dashboard/header.tsx",
-  "src/components/dashboard/header/refresh-button.tsx",
-  "src/components/dashboard/header/reminders-bell.tsx",
-  "src/components/dashboard/mobile-bottom-nav.tsx",
-  "src/components/help/context-help-link.tsx",
-  "src/components/help/help-entry.tsx",
-  "src/components/help/help-view.tsx",
-  "src/components/home/birthdays-block.tsx",
-  "src/components/home/booking-leftover-todos.tsx",
-  "src/components/home/home-board-editor.tsx",
-  "src/components/home/home-card-rows.tsx",
-  "src/components/home/my-day-block.tsx",
-  "src/components/home/now-strip.tsx",
-  "src/components/home/pickup-extension-todos.tsx",
-  "src/components/home/roster-deviation-todos.tsx",
-  "src/components/platform/announcement-modal.tsx",
-  // Datenverwaltung: Geräte, Dateien, Gruppen, Räume, QR-Codes (#6775).
-  "src/components/database/grade-transitions/transition-editor.tsx",
-  "src/components/database/grade-transitions/transition-preview-modal.tsx",
-  "src/components/devices/devices-master-detail.tsx",
-  "src/components/files/files-page.tsx",
-  "src/components/files/folder-modal.tsx",
-  "src/components/files/traeger-documents-card.tsx",
-  "src/components/groups/group-transfer-modal.tsx",
-  "src/components/meal-plan/meal-billing-release-link.tsx",
-  "src/components/meal-plan/meal-caterer.tsx",
-  "src/components/meal-plan/meal-order-week.tsx",
-  "src/components/meal-plan/meal-participant-list.tsx",
-  "src/components/qr-code/qr-code-button.tsx",
-  "src/components/qr-code/qr-code-dialog.tsx",
-  "src/components/rooms/room-checkin-dialog.tsx",
-  "src/components/rooms/room-plan-tab.tsx",
-  "src/components/rooms/room-removal-modal.tsx",
-  "src/components/rooms/students-in-room-section.tsx",
-  "src/components/rooms/transit-students-section.tsx",
-  "src/components/statistics/care-time-overruns-section.tsx",
-  // Alltag: erste Schritte, Schul-Aufsicht, Modul- und App-Hinweise (#6778).
-  "src/components/school-setup/school-setup-checklist.tsx",
-  "src/components/school/supervisions/supervisions-view.tsx",
-  "src/components/tenant/module-not-booked-state.tsx",
-  "src/components/tenant/pwa-install-hint.tsx",
-  "src/components/tenant/tenant-busy-page.tsx",
-  "src/components/tenant/tenant-guard.tsx",
-  "src/components/tenant/tenant-switcher.tsx",
+const TOOLTIP_EXEMPT = [
+  // Operator-Portal (internes Team).
+  "src/app/operator/",
+  "src/components/operator/",
+  // Caterer-Portal.
+  "src/app/caterer/",
+  "src/components/caterer/",
+  // Lohnbüro-Link.
+  "src/app/lohnbuero/",
+  // Login, Passwort, Einladung: Seiten vor der Anmeldung.
+  "src/app/[tenant]/page.tsx",
+  "src/components/auth/",
+  // Öffentliche Seiten.
+  "src/app/[tenant]/(public)/",
+  "src/app/page.tsx",
+  "src/app/start/",
+  // Demo.
+  "src/app/demo/",
+  "src/components/demo/",
 ];
 
-function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
+// Login-, Passwort- und Einladungsseiten jedes Portals und die Demo-Seiten.
+const TOOLTIP_EXEMPT_RE =
+  /^src\/app\/(?:[^/]+\/)*(?:login|reset-password|invite|einladung|accept-guardian-invite|demo)\//;
+
+const TOOLTIP_EXEMPT_KEEP = new Set([
+  // Abmelden-Dialog aus der Kopfleiste und der Navigation der Portale.
+  "src/components/auth/logout-modal.tsx",
+]);
+
+function inTooltipScope(key) {
   if (EXEMPT_FILE_RE.test(key) || key.includes("src/test/")) return false;
-  return scope.some((entry) =>
+  if (!key.startsWith("src/")) return false;
+  if (TOOLTIP_EXEMPT_KEEP.has(key)) return true;
+  if (TOOLTIP_EXEMPT_RE.test(key)) return false;
+  return !TOOLTIP_EXEMPT.some((entry) =>
     entry.endsWith("/") ? key.startsWith(entry) : key === entry,
   );
 }
@@ -6791,9 +6328,13 @@ const buttonNeedsTooltip = {
 //
 // Jeder Eintrag eines Kebab- oder Überlaufmenüs sagt in einer sichtbaren
 // Zeile, was er tut. Im Menü gibt es kein Hover, die Zeile `description` ist
-// also auch auf Handy und Tablet lesbar. Ein Menüeintrag ist wie bei
-// `bauart/no-disabled-menu-item` ein Objektliteral mit `label` und `onClick`
-// oder `href`. Ausgenommen sind Einträge mit `kind` (Auswahl, Schalter,
+// also auch auf Handy und Tablet lesbar. Ein Menüeintrag ist ein
+// Objektliteral mit `label` und `onClick`, wie `OverflowMenuItem` es
+// verlangt (#6757). Ein Objekt nur mit `label` und `href` ist ein
+// Navigationsziel (Seitenleiste, Brotkrumen), kein Menüeintrag. Ebenso ist
+// ein Objekt, das als Wert unter einem Schlüssel steht (`retry: { … }`,
+// `action: { … }`), der Knopf einer Meldung: Menüeinträge stehen in einer
+// Liste oder einer Variable, nie unter einem Schlüssel. Ausgenommen sind Einträge mit `kind` (Auswahl, Schalter,
 // Überschrift: sie sagen, was sie sind) und rein navigierende Einträge mit
 // `selected`, etwa die „Mehr“-Leiste der Navigation; ein statisch falscher
 // Wert wie `false` oder `undefined` ist keine Navigation und befreit nicht.
@@ -6805,7 +6346,8 @@ const buttonNeedsTooltip = {
 // oder `undefined` gesetzter Wert ist ein Fehler. Wie bei
 // `ui-kit/button-needs-tooltip` gilt ein unbekannter Spread ohne Erklärung als
 // erfüllt, ein Spread hinter der Erklärung wird gemeldet: Er kann sie
-// überschreiben. Die Regel gilt in TOOLTIP_SCOPE.
+// überschreiben. Die Regel gilt in denselben Pfaden wie
+// `ui-kit/button-needs-tooltip`.
 
 function staticObjectProperty(node, name) {
   // Bei doppelten Schlüsseln gilt zur Laufzeit der letzte.
@@ -6822,6 +6364,36 @@ function isStaticallyFalsy(expression) {
   return (
     (expression?.type === "Identifier" && expression.name === "undefined") ||
     (expression?.type === "UnaryExpression" && expression.operator === "void")
+  );
+}
+
+// Wert unter einem Schlüssel oder an einem JSX-Attribut, auch hinter
+// `cond ? … : undefined`, `a && …` oder `?? …`: der Knopf einer Meldung
+// (`retry`, `action`), kein Eintrag einer Menüliste.
+const KEYED_VALUE_WRAPPERS = new Set([
+  "ConditionalExpression",
+  "LogicalExpression",
+  "ParenthesizedExpression",
+  "TSAsExpression",
+  "TSSatisfiesExpression",
+  "TSNonNullExpression",
+  "JSXExpressionContainer",
+]);
+
+function isKeyedValue(node) {
+  let child = node;
+  let parent = node.parent;
+  while (
+    parent &&
+    KEYED_VALUE_WRAPPERS.has(parent.type) &&
+    !(parent.type === "ConditionalExpression" && parent.test === child)
+  ) {
+    child = parent;
+    parent = parent.parent;
+  }
+  return (
+    (parent?.type === "Property" && parent.value === child) ||
+    parent?.type === "JSXAttribute"
   );
 }
 
@@ -6851,12 +6423,8 @@ const menuItemNeedsDescription = {
     return {
       ObjectExpression(node) {
         if (!staticObjectProperty(node, "label")) return;
-        if (
-          !staticObjectProperty(node, "onClick") &&
-          !staticObjectProperty(node, "href")
-        ) {
-          return;
-        }
+        if (!staticObjectProperty(node, "onClick")) return;
+        if (isKeyedValue(node)) return;
         const selected = staticObjectProperty(node, "selected");
         if (
           staticObjectProperty(node, "kind") ||

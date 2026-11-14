@@ -33,12 +33,18 @@ export function buildGroupOverflowItems({
   if (!viaSubstitution && canTransfer) {
     items.push({
       label: "Gruppe übergeben",
+      description:
+        "Macht heute eine weitere Fachkraft für die Gruppe zuständig",
       badge: activeTransfersCount > 0 ? activeTransfersCount : undefined,
       onClick: onOpenTransfer,
     });
   }
   if (onOpenWeekProtocols) {
-    items.push({ label: "Wochenprotokolle", onClick: onOpenWeekProtocols });
+    items.push({
+      label: "Wochenprotokolle",
+      description: "Öffnet die Wochenprotokolle dieser Gruppe",
+      onClick: onOpenWeekProtocols,
+    });
   }
   return items;
 }

@@ -26,7 +26,7 @@ export function buttonClassName({
 
 /**
  * What a click does (#6643). Either `tooltip` or `noTooltip`, never both;
- * `ui-kit/button-needs-tooltip` requires one of them in its paths.
+ * `ui-kit/button-needs-tooltip` requires one of them outside its exemptions.
  */
 type ButtonExplanation =
   | {

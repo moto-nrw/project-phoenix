@@ -570,6 +570,7 @@ function CopyableLegalText({
         size="compact"
         className="gap-1.5"
         aria-describedby={id}
+        tooltip="Kopiert den Text, damit Sie ihn woanders einfügen."
         onClick={async () => {
           if (await copy(value)) success("Der Text ist kopiert.");
           else
