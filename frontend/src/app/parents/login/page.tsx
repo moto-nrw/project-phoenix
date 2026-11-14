@@ -10,7 +10,7 @@ import {
 } from "react";
 // eslint-disable-next-line no-restricted-imports -- parent routes are not tenant-scoped
 import { redirect, useSearchParams } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -31,7 +31,9 @@ import {
   MFAChallengeForm,
   type MFAChallengeCopy,
 } from "~/components/auth/mfa-challenge-form";
+import { signOutStaleSession } from "~/lib/login-session-notice";
 import { portalPasswordLogin } from "~/lib/portal-password-login";
+import type { MFAStep } from "~/lib/sign-in-answer";
 import { createLogger } from "~/lib/logger";
 import { requestParentPasswordReset } from "~/lib/auth-api";
 import { parentPath } from "~/lib/parent-url";
@@ -99,13 +101,6 @@ function challengeCopy(t: ParentSignInTranslate): MFAChallengeCopy {
   };
 }
 
-interface MFAStep {
-  readonly challengeToken: string;
-  readonly maskedEmail: string;
-  readonly trustedDeviceEnabled: boolean;
-  readonly trustedDeviceDays?: number;
-}
-
 export default function ParentLoginPage() {
   // useSearchParams verlangt eine Suspense-Grenze (siehe frontend/CLAUDE.md).
   return (
@@ -158,8 +153,6 @@ function ParentLoginForm() {
   // in die App und bleibt bis dahin gesperrt.
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const { data: session, status } = useSession();
-  // Ref prevents re-triggering signOut (not in effect deps → no loop).
-  // Separate state controls the loading spinner for the UI.
   const cleanupStartedRef = useRef(false);
   const [cleanupAttempt, setCleanupAttempt] = useState(0);
   const [isCleaningUp, setIsCleaningUp] = useState(false);
@@ -183,35 +176,23 @@ function ParentLoginForm() {
     isRedirectingToParent ||
     (status === "authenticated" && session?.error !== undefined);
 
-  // Redirect if already authenticated as parent, or clear stale sessions.
   useEffect(() => {
-    const check = async () => {
-      if (
-        status === "authenticated" &&
-        session?.error &&
-        !cleanupStartedRef.current
-      ) {
-        cleanupStartedRef.current = true;
-        setIsCleaningUp(true);
-        try {
-          await signOut({ redirect: false });
-        } catch (err) {
-          cleanupStartedRef.current = false;
-          logger.warn("parent_login_stale_session_cleanup_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          // The stale session keeps the form locked: say so, and let
-          // Wiederholen run the cleanup again.
-          void showFormError(unavailableApiError(err), {
-            object: t("errorObject"),
-            retry: () => setCleanupAttempt((current) => current + 1),
-          });
-        }
-        setIsCleaningUp(false);
-        return;
-      }
-    };
-    void check();
+    const cleanup = signOutStaleSession({
+      status,
+      session,
+      started: cleanupStartedRef,
+      logger,
+      // The stale session keeps the form locked: say so, and let
+      // Wiederholen run the cleanup again.
+      onFailure: (cause) =>
+        void showFormError(unavailableApiError(cause), {
+          object: t("errorObject"),
+          retry: () => setCleanupAttempt((current) => current + 1),
+        }),
+    });
+    if (!cleanup) return;
+    setIsCleaningUp(true);
+    void cleanup.then(() => setIsCleaningUp(false));
   }, [status, session, cleanupAttempt, showFormError, t]);
 
   // Ein Elternteil, das bereits angemeldet ist und /login direkt aufruft,
@@ -237,12 +218,7 @@ function ParentLoginForm() {
     try {
       const result = await portalPasswordLogin("parent", email, password);
       if (result.status === "mfa_required") {
-        setMfaStep({
-          challengeToken: result.challengeToken,
-          maskedEmail: result.maskedEmail,
-          trustedDeviceEnabled: result.trustedDeviceEnabled,
-          trustedDeviceDays: result.trustedDeviceDays,
-        });
+        setMfaStep(result);
         setIsLoading(false);
         return;
       }

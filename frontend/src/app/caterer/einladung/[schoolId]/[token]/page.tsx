@@ -37,8 +37,8 @@ import {
   fetchCatererInvitation,
   loginCaterer,
   type CatererInvitationPreview,
-  type CatererLoginResult,
 } from "~/lib/caterer-api";
+import type { MFAStep } from "~/lib/sign-in-answer";
 import { catererPath } from "~/lib/caterer-url";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
@@ -183,10 +183,7 @@ function AcceptForm({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [accepted, setAccepted] = useState(false);
-  const [mfaStep, setMfaStep] = useState<Extract<
-    CatererLoginResult,
-    { status: "mfa_required" }
-  > | null>(null);
+  const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const latestSubmitRef = useRef<() => void>(() => undefined);

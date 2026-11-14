@@ -15,7 +15,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
 import {
@@ -41,6 +41,7 @@ import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import {
   clearSessionErrorFromUrl,
+  signOutStaleSession,
   useSessionExpiredNotice,
 } from "~/lib/login-session-notice";
 import { endTraegerSession } from "~/lib/shell-auth-context";
@@ -51,7 +52,8 @@ import {
   serverTraegerSignInWithCode,
   subscribeTraegerSignInWithCode,
 } from "~/lib/traeger-sign-in-with-code";
-import { traegerLogin, type TraegerChoice } from "~/lib/traeger-api";
+import type { MFAStep, TraegerChoice } from "~/lib/sign-in-answer";
+import { traegerLogin } from "~/lib/traeger-api";
 import {
   TRAEGER_FORGOT_PASSWORD_PARAM,
   TRAEGER_SIGN_IN_WITH_CODE_PARAM,
@@ -64,14 +66,6 @@ const SHELL_COPY = {
   title: "Willkommen im Träger-Portal",
   subtitle: "Melden Sie sich mit Ihrem moto-Konto an.",
 } as const;
-
-interface MFAStep {
-  readonly challengeToken: string;
-  readonly maskedEmail: string;
-  readonly organizationId: string;
-  readonly trustedDeviceEnabled: boolean;
-  readonly trustedDeviceDays?: number;
-}
 
 interface EnrollmentStep {
   readonly enrollmentToken: string;
@@ -135,13 +129,12 @@ function LoginForm() {
   // effect above may have set it in this same commit.
   useEffect(() => {
     if (status !== "authenticated") return;
-    if (session?.error && !isCleaningSessionRef.current) {
-      isCleaningSessionRef.current = true;
-      void signOut({ redirect: false }).catch((err: unknown) => {
-        isCleaningSessionRef.current = false;
-        logger.warn("signout_during_cleanup_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
+    if (session?.error) {
+      void signOutStaleSession({
+        status,
+        session,
+        started: isCleaningSessionRef,
+        logger,
       });
       return;
     }
@@ -220,13 +213,7 @@ function LoginForm() {
         return;
       }
       if (result.status === "mfa_required") {
-        setMfaStep({
-          challengeToken: result.challengeToken,
-          maskedEmail: result.maskedEmail,
-          organizationId: result.organizationId,
-          trustedDeviceEnabled: result.trustedDeviceEnabled,
-          trustedDeviceDays: result.trustedDeviceDays,
-        });
+        setMfaStep(result);
         return;
       }
       if (result.status === "mfa_enrollment_required") {
