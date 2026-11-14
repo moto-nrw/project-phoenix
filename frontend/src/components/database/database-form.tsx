@@ -223,6 +223,9 @@ export interface DatabaseFormErrorPath {
   readonly clear: () => void;
 }
 
+/** Satz am Speichern-Knopf (#6643): Speichern tut hier nichts außerdem. */
+const SUBMIT_TOOLTIP = "Speichert die Angaben, sie gelten sofort.";
+
 interface DatabaseFormProps<T = Record<string, unknown>> {
   readonly sections: FormSection[];
   readonly onSubmit: (data: T) => Promise<void>;
@@ -230,11 +233,6 @@ interface DatabaseFormProps<T = Record<string, unknown>> {
   readonly initialData?: Partial<T>;
   readonly isLoading?: boolean;
   readonly submitLabel: string;
-  /**
-   * What the submit button does (#6643). Pass a sentence when saving does
-   * more than store the entry, e.g. notifies someone.
-   */
-  readonly submitTooltip?: string;
   readonly stickyActions?: boolean; // Render sticky action bar like other entity forms
   /**
    * Ergänzt nachgeladene Felder mit ihren aktuellen Werten, ohne andere Werte
@@ -267,7 +265,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
   initialData,
   isLoading,
   submitLabel,
-  submitTooltip = "Speichert die Angaben, sie gelten sofort.",
   stickyActions = false,
   preserveDraftOnSectionsChange = false,
   sectionLevel = 2,
@@ -820,7 +817,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
                 data-setup-tour="form-submit"
                 className="flex-1"
                 disabled={isBusy}
-                tooltip={submitTooltip}
+                tooltip={SUBMIT_TOOLTIP}
               >
                 {isBusy ? "Wird gespeichert..." : submitLabel}
               </Button>
@@ -841,7 +838,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
                 type="submit"
                 size="md"
                 disabled={isBusy}
-                tooltip={submitTooltip}
+                tooltip={SUBMIT_TOOLTIP}
               >
                 {isBusy ? "Wird gespeichert..." : submitLabel}
               </Button>

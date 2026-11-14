@@ -28,6 +28,20 @@ import { NumberStepper } from "~/components/ui/number-stepper";
 
 const logger = createLogger({ component: "QuickCreateActivityModal" });
 
+/** Was zuerst fehlt, damit „Aktivität erstellen“ geht (#6643). */
+function quickCreateBlockedReason(
+  busy: boolean,
+  hasName: boolean,
+  hasCategory: boolean,
+): string | undefined {
+  if (busy) return undefined;
+  if (!hasName && !hasCategory)
+    return "Geben Sie zuerst einen Namen ein und wählen Sie eine Kategorie.";
+  if (!hasName) return "Geben Sie zuerst einen Namen ein.";
+  if (!hasCategory) return "Wählen Sie zuerst eine Kategorie.";
+  return undefined;
+}
+
 interface QuickCreateActivityModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
@@ -181,11 +195,11 @@ export function QuickCreateActivityModal({
           isSubmitting || loading || !form.name.trim() || !form.category_id
         }
         tooltip="Legt die Aktivität sofort an und trägt Sie als Leitung ein."
-        disabledReason={
-          !isSubmitting && !loading && (!form.name.trim() || !form.category_id)
-            ? "Geben Sie zuerst einen Namen ein und wählen Sie eine Kategorie."
-            : undefined
-        }
+        disabledReason={quickCreateBlockedReason(
+          isSubmitting || loading,
+          form.name.trim() !== "",
+          form.category_id !== "",
+        )}
       >
         {isSubmitting ? (
           <span className="flex items-center justify-center gap-2">

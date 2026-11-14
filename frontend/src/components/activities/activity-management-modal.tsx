@@ -71,7 +71,7 @@ function NormalFooter({
             onClick={onShowDeleteConfirm}
             disabled={isSubmitting || isDeleting}
             aria-label="Aktivität löschen"
-            tooltip="Löscht die Aktivität endgültig, moto fragt vorher nach."
+            tooltip="Löscht die Aktivität mit allen Anmeldungen, moto fragt vorher nach."
           >
             <Trash2 className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
           </Button>
@@ -472,7 +472,7 @@ export function ActivityManagementModal({
         title="Aktivität löschen"
         description={`Möchten Sie die Aktivität „${activity.name}“ wirklich löschen? Das lässt sich nicht rückgängig machen.`}
         gate={{ mode: "twoStep" }}
-        confirmTooltip="Löscht die Aktivität sofort und endgültig."
+        confirmTooltip="Löscht die Aktivität mit allen Anmeldungen sofort und endgültig."
         onConfirm={handleDelete}
         onClose={() => {
           clearDeleteErrors();

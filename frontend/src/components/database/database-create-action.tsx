@@ -27,8 +27,6 @@ interface DatabaseCreateActionProps {
   menuItems?: readonly OverflowMenuItem[];
   /** What a click on the button does (#6643); the menu brings its own. */
   tooltip?: string;
-  /** Why creating is blocked while `disabled` is true; see `Button`. */
-  disabledReason?: string;
 }
 
 const DEFAULT_TOOLTIP = "Öffnet ein leeres Formular für einen neuen Eintrag.";
@@ -57,7 +55,6 @@ export function DatabaseCreateAction({
   onClick,
   menuItems,
   tooltip = DEFAULT_TOOLTIP,
-  disabledReason,
 }: DatabaseCreateActionProps) {
   // `TenantPage` renders actions inside a blurred content surface. A backdrop
   // filter establishes a containing block for fixed descendants, so the mobile
@@ -121,7 +118,6 @@ export function DatabaseCreateAction({
         onClick={onClick}
         disabled={disabled}
         tooltip={tooltip}
-        disabledReason={disabledReason}
         className="hidden gap-2 md:flex"
         aria-label={ariaLabel}
         // Ziel der geführten Tour der ersten Schritte (#2832).
@@ -139,7 +135,6 @@ export function DatabaseCreateAction({
             onClick={onClick}
             disabled={disabled}
             tooltip={tooltip}
-            disabledReason={disabledReason}
             className="fixed right-4 bottom-24 z-40 flex md:hidden"
             // Schwebender Symbolknopf: Das Portal löst ihn aus dem
             // Filter-Kontext der Kopfkarte, damit `fixed` den Viewport meint.

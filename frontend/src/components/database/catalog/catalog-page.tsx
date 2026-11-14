@@ -72,8 +72,6 @@ interface CatalogRow {
 /** Umkehrbarer Rückzug aus der Auswahl: archivieren bzw. deaktivieren. */
 interface CatalogRetire<T> {
   readonly menuLabel: string;
-  /** Zeile unter dem Menüeintrag (#6643); sonst der Standardsatz. */
-  readonly menuDescription?: string;
   readonly confirmTitle: string;
   readonly confirmLabel: string;
   /** Text des Bestätigen-Knopfs, solange der Rückzug läuft. */
@@ -85,8 +83,6 @@ interface CatalogRetire<T> {
 
 interface CatalogRestore<T> {
   readonly menuLabel: string;
-  /** Zeile unter dem Menüeintrag (#6643); sonst der Standardsatz. */
-  readonly menuDescription?: string;
   readonly run: (item: T) => Promise<unknown>;
   readonly toast: (item: T) => string;
 }
@@ -526,7 +522,6 @@ export function CatalogPage<T extends CatalogItem>({
                 {
                   label: config.restore.menuLabel,
                   description:
-                    config.restore.menuDescription ??
                     "Bietet den Eintrag sofort wieder zur Auswahl an.",
                   disabled: busy,
                   onClick: () => void handleRestore(selected),
@@ -538,8 +533,7 @@ export function CatalogPage<T extends CatalogItem>({
                 {
                   label: config.retire.menuLabel,
                   description:
-                    config.retire.menuDescription ??
-                    "Nimmt den Eintrag aus der Auswahl, moto fragt vorher nach.",
+                    "Nimmt den Eintrag nur für Neues aus der Auswahl, moto fragt vorher nach.",
                   disabled: busy,
                   onClick: () => setRetireTarget(selected),
                 },

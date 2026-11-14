@@ -484,7 +484,7 @@ export function GradeTransitionsManager({
                     icon: <RotateCcw className="h-4 w-4" aria-hidden />,
                     onClick: () => setRevertTarget(t),
                     description:
-                      "Holt die Kinder in ihre alte Klasse zurück, moto fragt vorher nach.",
+                      "Holt Kinder in die alte Klasse und Abgänge zurück, moto fragt vorher nach.",
                   },
                 ]
               : []),
@@ -628,7 +628,7 @@ export function GradeTransitionsManager({
         onConfirm={handleRevert}
         title="Schuljahreswechsel zurücksetzen"
         confirmText="Ja, zurücksetzen"
-        confirmTooltip="Setzt die Kinder sofort in ihre alte Klasse zurück."
+        confirmTooltip="Holt Kinder sofort in die alte Klasse und Abgänge zurück."
         cancelText="Abbrechen"
         isConfirmLoading={busy}
         loadingText="Wird zurückgesetzt …"

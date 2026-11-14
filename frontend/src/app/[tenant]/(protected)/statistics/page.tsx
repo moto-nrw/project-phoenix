@@ -133,7 +133,7 @@ function retainAvailableValues(
 
 // Was der Export je Bereich enthält, für die Zeile unter dem Menüeintrag.
 const EXPORT_CONTENT: Record<StatisticsExportSection, string> = {
-  attendance: "die Zahlen zu Kindern und Gruppen",
+  attendance: "die Kinder- und Gruppenzahlen",
   rooms: "die Auslastung der Räume",
   courses: "die Teilnahme je Kurs",
   "course-students": "die Kurse je Kind",
@@ -803,7 +803,7 @@ export default function StatisticsPage() {
       }[]
     ).map(({ format, label, file, Icon }) => ({
       label: exporting === `${section}-${format}` ? "Wird exportiert…" : label,
-      description: `Lädt ${EXPORT_CONTENT[section]} im gewählten Zeitraum als ${file} herunter.`,
+      description: `Lädt ${EXPORT_CONTENT[section]} des Zeitraums als ${file} herunter.`,
       icon: <Icon className="h-4 w-4" aria-hidden />,
       onClick: () => void downloadExport(format, section),
       disabled: !data || exporting !== null,

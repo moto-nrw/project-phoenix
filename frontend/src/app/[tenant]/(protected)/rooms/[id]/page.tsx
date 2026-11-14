@@ -372,7 +372,7 @@ function RoomDetailPageContent() {
             label: "Löschen",
             icon: <Trash2 className="size-4" aria-hidden />,
             description:
-              "Löscht den Raum oder archiviert ihn mit Verlauf, moto fragt vorher nach.",
+              "Löscht oder archiviert den Raum, moto zeigt vorher, was ihn noch hält.",
             destructive: true,
             onClick: () => setShowDeleteModal(true),
           },

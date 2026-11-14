@@ -162,7 +162,10 @@ function DeviceDetailContent({
         <Pencil className="h-3.5 w-3.5" aria-hidden />
         Bearbeiten
       </Button>
-      <DetailDeleteButton onClick={onDeleteClick} />
+      <DetailDeleteButton
+        onClick={onDeleteClick}
+        tooltip="Löscht das Gerät mit seinem Schlüssel, moto fragt vorher nach."
+      />
     </>
   );
 

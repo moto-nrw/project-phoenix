@@ -46,8 +46,9 @@ function germanCopy(
     promptChangeLater: `Ihre Wahl gilt für Ihr Konto. Sie können sie jederzeit unter „${place}“ ändern.`,
     allow: "Erlauben",
     refuse: "Ablehnen",
-    allowTooltip:
-      "Erlaubt die Nutzungsanalyse für Ihr Konto, ändern geht jederzeit.",
+    allowTooltip: recordings
+      ? "Erlaubt Nutzungsanalyse und mögliche Aufzeichnungen für Ihr Konto, ändern geht jederzeit."
+      : "Erlaubt die Nutzungsanalyse für Ihr Konto, ändern geht jederzeit.",
     refuseTooltip:
       "Lehnt die Nutzungsanalyse für Ihr Konto ab, moto zählt dann nichts.",
     saving: "Wird gespeichert…",

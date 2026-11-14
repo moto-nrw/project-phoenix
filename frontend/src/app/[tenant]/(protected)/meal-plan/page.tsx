@@ -121,6 +121,13 @@ function dayHasContent(rows: DishDraft[] | undefined): boolean {
   return normalizeDay(rows ?? []).length > 0;
 }
 
+/** Ein Gericht mit Inhalt: Entfernen fragt nach, eine leere Zeile nicht. */
+function rowHasContent(row: DishDraft): boolean {
+  return (
+    row.dish.trim() !== "" || row.note.trim() !== "" || row.allergens.length > 0
+  );
+}
+
 // Build editable drafts (always at least one empty row per day) from persisted
 // entries keyed by date.
 function draftsFromEntries(
@@ -381,12 +388,7 @@ export default function MealPlanPage() {
   // straight away (nothing to lose).
   const requestRemove = (date: string, idx: number) => {
     const row = drafts[date]?.[idx];
-    if (
-      row &&
-      (row.dish.trim() !== "" ||
-        row.note.trim() !== "" ||
-        row.allergens.length > 0)
-    ) {
+    if (row && rowHasContent(row)) {
       setDeleteTarget({ date, idx });
     } else {
       removeRow(date, idx);
@@ -494,8 +496,10 @@ export default function MealPlanPage() {
     retryCopyPrevRef.current = () => void doCopyPreviousWeek();
   });
 
+  // Die Rückfrage und der Satz am Knopf hängen an derselben Bedingung.
+  const weekHasContent = weekDates.some((d) => dayHasContent(drafts[d]));
   const requestCopyPreviousWeek = () => {
-    if (weekDates.some((d) => dayHasContent(drafts[d]))) {
+    if (weekHasContent) {
       setConfirmCopyPrev(true);
     } else {
       void doCopyPreviousWeek();
@@ -750,9 +754,9 @@ export default function MealPlanPage() {
               onClick={requestCopyPreviousWeek}
               disabled={loading || saving || copyingPrev || hasLoadError}
               tooltip={
-                weekDates.some((d) => dayHasContent(drafts[d]))
+                weekHasContent
                   ? "Ersetzt diese Woche durch die Vorwoche, moto fragt vorher nach."
-                  : "Übernimmt die Gerichte der Vorwoche, gespeichert wird erst danach."
+                  : "Übernimmt die Vorwoche, gespeichert wird erst mit „Speichern“."
               }
               disabledReason={
                 hasLoadError && !loading
@@ -883,30 +887,24 @@ export default function MealPlanPage() {
                             className="mt-2"
                           />
                         )}
-                        {canEdit &&
-                          (rows.length > 1 ||
-                            row.dish.trim() !== "" ||
-                            row.note.trim() !== "" ||
-                            row.allergens.length > 0) && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              aria-label="Gericht entfernen"
-                              onClick={() => requestRemove(date, idx)}
-                              tooltip={
-                                row.dish.trim() !== "" ||
-                                row.note.trim() !== "" ||
-                                row.allergens.length > 0
-                                  ? "Entfernt das Gericht, moto fragt vorher nach."
-                                  : "Entfernt die leere Zeile sofort."
-                              }
-                              disabled={editingLocked}
-                              className="absolute top-1 right-1"
-                            >
-                              <X className="h-4 w-4" aria-hidden />
-                            </Button>
-                          )}
+                        {canEdit && (rows.length > 1 || rowHasContent(row)) && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Gericht entfernen"
+                            onClick={() => requestRemove(date, idx)}
+                            tooltip={
+                              rowHasContent(row)
+                                ? "Entfernt das Gericht, moto fragt vorher nach."
+                                : "Entfernt die leere Zeile sofort."
+                            }
+                            disabled={editingLocked}
+                            className="absolute top-1 right-1"
+                          >
+                            <X className="h-4 w-4" aria-hidden />
+                          </Button>
+                        )}
                       </InsetPanel>
                     ))}
 
