@@ -6,7 +6,10 @@
 import { authFetch } from "./api-helpers";
 import { apiErrorFromResponse, transportFetch } from "./api-error";
 import { downloadBlob, filenameFromDisposition } from "./file-download";
-import { portalAuthAnswer, portalAuthPath } from "./portal-paths";
+import {
+  portalPasswordLogin,
+  type PortalPasswordLoginResult,
+} from "./portal-password-login";
 
 interface ProxyResponse<T> {
   success: boolean;
@@ -220,59 +223,18 @@ export async function acceptCatererInvitation(
 }
 
 /** The answer of the caterer login (#4497): a session, or the second step. */
-export type CatererLoginResult =
-  | { status: "authenticated" }
-  | {
-      status: "mfa_required";
-      challengeToken: string;
-      maskedEmail: string;
-      trustedDeviceEnabled: boolean;
-      trustedDeviceDays?: number;
-    };
-
-interface BackendCatererLogin {
-  status?: "authenticated" | "mfa_required";
-  challenge_token?: string;
-  masked_email?: string;
-  trusted_device_enabled?: boolean;
-  trusted_device_days?: number;
-}
+export type CatererLoginResult = PortalPasswordLoginResult;
 
 /**
  * Signs a caterer in. The BFF installs the caterer session itself; the
  * browser only learns whether a second step follows. A refusal comes back
  * as an ApiError with its code.
  */
-export async function loginCaterer(
+export function loginCaterer(
   email: string,
   password: string,
 ): Promise<CatererLoginResult> {
-  // The trusted-device cookie of this browser travels along (same origin),
-  // so a remembered device skips the code.
-  const response = await transportFetch(portalAuthPath("caterer", "login"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ email, password }),
-  });
-  if (!response.ok) {
-    throw await apiErrorFromResponse(response, "caterer login failed");
-  }
-  const data = portalAuthAnswer<BackendCatererLogin>(
-    "caterer",
-    "login",
-    await response.json(),
-  );
-  if (data.status === "mfa_required") {
-    return {
-      status: "mfa_required",
-      challengeToken: data.challenge_token ?? "",
-      maskedEmail: data.masked_email ?? "",
-      trustedDeviceEnabled: data.trusted_device_enabled ?? false,
-      trustedDeviceDays: data.trusted_device_days,
-    };
-  }
-  return { status: "authenticated" };
+  return portalPasswordLogin("caterer", email, password);
 }
 
 export type DeliveryExportFormat = "pdf" | "xlsx" | "csv";

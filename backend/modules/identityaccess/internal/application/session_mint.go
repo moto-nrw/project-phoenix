@@ -424,6 +424,12 @@ func (s *AccountAuthentication) recheckTrustedDevice(ctx context.Context, req mi
 		}
 		ctx = identityaccess.WithTraegerDevice(ctx, req.orgID)
 	}
+	if req.portal.Name == domain.PortalParent.Name {
+		// A parents-portal device names no school and no Träger, a parent
+		// session at a Träger included (#7051): only a device of this portal
+		// proves the factor, never the caterer portal's.
+		ctx = identityaccess.WithParentDevice(ctx)
+	}
 	enrolled, err := s.mfa.HasEnrollment(ctx, accountID)
 	if err != nil {
 		return identityaccess.ErrMFAStatusUnavailable

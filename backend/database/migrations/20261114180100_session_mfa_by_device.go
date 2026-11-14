@@ -8,7 +8,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const sessionMFAByDeviceVersion = "20261114110907"
+const sessionMFAByDeviceVersion = "20261114180100"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

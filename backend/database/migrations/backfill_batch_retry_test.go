@@ -355,9 +355,23 @@ func newBatch(t *testing.T, super *bun.DB, d backfillDriver, newConnection bool)
 	} else {
 		pool, faults = testpkg.NewStatementFaultPool(t)
 	}
+	warmBatchConnections(t, pool)
 	tenantID, _ := testpkg.CreateTestTenant(t, super)
 	d.seed(t, super, tenantID)
 	return pool, faults, tenantID
+}
+
+// warmBatchConnections opens both connections before fault injection. Cold
+// connection setup must not consume the sampler's one-second acquire budget
+// and abort a case before its intended failure site is reached.
+func warmBatchConnections(t *testing.T, pool *bun.DB) {
+	t.Helper()
+	batch, err := pool.DB.Conn(t.Context())
+	require.NoError(t, err)
+	defer func() { require.NoError(t, batch.Close()) }()
+	monitor, err := pool.DB.Conn(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, monitor.Close())
 }
 
 // expectedDecision is the decision on the direct result of a failed step.
@@ -527,7 +541,7 @@ func assertRow(t *testing.T, want, got checkpointRow, label string) {
 
 func assertOutcome(t *testing.T, d backfillDriver, plan faultPlan, want outcome, result batchResult, row checkpointRow) {
 	t.Helper()
-	label := fmt.Sprintf("%s %+v", d.name, plan)
+	label := fmt.Sprintf("%s %+v (batch error: %v)", d.name, plan, result.err)
 	// Failures before the copy never reach it.
 	beforeCopy := plan.main != none && (plan.site == siteBackendPID || plan.site == siteBegin ||
 		plan.site == siteLimits || plan.site == siteLimitsLast || (d.owner && plan.site == siteBodyFirst))

@@ -12,37 +12,62 @@ import (
 // LoginParentWithAudit authenticates a parent and issues a parent-scope JWT
 // with no tenant binding: the token works against parent-scoped endpoints
 // regardless of which school the children attend. Accounts without a
-// guardian role on at least one active mapping are refused.
+// guardian role on at least one active mapping are refused. It knows no
+// second factor; the parents portal signs in through ParentAccess (#7051),
+// which refuses an account with one before any session exists.
 func (s *AccountAuthentication) loginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
 	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
 	if err != nil {
 		return "", "", err
 	}
-	return s.issueParentTokens(ctx, account, email, ipAddress, userAgent, true)
+	return s.issueParentTokens(ctx, account, email, ipAddress, userAgent, true, mintProof{})
 }
 
 // IssueDemoParentTokens mints the parent-scope session the demo access
 // redeems for the demo school's parent (#3468). It skips the credential
-// check but otherwise is the parent login; a parent session carries no
-// staff rights, so it records no proof (MFANone).
+// check but otherwise is the parent login. The link left by mail only, so
+// it proves the mailbox like a code (proofDemoLink), as the demo's staff
+// session does.
 func (s *AccountAuthentication) IssueDemoParentTokens(ctx context.Context, accountID int64, ipAddress, userAgent string) (string, string, error) {
 	account, err := s.authenticatedAccount(ctx, "issue parent tokens", accountID)
 	if err != nil {
 		return "", "", err
 	}
-	return s.issueParentTokens(ctx, account, account.Email, ipAddress, userAgent, false)
+	return s.issueParentTokens(ctx, account, account.Email, ipAddress, userAgent, false, mintProof{kind: proofDemoLink})
 }
 
-// issueParentTokens mints the parent-scope session at the first guardian
-// school that books Eltern-App. An account that is a guardian at no live
-// school opens, on a sign-in (traegerFallback), the parent session at a
-// Träger it holds access at (ADR 0216). A guardian whose schools do not
-// book Eltern-App stays refused: a Träger session would reach the children
-// of those schools past the booking lock (#4895).
-func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account domain.LoginAccount, email, ipAddress, userAgent string, traegerFallback bool) (string, string, error) {
+func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account domain.LoginAccount, email, ipAddress, userAgent string, traegerFallback bool, proof mintProof) (string, string, error) {
+	target, err := s.parentTarget(ctx, account, ipAddress, userAgent, traegerFallback)
+	if err != nil {
+		return "", "", err
+	}
+	minted, err := s.mintParentSession(ctx, account, email, target, proof, ipAddress, userAgent)
+	return minted.accessToken, minted.refreshToken, err
+}
+
+// parentTarget is where a parent session is opened: the guardian schools
+// that book Eltern-App, the first of which keeps the session row, or the
+// Träger of a parent without such a school (ADR 0216).
+type parentTarget struct {
+	tenantID int64
+	booked   []int64
+	orgID    int64
+}
+
+// atSchool reports a parent session kept at a guardian school.
+func (t parentTarget) atSchool() bool { return t.tenantID > 0 }
+
+// parentTarget resolves the parent session of a sign-in at the first
+// guardian school that books Eltern-App. An account that is a guardian at no
+// live school opens, on a sign-in (traegerFallback), the parent session at a
+// Träger it holds access at (ADR 0216). A guardian whose schools do not book
+// Eltern-App stays refused: a Träger session would reach the children of
+// those schools past the booking lock (#4895). It runs before a second
+// factor is asked, so no code goes to an account the portal refuses.
+func (s *AccountAuthentication) parentTarget(ctx context.Context, account domain.LoginAccount, ipAddress, userAgent string, traegerFallback bool) (parentTarget, error) {
 	guardianTenantIDs, err := s.findGuardianTenantForAccount(ctx, account.ID)
 	if err != nil {
-		return "", "", failed("parent login: enumerate tenants", err)
+		return parentTarget{}, failed("parent login: enumerate tenants", err)
 	}
 	refusal, reason := failed("parent login", identityaccess.ErrAccountNoGuardianRole), "Not a guardian at any live school"
 	var bookedTenantIDs []int64
@@ -51,28 +76,44 @@ func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account d
 		// Eltern-App (#4895).
 		bookedTenantIDs, err = s.bookedGuardianSchools(ctx, "parent login", account.ID, guardianTenantIDs)
 		if _, notBooked := identityaccess.PortalNotBooked(err); !notBooked && err != nil {
-			return "", "", err
+			return parentTarget{}, err
 		}
 		refusal, reason = err, "Parents portal not booked at any guardian school"
 	}
-	if len(bookedTenantIDs) == 0 {
-		if traegerFallback && len(guardianTenantIDs) == 0 {
-			if access, refresh, found, err := s.issueTraegerParentTokens(ctx, account, email, ipAddress, userAgent); found || err != nil {
-				return access, refresh, err
-			}
-		}
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, reason)
-		return "", "", refusal
+	if len(bookedTenantIDs) > 0 {
+		return parentTarget{tenantID: bookedTenantIDs[0], booked: bookedTenantIDs}, nil
 	}
-	// The refresh session row is pinned to the first guardian tenant with
-	// the portal for the foreign key and RLS; the token itself is
-	// cross-tenant on read.
-	minted, err := s.mintAccountSession(ctx, mintRequest{
-		portal: domain.PortalParent, account: account, email: email, tenantID: bookedTenantIDs[0],
-		op: "parent login", booked: bookedTenantIDs,
-		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: bookedTenantIDs[0]},
+	if traegerFallback && len(guardianTenantIDs) == 0 {
+		organizations, err := s.traegerParentOrganizations(ctx, account.ID)
+		if err != nil {
+			return parentTarget{}, failed("parent login: read Träger access", err)
+		}
+		if len(organizations) > 0 {
+			return parentTarget{orgID: organizations[0].ID}, nil
+		}
+	}
+	s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, reason)
+	return parentTarget{}, refusal
+}
+
+// mintParentSession mints the parent session the target names with the
+// proof of the sign-in. The refresh session row of a school target is
+// pinned to the first guardian tenant with the portal for the foreign key
+// and RLS; the token itself is cross-tenant on read. A Träger target names
+// the Träger and no school.
+func (s *AccountAuthentication) mintParentSession(ctx context.Context, account domain.LoginAccount, email string, target parentTarget, proof mintProof, ipAddress, userAgent string) (mintedSession, error) {
+	if !target.atSchool() {
+		return s.mintAccountSession(ctx, mintRequest{
+			portal: domain.PortalParent, account: account, email: email, orgID: target.orgID, proof: proof,
+			op:    "parent login",
+			audit: s.schoollessAudit(ctx, account.ID, domain.AuthEventLogin, ipAddress, userAgent),
+		})
+	}
+	return s.mintAccountSession(ctx, mintRequest{
+		portal: domain.PortalParent, account: account, email: email, tenantID: target.tenantID, proof: proof,
+		op: "parent login", booked: target.booked,
+		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: target.tenantID},
 	})
-	return minted.accessToken, minted.refreshToken, err
 }
 
 // buildParentMetadata is the claims material of a parent-scope token: the

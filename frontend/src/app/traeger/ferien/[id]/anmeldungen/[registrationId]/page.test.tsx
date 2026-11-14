@@ -114,7 +114,10 @@ describe("TraegerHolidayRegistrationPage", () => {
     mockConfirm.mockReset().mockResolvedValue(HOLIDAY_CONTRIBUTION);
     mockContribution.mockResolvedValue(HOLIDAY_CONTRIBUTION);
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
-    mockFamilyDebtorNumber.mockResolvedValue("");
+    mockFamilyDebtorNumber.mockResolvedValue({
+      debtorNumber: "",
+      children: [],
+    });
     mockHealth.mockReset();
     mockHealth.mockResolvedValue(HOLIDAY_REGISTRATION_HEALTH);
     mockEdit.mockReset();
@@ -427,7 +430,10 @@ describe("TraegerHolidayRegistrationPage", () => {
   });
 
   it("proposes the number the family already has at the confirmation (#6692)", async () => {
-    mockFamilyDebtorNumber.mockResolvedValue("20 815");
+    mockFamilyDebtorNumber.mockResolvedValue({
+      debtorNumber: "20 815",
+      children: [],
+    });
     render(
       <ToastProvider>
         <TraegerHolidayRegistrationPage />

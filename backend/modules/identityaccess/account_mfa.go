@@ -261,3 +261,22 @@ func TraegerDeviceOf(ctx context.Context) int64 {
 	organizationID, _ := ctx.Value(traegerDeviceKey{}).(int64)
 	return organizationID
 }
+
+// parentDeviceKey marks the trusted-device calls of the parents portal.
+type parentDeviceKey struct{}
+
+// WithParentDevice binds the parents portal to the trusted-device calls of
+// ctx (#7051). A parent session names no school and no Träger (ADR 0216), so
+// its device does not either: AccountTrustedDevices called with tenantID
+// zero then prepares, issues, verifies, lists and revokes only the devices
+// the parents portal remembered, never the caterer portal's. A call that
+// names a school ignores it.
+func WithParentDevice(ctx context.Context) context.Context {
+	return context.WithValue(ctx, parentDeviceKey{}, true)
+}
+
+// ParentDeviceOf reports whether WithParentDevice bound ctx.
+func ParentDeviceOf(ctx context.Context) bool {
+	bound, _ := ctx.Value(parentDeviceKey{}).(bool)
+	return bound
+}

@@ -218,6 +218,8 @@ import type { parentReportAbsenceTopic as authored_parentReportAbsenceTopic } fr
 
 import type { parentRequestsTopic as authored_parentRequestsTopic } from "./articles/parent-requests";
 
+import type { parentSignInCodeTopic as authored_parentSignInCodeTopic } from "./articles/parent-sign-in-code";
+
 import type { parentSurveysTopic as authored_parentSurveysTopic } from "./articles/parent-surveys";
 
 import type { parentSurveyTopic as authored_parentSurveyTopic } from "./articles/parent-survey";
@@ -6807,6 +6809,7 @@ export const parentLoginTopic = function parentLoginTopic(): HelpTopic {
       "Legen Sie sich die Adresse als Lesezeichen an. Oder fügen Sie moto zum Startbildschirm hinzu.",
     ],
     differences: [
+      "Sie haben die `Anmeldung mit Code` eingeschaltet? Dann schickt moto nach dem Passwort einen Code an Ihre E-Mail-Adresse. Tragen Sie ihn ein und wählen Sie `Ja, merken und anmelden` oder `Nein, nur anmelden`.",
       "Passwort vergessen? Wählen Sie `Passwort vergessen?`. Es öffnet sich das Fenster `Passwort zurücksetzen`. Tragen Sie Ihre E-Mail-Adresse ein und wählen Sie `Link senden`. Den Link bekommen Sie per E-Mail.",
     ],
     troubleshootingDetails: [
@@ -6817,6 +6820,7 @@ export const parentLoginTopic = function parentLoginTopic(): HelpTopic {
       "moto sagt, Ihre Schule nutze das Elternportal zurzeit nicht? Dann bietet Ihre Schule das Elternportal nicht an. Fragen Sie bei Ihrer Schule nach.",
     ],
     related: [
+      HELP_TOPICS.parentSignInCode,
       HELP_TOPICS.parentAccount,
       HELP_TOPICS.parentChildOverview,
       HELP_TOPICS.parentAccountProblem,
@@ -7359,6 +7363,51 @@ export const parentRequestsTopic = function parentRequestsTopic(
     ],
   };
 } satisfies typeof authored_parentRequestsTopic;
+
+/**
+ * `/parents/settings?tab=signIn` (#7051). Die Anmeldung mit Code ist
+ * freiwillig und gilt für das ganze Konto. Ein verlorenes Postfach setzt das
+ * moto-Team über eine Schule des Kontos zurück; ein Konto ohne Schule kann
+ * sie deshalb nicht einschalten.
+ */
+export const parentSignInCodeTopic =
+  function parentSignInCodeTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.parentSignInCode,
+      title: "Anmeldung mit Code",
+      question: "Wie schütze ich mein Konto mit einem Code?",
+      summary:
+        "Nach dem Passwort geben Sie einen Code aus Ihrer E-Mail ein. Das ist freiwillig.",
+      group: "einstieg",
+      audience: "parent",
+      icon: "ShieldCheck",
+      steps: [
+        "Tippen Sie unten auf `Mehr` und dann auf `Einstellungen`.",
+        "Wählen Sie den Bereich `Anmeldung`.",
+        "Wählen Sie bei `Anmeldung mit Code` den Knopf `Einschalten`.",
+        "moto schickt Ihnen einen Code per E-Mail. Tragen Sie ihn bei `Code aus der E-Mail` ein.",
+        "Wählen Sie `Einschalten`.",
+      ],
+      result:
+        "Bei jeder Anmeldung fragt moto jetzt nach dem Passwort auch nach einem Code aus Ihrer E-Mail.",
+      notes: [
+        "Nach dem Code fragt moto: `Soll moto dieses Gerät merken?` Auf Ihrem eigenen Gerät wählen Sie `Ja, merken und anmelden`. Dann fragt moto dort eine Zeit lang nicht nach dem Code.",
+        "Auf Geräten, die mehrere Personen nutzen, wählen Sie `Nein, nur anmelden`.",
+        "Gemerkte Geräte sehen und entfernen Sie unter `Einstellungen` im Bereich `Anmeldung`.",
+        "Die Anmeldung mit Code gilt für Ihr ganzes moto-Konto. Arbeiten Sie auch an einer Schule mit moto, fragt moto dort ebenfalls nach dem Code.",
+      ],
+      differences: [
+        "Am Computer steht `Einstellungen` in der Navigation statt hinter `Mehr`.",
+        "Statt `Einschalten` steht dort ein Hinweis? Dann gehört Ihr Konto noch zu keiner Schule. Sobald Ihr Kind an einer Schule angemeldet ist, können Sie die Anmeldung mit Code einschalten.",
+        "Zum Ausschalten wählen Sie `Ausschalten` und geben Ihr Passwort ein.",
+      ],
+      troubleshootingDetails: [
+        "Kein Code angekommen? Sehen Sie im Spam-Ordner nach. Oder wählen Sie `Neuen Code anfordern`.",
+        "Kein Zugriff mehr auf Ihr E-Mail-Postfach? Wenden Sie sich an Ihre Schule. Das moto-Team setzt die Anmeldung mit Code dann zurück. Danach reicht wieder Ihr Passwort.",
+      ],
+      related: [HELP_TOPICS.parentLogin, HELP_TOPICS.parentAccount],
+    };
+  } satisfies typeof authored_parentSignInCodeTopic;
 
 /**
  * Umfrage: Mitteilung mit Antwortmoeglichkeiten (#1371). Im Formular heisst
@@ -10723,7 +10772,7 @@ export const traegerBillingRunTopic =
         "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
         "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
         "Logo, Farbe, Absender und Fußzeile im Schreiben kommen aus `Briefkopf und Vorlagen`. Die Ansprechperson kommt aus `Allgemein`, die Bankverbindung aus `Abrechnungsvorgaben`. Als Verwendungszweck steht im Schreiben die Debitorennummer der Rechnung. Hat die Rechnung keine, steht dort die Rechnungsnummer. Einen eigenen Zahlungstext schreiben Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung`.",
-        "Die Rechnung übernimmt die Debitorennummer der Anmeldung. Hat die Anmeldung keine, nimmt sie die Nummer der Familie aus dem Reiter `Familien`. Führt Ihr Träger die Nummer je Kind, nimmt sie die Nummer des ersten Kindes der Rechnung. Eine Rechnung über mehrere Kinder nennt nur eine Nummer. Das steht vor der Freigabe als Hinweis. Die Nummer steht im Schreiben unter der Rechnungsnummer und in der Übersicht für die Kämmerei in der Spalte `Debitorennummer`.",
+        "Die Rechnung übernimmt die Debitorennummer der Anmeldung. Hat die Anmeldung keine, nimmt sie die Nummer der Familie aus dem Reiter `Familien`. Führt Ihr Träger die Nummer je Kind, bekommt jedes Kind eine eigene Rechnung mit seiner Nummer. Geschwister einer Anmeldung haben dann mehrere Rechnungen. Wurde die Anmeldung vor der Umstellung schon mit einer Rechnung abgerechnet, bleibt es bei einer Rechnung, auch nach einem Storno. Die Nummer steht im Schreiben unter der Rechnungsnummer und in der Übersicht für die Kämmerei in der Spalte `Debitorennummer`.",
         "Storno und Gutschrift bekommen ihre Nummer aus demselben Nummernkreis wie die Rechnungen. In der Aufschlüsselung einer Rechnung steht unter `Verlauf` ihr Storno, ihre Gutschriften und die neue Rechnung.",
         "Sind die Schreiben des Laufs schon erstellt, bekommen Storno und Gutschrift ihr Schreiben sofort. Sie senden es wie die anderen Schreiben unter `Versand per Mail`.",
         "Nach einem Storno lässt sich die Debitorennummer der Anmeldung wieder ändern. Die neue Rechnung übernimmt sie.",
@@ -12828,7 +12877,7 @@ export const traegerHolidayRegistrationReviewTopic =
             "Wählen Sie unter `Wer bezahlt den Beitrag?`: `Die Familie bezahlt`, `Von der Zahlung befreien (Leistungsbezug)` oder `Kosten übernimmt ein Kostenträger`. Beim Kostenträger wählen Sie darunter, welcher bezahlt. Der `Ferienbeitrag` zeigt sofort, was festgehalten wird.",
             "Fragt Ihr Träger die Debitorennummer ab, steht über `Bestätigen` das Feld `Debitorennummer`. Tragen Sie dort die Nummer der Familie bei der Kasse der Gemeinde ein. Ohne Nummer geht `Bestätigen` nicht. Hat Ihr Träger ein Format festgelegt, steht es unter dem Feld, zum Beispiel `Die Nummer hat 5 Ziffern`.",
             "Kennt moto die Nummer der Familie schon, steht unter dem Feld `Bekannte Nummer dieser Familie`. Prüfen Sie die Nummer und wählen Sie `Übernehmen`. Das Feld füllt sich, bestätigt ist aber noch nichts.",
-            "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten. moto merkt sich die Debitorennummer bei der Familie. Führt Ihr Träger die Nummer je Kind, merkt moto sie beim Kind, wenn die Anmeldung nur ein Kind hat und das Kind noch keine Nummer hat. Vorgeschlagen wird dann die Nummer des ersten Kindes.",
+            "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten. moto merkt sich die Debitorennummer bei der Familie. Führt Ihr Träger die Nummer je Kind und hat die Anmeldung mehrere Kinder, steht unter `Debitorennummern der Kinder` ein Feld je Kind. Vorgeschlagen wird die Nummer, die das Kind schon hat. moto merkt sich jede Nummer beim Kind. Später ändern Sie sie mit `Nummern der Kinder ändern`.",
             "Weicht die Nummer von der gemerkten ab, fragt moto `Welche Debitorennummer gilt?`. Wählen Sie `Neue Nummer für die Familie merken` oder `Gemerkte Nummer behalten`. Mit Ihrer Auswahl bestätigen Sie die Anmeldung. Bei mehreren Familien nennt moto jede Familie und ihre bisherige Nummer. Ihre Auswahl gilt für alle genannten Familien.",
             "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
           ],
@@ -12972,6 +13021,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Eine Änderung führt zu zu vielen Tagen je Kind? Prüfen Sie die Anmeldungen vor dem Speichern. Bei gleicher Eltern-E-Mail, gleichem Namen und Geburtsdatum zählen die Tage zusammen. Das gilt auch, wenn Sie diese Angaben ändern.",
         "`Umbuchen` fehlt? Die Anmeldung ist eingefroren oder storniert. Eine eingefrorene Anmeldung öffnen Sie mit `Wieder öffnen`.",
         "Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Die Eltern melden das Kind dann neu an.",
+        "Eine gemeinsame Rechnung bleibt auch nach dem Wechsel zu `Kind` gemeinsam. Nach dem Storno ändern Sie ihre Nummer mit `Debitorennummer ändern`. Rechnungen je Kind nennen die Nummer des Kindes.",
         "Die Debitorennummer lässt sich nicht mehr ändern? Für die Anmeldung gibt es schon eine Rechnung. Die Rechnung behält die Nummer, mit der sie ausgestellt wurde.",
         "`Ändern` fehlt? Die Anmeldung ist storniert. Dann lassen sich die Angaben nicht mehr ändern.",
         "`Trennen` fehlt oder Zusammenführen geht nicht? Für eine Anmeldung der Geschwister gibt es schon eine Rechnung. Geschwister können Sie dann nicht mehr ändern.",

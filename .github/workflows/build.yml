@@ -509,7 +509,7 @@ jobs:
         with:
           exit_code: ${{ steps.deploy.outputs.deploy_exit }}
           environment: staging
-          resend_api_key: ${{ secrets.RESEND_API_KEY }}
+          lettermint_token: ${{ secrets.LETTERMINT_CI_TOKEN }}
           notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
           run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
@@ -635,7 +635,7 @@ jobs:
         with:
           exit_code: ${{ steps.deploy.outputs.deploy_exit }}
           environment: production
-          resend_api_key: ${{ secrets.RESEND_API_KEY }}
+          lettermint_token: ${{ secrets.LETTERMINT_CI_TOKEN }}
           notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
           run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
@@ -790,7 +790,7 @@ jobs:
         with:
           exit_code: ${{ steps.deploy.outputs.deploy_exit }}
           environment: demo
-          resend_api_key: ${{ secrets.RESEND_API_KEY }}
+          lettermint_token: ${{ secrets.LETTERMINT_CI_TOKEN }}
           notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
           run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}

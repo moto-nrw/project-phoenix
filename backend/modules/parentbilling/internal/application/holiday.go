@@ -154,7 +154,7 @@ func (h *HolidayContributions) memberContribution(ctx context.Context, organizat
 		frozen := *member.frozen
 		issued, invoiced := billed[registration.ID]
 		frozen.Invoiced = invoiced
-		frozen.CorrectionNeeded = invoiced && issued != billedBy(frozen)
+		frozen.CorrectionNeeded = invoiced && !sameBilled(issued, billedBy(frozen, issued.Children))
 		return frozen, nil
 	}
 	exemption := registration.BenefitsDeclared && bearer == nil
@@ -187,7 +187,9 @@ func (h *HolidayContributions) memberContribution(ctx context.Context, organizat
 // switched-off cost bearer refuse the confirmation before anything is
 // written (#5627). The caller rolls the transaction back when this fails
 // after the confirmation.
-func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber, familyChoice string) (parentbilling.HolidayConfirmation, error) {
+func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64,
+	benefitsExemption bool, costBearerID int64, debtorNumber, familyChoice string, childNumbers []parentbilling.HolidayChildDebtorNumberInput,
+) (parentbilling.HolidayConfirmation, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayConfirmation{}, errTraegerRequired
 	}
@@ -206,9 +208,6 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 	if err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}
-	if err := h.requireDebtorNumber(ctx, reviewer.OrganizationID, debtorNumber); err != nil {
-		return parentbilling.HolidayConfirmation{}, err
-	}
 	registration, err := h.registrations.ConfirmHolidayRegistration(ctx, reviewer, periodID, registrationID, debtorNumber)
 	if err != nil {
 		return parentbilling.HolidayConfirmation{}, err
@@ -216,8 +215,15 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 	if registration.Status != parentbilling.HolidayRegistrationConfirmed {
 		return parentbilling.HolidayConfirmation{}, parentbilling.ErrHolidayRegistrationStateConflict
 	}
+	byChild, err := h.confirmsChildNumbers(ctx, reviewer.OrganizationID, registration, childNumbers)
+	if err != nil {
+		return parentbilling.HolidayConfirmation{}, err
+	}
 	choice := holidayMemberChoice{exemption: benefitsExemption, bearer: bearer}
 	if err := h.freezeConfirmed(ctx, reviewer, periodID, registration, others, issued, choice); err != nil {
+		return parentbilling.HolidayConfirmation{}, err
+	}
+	if err := h.confirmChildNumbers(ctx, reviewer, registration, byChild, childNumbers); err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}
 	// The family keeps the number of the registration and of the group that
@@ -416,10 +422,32 @@ func quotedDays(week parentbilling.HolidayWeek, days []calendar.Date) (int, bool
 
 // billedBy is what a contribution bills the family and the cost bearer. A
 // full cost takeover keeps the family at nothing when the contribution
-// changes, so the invoice is compared by both (review of #5671).
-func billedBy(contribution parentbilling.HolidayContribution) parentbilling.IssuedContribution {
-	billed := parentbilling.IssuedContribution{TotalCents: contribution.TotalCents}
+// changes, so the invoice is compared by both (review of #5671). With
+// children only their part: the invoices per child bill those (#7007).
+func billedBy(contribution parentbilling.HolidayContribution, children []int64) parentbilling.IssuedContribution {
+	if len(children) == 0 {
+		return billedOf(contribution.Children, contribution.TotalCents)
+	}
+	billed := make([]parentbilling.HolidayChildContribution, 0, len(children))
+	var total int64
 	for _, child := range contribution.Children {
+		if slices.Contains(children, child.ChildID) {
+			billed = append(billed, child)
+			total += child.TotalCents
+		}
+	}
+	return billedOf(billed, total)
+}
+
+// sameBilled compares what the invoices billed with what the contribution
+// bills now.
+func sameBilled(issued, now parentbilling.IssuedContribution) bool {
+	return issued.TotalCents == now.TotalCents && issued.CostTakeoverCents == now.CostTakeoverCents
+}
+
+func billedOf(children []parentbilling.HolidayChildContribution, total int64) parentbilling.IssuedContribution {
+	billed := parentbilling.IssuedContribution{TotalCents: total}
+	for _, child := range children {
 		for _, line := range child.Lines {
 			if line.Kind == parentbilling.LineCostTakeover {
 				billed.CostTakeoverCents += line.AmountCents

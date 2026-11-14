@@ -80,12 +80,12 @@ function decode(layout: BrandedQrLayout): string | undefined {
 
 const LINKS = [
   // The shortest link moto hands out: the smallest code, the tightest plate.
-  "https://a.moto.nrw/anmeldung",
+  "https://moto-app.de/anmelden",
   "https://ogs-musterschule.moto-app.de/anmeldung",
   "https://ogs-musterschule.moto-app.de/anmeldung?phase=4821",
   "https://eltern.moto-app.de/ferienanmeldung/3f9c1b7e5a2d4c6f8a0b1c2d3e4f5a6b7c8d9e0f",
   // 69 modules: the size that tolerated the smallest logo when measured.
-  `https://a.moto.nrw/${"k7Q2x9".repeat(25)}`,
+  `https://moto-app.de/${"k7Q2x9".repeat(24)}k7Q2x`,
   // A one-time display link carries a long key.
   `https://ogs-musterschule.moto-app.de/display/${"k7Q2x".repeat(24)}`,
 ];

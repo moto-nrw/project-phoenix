@@ -14,9 +14,10 @@ import (
 // boundary, including refresh hand-off recovery, and without locks at a
 // session validation (r). Legacy sessions have no proof.
 // A Träger session minted before the duty or one whose proof an MFA reset
-// revoked is refused at mint, refresh and validation. A caterer session
-// needs its proof once the caterer switched its second factor on (#4497): a
-// session minted before that ends at its next refresh or validation.
+// revoked is refused at mint, refresh and validation. A caterer or parent
+// session needs its proof once the account has a second factor (#4497,
+// #7051): a session minted before that ends at its next refresh or
+// validation.
 func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID, tenantID int64, scope string, verified bool, r factReads) error {
 	if !s.mfa.Configured() {
 		return nil
@@ -28,7 +29,16 @@ func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID
 		}
 		return nil
 	case domain.MFAAccountChoice:
-		return s.requireCatererSessionMFA(ctx, accountID, verified)
+		if !r.locked && scope == domain.PortalParent.Name {
+			// The parents portal validates its session on every page view
+			// (#5399), for every parent, and almost none has the factor. A
+			// parent session minted before the switch-on ends at its next
+			// mint or refresh, which read the enrollment under the account
+			// lock; until then its access token lives out its lifetime, as
+			// after a password change (#7051).
+			return nil
+		}
+		return s.requireAccountChoiceSessionMFA(ctx, accountID, verified)
 	case domain.MFASchoolPolicy:
 	default:
 		return nil
@@ -50,12 +60,12 @@ func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID
 	return nil
 }
 
-// requireCatererSessionMFA reads the caterer's own choice: the enrollment of
-// its account, never a school's mode, on the mint's or the refresh's
+// requireAccountChoiceSessionMFA reads the account's own choice: its
+// enrollment, never a school's mode, on the mint's or the refresh's
 // transaction. A password mint that races the switch-on commits a session
 // without proof; like every session from before the switch-on, it ends at
 // its next refresh, which reads the committed enrollment.
-func (s *AccountAuthentication) requireCatererSessionMFA(ctx context.Context, accountID int64, verified bool) error {
+func (s *AccountAuthentication) requireAccountChoiceSessionMFA(ctx context.Context, accountID int64, verified bool) error {
 	if verified {
 		return nil
 	}

@@ -51,6 +51,9 @@ type engine struct {
 	Demo *identityaccess.DemoAccess
 	// CatererFlows are the caterer flows; nil without their dependencies.
 	CatererFlows *identityaccess.CatererAccess
+	// ParentFlows are the parents portal's sign-in with its second factor
+	// (#7051); nil without the sessions.
+	ParentFlows *identityaccess.ParentAccess
 }
 
 // DemoAccess returns the demo-only capability when the owner was composed in
@@ -60,6 +63,8 @@ func (e engine) DemoAccess() *identityaccess.DemoAccess { return e.Demo }
 // Caterers returns the caterer flows (ADR 0077), nil when the owner was
 // composed without them.
 func (e engine) Caterers() *identityaccess.CatererAccess { return e.CatererFlows }
+
+func (e engine) Parents() *identityaccess.ParentAccess { return e.ParentFlows }
 
 var (
 	_ identityaccess.Owner = Engine{}
