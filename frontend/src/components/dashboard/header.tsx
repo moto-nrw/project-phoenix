@@ -161,6 +161,7 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   ["/schliesstage", "Schließtage"],
   ["/zeitvergleich", "Länger als gebucht"],
   ["/dokumente", "Dokumente"],
+  ["/personal", "Personalakten"],
   // Die drei Bereiche der Abrechnung (#5145): die genaueren Adressen zuerst,
   // denn der erste Treffer gewinnt.
   ["/abrechnung/familien", "Familien und Zahlung"],

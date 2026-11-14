@@ -770,6 +770,7 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerFinanceExports,
       HELP_TOPICS.traegerExportHandover,
       HELP_TOPICS.traegerDatevExport,
+      HELP_TOPICS.traegerStaffRecords,
       HELP_TOPICS.traegerSharedDocuments,
       HELP_TOPICS.traegerCareTimeOverruns,
       HELP_TOPICS.traegerAccessLog,
@@ -782,6 +783,7 @@ describe("getParentHelpTopicForPath", () => {
     expect([...new Set(traegerTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "anmeldeverwaltung",
+      "personal",
       // Dokumente für Eltern und Schulen (#4692).
       "elternarbeit",
       "auswertung",
