@@ -43,11 +43,7 @@ import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSidebarGroups } from "~/lib/hooks/use-sidebar-groups";
-import {
-  SIMPLE_STAFF_NAV_SHOW_ALL_LABEL,
-  SIMPLE_STAFF_NAV_SHOW_SIMPLE_LABEL,
-  useSimpleStaffNav,
-} from "~/lib/hooks/use-simple-staff-nav";
+import { useSimpleStaffNav } from "~/lib/hooks/use-simple-staff-nav";
 import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import {
   isStaffSettingsPath,
@@ -1643,23 +1639,14 @@ function SidebarContent({
             {simpleNav.available ? (
               <SidebarRowButton
                 {...collapseState}
-                label={
-                  simpleNav.active
-                    ? SIMPLE_STAFF_NAV_SHOW_ALL_LABEL
-                    : SIMPLE_STAFF_NAV_SHOW_SIMPLE_LABEL
-                }
+                label={simpleNav.toggleLabel}
                 icon={
                   <NavSceneIcon
                     icon={ListBulletsIcon}
                     className={SIDEBAR_ICON_CLASSES}
                   />
                 }
-                data-setup-tour="nav-simple-toggle"
-                onClick={
-                  simpleNav.active
-                    ? simpleNav.showAllPages
-                    : simpleNav.showSimplePages
-                }
+                onClick={simpleNav.toggle}
               />
             ) : null}
           </nav>

@@ -97,11 +97,7 @@ import {
   type StaffNavEntry,
   type StaffNavSectionKey,
 } from "~/lib/staff-navigation";
-import {
-  SIMPLE_STAFF_NAV_SHOW_ALL_LABEL,
-  SIMPLE_STAFF_NAV_SHOW_SIMPLE_LABEL,
-  useSimpleStaffNav,
-} from "~/lib/hooks/use-simple-staff-nav";
+import { useSimpleStaffNav } from "~/lib/hooks/use-simple-staff-nav";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { LogoutModal } from "~/components/auth/logout-modal";
 import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
@@ -1181,24 +1177,17 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                 {mode === "teacher" && simpleNav.available ? (
                   <Button
                     type="button"
-                    onClick={
-                      simpleNav.active
-                        ? simpleNav.showAllPages
-                        : simpleNav.showSimplePages
-                    }
+                    onClick={simpleNav.toggle}
                     variant="ghost"
                     size="md"
                     className="w-full justify-start gap-3"
-                    data-setup-tour="nav-simple-toggle"
                   >
                     <ListBulletsIcon
                       className="h-5 w-5 text-gray-600"
                       aria-hidden="true"
                     />
                     <span className="text-base font-medium">
-                      {simpleNav.active
-                        ? SIMPLE_STAFF_NAV_SHOW_ALL_LABEL
-                        : SIMPLE_STAFF_NAV_SHOW_SIMPLE_LABEL}
+                      {simpleNav.toggleLabel}
                     </span>
                   </Button>
                 ) : null}

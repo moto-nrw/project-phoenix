@@ -21,7 +21,7 @@ var childNavigationDefinitions = []config.Definition{
 		// Rechte bleiben unverändert; jede Person kann alle Seiten einblenden.
 		Key:             config.KeySimpleStaffNavigation,
 		Label:           "Einfache Seitenleiste für die Betreuung",
-		Description:     "Wer die Schule nicht leitet, sieht nur die Seiten für den Betreuungsalltag: Startseite, Heute, Gruppen, Alle Kinder, Aufsicht, Räume, Zeiterfassung, Kalender und Tagesinformationen. Jede Person kann unten in der Seitenleiste „Alle Seiten anzeigen“ wählen. Die Rechte ändern sich nicht.",
+		Description:     "Wer die Schule nicht leitet, sieht nur die Seiten für den Betreuungsalltag: Startseite, Heute, Gruppen, Alle Kinder, Aktuelle Aufsicht, Räume, Zeiterfassung, Mein Kalender und Tagesinformationen. Jede Person kann unten in der Seitenleiste „Alle Seiten anzeigen“ wählen. Die Rechte ändern sich nicht.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",

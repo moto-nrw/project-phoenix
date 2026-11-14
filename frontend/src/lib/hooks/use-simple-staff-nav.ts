@@ -11,8 +11,8 @@ import {
 } from "~/lib/tenant-context";
 
 /** Der Umschalter unten in der Seitenleiste und im Menü „Mehr“. */
-export const SIMPLE_STAFF_NAV_SHOW_ALL_LABEL = "Alle Seiten anzeigen";
-export const SIMPLE_STAFF_NAV_SHOW_SIMPLE_LABEL = "Weniger Seiten anzeigen";
+const SIMPLE_STAFF_NAV_SHOW_ALL_LABEL = "Alle Seiten anzeigen";
+const SIMPLE_STAFF_NAV_SHOW_SIMPLE_LABEL = "Weniger Seiten anzeigen";
 
 const STORAGE_PREFIX = "simple-staff-nav-show-all";
 const SHOW_ALL = "1";
@@ -40,6 +40,9 @@ export interface SimpleStaffNav {
   readonly active: boolean;
   readonly showAllPages: () => void;
   readonly showSimplePages: () => void;
+  /** Der Umschalter unten: wechselt in die jeweils andere Ansicht. */
+  readonly toggle: () => void;
+  readonly toggleLabel: string;
 }
 
 /**
@@ -67,10 +70,15 @@ export function useSimpleStaffNav(session: Session | null): SimpleStaffNav {
   const showAllPages = useCallback(() => writeShowAll(key, true), [key]);
   const showSimplePages = useCallback(() => writeShowAll(key, false), [key]);
 
+  const active = available && !showAll;
   return {
     available,
-    active: available && !showAll,
+    active,
     showAllPages,
     showSimplePages,
+    toggle: active ? showAllPages : showSimplePages,
+    toggleLabel: active
+      ? SIMPLE_STAFF_NAV_SHOW_ALL_LABEL
+      : SIMPLE_STAFF_NAV_SHOW_SIMPLE_LABEL,
   };
 }
