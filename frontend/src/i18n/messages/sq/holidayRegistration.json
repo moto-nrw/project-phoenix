@@ -183,6 +183,13 @@
   "dayLimitOver": "Zgjedhur: {count, plural, one {# ditë} other {# ditë}}. Janë shumë. Ju lutemi zgjidhni më pak ditë.",
   "summaryDays": "Ditët: {days}",
   "contributionDays": "{count, plural, one {# ditë} other {# ditë}}",
+  "weeksLunchText": "Për çdo javë mund të shtoni drekën. Ajo paguhet veçmas.",
+  "lunchLabel": "Me drekë",
+  "lunchHint": "{count, plural, one {# drekë për {price}} other {# dreka nga {price}, gjithsej {total}}}",
+  "lunchHintDays": "{price} për një drekë. Fëmija ha drekë çdo ditë që zgjidhni.",
+  "summaryLunch": "Me drekë",
+  "contributionLunch": "Dreka",
+  "contributionLunchCount": "Dreka · {count, plural, one {# drekë për {price}} other {# dreka nga {price}}}",
   "dayWithoutCare": "Më {date} nuk ka kujdes ({name}).",
   "noCareDayAria": "{day}, nuk ka kujdes",
   "account": {

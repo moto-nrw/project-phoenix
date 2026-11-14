@@ -36,7 +36,8 @@ const (
 	// one row without a week.
 	holidayRegistrationStatusWeeksQuery = `SELECT child.position, child.first_name,
 			week.starts_on, week.ends_on, week.host_school_id, model.name AS time_model_name,
-			to_char(model.starts_at, 'HH24:MI') AS starts_at, to_char(model.ends_at, 'HH24:MI') AS ends_at, booking.placement
+			to_char(model.starts_at, 'HH24:MI') AS starts_at, to_char(model.ends_at, 'HH24:MI') AS ends_at, booking.placement,
+			COALESCE(booking.lunch AND week.lunch_price_cents IS NOT NULL, FALSE) AS lunch
 		FROM enrollment.holiday_registration_children AS child
 		LEFT JOIN enrollment.holiday_registration_bookings AS booking
 			ON booking.organization_id = child.organization_id AND booking.holiday_registration_child_id = child.id
@@ -92,6 +93,7 @@ type holidayRegistrationStatusWeekRow struct {
 	StartsAt      *string        `bun:"starts_at"`
 	EndsAt        *string        `bun:"ends_at"`
 	Placement     *string        `bun:"placement"`
+	Lunch         bool           `bun:"lunch"`
 }
 
 // HolidayRegistrationStatus reads the registration of the Träger with its
@@ -142,6 +144,7 @@ func holidayRegistrationStatusChildren(rows []holidayRegistrationStatusWeekRow, 
 		week := enrollment.HolidayRegistrationStatusWeek{
 			FirstDay: *row.StartsOn, LastDay: *row.EndsOn, TimeModelName: stringOrEmpty(row.TimeModelName),
 			StartsAt: stringOrEmpty(row.StartsAt), EndsAt: stringOrEmpty(row.EndsAt), Placement: stringOrEmpty(row.Placement),
+			Lunch: row.Lunch,
 		}
 		if row.HostSchoolID != nil {
 			week.HostSchoolName = schools[*row.HostSchoolID]

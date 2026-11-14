@@ -436,6 +436,9 @@ const (
 	BookingPartCare    = "care"
 	BookingPartMeal    = "meal"
 	BookingPartHoliday = "holiday"
+	// BookingPartHolidayMeal is the lunch of a holiday week (#5631): it
+	// keeps its amount, no reduction of the child's care is netted with it.
+	BookingPartHolidayMeal = "holiday_meal"
 )
 
 // ExportBookingPart is one position of an exported document: its payable

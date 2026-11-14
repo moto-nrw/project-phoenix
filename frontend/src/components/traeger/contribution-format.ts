@@ -3,6 +3,7 @@
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { formatDate } from "~/lib/date-helpers";
 import { holidayDayCount } from "~/lib/holiday-days";
+import { lunchPriceOf } from "~/lib/holiday-contribution";
 import type {
   ContributionLine,
   ContributionRule,
@@ -29,9 +30,33 @@ function discountText(
   return "";
 }
 
+/** "5 Essen zu je 4,30 €", "1 Essen zu 4,30 €" or "" without the number. */
+export function lunchCountText(line: {
+  readonly amountCents: number;
+  readonly bookedDays?: number | null;
+}): string {
+  const price = lunchPriceOf(line);
+  if (price === null || !line.bookedDays) return "";
+  return line.bookedDays === 1
+    ? `1 Essen zu ${formatEuro(price)}`
+    : `${line.bookedDays} Essen zu je ${formatEuro(price)}`;
+}
+
+/** The lunch of a booked week (#5631), named with its lunches and price. */
+function mealLineLabel(line: ContributionLine): string {
+  const lunch = ["Mittagessen", lunchCountText(line)]
+    .filter(Boolean)
+    .join(", ");
+  return line.weekStartsOn && line.weekEndsOn
+    ? `${formatDateRange(line.weekStartsOn, line.weekEndsOn)}: ${lunch}`
+    : lunch;
+}
+
 /** What one line of a contribution stands for. */
 export function contributionLineLabel(line: ContributionLine): string {
   switch (line.kind) {
+    case "meal":
+      return mealLineLabel(line);
     case "base":
       return line.weekStartsOn && line.weekEndsOn
         ? `${formatDateRange(line.weekStartsOn, line.weekEndsOn)}: ${line.timeModelName}${line.bookedDays ? `, ${holidayDayCount(line.bookedDays)}` : ""}`

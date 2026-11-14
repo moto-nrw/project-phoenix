@@ -130,6 +130,11 @@ export function HolidayGuestSection({
                 <DataField label="Zeitmodell">
                   {`${data.timeModelName} (${data.timeModelStartsAt} bis ${data.timeModelEndsAt} Uhr)`}
                 </DataField>
+                {data.lunch ? (
+                  <DataField label="Mittagessen">
+                    Ja, an den gebuchten Tagen
+                  </DataField>
+                ) : null}
                 <DataField label="Schule" fullWidth>
                   {holidayGuestLabel(data.schoolName)}
                 </DataField>

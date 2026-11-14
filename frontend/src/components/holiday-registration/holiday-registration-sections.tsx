@@ -9,6 +9,7 @@ import { useMemo } from "react";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { Alert } from "~/components/ui/alert";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -54,6 +55,7 @@ import {
   knownChildRefused,
   OTHER_SCHOOL,
   type RegistrationDraft,
+  weekLunch,
 } from "./holiday-registration-model";
 import { GuardianAddressFields } from "./holiday-guardian-address-fields";
 import { ChildHealthFields } from "./holiday-registration-health";
@@ -102,6 +104,20 @@ export function useWeekLabels() {
           startsAt: model.startsAt,
           endsAt: model.endsAt,
         }),
+      // What the lunch of a booked week costs (#5631): the lunches and
+      // their sum, or the price of one lunch while no day is chosen yet.
+      lunch: (week: HolidayRegistrationWeek, days: readonly string[]) => {
+        const lunch = weekLunch(week, days);
+        if (!lunch || week.lunchPriceCents == null) return "";
+        const price = euro.format(week.lunchPriceCents / 100);
+        return lunch.lunches > 0
+          ? t("lunchHint", {
+              count: lunch.lunches,
+              price,
+              total: euro.format(lunch.cents / 100),
+            })
+          : t("lunchHintDays", { price });
+      },
     };
   }, [locale, t]);
 }
@@ -118,9 +134,11 @@ function WeekChoice({
   days,
   daysName,
   daysError,
+  lunch,
   invalid,
   onChange,
   onDaysChange,
+  onLunchChange,
 }: Readonly<{
   group: readonly HolidayRegistrationWeek[];
   prefix: string;
@@ -129,9 +147,12 @@ function WeekChoice({
   days: readonly string[];
   daysName?: string;
   daysError?: string;
+  /** The child eats lunch in the booked week (#5631). */
+  lunch: boolean;
   invalid: boolean;
   onChange: (timeModelId: string) => void;
   onDaysChange: (weekId: string, days: readonly string[]) => void;
+  onLunchChange: (weekId: string, lunch: boolean) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
   const labels = useWeekLabels();
@@ -208,6 +229,17 @@ function WeekChoice({
           name={daysName}
           error={daysError}
           onChange={(next) => onDaysChange(booked.id, next)}
+        />
+      ) : null}
+      {booked && booked.lunchPriceCents != null ? (
+        // The lunch of the booked week (#5631): one tick per child and
+        // week, with what it costs right where the parent decides.
+        <CheckboxCard
+          className="sm:ml-auto sm:w-1/2"
+          checked={lunch}
+          onChange={(next) => onLunchChange(booked.id, next)}
+          label={t("lunchLabel")}
+          hint={labels.lunch(booked, days)}
         />
       ) : null}
     </div>
@@ -443,6 +475,9 @@ export function ChildCard({
               offer.weeks.some((week) => week.bookingUnit === "day")
                 ? t("weeksDayPriceText")
                 : "",
+              offer.weeks.some((week) => week.lunchPriceCents != null)
+                ? t("weeksLunchText")
+                : "",
             ]
               .filter(Boolean)
               .join(" ")}
@@ -477,6 +512,12 @@ export function ChildCard({
                 daysError={daysName ? fieldError(daysName) : undefined}
                 onDaysChange={(weekId, days) =>
                   set({ days: { ...child.days, [weekId]: days } })
+                }
+                lunch={
+                  bookedWeek ? (child.lunch?.[bookedWeek.id] ?? false) : false
+                }
+                onLunchChange={(weekId, lunch) =>
+                  set({ lunch: { ...child.lunch, [weekId]: lunch } })
                 }
                 invalid={Boolean(bookingsError)}
                 onChange={(timeModelId) =>

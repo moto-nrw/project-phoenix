@@ -666,6 +666,12 @@
       "legacy": "enrollment.holiday_booking_unit_booked"
     },
     {
+      "code": "enrollment.holiday_lunch_booked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_lunch_booked"
+    },
+    {
       "code": "enrollment.holiday_child_day_limit",
       "class": "input",
       "parameters": [

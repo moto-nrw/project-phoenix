@@ -179,6 +179,11 @@ export function HolidayRegistrationSummary({
                         })}
                       </span>
                     ) : null}
+                    {booking.lunch ? (
+                      <span className="block text-sm text-gray-600">
+                        {t("summaryLunch")}
+                      </span>
+                    ) : null}
                   </DataField>
                 );
               })}

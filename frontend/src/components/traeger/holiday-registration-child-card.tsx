@@ -3,10 +3,12 @@
 // Ein Kind einer Ferienanmeldung (#4663): Schule, gebuchte Wochen,
 // Gesundheitsangaben, der Hinweis auf eine mögliche Doppelanmeldung und auf
 // eine Schule des Trägers, die das Kind kennt (#6683). Hier
-// bucht das Träger-Büro das Kind um und ändert seine Angaben (#5629).
+// bucht das Träger-Büro das Kind um und ändert seine Angaben (#5629). Zu
+// einer Woche mit Mittagessen gehört, ob das Kind dort isst (#5631).
 
 import { School } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -38,13 +40,16 @@ import {
   rebookHolidayChild,
 } from "~/lib/traeger-holiday-registrations-api";
 import { traegerPath } from "~/lib/traeger-url";
+import { formatEuro, lunchCountText } from "./contribution-format";
 import {
   type HolidayRebookingDays,
   type HolidayRebookingDraft,
+  type HolidayRebookingLunch,
   rebookingBookings,
   rebookingChanged,
   rebookingDays,
   rebookingDraft,
+  rebookingLunch,
   rebookingMissesDays,
 } from "./holiday-rebooking-model";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -101,6 +106,7 @@ export function HolidayRegistrationChildCard({
 }>) {
   const [draft, setDraft] = useState<HolidayRebookingDraft | null>(null);
   const [draftDays, setDraftDays] = useState<HolidayRebookingDays>({});
+  const [draftLunch, setDraftLunch] = useState<HolidayRebookingLunch>({});
   const [saving, setSaving] = useState(false);
   const saveErrors = useApiFormError();
   const cancelled = registration.status === "cancelled";
@@ -124,7 +130,7 @@ export function HolidayRegistrationChildCard({
           period.id,
           registration.id,
           child.id,
-          rebookingBookings(period, draft, draftDays),
+          rebookingBookings(period, draft, draftDays, draftLunch),
         ),
       );
       setDraft(null);
@@ -138,7 +144,9 @@ export function HolidayRegistrationChildCard({
     }
   };
 
-  const bookings = draft ? rebookingBookings(period, draft, draftDays) : [];
+  const bookings = draft
+    ? rebookingBookings(period, draft, draftDays, draftLunch)
+    : [];
   const rebook =
     draft || cancelled || registration.frozen ? null : (
       <Button
@@ -149,6 +157,7 @@ export function HolidayRegistrationChildCard({
         onClick={() => {
           setDraft(rebookingDraft(period, child));
           setDraftDays(rebookingDays(child));
+          setDraftLunch(rebookingLunch(child));
         }}
       >
         Umbuchen
@@ -277,10 +286,13 @@ export function HolidayRegistrationChildCard({
             period={period}
             draft={draft}
             days={draftDays}
+            lunch={draftLunch}
             savedBookings={child.bookings}
+            confirmed={registration.status === "confirmed"}
             names={names}
             onChange={setDraft}
             onDaysChange={setDraftDays}
+            onLunchChange={setDraftLunch}
             error={saveErrors.error}
           />
         ) : (
@@ -302,6 +314,7 @@ export function HolidayRegistrationChildCard({
                     {booking.days && booking.days.length > 0
                       ? ` · ${holidayDayList(booking.days)}`
                       : ""}
+                    {booking.lunch ? ` · ${bookedLunchText(booking)}` : ""}
                   </span>
                   {cancelled ? null : (
                     <StatusBadge
@@ -392,6 +405,17 @@ export function HolidayRegistrationChildCard({
   );
 }
 
+/** "mit Mittagessen (5 Essen zu je 4,30 €)" of a booking with lunch. */
+function bookedLunchText(
+  booking: HolidayRegistrationChild["bookings"][number],
+): string {
+  const lunches = lunchCountText({
+    amountCents: booking.lunchPriceCents ?? 0,
+    bookedDays: booking.lunchDays ?? 0,
+  });
+  return lunches ? `mit Mittagessen (${lunches})` : "mit Mittagessen";
+}
+
 function weeksOverlap(
   period: HolidayPeriod,
   draft: HolidayRebookingDraft,
@@ -406,24 +430,49 @@ function RebookingEditor({
   period,
   draft,
   days,
+  lunch,
   savedBookings,
+  confirmed,
   names,
   onChange,
   onDaysChange,
+  onLunchChange,
   error,
 }: Readonly<{
   period: HolidayPeriod;
   draft: HolidayRebookingDraft;
   days: HolidayRebookingDays;
+  lunch: HolidayRebookingLunch;
   savedBookings: HolidayRegistrationChild["bookings"];
+  /** The registration is confirmed: its contribution is frozen. */
+  confirmed: boolean;
   names: ReadonlyMap<string, string>;
   onChange: (draft: HolidayRebookingDraft) => void;
   onDaysChange: (days: HolidayRebookingDays) => void;
+  onLunchChange: (lunch: HolidayRebookingLunch) => void;
   error: Parameters<typeof FormErrorAlert>[0]["message"];
 }>) {
+  // A confirmed contribution stays as confirmed (ADR 0115): a lunch added
+  // or taken off now reaches the invoice only through a correction.
+  const lunchChanged = period.weeks.some(
+    (week) =>
+      week.id !== undefined &&
+      week.lunchPriceCents != null &&
+      Boolean(draft[week.id]) &&
+      (lunch[week.id] ?? false) !==
+        (savedBookings.find((booking) => booking.weekId === week.id)?.lunch ??
+          false),
+  );
   return (
     <div className="space-y-3">
       <FormErrorAlert message={error} />
+      {confirmed && lunchChanged ? (
+        <Alert
+          type="info"
+          size="compact"
+          message="Die Anmeldung ist bestätigt. Der Beitrag bleibt, wie er bestätigt wurde. Das geänderte Mittagessen berechnen Sie als Korrektur in der Abrechnung."
+        />
+      ) : null}
       <p className="text-sm text-gray-700">
         Wählen Sie je Woche ein Zeitmodell. Gibt es eine Woche an mehreren
         Schulen, wählen Sie auch die Schule. Mindestens eine Woche bleibt
@@ -543,6 +592,30 @@ function RebookingEditor({
                       : `Gewählt: ${holidayDayList(weekDays)}`
                   }
                 />
+              ) : null}
+              {bookedWeek?.id && bookedWeek.lunchPriceCents != null ? (
+                <label
+                  htmlFor={`holiday-rebooking-lunch-${bookedWeek.id}`}
+                  className="flex items-center gap-3 text-sm text-gray-900 sm:justify-end"
+                >
+                  <Checkbox
+                    id={`holiday-rebooking-lunch-${bookedWeek.id}`}
+                    checked={lunch[bookedWeek.id] ?? false}
+                    onChange={(event) =>
+                      onLunchChange({
+                        ...lunch,
+                        [bookedWeek.id ?? ""]: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>
+                    Mit Mittagessen
+                    <span className="text-gray-600">
+                      {" "}
+                      ({formatEuro(bookedWeek.lunchPriceCents)} je Essen)
+                    </span>
+                  </span>
+                </label>
               ) : null}
             </li>
           );

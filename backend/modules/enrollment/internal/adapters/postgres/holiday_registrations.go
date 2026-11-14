@@ -182,9 +182,9 @@ const (
 	// A booking of days carries its days as an array literal, a booking of
 	// the whole week an empty text (#4701).
 	insertHolidayBookingsQuery = `INSERT INTO enrollment.holiday_registration_bookings
-			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id, placement, days)
-		SELECT ?, ?, booking.child_id, booking.week_id, booking.time_model_id, ?::text, NULLIF(booking.days, '')::date[]
-		FROM unnest(?::bigint[], ?::bigint[], ?::bigint[], ?::text[]) AS booking(child_id, week_id, time_model_id, days)`
+			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id, placement, days, lunch)
+		SELECT ?, ?, booking.child_id, booking.week_id, booking.time_model_id, ?::text, NULLIF(booking.days, '')::date[], booking.lunch
+		FROM unnest(?::bigint[], ?::bigint[], ?::bigint[], ?::text[], ?::boolean[]) AS booking(child_id, week_id, time_model_id, days, lunch)`
 	insertHolidayContactsQuery = `INSERT INTO enrollment.holiday_registration_contacts
 			(organization_id, holiday_registration_id, kind, position, name, phone, relationship)
 		SELECT ?, ?, contact.kind, contact.position, contact.name, contact.phone, contact.relationship
@@ -309,6 +309,7 @@ func insertHolidayChildren(ctx context.Context, db bun.IDB, organizationID, peri
 	ids := make([]int64, len(children))
 	var childIDs, weekIDs, modelIDs []int64
 	var days []string
+	var lunches []bool
 	for i, child := range children {
 		row := holidayChildRow{
 			OrganizationID: organizationID, HolidayPeriodID: periodID, HolidayRegistrationID: registrationID, Position: i + 1,
@@ -331,10 +332,11 @@ func insertHolidayChildren(ctx context.Context, db bun.IDB, organizationID, peri
 			weekIDs = append(weekIDs, booking.WeekID)
 			modelIDs = append(modelIDs, booking.TimeModelID)
 			days = append(days, holidayDaysLiteral(booking.Days))
+			lunches = append(lunches, booking.Lunch)
 		}
 	}
 	if _, err := db.NewRaw(insertHolidayBookingsQuery, organizationID, periodID, waiting, pgdialect.Array(childIDs),
-		pgdialect.Array(weekIDs), pgdialect.Array(modelIDs), pgdialect.Array(days)).Exec(ctx); err != nil {
+		pgdialect.Array(weekIDs), pgdialect.Array(modelIDs), pgdialect.Array(days), pgdialect.Array(lunches)).Exec(ctx); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: insert holiday registration bookings: %w", err)
 	}
 	return ids, nil

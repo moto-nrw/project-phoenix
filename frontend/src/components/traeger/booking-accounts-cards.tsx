@@ -76,7 +76,11 @@ function AccountValue({
           tone="gray"
           size="xs"
           label={
-            source === "service" ? "wie Monatsbeiträge" : "Standard-Erlöskonto"
+            source === "service"
+              ? "wie Monatsbeiträge"
+              : source === "holiday"
+                ? "wie Ferienbetreuung"
+                : "Standard-Erlöskonto"
           }
         />
       )}

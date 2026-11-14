@@ -154,6 +154,9 @@ func (h *HolidayPeriods) UpdateHolidayPeriod(ctx context.Context, organizationID
 	if err := refuseBookedUnitChange(input.Weeks, current); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
+	if err := refuseBookedLunchRemoval(input.Weeks, current); err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
 	if err := h.refuseLockedAllocationMode(ctx, organizationID, input, current); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
@@ -457,7 +460,28 @@ func validateHolidayWeek(week enrollment.HolidayWeekInput) validation.Errors {
 	default:
 		errs["booking_unit"] = errors.New("the booking unit is week or day")
 	}
+	if price := week.LunchPriceCents; price != nil && (*price < 0 || *price > holidayMaxPriceCents) {
+		errs["lunch_price_cents"] = fmt.Errorf("the price of a lunch must be between 0 and %d cent", holidayMaxPriceCents)
+	}
 	return errs
+}
+
+// refuseBookedLunchRemoval keeps the lunch offer of a week while a booking
+// of the week has lunch (#5631): the booked lunch would lose its price. The
+// price itself may change; a frozen contribution keeps the price it was
+// confirmed with.
+func refuseBookedLunchRemoval(weeks []enrollment.HolidayWeekInput, current enrollment.HolidayPeriod) error {
+	for _, week := range weeks {
+		if week.ID == 0 || week.LunchPriceCents != nil {
+			continue
+		}
+		if slices.ContainsFunc(current.Weeks, func(stored enrollment.HolidayWeek) bool {
+			return stored.ID == week.ID && stored.LunchBooked
+		}) {
+			return fmt.Errorf("%w: %w", enrollment.ErrHolidayWeekBooked, enrollment.ErrHolidayLunchBooked)
+		}
+	}
+	return nil
 }
 
 // refuseBookedUnitChange keeps the bookings of a week valid (#4701): a week

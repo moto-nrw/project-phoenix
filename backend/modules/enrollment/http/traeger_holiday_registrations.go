@@ -331,6 +331,7 @@ var holidayRegistrationColumns = []lists.Column{
 	{ID: "week", Label: "Woche"},
 	{ID: "host_school", Label: "Ausrichtende OGS"},
 	{ID: "time_model", Label: "Zeitmodell"},
+	{ID: "lunch", Label: "Mittagessen"},
 	{ID: "guardian", Label: "Elternteil"},
 	{ID: "email", Label: "E-Mail"},
 	{ID: "phone", Label: "Telefon"},
@@ -380,6 +381,7 @@ func holidayRegistrationDocument(export capability.HolidayRegistrationExport, fi
 			"birth_date": row.Child.BirthDate.Format("02.01.2006"), "school": school,
 			"week":        holidayExportWeek(row.Booking),
 			"host_school": schoolName(row.Booking.HostSchoolID), "time_model": row.Booking.TimeModelName,
+			"lunch":    holidayExportLunch(row.Booking),
 			"guardian": row.Registration.GuardianFirstName + " " + row.Registration.GuardianLastName,
 			"email":    row.Registration.GuardianEmail, "phone": row.Registration.GuardianPhone, "duplicate": duplicate,
 			"second_guardian": secondName, "second_guardian_phone": secondPhone,
@@ -511,4 +513,13 @@ func holidayExportWeek(booking capability.HolidayRegistrationBooking) string {
 		week += " (" + capability.HolidayDayNames(booking.Days) + ")"
 	}
 	return week
+}
+
+// holidayExportLunch names the lunch of a booking in the export (#5631):
+// "Ja" with the number of lunches, "Nein" without lunch.
+func holidayExportLunch(booking capability.HolidayRegistrationBooking) string {
+	if !booking.Lunch {
+		return "Nein"
+	}
+	return "Ja (" + strconv.Itoa(booking.LunchDays) + " Essen)"
 }

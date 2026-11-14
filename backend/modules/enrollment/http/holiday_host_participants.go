@@ -16,6 +16,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
 	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
@@ -286,12 +287,15 @@ var holidayParticipantColumns = []lists.Column{
 }
 
 // holidayParticipantExtraColumns adds to the minimum fields the second
-// guardian, when a child has one, the booked dates of a day offer, and one
-// column per shared question (#5202).
+// guardian, when a child has one, the booked dates of a day offer, the lunch
+// of a week with lunch (#5631), and one column per shared question (#5202).
 func holidayParticipantExtraColumns(list capability.HolidayParticipantList) []lists.Column {
 	columns := append([]lists.Column{}, holidayParticipantColumns...)
 	if list.Week.BookingUnit == capability.HolidayBookingUnitDay {
 		columns = append(columns, lists.Column{ID: "days", Label: "Tage"})
+	}
+	if list.Week.LunchOffered {
+		columns = append(columns, lists.Column{ID: "lunch", Label: "Mittagessen"})
 	}
 	for _, participant := range list.Participants {
 		if participant.SecondGuardian != nil {
@@ -332,6 +336,9 @@ func holidayParticipantDocument(list capability.HolidayParticipantList, names ho
 	for _, school := range list.HomeSchools {
 		header = append(header, "Heimatschule "+lists.SanitizeUserText(names.homeSchool(school.SchoolID))+": "+strconv.Itoa(school.Count))
 	}
+	if list.Week.LunchOffered {
+		header = append(header, holidayLunchHeader(list.Week.Lunches))
+	}
 	rows := make([]lists.Row, len(list.Participants))
 	for i, participant := range list.Participants {
 		values := map[lists.ColumnID]string{
@@ -344,6 +351,10 @@ func holidayParticipantDocument(list capability.HolidayParticipantList, names ho
 			days[j] = day.Format("02.01.2006")
 		}
 		values["days"] = strings.Join(days, ", ")
+		values["lunch"] = "Nein"
+		if participant.Lunch {
+			values["lunch"] = "Ja"
+		}
 		if participant.SecondGuardian != nil {
 			values["second_guardian"] = participant.SecondGuardian.Name
 			values["second_guardian_phone"] = participant.SecondGuardian.Phone
@@ -361,4 +372,14 @@ func holidayParticipantDocument(list capability.HolidayParticipantList, names ho
 		Filters: header, Columns: holidayParticipantExtraColumns(list), Rows: rows,
 		Footer: "Vertraulich. Enthält personenbezogene Daten.",
 	}
+}
+
+// holidayLunchHeader names the lunches of each care day of the week, so the
+// school can order them (#5631): "Mittagessen: Mo 06.07.: 12, Di 07.07.: 11".
+func holidayLunchHeader(lunches []capability.HolidayDayCount) string {
+	days := make([]string, len(lunches))
+	for i, day := range lunches {
+		days[i] = capability.HolidayDayNames([]calendar.Date{day.Date}) + ": " + strconv.Itoa(day.Participants)
+	}
+	return "Mittagessen: " + strings.Join(days, ", ")
 }

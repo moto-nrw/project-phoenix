@@ -154,6 +154,7 @@
   "holiday_registration_status_not_found": "Ten link do zgłoszenia na ferie nie istnieje. Użyj linku z e-maila.",
   "holiday_week_booked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "holiday_booking_unit_booked": "Na ten tydzień są już zgłoszenia. Dlatego sposób rezerwacji, a przy pojedynczych dniach także dni tygodnia, zostają bez zmian.",
+  "holiday_lunch_booked": "Na ten tydzień zarezerwowano już obiad. Dlatego oferta pozostaje. Cenę można zmienić.",
   "holiday_child_day_limit": "W te ferie dziecko może przyjść najwyżej {limit} dni. Łącznie byłoby to {days} dni. Dni w innych zgłoszeniach: {elsewhere}. Wybierz mniej dni.",
   "holiday_child_day_limit_public": "Dziecko może być zapisane na najwyżej {limit} dni w te ferie. Limit dotyczy łącznie wszystkich zgłoszeń dziecka. Proszę wybrać mniej dni lub skontaktować się z biurem organizatora.",
   "holiday_weeks_booked_together": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

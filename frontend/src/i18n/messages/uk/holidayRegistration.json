@@ -183,6 +183,13 @@
   "dayLimitOver": "Обрано днів: {count}. Це забагато. Оберіть менше днів.",
   "summaryDays": "Дні: {days}",
   "contributionDays": "днів: {count}",
+  "weeksLunchText": "До кожного тижня можна додати обід. Він оплачується окремо.",
+  "lunchLabel": "З обідом",
+  "lunchHint": "{count, plural, one {# обід за {price}} few {# обіди по {price}, разом {total}} many {# обідів по {price}, разом {total}} other {# обіду по {price}, разом {total}}}",
+  "lunchHintDays": "{price} за обід. Дитина обідає кожного вибраного дня.",
+  "summaryLunch": "З обідом",
+  "contributionLunch": "Обід",
+  "contributionLunchCount": "Обід · {count, plural, one {# обід за {price}} few {# обіди по {price}} many {# обідів по {price}} other {# обіду по {price}}}",
   "dayWithoutCare": "{date} догляду немає ({name}).",
   "noCareDayAria": "{day}, догляду немає",
   "account": {

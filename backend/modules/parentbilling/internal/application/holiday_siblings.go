@@ -86,10 +86,19 @@ func (m siblingMember) chainMember() holidayMember {
 // frozenHolidayBookings are the bookings the base lines of a frozen
 // contribution price. A line of a week by days takes the days of the
 // current booking of its week, so the rules see the first booked day
-// (#4701).
+// (#4701). The meal line of the week gives the booking its frozen lunch
+// (#5631).
 func frozenHolidayBookings(lines []parentbilling.HolidayContributionLine, current []parentbilling.HolidayBooking) []parentbilling.HolidayBooking {
 	var bookings []parentbilling.HolidayBooking
 	for _, line := range lines {
+		if line.Kind == parentbilling.LineMeal && line.WeekStartsOn != nil && line.WeekEndsOn != nil && line.BookedDays != nil {
+			if i := slices.IndexFunc(bookings, func(b parentbilling.HolidayBooking) bool {
+				return b.LunchDays == 0 && pricesHolidayWeek(b, line.WeekID, *line.WeekStartsOn, *line.WeekEndsOn)
+			}); i >= 0 {
+				bookings[i].LunchDays, bookings[i].LunchCents = *line.BookedDays, line.AmountCents
+			}
+			continue
+		}
 		if line.Kind != parentbilling.LineBase || line.WeekStartsOn == nil || line.WeekEndsOn == nil {
 			continue
 		}

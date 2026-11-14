@@ -183,6 +183,13 @@
   "dayLimitOver": "Chosen: {count, plural, one {# day} other {# days}}. That is too many. Please choose fewer days.",
   "summaryDays": "Days: {days}",
   "contributionDays": "{count, plural, one {# day} other {# days}}",
+  "weeksLunchText": "You can add lunch for each week. It costs extra.",
+  "lunchLabel": "With lunch",
+  "lunchHint": "{count, plural, one {# lunch at {price}} other {# lunches at {price} each, {total} in total}}",
+  "lunchHintDays": "{price} per lunch. Your child eats on every day you choose.",
+  "summaryLunch": "With lunch",
+  "contributionLunch": "Lunch",
+  "contributionLunchCount": "Lunch · {count, plural, one {# lunch at {price}} other {# lunches at {price} each}}",
   "dayWithoutCare": "There is no care on {date} ({name}).",
   "noCareDayAria": "{day}, no care",
   "account": {

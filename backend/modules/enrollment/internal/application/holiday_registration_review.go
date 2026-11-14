@@ -371,9 +371,9 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	for i, booking := range child.Bookings {
 		before[i] = enrollment.HolidayBookingChange{
 			WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Waitlisted: booking.Placement != enrollment.HolidayPlacementPlaced,
-			PromotedAt: booking.PromotedAt, Days: booking.Days,
+			PromotedAt: booking.PromotedAt, Days: booking.Days, Lunch: booking.Lunch,
 		}
-		kept[i] = enrollment.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}
+		kept[i] = enrollment.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days, Lunch: booking.Lunch}
 	}
 	bookings = normalizeHolidayBookings(bookings)
 	if err := validateHolidayBookings(bookings, period, kept); err != nil {
@@ -397,7 +397,7 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	}
 	after := make([]enrollment.HolidayBookingChange, len(bookings))
 	for i, booking := range bookings {
-		after[i] = enrollment.HolidayBookingChange{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}
+		after[i] = enrollment.HolidayBookingChange{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days, Lunch: booking.Lunch}
 	}
 	changed, err := h.store.ReplaceHolidayChildBookings(ctx, organizationID, period.ID, childID, bookings, holidayWaitingPlacement(period, current.Status))
 	if err != nil {
@@ -621,6 +621,8 @@ func completeHolidayChild(child *enrollment.HolidayRegistrationChild, models map
 			// A time model of a week by days prices one day (#4701).
 			booking.PriceCents = known.model.PriceCents * int64(len(booking.Days))
 		}
+		booking.Lunch = booking.Lunch && known.week.LunchPriceCents != nil
+		booking.LunchDays, booking.LunchPriceCents = enrollment.HolidayLunch(known.week, booking.Days, booking.Lunch)
 	}
 	slices.SortFunc(child.Bookings, func(a, b enrollment.HolidayRegistrationBooking) int {
 		return models[a.TimeModelID].order - models[b.TimeModelID].order

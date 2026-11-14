@@ -1,7 +1,7 @@
 /**
  * Model of the rebooking of a child (#4663): one choice per week of the
- * period, a time model of that week or "not registered", and the days of a
- * week by days (#4701).
+ * period, a time model of that week or "not registered", the days of a
+ * week by days (#4701) and the lunch of a week with lunch (#5631).
  */
 
 import type { HolidayPeriod } from "~/lib/traeger-api";
@@ -43,24 +43,45 @@ export function rebookingDays(
   return days;
 }
 
-/** The bookings of a draft, in the order of the weeks. */
+/** Week ID → the child eats lunch in the week. */
+export type HolidayRebookingLunch = Readonly<Record<string, boolean>>;
+
+/** The weeks the child has lunch in. */
+export function rebookingLunch(
+  child: HolidayRegistrationChild,
+): HolidayRebookingLunch {
+  const lunch: Record<string, boolean> = {};
+  for (const booking of child.bookings) {
+    if (booking.lunch) lunch[booking.weekId] = true;
+  }
+  return lunch;
+}
+
+/**
+ * The bookings of a draft, in the order of the weeks. Lunch counts only in a
+ * week that offers it.
+ */
 export function rebookingBookings(
   period: HolidayPeriod,
   draft: HolidayRebookingDraft,
   days: HolidayRebookingDays = {},
+  lunch: HolidayRebookingLunch = {},
 ): HolidayBookingChange[] {
   const bookings: HolidayBookingChange[] = [];
   for (const week of period.weeks) {
     const timeModelId = week.id ? draft[week.id] : "";
     if (!week.id || !timeModelId) continue;
+    const withLunch =
+      week.lunchPriceCents != null && lunch[week.id] ? { lunch: true } : {};
     if (week.bookingUnit === "day") {
       bookings.push({
         weekId: week.id,
         timeModelId,
         days: [...(days[week.id] ?? [])].sort(),
+        ...withLunch,
       });
     } else {
-      bookings.push({ weekId: week.id, timeModelId });
+      bookings.push({ weekId: week.id, timeModelId, ...withLunch });
     }
   }
   return bookings;
@@ -86,7 +107,10 @@ function sameDays(
   );
 }
 
-/** Whether the draft books other weeks, time models or days than the child. */
+/**
+ * Whether the draft books other weeks, time models, days or another lunch
+ * than the child.
+ */
 export function rebookingChanged(
   child: HolidayRegistrationChild,
   bookings: readonly HolidayBookingChange[],
@@ -98,7 +122,8 @@ export function rebookingChanged(
         (current) =>
           current.weekId === booking.weekId &&
           current.timeModelId === booking.timeModelId &&
-          sameDays(current.days, booking.days),
+          sameDays(current.days, booking.days) &&
+          (current.lunch ?? false) === (booking.lunch ?? false),
       ),
   );
 }

@@ -115,14 +115,16 @@ func computeHolidaySiblings(members []holidayMember, rules holidayRules) []paren
 	}
 	applySiblingRule(ranked, rules.sibling, chain.SiblingRank)
 	for m, member := range members {
-		finishHolidayContribution(&results[m], rules, member.bearer)
+		finishHolidayContribution(&results[m], rules, member.bearer, placedHolidayChildren(member.children))
 	}
 	return results
 }
 
 // finishHolidayContribution applies the exemption or the cost takeover of
-// one registration to what the sibling rule left and sums its children.
-func finishHolidayContribution(result *parentbilling.HolidayContribution, rules holidayRules, bearer *parentbilling.CostBearer) {
+// one registration to what the sibling rule left, adds the lunch of its
+// children after the chain (#5631) and sums them. children run parallel to
+// the children of the result.
+func finishHolidayContribution(result *parentbilling.HolidayContribution, rules holidayRules, bearer *parentbilling.CostBearer, children []parentbilling.HolidayChild) {
 	switch {
 	case result.BenefitsExemption:
 		for i := range result.Children {
@@ -135,7 +137,29 @@ func finishHolidayContribution(result *parentbilling.HolidayContribution, rules 
 		}
 	}
 	for i := range result.Children {
+		addHolidayMealLines(&result.Children[i], children[i])
 		result.TotalCents += result.Children[i].TotalCents
+	}
+}
+
+// addHolidayMealLines writes one meal line per booked week with lunch, in
+// the order of the weeks, after every line of the chain: the lunch is no
+// part of the chain, so the family pays it in full whatever the chain left
+// of the care (ADR 0115 addendum, #5631). A booking on the waiting list has
+// no lunch yet; child holds placed bookings only.
+func addHolidayMealLines(contribution *parentbilling.HolidayChildContribution, child parentbilling.HolidayChild) {
+	bookings := slices.Clone(child.Bookings)
+	slices.SortStableFunc(bookings, func(a, b parentbilling.HolidayBooking) int { return a.WeekStartsOn.Compare(b.WeekStartsOn) })
+	for _, booking := range bookings {
+		if booking.LunchDays <= 0 {
+			continue
+		}
+		startsOn, endsOn, lunches := booking.WeekStartsOn, booking.WeekEndsOn, booking.LunchDays
+		contribution.Lines = append(contribution.Lines, parentbilling.HolidayContributionLine{
+			Kind: parentbilling.LineMeal, AmountCents: booking.LunchCents,
+			WeekStartsOn: &startsOn, WeekEndsOn: &endsOn, WeekID: booking.WeekID, BookedDays: &lunches,
+		})
+		contribution.TotalCents += booking.LunchCents
 	}
 }
 

@@ -76,6 +76,8 @@ type HolidayParentRegistrationWeek struct {
 	LastDay       calendar.Date
 	TimeModelName string
 	Placement     string
+	// Lunch says the child eats lunch in the week (#5631).
+	Lunch bool
 }
 
 // HolidayParentRegistrationChild is a child of the account's registration by

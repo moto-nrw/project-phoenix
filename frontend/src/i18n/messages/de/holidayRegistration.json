@@ -183,6 +183,13 @@
   "dayLimitOver": "Gewählt: {count, plural, one {# Tag} other {# Tage}}. Das sind zu viele. Bitte wählen Sie weniger Tage.",
   "summaryDays": "Tage: {days}",
   "contributionDays": "{count, plural, one {# Tag} other {# Tage}}",
+  "weeksLunchText": "Mittagessen können Sie je Woche dazu buchen. Es kostet extra.",
+  "lunchLabel": "Mit Mittagessen",
+  "lunchHint": "{count, plural, one {# Essen zu {price}} other {# Essen zu je {price}, zusammen {total}}}",
+  "lunchHintDays": "{price} je Essen. Ihr Kind isst an jedem Tag, den Sie wählen.",
+  "summaryLunch": "Mit Mittagessen",
+  "contributionLunch": "Mittagessen",
+  "contributionLunchCount": "Mittagessen · {count, plural, one {# Essen zu {price}} other {# Essen zu je {price}}}",
   "dayWithoutCare": "Am {date} ist keine Betreuung ({name}).",
   "noCareDayAria": "{day}, keine Betreuung",
   "account": {

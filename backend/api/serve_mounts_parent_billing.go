@@ -508,6 +508,8 @@ func (b parentBillingHolidayRegistrations) HolidayWeeks(ctx context.Context, lin
 		}
 		weeks[i] = parentbilling.HolidayWeek{ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, TimeModels: models}
 		weeks[i].CareDays = week.CareDays
+		weeks[i].LunchDayCents = week.LunchPriceCents
+		weeks[i].WeekLunchDays = len(enrollmentOwner.HolidayWeekCareDays(week.StartsOn, week.EndsOn))
 	}
 	return weeks, nil
 }
@@ -688,6 +690,8 @@ func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail)
 				Waitlisted:    booking.Placement != enrollmentOwner.HolidayPlacementPlaced,
 				Promoted:      booking.PromotedAt != nil,
 				ReplacedWeeks: replacements,
+				LunchDays:     booking.LunchDays,
+				LunchCents:    booking.LunchPriceCents,
 			}
 		}
 		registration.Children[i] = parentbilling.HolidayChild{

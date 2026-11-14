@@ -342,7 +342,7 @@ func (a *HolidayAllocation) announce(ctx context.Context, organizationID int64, 
 // holidayAllocationMailChild names the weeks of a child the Büro decided on:
 // those with a place and those on the waiting list.
 func holidayAllocationMailChild(child enrollment.HolidayRegistrationChild, decisions []enrollment.HolidayAllocationDecision,
-	lines func(weekID, timeModelID int64, days []calendar.Date) string,
+	lines func(weekID, timeModelID int64, days []calendar.Date, lunch bool) string,
 ) enrollment.HolidayRegistrationMailChild {
 	mailChild := enrollment.HolidayRegistrationMailChild{Name: child.FirstName + " " + child.LastName, Guest: child.HomeSchoolID == nil, Weeks: []string{}}
 	for _, booking := range child.Bookings {
@@ -352,7 +352,7 @@ func holidayAllocationMailChild(child enrollment.HolidayRegistrationChild, decis
 		if index < 0 {
 			continue
 		}
-		line := lines(booking.WeekID, booking.TimeModelID, booking.Days)
+		line := lines(booking.WeekID, booking.TimeModelID, booking.Days, booking.Lunch)
 		if decisions[index].Placement == enrollment.HolidayPlacementPlaced {
 			mailChild.Weeks = append(mailChild.Weeks, line)
 		} else {

@@ -379,6 +379,12 @@ func quotedChildren(weeks []parentbilling.HolidayWeek, children []parentbilling.
 		for _, booking := range child.Bookings {
 			known, found := models[booking.TimeModelID]
 			quoted, daysOffered := quotedBooking(known.week, known.model, booking.Days)
+			if booking.Lunch && known.week.LunchDayCents == nil {
+				return nil, fmt.Errorf("%w: child %d books lunch in a week without lunch", parentbilling.ErrInvalidHolidayQuote, i+1)
+			}
+			if booking.Lunch {
+				quoted.LunchDays, quoted.LunchCents = quotedLunch(known.week, quoted.BookedDays)
+			}
 			if !found || known.week.ID != booking.WeekID || booked[booking.WeekID] || !daysOffered {
 				return nil, fmt.Errorf("%w: child %d books a time model the period does not offer", parentbilling.ErrInvalidHolidayQuote, i+1)
 			}
@@ -401,6 +407,16 @@ func quotedBooking(week parentbilling.HolidayWeek, model parentbilling.HolidayTi
 		WeekID: week.ID, WeekStartsOn: week.StartsOn, WeekEndsOn: week.EndsOn,
 		TimeModelID: model.ID, TimeModelName: model.Name, PriceCents: price, BookedDays: days, Days: chosen,
 	}, ok
+}
+
+// quotedLunch is the lunch of a quoted booking in a week that offers lunch
+// (#5631): one lunch per booked day, or the lunches of the whole week.
+func quotedLunch(week parentbilling.HolidayWeek, bookedDays int) (int, int64) {
+	lunches := week.WeekLunchDays
+	if bookedDays > 0 {
+		lunches = bookedDays
+	}
+	return lunches, *week.LunchDayCents * int64(lunches)
 }
 
 // quotedDays counts the distinct chosen days of a quoted booking (#4701):

@@ -35,10 +35,13 @@ import (
 // Scopes of a revenue account: a Leistung, or an Angebot of the monthly
 // contributions (its care offering).
 const (
-	BookingScopeCare     = "care"
-	BookingScopeMeals    = "meals"
-	BookingScopeHoliday  = "holiday"
-	BookingScopeOffering = "offering"
+	BookingScopeCare    = "care"
+	BookingScopeMeals   = "meals"
+	BookingScopeHoliday = "holiday"
+	// BookingScopeHolidayMeals is the lunch of the holiday care (#5631);
+	// without an account of its own it books like the holiday care.
+	BookingScopeHolidayMeals = "holiday_meals"
+	BookingScopeOffering     = "offering"
 	// BookingScopeSchool is the scope of the KOST1 of a school.
 	BookingScopeSchool = "school"
 )

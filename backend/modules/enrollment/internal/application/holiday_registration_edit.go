@@ -144,7 +144,7 @@ func holidayStoredFromDetail(detail enrollment.HolidayRegistrationDetail) holida
 		stored.childIDs = append(stored.childIDs, child.ID)
 		bookings := make([]enrollment.HolidayBookingInput, len(child.Bookings))
 		for i, booking := range child.Bookings {
-			bookings[i] = enrollment.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}
+			bookings[i] = enrollment.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days, Lunch: booking.Lunch}
 		}
 		stored.input.Children = append(stored.input.Children, enrollment.HolidayChildInput{
 			FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate, Bookings: bookings,

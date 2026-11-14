@@ -326,6 +326,8 @@ func validateHolidayBookings(bookings []enrollment.HolidayBookingInput, period e
 		default:
 			if daysErr := validateHolidayBookingDays(week, booking.Days); daysErr != nil {
 				errs[fmt.Sprint(i)] = validation.Errors{"days": daysErr}
+			} else if booking.Lunch && week.LunchPriceCents == nil {
+				errs[fmt.Sprint(i)] = validation.Errors{"lunch": errors.New("the week offers no lunch")}
 			}
 		}
 		seen[booking.WeekID] = true

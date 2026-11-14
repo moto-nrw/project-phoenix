@@ -63,6 +63,13 @@ export interface HolidayRegistrationWeek {
     readonly date: string;
     readonly name: string;
   }[];
+  /**
+   * Price of one lunch in cent; null or absent offers no lunch (#5631). A
+   * child with lunch eats on each of its care days: `lunchDays` for a whole
+   * week, its chosen days in a week by days.
+   */
+  readonly lunchPriceCents?: number | null;
+  readonly lunchDays?: number;
 }
 
 interface HolidayRegistrationSchool {
@@ -146,6 +153,8 @@ interface BackendOffer {
         booking_unit?: "week" | "day";
         care_days?: string[] | null;
         full_days?: string[] | null;
+        lunch_price_cents?: number | null;
+        lunch_days?: number;
       }[]
     | null;
   max_days_per_child?: number | null;
@@ -274,6 +283,8 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       bookingUnit: week.booking_unit ?? "week",
       careDays: week.care_days ?? [],
       fullDays: week.full_days ?? [],
+      lunchPriceCents: week.lunch_price_cents ?? null,
+      lunchDays: week.lunch_days ?? 0,
     })),
     maxDaysPerChild: offer.max_days_per_child ?? null,
     schools: (offer.schools ?? []).map((school) => ({
@@ -421,6 +432,8 @@ export type HolidayQuoteChild = readonly {
   readonly week_id: number;
   readonly time_model_id: number;
   readonly days?: readonly string[];
+  /** The child eats lunch on the care days of the booking (#5631). */
+  readonly lunch?: boolean;
 }[];
 
 /**

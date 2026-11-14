@@ -49,13 +49,15 @@ type HolidayGuestContact struct {
 // parents named, if any. SchoolName is the school the hint „Gast aus …“
 // names (#5630).
 type HolidayGuestSheet struct {
-	StudentID       int64                 `json:"student_id"`
-	WeekID          int64                 `json:"week_id"`
-	StartsOn        calendar.Date         `json:"starts_on"`
-	EndsOn          calendar.Date         `json:"ends_on"`
-	TimeModelName   string                `json:"time_model_name"`
-	TimeModelStarts string                `json:"time_model_starts_at"`
-	TimeModelEnds   string                `json:"time_model_ends_at"`
+	StudentID       int64         `json:"student_id"`
+	WeekID          int64         `json:"week_id"`
+	StartsOn        calendar.Date `json:"starts_on"`
+	EndsOn          calendar.Date `json:"ends_on"`
+	TimeModelName   string        `json:"time_model_name"`
+	TimeModelStarts string        `json:"time_model_starts_at"`
+	TimeModelEnds   string        `json:"time_model_ends_at"`
+	// Lunch says the guest eats lunch on its care days (#5631).
+	Lunch           bool                  `json:"lunch"`
 	HomeSchoolID    *int64                `json:"home_school_id"`
 	GuestSchoolName string                `json:"guest_school_name"`
 	SchoolName      string                `json:"school_name"`
@@ -301,7 +303,9 @@ type HolidayGuestSource struct {
 	TimeModelStarts string
 	TimeModelEnds   string
 	// Days names the booked dates; empty books the whole week.
-	Days      []calendar.Date
+	Days []calendar.Date
+	// Lunch is the lunch of the booking (#5631).
+	Lunch     bool
 	Emergency []HolidayGuestContact
 	Pickup    []HolidayGuestContact
 	Answers   []HolidayHostAnswer
@@ -330,7 +334,9 @@ type HolidayGuest struct {
 	TimeModelStarts string
 	TimeModelEnds   string
 	// Days names the booked dates; empty books the whole week.
-	Days      []calendar.Date
+	Days []calendar.Date
+	// Lunch is the lunch of the booking (#5631).
+	Lunch     bool
 	Emergency []HolidayGuestContact
 	Pickup    []HolidayGuestContact
 	Answers   []HolidayHostAnswer

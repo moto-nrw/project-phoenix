@@ -237,9 +237,15 @@ func widen(from, until calendar.Date, starts, ends *calendar.Date) (calendar.Dat
 
 // billingPosition is a line of the frozen contribution as a position of the
 // invoice; the week it prices names its host school at the release (#6624).
+// Only a meal position names its number of lunches (#5631).
 func billingPosition(line parentbilling.HolidayContributionLine) parentbilling.BillingPosition {
+	var lunches *int
+	if line.Kind == parentbilling.LineMeal {
+		lunches = line.BookedDays
+	}
 	return parentbilling.BillingPosition{
-		Kind: line.Kind, AmountCents: line.AmountCents, WeekStartsOn: line.WeekStartsOn, WeekEndsOn: line.WeekEndsOn,
+		BookedDays: lunches,
+		Kind:       line.Kind, AmountCents: line.AmountCents, WeekStartsOn: line.WeekStartsOn, WeekEndsOn: line.WeekEndsOn,
 		TimeModelName: line.TimeModelName, ChildRank: line.ChildRank, DiscountBasisPoints: line.DiscountBasisPoints,
 		DiscountCents: line.DiscountCents, Note: line.Note, CostBearerID: line.CostBearerID, CostBearerName: line.CostBearerName,
 		WeekID: line.WeekID,

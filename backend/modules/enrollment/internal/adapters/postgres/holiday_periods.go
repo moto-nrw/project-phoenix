@@ -81,6 +81,8 @@ type holidayWeekRow struct {
 	HostSchoolID    int64         `bun:"host_school_id"`
 	Capacity        *int          `bun:"capacity"`
 	BookingUnit     string        `bun:"booking_unit"`
+	LunchPriceCents *int64        `bun:"lunch_price_cents"`
+	LunchBooked     bool          `bun:"lunch_booked"`
 }
 
 type holidayTimeModelRow struct {
@@ -113,10 +115,14 @@ const (
   SELECT pg_advisory_xact_lock_shared(hashtextextended('enrollment:holiday-closure:' || ?0::text, 0))
  ) SELECT ` + holidayPeriodColumns + ` FROM enrollment.holiday_periods CROSS JOIN notice_gate
  WHERE organization_id = ?0 AND id = ?1 FOR UPDATE OF holiday_periods`
-	listHolidayWeeksQuery = `SELECT id, holiday_period_id, starts_on, ends_on, host_school_id, capacity, booking_unit
-		FROM enrollment.holiday_period_weeks
-		WHERE organization_id = ? AND holiday_period_id = ANY(?)
-		ORDER BY starts_on, id`
+	listHolidayWeeksQuery = `SELECT week.id, week.holiday_period_id, week.starts_on, week.ends_on, week.host_school_id, week.capacity,
+			week.booking_unit, week.lunch_price_cents,
+			EXISTS (SELECT 1 FROM enrollment.holiday_registration_bookings AS booking
+				WHERE booking.organization_id = week.organization_id AND booking.holiday_period_week_id = week.id
+					AND booking.lunch) AS lunch_booked
+		FROM enrollment.holiday_period_weeks AS week
+		WHERE week.organization_id = ? AND week.holiday_period_id = ANY(?)
+		ORDER BY week.starts_on, week.id`
 	listHolidayTimeModelsQuery = `SELECT model.id, model.holiday_period_week_id, model.name,
 			to_char(model.starts_at, 'HH24:MI') AS starts_at, to_char(model.ends_at, 'HH24:MI') AS ends_at,
 			model.price_cents, model.archived_at IS NOT NULL AS archived,
@@ -238,6 +244,7 @@ func (s *HolidayPeriodStore) withWeeks(ctx context.Context, db bun.IDB, organiza
 		weeks[row.HolidayPeriodID] = append(weeks[row.HolidayPeriodID], enrollment.HolidayWeek{
 			ID: row.ID, StartsOn: row.StartsOn, EndsOn: row.EndsOn, HostSchoolID: row.HostSchoolID, TimeModels: timeModels,
 			Capacity: row.Capacity, BookingUnit: row.BookingUnit,
+			LunchPriceCents: row.LunchPriceCents, LunchBooked: row.LunchBooked,
 		})
 	}
 	for _, row := range rows {
@@ -407,11 +414,11 @@ const (
 	deleteHolidayWeeksQuery = `DELETE FROM enrollment.holiday_period_weeks
 		WHERE organization_id = ? AND holiday_period_id = ? AND NOT (id = ANY(?))`
 	insertHolidayWeekQuery = `INSERT INTO enrollment.holiday_period_weeks
-			(organization_id, holiday_period_id, starts_on, ends_on, host_school_id, booking_unit)
-		VALUES (?, ?, ?, ?, ?, ?)
+			(organization_id, holiday_period_id, starts_on, ends_on, host_school_id, booking_unit, lunch_price_cents)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		RETURNING id`
 	updateHolidayWeekQuery = `UPDATE enrollment.holiday_period_weeks
-		SET starts_on = ?, ends_on = ?, host_school_id = ?, booking_unit = ?
+		SET starts_on = ?, ends_on = ?, host_school_id = ?, booking_unit = ?, lunch_price_cents = ?
 		WHERE organization_id = ? AND holiday_period_id = ? AND id = ?`
 	deleteHolidayTimeModelsQuery = `DELETE FROM enrollment.holiday_week_time_models
 		WHERE organization_id = ? AND holiday_period_week_id = ? AND NOT (id = ANY(?)) AND archived_at IS NULL`
@@ -456,13 +463,13 @@ func writeHolidayWeeks(ctx context.Context, db bun.IDB, organizationID, periodID
 func writeHolidayWeek(ctx context.Context, db bun.IDB, organizationID, periodID int64, week enrollment.HolidayWeekInput) (int64, error) {
 	if week.ID == 0 {
 		var weekID int64
-		err := db.NewRaw(insertHolidayWeekQuery, organizationID, periodID, week.StartsOn, week.EndsOn, week.HostSchoolID, holidayBookingUnit(week.BookingUnit)).Scan(ctx, &weekID)
+		err := db.NewRaw(insertHolidayWeekQuery, organizationID, periodID, week.StartsOn, week.EndsOn, week.HostSchoolID, holidayBookingUnit(week.BookingUnit), week.LunchPriceCents).Scan(ctx, &weekID)
 		if err != nil {
 			return 0, fmt.Errorf("enrollment postgres: insert holiday week: %w", err)
 		}
 		return weekID, nil
 	}
-	if _, err := db.NewRaw(updateHolidayWeekQuery, week.StartsOn, week.EndsOn, week.HostSchoolID, holidayBookingUnit(week.BookingUnit),
+	if _, err := db.NewRaw(updateHolidayWeekQuery, week.StartsOn, week.EndsOn, week.HostSchoolID, holidayBookingUnit(week.BookingUnit), week.LunchPriceCents,
 		organizationID, periodID, week.ID).Exec(ctx); err != nil {
 		return 0, fmt.Errorf("enrollment postgres: update holiday week: %w", err)
 	}

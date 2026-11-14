@@ -138,6 +138,9 @@ type HolidayBookingInput struct {
 	WeekID      int64
 	TimeModelID int64
 	Days        []calendar.Date
+	// Lunch books a lunch on every care day of the booking, in a week that
+	// offers lunch (#5631).
+	Lunch bool
 }
 
 // HolidayChildInput is one child of a registration. A zero HomeSchoolID

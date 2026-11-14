@@ -52,6 +52,7 @@ type hostedWeekRow struct {
 	EndsOn         calendar.Date `bun:"ends_on"`
 	Participants   int           `bun:"participants"`
 	BookingUnit    string        `bun:"booking_unit"`
+	LunchOffered   bool          `bun:"lunch_offered"`
 	GuestGroupID   *int64        `bun:"guest_group_id"`
 	Guests         int           `bun:"guests"`
 	CareStartsAt   *string       `bun:"care_starts_at"`
@@ -147,6 +148,7 @@ func decodeHostAnswers(raw json.RawMessage) ([]enrollment.HolidayHostAnswer, err
 
 const (
 	hostedWeekColumns = `SELECT week.id, week.organization_id, period.name AS period_name, week.starts_on, week.ends_on, week.booking_unit,
+			week.lunch_price_cents IS NOT NULL AS lunch_offered,
 			(SELECT COUNT(*) FROM enrollment.holiday_registration_bookings AS booking
 				WHERE booking.organization_id = week.organization_id AND booking.holiday_period_week_id = week.id
 					AND enrollment.holiday_host_booking(booking.organization_id, booking.holiday_period_week_id,
@@ -192,12 +194,12 @@ const (
 		FROM enrollment.holiday_host_participants(?, ?)
 		ORDER BY lower(last_name), lower(first_name), child_id`
 	// hostedBookingDaysQuery reads the booked days of the confirmed bookings
-	// of a week by days (#4701). The host policy admits only the confirmed,
-	// placed bookings of the school's weeks; the statement names the Träger
-	// and the week once more.
-	hostedBookingDaysQuery = `SELECT booking.holiday_registration_child_id, booking.days::text AS days
+	// of a week by days (#4701) and the bookings with lunch (#5631). The
+	// host policy admits only the confirmed, placed bookings of the school's
+	// weeks; the statement names the Träger and the week once more.
+	hostedBookingDaysQuery = `SELECT booking.holiday_registration_child_id, booking.days::text AS days, booking.lunch
 		FROM enrollment.holiday_registration_bookings AS booking
-		WHERE booking.organization_id = ? AND booking.holiday_period_week_id = ? AND booking.days IS NOT NULL
+		WHERE booking.organization_id = ? AND booking.holiday_period_week_id = ? AND (booking.days IS NOT NULL OR booking.lunch)
 			AND enrollment.holiday_host_booking(booking.organization_id, booking.holiday_period_week_id, booking.holiday_registration_child_id)`
 )
 
@@ -257,25 +259,37 @@ func (s *HolidayHostStore) ReadHostedHolidayWeek(ctx context.Context, schoolID, 
 		if participants[i], err = child.participant(week.OrganizationID); err != nil {
 			return enrollment.HostedHolidayWeek{}, nil, nil, false, err
 		}
-		participants[i].Days = booked[child.ChildID]
+		participants[i].Days, participants[i].Lunch = booked[child.ChildID].days, booked[child.ChildID].lunch
 	}
 	hosted, err := hostedWeek(week)
 	if err != nil {
 		return enrollment.HostedHolidayWeek{}, nil, nil, false, err
 	}
+	if hosted.LunchOffered {
+		hosted.Lunches = enrollment.HolidayLunchCounts(hosted.StartsOn, hosted.EndsOn, participants)
+	}
 	return hosted, counted, participants, true, nil
 }
 
+// hostedBooking is what the list shows of a child's booking beyond its time
+// model: the booked days of a week by days and its lunch.
+type hostedBooking struct {
+	days  []calendar.Date
+	lunch bool
+}
+
 // readHostedBookingDays reads the booked days of each child of a hosted week
-// by days; a week booked as a whole reads nothing.
-func readHostedBookingDays(ctx context.Context, db bun.IDB, week hostedWeekRow) (map[int64][]calendar.Date, error) {
-	booked := map[int64][]calendar.Date{}
-	if week.BookingUnit != enrollment.HolidayBookingUnitDay {
+// by days and the lunch of each child of a week with lunch; a week booked as
+// a whole without lunch reads nothing.
+func readHostedBookingDays(ctx context.Context, db bun.IDB, week hostedWeekRow) (map[int64]hostedBooking, error) {
+	booked := map[int64]hostedBooking{}
+	if week.BookingUnit != enrollment.HolidayBookingUnitDay && !week.LunchOffered {
 		return booked, nil
 	}
 	var rows []struct {
 		ChildID int64   `bun:"holiday_registration_child_id"`
 		Days    *string `bun:"days"`
+		Lunch   bool    `bun:"lunch"`
 	}
 	if err := db.NewRaw(hostedBookingDaysQuery, week.OrganizationID, week.ID).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: read hosted holiday booking days: %w", err)
@@ -285,7 +299,7 @@ func readHostedBookingDays(ctx context.Context, db bun.IDB, week hostedWeekRow) 
 		if err != nil {
 			return nil, err
 		}
-		booked[row.ChildID] = days
+		booked[row.ChildID] = hostedBooking{days: days, lunch: row.Lunch && week.LunchOffered}
 	}
 	return booked, nil
 }
@@ -300,6 +314,7 @@ func hostedWeek(row hostedWeekRow) (enrollment.HostedHolidayWeek, error) {
 	return enrollment.HostedHolidayWeek{
 		ID: row.ID, PeriodName: row.PeriodName, StartsOn: row.StartsOn, EndsOn: row.EndsOn, Participants: row.Participants,
 		BookingUnit:  row.BookingUnit,
+		LunchOffered: row.LunchOffered, Lunches: []enrollment.HolidayDayCount{},
 		CareStartsAt: clockOrEmpty(row.CareStartsAt), CareEndsAt: clockOrEmpty(row.CareEndsAt), DayParticipants: days,
 		GuestGroupID: row.GuestGroupID, Guests: row.Guests,
 	}, nil
