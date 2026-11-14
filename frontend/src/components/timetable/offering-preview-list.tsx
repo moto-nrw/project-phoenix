@@ -92,6 +92,11 @@ export function OfferingPreviewList({
                 variant="surface"
                 size="compact"
                 disabled={disabled}
+                tooltip={
+                  otherOfferings.length === 1
+                    ? "Nimmt das Angebot dazu, damit diese Kinder auf der Liste bleiben."
+                    : "Nimmt die Angebote dazu, damit diese Kinder auf der Liste bleiben."
+                }
                 onClick={() =>
                   onAddOfferings(
                     otherOfferings.map((offering) => offering.offeringId),
