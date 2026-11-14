@@ -358,6 +358,8 @@ function ShiftTypesPageContent() {
       },
       remove: {
         menuLabel: "Löschen",
+        menuDescription:
+          "Löscht oder archiviert die Dienstart, moto fragt vorher nach.",
         confirmTitle: (type) =>
           isArchivable(type) ? "Dienstart archivieren?" : "Dienstart löschen?",
         confirmLabels: (type) =>

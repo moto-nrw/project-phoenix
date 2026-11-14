@@ -158,14 +158,13 @@ function DeviceDetailContent({
         variant="outline"
         size="compact"
         onClick={() => setEditing(true)}
-        tooltip="Öffnet die Angaben des Geräts zum Bearbeiten."
       >
         <Pencil className="h-3.5 w-3.5" aria-hidden />
         Bearbeiten
       </Button>
       <DetailDeleteButton
         onClick={onDeleteClick}
-        tooltip="Löscht das Gerät, sein Schlüssel gilt dann nicht mehr. moto fragt vorher nach."
+        tooltip="Löscht das Gerät mit seinem Schlüssel, moto fragt vorher nach."
       />
     </>
   );
@@ -315,11 +314,6 @@ function ApiKeySection({ apiKey }: { apiKey: string }) {
             variant="outline"
             size="compact"
             onClick={() => setRevealed((current) => !current)}
-            tooltip={
-              revealed
-                ? "Verdeckt den Schlüssel wieder."
-                : "Zeigt den Schlüssel lesbar an."
-            }
           >
             {revealed ? "Verbergen" : "Anzeigen"}
           </Button>
@@ -328,7 +322,6 @@ function ApiKeySection({ apiKey }: { apiKey: string }) {
             variant="primary"
             size="compact"
             onClick={() => void copy(apiKey)}
-            tooltip="Kopiert den Schlüssel, damit Sie ihn am Gerät einfügen."
           >
             {copied ? "Kopiert!" : "Kopieren"}
           </Button>

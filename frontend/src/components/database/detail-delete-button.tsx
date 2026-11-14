@@ -6,14 +6,17 @@ import { Button } from "~/components/ui/button";
 interface DetailDeleteButtonProps {
   onClick: () => void;
   label?: string;
-  /** What the click deletes and whether moto asks first (#6643). */
+  /**
+   * What a click does (#6643). Every caller opens a delete confirmation
+   * first; a caller whose deletion touches linked data names it here.
+   */
   tooltip?: string;
 }
 
 export function DetailDeleteButton({
   onClick,
   label = "Löschen",
-  tooltip,
+  tooltip = "Löscht den Eintrag, moto fragt vorher nach.",
 }: DetailDeleteButtonProps) {
   return (
     <Button
