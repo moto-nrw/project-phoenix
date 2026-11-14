@@ -63,3 +63,23 @@ Verworfene Alternativen:
   vorher.
 - Es gibt keine Vorwarnung vor automatischen Löschungen und keine Sperre
   einzelner Daten bei konkretem Anlass. Beides kommt nur bei konkretem Bedarf.
+
+## Nachtrag 2026-11-14: Elternkontakte ohne Kind (#5960)
+
+Entscheidung von Yannick Wenger (Produkt) am 14.11.2026. Sie ersetzt die
+Punkte 1 und 2 für genau eine Frist: `gdpr.guardian_retention_days`.
+
+- **Die Schule stellt diese Frist selbst ein, ihr Träger kann sie für alle
+  seine Schulen vorgeben** (Stufe `shared`, Ebenen `beide` nach ADR 0086). Der
+  Rahmen bleibt 30 bis 365 Tage, die Voreinstellung 90 Tage. Jede Änderung
+  steht im Einstellungsprotokoll der Schule oder des Trägers.
+- **Grund:** Anders als die übrigen fachlichen Fristen beginnt sie erst, wenn
+  der Elternkontakt kein Kind mehr hat, also nach Austritt und Löschung des
+  letzten Kindes. Wie lange eine Familie danach noch erreichbar sein soll
+  (Rückfragen zur Abrechnung, ein Geschwisterkind), entscheidet der
+  Verantwortliche aus seinem Alltag. Mails der Schule an die Familie enden
+  davon unabhängig schon mit dem Austritt (#5960, [Löschfristen](../reference/loeschfristen.md)).
+- **Folge:** Verkürzt eine Schule die Frist, löscht der nächste Lauf jeden
+  Elternkontakt, der länger ohne Kind ist. Die Schule bekommt dafür keine
+  eigene Bestätigung; der Rahmen von mindestens 30 Tagen bleibt die Grenze.
+  Die übrigen Fristen bleiben beim moto-Team.

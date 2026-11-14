@@ -15,6 +15,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -22,6 +23,10 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
+import {
+  invitationMailNote,
+  mailStatusCopy,
+} from "~/lib/email-delivery-status";
 import { createLogger } from "~/lib/logger";
 import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
@@ -217,7 +222,28 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
       key: "email",
       header: "E-Mail-Adresse",
       stacked: "meta",
-      render: (invitation) => invitation.email,
+      render: (invitation) => {
+        const mailCopy = mailStatusCopy(
+          invitation.mailOutcome,
+          invitation.addressMark,
+          false,
+          invitation.providerBlock,
+        );
+        return (
+          <>
+            <span className="block truncate">{invitation.email}</span>
+            {mailCopy && (
+              <span className="mt-1 block">
+                <StatusBadge
+                  label={mailCopy.label}
+                  tone={mailCopy.tone}
+                  compact
+                />
+              </span>
+            )}
+          </>
+        );
+      },
     },
     {
       key: "expires",
@@ -316,6 +342,15 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
               getRowKey={(invitation) => invitation.id}
               rowHasInteractiveControls
               stackedOnMobile
+              renderSubRows={(invitation) => {
+                const mailNote = invitationMailNote(
+                  invitation,
+                  "Stimmt die Adresse nicht, widerrufen Sie die Einladung und laden Sie neu ein.",
+                );
+                return mailNote
+                  ? [{ key: `${invitation.id}-mail-note`, content: mailNote }]
+                  : [];
+              }}
             />
           ) : null}
         </div>

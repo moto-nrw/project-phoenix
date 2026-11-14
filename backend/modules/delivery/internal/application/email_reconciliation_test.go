@@ -59,8 +59,8 @@ func (s *reconcileStore) RecordEmailDeliveryEvent(_ context.Context, event domai
 	return domain.EmailDeliveryEventResult{Matched: true, Recorded: true, State: event.State}, nil
 }
 
-func (*reconcileStore) SchoolEmailHolds(context.Context, int64, string) (bool, bool, error) {
-	return false, false, nil
+func (*reconcileStore) SchoolEmailHolds(context.Context, int64, string) (domain.SchoolMailHolds, error) {
+	return domain.SchoolMailHolds{}, nil
 }
 
 func (*reconcileStore) TraegerEmailHolds(context.Context, int64, string) (bool, bool, error) {

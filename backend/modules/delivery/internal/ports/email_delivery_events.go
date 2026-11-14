@@ -18,8 +18,9 @@ type EmailDeliveryEventStore interface {
 	RecordEmailDeliveryEvent(context.Context, domain.EmailDeliveryEvent) (domain.EmailDeliveryEventResult, error)
 	// SchoolEmailHolds and TraegerEmailHolds report what holds a mail to the
 	// address back: the list, or a stop on every person who holds the address. A
-	// Träger reads the holds of its schools.
-	SchoolEmailHolds(ctx context.Context, tenantID int64, address string) (listed, stopped bool, err error)
+	// Träger reads the holds of its schools. A school also reads whether the
+	// families holding the address have left it (#5960).
+	SchoolEmailHolds(ctx context.Context, tenantID int64, address string) (domain.SchoolMailHolds, error)
 	TraegerEmailHolds(ctx context.Context, organizationID int64, address string) (listed, stopped bool, err error)
 }
 

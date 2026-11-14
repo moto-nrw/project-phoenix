@@ -15,6 +15,7 @@ import (
 type Caterers interface {
 	CreateCatererInvitation(ctx context.Context, request identityaccess.CatererInvitationRequest) (identityaccess.CatererInvitation, error)
 	ListCatererInvitations(ctx context.Context) ([]identityaccess.CatererInvitation, error)
+	CatererInvitationMailStates(ctx context.Context, invitationIDs []int64) (map[int64]identityaccess.InvitationMailState, error)
 	RevokeCatererInvitation(ctx context.Context, invitationID int64) error
 	PreviewCatererInvitation(ctx context.Context, token string) (identityaccess.CatererInvitationPreview, error)
 	AcceptCatererInvitation(ctx context.Context, token string, registration identityaccess.CatererRegistration) (identityaccess.CatererAcceptance, error)

@@ -23,7 +23,6 @@ var retentionWindowKeys = []string{
 	"enrollment.rejected_retention_days",
 	"gdpr.status_day_retention_days",
 	"gdpr.attendance_retention_days",
-	"gdpr.guardian_retention_days",
 	"gdpr.parent_message_retention_days",
 	"gdpr.withdrawn_enrollment_retention_days",
 	"gdpr.staff_sick_note_retention_days",
@@ -94,6 +93,30 @@ func TestSettingsSchoolCannotWriteRetentionWindowsOrTheDeletionSwitch(t *testing
 
 	put := testutil.NewAuthenticatedRequest(t, "PUT", "/values/gdpr.data_cleanup_time", map[string]any{"value": "03:30"}, testutil.WithTestTenant(t))
 	testutil.AssertSuccessResponse(t, testutil.ExecuteRequest(router, put), 200)
+}
+
+// The school sets how long parent contacts outlive their last child (#5960, ADR
+// 0048 addendum), within the same range the moto team used.
+func TestSettingsSchoolSetsItsGuardianRetention(t *testing.T) {
+	t.Parallel()
+	ctx := setupSettingsModule(t)
+	item, ok := schemaItems(t, ctx)["gdpr.guardian_retention_days"]
+	require.True(t, ok)
+	assert.Equal(t, true, item["writable"])
+	assert.Equal(t, "shared", item["access_policy"])
+	assert.Equal(t, "beide", item["levels"])
+
+	router := ctx.resource.SettingsRouter()
+	for _, value := range []int{29, 366} {
+		put := testutil.NewAuthenticatedRequest(t, "PUT", "/values/gdpr.guardian_retention_days", map[string]any{"value": value}, testutil.WithTestTenant(t))
+		testutil.AssertErrorResponse(t, testutil.ExecuteRequest(router, put), 400)
+	}
+	put := testutil.NewAuthenticatedRequest(t, "PUT", "/values/gdpr.guardian_retention_days", map[string]any{"value": 30}, testutil.WithTestTenant(t))
+	testutil.AssertSuccessResponse(t, testutil.ExecuteRequest(router, put), 200)
+	assert.Equal(t, float64(30), schemaItems(t, ctx)["gdpr.guardian_retention_days"]["value"])
+	reset := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/gdpr.guardian_retention_days", nil, testutil.WithTestTenant(t))
+	assert.Equal(t, 204, testutil.ExecuteRequest(router, reset).Code)
+	assert.Equal(t, float64(90), schemaItems(t, ctx)["gdpr.guardian_retention_days"]["value"])
 }
 
 // The school sees its federal state read-only (#4775): the moto team sets

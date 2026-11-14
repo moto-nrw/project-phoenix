@@ -1688,8 +1688,8 @@ func TestGDPRAttendanceRetentionSetting(t *testing.T) {
 	assert.Equal(t, true, def.DependsOn.Value)
 }
 
-// Parent contacts without a child (#4043): 90 days, set by the moto team
-// within 30 days to a year, behind the cleanup switch.
+// Parent contacts without a child (#4043): 90 days within 30 days to a year,
+// behind the cleanup switch. The school and its Träger set it (#5960).
 func TestGDPRGuardianRetentionSetting(t *testing.T) {
 	t.Parallel()
 
@@ -1699,7 +1699,8 @@ func TestGDPRGuardianRetentionSetting(t *testing.T) {
 	assert.Equal(t, 90, def.Default)
 	assert.Equal(t, "config:read", def.ReadPermission)
 	assert.Equal(t, "config:manage", def.WritePermission)
-	assert.Equal(t, config.AccessOperatorManaged, def.AccessPolicy)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, config.LevelBoth, def.Levels)
 	assert.Equal(t, "gdpr", def.Tab)
 	assert.Equal(t, "schülerdaten", def.Category)
 	require.NotNil(t, def.Validation)

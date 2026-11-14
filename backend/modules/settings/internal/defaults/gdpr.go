@@ -297,14 +297,19 @@ var gdpr_init_sch_lerdaten_4Definitions = []config.Definition{
 		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	},
 	{
+		// The school and its Träger set this window themselves (#5960, ADR 0048
+		// addendum): unlike the other windows it starts only after the last
+		// child is deleted, so it decides how long a family's contact outlives
+		// the child.
 		Key:             config.KeyGDPRGuardianRetentionDays,
+		Levels:          config.LevelBoth,
 		Label:           "Erziehungsberechtigte ohne Kind aufbewahren (Tage)",
-		Description:     "So lange speichert moto Erziehungsberechtigte, die kein Kind mehr an der Schule haben. Danach löscht moto sie mit allen Angaben.",
+		Description:     "So lange speichert moto Erziehungsberechtigte, die mit keinem Kind mehr verbunden sind. Das ist meist ab dem Löschen des letzten Kindes. Danach löscht moto sie mit allen Angaben.",
 		Type:            config.FieldNumber,
 		Default:         90,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
-		AccessPolicy:    config.AccessOperatorManaged,
+		AccessPolicy:    config.AccessShared,
 		Tab:             "gdpr",
 		Category:        "schülerdaten",
 		SortOrder:       34,

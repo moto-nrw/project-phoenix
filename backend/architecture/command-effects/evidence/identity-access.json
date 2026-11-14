@@ -16489,6 +16489,38 @@
       "target_owner": "school-membership"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "binding_digest": "538faee7ee41da59f11ede13ef42a7ab",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "source_owner": "identity-access",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "binding_digest": "ef47da144e9952db13710e93d571c2ad",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "binding_digest": "d888ee8a29c5c302e0c9787289003892",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "binding_digest": "5a72caab3811704540b177ff5c12f35f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.EnqueueCatererInvitation",
       "binding_digest": "60d99bf7106a64065b427ef3905d0fc5",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.CatererInvitationDelivery.EnqueueCatererInvitation",
@@ -19639,6 +19671,38 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence.Owner.ListSupervisedLiveGroups",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.catererInvitationDelivery.CatererInvitationMailStates",
+      "binding_digest": "538faee7ee41da59f11ede13ef42a7ab",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "source_owner": "identity-access",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.catererInvitationDelivery.CatererInvitationMailStates",
+      "binding_digest": "ef47da144e9952db13710e93d571c2ad",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.catererInvitationDelivery.CatererInvitationMailStates",
+      "binding_digest": "d888ee8a29c5c302e0c9787289003892",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.catererInvitationDelivery.CatererInvitationMailStates",
+      "binding_digest": "5a72caab3811704540b177ff5c12f35f",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.catererInvitationDelivery.EnqueueCatererInvitation",

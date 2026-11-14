@@ -85,7 +85,7 @@ type emailDeliveryStatusRow struct {
 // heldMailSQL is a cancelled mail that stayed back for a hold, whether its own event
 // arrived or not. Any other cancelled mail was cancelled on purpose and stays so:
 // the status does not call it failed and a claim does not take it.
-const heldMailSQL = `(outbox.status = 'cancelled' AND (outbox.delivery_state = 'suppressed' OR outbox.last_error IN (?, ?)))`
+const heldMailSQL = `(outbox.status = 'cancelled' AND (outbox.delivery_state = 'suppressed' OR outbox.last_error IN (?, ?, ?)))`
 
 func (s *Store) ClaimFailedEmailDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error) {
 	db, err := s.tenantDB(ctx, tenantID)
@@ -104,7 +104,7 @@ func (s *Store) ClaimFailedEmailDelivery(ctx context.Context, tenantID, delivery
 				OR (outbox.status = 'sent' AND outbox.delivery_state IN ('failed', 'suppressed'))
 				OR `+refusedElsewhereSQL+`
 				OR (outbox.status = 'sent' AND outbox.delivery_state = 'delayed' AND outbox.delivery_state_at < ?))`,
-		tenantID, deliveryID, deliveryContract.MailHeldByList, deliveryContract.MailHeldByStop,
+		tenantID, deliveryID, deliveryContract.MailHeldByList, deliveryContract.MailHeldByStop, deliveryContract.MailHeldByDeparture,
 		time.Now().Add(-deliveryContract.EmailDelayLimit)).Exec(ctx)
 	if err != nil {
 		return false, fmt.Errorf("delivery postgres: claim failed email delivery: %w", err)
@@ -122,7 +122,7 @@ func (s *Store) EmailDeliveryStatuses(ctx context.Context, tenantID int64, relat
 		return nil, err
 	}
 	var rows []emailDeliveryStatusRow
-	if err := db.NewRaw(emailDeliveryStatusesSQL, deliveryContract.MailHeldByList, deliveryContract.MailHeldByStop,
+	if err := db.NewRaw(emailDeliveryStatusesSQL, deliveryContract.MailHeldByList, deliveryContract.MailHeldByStop, deliveryContract.MailHeldByDeparture,
 		tenantID, relatedType, relatedID).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("delivery postgres: list email delivery statuses: %w", err)
 	}

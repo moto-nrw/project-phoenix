@@ -100,6 +100,13 @@ describe("mailStatusCopy", () => {
     expect(mailStatusCopy("held_by_stop")?.explanation).toMatch(/gestoppt/);
     expect(mailStatusCopy("held_by_stop")?.explanation).not.toMatch(/Adresse/);
   });
+
+  it("names the departed family, not the address, and offers no resend", () => {
+    const copy = mailStatusCopy("held_by_departure");
+    expect(copy?.label).toBe("Nicht gesendet");
+    expect(copy?.explanation).toMatch(/Kein Kind/);
+    expect(copy?.explanation).not.toMatch(/Adresse|neu senden/);
+  });
 });
 
 describe("correctedAddressCopy", () => {

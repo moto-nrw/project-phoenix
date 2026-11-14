@@ -212,6 +212,25 @@ Sperre auf, hält Lettermint die nächste Mail wieder zurück, und die Adresse s
 erneut auf der Liste. Eine Sperre einer einzelnen Adresse auf der Liste des Teams
 bleibt `suppressed`; ob sie noch gilt, fragt moto bei Lettermint ab.
 
+### Liste der Schule nach dem Austritt
+
+Die Liste der Schule (`platform.email_suppressions`) hält eine Adresse nur, solange
+die Schule sie kennt: ein Elternkontakt mit einem Kind in Betreuung, ein Konto des
+Personals oder ohne Elternrolle, oder eine offene Anmeldung (#5960). Ist das letzte
+Kind ausgetreten (letzter Betreuungstag vorbei oder Abgang im Jahrgangswechsel),
+löscht der nächtliche Lauf den Eintrag, Beschwerden eingeschlossen. Elternbriefe,
+Nachrichten, Termine und Einladungen an diese Familie hält moto dann mit dem Grund
+„Kein Kind dieser Person wird noch an der Schule betreut.“ zurück. Meldet sich die
+Familie später wieder an, blockiert sie kein alter Eintrag der Schule.
+
+Die Sperre bei Lettermint bleibt davon unberührt, auch wenn moto eine Person oder
+Schule löscht. Nach einem Hard Bounce hebt die Schule sie über „Adresse prüfen“ auf
+(siehe oben), wenn die Adresse bei ihr wieder auf der Liste steht. Nach einer
+Beschwerde hebt nur der Support von Lettermint sie auf. Fragt eine Schule, warum
+eine wieder angemeldete Familie nach einer alten Beschwerde keine Mail bekommt:
+Adresse bei Lettermint prüfen und den Support um Aufhebung bitten, wenn die Familie
+das wünscht.
+
 ### Grenze: Anbieter-Abfrage in Transaktionen
 
 Den aktuellen Stand der Sperre fragt moto bei Lettermint innerhalb offener

@@ -2,9 +2,9 @@ import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
 /**
- * Die Zustellhinweise (#5934). Sie stehen an fünf Stellen: Einladung der Eltern,
- * Elternbrief, Einladung ins Personal, Anmeldung und, für den Träger, im Versand
- * der Schreiben. Hier steht, was jedes Wort bedeutet und wer als Nächstes handelt.
+ * Die Zustellhinweise (#5934). Sie stehen an sechs Stellen: Einladung der Eltern,
+ * Elternbrief, Einladung ins Personal, Einladung des Caterers (#5960), Anmeldung
+ * und, für den Träger, im Versand der Schreiben. Hier steht, was jedes Wort bedeutet und wer als Nächstes handelt.
  * `Versendet` heißt nur: Die Mail ist raus. `Zugestellt` meldet erst der
  * Mail-Dienst, und ohne ihn (Strato, Brevo, Notweg) bleibt es bei `Versendet`.
  */
@@ -79,6 +79,7 @@ export function emailDeliveryTopic(): HelpTopic {
     notes: [
       "Anmeldecodes und Mails zum Passwort kommen auch an eine gesperrte Adresse.",
       "Abrechnungsbriefe des Trägers gehen auch an gesperrte Adressen und gestoppte Personen.",
+      "Wird kein Kind einer Person mehr betreut, bekommt sie keine Elternbriefe, Nachrichten, Termine und Einladungen mehr. Der Hinweis sagt dann `Nicht gesendet`. Verträge, Abrechnungsbriefe und Mails zu einer neuen Anmeldung kommen weiter an.",
       "Mails an das Team hält eine Sperre nicht zurück. Die Einladung zeigt den Hinweis trotzdem.",
     ],
     troubleshootingDetails: [

@@ -167,6 +167,24 @@ func (c *CatererAccess) ListCatererInvitations(ctx context.Context) ([]identitya
 	return result, nil
 }
 
+// CatererInvitationMailStates reads what became of the mails of the school's
+// invitations in one read, in the school's transaction (#5960). Delivery owns
+// the answer; the root binds it.
+func (c *CatererAccess) CatererInvitationMailStates(ctx context.Context, invitationIDs []int64) (map[int64]identityaccess.InvitationMailState, error) {
+	ctx = c.attach(ctx)
+	if !c.inSchool(ctx) {
+		return nil, catererError(failed("read caterer invitation mail states", errSchoolTransactionRequired))
+	}
+	if len(invitationIDs) == 0 {
+		return map[int64]identityaccess.InvitationMailState{}, nil
+	}
+	states, err := c.delivery.CatererInvitationMailStates(ctx, c.runtime.TenantID(ctx), invitationIDs)
+	if err != nil {
+		return nil, catererError(failed("read caterer invitation mail states", err))
+	}
+	return states, nil
+}
+
 // RevokeCatererInvitation takes back an open invitation of the school.
 func (c *CatererAccess) RevokeCatererInvitation(ctx context.Context, invitationID int64) error {
 	ctx = c.attach(ctx)

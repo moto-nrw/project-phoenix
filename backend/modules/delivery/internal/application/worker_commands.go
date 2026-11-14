@@ -165,9 +165,9 @@ func (c *WorkerCommands) RecordEmailDeliveryEvent(ctx context.Context, event dom
 	return
 }
 
-func (c *WorkerCommands) SchoolEmailHolds(ctx context.Context, tenantID int64, address string) (listed, stopped bool, err error) {
+func (c *WorkerCommands) SchoolEmailHolds(ctx context.Context, tenantID int64, address string) (holds domain.SchoolMailHolds, err error) {
 	err = c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
-		listed, stopped, err = c.WorkerRecords.SchoolEmailHolds(txCtx, tenantID, address)
+		holds, err = c.WorkerRecords.SchoolEmailHolds(txCtx, tenantID, address)
 		return err
 	})
 	return

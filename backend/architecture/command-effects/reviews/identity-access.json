@@ -22281,6 +22281,46 @@
       "target_owner": "school-membership"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "reason": "In-memory limit of the provider's block read (#5957), as for the staff invitations: counts reads and waiting time. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect (#5960).",
+      "source_owner": "identity-access",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "reason": "Pure classification of a mail outcome in the delivery contract (#5934, #5960). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "reason": "Read-only delivery state: identity-access reads what became of the caterer invitation mails through runtime.EmailOutcomes.EmailOutcomes in the school's tenant transaction (#5960). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the school's own caterer invitation mail ran into, within a budget of reads (#5960). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
+      "target_owner": "delivery-platform"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.EnqueueCatererInvitation",
       "classification": "platform",
@@ -26516,6 +26556,46 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence.Owner.ListSupervisedLiveGroups",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.catererInvitationDelivery.CatererInvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "reason": "In-memory limit of the provider's block read (#5957), as for the staff invitations: counts reads and waiting time. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect (#5960).",
+      "source_owner": "identity-access",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.catererInvitationDelivery.CatererInvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "reason": "Pure classification of a mail outcome in the delivery contract (#5934, #5960). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.catererInvitationDelivery.CatererInvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "reason": "Read-only delivery state: identity-access reads what became of the caterer invitation mails through runtime.EmailOutcomes.EmailOutcomes in the school's tenant transaction (#5960). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.catererInvitationDelivery.CatererInvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.CatererInvitationDelivery.CatererInvitationMailStates",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the school's own caterer invitation mail ran into, within a budget of reads (#5960). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
+      "target_owner": "delivery-platform"
     },
     {
       "adr": "0098",

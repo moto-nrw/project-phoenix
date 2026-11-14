@@ -31,6 +31,8 @@ type fakeCaterers struct {
 	active      bool
 	schools     []int64
 	invitations []identityaccess.CatererInvitation
+	mail        map[int64]identityaccess.InvitationMailState
+	mailAsked   [][]int64
 	acceptance  identityaccess.CatererAcceptance
 	endedBy     int64
 	err         error
@@ -42,6 +44,10 @@ func (f *fakeCaterers) CreateCatererInvitation(context.Context, identityaccess.C
 }
 func (f *fakeCaterers) ListCatererInvitations(context.Context) ([]identityaccess.CatererInvitation, error) {
 	return f.invitations, f.err
+}
+func (f *fakeCaterers) CatererInvitationMailStates(_ context.Context, ids []int64) (map[int64]identityaccess.InvitationMailState, error) {
+	f.mailAsked = append(f.mailAsked, ids)
+	return f.mail, f.err
 }
 func (f *fakeCaterers) RevokeCatererInvitation(context.Context, int64) error { return f.err }
 func (f *fakeCaterers) PreviewCatererInvitation(context.Context, string) (identityaccess.CatererInvitationPreview, error) {
@@ -265,6 +271,22 @@ func TestSchoolCatererNamesTheSupplyingCaterer(t *testing.T) {
 	page, err = newTestPortal(t, &fakeCaterers{}, &fakeOrders{}, &opened).SchoolCaterer(context.Background())
 	require.NoError(t, err)
 	assert.Nil(t, page.Supply, "no supply, no caterer")
+}
+
+// The school sees what became of the mail of each invitation, read once for
+// the whole list (#5960).
+func TestSchoolCatererReadsTheInvitationMailsInOneRead(t *testing.T) {
+	t.Parallel()
+	caterers := &fakeCaterers{
+		invitations: []identityaccess.CatererInvitation{{ID: 4}, {ID: 9}},
+		mail:        map[int64]identityaccess.InvitationMailState{9: {Outcome: "undeliverable"}},
+	}
+	var opened schoolsOpened
+	page, err := newTestPortal(t, caterers, &fakeOrders{}, &opened).SchoolCaterer(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, [][]int64{{4, 9}}, caterers.mailAsked)
+	assert.Equal(t, "undeliverable", page.InvitationMail[9].Outcome)
+	assert.NotContains(t, page.InvitationMail, int64(4), "an invitation without a mail has no state")
 }
 
 // #3873: the caterer's delivery list holds every school it supplies, each

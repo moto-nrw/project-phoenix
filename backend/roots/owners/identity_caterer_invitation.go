@@ -6,7 +6,9 @@ import (
 	"time"
 
 	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	deliveryRuntime "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
@@ -22,19 +24,50 @@ const (
 )
 
 // CatererInvitationDelivery queues a school's invitation to its caterer in
-// the outbox (ADR 0077). The link points at the caterer portal; the school
-// never sees it.
-func CatererInvitationDelivery(schools schoolFinder, outbox MailResultOutbox, catererURL string) (identityPorts.CatererInvitationDelivery, error) {
-	if schools == nil || outbox == nil {
-		return nil, errors.New("identity access composition: the caterer invitation needs the school directory and the e-mail outbox")
+// the outbox (ADR 0077) and reads what became of those mails (#5960). The
+// link points at the caterer portal; the school never sees it.
+func CatererInvitationDelivery(schools schoolFinder, outbox MailResultOutbox, outcomes deliveryRuntime.EmailOutcomes, catererURL string) (identityPorts.CatererInvitationDelivery, error) {
+	if schools == nil || outbox == nil || outcomes == nil {
+		return nil, errors.New("identity access composition: the caterer invitation needs the school directory, the e-mail outbox and the mail outcomes")
 	}
-	return catererInvitationDelivery{schools: schools, outbox: outbox, catererURL: catererURL}, nil
+	return catererInvitationDelivery{schools: schools, outbox: outbox, outcomes: outcomes, catererURL: catererURL}, nil
 }
 
 type catererInvitationDelivery struct {
 	schools    schoolFinder
 	outbox     MailResultOutbox
+	outcomes   deliveryRuntime.EmailOutcomes
 	catererURL string
+}
+
+// CatererInvitationMailStates reads the last mail of each invitation in one
+// read, and the provider's current block only for an address it withheld, as
+// the staff invitations do.
+func (d catererInvitationDelivery) CatererInvitationMailStates(ctx context.Context, tenantID int64, invitationIDs []int64) (map[int64]identityaccess.InvitationMailState, error) {
+	states := make(map[int64]identityaccess.InvitationMailState, len(invitationIDs))
+	if len(invitationIDs) == 0 {
+		return states, nil
+	}
+	reports, err := d.outcomes.EmailOutcomes(ctx, tenantID, deliveryContract.EmailOutcomeQuery{
+		RelatedType: identityaccess.MailRelatedCatererInvitation, RelatedIDs: invitationIDs, Kinds: []string{identityaccess.MailKindCatererInvitation},
+	})
+	if err != nil {
+		return nil, err
+	}
+	held := make([]string, 0)
+	for _, report := range reports {
+		if report.Outcome.HeldAtProvider() {
+			held = append(held, report.Address)
+		}
+	}
+	blocks := d.outcomes.ProviderEmailBlocks(ctx, held)
+	for _, report := range reports {
+		states[report.RelatedID] = identityaccess.InvitationMailState{
+			Outcome: string(report.Outcome), AddressMark: string(report.Mark),
+			ProviderBlock: string(blocks[deliveryContract.NormalizedEmailAddress(report.Address)]),
+		}
+	}
+	return states, nil
 }
 
 func (d catererInvitationDelivery) EnqueueCatererInvitation(ctx context.Context, invitationID, schoolID int64, recipient, catererName, token string, expiresAt time.Time) error {
