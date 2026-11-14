@@ -106,6 +106,21 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   own cache saved 4-8 s, in the architecture ratchet 10 s (#7032).
 - The seed smoke stalled on Blacksmith once (run 38232330367) and runs on a
   fresh hosted VM; test it repeatedly before moving it.
+- Hosted runners come with three CPUs (14.11.): Xeon 6975P-C, EPYC 9V74 and
+  EPYC 7763. One school seed takes 52-58 s, 67-69 s or 77-86 s on them, so
+  a hosted job spreads by a factor of 1.5 without any change. Compare
+  hosted jobs per CPU (`lscpu`), or take at least six.
+- A seed that looks bimodal may be a query plan, not the runner. Autovacuum
+  analyzes a database once a minute; until then the planner took freshly
+  filled tables for one row and joined in nested loops (74-107 statements of
+  0.7-1.8 s per school). The first seed of "isolation" took 10-45 s longer
+  in 30 of 56 runs, and in 5 of 11 local seeds on one machine. With
+  `autovacuum_naptime = 5s` in the smoke's Postgres: 0-2 such statements,
+  local seeds 51-55 s against 54-94 s, the longest of six jobs 257 s
+  against up to 296 s (#6962). Find such a case with
+  `log_min_duration_statement` and the server log of a slow and a fast
+  run, then `auto_explain` locally. The demo server and production keep the
+  default minute.
 - The nightly race run keeps four backend shards (`SPLIT_SUITES`): race
   builds allow two packages per runner.
 - The backend test job saturates its 8 vCPU (about 5 % idle, load 23–37), so
@@ -198,6 +213,16 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   the encrypted daily backup restore test; a change to
   `scripts/posthog-dashboards.mjs` alone waited for it. Pull requests now
   start it only for its own inputs (`restore-suite` filter, #6962).
+- Script suites on hosted runners cost nothing, so one that sets the
+  wall-clock time is split, not sped up: "ratchets" ran 233-271 s as fetch,
+  Go ratchets and script self-tests in series and is now "ratchets" and
+  "selection"; the release restore (41-43 s) left "restore" (230-281 s) as
+  "release-restore". Split suites start on the same condition
+  (`scripts/backend-affected-packages_test.sh`).
+- History for a merge base needs no file contents: `git fetch --unshallow
+  --filter=blob:none` took 13 s against 58 s locally and gave the same
+  merge base; git loads a base file on demand (two reads 2.8 s). A job that
+  reads many base files one by one pays a fetch per file.
 - A pull request run with the full suites cost about $0.18–0.27 after #5770
   (check "CI cost"); the backend tests alone, warm, about $0.05.
 

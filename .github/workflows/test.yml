@@ -906,10 +906,10 @@ jobs:
       # The seed fills empty tables within seconds, and autovacuum looks at a
       # database once a minute. Until it analyzed them, the planner took the
       # 110 guardians with an account for one row and joined them in nested
-      # loops: 74-104 statements of 0.7-1.8 s per school, 10-45 s per seed in
-      # 30 of 56 pull request runs and in 5 of 11 local seeds (14.11.2026,
-      # #6962). With a naptime of 5 s the statistics follow the seed: six
-      # local seeds of 51-55 s against 54-94 s.
+      # loops: 74-107 statements of 0.7-1.8 s per school, so the first seed
+      # took 10-45 s longer in 30 of 56 pull request runs (14.11.2026,
+      # #6962). With a naptime of 5 s the statistics follow the seed: 0-2
+      # such statements and no slower first seed in six runs.
       - name: Log Postgres lock waits and slow statements
         run: |
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 \
