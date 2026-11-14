@@ -25,7 +25,7 @@ func (t *TraegerStaff) Financial(ctx context.Context, actor workforce.TraegerSta
 	if reveal {
 		view = workforce.TraegerStaffViewFinancialReveal
 	}
-	if _, err := t.readSchools(ctx, actor, view, linkSchools(record), linkWanted(record), false); err != nil {
+	if _, err := t.readSchools(ctx, actor, staffView{name: view, recordID: record.ID}, linkSchools(record), linkWanted(record), false); err != nil {
 		return workforce.TraegerStaffFinancial{}, err
 	}
 	if !reveal {
@@ -52,6 +52,7 @@ func (t *TraegerStaff) UpdateFinancial(ctx context.Context, actor workforce.Trae
 		domain.StaffFieldIBAN: domain.Deref(section.IBAN), domain.StaffFieldTaxID: domain.Deref(section.TaxID),
 		domain.StaffFieldSocialSecurityNumber: domain.Deref(section.SocialSecurityNumber),
 	}
+	var saved domain.TraegerStaffRecord
 	err = t.released(ctx, actor, func(ctx context.Context) error {
 		record, err := t.store.FindStaffRecord(ctx, actor.OrganizationID, recordID, true)
 		if err != nil {
@@ -71,9 +72,16 @@ func (t *TraegerStaff) UpdateFinancial(ctx context.Context, actor workforce.Trae
 		if err := t.store.SealStaffRecord(ctx, record); err != nil {
 			return err
 		}
+		saved = record
 		return t.store.AppendStaffChanges(ctx, actor.OrganizationID, changes)
 	})
-	return publicTraegerStaffError(err)
+	if err != nil {
+		return publicTraegerStaffError(err)
+	}
+	if saved.ID == 0 {
+		return nil
+	}
+	return t.handOver(ctx, actor, saved)
 }
 
 // Dissolve ends a record: every live Einsatzort gets the bank and tax values
@@ -99,7 +107,7 @@ func (t *TraegerStaff) Dissolve(ctx context.Context, actor workforce.TraegerStaf
 			return t.returnToSchool(ctx, actor, link, values)
 		})
 		if err != nil {
-			return fmt.Errorf("return to school %d: %w", link.SchoolID, err)
+			return publicTraegerStaffError(fmt.Errorf("return to school %d: %w", link.SchoolID, err))
 		}
 	}
 	return publicTraegerStaffError(t.released(ctx, actor, func(ctx context.Context) error {

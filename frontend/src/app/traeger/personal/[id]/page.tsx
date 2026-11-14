@@ -441,7 +441,7 @@ export default function TraegerStaffRecordPage() {
           <SectionCard
             concept={staffConcept}
             title="Person"
-            description="Name und Geburtstag kommen von den Schulen. Ändern können Sie sie dort."
+            description="Name und Geburtstag haben Sie beim Verknüpfen gewählt. Die Schulen pflegen ihre eigenen Angaben weiter selbst."
           >
             <DataGrid columns={4}>
               <DataField label={STAFF_FIELD_LABELS.first_name}>

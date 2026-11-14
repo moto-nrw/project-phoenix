@@ -21,7 +21,6 @@ type linkSource struct {
 	ref       workforce.TraegerStaffMemberRef
 	member    workforce.TraegerSchoolStaffMember
 	financial map[string]string
-	hasRow    bool
 }
 
 // linkPlan is everything a link read before it writes.
@@ -74,6 +73,11 @@ func (t *TraegerStaff) Link(ctx context.Context, actor workforce.TraegerStaffAct
 	if err != nil {
 		return workforce.TraegerStaffRecordDetail{}, err
 	}
+	if number := resolved.Values[domain.StaffFieldPersonnelNumber]; number != "" {
+		if err := t.numberFreeAtSchools(ctx, linkTargets(plan), number); err != nil {
+			return workforce.TraegerStaffRecordDetail{}, err
+		}
+	}
 	var saved domain.TraegerStaffRecord
 	err = t.released(ctx, actor, func(ctx context.Context) error {
 		saved, err = t.writeLink(ctx, actor, plan, resolved)
@@ -82,7 +86,7 @@ func (t *TraegerStaff) Link(ctx context.Context, actor workforce.TraegerStaffAct
 	if err != nil {
 		return workforce.TraegerStaffRecordDetail{}, publicTraegerStaffError(err)
 	}
-	if err := t.handOver(ctx, actor, saved, plan.members); err != nil {
+	if err := t.handOver(ctx, actor, saved); err != nil {
 		return workforce.TraegerStaffRecordDetail{}, err
 	}
 	return t.Record(ctx, actor, saved.ID)
@@ -112,7 +116,7 @@ func (t *TraegerStaff) planLink(ctx context.Context, actor workforce.TraegerStaf
 	for _, ref := range request.Members {
 		wanted[ref.SchoolID] = []int64{ref.StaffID}
 	}
-	reads, err := t.readSchools(ctx, actor, workforce.TraegerStaffViewLinkPreview, slices.Sorted(maps.Keys(wanted)), wanted, true)
+	reads, err := t.readSchools(ctx, actor, staffView{name: workforce.TraegerStaffViewLinkPreview}, slices.Sorted(maps.Keys(wanted)), wanted, true)
 	if err != nil {
 		return linkPlan{}, err
 	}
@@ -146,6 +150,18 @@ func (t *TraegerStaff) checkLinkTarget(ctx context.Context, actor workforce.Trae
 		}
 	}
 	return &record, nil
+}
+
+// linkTargets lists every employment the record holds after the link.
+func linkTargets(plan linkPlan) []domain.TraegerStaffLink {
+	var targets []domain.TraegerStaffLink
+	if plan.record != nil {
+		targets = append(targets, plan.record.Links...)
+	}
+	for _, member := range plan.members {
+		targets = append(targets, domain.TraegerStaffLink{SchoolID: member.ref.SchoolID, StaffID: member.ref.StaffID})
+	}
+	return targets
 }
 
 func validateLinkMembers(members []workforce.TraegerStaffMemberRef, schools map[int64]string) error {
@@ -186,10 +202,10 @@ func (t *TraegerStaff) collectSources(plan linkPlan, refs []workforce.TraegerSta
 			if err != nil {
 				return linkPlan{}, err
 			}
-			source.financial, source.hasRow = opened, true
+			source.financial = opened
 		}
 		plan.members = append(plan.members, source)
-		values := memberValues(member, source.financial)
+		values := personValues(member.FirstName, member.LastName, member.Birthday, member.PersonnelNumber, source.financial)
 		plan.sources = append(plan.sources, staffSource(domain.SchoolSourceKey(ref.SchoolID), ref.SchoolID, plan.names[ref.SchoolID], values))
 	}
 	return plan, nil
@@ -206,10 +222,12 @@ func staffSource(key string, schoolID int64, schoolName string, values map[strin
 	return domain.StaffSource{Key: key, SchoolID: schoolID, SchoolName: schoolName, Values: values, Display: display}
 }
 
-func recordValues(record domain.TraegerStaffRecord, financial map[string]string) map[string]string {
+// personValues are the fields of a record or an employment by field, the
+// bank and tax values opened.
+func personValues(firstName, lastName, birthday string, number *string, financial map[string]string) map[string]string {
 	values := map[string]string{
-		domain.StaffFieldFirstName: record.FirstName, domain.StaffFieldLastName: record.LastName,
-		domain.StaffFieldBirthday: record.Birthday, domain.StaffFieldPersonnelNumber: domain.Deref(record.PersonnelNumber),
+		domain.StaffFieldFirstName: firstName, domain.StaffFieldLastName: lastName,
+		domain.StaffFieldBirthday: birthday, domain.StaffFieldPersonnelNumber: domain.Deref(number),
 	}
 	for field, value := range financial {
 		values[field] = value
@@ -217,13 +235,6 @@ func recordValues(record domain.TraegerStaffRecord, financial map[string]string)
 	return values
 }
 
-func memberValues(member workforce.TraegerSchoolStaffMember, financial map[string]string) map[string]string {
-	values := map[string]string{
-		domain.StaffFieldFirstName: member.FirstName, domain.StaffFieldLastName: member.LastName,
-		domain.StaffFieldBirthday: member.Birthday, domain.StaffFieldPersonnelNumber: domain.Deref(member.PersonnelNumber),
-	}
-	for field, value := range financial {
-		values[field] = value
-	}
-	return values
+func recordValues(record domain.TraegerStaffRecord, financial map[string]string) map[string]string {
+	return personValues(record.FirstName, record.LastName, record.Birthday, record.PersonnelNumber, financial)
 }

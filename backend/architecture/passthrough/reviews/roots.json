@@ -1296,11 +1296,6 @@
       "reason": "ADR 0232 (#4705): Consumer-port adapter that reads the persons behind those employments from the People Directory and translates them into Workforce's TraegerSchoolPerson."
     },
     {
-      "decision": "0232",
-      "id": "api/traegerStaffAccessLog.RecordTraegerStaffAccess",
-      "reason": "ADR 0232 (#4705): Consumer-port adapter that writes a read of the Personalverwaltung into the access log of a school as audit.data_access_log entry of the Träger portal (ADR 0084 section 7)."
-    },
-    {
       "decision": "0090",
       "id": "api/weekProtocolAttendance.GroupDayAttendance",
       "reason": "Binds the weekly protocol's attendance port to the presence projection's group day logs and translates each log into Timetable's group day, naming every missing child by first and last name."

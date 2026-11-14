@@ -7622,6 +7622,7 @@ export const payrollTopic = function payrollTopic(): HelpTopic {
       "`Soll (Arbeitszeit)` prüft den Vormonat, bis er abgeschlossen ist. Danach prüft es den laufenden Monat.",
       "Eine Kategorie oder eigene Lohnart ohne Lohnartnummer wird nicht exportiert. `Vollständigkeit` nennt sie.",
       "Dieselbe Nummer bei mehreren Kategorien ist erlaubt, führt aber meist zu doppelten Stunden. moto warnt davor.",
+      "Führt Ihr Träger eine Person in seiner Personalakte, kommt ihre Personalnummer vom Träger. Ändern kann sie nur die Personalverwaltung des Trägers.",
     ],
     troubleshootingDetails: [
       "Der Export erzeugt keine Datei? Dann fehlt oben unter `Vollständigkeit` noch etwas.",
@@ -8553,6 +8554,7 @@ export const staffRecordTopic = function staffRecordTopic(): HelpTopic {
       "Ändern Sie eine Vorlage, wirkt das künftig auf alle Personen mit dieser Zuordnung.",
       "Den Bereich `Klassen` gibt es nur bei Lehrkräften.",
       "Bankverbindung und Steuernummer sind verborgen. Jeder Abruf wird festgehalten.",
+      "Bei `Personalnummer` oder `Bank & Steuer` steht: „führt der Träger in seiner Personalakte“. Dann pflegt die Personalverwaltung des Trägers diese Werte. Sie sehen die Personalnummer und ändern sie nicht.",
     ],
     troubleshootingDetails: [
       "Ein Krankheitstag zählt 0 Stunden? Dann fehlt das Soll. Tragen Sie es unter `Arbeitszeitmodell` ein.",

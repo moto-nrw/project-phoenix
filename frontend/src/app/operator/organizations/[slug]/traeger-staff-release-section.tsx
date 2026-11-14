@@ -160,7 +160,7 @@ export function TraegerStaffReleaseSection({
           />
         ) : undefined
       }
-      description="Mit der Freigabe führt die Personalverwaltung des Trägers eine Personalakte über alle Schulen (ADR 0089). Vorher bestätigt der Träger schriftlich eine der beiden Erklärungen."
+      description="Mit der Freigabe führt die Personalverwaltung des Trägers eine Personalakte über alle Schulen. Vorher bestätigt der Träger schriftlich eine der beiden Erklärungen."
       loading={!state && !load.error}
       action={
         state ? (

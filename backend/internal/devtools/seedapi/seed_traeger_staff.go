@@ -40,22 +40,9 @@ func (seedTraegerStaffStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	linked := 0
-	first := int64(0)
-	for _, suggestion := range suggestions {
-		if linked == seedTraegerStaffLinks {
-			break
-		}
-		id, err := seedTraegerStaffLink(rt.Client, auth, suggestion)
-		if err != nil {
-			return err
-		}
-		if id > 0 {
-			linked++
-		}
-		if first == 0 {
-			first = id
-		}
+	linked, first, err := seedTraegerStaffLinkAll(rt.Client, auth, suggestions)
+	if err != nil {
+		return err
 	}
 	if first > 0 {
 		if _, err := rt.Client.PutWithAuth(auth, fmt.Sprintf("/traeger/staff-records/%d/financial", first), map[string]any{"iban": seedTraegerStaffIBAN}); err != nil {
@@ -64,6 +51,29 @@ func (seedTraegerStaffStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	fmt.Printf("  Träger staff records: %d linked\n", linked)
 	return nil
+}
+
+// seedTraegerStaffLinkAll confirms up to seedTraegerStaffLinks proposals and
+// returns how many it linked and the first record it created.
+func seedTraegerStaffLinkAll(client *Client, auth AuthRef, suggestions []seedTraegerStaffSuggestion) (int, int64, error) {
+	linked := 0
+	first := int64(0)
+	for _, suggestion := range suggestions {
+		if linked == seedTraegerStaffLinks {
+			break
+		}
+		id, err := seedTraegerStaffLink(client, auth, suggestion)
+		if err != nil {
+			return 0, 0, err
+		}
+		if id > 0 {
+			linked++
+		}
+		if first == 0 {
+			first = id
+		}
+	}
+	return linked, first, nil
 }
 
 // seedTraegerStaffRelease grants the release with the statement of an

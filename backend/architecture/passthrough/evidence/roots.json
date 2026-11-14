@@ -1815,13 +1815,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (l traegerStaffAccessLog) RecordTraegerStaffAccess(ctx context.Context, access workforce.TraegerStaffAccess) error {\n\tresource := auditModels.ResourceTypeTraegerStaffRecords\n\tif access.View == workforce.TraegerStaffViewFinancial || access.View == workforce.TraegerStaffViewFinancialReveal {\n\t\tresource = auditModels.ResourceTypeTraegerStaffFinancial\n\t}\n\tnow := time.Now()\n\treturn l.log.Create(ctx, \u0026auditModels.DataAccessLog{ActorAccountID: access.AccountID, ActorRole: traegerAccessActorRole, ResourceType: resource, RangeStart: now, RangeEnd: now, Metadata: map[string]any{\"channel\": \"traeger_portal\", \"organization_id\": access.OrganizationID, \"view\": access.View, \"rows\": access.Rows}})\n}",
-      "form": "unclassified-evidence",
-      "id": "api/traegerStaffAccessLog.RecordTraegerStaffAccess",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (a weekProtocolAttendance) GroupDayAttendance(ctx context.Context, day calendar.Date, groupIDs []int64) ([]timetableModule.WeekProtocolGroupDay, error) {\n\tlogs, err := a.dayLog.GroupDayLogs(ctx, day, groupIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]timetableModule.WeekProtocolGroupDay, 0, len(logs))\n\tfor _, log := range logs {\n\t\tresult = append(result, weekProtocolGroupDayOf(log))\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/weekProtocolAttendance.GroupDayAttendance",

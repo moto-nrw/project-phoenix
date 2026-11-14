@@ -150,6 +150,32 @@ CREATE POLICY traeger_isolation_workforce_staff_record_changes ON workforce.staf
 	USING (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint)
 	WITH CHECK (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint);
 
+-- The Träger's personnel number is the one of every Einsatzort (ADR 0232
+-- section 5): a school's profile of a linked employment takes no other
+-- number, whatever path writes it (staff admin, import, membership). The
+-- function reads the record the school's role cannot see, so it runs as its
+-- owner and answers only whether the number differs.
+CREATE FUNCTION workforce.refuse_number_kept_by_traeger() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+	IF EXISTS (
+		SELECT FROM workforce.staff_record_links AS link
+		JOIN workforce.staff_records AS record ON record.organization_id = link.organization_id AND record.id = link.staff_record_id
+		WHERE link.school_id = NEW.tenant_id AND link.membership_id = NEW.membership_id
+		  AND record.personnel_number IS DISTINCT FROM NEW.personnel_number
+	) THEN
+		RAISE EXCEPTION 'the Träger keeps the personnel number of this employment' USING ERRCODE = '23514',
+			CONSTRAINT = 'chk_staff_personnel_number_kept_by_traeger';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION workforce.refuse_number_kept_by_traeger() FROM PUBLIC;
+CREATE TRIGGER trg_staff_personnel_number_kept_by_traeger
+	BEFORE UPDATE OF personnel_number ON users.staff_employment_profiles
+	FOR EACH ROW WHEN (OLD.personnel_number IS DISTINCT FROM NEW.personnel_number)
+	EXECUTE FUNCTION workforce.refuse_number_kept_by_traeger();
+
 REVOKE ALL ON workforce.staff_releases, workforce.staff_records, workforce.staff_record_links, workforce.staff_record_changes FROM PUBLIC;
 GRANT SELECT ON workforce.staff_releases TO phoenix_tenant;
 GRANT SELECT, INSERT, UPDATE, DELETE ON workforce.staff_records, workforce.staff_record_links TO phoenix_tenant;
@@ -161,6 +187,8 @@ GRANT USAGE ON SEQUENCE workforce.staff_records_id_seq, workforce.staff_record_l
 `
 
 const traegerStaffRecordsDownSQL = `
+DROP TRIGGER IF EXISTS trg_staff_personnel_number_kept_by_traeger ON users.staff_employment_profiles;
+DROP FUNCTION IF EXISTS workforce.refuse_number_kept_by_traeger();
 DROP TABLE IF EXISTS workforce.staff_record_changes;
 DROP TABLE IF EXISTS workforce.staff_record_links;
 DROP TABLE IF EXISTS workforce.staff_records;

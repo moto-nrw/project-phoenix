@@ -443,17 +443,14 @@ func (a *StaffAdmin) financial(ctx context.Context, staffID int64) (*domain.Staf
 // StaffKeptByTraeger reports whether a record of the school's Träger holds
 // the employment: the Träger then keeps its personnel number and its bank
 // and tax values (ADR 0089 section 6).
+// It joins the caller's tenant transaction (the route's request
+// transaction).
 func (a *StaffAdmin) StaffKeptByTraeger(ctx context.Context, staffID int64) (bool, error) {
-	var kept bool
-	err := a.records.run(ctx, "staff_kept_by_traeger", func(ctx context.Context, _ *domain.OperationStats) error {
-		if _, err := a.subjects.StaffWithPerson(ctx, staffID); err != nil {
-			return err
-		}
-		var err error
-		kept, err = a.keptByTraeger(ctx, staffID)
-		return err
-	})
-	return kept, MapStaffAdminError(err)
+	if _, err := a.subjects.StaffWithPerson(ctx, staffID); err != nil {
+		return false, MapStaffAdminError(err)
+	}
+	kept, err := a.traeger.KeptStaffIDs(ctx, []int64{staffID})
+	return len(kept) > 0, MapStaffAdminError(err)
 }
 
 // TraegerStaffRecords composes the Personalstamm of the Träger-Portal over

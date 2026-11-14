@@ -97,13 +97,6 @@ func (f traegerStaffFixture) setPersonnelNumber(t *testing.T, schoolID, staffID 
 	require.NoError(t, err)
 }
 
-// setBirthday gives the person behind an employment a birthday.
-func (f traegerStaffFixture) setBirthday(t *testing.T, personID int64, day string) {
-	t.Helper()
-	_, err := f.db.ExecContext(context.Background(), `UPDATE users.persons SET birthday = ? WHERE id = ?`, day, personID)
-	require.NoError(t, err)
-}
-
 // setIBAN seals an IBAN into the school's bank row as the school would.
 func (f traegerStaffFixture) setIBAN(t *testing.T, schoolID, staffID int64, iban string) {
 	t.Helper()
@@ -266,6 +259,18 @@ func TestTraegerStaffRecordsLinkThePeopleOfAllSchools(t *testing.T) {
 		assertStaffRefusal(t, rec, http.StatusBadRequest, "workforce.traeger_staff_link_invalid")
 	})
 
+	t.Run("a number another person of a school holds is refused before anything moves", func(t *testing.T) {
+		f.setPersonnelNumber(t, south, jonas.ID, "70001")
+		rec := f.call(t, f.office.token, http.MethodPost, "/traeger/staff-records/", map[string]any{
+			"members": members, "choices": map[string]string{"last_name": strconv.FormatInt(south, 10)},
+		})
+		assertStaffRefusal(t, rec, http.StatusConflict, "workforce.personnel_number_taken")
+		assert.Zero(t, f.schoolValue(t, `SELECT COUNT(*) FROM workforce.staff_records WHERE organization_id = ?`, f.office.organization), "no record was written")
+		assert.Equal(t, 1, f.schoolValue(t, `SELECT COUNT(*) FROM users.staff_financial_data WHERE staff_id = ?`, miraSouth.ID), "the school keeps its bank row")
+		_, err := f.db.ExecContext(context.Background(), `UPDATE users.staff_employment_profiles SET personnel_number = NULL WHERE membership_id = ?`, jonas.ID)
+		require.NoError(t, err)
+	})
+
 	var record staffRecordBody
 	t.Run("the link takes the chosen values and the bank values of the schools", func(t *testing.T) {
 		rec := f.call(t, f.office.token, http.MethodPost, "/traeger/staff-records/", map[string]any{
@@ -297,6 +302,8 @@ func TestTraegerStaffRecordsLinkThePeopleOfAllSchools(t *testing.T) {
 			"every Einsatzort carries the Träger's personnel number")
 		rec = f.call(t, f.office.token, http.MethodPost, "/traeger/staff-records/", map[string]any{"members": members[:1]})
 		assertStaffRefusal(t, rec, http.StatusConflict, "workforce.traeger_staff_already_linked")
+		_, err := f.db.ExecContext(context.Background(), `UPDATE users.staff_employment_profiles SET personnel_number = '70077' WHERE membership_id = ?`, miraSouth.ID)
+		require.Error(t, err, "no path of the school, the import included, writes another number than the Träger's")
 	})
 
 	t.Run("the bank values open only after the access log of every Einsatzort", func(t *testing.T) {
@@ -309,14 +316,21 @@ func TestTraegerStaffRecordsLinkThePeopleOfAllSchools(t *testing.T) {
 	})
 
 	t.Run("the school reads that the Träger keeps the values and changes none of them", func(t *testing.T) {
-		kept, err := f.admin.StaffKeptByTraeger(f.inSchool(t, south), miraSouth.ID)
-		require.NoError(t, err)
-		assert.True(t, kept)
-		kept, err = f.admin.StaffKeptByTraeger(f.inSchool(t, south), jonas.ID)
-		require.NoError(t, err)
-		assert.False(t, kept)
+		keptIn := func(staffID int64) bool {
+			school, err := tenant.NewTenantID(south)
+			require.NoError(t, err)
+			var kept bool
+			require.NoError(t, tenant.WithinTenant(f.inSchool(t, south), school, func(ctx context.Context) error {
+				var err error
+				kept, err = f.admin.StaffKeptByTraeger(ctx, staffID)
+				return err
+			}))
+			return kept
+		}
+		assert.True(t, keptIn(miraSouth.ID))
+		assert.False(t, keptIn(jonas.ID))
 		number := "70099"
-		_, err = f.admin.UpdatePersonnelNumber(f.inSchool(t, south), miraSouth.ID, &number, jonas.ID, "")
+		_, err := f.admin.UpdatePersonnelNumber(f.inSchool(t, south), miraSouth.ID, &number, jonas.ID, "")
 		require.ErrorIs(t, err, workforce.ErrStaffKeptByTraeger)
 	})
 

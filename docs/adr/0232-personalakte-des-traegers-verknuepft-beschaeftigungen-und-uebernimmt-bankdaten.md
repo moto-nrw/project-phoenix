@@ -62,22 +62,31 @@ Personalstamm, Schule und Freigabe technisch zusammenhängen.
    in der Tenant-Transaktion der Schule, mit einem Eintrag im
    Stammdaten-Audit der Schule. So bleiben Export, Import und Abrechnung der
    Schule unverändert und stimmen mit dem Träger überein. Die Schule kann die
-   Nummer einer verknüpften Beschäftigung nicht ändern. Eine Nummer, die eine
-   andere Beschäftigung derselben Schule trägt, lehnt der Träger vor jeder
-   Änderung ab.
+   Nummer einer verknüpften Beschäftigung nicht ändern: Ein Trigger an
+   `users.staff_employment_profiles` lehnt jede andere Nummer als die der
+   Akte ab, auch aus dem Personal-Import. Eine Nummer, die eine andere
+   Beschäftigung einer Schule der Akte trägt, lehnt der Träger beim
+   Verknüpfen und beim Ändern vor jeder Änderung ab.
 6. **Reihenfolge der Transaktionen.** Workforce liest jede Schule in ihrer
    Tenant-Transaktion, schreibt die Akte in der Träger-Transaktion und
-   bringt danach jede Schule in ihrer Tenant-Transaktion auf Stand. Keine
-   Transaktion trägt beides (ADR 0105). Scheitert eine Schule nach dem
-   Schreiben der Akte, holt die nächste Änderung der Akte sie nach. Die
-   Schule ändert in der Zwischenzeit nichts, was die Akte führt.
+   bringt danach jede Schule in ihrer Tenant-Transaktion auf Stand: Nummer
+   der Akte, keine Bankzeile der Schule. Keine Transaktion trägt beides
+   (ADR 0105). Scheitert eine Schule nach dem Schreiben der Akte, holt jede
+   weitere Änderung der Akte sie nach; bis dahin ändert die Schule nichts,
+   was die Akte führt. Ändert eine Schule ihre Bankdaten genau zwischen der
+   Vorschau und dem Verknüpfen, gilt der Wert der Vorschau; das Fenster ist
+   eine Sache von Sekunden und steht im Stammdaten-Audit der Schule.
+   „Akte auflösen“ ist ebenso wiederholbar: Eine Schule, die ihre Werte schon
+   zurückbekommen hat, behält sie.
 7. **Verlauf.** `workforce.staff_record_changes` hält jeden neuen
    Einsatzort, jeden nicht übernommenen Wert mit seiner Schule und jeden
    ersetzten Wert. Bank- und Steuerwerte stehen dort versiegelt mit Maske.
    Nur die Maske verlässt den Server.
 8. **Zugriffsprotokoll.** Jede Ansicht, die Personen einer Schule zeigt,
    schreibt vorher einen Eintrag ins Zugriffsprotokoll dieser Schule
-   (`traeger_staff_records`, für Bankdaten `traeger_staff_financial`). Ein
+   (`traeger_staff_records`, für Bankdaten `traeger_staff_financial`) mit
+   den gezeigten Beschäftigungen und der Akte. Eine Akte schreibt den Eintrag
+   an jedem Einsatzort, auch wenn die Beschäftigung dort beendet ist. Ein
    gescheiterter Eintrag verhindert die Antwort.
 9. **Demo.** Die Akten gehören dem Träger-Büro. Kein Besucher eines Demo-Trägers
    erreicht das Träger-Büro (seedTraegerBueroStep). Die Löschung von

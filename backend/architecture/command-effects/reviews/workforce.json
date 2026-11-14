@@ -11444,27 +11444,6 @@
       "target_owner": "document-rendering"
     },
     {
-      "adr": "0098",
-      "binding": "*github.com/moto-ogs/project-phoenix/modules/workforce.StaffAdmin.StaffKeptByTraeger",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-ogs/project-phoenix/modules/workforce.StaffTraegerKeep.StaffKeptByTraeger",
-      "reason": "Platform protocol participation (scope): workforce reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/workforce.StaffAdmin.StaffKeptByTraeger (#4705). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "workforce",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/api.traegerSchoolEmployments.SchoolEmployments",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/workforce.TraegerSchoolEmployments.SchoolEmployments",
-      "reason": "Reviewed read: workforce reaches modules/schoolmembership.Capability.ListStaff (school-membership) through api.traegerSchoolEmployments.SchoolEmployments (#4705) to list the live employments of one school in its tenant transaction for the staff records of the Träger. No owned-row mutation or locking read.",
-      "source_owner": "workforce",
-      "target": "github.com/moto-ogs/project-phoenix/modules/schoolmembership.Capability.ListStaff",
-      "target_owner": "school-membership"
-    },
-    {
       "binding": "github.com/moto-ogs/project-phoenix/api.traegerSchoolEmployments.SchoolEmployments",
       "classification": "query",
       "effect": "query",
@@ -11489,19 +11468,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/workforce.TraegerSchoolPersons.SchoolPersons",
-      "reason": "Reviewed read: workforce reaches modules/peopledirectory.Capability.ListPersonsByID (people-directory) through api.traegerSchoolPersons.SchoolPersons (#4705) to read the persons behind those employments in the school's tenant transaction. No owned-row mutation or locking read.",
+      "reason": "Reviewed read: workforce reaches *modules/peopledirectory/compose.Directory.ListPersonsByID (people-directory) through api.traegerSchoolPersons.SchoolPersons (#4705) to read the persons behind those employments in the school's tenant transaction. No owned-row mutation or locking read.",
       "source_owner": "workforce",
-      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.ListPersonsByID",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/api.traegerSchoolPersons.SchoolPersons",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/workforce.TraegerSchoolPersons.SchoolPersons",
-      "reason": "Reviewed read: workforce reaches modules/peopledirectory.Owner.ListPersonsByID (people-directory) through api.traegerSchoolPersons.SchoolPersons (#4705) to read the persons behind those employments in the school's tenant transaction. No owned-row mutation or locking read.",
-      "source_owner": "workforce",
-      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.ListPersonsByID",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose.Directory.ListPersonsByID",
       "target_owner": "people-directory"
     },
     {
@@ -12521,17 +12490,6 @@
       "source_owner": "workforce",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/workforce/internal/application.Clock.Time",
       "target_owner": ""
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-ogs/project-phoenix/modules/workforce/internal/application.StaffAdminEngine.StaffKeptByTraeger",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-ogs/project-phoenix/modules/workforce.staffAdminEngine.StaffKeptByTraeger",
-      "reason": "Platform protocol participation (scope): workforce reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/workforce/internal/application.StaffAdminEngine.StaffKeptByTraeger (#4705). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "workforce",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",

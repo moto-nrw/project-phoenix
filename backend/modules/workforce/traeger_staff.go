@@ -326,6 +326,10 @@ type TraegerStaffAccess struct {
 	AccountID      int64
 	View           string
 	Rows           int
+	// StaffIDs names the employments of the school the view showed;
+	// RecordID the record a record view read, 0 for the overview.
+	StaffIDs []int64
+	RecordID int64
 }
 
 // TraegerStaffAccessLog writes an access entry in the caller's tenant

@@ -60,21 +60,34 @@ type schoolRead struct {
 	financial map[int64]domain.StaffFinancialData
 }
 
+// staffView names a read for the access log: the view and, for a record
+// view, the record.
+type staffView struct {
+	name     string
+	recordID int64
+}
+
 // readSchools reads the live employments of each school, all of them when
 // wanted holds no entry for the school, and their bank rows with
-// withFinancial. A school that shows people gets the access entry of view.
-func (t *TraegerStaff) readSchools(ctx context.Context, actor workforce.TraegerStaffActor, view string, schools []int64, wanted map[int64][]int64, withFinancial bool) (map[int64]schoolRead, error) {
+// withFinancial. A school that shows people gets the access entry of view,
+// naming them; a school a record view asks for gets it even when its
+// employment has ended, because the record still shows the person.
+func (t *TraegerStaff) readSchools(ctx context.Context, actor workforce.TraegerStaffActor, view staffView, schools []int64, wanted map[int64][]int64, withFinancial bool) (map[int64]schoolRead, error) {
 	reads := make(map[int64]schoolRead, len(schools))
 	for _, schoolID := range schools {
 		err := t.ports.Runtime.WithinSchool(ctx, schoolID, func(ctx context.Context) error {
 			read, err := t.readSchool(ctx, wanted[schoolID], withFinancial)
-			if err != nil || len(read.order) == 0 {
-				reads[schoolID] = read
+			reads[schoolID] = read
+			if err != nil || (len(read.order) == 0 && wanted[schoolID] == nil) {
 				return err
 			}
-			reads[schoolID] = read
+			shown := read.order
+			if wanted[schoolID] != nil {
+				shown = wanted[schoolID]
+			}
 			return t.ports.Access.RecordTraegerStaffAccess(ctx, workforce.TraegerStaffAccess{
-				OrganizationID: actor.OrganizationID, AccountID: actor.AccountID, View: view, Rows: len(read.order),
+				OrganizationID: actor.OrganizationID, AccountID: actor.AccountID, View: view.name, Rows: len(shown),
+				StaffIDs: shown, RecordID: view.recordID,
 			})
 		})
 		if err != nil {
@@ -164,7 +177,7 @@ func (t *TraegerStaff) Overview(ctx context.Context, actor workforce.TraegerStaf
 	if err != nil || overview.Release == nil {
 		return overview, err
 	}
-	reads, err := t.readSchools(ctx, actor, workforce.TraegerStaffViewOverview, schoolIDs(schools), nil, false)
+	reads, err := t.readSchools(ctx, actor, staffView{name: workforce.TraegerStaffViewOverview}, schoolIDs(schools), nil, false)
 	if err != nil {
 		return workforce.TraegerStaffOverview{}, err
 	}
@@ -203,7 +216,7 @@ func (t *TraegerStaff) Record(ctx context.Context, actor workforce.TraegerStaffA
 	if err != nil {
 		return workforce.TraegerStaffRecordDetail{}, publicTraegerStaffError(err)
 	}
-	reads, err := t.readSchools(ctx, actor, workforce.TraegerStaffViewRecord, linkSchools(record), linkWanted(record), false)
+	reads, err := t.readSchools(ctx, actor, staffView{name: workforce.TraegerStaffViewRecord, recordID: record.ID}, linkSchools(record), linkWanted(record), false)
 	if err != nil {
 		return workforce.TraegerStaffRecordDetail{}, err
 	}
@@ -225,6 +238,7 @@ func publicTraegerStaffError(err error) error {
 		{domain.ErrTraegerStaffRecordMissing, workforce.ErrTraegerStaffRecordNotFound},
 		{domain.ErrTraegerStaffEmploymentLinked, workforce.ErrTraegerStaffAlreadyLinked},
 		{domain.ErrStaffPersonnelNumberTaken, workforce.ErrPersonnelNumberTaken},
+		{workforce.ErrPersonnelNumberTaken, workforce.ErrPersonnelNumberTaken},
 		{domain.ErrPersonnelNumberInvalid, workforce.ErrPersonnelNumberInvalid},
 		{domain.ErrStaffStammdatenInvalid, workforce.ErrStaffStammdatenInvalid},
 		{domain.ErrTraegerStaffReleaseInUse, workforce.ErrTraegerStaffReleaseInUse},

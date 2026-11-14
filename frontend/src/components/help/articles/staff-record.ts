@@ -66,6 +66,7 @@ export function staffRecordTopic(): HelpTopic {
       "Ändern Sie eine Vorlage, wirkt das künftig auf alle Personen mit dieser Zuordnung.",
       "Den Bereich `Klassen` gibt es nur bei Lehrkräften.",
       "Bankverbindung und Steuernummer sind verborgen. Jeder Abruf wird festgehalten.",
+      "Bei `Personalnummer` oder `Bank & Steuer` steht: „führt der Träger in seiner Personalakte“. Dann pflegt die Personalverwaltung des Trägers diese Werte. Sie sehen die Personalnummer und ändern sie nicht.",
     ],
     troubleshootingDetails: [
       "Ein Krankheitstag zählt 0 Stunden? Dann fehlt das Soll. Tragen Sie es unter `Arbeitszeitmodell` ein.",

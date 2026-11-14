@@ -123,6 +123,7 @@ func (l traegerStaffAccessLog) RecordTraegerStaffAccess(ctx context.Context, acc
 		RangeStart: now, RangeEnd: now,
 		Metadata: map[string]any{
 			"channel": "traeger_portal", "organization_id": access.OrganizationID, "view": access.View, "rows": access.Rows,
+			"staff_ids": access.StaffIDs, "staff_record_id": access.RecordID,
 		},
 	})
 }

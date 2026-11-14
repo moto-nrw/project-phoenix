@@ -117,27 +117,23 @@ func (t *TraegerStaff) replacedValues(actor workforce.TraegerStaffActor, recordI
 }
 
 // handOver brings every live Einsatzort of the record up to date in its own
-// tenant transaction: the record's personnel number on the employment and,
-// for an employment that just joined, the school's bank row removed. A
-// repeated write repeats it, so a school that failed catches up.
-func (t *TraegerStaff) handOver(ctx context.Context, actor workforce.TraegerStaffActor, record domain.TraegerStaffRecord, joined []linkSource) error {
-	moving := make(map[int64]linkSource, len(joined))
-	for _, source := range joined {
-		moving[source.ref.SchoolID] = source
-	}
+// tenant transaction: the record's personnel number on the employment, and
+// no bank row of the school, because the record keeps the values (decision
+// E1). Every write of the record repeats it, so a school that failed before
+// catches up (ADR 0232 section 6).
+func (t *TraegerStaff) handOver(ctx context.Context, actor workforce.TraegerStaffActor, record domain.TraegerStaffRecord) error {
 	for _, link := range record.Links {
-		source, moves := moving[link.SchoolID]
 		err := t.ports.Runtime.WithinSchool(ctx, link.SchoolID, func(ctx context.Context) error {
-			return t.handOverSchool(ctx, actor, link.StaffID, record.PersonnelNumber, moves && source.hasRow, source.financial)
+			return t.handOverSchool(ctx, actor, link.StaffID, record.PersonnelNumber)
 		})
 		if err != nil {
-			return fmt.Errorf("hand over to school %d: %w", link.SchoolID, err)
+			return publicTraegerStaffError(fmt.Errorf("hand over to school %d: %w", link.SchoolID, err))
 		}
 	}
 	return nil
 }
 
-func (t *TraegerStaff) handOverSchool(ctx context.Context, actor workforce.TraegerStaffActor, staffID int64, number *string, removeRow bool, financial map[string]string) error {
+func (t *TraegerStaff) handOverSchool(ctx context.Context, actor workforce.TraegerStaffActor, staffID int64, number *string) error {
 	live, err := t.schoolStaff(ctx, []int64{staffID})
 	if err != nil || len(live) == 0 {
 		return err
@@ -157,16 +153,28 @@ func (t *TraegerStaff) handOverSchool(ctx context.Context, actor workforce.Traeg
 			return err
 		}
 	}
-	if !removeRow {
-		return nil
+	return t.removeSchoolBankRow(ctx, actor, staffID)
+}
+
+// removeSchoolBankRow deletes the school's bank row of an employment the
+// record holds, with an audit entry per value the school had. Only the masks
+// go into the school's trail; nothing is opened.
+func (t *TraegerStaff) removeSchoolBankRow(ctx context.Context, actor workforce.TraegerStaffActor, staffID int64) error {
+	rows, err := t.store.SchoolFinancialRows(ctx, []int64{staffID})
+	if err != nil || len(rows) == 0 {
+		return err
 	}
-	for _, field := range []string{domain.StaffFieldIBAN, domain.StaffFieldTaxID, domain.StaffFieldSocialSecurityNumber} {
-		if financial[field] == "" {
+	masked := domain.MaskFinancial(staffID, &rows[0])
+	for field, value := range map[string]*string{
+		domain.StaffFieldIBAN: masked.IBANMasked, domain.StaffFieldTaxID: masked.TaxIDMasked,
+		domain.StaffFieldSocialSecurityNumber: masked.SocialSecurityNumberMasked,
+	} {
+		if value == nil || *value == "" {
 			continue
 		}
 		if err := t.audit.RecordMasterDataChange(ctx, domain.MasterDataChange{
 			StaffID: staffID, ChangedBy: actor.AccountID, Section: domain.AuditSectionBankSteuer, Field: field,
-			OldValue: domain.MaskStaffValue(field, financial[field]), NewValue: "", Note: noteHandedToTraeger,
+			OldValue: *value, NewValue: "", Note: noteHandedToTraeger,
 		}); err != nil {
 			return fmt.Errorf("write bank hand-over audit: %w", err)
 		}
@@ -191,7 +199,7 @@ func (t *TraegerStaff) UpdatePersonnelNumber(ctx context.Context, actor workforc
 		return workforce.TraegerStaffRecordDetail{}, publicTraegerStaffError(err)
 	}
 	if number != nil {
-		if err := t.numberFreeAtSchools(ctx, record, *number); err != nil {
+		if err := t.numberFreeAtSchools(ctx, record.Links, *number); err != nil {
 			return workforce.TraegerStaffRecordDetail{}, err
 		}
 	}
@@ -216,23 +224,25 @@ func (t *TraegerStaff) UpdatePersonnelNumber(ctx context.Context, actor workforc
 	if err != nil {
 		return workforce.TraegerStaffRecordDetail{}, publicTraegerStaffError(err)
 	}
-	if err := t.handOver(ctx, actor, record, nil); err != nil {
+	if err := t.handOver(ctx, actor, record); err != nil {
 		return workforce.TraegerStaffRecordDetail{}, err
 	}
 	return t.Record(ctx, actor, recordID)
 }
 
 // numberFreeAtSchools refuses a number another live employment of one of the
-// record's schools holds: the school keeps one number per employment.
-func (t *TraegerStaff) numberFreeAtSchools(ctx context.Context, record domain.TraegerStaffRecord, number string) error {
-	for _, link := range record.Links {
+// record's schools holds, before anything changes (ADR 0089 section 5, ADR
+// 0232 section 5): the school keeps one number per employment. It reads only
+// the employments' numbers, no person.
+func (t *TraegerStaff) numberFreeAtSchools(ctx context.Context, links []domain.TraegerStaffLink, number string) error {
+	for _, link := range links {
 		err := t.ports.Runtime.WithinSchool(ctx, link.SchoolID, func(ctx context.Context) error {
-			members, err := t.schoolStaff(ctx, nil)
+			employments, err := t.ports.Employments.SchoolEmployments(ctx, nil)
 			if err != nil {
 				return err
 			}
-			for _, member := range members {
-				if member.StaffID != link.StaffID && domain.Deref(member.PersonnelNumber) == number {
+			for _, employment := range employments {
+				if employment.StaffID != link.StaffID && domain.Deref(employment.PersonnelNumber) == number {
 					return workforce.ErrPersonnelNumberTaken
 				}
 			}

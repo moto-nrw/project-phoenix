@@ -3531,6 +3531,7 @@ describe("staff-api", () => {
               iban_masked: "•••• 3000",
               tax_id_masked: "•••• 8911",
               social_security_number_masked: null,
+              kept_by_traeger: true,
             },
           }),
       } as unknown as Response);
@@ -3545,6 +3546,7 @@ describe("staff-api", () => {
         ibanMasked: "•••• 3000",
         taxIdMasked: "•••• 8911",
         socialSecurityNumberMasked: null,
+        keptByTraeger: true,
       });
     });
 

@@ -135,15 +135,16 @@ func (s *TraegerStaffStore) FindStaffRecord(ctx context.Context, organizationID,
 	if err != nil {
 		return domain.TraegerStaffRecord{}, err
 	}
-	query := findStaffRecordQuery
+	var rows []staffRecordRow
 	if forUpdate {
 		if err := tenant.OrderLock(ctx, tenant.LockLeaf, "workforce.staff_records"); err != nil {
 			return domain.TraegerStaffRecord{}, err
 		}
-		query = lockStaffRecordQuery
+		err = db.NewRaw(lockStaffRecordQuery, organizationID, recordID).Scan(ctx, &rows)
+	} else {
+		err = db.NewRaw(findStaffRecordQuery, organizationID, recordID).Scan(ctx, &rows)
 	}
-	var rows []staffRecordRow
-	if err := db.NewRaw(query, organizationID, recordID).Scan(ctx, &rows); err != nil {
+	if err != nil {
 		return domain.TraegerStaffRecord{}, fmt.Errorf("workforce postgres: read staff record: %w", err)
 	}
 	if len(rows) == 0 {
