@@ -59,8 +59,12 @@ type AccountMFARecords interface {
 	FindActiveChallengeInScope(ctx context.Context, accountID, tenantID int64, scope string) (domain.AccountMFAChallenge, bool, error)
 
 	CreateTrustedDevice(ctx context.Context, device domain.AccountTrustedDevice) (domain.AccountTrustedDevice, error)
-	FindActiveTrustedDevice(ctx context.Context, accountID, tenantID int64, tokenHash string) (domain.AccountTrustedDevice, bool, error)
-	ListActiveTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]domain.AccountTrustedDevice, error)
+	// FindActiveTrustedDevice and ListActiveTrustedDevices match the
+	// device's portal exactly: a school's (tenantID > 0), the Träger-Portal's
+	// at one Träger (tenantID 0, organizationID > 0) or the caterer portal's
+	// (both zero). A device of one portal never answers for another (#6955).
+	FindActiveTrustedDevice(ctx context.Context, accountID, tenantID, organizationID int64, tokenHash string) (domain.AccountTrustedDevice, bool, error)
+	ListActiveTrustedDevices(ctx context.Context, accountID, tenantID, organizationID int64) ([]domain.AccountTrustedDevice, error)
 	TouchTrustedDevice(ctx context.Context, id int64, usedAt time.Time) error
 	RevokeTrustedDevice(ctx context.Context, id int64, revokedAt time.Time) error
 	// RevokeAllTrustedDevices revokes across every school; the disable

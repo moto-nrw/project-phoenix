@@ -1318,6 +1318,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s parentBillingSettings) DebtorNumberScope(ctx context.Context, organizationID int64) (string, error) {\n\ttexts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingDebtorNumberScope})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\tif texts[configModels.KeyParentBillingDebtorNumberScope] == parentbilling.DebtorNumberScopeChild {\n\t\treturn parentbilling.DebtorNumberScopeChild, nil\n\t}\n\treturn parentbilling.DebtorNumberScopePayer, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingSettings.DebtorNumberScope",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (s parentBillingSettings) HolidayChain(ctx context.Context, organizationID int64) (parentbilling.HolidayChainSettings, error) {\n\ttexts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingSiblingRank, configModels.KeyParentBillingCostTakeoverOrder})\n\tif err != nil {\n\t\treturn parentbilling.HolidayChainSettings{}, err\n\t}\n\treturn parentbilling.HolidayChainSettings{SiblingRank: texts[configModels.KeyParentBillingSiblingRank], CostTakeoverOrder: texts[configModels.KeyParentBillingCostTakeoverOrder]}, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingSettings.HolidayChain",

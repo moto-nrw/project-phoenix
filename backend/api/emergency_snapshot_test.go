@@ -392,7 +392,7 @@ func TestEmergencySnapshotInputsEnforceRLS(t *testing.T) {
 			link := testpkg.CreateTestStudentGuardianLink(t, db, student.ID, guardian.ID, "parent")
 			phone := &peopledirectory.GuardianProfilePhoneSnapshot{GuardianProfileID: guardian.ID, PhoneNumber: "02551 " + side, PhoneType: peopledirectory.PhoneTypeMobile, IsPrimary: true}
 			phone.SetTenantID(testpkg.Tenant(t))
-			require.NoError(t, db.NewInsert().Model(phone).ModelTableExpr("users.guardian_phone_numbers").Column("tenant_id", "guardian_profile_id", "phone_number", "phone_type", "is_primary", "priority").Returning("*").Scan(ctx))
+			require.NoError(t, db.NewInsert().Model(phone).ModelTableExpr("users.guardian_phone_numbers").Column("tenant_id", "guardian_profile_id", "phone_number", "phone_type", "is_primary", "priority").Returning("id").Scan(ctx))
 			var membershipID int64
 			require.NoError(t, db.NewSelect().Table("users.student_school_memberships").Column("id").Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Scan(ctx, &membershipID))
 			fixtures = append(fixtures, fixture{

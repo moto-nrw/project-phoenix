@@ -21,6 +21,7 @@
   "contribution_rule_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "contribution_rule_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "contribution_rule_overlap": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "child_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "cost_bearer_in_use": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "cost_bearer_inactive": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "cost_bearer_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",

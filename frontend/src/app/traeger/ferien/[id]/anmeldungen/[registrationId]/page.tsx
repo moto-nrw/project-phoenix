@@ -39,7 +39,11 @@ import { holidayRegistrationDeletionNotice } from "~/components/traeger/holiday-
 import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registration-history";
 import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
-import { HolidayRegistrationMailProblemsAlert } from "~/components/traeger/holiday-registration-mail-problems";
+import {
+  HOLIDAY_MAIL_LABELS,
+  HolidayRegistrationMailProblemsAlert,
+} from "~/components/traeger/holiday-registration-mail-problems";
+import { RequestMailStatus } from "~/components/enrollment/request-mail-status";
 import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { isRefusal } from "~/components/traeger/use-traeger-confirmed-resource";
@@ -68,6 +72,7 @@ import {
 import { hasPermission } from "~/lib/auth-utils";
 import { childrenConcept } from "~/lib/concepts/children";
 import { confirmationsConcept } from "~/lib/concepts/confirmations";
+import { mailsConcept } from "~/lib/concepts/mails";
 import { parentsConcept } from "~/lib/concepts/parents";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
@@ -113,6 +118,8 @@ const PDF_LABELS: AttachmentLabels = {
 
 const logger = createLogger({ component: "TraegerHolidayRegistrationPage" });
 const TRAEGER_BILLING_RIGHT = "traeger_billing:manage";
+// The mail notice leads here: phone and address of the parents (#6999).
+const PARENTS_SECTION_ID = "eltern";
 
 // The edit states load with the first „Ändern“, not with the page.
 const editors = () => import("~/components/traeger/holiday-registration-edit");
@@ -488,6 +495,9 @@ export default function TraegerHolidayRegistrationPage() {
           ) : null}
           <HolidayRegistrationMailProblemsAlert
             problems={registration.mailProblems}
+            outcomes={(registration.mails ?? []).map((mail) => mail.outcome)}
+            cancelled={cancelled}
+            parentsSectionId={PARENTS_SECTION_ID}
           />
           <HolidayRegistrationStatusCard
             periodId={periodId}
@@ -597,6 +607,8 @@ export default function TraegerHolidayRegistrationPage() {
             />
           ) : (
             <SectionCard
+              id={PARENTS_SECTION_ID}
+              className="scroll-mt-24"
               leading={<ConceptIconTile concept={parentsConcept} />}
               title="Eltern"
               description={cancelled ? CANCELLED_EDIT_TEXT : undefined}
@@ -792,6 +804,20 @@ export default function TraegerHolidayRegistrationPage() {
               </div>
             </SectionCard>
           )}
+          {/* Every mail of the registration with its status (#6976), in the
+              view of the mails of an enrollment request. The next step stands
+              once, in the notice at the top (#6999). */}
+          <RequestMailStatus
+            mails={(registration.mails ?? []).map((mail) => ({
+              kind: mail.kind,
+              outcome: mail.outcome,
+              ...(mail.createdAt ? { created_at: mail.createdAt } : {}),
+            }))}
+            loadError={null}
+            title="Mails an die Eltern"
+            labels={HOLIDAY_MAIL_LABELS}
+            leading={<ConceptIconTile concept={mailsConcept} />}
+          />
           <HolidayRegistrationHistory
             period={period}
             names={names}

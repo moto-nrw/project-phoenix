@@ -143,6 +143,12 @@ interface ModalProps {
    */
   readonly focusTitleOnOpen?: boolean;
   /**
+   * Field that takes the focus on open instead of the first control (the X),
+   * for a dialog opened to type in (search). Unlike `autoFocus` it keeps the
+   * focus return: on close the focus goes back to what opened the dialog.
+   */
+  readonly initialFocusRef?: React.RefObject<HTMLElement | null>;
+  /**
    * Hides the dialog while a child confirmation is shown, without unmounting
    * the children and losing their pending state. While suspended the dialog
    * neither traps focus, locks scroll nor reacts to Escape.
@@ -170,6 +176,7 @@ export function Modal({
   mobileSheet = false,
   sheetFooter = "stacked",
   focusTitleOnOpen = false,
+  initialFocusRef,
   suspended = false,
 }: ModalProps) {
   // Stable id so the dialog can reference its heading via aria-labelledby,
@@ -334,12 +341,17 @@ export function Modal({
       loop={!suspended}
       trapped={!suspended}
       onMountAutoFocus={
-        focusTitleOnOpen && title
+        initialFocusRef
           ? (event) => {
               event.preventDefault();
-              titleRef.current?.focus();
+              initialFocusRef.current?.focus();
             }
-          : undefined
+          : focusTitleOnOpen && title
+            ? (event) => {
+                event.preventDefault();
+                titleRef.current?.focus();
+              }
+            : undefined
       }
     >
       <div

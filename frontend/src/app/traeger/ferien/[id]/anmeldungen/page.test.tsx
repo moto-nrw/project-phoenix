@@ -432,7 +432,7 @@ describe("TraegerHolidayRegistrationsPage", () => {
     const table = await screen.findByRole("table");
     await within(table).findByText("Eva Muster");
 
-    expect(await within(table).findByText("E-Mail prüfen")).toBeInTheDocument();
+    expect(await within(table).findByText("Mail prüfen")).toBeInTheDocument();
     expect(mockFetchMails).toHaveBeenCalledWith("5");
   });
 
@@ -443,7 +443,7 @@ describe("TraegerHolidayRegistrationsPage", () => {
 
     expect(await within(table).findByText("Eva Muster")).toBeInTheDocument();
     await waitFor(() => expect(mockFetchMails).toHaveBeenCalled());
-    expect(within(table).queryByText("E-Mail prüfen")).not.toBeInTheDocument();
+    expect(within(table).queryByText("Mail prüfen")).not.toBeInTheDocument();
   });
 
   it("says when moto deletes the registrations and downloads them as PDFs in a ZIP (#6691)", async () => {

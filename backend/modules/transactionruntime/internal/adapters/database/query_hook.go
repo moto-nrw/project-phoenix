@@ -6,8 +6,10 @@ import (
 	"errors"
 	"log/slog"
 	"regexp"
+	"strings"
 	"time"
 
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/protocol"
 	"github.com/uptrace/bun"
 )
 
@@ -21,11 +23,19 @@ var (
 	// ibanLike is a value shaped like an IBAN that reached the SQL in the
 	// clear; the log names it only (#4695).
 	ibanLike = regexp.MustCompile(`\b[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}\b`)
+	// stringLiteral is any SQL string literal, a doubled quote inside it
+	// included. Only statements marked with protocol.RedactLiteralsInLog
+	// lose them: there they carry what a person typed (ADR 0231).
+	stringLiteral = regexp.MustCompile(`'(?:[^']|'')*'`)
 )
 
 // redactQuery removes bank data and sealed values from a query before it is
-// logged.
+// logged, and every string literal of a statement marked as carrying typed
+// text.
 func redactQuery(query string) string {
+	if strings.Contains(query, strings.TrimSpace(protocol.RedactLiteralsInLog)) {
+		query = stringLiteral.ReplaceAllString(query, "'[redacted]'")
+	}
 	query = byteaLiteral.ReplaceAllString(query, "'[redacted]'")
 	return ibanLike.ReplaceAllString(query, "[redacted]")
 }

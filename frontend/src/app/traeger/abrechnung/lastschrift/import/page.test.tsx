@@ -70,6 +70,7 @@ const preview: ImportResult = {
     imported: 0,
     debtorNumbers: 0,
     debtorConflicts: 0,
+    withoutMandate: 0,
   },
   rows: [
     {

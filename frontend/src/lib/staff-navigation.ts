@@ -179,6 +179,50 @@ export const STAFF_NAV_GROUPS: readonly StaffNavGroup[] = [
   },
 ];
 
+/**
+ * Die einfache Seitenleiste (#6956): Betreuungskräfte, die wenig mit Technik
+ * arbeiten, verlieren in den fünf Gruppen den Überblick. Wer die Schule
+ * nicht leitet, sieht an einer Schule mit `operations.simple_staff_navigation`
+ * nur diese Seiten des Betreuungsalltags, ohne Gruppen-Überschriften, und
+ * darunter wie immer Notfall, Hilfe und Einstellungen. Die Startseite bleibt
+ * darüber.
+ *
+ * Ausgeblendet heißt nicht gesperrt: Rechte und Seiten bleiben unverändert,
+ * jede Person kann „Alle Seiten anzeigen“ wählen (`useSimpleStaffNav`).
+ * Welche Einträge eine Person sieht, entscheiden danach dieselben Regeln wie
+ * in der vollen Leiste (Recht, Schulschalter, Anwesenheitsmodus).
+ */
+const SIMPLE_PAGE_HREFS: ReadonlySet<string> = new Set([
+  STAFF_FLAT_PAGES.tagesplan.href,
+  STAFF_FLAT_PAGES.studentSearch.href,
+  STAFF_FLAT_PAGES.rooms.href,
+  STAFF_FLAT_PAGES.timeTracking.href,
+  STAFF_FLAT_PAGES.calendar.href,
+  ...COMMUNICATION_SUB_PAGES.filter(
+    (entry) => entry.feature === "staffNotices",
+  ).map((entry) => entry.href),
+]);
+
+const SIMPLE_SECTIONS: ReadonlySet<StaffNavSectionKey> = new Set([
+  "groups",
+  "supervisions",
+]);
+
+function isSimpleStaffNavEntry(entry: StaffNavEntry): boolean {
+  return entry.kind === "page"
+    ? SIMPLE_PAGE_HREFS.has(entry.href)
+    : SIMPLE_SECTIONS.has(entry.section);
+}
+
+/**
+ * Die Zeilen der einfachen Seitenleiste, in der Reihenfolge des Baums. Sie
+ * kommen aus den Gruppen, damit eine Seite nie nur hier steht.
+ */
+export const STAFF_NAV_SIMPLE_ENTRIES: readonly StaffNavEntry[] =
+  STAFF_NAV_GROUPS.flatMap((group) =>
+    group.entries.filter(isSimpleStaffNavEntry),
+  );
+
 /** Unter den Gruppen, angeheftet: Notfall, Hilfe, Einstellungen. */
 export const STAFF_NAV_BOTTOM: readonly StaffNavEntry[] = [
   page(STAFF_FLAT_PAGES.emergency.href),

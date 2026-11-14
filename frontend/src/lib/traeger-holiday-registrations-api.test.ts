@@ -289,6 +289,38 @@ describe("traeger-holiday-registrations-api", () => {
     expect(detail.childAnswers).toEqual({ "9": { tetanus: "ja" } });
   });
 
+  it("reads every mail of the registration with its outcome, none when the backend omits them (#6976)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        status: "success",
+        data: {
+          ...BACKEND_DETAIL,
+          mails: [
+            {
+              kind: "holiday_registration_received",
+              outcome: "delivered",
+              created_at: "2026-11-11T13:05:00Z",
+            },
+            { kind: "holiday_closure_notice", outcome: "blocked" },
+          ],
+        },
+      }),
+    );
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { status: "success", data: BACKEND_DETAIL }),
+    );
+
+    expect((await fetchHolidayRegistration("5", "7")).mails).toEqual([
+      {
+        kind: "holiday_registration_received",
+        outcome: "delivered",
+        createdAt: "2026-11-11T13:05:00Z",
+      },
+      { kind: "holiday_closure_notice", outcome: "blocked", createdAt: null },
+    ]);
+    expect((await fetchHolidayRegistration("5", "7")).mails).toEqual([]);
+  });
+
   it("maps a registration without answers to empty answers", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(200, { status: "success", data: BACKEND_DETAIL }),

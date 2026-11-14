@@ -29,6 +29,12 @@ export type TraegerLoginResult =
       readonly challengeToken: string;
       readonly maskedEmail: string;
       readonly organizationId: string;
+      /**
+       * Whether this sign-in may remember the device (#6955). Missing or
+       * unreadable means no: the code step then offers nothing to remember.
+       */
+      readonly trustedDeviceEnabled: boolean;
+      readonly trustedDeviceDays?: number;
     }
   | {
       /** The account sets up its second factor first. */
@@ -45,6 +51,8 @@ interface BackendLoginResponse {
   masked_email?: string;
   organization_id?: number;
   organizations?: { id: number; name: string }[];
+  trusted_device_enabled?: boolean;
+  trusted_device_days?: number;
 }
 
 export interface TraegerSchool {
@@ -278,6 +286,8 @@ export async function traegerLogin(input: {
       challengeToken: result.challenge_token,
       maskedEmail: result.masked_email ?? "",
       organizationId: String(result.organization_id ?? ""),
+      trustedDeviceEnabled: result.trusted_device_enabled ?? false,
+      trustedDeviceDays: result.trusted_device_days,
     };
   }
   if (result.status === "mfa_enrollment_required" && result.access_token) {

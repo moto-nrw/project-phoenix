@@ -46,17 +46,20 @@ type AccountMFAChallenge struct {
 // cookie. TenantID pins the trust to one school: a cookie issued for school
 // A never bypasses MFA at school B.
 type AccountTrustedDevice struct {
-	ID         int64
-	AccountID  int64
-	TenantID   int64
-	TokenHash  string
-	UserAgent  *string
-	IPAddress  net.IP
-	ExpiresAt  time.Time
-	LastUsedAt *time.Time
-	RevokedAt  *time.Time
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID        int64
+	AccountID int64
+	TenantID  int64
+	// OrganizationID is the Träger of a device the Träger-Portal remembered
+	// (#6955); zero for a school's and the caterer portal's device.
+	OrganizationID int64
+	TokenHash      string
+	UserAgent      *string
+	IPAddress      net.IP
+	ExpiresAt      time.Time
+	LastUsedAt     *time.Time
+	RevokedAt      *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // AccountMFAOverride is an admin's verdict on one account. TenantID is nil

@@ -173,6 +173,11 @@ export interface BillingRunDetail extends BillingRun {
    * their letters are refused until the placeholder goes.
    */
   readonly paymentTextMissingDebtorNumbers: number;
+  /**
+   * Draft invoices of several children when the Träger keeps the number per
+   * child (#7007): each carries one number for all its children.
+   */
+  readonly sharedChildDebtorNumbers: number;
   readonly numberPattern: string;
   readonly numberRangeSet: boolean;
   /** Set once the confirmation letters of the released run exist (#4669). */
@@ -324,6 +329,7 @@ interface BackendRunDetail extends BackendRun {
   unbilled: number;
   missing_debtor_numbers?: number;
   payment_text_missing_debtor_numbers?: number;
+  shared_child_debtor_numbers?: number;
   number_pattern: string;
   number_range_set: boolean;
   letters?: BackendLetters | null;
@@ -462,6 +468,7 @@ function detailFromBackend(run: BackendRunDetail): BillingRunDetail {
     missingDebtorNumbers: run.missing_debtor_numbers ?? 0,
     paymentTextMissingDebtorNumbers:
       run.payment_text_missing_debtor_numbers ?? 0,
+    sharedChildDebtorNumbers: run.shared_child_debtor_numbers ?? 0,
     numberPattern: run.number_pattern,
     numberRangeSet: run.number_range_set,
     letters: run.letters ? lettersFromBackend(run.letters) : null,

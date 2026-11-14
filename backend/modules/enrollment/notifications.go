@@ -217,4 +217,7 @@ type RequestMailOutcome struct {
 	AddressMark string     `json:"address_mark,omitempty"`
 	Stopped     bool       `json:"stopped,omitempty"`
 	OutcomeAt   *time.Time `json:"outcome_at,omitempty"`
+	// CreatedAt is when the mail came about; the mails of a holiday
+	// registration carry it, so two mails of one kind stay apart (#6976).
+	CreatedAt *time.Time `json:"created_at,omitempty"`
 }

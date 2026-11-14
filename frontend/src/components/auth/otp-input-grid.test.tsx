@@ -38,6 +38,7 @@ describe("OTPInputGrid", () => {
   });
 
   it("fires onComplete exactly once when all digits are filled", async () => {
+    vi.useFakeTimers();
     const onComplete = vi.fn();
     const { inputs } = renderGrid({ onComplete });
 
@@ -49,6 +50,8 @@ describe("OTPInputGrid", () => {
 
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledWith("123456");
+    act(() => vi.advanceTimersToNextFrame());
+    expect(inputs[5]).toHaveFocus();
   });
 
   it("does not fire onComplete twice when extra input arrives after a fill", async () => {
@@ -141,6 +144,7 @@ describe("OTPInputGrid", () => {
   });
 
   it("imperative reset() clears all slots and refocuses the first", async () => {
+    vi.useFakeTimers();
     const onComplete = vi.fn();
     const { inputs, ref } = renderGrid({ onComplete });
 
@@ -151,6 +155,7 @@ describe("OTPInputGrid", () => {
 
     act(() => {
       ref.current?.reset();
+      vi.advanceTimersToNextFrame();
     });
 
     inputs.forEach((i) => expect(i.value).toBe(""));
@@ -166,15 +171,18 @@ describe("OTPInputGrid", () => {
   });
 
   it("imperative focus() puts focus on the first slot", () => {
+    vi.useFakeTimers();
     const onComplete = vi.fn();
     const { inputs, ref } = renderGrid({ onComplete, autoFocus: false });
 
     // Detach focus first to verify focus() actually moves it.
     document.body.focus();
     expect(document.activeElement).not.toBe(inputs[0]!);
+    fireEvent.change(inputs[0]!, { target: { value: "1" } });
 
     act(() => {
       ref.current?.focus();
+      vi.advanceTimersToNextFrame();
     });
     expect(document.activeElement).toBe(inputs[0]!);
   });

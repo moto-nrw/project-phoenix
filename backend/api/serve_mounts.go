@@ -11,6 +11,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 	emailWebhooksHTTP "github.com/moto-ogs/project-phoenix/modules/delivery/http/webhooks"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
 	requestFeedCompose "github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed/compose"
@@ -107,7 +108,7 @@ func renderEmailWebhookFailure(w http.ResponseWriter, r *http.Request, err error
 }
 
 // mountModuleRoutes mounts the route groups modules serve themselves.
-func mountModuleRoutes(tenant chi.Router, settings settingsCompose.SettingsService) error {
+func mountModuleRoutes(tenant chi.Router, settings settingsCompose.SettingsService, caller *owners.CallerRows, answers enrollmentOwner.StudentAnswers) error {
 	schoolSetup, err := newSchoolSetupRoute(schoolSetupCompose.Dependencies{
 		Settings: SchoolSetupSettings{Settings: settings},
 	})
@@ -121,7 +122,7 @@ func mountModuleRoutes(tenant chi.Router, settings settingsCompose.SettingsServi
 	for _, module := range []moduleRoute{schoolSetup, staffOnboarding} {
 		tenant.Mount(module.pattern, module.router)
 	}
-	return nil
+	return mountSchoolSearch(tenant, caller, answers)
 }
 
 // mountPeopleRoutes serves the people directory, guardians, statistics,

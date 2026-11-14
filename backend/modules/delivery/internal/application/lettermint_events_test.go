@@ -180,3 +180,61 @@ func TestLettermintParseReadsANumericReasonCode(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "no route", reported.Event.Diagnostic)
 }
+
+// lettermintIssueSuppression is the block from #6998: Lettermint held a letter back
+// to a mistyped domain with a mail server of its own, through its global list.
+const lettermintIssueSuppression = `{"reason":"manual","scope":"global","suppression_type":"domain","matched_value":"gmai.com"}`
+
+// A global block or a block of a whole domain is permanent, unlike a block on the
+// team's own list: the address goes on the school's list like a bounce (#6998). The
+// webhook names the block in data, as the provider documents; the event of #6998
+// showed it as metadata, which reads the same.
+func TestLettermintParsePutsAGlobalOrDomainBlockOnTheList(t *testing.T) {
+	t.Parallel()
+	for name, extra := range map[string]string{
+		"metadata from #6998":   `,"metadata":` + lettermintIssueSuppression,
+		"documented data shape": `,"reason":"manual","scope":"global","suppression_type":"domain","matched_value":"gmai.com"`,
+		"global address block":  `,"reason":"disposable_email","scope":"global","suppression_type":"email","matched_value":"eltern@example.com"`,
+		"team domain block":     `,"reason":"manual","scope":"team","suppression_type":"domain","matched_value":"example.com"`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			reported, err := newLettermintWebhook(lettermintTestSecret).Parse(lettermintBody("message.suppressed", extra))
+
+			require.NoError(t, err)
+			require.NotNil(t, reported.Event)
+			assert.Equal(t, domain.EmailDeliveryFailed, reported.Event.State, "the address is at fault, like a bounce")
+			assert.False(t, reported.Event.KeepsAddress, "the address goes on the school's list")
+			assert.False(t, reported.Event.Reroute, "the fallback must not deliver to a blocked domain")
+		})
+	}
+}
+
+func TestLettermintParseKeepsWhatTheBlockNamed(t *testing.T) {
+	t.Parallel()
+	reported, err := newLettermintWebhook(lettermintTestSecret).Parse(lettermintBody("message.suppressed", `,"metadata":`+lettermintIssueSuppression))
+
+	require.NoError(t, err)
+	assert.Equal(t, "manual global domain gmai.com", reported.Event.Diagnostic)
+}
+
+// A block of one address on the team's list keeps its meaning: the provider's list
+// says whether it still holds.
+func TestLettermintParseLeavesATeamAddressBlockToTheProvider(t *testing.T) {
+	t.Parallel()
+	for name, extra := range map[string]string{
+		"team":            `,"reason":"hard_bounce","scope":"team","suppression_type":"email","matched_value":"eltern@example.com"`,
+		"project":         `,"metadata":{"reason":"unsubscribe","scope":"project","suppression_type":"email"}`,
+		"nothing named":   ``,
+		"custom metadata": `,"metadata":{"school":"7"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			reported, err := newLettermintWebhook(lettermintTestSecret).Parse(lettermintBody("message.suppressed", extra))
+
+			require.NoError(t, err)
+			assert.Equal(t, domain.EmailDeliverySuppressed, reported.Event.State)
+			assert.True(t, reported.Event.Reroute)
+		})
+	}
+}

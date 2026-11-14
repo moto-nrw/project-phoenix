@@ -21,6 +21,7 @@
   "contribution_rule_invalid": "{object} could not be saved. Please check your entries.",
   "contribution_rule_not_found": "{object} could not be changed. Please check its current status.",
   "contribution_rule_overlap": "{object} could not be changed. Please check its current status.",
+  "child_not_found": "{object} could not be changed. Please check its current status.",
   "cost_bearer_in_use": "{object} could not be changed. Please check its current status.",
   "cost_bearer_inactive": "{object} could not be changed. Please check its current status.",
   "cost_bearer_invalid": "{object} could not be saved. Please check your entries.",

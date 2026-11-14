@@ -151,7 +151,10 @@ type traegerLoginAnswer struct {
 	ChallengeToken string `json:"challenge_token"`
 	MaskedEmail    string `json:"masked_email"`
 	OrganizationID int64  `json:"organization_id"`
-	Organizations  []struct {
+	// The remember-device offer of the code step (#6955).
+	TrustedDeviceEnabled *bool `json:"trusted_device_enabled"`
+	TrustedDeviceDays    *int  `json:"trusted_device_days"`
+	Organizations        []struct {
 		ID   int64  `json:"id"`
 		Name string `json:"name"`
 	} `json:"organizations"`

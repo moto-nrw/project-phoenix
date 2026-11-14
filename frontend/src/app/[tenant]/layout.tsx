@@ -144,6 +144,7 @@ async function fetchTenantInfo(
     ),
     weekendFollowsFriday: data.weekend_follows_friday === true,
     childSearchOnlyNavigation: data.child_search_only_navigation === true,
+    simpleStaffNavigation: data.simple_staff_navigation === true,
     careFacilityTerm: normalizeCareFacilityTerm(data.care_facility_term),
   };
 }

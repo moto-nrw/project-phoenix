@@ -83,14 +83,14 @@ describe("DemoBanner", () => {
     const { unmount } = renderBanner();
 
     expect(screen.queryByRole("region", { name: "Demo" })).toBeNull();
-    expect(screen.queryByText("Kostenlos starten")).toBeNull();
+    expect(screen.queryByText("Termin buchen")).toBeNull();
     unmount();
 
     vi.stubEnv("NEXT_PUBLIC_APP_ENV", "demo");
     renderBanner();
     // Anker: im Demo-Build steht der Banner im selben Aufbau.
     expect(screen.getByRole("region", { name: "Demo" })).toBeInTheDocument();
-    expect(screen.getByText("Kostenlos starten")).toBeInTheDocument();
+    expect(screen.getByText("Termin buchen")).toBeInTheDocument();
   });
 
   // The server has no stored visit. A first render that read it would not
@@ -102,7 +102,7 @@ describe("DemoBanner", () => {
       </ToastProvider>,
     );
 
-    expect(markup).toContain("Kostenlos starten");
+    expect(markup).toContain("Termin buchen");
     expect(markup).not.toContain("Betreuungskraft");
     expect(markup).not.toContain("Rolle");
   });
@@ -139,25 +139,29 @@ describe("DemoBanner", () => {
     expect(analytics.trackDemoEvent).not.toHaveBeenCalled();
   });
 
-  it("opens the website's get-to-know page in a new tab and reports the click", () => {
+  it("opens the booking calendar in a dialog and reports the click", async () => {
     renderBanner();
 
-    const start = screen.getByRole("link", { name: "Kostenlos starten" });
-    expect(start).toHaveAttribute(
+    const booking = screen.getByRole("link", { name: "Termin buchen" });
+    // A modified click and a click without script still open a new tab.
+    expect(booking).toHaveAttribute(
       "href",
-      "https://moto-ogs.de/start/?src=demo",
+      "https://meetings-eu1.hubspot.com/conrad-reintjes/demo",
     );
-    expect(start).toHaveAttribute("target", "_blank");
-    // Prüfen des Klicks darf keine echte Website in Happy DOM öffnen.
-    start.addEventListener("click", (event) => event.preventDefault(), {
-      once: true,
-    });
-    fireEvent.click(start);
+    expect(booking).toHaveAttribute("target", "_blank");
+    fireEvent.click(booking);
 
     expect(analytics.trackDemoEvent).toHaveBeenCalledWith(
       "demo_start_clicked",
       { accessId: "4711", role: "caregiver", src: "messe" },
     );
+    const dialog = screen.getByRole("dialog", { name: "Termin buchen" });
+    expect(dialog.querySelector("iframe")?.getAttribute("src")).toBe(
+      "https://meetings-eu1.hubspot.com/conrad-reintjes/demo?embed=true",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("switches the role with the keyboard and opens the start page anew", async () => {
@@ -263,7 +267,7 @@ describe("DemoBanner", () => {
     expect(screen.getByText("Alle Funktionen")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Rolle/ })).toBeNull();
     expect(
-      screen.getByRole("link", { name: "Kostenlos starten" }),
+      screen.getByRole("link", { name: "Termin buchen" }),
     ).toBeInTheDocument();
   });
 

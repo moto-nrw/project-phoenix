@@ -153,11 +153,42 @@ func matrixFile(t *testing.T, db *bun.DB) []importModels.StudentImportRow {
 	}
 }
 
-// runMatrixUpload imports the matrix file on its own tenant of the package
-// clone over a pool that records every statement and injects fault.
+// matrixPools open the fault pools of a matrix's uploads on the package
+// clone: a cell of the matrix's shared pool, whose connections the uploads
+// reuse, or, for a fault that breaks a connection, a pool of its own with
+// fresh connections, as every upload had before the shared pool.
+type matrixPools struct {
+	dsn   string
+	cells *testpkg.CellPool
+}
+
+func newMatrixPools(t *testing.T) matrixPools {
+	t.Helper()
+	dsn := testpkg.PackageTestDSN(t)
+	return matrixPools{dsn: dsn, cells: testpkg.NewCellPool(t, cellFaultConnector{Connector: pgdriver.NewConnector(pgdriver.WithDSN(dsn))})}
+}
+
+// open returns the pool of one upload whose statements follow rules.
+func (p matrixPools) open(t *testing.T, rules faultConnector, fault *matrixFault) *bun.DB {
+	t.Helper()
+	if !fault.breaksConnection() {
+		return p.cells.Cell(t, &rules)
+	}
+	rules.Connector = pgdriver.NewConnector(pgdriver.WithDSN(p.dsn))
+	pool := testpkg.AdoptPrivatePool(t, testpkg.NewBunDB(sql.OpenDB(rules)))
+	t.Cleanup(func() { _ = pool.Close() })
+	return pool
+}
+
+// breaksConnection reports whether the fault injects driver.ErrBadConn, on
+// which database/sql discards the connection.
+func (f *matrixFault) breaksConnection() bool {
+	return f != nil && (errors.Is(f.err, driver.ErrBadConn) || errors.Is(f.err2, driver.ErrBadConn))
+}
+
 // runMatrixUploadOf imports the file fixture builds on its own tenant of the
 // package clone over a pool that records every statement and injects fault.
-func runMatrixUploadOf(t *testing.T, db *bun.DB, dsn string, options api.ImportTestOptions, fault *matrixFault, fixture func(*testing.T, *bun.DB) []importModels.StudentImportRow) matrixUpload {
+func runMatrixUploadOf(t *testing.T, db *bun.DB, pools matrixPools, options api.ImportTestOptions, fault *matrixFault, fixture func(*testing.T, *bun.DB) []importModels.StudentImportRow) matrixUpload {
 	t.Helper()
 	testpkg.OwnTenant(t)
 	var (
@@ -168,8 +199,7 @@ func runMatrixUploadOf(t *testing.T, db *bun.DB, dsn string, options api.ImportT
 		statements []string
 		upload     matrixUpload
 	)
-	pool := testpkg.AdoptPrivatePool(t, testpkg.NewBunDB(sql.OpenDB(faultConnector{
-		Connector: pgdriver.NewConnector(pgdriver.WithDSN(dsn)),
+	pool := pools.open(t, faultConnector{
 		decide: func(query string) error {
 			if !armed.Load() {
 				return nil
@@ -205,8 +235,7 @@ func runMatrixUploadOf(t *testing.T, db *bun.DB, dsn string, options api.ImportT
 			upload.cleaned = true
 			return fault.err2
 		},
-	})))
-	t.Cleanup(func() { _ = pool.Close() })
+	}, fault)
 	module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, pool), testpkg.TenantRuntime(t, pool), options)
 	require.NoError(t, err)
 	actor := newImporter(t, db)
@@ -688,16 +717,16 @@ var quotaClasses = map[matrixClass]bool{classQuota: true, classQuotaControl: tru
 func runStudentFaultMatrix(t *testing.T, fixture func(*testing.T, *bun.DB) []importModels.StudentImportRow, quota bool) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	dsn := testpkg.PackageTestDSN(t)
+	pools := newMatrixPools(t)
 	var batchRecording, rowRecording, clean matrixUpload
 	t.Run("recording", func(t *testing.T) {
-		batchRecording = runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{}, nil, fixture)
+		batchRecording = runMatrixUploadOf(t, db, pools, api.ImportTestOptions{}, nil, fixture)
 		require.Equal(t, "200", batchRecording.status)
 		require.Equal(t, 2, countKind(batchRecording.statements, personBatch), "both batch segments ran")
 		require.Zero(t, batchRecording.replays)
 	})
 	t.Run("row path recording", func(t *testing.T) {
-		rowRecording = runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{RowPathOnly: true}, nil, fixture)
+		rowRecording = runMatrixUploadOf(t, db, pools, api.ImportTestOptions{RowPathOnly: true}, nil, fixture)
 		clean = rowRecording
 	})
 	require.Equal(t, "200", clean.status)
@@ -793,7 +822,7 @@ func runStudentFaultMatrix(t *testing.T, fixture func(*testing.T, *bun.DB) []imp
 					// tenant of its own.
 					var batch, rowPath matrixUpload
 					t.Run("batch", func(t *testing.T) {
-						batch = runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err}, fixture)
+						batch = runMatrixUploadOf(t, db, pools, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err}, fixture)
 					})
 					require.True(t, batch.primary, "the fault fired")
 					mainOnly.Store(fmt.Sprint(statement.index, err), batch)
@@ -821,7 +850,7 @@ func runStudentFaultMatrix(t *testing.T, fixture func(*testing.T, *bun.DB) []imp
 						return
 					}
 					t.Run("row path", func(t *testing.T) {
-						rowPath = runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{RowPathOnly: true}, &matrixFault{at: statement.row, err: err}, fixture)
+						rowPath = runMatrixUploadOf(t, db, pools, api.ImportTestOptions{RowPathOnly: true}, &matrixFault{at: statement.row, err: err}, fixture)
 					})
 					require.True(t, rowPath.primary, "the fault fired on the row path")
 					want := rowPath
@@ -856,7 +885,7 @@ func runStudentFaultMatrix(t *testing.T, fixture func(*testing.T, *bun.DB) []imp
 						cases++
 						t.Run(fmt.Sprintf("%s × %v, cleanup %d × %v", statement.label(), err, point, err2), func(t *testing.T) {
 							t.Parallel()
-							runCleanupCase(t, db, dsn, clean, &mainOnly, statement, err, point, err2, fixture)
+							runCleanupCase(t, db, pools, clean, &mainOnly, statement, err, point, err2, fixture)
 						})
 					}
 				}
@@ -879,10 +908,10 @@ var minimumCleanupFailures = []error{
 }
 
 // runCleanupCase is one cell of part 2 (tables A and B of the PR).
-func runCleanupCase(t *testing.T, db *bun.DB, dsn string, clean matrixUpload, mainOnly *sync.Map, statement matrixStatement, err error, point int, err2 error, fixture func(*testing.T, *bun.DB) []importModels.StudentImportRow) {
+func runCleanupCase(t *testing.T, db *bun.DB, pools matrixPools, clean matrixUpload, mainOnly *sync.Map, statement matrixStatement, err error, point int, err2 error, fixture func(*testing.T, *bun.DB) []importModels.StudentImportRow) {
 	t.Helper()
 	logStatementOnFailure(t, statement)
-	got := runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err, cleanup: point, err2: err2}, fixture)
+	got := runMatrixUploadOf(t, db, pools, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err, cleanup: point, err2: err2}, fixture)
 	require.True(t, got.primary, "the fault fired")
 	if err != injectedSQLState("40P01") {
 		require.Zero(t, got.deadlocks, "a cleanup's 40P01 is no deadlock of the upload")

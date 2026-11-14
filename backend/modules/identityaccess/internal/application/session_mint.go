@@ -389,6 +389,14 @@ func (s *AccountAuthentication) recheckTrustedDevice(ctx context.Context, req mi
 		// ledger.
 		ctx, deviceSchoolID = withoutSchoolLedgerContext(ctx), 0
 	}
+	if req.portal.Org == domain.ShapeRequired {
+		// A Träger-Portal device names its Träger (#6955): only a device of
+		// this Träger proves the factor, never the caterer portal's.
+		if req.orgID <= 0 {
+			return identityaccess.ErrInvalidToken
+		}
+		ctx = identityaccess.WithTraegerDevice(ctx, req.orgID)
+	}
 	enrolled, err := s.mfa.HasEnrollment(ctx, accountID)
 	if err != nil {
 		return identityaccess.ErrMFAStatusUnavailable
