@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { useSession } from "next-auth/react";
 import { Trash2 } from "lucide-react";
@@ -33,10 +34,10 @@ import {
 
 const logger = createLogger({ component: "TrustedDevicesSection" });
 
-function formatGermanDate(iso: string): string {
+function formatDeviceDate(iso: string, locale: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleString("de-DE", {
+    return d.toLocaleString(locale, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -48,12 +49,72 @@ function formatGermanDate(iso: string): string {
   }
 }
 
+/** Every text of the card; the German default is the staff portals'. */
+export interface TrustedDevicesCopy {
+  readonly title: string;
+  readonly description: string;
+  readonly emptyTitle: string;
+  readonly emptyDescription: string;
+  readonly added: string;
+  readonly validUntil: string;
+  readonly lastUsed: string;
+  readonly actionsFor: (device: string) => string;
+  readonly remove: string;
+  readonly removeDescription: string;
+  readonly confirmTitle: string;
+  readonly confirmText: (device: ReactNode) => ReactNode;
+  readonly confirmFirstStep: string;
+  readonly confirmFinal: string;
+  readonly removing: string;
+  readonly removedToast: string;
+  readonly loadObject: string;
+  readonly reloadObject: string;
+  readonly removeObject: string;
+  /** BCP 47 tag the dates are written in. */
+  readonly dateLocale: string;
+}
+
+export const GERMAN_TRUSTED_DEVICES_COPY: TrustedDevicesCopy = {
+  title: "Meine vertrauten Geräte",
+  description:
+    "Gemerkte Geräte überspringen den 2FA-Code. Entfernen Sie Geräte, die Sie nicht mehr nutzen.",
+  emptyTitle: "Sie haben aktuell keine vertrauten Geräte gespeichert.",
+  emptyDescription:
+    "Wenn moto beim Anmelden nach einem Code fragt, können Sie Ihr Gerät dort merken.",
+  added: "Hinzugefügt",
+  validUntil: "Gültig bis",
+  lastUsed: "Zuletzt benutzt",
+  actionsFor: (device) => `Aktionen für ${device}`,
+  remove: "Entfernen",
+  removeDescription:
+    "moto fragt vorher nach, danach braucht das Gerät wieder den 2FA-Code.",
+  confirmTitle: "Gerät entfernen?",
+  confirmText: (device) => (
+    <>
+      Das Gerät {device} wird entfernt. Beim nächsten Anmelden dort wird der
+      2FA-Code wieder abgefragt.
+    </>
+  ),
+  confirmFirstStep: "Ja, entfernen",
+  confirmFinal: "Endgültig entfernen",
+  removing: "Wird entfernt…",
+  removedToast: "Das Gerät ist entfernt.",
+  loadObject: "die Liste der vertrauten Geräte",
+  reloadObject: "die Anzeige der vertrauten Geräte",
+  removeObject: "das Entfernen des Geräts",
+  dateLocale: "de-DE",
+};
+
 interface TrustedDevicesSectionProps {
   readonly scope?: LoginScope;
+  readonly copy?: TrustedDevicesCopy;
+  readonly headingLevel?: 2 | 3;
 }
 
 export function TrustedDevicesSection({
   scope = "tenant",
+  copy = GERMAN_TRUSTED_DEVICES_COPY,
+  headingLevel = 3,
 }: TrustedDevicesSectionProps = {}) {
   const { data: session, status: sessionStatus } = useSession();
   const hasAccess = hasSessionAccess(session);
@@ -96,15 +157,15 @@ export function TrustedDevicesSection({
       });
       setLoadFailed(true);
       void showLoadError(err, {
-        object: "die Liste der vertrauten Geräte",
+        object: copy.loadObject,
         retry: () => latestLoadRef.current(),
       });
     } finally {
       setLoading(false);
     }
-  }, [hasAccess, clear, readDevices, showLoadError]);
+  }, [hasAccess, clear, readDevices, showLoadError, copy.loadObject]);
   const { error: reloadError, refresh: refreshDevices } = useRefreshAfterWrite(
-    "die Anzeige der vertrauten Geräte",
+    copy.reloadObject,
     readDevices,
   );
 
@@ -129,7 +190,7 @@ export function TrustedDevicesSection({
           error: err instanceof Error ? err.message : String(err),
         });
         void revokeErrors.show(err, {
-          object: "das Entfernen des Geräts",
+          object: copy.removeObject,
           retry: () => latestRevokeRef.current(deviceId),
         });
         setRevokingId(null);
@@ -137,10 +198,10 @@ export function TrustedDevicesSection({
       }
       setRevokingId(null);
       setRevokeTarget(null);
-      toast.success("Das Gerät ist entfernt.");
+      toast.success(copy.removedToast);
       await refreshDevices();
     },
-    [hasAccess, scope, toast, revokeErrors, refreshDevices],
+    [hasAccess, scope, toast, revokeErrors, refreshDevices, copy],
   );
 
   useLayoutEffect(() => {
@@ -150,9 +211,9 @@ export function TrustedDevicesSection({
 
   return (
     <SectionCard
-      headingLevel={3}
-      title="Meine vertrauten Geräte"
-      description="Gemerkte Geräte überspringen den 2FA-Code. Entfernen Sie Geräte, die Sie nicht mehr nutzen."
+      headingLevel={headingLevel}
+      title={copy.title}
+      description={copy.description}
     >
       {/* Bis der Text eines Ladefehlers da ist, bleibt das Skelett stehen. */}
       {(loading || (loadFailed && !loadError)) && (
@@ -168,8 +229,8 @@ export function TrustedDevicesSection({
       {!loading && !loadFailed && (!devices || devices.length === 0) && (
         <EmptyState
           variant="compact"
-          title="Sie haben aktuell keine vertrauten Geräte gespeichert."
-          description="Wenn moto beim Anmelden nach einem Code fragt, können Sie Ihr Gerät dort merken."
+          title={copy.emptyTitle}
+          description={copy.emptyDescription}
         />
       )}
       {!loading && !loadFailed && devices && devices.length > 0 && (
@@ -184,10 +245,16 @@ export function TrustedDevicesSection({
                   {formatDeviceLabelFromUserAgent(d.user_agent)}
                 </div>
                 <div className="mt-1 text-xs text-gray-500">
-                  Hinzugefügt: {formatGermanDate(d.created_at)} · Gültig bis:{" "}
-                  {formatGermanDate(d.expires_at)}
+                  {copy.added}:{" "}
+                  {formatDeviceDate(d.created_at, copy.dateLocale)} ·{" "}
+                  {copy.validUntil}:{" "}
+                  {formatDeviceDate(d.expires_at, copy.dateLocale)}
                   {d.last_used_at && (
-                    <> · Zuletzt benutzt: {formatGermanDate(d.last_used_at)}</>
+                    <>
+                      {" "}
+                      · {copy.lastUsed}:{" "}
+                      {formatDeviceDate(d.last_used_at, copy.dateLocale)}
+                    </>
                   )}
                   {d.ip_address && <> · IP: {d.ip_address}</>}
                 </div>
@@ -197,12 +264,13 @@ export function TrustedDevicesSection({
                   ConfirmDeleteModal nach. */}
               <div className="flex shrink-0 justify-end">
                 <OverflowMenu
-                  ariaLabel={`Aktionen für ${formatDeviceLabelFromUserAgent(d.user_agent)}`}
+                  ariaLabel={copy.actionsFor(
+                    formatDeviceLabelFromUserAgent(d.user_agent),
+                  )}
                   items={[
                     {
-                      label: "Entfernen",
-                      description:
-                        "moto fragt vorher nach, danach braucht das Gerät wieder den 2FA-Code.",
+                      label: copy.remove,
+                      description: copy.removeDescription,
                       icon: <Trash2 className="h-4 w-4" aria-hidden />,
                       destructive: true,
                       disabled: revokingId === d.id,
@@ -221,22 +289,21 @@ export function TrustedDevicesSection({
 
       <ConfirmDeleteModal
         isOpen={revokeTarget !== null}
-        title="Gerät entfernen?"
+        title={copy.confirmTitle}
         description={
           revokeTarget ? (
             <p ref={revokeRef}>
-              Das Gerät{" "}
-              <span className="font-medium text-gray-900">
-                {formatDeviceLabelFromUserAgent(revokeTarget.user_agent)}
-              </span>{" "}
-              wird entfernt. Beim nächsten Anmelden dort wird der 2FA-Code
-              wieder abgefragt.
+              {copy.confirmText(
+                <span className="font-medium text-gray-900">
+                  {formatDeviceLabelFromUserAgent(revokeTarget.user_agent)}
+                </span>,
+              )}
             </p>
           ) : null
         }
-        gate={{ mode: "twoStep", firstStepLabel: "Ja, entfernen" }}
-        confirmLabel="Endgültig entfernen"
-        loadingLabel="Wird entfernt…"
+        gate={{ mode: "twoStep", firstStepLabel: copy.confirmFirstStep }}
+        confirmLabel={copy.confirmFinal}
+        loadingLabel={copy.removing}
         loading={revokingId !== null}
         error={revokeErrors.error}
         onConfirm={() => {

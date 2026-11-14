@@ -64,7 +64,7 @@ func (p PortalClaims) Holds(tenantID, orgID int64) bool {
 var (
 	TenantClaims   = PortalClaims{Name: PortalTenant, Claim: "", LegacyClaim: PortalTenant, Tenant: Required, Org: Optional, Challenge: true, Enrollment: true}
 	SchoolClaims   = PortalClaims{Name: PortalSchool, Claim: PortalSchool, Tenant: Required, Org: Optional, Challenge: true, Enrollment: true}
-	ParentClaims   = PortalClaims{Name: PortalParent, Claim: PortalParent}
+	ParentClaims   = PortalClaims{Name: PortalParent, Claim: PortalParent, Challenge: true}
 	CatererClaims  = PortalClaims{Name: PortalCaterer, Claim: PortalCaterer, Challenge: true}
 	OrgClaims      = PortalClaims{Name: PortalOrg, Claim: PortalOrg, Tenant: Forbidden, Org: Required, Challenge: true, Enrollment: true}
 	PlatformClaims = PortalClaims{Name: PortalPlatform, Claim: PortalPlatform, Tenant: Optional, Org: Optional, Challenge: true, Enrollment: true}

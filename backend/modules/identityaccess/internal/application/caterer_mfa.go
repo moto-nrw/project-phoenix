@@ -66,49 +66,34 @@ func (c *CatererAccess) login(ctx context.Context, request identityaccess.Catere
 		c.logger.Info("caterer login refused: no school", slog.Int64("account_id", account.ID))
 		return identityaccess.CatererLoginResult{}, failed("caterer login", domain.ErrCatererWithoutSchool)
 	}
-	gate, err := c.signInGate(ctx, account, request)
+	gate, challenge, err := c.signInGate(ctx, account, request)
 	if err != nil {
 		return identityaccess.CatererLoginResult{}, err
 	}
-	if gate.challenge != nil {
-		return *gate.challenge, nil
+	if challenge != nil {
+		return *challenge, nil
 	}
 	return c.mintSession(ctx, account, schools[0], gate.proof, request.IPAddress, request.UserAgent)
 }
 
-// catererSignInGate is the outcome of the second-factor check of a sign-in:
-// a challenge to answer, or a session to mint with its proof.
-type catererSignInGate struct {
-	challenge *identityaccess.CatererLoginResult
-	proof     mintProof
+func (c *CatererAccess) signInGate(ctx context.Context, account domain.LoginAccount, request identityaccess.CatererLoginRequest) (voluntaryGate, *identityaccess.CatererLoginResult, error) {
+	gate, err := c.factor().gate(ctx, account, request.TrustedDeviceCookie, request.IPAddress)
+	if err != nil || gate.challenge == nil {
+		return gate, nil, err
+	}
+	return gate, &identityaccess.CatererLoginResult{
+		Status: identityaccess.CatererLoginMFARequired, ChallengeToken: gate.challenge.ChallengeToken,
+		MaskedEmail: gate.challenge.MaskedEmail, TrustedDeviceDays: gate.challenge.TrustedDeviceDays,
+	}, nil
 }
 
-func (c *CatererAccess) signInGate(ctx context.Context, account domain.LoginAccount, request identityaccess.CatererLoginRequest) (catererSignInGate, error) {
-	if !c.auth.mfa.Configured() {
-		return catererSignInGate{}, nil
+// factor is the caterer's voluntary second factor. Its devices name neither
+// a school nor a Träger (#6955).
+func (c *CatererAccess) factor() voluntaryFactor {
+	return voluntaryFactor{
+		portal: domain.PortalCaterer, auth: c.auth, mfa: c.mfa, verifier: c.verifier, runtime: c.runtime, logger: c.logger,
+		bind: withoutSchoolLedgerContext, member: c.signedInCaterer, notEnabled: identityaccess.ErrCatererMFANotEnabled,
 	}
-	schoolless := c.tenantless(ctx)
-	enrolled, err := c.auth.mfa.HasEnrollment(schoolless, account.ID)
-	if err != nil {
-		return catererSignInGate{}, failed("check caterer mfa enrollment", identityaccess.ErrMFAStatusUnavailable)
-	}
-	if !enrolled {
-		return catererSignInGate{}, nil
-	}
-	if c.auth.trustedDeviceVerified(schoolless, account.ID, 0, request.TrustedDeviceCookie) {
-		return catererSignInGate{proof: mintProof{kind: proofTrustedDevice, trustedDeviceCookie: request.TrustedDeviceCookie}}, nil
-	}
-	result, err := c.auth.mfaChallengeResult(schoolless, account, 0, domain.PortalCaterer, request.IPAddress)
-	if err != nil {
-		return catererSignInGate{}, err
-	}
-	challenge := identityaccess.CatererLoginResult{
-		Status: identityaccess.CatererLoginMFARequired, ChallengeToken: result.ChallengeToken, MaskedEmail: result.MaskedEmail,
-	}
-	if result.TrustedDeviceEnabled {
-		challenge.TrustedDeviceDays = result.TrustedDeviceDays
-	}
-	return catererSignInGate{challenge: &challenge}, nil
 }
 
 // mintSession persists the caterer session at the school it is kept at and
@@ -154,39 +139,16 @@ func (c *CatererAccess) VerifyCatererMFA(ctx context.Context, verification ident
 }
 
 func (c *CatererAccess) verifyMFA(ctx context.Context, verification identityaccess.CatererMFAVerification) (identityaccess.CatererSession, error) {
-	if c.mfa == nil {
-		return identityaccess.CatererSession{}, errCatererMFAUnavailable
-	}
-	proof, err := c.mfa.VerifyChallengeForScope(ctx, verification.ChallengeToken, verification.Code, domain.PortalCaterer.Name)
+	proof, err := c.factor().verifySignIn(ctx, verification.ChallengeToken, verification.Code, verification.RememberDevice, verification.IPAddress, verification.UserAgent)
 	if err != nil {
 		return identityaccess.CatererSession{}, err
 	}
-	var issue identityaccess.TrustedDeviceIssue
-	if verification.RememberDevice {
-		issue, err = c.mfa.PrepareTrustedDevice(ctx, proof.AccountID, 0, verification.UserAgent, parseGateIP(verification.IPAddress))
-		if err != nil {
-			c.logger.Warn("caterer trusted-device policy unavailable; skipping cookie",
-				slog.Int64("account_id", proof.AccountID),
-				slog.String("error", err.Error()))
-			issue = nil
-		}
-	}
-	public := identityaccess.VerifiedMFAChallenge(proof)
-	result, err := c.mintProvenSession(ctx, proof.AccountID, &public, verification.IPAddress, verification.UserAgent)
+	result, err := c.mintProvenSession(ctx, proof.challenge.AccountID, &proof.challenge, verification.IPAddress, verification.UserAgent)
 	if err != nil {
 		return identityaccess.CatererSession{}, err
 	}
 	session := identityaccess.CatererSession{AccessToken: result.AccessToken, RefreshToken: result.RefreshToken}
-	if issue != nil {
-		cookie, expiresAt, err := issue(c.tenantless(ctx))
-		if err != nil {
-			c.logger.Warn("failed to remember caterer device",
-				slog.Int64("account_id", proof.AccountID),
-				slog.String("error", err.Error()))
-		} else {
-			session.TrustedDeviceCookie, session.TrustedDeviceExpiresAt = cookie, expiresAt
-		}
-	}
+	session.TrustedDeviceCookie, session.TrustedDeviceExpiresAt = c.factor().remember(ctx, proof.challenge.AccountID, proof.device)
 	return session, nil
 }
 
@@ -198,27 +160,16 @@ func (c *CatererAccess) ResendCatererMFA(ctx context.Context, challengeToken str
 }
 
 func (c *CatererAccess) resendMFA(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
-	if c.mfa == nil {
-		return "", errCatererMFAUnavailable
-	}
-	return c.mfa.ResendChallengeForScope(ctx, challengeToken, ip, domain.PortalCaterer.Name)
+	return c.factor().resend(ctx, challengeToken, ip)
 }
 
 // CatererMFAStatus reports whether the caterer switched its second factor on.
 func (c *CatererAccess) CatererMFAStatus(ctx context.Context, accountID int64) (identityaccess.CatererMFAState, error) {
-	ctx = c.tenantless(ctx)
-	if c.mfa == nil {
-		return identityaccess.CatererMFAState{}, catererMFAError(errCatererMFAUnavailable)
-	}
-	account, err := c.signedInCaterer(ctx, accountID)
+	enabled, masked, err := c.factor().status(c.attach(ctx), accountID)
 	if err != nil {
 		return identityaccess.CatererMFAState{}, catererMFAError(err)
 	}
-	enrolled, err := c.mfa.HasEnrollment(ctx, accountID)
-	if err != nil {
-		return identityaccess.CatererMFAState{}, catererMFAError(err)
-	}
-	return identityaccess.CatererMFAState{Enabled: enrolled, MaskedEmail: domain.MaskEmail(account.Email)}, nil
+	return identityaccess.CatererMFAState{Enabled: enabled, MaskedEmail: masked}, nil
 }
 
 // signedInCaterer reads the signed-in account and proves it is a caterer's.
@@ -235,30 +186,11 @@ func (c *CatererAccess) signedInCaterer(ctx context.Context, accountID int64) (d
 
 // StartCatererMFA mails the code that switches the second factor on.
 func (c *CatererAccess) StartCatererMFA(ctx context.Context, accountID int64, ip net.IP) (identityaccess.CatererMFAChallenge, error) {
-	challenge, err := c.startMFA(c.tenantless(ctx), accountID, ip)
-	return challenge, catererMFAError(err)
-}
-
-func (c *CatererAccess) startMFA(ctx context.Context, accountID int64, ip net.IP) (identityaccess.CatererMFAChallenge, error) {
-	if c.mfa == nil {
-		return identityaccess.CatererMFAChallenge{}, errCatererMFAUnavailable
-	}
-	account, err := c.signedInCaterer(ctx, accountID)
+	token, masked, err := c.factor().start(c.attach(ctx), accountID, ip)
 	if err != nil {
-		return identityaccess.CatererMFAChallenge{}, err
+		return identityaccess.CatererMFAChallenge{}, catererMFAError(err)
 	}
-	enrolled, err := c.mfa.HasEnrollment(ctx, accountID)
-	if err != nil {
-		return identityaccess.CatererMFAChallenge{}, err
-	}
-	if enrolled {
-		return identityaccess.CatererMFAChallenge{}, identityaccess.ErrMFAAlreadyEnrolled
-	}
-	token, err := c.mfa.StartChallenge(ctx, accountID, 0, domain.PortalCaterer.Name, ip)
-	if err != nil {
-		return identityaccess.CatererMFAChallenge{}, err
-	}
-	return identityaccess.CatererMFAChallenge{ChallengeToken: token, MaskedEmail: domain.MaskEmail(account.Email)}, nil
+	return identityaccess.CatererMFAChallenge{ChallengeToken: token, MaskedEmail: masked}, nil
 }
 
 // ConfirmCatererMFA switches the second factor on with the mailed code and
@@ -270,22 +202,11 @@ func (c *CatererAccess) ConfirmCatererMFA(ctx context.Context, confirmation iden
 }
 
 func (c *CatererAccess) confirmMFA(ctx context.Context, confirmation identityaccess.CatererMFAConfirmation) (identityaccess.CatererSession, error) {
-	if c.mfa == nil {
-		return identityaccess.CatererSession{}, errCatererMFAUnavailable
-	}
-	if _, err := c.signedInCaterer(ctx, confirmation.AccountID); err != nil {
-		return identityaccess.CatererSession{}, err
-	}
-	proof, err := c.mfa.VerifyChallengeForOwner(ctx, confirmation.ChallengeToken, confirmation.Code, domain.PortalCaterer.Name, confirmation.AccountID, 0)
+	proof, err := c.factor().confirm(ctx, confirmation.AccountID, confirmation.ChallengeToken, confirmation.Code)
 	if err != nil {
 		return identityaccess.CatererSession{}, err
 	}
-	if err := c.mfa.Enroll(ctx, proof); err != nil {
-		return identityaccess.CatererSession{}, err
-	}
-	c.logger.Info("caterer second factor switched on", slog.Int64("account_id", confirmation.AccountID))
-	public := identityaccess.VerifiedMFAChallenge(proof)
-	result, err := c.mintProvenSession(ctx, confirmation.AccountID, &public, confirmation.IPAddress, confirmation.UserAgent)
+	result, err := c.mintProvenSession(ctx, confirmation.AccountID, &proof, confirmation.IPAddress, confirmation.UserAgent)
 	if err != nil {
 		return identityaccess.CatererSession{}, err
 	}
@@ -296,102 +217,17 @@ func (c *CatererAccess) confirmMFA(ctx context.Context, confirmation identityacc
 // is checked like a sign-in. The factor, the remembered devices and the
 // sessions' proof go together; the passkeys stay, as at every reset.
 func (c *CatererAccess) DisableCatererMFA(ctx context.Context, accountID int64, currentPassword, ipAddress, userAgent string) error {
-	return catererMFAError(c.disableMFA(c.tenantless(ctx), accountID, currentPassword, ipAddress, userAgent))
-}
-
-func (c *CatererAccess) disableMFA(ctx context.Context, accountID int64, currentPassword, ipAddress, userAgent string) error {
-	if c.mfa == nil {
-		return errCatererMFAUnavailable
-	}
-	if _, err := c.signedInCaterer(ctx, accountID); err != nil {
-		return err
-	}
-	enrolled, err := c.mfa.HasEnrollment(ctx, accountID)
-	if err != nil {
-		return err
-	}
-	if !enrolled {
-		return identityaccess.ErrCatererMFANotEnabled
-	}
-	if err := c.checkCurrentPassword(ctx, accountID, currentPassword, ipAddress, userAgent); err != nil {
-		return err
-	}
-	if err := c.mfa.Disable(ctx, accountID); err != nil {
-		return err
-	}
-	c.logger.Info("caterer second factor switched off", slog.Int64("account_id", accountID))
-	return nil
-}
-
-// checkCurrentPassword checks the caterer's password like the password
-// change does: a wrong one counts towards the account's lock and its
-// count commits.
-func (c *CatererAccess) checkCurrentPassword(ctx context.Context, accountID int64, password, ipAddress, userAgent string) error {
-	var accepted bool
-	err := globalIdentityRead(ctx, c.runtime, func(txCtx context.Context) error {
-		account, found, _, err := c.auth.store.FindLoginAccount(txCtx, accountID, true)
-		if err != nil {
-			return err
-		}
-		if !found || !account.Active {
-			return domain.ErrAccountNotFound
-		}
-		accepted, err = checkPasswordLogin(txCtx, c.auth.store, c.verifier, c.auth.passwordPolicy, account.ID, account.PasswordHash, password, false)
-		return err
-	})
-	if err != nil {
-		return failed("check caterer password", err)
-	}
-	if !accepted {
-		c.logger.Info("caterer second factor change refused: wrong password",
-			slog.Int64("account_id", accountID),
-			slog.String("ip_address", strings.TrimSpace(ipAddress)),
-			slog.Bool("has_user_agent", userAgent != ""))
-		return failed("check caterer password", identityaccess.ErrInvalidCredentials)
-	}
-	return nil
+	return catererMFAError(c.factor().disable(c.attach(ctx), accountID, currentPassword, ipAddress, userAgent))
 }
 
 // ListCatererTrustedDevices lists the caterer's remembered devices. They
 // name no school.
 func (c *CatererAccess) ListCatererTrustedDevices(ctx context.Context, accountID int64) ([]identityaccess.AccountTrustedDevice, error) {
-	devices, err := c.listTrustedDevices(c.tenantless(ctx), accountID)
-	if err != nil {
-		return nil, catererMFAError(err)
-	}
-	result := make([]identityaccess.AccountTrustedDevice, 0, len(devices))
-	for _, device := range devices {
-		result = append(result, identityaccess.AccountTrustedDevice(device))
-	}
-	return result, nil
-}
-
-func (c *CatererAccess) listTrustedDevices(ctx context.Context, accountID int64) ([]domain.AccountTrustedDevice, error) {
-	if err := c.secondFactorOf(ctx, accountID); err != nil {
-		return nil, err
-	}
-	// The caterer's devices name neither a school nor a Träger (#6955).
-	return c.mfa.records.ListActiveTrustedDevices(ctx, accountID, 0, 0)
+	devices, err := c.factor().devices(c.attach(ctx), accountID)
+	return devices, catererMFAError(err)
 }
 
 // RevokeCatererTrustedDevice forgets one remembered device of the caterer.
 func (c *CatererAccess) RevokeCatererTrustedDevice(ctx context.Context, accountID, deviceID int64) error {
-	return catererMFAError(c.revokeTrustedDevice(c.tenantless(ctx), accountID, deviceID))
-}
-
-func (c *CatererAccess) revokeTrustedDevice(ctx context.Context, accountID, deviceID int64) error {
-	if err := c.secondFactorOf(ctx, accountID); err != nil {
-		return err
-	}
-	return c.mfa.RevokeTrustedDevice(ctx, accountID, 0, deviceID)
-}
-
-// secondFactorOf proves the signed-in account is a caterer's before one of
-// its second-factor routes runs.
-func (c *CatererAccess) secondFactorOf(ctx context.Context, accountID int64) error {
-	if c.mfa == nil {
-		return errCatererMFAUnavailable
-	}
-	_, err := c.signedInCaterer(ctx, accountID)
-	return err
+	return catererMFAError(c.factor().revoke(c.attach(ctx), accountID, deviceID))
 }

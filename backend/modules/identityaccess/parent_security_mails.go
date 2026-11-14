@@ -1,0 +1,278 @@
+package identityaccess
+
+import (
+	"fmt"
+	"strings"
+)
+
+// The parents portal speaks the language the parent chose (#7051), so the
+// sign-in code and the notice of a remembered device go out in it as well.
+// The languages are the parents portal's; any other locale reads German.
+
+// parentCodeCopy is the text of a parents-portal sign-in code.
+type parentCodeCopy struct {
+	Subject, Title, Greeting, Intro, CodeLabel, Validity, RequestFrom, Tip, Security string
+}
+
+// parentDeviceCopy is the text of the notice of a remembered device.
+type parentDeviceCopy struct {
+	Subject, Title, Greeting, Intro, DeviceLabel, IPLabel, TimeLabel, NotYouTitle, NotYou, Recovery string
+}
+
+// %[1]d is the validity of the code in minutes, %[2]d the days a device
+// stays remembered.
+var parentCodeCopies = map[string]parentCodeCopy{
+	"de": {
+		Subject:     "Ihr Anmeldecode für moto",
+		Title:       "Ihr Anmeldecode",
+		Greeting:    "Hallo,",
+		Intro:       "jemand meldet sich gerade mit Ihrer E-Mail-Adresse im Eltern-Portal von moto an. Geben Sie diesen Code auf der Anmeldeseite ein:",
+		CodeLabel:   "Ihr Code",
+		Validity:    "Der Code gilt %[1]d Minuten und nur ein einziges Mal.",
+		RequestFrom: "Anfrage von IP-Adresse",
+		Tip:         "Tipp: Auf Ihrem eigenen Gerät können Sie nach dem Code „Ja, merken und anmelden“ wählen. Dann fragt moto dort %[2]d Tage lang nicht nach einem Code.",
+		Security:    "Sie haben sich nicht angemeldet? Dann löschen Sie diese E-Mail. An Ihrem Konto ändert sich nichts. moto fragt nie am Telefon, im Chat oder per E-Mail nach diesem Code.",
+	},
+	"en": {
+		Subject:     "Your moto sign-in code",
+		Title:       "Your sign-in code",
+		Greeting:    "Hello,",
+		Intro:       "someone is signing in to the moto parents portal with your email address right now. Enter this code on the sign-in page:",
+		CodeLabel:   "Your code",
+		Validity:    "The code is valid for %[1]d minutes and can be used only once.",
+		RequestFrom: "Request from IP address",
+		Tip:         "Tip: on your own device you can choose “Yes, remember and sign in” after the code. moto will then not ask for a code on that device for %[2]d days.",
+		Security:    "You did not sign in? Then delete this email. Nothing changes in your account. moto never asks for this code by phone, chat or email.",
+	},
+	"ru": {
+		Subject:     "Ваш код для входа в moto",
+		Title:       "Ваш код для входа",
+		Greeting:    "Здравствуйте!",
+		Intro:       "Кто-то сейчас входит в родительский портал moto с вашим адресом электронной почты. Введите этот код на странице входа:",
+		CodeLabel:   "Ваш код",
+		Validity:    "Код действует %[1]d минут и только один раз.",
+		RequestFrom: "Запрос с IP-адреса",
+		Tip:         "Совет: на своём устройстве после ввода кода можно выбрать «Да, запомнить и войти». Тогда moto не будет запрашивать код на этом устройстве %[2]d дней.",
+		Security:    "Вы не входили? Тогда удалите это письмо. В вашей учётной записи ничего не изменится. moto никогда не спрашивает этот код по телефону, в чате или по электронной почте.",
+	},
+	"sq": {
+		Subject:     "Kodi juaj i hyrjes në moto",
+		Title:       "Kodi juaj i hyrjes",
+		Greeting:    "Përshëndetje,",
+		Intro:       "dikush po hyn tani në portalin e prindërve të moto me adresën tuaj të emailit. Shkruani këtë kod në faqen e hyrjes:",
+		CodeLabel:   "Kodi juaj",
+		Validity:    "Kodi vlen %[1]d minuta dhe vetëm një herë.",
+		RequestFrom: "Kërkesë nga adresa IP",
+		Tip:         "Këshillë: në pajisjen tuaj mund të zgjidhni pas kodit „Po, mbaje mend dhe hyr“. Atëherë moto nuk kërkon kod në atë pajisje për %[2]d ditë.",
+		Security:    "Nuk keni hyrë ju? Atëherë fshijeni këtë email. Në llogarinë tuaj nuk ndryshon asgjë. moto nuk e kërkon kurrë këtë kod me telefon, në chat ose me email.",
+	},
+	"pl": {
+		Subject:     "Twój kod logowania do moto",
+		Title:       "Twój kod logowania",
+		Greeting:    "Dzień dobry,",
+		Intro:       "ktoś właśnie loguje się do portalu dla rodziców moto Twoim adresem e-mail. Wpisz ten kod na stronie logowania:",
+		CodeLabel:   "Twój kod",
+		Validity:    "Kod jest ważny %[1]d minut i tylko jeden raz.",
+		RequestFrom: "Żądanie z adresu IP",
+		Tip:         "Wskazówka: na własnym urządzeniu możesz po wpisaniu kodu wybrać „Tak, zapamiętaj i zaloguj”. Wtedy moto nie poprosi o kod na tym urządzeniu przez %[2]d dni.",
+		Security:    "To nie Ty się logujesz? Usuń tę wiadomość. Na Twoim koncie nic się nie zmieni. moto nigdy nie pyta o ten kod przez telefon, czat ani e-mail.",
+	},
+	"tr": {
+		Subject:     "moto giriş kodunuz",
+		Title:       "Giriş kodunuz",
+		Greeting:    "Merhaba,",
+		Intro:       "şu anda biri e-posta adresinizle moto veli portalına giriş yapıyor. Bu kodu giriş sayfasına girin:",
+		CodeLabel:   "Kodunuz",
+		Validity:    "Kod %[1]d dakika geçerlidir ve yalnızca bir kez kullanılabilir.",
+		RequestFrom: "İstek IP adresi",
+		Tip:         "İpucu: Kendi cihazınızda koddan sonra „Evet, hatırla ve giriş yap“ seçeneğini seçebilirsiniz. moto o cihazda %[2]d gün boyunca kod sormaz.",
+		Security:    "Giriş yapan siz değil misiniz? Bu e-postayı silin. Hesabınızda hiçbir şey değişmez. moto bu kodu asla telefonla, sohbette veya e-postayla sormaz.",
+	},
+	"uk": {
+		Subject:     "Ваш код для входу в moto",
+		Title:       "Ваш код для входу",
+		Greeting:    "Вітаємо!",
+		Intro:       "Хтось зараз входить у батьківський портал moto з вашою адресою електронної пошти. Введіть цей код на сторінці входу:",
+		CodeLabel:   "Ваш код",
+		Validity:    "Код дійсний %[1]d хвилин і лише один раз.",
+		RequestFrom: "Запит з IP-адреси",
+		Tip:         "Порада: на власному пристрої після коду можна вибрати «Так, запам’ятати й увійти». Тоді moto не запитуватиме код на цьому пристрої %[2]d днів.",
+		Security:    "Це були не ви? Тоді видаліть цей лист. У вашому обліковому записі нічого не зміниться. moto ніколи не запитує цей код телефоном, у чаті чи електронною поштою.",
+	},
+}
+
+// %[1]d is the days the device stays remembered.
+var parentDeviceCopies = map[string]parentDeviceCopy{
+	"de": {
+		Subject:     "moto hat sich ein neues Gerät gemerkt",
+		Title:       "Neues gemerktes Gerät",
+		Greeting:    "Hallo,",
+		Intro:       "Sie haben sich gerade im Eltern-Portal angemeldet und „Ja, merken und anmelden“ gewählt. Auf diesem Gerät fragt moto %[1]d Tage lang nicht nach einem Code.",
+		DeviceLabel: "Gerät",
+		IPLabel:     "IP-Adresse",
+		TimeLabel:   "Zeitpunkt",
+		NotYouTitle: "Das waren nicht Sie?",
+		NotYou:      "Ändern Sie sofort Ihr Passwort. Entfernen Sie danach das Gerät im Eltern-Portal unter „Einstellungen → Anmeldung“.",
+		Recovery:    "Sie kommen nicht mehr in Ihr Konto? Wenden Sie sich an Ihre Schule. Das moto-Team kann dann die Anmeldung mit Code zurücksetzen.",
+	},
+	"en": {
+		Subject:     "moto remembered a new device",
+		Title:       "New remembered device",
+		Greeting:    "Hello,",
+		Intro:       "you just signed in to the parents portal and chose “Yes, remember and sign in”. moto will not ask for a code on this device for %[1]d days.",
+		DeviceLabel: "Device",
+		IPLabel:     "IP address",
+		TimeLabel:   "Time",
+		NotYouTitle: "This was not you?",
+		NotYou:      "Change your password right away. Then remove the device in the parents portal under “Settings → Sign-in”.",
+		Recovery:    "You can no longer get into your account? Contact your school. The moto team can then reset the sign-in with a code.",
+	},
+	"ru": {
+		Subject:     "moto запомнил новое устройство",
+		Title:       "Новое запомненное устройство",
+		Greeting:    "Здравствуйте!",
+		Intro:       "Вы только что вошли в родительский портал и выбрали «Да, запомнить и войти». На этом устройстве moto не будет запрашивать код %[1]d дней.",
+		DeviceLabel: "Устройство",
+		IPLabel:     "IP-адрес",
+		TimeLabel:   "Время",
+		NotYouTitle: "Это были не вы?",
+		NotYou:      "Сразу смените пароль. Затем удалите устройство в родительском портале в разделе «Настройки → Вход».",
+		Recovery:    "Вы больше не можете войти в учётную запись? Обратитесь в свою школу. Команда moto сможет сбросить вход с кодом.",
+	},
+	"sq": {
+		Subject:     "moto mbajti mend një pajisje të re",
+		Title:       "Pajisje e re e mbajtur mend",
+		Greeting:    "Përshëndetje,",
+		Intro:       "sapo hytë në portalin e prindërve dhe zgjodhët „Po, mbaje mend dhe hyr“. Në këtë pajisje moto nuk kërkon kod për %[1]d ditë.",
+		DeviceLabel: "Pajisja",
+		IPLabel:     "Adresa IP",
+		TimeLabel:   "Koha",
+		NotYouTitle: "Nuk ishit ju?",
+		NotYou:      "Ndryshoni menjëherë fjalëkalimin. Pastaj hiqeni pajisjen në portalin e prindërve te „Cilësimet → Hyrja“.",
+		Recovery:    "Nuk hyni dot më në llogari? Drejtohuni shkollës suaj. Ekipi i moto mund ta rivendosë hyrjen me kod.",
+	},
+	"pl": {
+		Subject:     "moto zapamiętało nowe urządzenie",
+		Title:       "Nowe zapamiętane urządzenie",
+		Greeting:    "Dzień dobry,",
+		Intro:       "właśnie zalogowano się do portalu dla rodziców i wybrano „Tak, zapamiętaj i zaloguj”. Na tym urządzeniu moto nie poprosi o kod przez %[1]d dni.",
+		DeviceLabel: "Urządzenie",
+		IPLabel:     "Adres IP",
+		TimeLabel:   "Czas",
+		NotYouTitle: "To nie Ty?",
+		NotYou:      "Od razu zmień hasło. Następnie usuń urządzenie w portalu dla rodziców w sekcji „Ustawienia → Logowanie”.",
+		Recovery:    "Nie możesz już wejść na konto? Skontaktuj się ze szkołą. Zespół moto może wtedy zresetować logowanie z kodem.",
+	},
+	"tr": {
+		Subject:     "moto yeni bir cihazı hatırladı",
+		Title:       "Yeni hatırlanan cihaz",
+		Greeting:    "Merhaba,",
+		Intro:       "veli portalına giriş yaptınız ve „Evet, hatırla ve giriş yap“ seçeneğini seçtiniz. moto bu cihazda %[1]d gün boyunca kod sormaz.",
+		DeviceLabel: "Cihaz",
+		IPLabel:     "IP adresi",
+		TimeLabel:   "Zaman",
+		NotYouTitle: "Bu siz değil miydiniz?",
+		NotYou:      "Hemen şifrenizi değiştirin. Ardından cihazı veli portalında „Ayarlar → Giriş“ bölümünden kaldırın.",
+		Recovery:    "Hesabınıza artık giremiyor musunuz? Okulunuza başvurun. moto ekibi kodla girişi sıfırlayabilir.",
+	},
+	"uk": {
+		Subject:     "moto запам’ятав новий пристрій",
+		Title:       "Новий запам’ятований пристрій",
+		Greeting:    "Вітаємо!",
+		Intro:       "Ви щойно увійшли в батьківський портал і вибрали «Так, запам’ятати й увійти». На цьому пристрої moto не запитуватиме код %[1]d днів.",
+		DeviceLabel: "Пристрій",
+		IPLabel:     "IP-адреса",
+		TimeLabel:   "Час",
+		NotYouTitle: "Це були не ви?",
+		NotYou:      "Негайно змініть пароль. Потім видаліть пристрій у батьківському порталі в розділі «Налаштування → Вхід».",
+		Recovery:    "Ви більше не можете увійти в обліковий запис? Зверніться до своєї школи. Команда moto зможе скинути вхід із кодом.",
+	},
+}
+
+// parentFooters are the footer lines of an automatic mail, as the parents
+// portal's other mails write them: the sentence and the label beside the
+// moto logo.
+var parentFooters = map[string][2]string{
+	"de": {"Diese E-Mail wurde automatisch versendet.", "Unterstützt von"},
+	"en": {"This email was sent automatically.", "Powered by"},
+	"ru": {"Это письмо отправлено автоматически.", "При поддержке"},
+	"sq": {"Ky email u dërgua automatikisht.", "Mundësuar nga"},
+	"pl": {"Ten e-mail został wysłany automatycznie.", "Obsługiwane przez"},
+	"tr": {"Bu e-posta otomatik olarak gönderildi.", "Destekleyen"},
+	"uk": {"Цей лист надіслано автоматично.", "За підтримки"},
+}
+
+// withFooter adds the footer of the language to a mail's content.
+func withFooter(lang string, content map[string]any) map[string]any {
+	footer := parentFooters[lang]
+	content["FooterText"], content["PoweredByLabel"] = footer[0], footer[1]
+	return content
+}
+
+// parentLocale picks the copy's language: the parent's, or German.
+func parentLocale(locale string) string {
+	locale = strings.ToLower(strings.TrimSpace(locale))
+	if _, ok := parentCodeCopies[locale]; ok {
+		return locale
+	}
+	return "de"
+}
+
+// parentMFACodeMail is the parents portal's sign-in code in the parent's
+// language. Like every code mail it carries no link.
+func parentMFACodeMail(message MFACodeMail, origin string) Mail {
+	lang := parentLocale(message.Locale)
+	text := parentCodeCopies[lang]
+	return Mail{
+		Subject:  text.Subject,
+		Template: "parent-mfa-email-code.html",
+		Content: withFooter(lang, map[string]any{
+			"Lang":        lang,
+			"LogoURL":     trimmedLogoURL(origin),
+			"Code":        message.Code,
+			"RequestIP":   message.RequestIP,
+			"Title":       text.Title,
+			"Greeting":    text.Greeting,
+			"Intro":       text.Intro,
+			"CodeLabel":   text.CodeLabel,
+			"Validity":    fmt.Sprintf(text.Validity, message.ExpiryMinutes, message.TrustedDeviceDays),
+			"RequestFrom": text.RequestFrom,
+			"Tip":         tipFor(message, text.Tip),
+			"Security":    text.Security,
+		}),
+	}
+}
+
+func tipFor(message MFACodeMail, tip string) string {
+	if !message.TrustedDeviceEnabled || message.TrustedDeviceDays <= 0 {
+		return ""
+	}
+	return fmt.Sprintf(tip, 0, message.TrustedDeviceDays)
+}
+
+// parentTrustedDeviceMail tells a parent, in the portal's language, that the
+// parents portal remembered a device.
+func parentTrustedDeviceMail(message TrustedDeviceMail, origin string) Mail {
+	lang := parentLocale(message.Locale)
+	text := parentDeviceCopies[lang]
+	return Mail{
+		Subject:  text.Subject,
+		Template: "parent-trusted-device-added.html",
+		Content: withFooter(lang, map[string]any{
+			"Lang":        lang,
+			"LogoURL":     trimmedLogoURL(origin),
+			"DeviceLabel": message.DeviceLabel,
+			"IPAddress":   message.RequestIP,
+			"AddedAt":     message.AddedAt,
+			"Title":       text.Title,
+			"Greeting":    text.Greeting,
+			"Intro":       fmt.Sprintf(text.Intro, message.TrustedDays),
+			"DeviceName":  text.DeviceLabel,
+			"IPName":      text.IPLabel,
+			"TimeName":    text.TimeLabel,
+			"NotYouTitle": text.NotYouTitle,
+			"NotYou":      text.NotYou,
+			"Recovery":    text.Recovery,
+		}),
+	}
+}

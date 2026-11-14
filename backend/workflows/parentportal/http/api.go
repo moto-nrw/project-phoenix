@@ -8,10 +8,10 @@
 //     enforced by ParentScopeMiddleware. Tenant + operator tokens are
 //     hard-rejected with 401 — this is the symmetric guard to the
 //     tenant middleware's ScopeParent rejection.
-//  2. Public routes (just /auth/login for now) issue parent-scope
-//     tokens that are not bound to any single tenant. The login
-//     refuses accounts that don't have a guardian role on at least
-//     one school they're mapped to.
+//  2. Public routes (/auth/login, the code of the second factor and its
+//     resend) issue parent-scope tokens that are not bound to any single
+//     tenant. The login refuses accounts that don't have a guardian role
+//     on at least one school they're mapped to.
 //
 // PR 9 commit 4 adds /auth/login. Commit 5 will add /me/children.
 package parent
@@ -141,7 +141,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		if authRateLimiter != nil {
 			r.Use(authRateLimiter)
 		}
-		r.Post("/login", rs.login)
+		rs.mountSignIn(r)
 		r.Post("/password-reset", rs.Resets.ServeInitiate)
 		r.Post("/password-reset/confirm", rs.Resets.ServeConfirm)
 	})
@@ -152,6 +152,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		configureSession(r)
 
 		rs.mountAccountRoutes(r, authRateLimiter)
+		rs.mountSecondFactor(r, authRateLimiter)
 		rs.mountCalendarRoutes(r)
 		rs.mountEnrollmentRoutes(r)
 		rs.mountChildStatusRoutes(r)

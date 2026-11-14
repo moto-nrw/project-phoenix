@@ -38,7 +38,7 @@ func (r *AccountMFARecords) FindAccountIdentity(ctx context.Context, accountID i
 		return domain.AccountIdentity{}, false, err
 	}
 	var row domain.AccountIdentity
-	err = db.NewRaw(`SELECT id, email, active, mfa_attempts, mfa_locked_until, mfa_reset_generation
+	err = db.NewRaw(`SELECT id, email, active, mfa_attempts, mfa_locked_until, mfa_reset_generation, portal_locale
 		FROM auth.accounts WHERE id = ? AND personal_data_erased_at IS NULL`, accountID).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.AccountIdentity{}, false, nil

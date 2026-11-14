@@ -218,6 +218,8 @@ import type { parentReportAbsenceTopic as authored_parentReportAbsenceTopic } fr
 
 import type { parentRequestsTopic as authored_parentRequestsTopic } from "./articles/parent-requests";
 
+import type { parentSignInCodeTopic as authored_parentSignInCodeTopic } from "./articles/parent-sign-in-code";
+
 import type { parentSurveysTopic as authored_parentSurveysTopic } from "./articles/parent-surveys";
 
 import type { parentSurveyTopic as authored_parentSurveyTopic } from "./articles/parent-survey";
@@ -6807,6 +6809,7 @@ export const parentLoginTopic = function parentLoginTopic(): HelpTopic {
       "Legen Sie sich die Adresse als Lesezeichen an. Oder fügen Sie moto zum Startbildschirm hinzu.",
     ],
     differences: [
+      "Sie haben die `Anmeldung mit Code` eingeschaltet? Dann schickt moto nach dem Passwort einen Code an Ihre E-Mail-Adresse. Tragen Sie ihn ein und wählen Sie `Ja, merken und anmelden` oder `Nein, nur anmelden`.",
       "Passwort vergessen? Wählen Sie `Passwort vergessen?`. Es öffnet sich das Fenster `Passwort zurücksetzen`. Tragen Sie Ihre E-Mail-Adresse ein und wählen Sie `Link senden`. Den Link bekommen Sie per E-Mail.",
     ],
     troubleshootingDetails: [
@@ -6817,6 +6820,7 @@ export const parentLoginTopic = function parentLoginTopic(): HelpTopic {
       "moto sagt, Ihre Schule nutze das Elternportal zurzeit nicht? Dann bietet Ihre Schule das Elternportal nicht an. Fragen Sie bei Ihrer Schule nach.",
     ],
     related: [
+      HELP_TOPICS.parentSignInCode,
       HELP_TOPICS.parentAccount,
       HELP_TOPICS.parentChildOverview,
       HELP_TOPICS.parentAccountProblem,
@@ -7359,6 +7363,51 @@ export const parentRequestsTopic = function parentRequestsTopic(
     ],
   };
 } satisfies typeof authored_parentRequestsTopic;
+
+/**
+ * `/parents/settings?tab=signIn` (#7051). Die Anmeldung mit Code ist
+ * freiwillig und gilt für das ganze Konto. Ein verlorenes Postfach setzt das
+ * moto-Team über eine Schule des Kontos zurück; ein Konto ohne Schule kann
+ * sie deshalb nicht einschalten.
+ */
+export const parentSignInCodeTopic =
+  function parentSignInCodeTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.parentSignInCode,
+      title: "Anmeldung mit Code",
+      question: "Wie schütze ich mein Konto mit einem Code?",
+      summary:
+        "Nach dem Passwort geben Sie einen Code aus Ihrer E-Mail ein. Das ist freiwillig.",
+      group: "einstieg",
+      audience: "parent",
+      icon: "ShieldCheck",
+      steps: [
+        "Tippen Sie unten auf `Mehr` und dann auf `Einstellungen`.",
+        "Wählen Sie den Bereich `Anmeldung`.",
+        "Wählen Sie bei `Anmeldung mit Code` den Knopf `Einschalten`.",
+        "moto schickt Ihnen einen Code per E-Mail. Tragen Sie ihn bei `Code aus der E-Mail` ein.",
+        "Wählen Sie `Einschalten`.",
+      ],
+      result:
+        "Bei jeder Anmeldung fragt moto jetzt nach dem Passwort auch nach einem Code aus Ihrer E-Mail.",
+      notes: [
+        "Nach dem Code fragt moto: `Soll moto dieses Gerät merken?` Auf Ihrem eigenen Gerät wählen Sie `Ja, merken und anmelden`. Dann fragt moto dort eine Zeit lang nicht nach dem Code.",
+        "Auf Geräten, die mehrere Personen nutzen, wählen Sie `Nein, nur anmelden`.",
+        "Gemerkte Geräte sehen und entfernen Sie unter `Einstellungen` im Bereich `Anmeldung`.",
+        "Die Anmeldung mit Code gilt für Ihr ganzes moto-Konto. Arbeiten Sie auch an einer Schule mit moto, fragt moto dort ebenfalls nach dem Code.",
+      ],
+      differences: [
+        "Am Computer steht `Einstellungen` in der Navigation statt hinter `Mehr`.",
+        "Statt `Einschalten` steht dort ein Hinweis? Dann gehört Ihr Konto noch zu keiner Schule. Sobald Ihr Kind an einer Schule angemeldet ist, können Sie die Anmeldung mit Code einschalten.",
+        "Zum Ausschalten wählen Sie `Ausschalten` und geben Ihr Passwort ein.",
+      ],
+      troubleshootingDetails: [
+        "Kein Code angekommen? Sehen Sie im Spam-Ordner nach. Oder wählen Sie `Neuen Code anfordern`.",
+        "Kein Zugriff mehr auf Ihr E-Mail-Postfach? Wenden Sie sich an Ihre Schule. Das moto-Team setzt die Anmeldung mit Code dann zurück. Danach reicht wieder Ihr Passwort.",
+      ],
+      related: [HELP_TOPICS.parentLogin, HELP_TOPICS.parentAccount],
+    };
+  } satisfies typeof authored_parentSignInCodeTopic;
 
 /**
  * Umfrage: Mitteilung mit Antwortmoeglichkeiten (#1371). Im Formular heisst

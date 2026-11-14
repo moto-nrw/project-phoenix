@@ -196,6 +196,9 @@ func PasswordResetMail(link PasswordResetLink, origin string, expiry time.Durati
 // carries no link or button on purpose: the user pastes the code into the
 // moto login, which kills the "click here to confirm" phishing pattern.
 func MFACodeMailContent(message MFACodeMail, origin string) Mail {
+	if message.Parent {
+		return parentMFACodeMail(message, origin)
+	}
 	return Mail{
 		Subject:  "Ihr moto-Anmeldecode",
 		Template: "mfa-email-code.html",
@@ -212,6 +215,9 @@ func MFACodeMailContent(message MFACodeMail, origin string) Mail {
 
 // TrustedDeviceAddedMailContent tells the holder that a device was trusted.
 func TrustedDeviceAddedMailContent(message TrustedDeviceMail, origin string) Mail {
+	if message.Parent {
+		return parentTrustedDeviceMail(message, origin)
+	}
 	return Mail{
 		Subject:  "Neues vertrautes Gerät zu Ihrem moto-Konto hinzugefügt",
 		Template: "trusted-device-added.html",
