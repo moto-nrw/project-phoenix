@@ -1,5 +1,6 @@
 "use client";
 
+import { STUDENT_SEARCH_LINK_TOOLTIP } from "~/components/home/home-link-tooltips";
 import { Fragment, type ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -8,7 +9,10 @@ import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useBerlinClock } from "~/components/home/home-card-rows";
-import { useStartOwnBlock } from "~/components/home/use-start-own-block";
+import {
+  START_OWN_BLOCK_TOOLTIP,
+  useStartOwnBlock,
+} from "~/components/home/use-start-own-block";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { formatStatusDate } from "~/lib/date-helpers";
@@ -207,6 +211,7 @@ export function NowStrip({
                   className="whitespace-nowrap max-sm:flex-1"
                   disabled={busyId !== null}
                   onClick={() => void start(action.block)}
+                  tooltip={START_OWN_BLOCK_TOOLTIP}
                 >
                   {busyId === action.block.id ? "Startet..." : action.label}
                 </Button>
@@ -220,6 +225,11 @@ export function NowStrip({
                   variant={variant}
                   size="md"
                   className="gap-2 whitespace-nowrap max-sm:flex-1"
+                  tooltip={
+                    action.href === tenantPath("/active-supervisions")
+                      ? "Öffnet Ihre laufende Aufsicht."
+                      : STUDENT_SEARCH_LINK_TOOLTIP
+                  }
                 >
                   {action.label}
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />

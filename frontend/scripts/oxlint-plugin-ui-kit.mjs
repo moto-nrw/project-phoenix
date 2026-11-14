@@ -6450,6 +6450,26 @@ const TOOLTIP_SCOPE = [
   "src/components/teachers/caregiver-blocker-resolution-panel.tsx",
   "src/components/teachers/caregiver-capability-modal.tsx",
   "src/components/teachers/staff-list.tsx",
+  // Alltag: Startseiten-Bausteine, Kopfleiste, Hilfe, Klassentag (#6777).
+  "src/components/class-day/class-arrival-exception-dialog.tsx",
+  "src/components/class-day/class-day-class.tsx",
+  "src/components/class-day/class-day-overview.tsx",
+  "src/components/dashboard/header.tsx",
+  "src/components/dashboard/header/refresh-button.tsx",
+  "src/components/dashboard/header/reminders-bell.tsx",
+  "src/components/dashboard/mobile-bottom-nav.tsx",
+  "src/components/help/context-help-link.tsx",
+  "src/components/help/help-entry.tsx",
+  "src/components/help/help-view.tsx",
+  "src/components/home/birthdays-block.tsx",
+  "src/components/home/booking-leftover-todos.tsx",
+  "src/components/home/home-board-editor.tsx",
+  "src/components/home/home-card-rows.tsx",
+  "src/components/home/my-day-block.tsx",
+  "src/components/home/now-strip.tsx",
+  "src/components/home/pickup-extension-todos.tsx",
+  "src/components/home/roster-deviation-todos.tsx",
+  "src/components/platform/announcement-modal.tsx",
   // Datenverwaltung: Geräte, Dateien, Gruppen, Räume, QR-Codes (#6775).
   "src/components/database/grade-transitions/transition-editor.tsx",
   "src/components/database/grade-transitions/transition-preview-modal.tsx",
@@ -6470,6 +6490,14 @@ const TOOLTIP_SCOPE = [
   "src/components/rooms/students-in-room-section.tsx",
   "src/components/rooms/transit-students-section.tsx",
   "src/components/statistics/care-time-overruns-section.tsx",
+  // Alltag: erste Schritte, Schul-Aufsicht, Modul- und App-Hinweise (#6778).
+  "src/components/school-setup/school-setup-checklist.tsx",
+  "src/components/school/supervisions/supervisions-view.tsx",
+  "src/components/tenant/module-not-booked-state.tsx",
+  "src/components/tenant/pwa-install-hint.tsx",
+  "src/components/tenant/tenant-busy-page.tsx",
+  "src/components/tenant/tenant-guard.tsx",
+  "src/components/tenant/tenant-switcher.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
