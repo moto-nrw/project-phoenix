@@ -267,6 +267,8 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/invite",
   "/konto",
   "/login",
+  "/personal",
+  "/personal/:id",
   "/reset-password",
   "/schliesstage",
   "/schulen/:id",

@@ -72,6 +72,7 @@ import { InviteTraegerAccountModal } from "~/components/traeger/traeger-account-
 import { TraegerBelegRetentionSection } from "./traeger-beleg-retention-section";
 import { TraegerErasureOrderSection } from "./traeger-erasure-order-section";
 import { TestTraegerSection } from "./test-traeger-section";
+import { TraegerStaffReleaseSection } from "./traeger-staff-release-section";
 import { TraegerSettingsSection } from "./traeger-settings-section";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TraegerBueroTable } from "./traeger-buero-table";
@@ -1117,6 +1118,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       {activeTab === "uebersicht" ? (
         <>
           <EntityStats stats={headerStats} createdAt={organization.createdAt} />
+          <TraegerStaffReleaseSection organizationId={organization.id} />
           {organization.testSystem ? (
             <TestTraegerSection
               organizationId={organization.id}

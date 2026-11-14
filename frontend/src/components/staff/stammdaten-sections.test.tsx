@@ -110,7 +110,10 @@ function seedSWR({ financial = false, financialError = false } = {}) {
   swrData.current = new Map<string, unknown>([
     ["staff-stammdaten-financial-", financial ? maskedFinancial : undefined],
     ["staff-stammdaten-", stammdaten],
-    ["staff-payroll-number-", "1023"],
+    [
+      "staff-payroll-number-",
+      { personnelNumber: "1023", keptByTraeger: false },
+    ],
   ]);
   swrErrors.current = new Map(
     financialError
@@ -131,9 +134,54 @@ const maskedFinancial = {
   ibanMasked: "•••• 3000",
   taxIdMasked: "••••••••",
   socialSecurityNumberMasked: "••••••••",
+  keptByTraeger: false,
 };
 
 describe("StammdatenTab Sektionen (#1423)", () => {
+  it("zeigt Personalnummer und Bankdaten, die der Träger führt, nur zum Lesen (#4705)", () => {
+    seedSWR();
+    swrData.current.set("staff-payroll-number-", {
+      personnelNumber: "70001",
+      keptByTraeger: true,
+    });
+    swrData.current.set("staff-stammdaten-financial-", {
+      ibanMasked: null,
+      taxIdMasked: null,
+      socialSecurityNumberMasked: null,
+      keptByTraeger: true,
+    });
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll
+        canManagePayrollSettings={false}
+        canViewSections
+        canEditSections
+        canViewFinancial
+      />,
+    );
+
+    expect(screen.getByText("70001")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Diese Personalnummer führt der Träger in seiner Personalakte. Ändern kann sie die Personalverwaltung des Trägers.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Bank- und Steuerdaten führt der Träger in seiner Personalakte. Ändern kann sie die Personalverwaltung des Trägers.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Anzeigen/ }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(screen.getByLabelText("Vorname")).toHaveValue("Mila");
+    expect(screen.queryByLabelText("Personalnummer")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("IBAN")).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     mutate.mockReset();
     revealFinancial.mockReset();

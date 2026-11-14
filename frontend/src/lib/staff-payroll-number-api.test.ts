@@ -29,12 +29,26 @@ describe("staffPayrollNumberService", () => {
     vi.clearAllMocks();
   });
 
+  it("reads that the Träger keeps the number in its staff record", async () => {
+    mockedSessionFetch.mockResolvedValue(
+      jsonResponse({ personnel_number: "70001", kept_by_traeger: true }),
+    );
+
+    await expect(staffPayrollNumberService.get("42")).resolves.toEqual({
+      personnelNumber: "70001",
+      keptByTraeger: true,
+    });
+  });
+
   it("fetches the current personnel number", async () => {
     mockedSessionFetch.mockResolvedValue(
       jsonResponse({ personnel_number: "90001" }),
     );
 
-    await expect(staffPayrollNumberService.get("42")).resolves.toBe("90001");
+    await expect(staffPayrollNumberService.get("42")).resolves.toEqual({
+      personnelNumber: "90001",
+      keptByTraeger: false,
+    });
     expect(mockedSessionFetch).toHaveBeenCalledWith(
       "/api/staff/42/payroll-number",
     );
