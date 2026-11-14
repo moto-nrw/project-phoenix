@@ -139,6 +139,83 @@ func studentIDsOf(matches []enrollment.StudentAnswerMatch) []int64 {
 	return ids
 }
 
+func TestSearchStudentAnswersIncludesNumbersStoredAsStrings(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		raw  any
+		text string
+	}{
+		{name: "integer string", raw: "12", text: "12"},
+		{name: "decimal string", raw: " 12.5 ", text: "12,5"},
+		{name: "zero string", raw: "0", text: "0"},
+		{name: "JSON number", raw: float64(12.5), text: "12,5"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reads := NewStudentAnswers(studentAnswerRecords{
+				schemas: map[int64]*enrollment.FormSchema{7: {ID: 7, Fields: []enrollment.FormField{
+					{Key: "distance", Label: "Schulweg", Type: enrollment.FormFieldNumber, AppliesToCh: true},
+				}}},
+				rows: []enrollment.LinkedChildAnswers{
+					{StudentID: 11, SchemaID: 7, CustomData: answers(map[string]any{"distance": tc.raw})},
+				},
+			})
+			for _, query := range []string{"Schulweg", tc.text} {
+				matches, err := reads.SearchStudentAnswers(context.Background(), query, 10)
+				require.NoError(t, err)
+				require.Equal(t, []enrollment.StudentAnswerMatch{{StudentID: 11, Label: "Schulweg", Answer: tc.text}}, matches, query)
+			}
+		})
+	}
+}
+
+func TestStudentAnswersClearedValuesDoNotReviveOlderAnswers(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		fieldType enrollment.FormFieldType
+		cleared   any
+		older     any
+		value     string
+	}{
+		{name: "boolean null", fieldType: enrollment.FormFieldBoolean, older: true, value: "true"},
+		{name: "select empty", fieldType: enrollment.FormFieldSelect, cleared: "", older: "chor", value: "chor"},
+		{name: "select null", fieldType: enrollment.FormFieldSelect, older: "chor", value: "chor"},
+		{name: "text empty", fieldType: enrollment.FormFieldText, cleared: "", older: "Chor"},
+		{name: "textarea whitespace", fieldType: enrollment.FormFieldTextarea, cleared: " \t", older: "Chor"},
+		{name: "number empty", fieldType: enrollment.FormFieldNumber, cleared: "", older: float64(12)},
+		{name: "date empty", fieldType: enrollment.FormFieldDate, cleared: "", older: "2026-09-01"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reads := NewStudentAnswers(studentAnswerRecords{
+				schemas: map[int64]*enrollment.FormSchema{7: {ID: 7, Fields: []enrollment.FormField{
+					{Key: "question", Label: "Frage", Type: tc.fieldType, AppliesToCh: true},
+				}}},
+				rows: []enrollment.LinkedChildAnswers{
+					{StudentID: 11, SchemaID: 7, CustomData: answers(map[string]any{"question": tc.cleared})},
+					{StudentID: 12, SchemaID: 7, CustomData: answers(map[string]any{"other": "answer"})},
+					{StudentID: 11, SchemaID: 7, CustomData: answers(map[string]any{"question": tc.older})},
+					{StudentID: 12, SchemaID: 7, CustomData: answers(map[string]any{"question": tc.older})},
+				},
+			})
+			matches, err := reads.SearchStudentAnswers(context.Background(), "Frage", 10)
+			require.NoError(t, err)
+			require.Equal(t, []int64{12}, studentIDsOf(matches), "cleared suppresses the old answer; absent still inherits it")
+			filters, err := reads.StudentAnswerFilters(context.Background())
+			require.NoError(t, err)
+			if tc.value == "" {
+				require.Empty(t, filters)
+				return
+			}
+			require.Len(t, filters, 1)
+			require.Equal(t, []int64{12}, filters[0].Options[0].StudentIDs)
+			ids, err := reads.StudentsWithAnswer(context.Background(), "question", tc.value)
+			require.NoError(t, err)
+			require.Equal(t, []int64{12}, ids)
+		})
+	}
+}
+
 func TestStudentAnswersFailOnAnUnreadableFormVersion(t *testing.T) {
 	t.Parallel()
 	records := answerFixture()

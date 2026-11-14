@@ -99,8 +99,9 @@ func (set *answerSet) add(row enrollment.LinkedChildAnswers, schema *enrollment.
 		if !ok || set.seen[key] {
 			continue
 		}
+		// An explicitly cleared answer also replaces an older value.
+		set.seen[key] = true
 		if answer, ok := readAnswer(field, raw); ok {
-			set.seen[key] = true
 			answer.studentID = row.StudentID
 			set.answers = append(set.answers, answer)
 		}
@@ -159,11 +160,13 @@ func readAnswer(field *enrollment.FormField, raw any) (studentAnswer, bool) {
 	}
 	value, ok := raw.(string)
 	value = strings.TrimSpace(value)
-	if !ok || value == "" || field.Type == enrollment.FormFieldNumber {
+	if !ok || value == "" {
 		return answer, false
 	}
 	answer.text, answer.affirmative = value, true
 	switch field.Type {
+	case enrollment.FormFieldNumber:
+		answer.text = strings.ReplaceAll(value, ".", ",")
 	case enrollment.FormFieldSelect:
 		answer.value, answer.text = value, optionLabel(field, value)
 	case enrollment.FormFieldDate:
