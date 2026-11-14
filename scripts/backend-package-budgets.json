@@ -1,6 +1,6 @@
 {
-  "defaultSeconds": 70,
-  "defaultReason": "1.5 times the slowest package without an entry: internal/architecture, 20-45 s in 16 runs after #7038 (14.11.2026). cmd (16-34 s) and every other package fit below.",
+  "defaultSeconds": 90,
+  "defaultReason": "Slowest packages without an entry, 14.11.2026: at most 45 s in 16 runs after #7038, but 55-63 s in pull requests of 13.11. before it (modules/careplan/contracttest, modules/enrollment/http/behaviortest, modules/careplan/http); 90 s is about 1.5 times that maximum, because the runs after #7038 are one light Saturday.",
   "packages": {
     "api": {
       "seconds": 240,
@@ -11,12 +11,20 @@
       "reason": "23 runs after #7038 (14.11.2026): 63-97 s on blacksmith-8vcpu, 86-102 s for the full suite on blacksmith-4vcpu; budget is 1.5 times the maximum."
     },
     "database/migrations": {
-      "seconds": 110,
-      "reason": "21 runs after #7038 (14.11.2026): 46-68 s on blacksmith-8vcpu, 65-72 s for the full suite on blacksmith-4vcpu, 34 s in a small selection there; budget is 1.5 times the maximum. Runs every migration on fresh databases."
+      "seconds": 130,
+      "reason": "21 runs after #7038 (14.11.2026): 46-68 s on blacksmith-8vcpu, 65-72 s for the full suite on blacksmith-4vcpu, 34 s in a small selection there. Migration pull requests on blacksmith-4vcpu took 71-107 s before #7038 and are barely measured since, so the budget stays above 1.5 times the new maximum (110 s) until weekday runs exist. Runs every migration on fresh databases."
     },
     "modules/organizationtenancy/compose": {
       "seconds": 100,
       "reason": "20 runs after #7038 (14.11.2026): 37-61 s on blacksmith-8vcpu, 36-41 s for the full suite on blacksmith-4vcpu; budget is 1.5 times the maximum. Per-test tenants for school lifecycle and erasure (#6452)."
+    },
+    "cmd": {
+      "seconds": 100,
+      "reason": "23 runs after #7038 (14.11.2026): 16-34 s. On blacksmith-4vcpu it took 49-90 s before #7038 and is barely measured there since; lower it to the default once weekday runs on that runner exist."
+    },
+    "internal/architecture": {
+      "seconds": 110,
+      "reason": "16 runs after #7038 (14.11.2026): 20-45 s with the child-process builds in the warmed cache. They compile cold when a pull request changes much Go code: 53-100 s in six runs of 13.11. before the warm job ran these tests."
     }
   }
 }
