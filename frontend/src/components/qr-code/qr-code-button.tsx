@@ -49,7 +49,7 @@ export function QrCodeButton({
           size="icon"
           className={className ?? "shrink-0"}
           aria-label="QR-Code anzeigen"
-          title="QR-Code anzeigen"
+          tooltip="Zeigt den Link als QR-Code zum Scannen oder Speichern."
           onClick={(event) => {
             event.stopPropagation();
             show();
@@ -64,6 +64,7 @@ export function QrCodeButton({
           size="md"
           className={className ?? "inline-flex shrink-0 items-center gap-2"}
           onClick={show}
+          tooltip="Zeigt den Link als QR-Code zum Scannen oder Speichern."
         >
           <QrCode className="h-4 w-4" aria-hidden="true" />
           QR-Code

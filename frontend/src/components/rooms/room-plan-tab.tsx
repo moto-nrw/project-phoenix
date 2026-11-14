@@ -128,7 +128,12 @@ export function RoomPlanControls({
       withoutContextRow={planHref === null}
     >
       {planHref && (
-        <ButtonLink variant="outline" size="compact" href={planHref}>
+        <ButtonLink
+          variant="outline"
+          size="compact"
+          href={planHref}
+          tooltip="Öffnet den Betreuungsplan für diesen Raum, dort ändern Sie die Belegung."
+        >
           {planLinkLabel}
         </ButtonLink>
       )}

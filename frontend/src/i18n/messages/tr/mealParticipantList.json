@@ -54,5 +54,9 @@
   "weekNotRegistered": "kayıtlı değil",
   "weekCountsLabel": "Günlük yemek sayısı",
   "weekCount": "{count, plural, one {# çocuk} other {# çocuk}}",
-  "weekClosed": "yemek yok"
+  "weekClosed": "yemek yok",
+  "changeDescription": "Bu çocuğun kaydını açar. Veliler değişiklikleri veli portalında görür",
+  "changeTooltip": "Bir çocuğu kaydetmek veya kaydını silmek için bir pencere açar.",
+  "changePastReason": "Geçmiş günler artık değiştirilemez.",
+  "changeClosedReason": "Kapalı günlerde değiştirilecek kayıt yoktur."
 }

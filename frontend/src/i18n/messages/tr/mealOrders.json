@@ -27,5 +27,8 @@
   "changesAdded": "{count, plural, one {# çocuk fazla} other {# çocuk fazla}}",
   "changesRemoved": "{count, plural, one {# çocuk eksik} other {# çocuk eksik}}",
   "deliveryHeader": "Haftanın teslimat listesi",
-  "errorObjectDelivery": "teslimat listesi"
+  "errorObjectDelivery": "teslimat listesi",
+  "deliveryDownloadDescription": "Bu haftanın teslimat listesini indirir",
+  "monthExportDescription": "Ay ve biçim seçmek için bir pencere açar",
+  "monthDownloadDescription": "Bu ay her çocuk için sipariş edilen yemekleri indirir"
 }

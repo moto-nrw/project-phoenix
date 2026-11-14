@@ -272,6 +272,16 @@ export function TransitStudentsSection({
   const totalCount = studentsData?.pagination?.total_records ?? students.length;
   const allSelected =
     students.length > 0 && selectedVisibleCount === students.length;
+  // Fachliche Sperre mit Grund; solange Räume laden, bleibt es ohne (#6643).
+  let assignBlockedReason: string | undefined;
+  if (selectedVisibleCount === 0) {
+    assignBlockedReason = "Wählen Sie zuerst mindestens ein Kind aus.";
+  } else if (!targetsLoading && targetOptions.length === 0) {
+    assignBlockedReason =
+      "Gerade ist kein Raum aktiv, in den Sie Kinder setzen können.";
+  } else if (!targetsLoading && !targetValue) {
+    assignBlockedReason = "Wählen Sie zuerst einen Zielraum.";
+  }
   // Die Kindakte kehrt auf die Seite „Unterwegs" zurück (#3115); ihre
   // Abfrage (etwa der Rückweg zur Übersicht) reist mit.
   const defaultFromReferrer = (() => {
@@ -465,6 +475,11 @@ export function TransitStudentsSection({
                       variant="outline"
                       size="compact"
                       onClick={allSelected ? clearSelection : selectAllVisible}
+                      tooltip={
+                        allSelected
+                          ? "Hebt die Auswahl aller Kinder auf."
+                          : "Wählt alle Kinder aus, die gerade unterwegs sind."
+                      }
                       className="shrink-0"
                     >
                       {allSelected ? "Aufheben" : "Alle auswählen"}
@@ -507,6 +522,8 @@ export function TransitStudentsSection({
                     disabled={
                       !targetValue || selectedVisibleCount === 0 || submitting
                     }
+                    tooltip="Setzt die ausgewählten Kinder sofort in den Zielraum."
+                    disabledReason={assignBlockedReason}
                     className="w-full sm:w-auto"
                   >
                     In Raum setzen
@@ -584,7 +601,7 @@ export function TransitStudentsSection({
                           )
                         }
                         aria-label={`${fullName} Profil öffnen`}
-                        title="Profil öffnen"
+                        tooltip="Öffnet die Akte des Kindes."
                         className="shrink-0"
                       >
                         Profil
