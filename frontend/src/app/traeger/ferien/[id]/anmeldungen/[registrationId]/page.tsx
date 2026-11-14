@@ -39,7 +39,12 @@ import { holidayRegistrationDeletionNotice } from "~/components/traeger/holiday-
 import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registration-history";
 import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
-import { HolidayRegistrationMailProblemsAlert } from "~/components/traeger/holiday-registration-mail-problems";
+import {
+  HOLIDAY_MAIL_LABELS,
+  HOLIDAY_MAIL_NEXT_STEP,
+  HolidayRegistrationMailProblemsAlert,
+} from "~/components/traeger/holiday-registration-mail-problems";
+import { RequestMailStatus } from "~/components/enrollment/request-mail-status";
 import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { isRefusal } from "~/components/traeger/use-traeger-confirmed-resource";
@@ -800,6 +805,24 @@ export default function TraegerHolidayRegistrationPage() {
               </div>
             </SectionCard>
           )}
+          {/* Every mail of the registration with its status (#6976), in the
+              view of the mails of an enrollment request. A Träger keeps no
+              address list, so its own next step stands under the list. */}
+          <RequestMailStatus
+            mails={(registration.mails ?? []).map((mail) => ({
+              kind: mail.kind,
+              outcome: mail.outcome,
+              ...(mail.createdAt ? { created_at: mail.createdAt } : {}),
+            }))}
+            loadError={null}
+            title="Mails"
+            labels={HOLIDAY_MAIL_LABELS}
+            note={
+              registration.mailProblems.length > 0
+                ? `Bei mindestens einer Mail gibt es ein Problem. ${HOLIDAY_MAIL_NEXT_STEP}`
+                : undefined
+            }
+          />
           <HolidayRegistrationHistory
             period={period}
             names={names}
