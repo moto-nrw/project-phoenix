@@ -173,7 +173,8 @@
     "saveEditTooltip": "E zëvendëson menjëherë kërkesën tuaj të hapur me zgjedhjen e re.",
     "withdrawalConfirmTooltip": "Dërgon menjëherë te {careTerm} kërkesën për çregjistrim nga përkujdesja.",
     "withdrawalConfirmEditTooltip": "E zëvendëson menjëherë kërkesën tuaj të hapur me çregjistrimin nga përkujdesja.",
-    "noOfferingsDisabledReason": "Nuk ka përkujdesje për rezervim, ju lutemi kontaktoni {careTerm}."
+    "noOfferingsDisabledReason": "Nuk ka përkujdesje për rezervim, ju lutemi kontaktoni {careTerm}.",
+    "catalogMissingDisabledReason": "Fillimisht ringarkoni listën e ofertave."
   },
   "weekdayShort": {
     "1": "Hën",

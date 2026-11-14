@@ -58,5 +58,5 @@
   "newsPollSaveTooltip": "Sends your answer to the school right away.",
   "newsPollSaveDisabledReason": "First choose an answer or change your selection.",
   "newsReadAndConfirmTooltip": "Confirms to the school right away that you have read the message.",
-  "newsCloseUnsavedTooltip": "Closes the message; your new selection is lost."
+  "newsCloseUnsavedTooltip": "Closes the survey; your new selection is lost."
 }

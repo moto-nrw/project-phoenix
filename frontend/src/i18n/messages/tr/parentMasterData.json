@@ -173,7 +173,8 @@
     "saveEditTooltip": "Açık talebinizi hemen yeni seçimle değiştirir.",
     "withdrawalConfirmTooltip": "Bakımı tamamen sonlandırma talebini hemen gönderir, {careTerm} inceler.",
     "withdrawalConfirmEditTooltip": "Açık talebinizi hemen bakımı tamamen sonlandırma talebiyle değiştirir.",
-    "noOfferingsDisabledReason": "Rezerve edilebilir bakım yok, lütfen {careTerm} ile iletişime geçin."
+    "noOfferingsDisabledReason": "Rezerve edilebilir bakım yok, lütfen {careTerm} ile iletişime geçin.",
+    "catalogMissingDisabledReason": "Önce teklif listesini yeniden yükleyin."
   },
   "weekdayShort": {
     "1": "Pzt",

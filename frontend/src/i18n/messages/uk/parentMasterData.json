@@ -173,7 +173,8 @@
     "saveEditTooltip": "Одразу замінює ваш відкритий запит новим вибором.",
     "withdrawalConfirmTooltip": "Одразу надсилає до {careTerm} запит на повне скасування догляду.",
     "withdrawalConfirmEditTooltip": "Одразу замінює ваш відкритий запит повним скасуванням догляду.",
-    "noOfferingsDisabledReason": "Зараз не можна забронювати догляд, зверніться до {careTerm}."
+    "noOfferingsDisabledReason": "Зараз не можна забронювати догляд, зверніться до {careTerm}.",
+    "catalogMissingDisabledReason": "Спершу завантажте список пропозицій ще раз."
   },
   "weekdayShort": {
     "1": "Пн",

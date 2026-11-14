@@ -113,7 +113,7 @@
         "active_no_access": "Ma konto, ale nie ma jeszcze dostępu do tego dziecka"
       },
       "inviteTooltip": "Otwiera okno, aby dać osobie dostęp do aplikacji.",
-      "sendTooltip": "Od razu zaprasza osobę, zależnie od ustawień {careTerm} najpierw to sprawdza.",
+      "sendTooltip": "Zaprasza osobę, zależnie od ustawień {careTerm} najpierw to sprawdza.",
       "sendDisabledReason": "Najpierw proszę wpisać adres e-mail tej osoby.",
       "grantTooltip": "Prosi o pełny dostęp do aplikacji dla tej osoby, moto najpierw zapyta.",
       "grantConfirmTooltip": "Od razu wysyła prośbę do {careTerm}.",
@@ -135,7 +135,7 @@
     "removePhoneTooltip": "Usuwa ten numer z formularza.",
     "addPhoneTooltip": "Dodaje puste pole na kolejny numer.",
     "createContactTooltip": "Dodaje kontakt, {careTerm} od razu go widzi.",
-    "createContactWithPickupTooltip": "Dodaje kontakt i wysyła zgodę na odbiór do {careTerm}.",
+    "createContactWithPickupTooltip": "Dodaje kontakt, zgoda na odbiór obowiązuje dopiero po potwierdzeniu przez {careTerm}.",
     "saveContactTooltip": "Zapisuje dane kontaktowe, {careTerm} od razu je widzi.",
     "savePickupTooltip": "Zapisuje dane, {careTerm} od razu je widzi.",
     "savePickupRequestTooltip": "Wysyła zgodę na odbiór do {careTerm}, obowiązuje dopiero po potwierdzeniu.",

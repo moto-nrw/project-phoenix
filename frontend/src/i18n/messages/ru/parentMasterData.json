@@ -173,7 +173,8 @@
     "saveEditTooltip": "Сразу заменяет ваш открытый запрос новым выбором.",
     "withdrawalConfirmTooltip": "Сразу отправляет в {careTerm} запрос на полную отмену ухода.",
     "withdrawalConfirmEditTooltip": "Сразу заменяет ваш открытый запрос полной отменой ухода.",
-    "noOfferingsDisabledReason": "Сейчас нельзя забронировать уход, обратитесь в {careTerm}."
+    "noOfferingsDisabledReason": "Сейчас нельзя забронировать уход, обратитесь в {careTerm}.",
+    "catalogMissingDisabledReason": "Сначала загрузите список предложений заново."
   },
   "weekdayShort": {
     "1": "Пн",

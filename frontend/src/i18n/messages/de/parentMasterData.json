@@ -173,7 +173,8 @@
     "saveEditTooltip": "Ersetzt Ihre offene Anfrage sofort durch die neue Auswahl.",
     "withdrawalConfirmTooltip": "Schickt die Abmeldung von der Betreuung sofort als Anfrage an die {careTerm}.",
     "withdrawalConfirmEditTooltip": "Ersetzt Ihre offene Anfrage sofort durch die Abmeldung von der Betreuung.",
-    "noOfferingsDisabledReason": "Es ist keine Betreuung buchbar, wenden Sie sich an die {careTerm}."
+    "noOfferingsDisabledReason": "Es ist keine Betreuung buchbar, wenden Sie sich an die {careTerm}.",
+    "catalogMissingDisabledReason": "Laden Sie zuerst die Liste der Angebote neu."
   },
   "weekdayShort": {
     "1": "Mo",

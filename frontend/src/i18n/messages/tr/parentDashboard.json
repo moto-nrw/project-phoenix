@@ -58,5 +58,5 @@
   "newsPollSaveTooltip": "Yanıtınızı hemen okula gönderir.",
   "newsPollSaveDisabledReason": "Önce bir yanıt seçin veya seçiminizi değiştirin.",
   "newsReadAndConfirmTooltip": "Mektubu okuduğunuzu hemen okula bildirir.",
-  "newsCloseUnsavedTooltip": "Mektubu kapatır; yeni seçiminiz kaybolur."
+  "newsCloseUnsavedTooltip": "Anketi kapatır; yeni seçiminiz kaybolur."
 }

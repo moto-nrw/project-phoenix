@@ -455,7 +455,9 @@ export function OfferingChangeRequestModal({
               disabledReason={
                 emptyCatalog
                   ? t("careOfferingsModal.noOfferingsDisabledReason")
-                  : undefined
+                  : loadError && !catalog
+                    ? t("careOfferingsModal.catalogMissingDisabledReason")
+                    : undefined
               }
               isLoading={submitting}
               loadingText={t("careOfferingsModal.submitting")}

@@ -113,7 +113,7 @@
         "active_no_access": "Hat ein Konto, aber noch keinen Zugang zu diesem Kind"
       },
       "inviteTooltip": "Öffnet ein Fenster, um einer Person Zugang zur App zu geben.",
-      "sendTooltip": "Lädt die Person sofort ein, je nach Einstellung prüft die {careTerm} zuerst.",
+      "sendTooltip": "Lädt die Person ein, je nach Einstellung prüft die {careTerm} das zuerst.",
       "sendDisabledReason": "Geben Sie zuerst die E-Mail-Adresse der Person ein.",
       "grantTooltip": "Fragt vollen App-Zugang für diese Person an, moto fragt vorher nach.",
       "grantConfirmTooltip": "Schickt die Anfrage sofort an die {careTerm}.",
@@ -135,7 +135,7 @@
     "removePhoneTooltip": "Entfernt diese Nummer aus dem Formular.",
     "addPhoneTooltip": "Fügt ein leeres Feld für eine weitere Nummer an.",
     "createContactTooltip": "Trägt den Kontakt ein, die {careTerm} sieht ihn sofort.",
-    "createContactWithPickupTooltip": "Trägt den Kontakt ein und schickt die Abholerlaubnis an die {careTerm}.",
+    "createContactWithPickupTooltip": "Trägt den Kontakt ein, die Abholerlaubnis gilt erst nach Bestätigung der {careTerm}.",
     "saveContactTooltip": "Speichert die Kontaktdaten, die {careTerm} sieht sie sofort.",
     "savePickupTooltip": "Speichert die Angaben, die {careTerm} sieht sie sofort.",
     "savePickupRequestTooltip": "Schickt die Abholerlaubnis an die {careTerm}, sie gilt erst nach Bestätigung.",

@@ -58,5 +58,5 @@
   "newsPollSaveTooltip": "Одразу надсилає вашу відповідь до школи.",
   "newsPollSaveDisabledReason": "Спершу виберіть відповідь або змініть вибір.",
   "newsReadAndConfirmTooltip": "Одразу підтверджує школі, що ви прочитали лист.",
-  "newsCloseUnsavedTooltip": "Закриває лист, новий вибір буде втрачено."
+  "newsCloseUnsavedTooltip": "Закриває опитування, новий вибір буде втрачено."
 }

@@ -113,7 +113,7 @@
         "active_no_access": "Ka llogari, por ende pa qasje te ky fëmijë"
       },
       "inviteTooltip": "Hap një dritare për t'i dhënë një personi qasje në aplikacion.",
-      "sendTooltip": "Fton menjëherë personin, sipas cilësimeve {careTerm} kontrollon më parë.",
+      "sendTooltip": "Fton personin, sipas cilësimeve {careTerm} e kontrollon këtë më parë.",
       "sendDisabledReason": "Fillimisht shkruani adresën e email-it të personit.",
       "grantTooltip": "Kërkon qasje të plotë në aplikacion për këtë person, moto pyet më parë.",
       "grantConfirmTooltip": "Dërgon menjëherë kërkesën te {careTerm}.",
@@ -135,7 +135,7 @@
     "removePhoneTooltip": "Heq këtë numër nga formulari.",
     "addPhoneTooltip": "Shton një fushë bosh për një numër tjetër.",
     "createContactTooltip": "Shton kontaktin, {careTerm} e sheh menjëherë.",
-    "createContactWithPickupTooltip": "Shton kontaktin dhe dërgon lejen e marrjes te {careTerm}.",
+    "createContactWithPickupTooltip": "Shton kontaktin, leja e marrjes vlen vetëm pasi {careTerm} ta konfirmojë.",
     "saveContactTooltip": "Ruan të dhënat e kontaktit, {careTerm} i sheh menjëherë.",
     "savePickupTooltip": "Ruan të dhënat, {careTerm} i sheh menjëherë.",
     "savePickupRequestTooltip": "Dërgon lejen e marrjes te {careTerm}, vlen vetëm pas konfirmimit.",

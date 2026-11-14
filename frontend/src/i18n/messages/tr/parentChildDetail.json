@@ -113,7 +113,7 @@
         "active_no_access": "Hesabı var ama bu çocuğa henüz erişimi yok"
       },
       "inviteTooltip": "Bir kişiye uygulamaya erişim vermek için bir pencere açar.",
-      "sendTooltip": "Kişiyi hemen davet eder; ayara göre önce {careTerm} kontrol eder.",
+      "sendTooltip": "Kişiyi davet eder; ayara göre önce {careTerm} bunu kontrol eder.",
       "sendDisabledReason": "Önce kişinin e-posta adresini girin.",
       "grantTooltip": "Bu kişi için tam uygulama erişimi ister, moto önce sorar.",
       "grantConfirmTooltip": "Talebi hemen gönderir, {careTerm} inceler.",
@@ -135,7 +135,7 @@
     "removePhoneTooltip": "Bu numarayı formdan kaldırır.",
     "addPhoneTooltip": "Başka bir numara için boş bir alan ekler.",
     "createContactTooltip": "Kişiyi ekler, {careTerm} bunu hemen görür.",
-    "createContactWithPickupTooltip": "Kişiyi ekler; teslim alma izni {careTerm} onayına gider.",
+    "createContactWithPickupTooltip": "Kişiyi ekler; teslim alma izni ancak {careTerm} onaylayınca geçerli olur.",
     "saveContactTooltip": "İletişim bilgilerini kaydeder, {careTerm} bunları hemen görür.",
     "savePickupTooltip": "Bilgileri kaydeder, {careTerm} bunları hemen görür.",
     "savePickupRequestTooltip": "Teslim alma iznini gönderir; izin ancak {careTerm} onaylayınca geçerli olur.",

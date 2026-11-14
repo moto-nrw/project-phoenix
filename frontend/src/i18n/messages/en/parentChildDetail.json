@@ -113,7 +113,7 @@
         "active_no_access": "Has an account but no access to this child yet"
       },
       "inviteTooltip": "Opens a window to give a person access to the app.",
-      "sendTooltip": "Invites the person right away; depending on settings, the {careTerm} checks first.",
+      "sendTooltip": "Invites the person; depending on settings, the {careTerm} checks this first.",
       "sendDisabledReason": "First enter the person's email address.",
       "grantTooltip": "Requests full app access for this person; moto asks you to confirm first.",
       "grantConfirmTooltip": "Sends the request to the {careTerm} right away.",
@@ -135,7 +135,7 @@
     "removePhoneTooltip": "Removes this number from the form.",
     "addPhoneTooltip": "Adds an empty field for another number.",
     "createContactTooltip": "Adds the contact; the {careTerm} sees it right away.",
-    "createContactWithPickupTooltip": "Adds the contact and sends the pickup permission to the {careTerm}.",
+    "createContactWithPickupTooltip": "Adds the contact; the pickup permission applies once the {careTerm} confirms it.",
     "saveContactTooltip": "Saves the contact details; the {careTerm} sees them right away.",
     "savePickupTooltip": "Saves the details; the {careTerm} sees them right away.",
     "savePickupRequestTooltip": "Sends the pickup permission to the {careTerm}; it applies once confirmed.",

@@ -173,7 +173,8 @@
     "saveEditTooltip": "Replaces your open request with the new selection right away.",
     "withdrawalConfirmTooltip": "Sends the request to end all booked care to the {careTerm} right away.",
     "withdrawalConfirmEditTooltip": "Replaces your open request with ending all booked care right away.",
-    "noOfferingsDisabledReason": "No care can be booked; please contact the {careTerm}."
+    "noOfferingsDisabledReason": "No care can be booked; please contact the {careTerm}.",
+    "catalogMissingDisabledReason": "First reload the list of offerings."
   },
   "weekdayShort": {
     "1": "Mon",

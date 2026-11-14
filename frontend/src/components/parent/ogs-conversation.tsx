@@ -1002,6 +1002,8 @@ function QuickActionPill({
       variant="surface"
       size="md"
       onClick={() => onPick(action.key)}
+      // Dieselben Sätze wie die Knöpfe auf der Kind-Karte: beide öffnen
+      // dasselbe Formular.
       tooltip={todayT(
         action.key === "sick"
           ? "actions.sickTooltip"

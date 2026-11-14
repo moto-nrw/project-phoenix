@@ -173,7 +173,8 @@
     "saveEditTooltip": "Od razu zastępuje otwartą prośbę nowym wyborem.",
     "withdrawalConfirmTooltip": "Od razu wysyła do {careTerm} prośbę o wypisanie z opieki.",
     "withdrawalConfirmEditTooltip": "Od razu zastępuje otwartą prośbę wypisaniem z opieki.",
-    "noOfferingsDisabledReason": "Nie można zarezerwować opieki, proszę skontaktować się z {careTerm}."
+    "noOfferingsDisabledReason": "Nie można zarezerwować opieki, proszę skontaktować się z {careTerm}.",
+    "catalogMissingDisabledReason": "Najpierw proszę ponownie wczytać listę ofert."
   },
   "weekdayShort": {
     "1": "Pn",
