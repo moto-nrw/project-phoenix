@@ -192,12 +192,16 @@ describe("OverflowMenu", () => {
   });
 
   it("names why a blocked trigger does not open (#6757)", () => {
+    const onRowClick = vi.fn();
     render(
-      <OverflowMenu
-        disabled
-        disabledReason="Es gibt noch nichts zum Exportieren."
-        items={[{ label: "Export", onClick: () => undefined }]}
-      />,
+      // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Probe für einen klickbaren Vorfahren
+      <div onClick={onRowClick}>
+        <OverflowMenu
+          disabled
+          disabledReason="Es gibt noch nichts zum Exportieren."
+          items={[{ label: "Export", onClick: () => undefined }]}
+        />
+      </div>,
     );
 
     const trigger = screen.getByRole("button", { name: /Weitere Aktionen/i });
@@ -209,6 +213,8 @@ describe("OverflowMenu", () => {
     fireEvent.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("menu")).toBeNull();
+    // Wie am gesperrten Button erreicht der Klick keinen Vorfahren.
+    expect(onRowClick).not.toHaveBeenCalled();
   });
 
   it("closes on Escape", () => {

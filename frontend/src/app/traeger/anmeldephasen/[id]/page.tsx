@@ -129,7 +129,7 @@ export default function TraegerCatalogPhasePage() {
               href={previewHref}
               variant="primary"
               size="md"
-              tooltip="Zeigt, was die Schulen bekommen. Übertragen wird erst dort."
+              tooltip="Zeigt, was die Schulen bekommen, noch ohne etwas zu übertragen."
             >
               Vorschau ansehen
             </ButtonLink>

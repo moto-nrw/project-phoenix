@@ -252,7 +252,7 @@ describe("Elternbriefe in moto schule (#4800)", () => {
     const create = screen.getByRole("button", { name: /Neuer Elternbrief/ });
     expect(create).toHaveAttribute("aria-disabled", "true");
     expect(create).toHaveAccessibleDescription(
-      "Dafür brauchen Sie eine eigene Klasse. Die OGS-Leitung ordnet sie zu.",
+      "Dafür brauchen Sie eine eigene Klasse, die OGS-Leitung ordnet sie zu.",
     );
     fireEvent.click(create);
     expect(screen.queryByLabelText(/Betreff/)).toBeNull();

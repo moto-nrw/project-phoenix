@@ -57,6 +57,7 @@ import {
   type ParentConferenceSlot,
 } from "~/lib/parent-conferences";
 import { schoolClassLabel } from "~/lib/school-class-label";
+import { NO_OWN_CLASS_REASON } from "~/components/school/no-own-class";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
 import { schoolPortalKeys } from "~/lib/swr/portal-keys";
@@ -292,11 +293,7 @@ function SchoolParentConferences() {
           className="gap-1.5"
           onClick={openCreate}
           disabled={!!error || classes.length === 0}
-          disabledReason={
-            noClasses
-              ? "Dafür brauchen Sie eine eigene Klasse. Die OGS-Leitung ordnet sie zu."
-              : undefined
-          }
+          disabledReason={noClasses ? NO_OWN_CLASS_REASON : undefined}
           tooltip="Öffnet ein Formular für Zeitfenster, die Eltern dann buchen können."
         >
           <Plus className="h-4 w-4" aria-hidden />

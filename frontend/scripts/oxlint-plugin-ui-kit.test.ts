@@ -4913,6 +4913,9 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
     "src/app/school/kalender/probe.tsx",
     "src/lib/probe.tsx",
     "src/components/auth/logout-modal.tsx",
+    "src/components/auth/mfa-admin-override-modal.tsx",
+    "src/components/auth/password-change-modal.tsx",
+    "src/components/auth/probe.tsx",
     "src/app/not-found.tsx",
   ];
   const EXEMPT = [
@@ -4927,7 +4930,9 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
     "src/app/school/invite/page.tsx",
     "src/app/caterer/einladung/[schoolId]/[token]/page.tsx",
     "src/app/parents/accept-guardian-invite/page.tsx",
-    "src/components/auth/probe.tsx",
+    "src/components/auth/invitation-accept-form.tsx",
+    "src/components/auth/mfa-challenge-form.tsx",
+    "src/app/parents/ferienkonto/[token]/page.tsx",
     "src/app/[tenant]/(public)/anmeldung/probe/page.tsx",
     "src/app/page.tsx",
     "src/app/start/page.tsx",

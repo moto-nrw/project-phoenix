@@ -34,7 +34,7 @@ export function buildGroupOverflowItems({
     items.push({
       label: "Gruppe übergeben",
       description:
-        "Macht heute eine weitere Fachkraft für die Gruppe zuständig",
+        "Öffnet ein Fenster, um heute eine weitere Fachkraft zuständig zu machen",
       badge: activeTransfersCount > 0 ? activeTransfersCount : undefined,
       onClick: onOpenTransfer,
     });

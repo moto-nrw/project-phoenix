@@ -140,7 +140,7 @@ export default function TraegerCatalogPreviewPage() {
               size="md"
               onClick={() => void loadPreview()}
               disabled={loading || rollingOut}
-              tooltip="Berechnet die Vorschau mit dem aktuellen Stand neu. Es ändert sich nichts."
+              tooltip="Berechnet die Vorschau mit dem aktuellen Stand neu, ohne etwas zu ändern."
             >
               Vorschau neu laden
             </Button>

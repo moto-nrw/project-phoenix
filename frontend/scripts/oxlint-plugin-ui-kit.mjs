@@ -6013,8 +6013,9 @@ const noHandRolledCopyField = {
 // Lohnbüro-Link, Login-, Passwort- und Einladungsseiten, öffentliche Seiten,
 // Demo, Stories und Tests. Ordner enden auf „/“, alles andere ist eine
 // einzelne Datei; TOOLTIP_EXEMPT_RE fängt Seiten, die in jedem Portal unter
-// demselben Ordnernamen liegen. TOOLTIP_EXEMPT_KEEP nimmt Dateien aus einem
-// ausgenommenen Ordner wieder auf, die in den Portalen gerendert werden.
+// demselben Ordnernamen liegen. Aus `src/components/auth/` sind nur die
+// Bausteine dieser Seiten ausgenommen; Abmelden, Passwort ändern und das
+// Zurücksetzen der Zwei-Faktor-Anmeldung laufen im Portal und bleiben drin.
 // `ui-kit/menu-item-needs-description` (#6745) nutzt dieselben Grenzen.
 
 const TOOLTIP_EXEMPT = [
@@ -6026,15 +6027,27 @@ const TOOLTIP_EXEMPT = [
   "src/components/caterer/",
   // Lohnbüro-Link.
   "src/app/lohnbuero/",
-  // Login, Passwort, Einladung: Seiten vor der Anmeldung.
+  // Login, Passwort, Einladung: Seiten vor der Anmeldung und ihre Bausteine.
   "src/app/[tenant]/page.tsx",
-  "src/components/auth/",
+  "src/app/parents/ferienkonto/",
+  "src/components/auth/auth-shell.tsx",
+  "src/components/auth/guardian-invitation-accept-form.tsx",
+  "src/components/auth/holiday-parent-setup.tsx",
+  "src/components/auth/invitation-accept-form.tsx",
+  "src/components/auth/invitation-owner-accept-form.tsx",
+  "src/components/auth/invitation-page-content.tsx",
+  "src/components/auth/invitation-page-route.tsx",
+  "src/components/auth/mfa-challenge-form.tsx",
+  "src/components/auth/mfa-enrollment-screen.tsx",
+  "src/components/auth/password-reset-modal.tsx",
+  "src/components/auth/reset-password-page-content.tsx",
+  "src/components/auth/reset-password-page-route.tsx",
+  "src/components/auth/tenant-password-reset-modal.tsx",
   // Öffentliche Seiten.
   "src/app/[tenant]/(public)/",
   "src/app/page.tsx",
   "src/app/start/",
-  // Demo.
-  "src/app/demo/",
+  // Demo (Seiten unter `…/demo/` fängt TOOLTIP_EXEMPT_RE).
   "src/components/demo/",
 ];
 
@@ -6042,15 +6055,9 @@ const TOOLTIP_EXEMPT = [
 const TOOLTIP_EXEMPT_RE =
   /^src\/app\/(?:[^/]+\/)*(?:login|reset-password|invite|einladung|accept-guardian-invite|demo)\//;
 
-const TOOLTIP_EXEMPT_KEEP = new Set([
-  // Abmelden-Dialog aus der Kopfleiste und der Navigation der Portale.
-  "src/components/auth/logout-modal.tsx",
-]);
-
 function inTooltipScope(key) {
   if (EXEMPT_FILE_RE.test(key) || key.includes("src/test/")) return false;
   if (!key.startsWith("src/")) return false;
-  if (TOOLTIP_EXEMPT_KEEP.has(key)) return true;
   if (TOOLTIP_EXEMPT_RE.test(key)) return false;
   return !TOOLTIP_EXEMPT.some((entry) =>
     entry.endsWith("/") ? key.startsWith(entry) : key === entry,

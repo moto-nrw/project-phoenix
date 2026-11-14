@@ -15,7 +15,10 @@ import {
 import { createPortal } from "react-dom";
 import { ActionHint } from "~/components/ui/action-hint";
 import { useKitDefault } from "~/components/ui/kit-locale";
-import { buttonClassName } from "~/components/ui/button";
+import {
+  BLOCKED_ACTIVATION_PROPS,
+  buttonClassName,
+} from "~/components/ui/button";
 import type { ButtonSize, ButtonVariant } from "~/components/ui/button-styles";
 import Link from "~/components/ui/navigation-link";
 import { Check, MoreVertical } from "lucide-react";
@@ -432,7 +435,7 @@ export function OverflowMenu({
 
   if (items.length === 0) return null;
 
-  const blocked = disabled && Boolean(disabledReason?.trim());
+  const blocked = disabled && Boolean(disabledReason);
   const triggerHint = blocked
     ? disabledReason
     : (triggerTooltip ??
@@ -446,6 +449,8 @@ export function OverflowMenu({
       ref={triggerRef}
       type="button"
       onClick={handleOpen}
+      // Wie am gesperrten `Button`: kein Klick erreicht einen Vorfahren.
+      {...(blocked && BLOCKED_ACTIVATION_PROPS)}
       disabled={disabled && !blocked}
       aria-disabled={blocked || undefined}
       role={triggerRole}

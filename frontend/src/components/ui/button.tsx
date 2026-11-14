@@ -166,8 +166,8 @@ const ACTIVATION_HANDLERS = [
 // Aktivierungsereignisse in der Bubbling-Phase selbst abgebrochen: Der Grund
 // bleibt erreichbar, aber weder der Aufrufer noch ein klickbarer Vorfahr
 // erhält in dieser Phase die Aktion. Capture-Handler des Aufrufers werden
-// oben entfernt.
-const BLOCKED_ACTIVATION_PROPS = Object.fromEntries(
+// oben entfernt. Der Auslöser von `OverflowMenu` nutzt dieselbe Sperre.
+export const BLOCKED_ACTIVATION_PROPS = Object.fromEntries(
   ACTIVATION_HANDLERS.filter((name) => !name.endsWith("Capture")).map(
     (name) => [name, blockActivation],
   ),

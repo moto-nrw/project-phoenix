@@ -28,6 +28,14 @@ const logger = createLogger({ component: "HolidayClosureNotices" });
 const INITIAL_OPEN_COUNT = 5;
 
 /** „1 Familie hat …“ oder „12 Familien haben …“. */
+/** Was „Eltern informieren“ an einem Hinweis tut (#6757), in beiden Portalen. */
+export const NOTIFY_PARENTS_TOOLTIP =
+  "Sendet den Eltern der betroffenen Kinder sofort eine E-Mail.";
+
+/** Warum „N weitere anzeigen“ ohne Erklärung auskommt (#6757). */
+export const SHOW_MORE_NO_TOOLTIP =
+  "Zeigt nur mehr oder weniger Zeilen, an den Hinweisen ändert sich nichts.";
+
 export function familiesBookedSentence(families: number): string {
   return families === 1
     ? "1 Familie hat an diesen Tagen Ferienbetreuung gebucht."
