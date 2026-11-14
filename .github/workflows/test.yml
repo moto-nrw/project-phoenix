@@ -93,7 +93,16 @@ jobs:
           # wal_level=minimal change nothing here: on this tmpfs Postgres
           # took 50.7 % of the busy CPU seconds with them and 48.6-51.2 %
           # without (full suite, 13.11.2026).
-          POSTGRES_INITDB_ARGS: --set max_connections=300
+          #
+          # scram_iterations=1: the suite opens thousands of password logins,
+          # and a SCRAM verifier with the default 4096 iterations made Postgres
+          # and the client each derive the key 4096 times per login (11.3 ms
+          # CPU per connection against 3.1 ms, pgbench -C, 14.11.2026). initdb
+          # applies --set to the superuser password it stores and writes it to
+          # postgresql.conf, so the roles the migrations and the snapshot
+          # restore create get one-iteration verifiers too. Passwords are still
+          # checked; pg_hba keeps scram-sha-256 for TCP.
+          POSTGRES_INITDB_ARGS: --set max_connections=300 --set scram_iterations=1
         ports:
           - 5432:5432
         # Package database drops force checkpoints. These disposable databases
@@ -699,9 +708,12 @@ jobs:
           docker pull --quiet "${MAILPIT_IMAGE}" & mailpit_pull=$!
           wait "${postgres_pull}"
           wait "${mailpit_pull}"
+          # One-iteration SCRAM verifiers as in "Backend tests": logins cost
+          # less CPU, passwords are still checked.
           docker run --detach --name seed-postgres --publish 5432:5432 \
             --env POSTGRES_DB=phoenix_seed --env POSTGRES_USER=postgres \
             --env POSTGRES_PASSWORD=postgres --env TZ=Europe/Berlin \
+            --env POSTGRES_INITDB_ARGS="--set scram_iterations=1" \
             "${POSTGRES_IMAGE}" > /dev/null
           docker run --detach --name seed-mailpit --publish 1025:1025 --publish 8025:8025 \
             "${MAILPIT_IMAGE}" > /dev/null
