@@ -482,7 +482,7 @@ function RoomsPageContent() {
         badge: exportTargetCount,
         disabled: loading || isExporting,
         description:
-          "Lädt als PDF herunter, wer in den gezeigten Räumen oder unterwegs ist.",
+          "Speichert als PDF, wer in den gezeigten Räumen oder unterwegs ist.",
         onClick: () => {
           void handleExport("pdf");
         },
@@ -493,7 +493,7 @@ function RoomsPageContent() {
         badge: exportTargetCount,
         disabled: loading || isExporting,
         description:
-          "Lädt als Word-Datei herunter, wer in den gezeigten Räumen oder unterwegs ist.",
+          "Speichert als Word-Datei, wer in den gezeigten Räumen oder unterwegs ist.",
         onClick: () => {
           void handleExport("docx");
         },
@@ -504,7 +504,7 @@ function RoomsPageContent() {
         badge: exportTargetCount,
         disabled: loading || isExporting,
         description:
-          "Lädt als Excel-Datei herunter, wer in den gezeigten Räumen oder unterwegs ist.",
+          "Speichert als Excel-Datei, wer in den gezeigten Räumen oder unterwegs ist.",
         onClick: () => {
           void handleExport("xlsx");
         },

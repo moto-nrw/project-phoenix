@@ -675,7 +675,7 @@ export default function MealPlanPage() {
             confirmVariant="danger"
             confirmTooltip={
               confirmReload
-                ? "Verwirft Ihre Änderungen sofort und lädt die Woche neu."
+                ? "Verwirft Ihre Änderungen sofort und holt die gespeicherte Woche."
                 : "Verwirft Ihre Änderungen sofort und wechselt die Woche."
             }
           >
