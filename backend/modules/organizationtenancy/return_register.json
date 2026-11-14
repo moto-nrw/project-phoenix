@@ -13175,6 +13175,12 @@
           "nullable": true
         },
         {
+          "name": "lunch",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
+        },
+        {
           "name": "health",
           "type": "text",
           "udt": "text",
@@ -13494,6 +13500,12 @@
           "type": "text",
           "udt": "text",
           "nullable": false
+        },
+        {
+          "name": "lunch_price_cents",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -15001,6 +15013,12 @@
           "type": "ARRAY",
           "udt": "_date",
           "nullable": true
+        },
+        {
+          "name": "lunch",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -20057,6 +20075,12 @@
           "name": "cost_center_fallback",
           "type": "character varying",
           "udt": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "booked_days",
+          "type": "smallint",
+          "udt": "int2",
           "nullable": true
         }
       ],
