@@ -7,6 +7,7 @@ import {
   GroupIcon,
   PickupTimeIcon,
   PickupTimeRow,
+  PlannedActivityRows,
   SchoolClassIcon,
   StudentAbsenceRow,
   StudentCard,
@@ -810,5 +811,85 @@ describe("StudentInfoRow", () => {
     const wrapper = container.firstChild as HTMLElement;
     expect(wrapper.className).toContain("flex");
     expect(wrapper.className).toContain("items-center");
+  });
+});
+
+describe("Tagesablauf auf der Kinderkarte (#6487)", () => {
+  const now = new Date("2025-01-15T12:00:00");
+
+  it("lists today's offerings with their times, in the given order", () => {
+    render(
+      <PlannedActivityRows
+        activities={[
+          { title: "Töpfer-AG", start_time: "14:00", end_time: "15:00" },
+          { title: "Handball", start_time: "15:15", end_time: "16:00" },
+        ]}
+      />,
+    );
+
+    const list = screen.getByRole("list", { name: "Angebote heute" });
+    const items = Array.from(list.querySelectorAll("li")).map(
+      (item) => item.textContent,
+    );
+    expect(items).toEqual(["14:00–15:00 Töpfer-AG", "15:15–16:00 Handball"]);
+  });
+
+  it("renders nothing without offerings", () => {
+    const { container } = render(
+      <div data-testid="anchor">
+        <PlannedActivityRows activities={[]} />
+        <PlannedActivityRows />
+      </div>,
+    );
+
+    expect(screen.getByTestId("anchor")).toBeInTheDocument();
+    expect(container.querySelector("ul")).toBeNull();
+  });
+
+  it("sets arrival and pickup bold and larger when prominent", () => {
+    render(
+      <>
+        <ArrivalTimeRow
+          arrivalTime="11:45"
+          isException={false}
+          isAbsent={false}
+          now={now}
+          prominent
+        />
+        <PickupTimeRow
+          pickupTime="16:30"
+          isException={false}
+          notes="Oma holt ab"
+          now={now}
+          prominent
+        />
+      </>,
+    );
+
+    const arrival = screen.getByText("Ankunftszeit: 11:45 Uhr");
+    expect(arrival.closest("[data-prominent]")).toHaveClass(
+      "text-sm",
+      "font-semibold",
+      "text-gray-900",
+    );
+    const pickup = screen.getByText(/Gehzeit: 16:30 Uhr/);
+    expect(pickup.closest("[data-prominent]")).toHaveClass("font-semibold");
+    // Die Notiz bleibt leise, nur die Zeit springt ins Auge.
+    expect(screen.getByText("(Oma holt ab)")).toHaveClass("font-normal");
+  });
+
+  it("keeps the small grey rows without prominent", () => {
+    render(
+      <ArrivalTimeRow
+        arrivalTime="11:45"
+        isException={false}
+        isAbsent={false}
+        now={now}
+      />,
+    );
+
+    const arrival = screen.getByText("Ankunftszeit: 11:45 Uhr");
+    expect(arrival.closest(".text-xs")).toHaveClass("text-gray-500");
+    expect(arrival.closest("[data-prominent]")).toBeNull();
   });
 });

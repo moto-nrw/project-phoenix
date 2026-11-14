@@ -141,6 +141,19 @@ export function ShiftMoveDialog({
     breakValid &&
     !inactiveTypeBlocksMove &&
     !closingDayLookupLoading;
+  // Fachliche Sperre; das Nachladen der Schließtage zählt nicht als Grund.
+  const submitBlockedReason =
+    targetStaffId === ""
+      ? "Wählen Sie zuerst eine Person aus."
+      : targetDate === ""
+        ? "Wählen Sie zuerst einen Tag aus."
+        : !timesValid
+          ? "Prüfen Sie zuerst Beginn und Ende."
+          : !breakValid
+            ? "Prüfen Sie zuerst die Pause."
+            : inactiveTypeBlocksMove
+              ? "Wählen Sie zuerst eine aktive Dienstart aus."
+              : undefined;
 
   // Schließtag am Zieltag (#2032): Hinweis im Formular und in der ohnehin
   // vorhandenen Bestätigung — verschoben wird trotzdem, nichts wird gesperrt.
@@ -246,6 +259,7 @@ export function ShiftMoveDialog({
         size="md"
         onClick={onClose}
         disabled={isMoving}
+        noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
       >
         Abbrechen
       </Button>
@@ -255,6 +269,8 @@ export function ShiftMoveDialog({
         size="md"
         onClick={handleSubmit}
         disabled={isMoving || !canSubmit}
+        disabledReason={isMoving ? undefined : submitBlockedReason}
+        tooltip="Verschiebt die Schicht, moto fragt vorher nach."
       >
         Verschieben
       </Button>

@@ -4,7 +4,7 @@
  * session. Backend int64 IDs arrive as numbers and leave here as strings.
  */
 
-import { apiErrorFromBody, transportFetch } from "./api-error";
+import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 import type { SettingsSchema } from "./settings-api";
 import { filenameFromDisposition } from "./file-download";
 import { type TraegerRole, traegerRoles } from "./traeger-roles";
@@ -29,6 +29,12 @@ export type TraegerLoginResult =
       readonly challengeToken: string;
       readonly maskedEmail: string;
       readonly organizationId: string;
+      /**
+       * Whether this sign-in may remember the device (#6955). Missing or
+       * unreadable means no: the code step then offers nothing to remember.
+       */
+      readonly trustedDeviceEnabled: boolean;
+      readonly trustedDeviceDays?: number;
     }
   | {
       /** The account sets up its second factor first. */
@@ -45,6 +51,8 @@ interface BackendLoginResponse {
   masked_email?: string;
   organization_id?: number;
   organizations?: { id: number; name: string }[];
+  trusted_device_enabled?: boolean;
+  trusted_device_days?: number;
 }
 
 export interface TraegerSchool {
@@ -239,11 +247,14 @@ export async function traegerLogin(input: {
   readonly email: string;
   readonly password: string;
   readonly organizationId?: string;
+  /** Asks for the code even on a remembered device (#6955). */
+  readonly ignoreTrustedDevice?: boolean;
 }): Promise<TraegerLoginResult> {
   const body: Record<string, unknown> = {
     email: input.email,
     password: input.password,
   };
+  if (input.ignoreTrustedDevice) body.ignore_trusted_device = true;
   if (input.organizationId !== undefined) {
     body.organization_id = Number(input.organizationId);
   }
@@ -278,6 +289,8 @@ export async function traegerLogin(input: {
       challengeToken: result.challenge_token,
       maskedEmail: result.masked_email ?? "",
       organizationId: String(result.organization_id ?? ""),
+      trustedDeviceEnabled: result.trusted_device_enabled ?? false,
+      trustedDeviceDays: result.trusted_device_days,
     };
   }
   if (result.status === "mfa_enrollment_required" && result.access_token) {
@@ -461,6 +474,46 @@ export async function startTraegerSchoolSession(
     throw apiErrorFromBody("School session without hand-off", 502, data);
   }
   return token;
+}
+
+/** The mailed code of a step in the running Träger session (#7068). */
+export interface TraegerCodeStep {
+  challengeToken: string;
+  maskedEmail: string;
+}
+
+/**
+ * Mails a code for the person of the Träger session (#7068). A school that
+ * accepts no remembered device opens once the code is redeemed.
+ */
+export async function startTraegerCodeStep(): Promise<TraegerCodeStep> {
+  const data = await traegerRequest<{
+    challenge_token?: string;
+    masked_email?: string;
+  } | null>("/api/traeger/auth/mfa/step-up", { method: "POST", body: {} });
+  if (!data?.challenge_token) {
+    throw new ApiError("Code step without challenge", 502);
+  }
+  return {
+    challengeToken: data.challenge_token,
+    maskedEmail: data.masked_email ?? "",
+  };
+}
+
+/**
+ * Redeems the code in the running Träger session (#7068). The BFF installs
+ * the renewed session; false means the code was right but the new session
+ * could not be installed, so the person signs in again.
+ */
+export async function verifyTraegerCodeStep(
+  challengeToken: string,
+  code: string,
+): Promise<boolean> {
+  const data = await traegerRequest<{ session_renewed?: boolean } | null>(
+    "/api/traeger/auth/mfa/step-up/verify",
+    { method: "POST", body: { challenge_token: challengeToken, code } },
+  );
+  return data?.session_renewed === true;
 }
 
 // --- Ferienzeiträume (#4659) ---

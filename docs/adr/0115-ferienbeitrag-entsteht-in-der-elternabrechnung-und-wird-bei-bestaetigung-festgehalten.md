@@ -232,7 +232,9 @@ Anmeldung. Für Ferienanmeldungen eines Zeitraums gilt jetzt:
    Beträge in seiner Vorschau, und die Freigabe prüft ohnehin die geprüfte
    Vorschau. Das Bestätigen und das Ändern der Debitorennummer nehmen
    dieselben Sperren.
-5. **Ein Brief je Anmeldung.** Rechnung und Brief bleiben je Anmeldung. Die
+5. **Ein Brief je Anmeldung.** Rechnung und Brief bleiben je Anmeldung
+   (führt der Träger die Debitorennummer je Kind, je Kind der Anmeldung:
+   ADR 0119, Nachtrag #7007). Die
    Ermäßigung steht auf der Rechnung des Kindes, das sie bekommt. Ein Brief
    nennt nie Kinder oder Eltern einer anderen Anmeldung; zwei Anmeldungen
    können von getrennt lebenden Eltern kommen.

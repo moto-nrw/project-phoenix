@@ -7,6 +7,8 @@
   "promptChangeLater": "Wybór dotyczy Pana/Pani konta. Można go zmienić w każdej chwili w „Ustawieniach”.",
   "allow": "Zezwól",
   "refuse": "Odmów",
+  "allowTooltip": "Zezwala na analizę korzystania dla Pana/Pani konta. Można to zawsze zmienić.",
+  "refuseTooltip": "Odrzuca analizę korzystania dla Pana/Pani konta. moto nic wtedy nie liczy.",
   "saving": "Zapisywanie…",
   "closeLabel": "Zdecyduj później",
   "sectionDescription": "Czy moto może liczyć, z których stron i przycisków Pan/Pani korzysta? moto nie widzi przy tym imion ani wpisywanych treści. Decyduje tylko Pan/Pani.",

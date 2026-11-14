@@ -76,5 +76,22 @@
   "registerWeekDone": "Zapisano na cały tydzień.",
   "registerWeekLocked": "Termin zapisu na te dni minął, pozostają niezapisane: {days}.",
   "errorObjectWeekCancel": "wypisania z tygodnia",
-  "errorObjectWeekRegister": "zapisu na tydzień"
+  "errorObjectWeekRegister": "zapisu na tydzień",
+  "previousWeekTooltip": "Pokazuje poprzedni tydzień.",
+  "nextWeekTooltip": "Pokazuje następny tydzień.",
+  "previousWeekDisabledReason": "Ta strona nie pokazuje minionych tygodni.",
+  "lastParticipationWeekReason": "Dalej w przód nie możesz tu jeszcze planować.",
+  "lastMealPlanWeekReason": "Na dalsze tygodnie nie ma jeszcze jadłospisu.",
+  "editRegularDaysTooltip": "Otwiera wybór dni, w które Twoje dziecko zawsze je.",
+  "saveRegularDaysTooltip": "Zapisuje nowe stałe dni dla Twojego dziecka.",
+  "saveDayTooltip": "Zapisuje zgłoszenie na ten dzień.",
+  "registerWeekTooltip": "Od razu zapisuje dziecko na wszystkie jeszcze zmienialne dni tego tygodnia.",
+  "cancelWeekTooltip": "Wypisuje dziecko na ten tydzień. moto najpierw zapyta.",
+  "cancelWeekConfirmTooltip": "Od razu wypisuje dziecko ze wszystkich jeszcze zmienialnych dni.",
+  "cancelWeekCloseTooltip": "Zamyka okno; zgłoszenie pozostaje bez zmian.",
+  "editDayTooltip": "Otwiera zgłoszenie na ten dzień do zmiany.",
+  "registerDayTooltip": "Zaznacza zgłoszenie; obowiązuje dopiero po zapisaniu.",
+  "unregisterDayTooltip": "Zaznacza wypisanie; obowiązuje dopiero po zapisaniu.",
+  "useRegularTooltip": "Przywraca na ten dzień stałe zgłoszenie, po zapisaniu.",
+  "weekEditingReason": "Najpierw zapisz lub odrzuć swoją zmianę."
 }

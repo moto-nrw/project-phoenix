@@ -237,15 +237,12 @@ describe("inventory", () => {
     "src/lib/hooks/use-local-storage-value.ts": "key from the caller",
     "src/lib/hooks/use-unread-count.ts": "cacheKey from the badge hooks",
     "src/lib/shell-auth-context.tsx": "DELIBERATE_LOGOUT_KEY (session-cache)",
+    "src/lib/login-session-notice.ts": "DELIBERATE_LOGOUT_KEY (session-cache)",
     "src/lib/breadcrumb-context.tsx": "sidebar memory",
     "src/lib/ogs-group-live-api.ts": "mentions storage in a comment only",
     "src/app/[tenant]/(protected)/ogs-groups/page.tsx": "sidebar memory",
     "src/app/[tenant]/(protected)/students/[id]/page.tsx": "sidebar memory",
     "src/components/dashboard/sidebar.tsx": "sidebar memory",
-    "src/app/[tenant]/page.tsx": "DELIBERATE_LOGOUT_KEY (session-cache)",
-    "src/app/caterer/login/page.tsx": "DELIBERATE_LOGOUT_KEY (session-cache)",
-    "src/app/school/login/page.tsx": "DELIBERATE_LOGOUT_KEY (session-cache)",
-    "src/app/traeger/login/page.tsx": "DELIBERATE_LOGOUT_KEY (session-cache)",
     "src/components/tenant/tenant-relogin.ts":
       "DELIBERATE_LOGOUT_KEY (session-cache)",
     "src/components/auth/logout-modal.tsx":

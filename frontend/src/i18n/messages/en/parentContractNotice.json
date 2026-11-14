@@ -56,5 +56,8 @@
   "decisionLabel": "Decision of the provider",
   "decisionSet": "Reason accepted",
   "decisionReinterpreted": "Reason not accepted. Counts as an ordinary cancellation.",
-  "endNoticeTitle": "Message from the provider about the end of the contract"
+  "endNoticeTitle": "Message from the provider about the end of the contract",
+  "submitTerminationTooltip": "Sends the termination to the provider right away.",
+  "submitWithdrawalTooltip": "Sends the withdrawal to the provider right away.",
+  "submitDisabledReason": "First choose one of the options above."
 }

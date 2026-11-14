@@ -427,10 +427,13 @@ type invoicePayments struct {
 	children         map[string]*parentbilling.ChildDebtorNumber
 	usedChildren     map[int64]parentbilling.ChildDebtorNumber
 	contractChildren map[int64]string
+	// Loading child numbers for preserved holiday invoices must not change
+	// the fallback of whole-registration invoices in a payer-scope run.
+	payerNumbers bool
 }
 
 // perChild tells whether the invoices take the number of the child.
-func (p invoicePayments) perChild() bool { return p.children != nil }
+func (p invoicePayments) perChild() bool { return p.children != nil && !p.payerNumbers }
 
 // childNumber answers the number of a child of a family and notes its
 // read; empty without one.
@@ -559,8 +562,8 @@ func debtorNumberScopeOf(ctx context.Context, scopes parentbilling.DebtorNumberS
 
 // readInvoicePayments reads the terms, the deviations and the dates of a
 // run, and the numbers of the children when the Träger keeps the number
-// per child (scope, #7007).
-func readInvoicePayments(ctx context.Context, store paymentTermsReader, organizationID, careRunID, holidayRunID int64, scope string) (invoicePayments, error) {
+// per child (scope, #7007) or a preserved holiday invoice still bills a child.
+func readInvoicePayments(ctx context.Context, store paymentTermsReader, organizationID, careRunID, holidayRunID int64, scope string, childInvoices bool) (invoicePayments, error) {
 	stored, families, dates, err := store.InvoicePaymentTerms(ctx, organizationID, careRunID, holidayRunID)
 	if err != nil {
 		return invoicePayments{}, fmt.Errorf("parent billing: read the payment terms: %w", err)
@@ -576,7 +579,7 @@ func readInvoicePayments(ctx context.Context, store paymentTermsReader, organiza
 	if err != nil {
 		return invoicePayments{}, fmt.Errorf("parent billing: read the SEPA mandates: %w", err)
 	}
-	payments := invoicePayments{terms: termsSetOf(stored), run: dates, families: byFamily, used: map[int64]parentbilling.FamilyBilling{},
+	payments := invoicePayments{payerNumbers: scope == parentbilling.DebtorNumberScopePayer, terms: termsSetOf(stored), run: dates, families: byFamily, used: map[int64]parentbilling.FamilyBilling{},
 		creditor: parentbilling.DefaultSEPACreditor(), mandates: make(map[string]*parentbilling.SEPAMandate, len(mandates)),
 		usedMandates: map[int64]parentbilling.SEPAMandate{}}
 	if creditor != nil {
@@ -585,7 +588,7 @@ func readInvoicePayments(ctx context.Context, store paymentTermsReader, organiza
 	for i := range mandates {
 		payments.mandates[mandates[i].FamilyEmail] = &mandates[i]
 	}
-	if scope == parentbilling.DebtorNumberScopeChild {
+	if scope == parentbilling.DebtorNumberScopeChild || childInvoices {
 		children, err := store.ChildDebtorNumbers(ctx, organizationID)
 		if err != nil {
 			return invoicePayments{}, err
@@ -630,7 +633,9 @@ func (p invoicePayments) careInvoice(invoice *parentbilling.CareInvoice, issuedO
 // a holiday invoice; the registration's address stays for both parents.
 // The registration's debtor number wins; without one the invoice takes the
 // family's, as the monthly invoice does (#6677), or, when the Träger keeps
-// the number per child (#7007), the number of its first child. Every later
+// the number per child (#7007), the number of its child: an invoice per
+// child bills one, and only an invoice of a whole registration issued
+// before the switch bills several and takes its first child's. Every later
 // reader (letter, overview for the Kämmerei, Sollstellung, DATEV) reads the
 // copy the release stores, so this is the one place that falls back.
 func (p invoicePayments) holidayDocument(document *parentbilling.BillingDocument, issuedOn calendar.Date) {
@@ -638,7 +643,7 @@ func (p invoicePayments) holidayDocument(document *parentbilling.BillingDocument
 	family := p.family(document.FamilyEmail)
 	switch {
 	case document.DebtorNumber != "":
-	case p.perChild():
+	case document.RegistrationChildID != 0 || p.perChild():
 		if len(document.Children) > 0 {
 			child := document.Children[0]
 			document.DebtorNumber = p.childNumber(document.FamilyEmail, parentbilling.ChildKey(child.FirstName, child.LastName, &child.BirthDate))

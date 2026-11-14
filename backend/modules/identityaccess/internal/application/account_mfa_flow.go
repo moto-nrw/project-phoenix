@@ -395,14 +395,18 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("generate trusted-device token: %w", err)
 	}
+	binding := deviceBinding(ctx, tenantID)
 	device := domain.AccountTrustedDevice{
 		AccountID: accountID,
-		// The row carries the school, so a cookie issued at school A can
-		// never bypass MFA at school B.
-		TenantID:  tenantID,
-		TokenHash: domain.HashTrustedDeviceToken(rawToken),
-		IPAddress: ip,
-		ExpiresAt: expiresAt,
+		// The row carries the school or the Träger, so a cookie issued at
+		// school A can never bypass MFA at school B, nor one of Träger A at
+		// Träger B or at the caterer portal.
+		TenantID:       tenantID,
+		OrganizationID: binding.OrganizationID,
+		ParentPortal:   binding.ParentPortal,
+		TokenHash:      domain.HashTrustedDeviceToken(rawToken),
+		IPAddress:      ip,
+		ExpiresAt:      expiresAt,
 	}
 	if userAgent != "" {
 		label := userAgent
@@ -422,7 +426,7 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 		}); err != nil {
 			return err
 		}
-		return f.notifyTrustedDeviceAdded(txCtx, accountID, stored.ID, userAgent, ip, days, tenantID == 0)
+		return f.notifyTrustedDeviceAdded(txCtx, accountID, stored, userAgent, ip, days)
 	})
 	if err != nil {
 		return "", time.Time{}, err
@@ -442,7 +446,7 @@ func (f *AccountMFAFlows) VerifyTrustedDevice(ctx context.Context, accountID, te
 	if !ok {
 		return false, nil
 	}
-	device, found, err := f.records.FindActiveTrustedDevice(ctx, accountID, tenantID, domain.HashTrustedDeviceToken(rawToken))
+	device, found, err := f.records.FindActiveTrustedDevice(ctx, accountID, deviceBinding(ctx, tenantID), domain.HashTrustedDeviceToken(rawToken))
 	if err != nil || !found {
 		return false, nil
 	}
@@ -451,10 +455,10 @@ func (f *AccountMFAFlows) VerifyTrustedDevice(ctx context.Context, accountID, te
 }
 
 // RevokeTrustedDevice revokes one device after proving it belongs to the
-// calling account at the calling school, so neither an id guess nor a token
-// from another school can revoke it.
+// calling account at the calling school or Träger, so neither an id guess nor
+// a token from another school, Träger or portal can revoke it.
 func (f *AccountMFAFlows) RevokeTrustedDevice(ctx context.Context, accountID, tenantID, deviceID int64) error {
-	devices, err := f.records.ListActiveTrustedDevices(ctx, accountID, tenantID)
+	devices, err := f.records.ListActiveTrustedDevices(ctx, accountID, deviceBinding(ctx, tenantID))
 	if err != nil {
 		return err
 	}
@@ -483,9 +487,11 @@ func (f *AccountMFAFlows) trustedDeviceHint(ctx context.Context, tenantID int64)
 	return days > 0, days
 }
 
-// notifyTrustedDeviceAdded mails the holder. A device without a school is
-// the caterer portal's (#4497), whose holder manages it in its account.
-func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID, deviceID int64, userAgent string, ip net.IP, days int, caterer bool) error {
+// notifyTrustedDeviceAdded mails the holder. A device of the Träger-Portal
+// names its Träger (#6955), one of the parents portal is marked as such
+// (#7051), one without any of them is the caterer portal's (#4497); each
+// holder manages it in their account.
+func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID int64, device domain.AccountTrustedDevice, userAgent string, ip net.IP, days int) error {
 	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
 	if err != nil || !found || account.Email == "" {
 		f.logger.Warn("could not load account for trusted-device-added mail",
@@ -493,11 +499,16 @@ func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountI
 			slog.Any("error", err))
 		return errors.New("could not load account for trusted-device-added mail")
 	}
+	locale := ""
+	if device.ParentPortal && account.PortalLocale != nil {
+		locale = *account.PortalLocale
+	}
 	return f.mail.NotifyTrustedDeviceAdded(ctx, domain.TrustedDeviceMail{
 		Recipient: account.Email, ReferenceID: accountID,
 		DeviceLabel: domain.ShortenUserAgent(userAgent), RequestIP: domain.AuditIPString(ip),
-		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: days, Caterer: caterer,
-	}, deviceID)
+		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: days,
+		Caterer: device.Binding() == domain.DeviceBinding{}, Traeger: device.OrganizationID > 0, Parent: device.ParentPortal, Locale: locale,
+	}, device.ID)
 }
 
 // ===== Audit =====
@@ -583,9 +594,46 @@ func withoutSchoolLedgerContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, schoolLedgerKey{}, true)
 }
 
+// withoutSchoolLedger reports a flow of a portal without a school. A call
+// bound to a Träger's devices is the Träger-Portal's, which has none either.
 func withoutSchoolLedger(ctx context.Context) bool {
 	marked, _ := ctx.Value(schoolLedgerKey{}).(bool)
-	return marked
+	return marked || identityaccess.TraegerDeviceOf(ctx) > 0
+}
+
+// parentDeviceKey marks the trusted-device calls of the parents portal.
+type parentDeviceKey struct{}
+
+// portalDeviceContext binds a flow to its portal's remembered devices and
+// ledger: a portal without a school files no school ledger entry, and the
+// trusted-device calls it makes with tenantID zero mean only the devices of
+// its realm (domain.DeviceRealm), never another portal's.
+func portalDeviceContext(ctx context.Context, portal domain.Portal, organizationID int64) context.Context {
+	if portal.Schoolless() {
+		ctx = withoutSchoolLedgerContext(ctx)
+	}
+	switch portal.Device {
+	case domain.DeviceOfTraeger:
+		return identityaccess.WithTraegerDevice(ctx, organizationID)
+	case domain.DeviceOfParentPortal:
+		return context.WithValue(ctx, parentDeviceKey{}, true)
+	case domain.DeviceOfSchool, domain.DeviceOfAccount:
+	}
+	return ctx
+}
+
+// deviceBinding is the realm a trusted-device call is bound to: the school
+// it names; without one, the Träger identityaccess.WithTraegerDevice names,
+// the parents portal, or else the caterer portal.
+func deviceBinding(ctx context.Context, tenantID int64) domain.DeviceBinding {
+	if tenantID != 0 {
+		return domain.DeviceBinding{TenantID: tenantID}
+	}
+	if organizationID := identityaccess.TraegerDeviceOf(ctx); organizationID > 0 {
+		return domain.DeviceBinding{OrganizationID: organizationID}
+	}
+	parentPortal, _ := ctx.Value(parentDeviceKey{}).(bool)
+	return domain.DeviceBinding{ParentPortal: parentPortal}
 }
 
 func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.AccountMFAChallenge, message domain.MFACodeMail, credentialGeneration *int64) (domain.AccountMFAChallenge, func(context.Context) error, error) {
@@ -629,22 +677,26 @@ func (f *AccountMFAFlows) activateDeliveredChallenge(ctx context.Context, challe
 }
 
 func (f *AccountMFAFlows) requireChallengeRateLimit(ctx context.Context, accountID int64) error {
-	// The hard cap of three codes per fifteen minutes is an abuse defense,
-	// so a failed count refuses the send instead of waving it through:
-	// ignoring the error meant the cap silently stopped existing exactly
-	// when the database was least healthy.
-	since := f.now().Add(-domain.MFAEmailRateLimitWindow)
-	count, err := f.records.CountChallengesSince(ctx, accountID, since)
+	sent, err := f.records.CountChallengesSince(ctx, accountID, f.now().Add(-domain.MFAEmailRateLimitWindow))
 	if err != nil {
 		f.logger.Warn("mfa code rate-limit lookup failed; refusing to issue a code",
 			slog.Int64("account_id", accountID),
 			slog.String("error", err.Error()))
+	}
+	return codeSendCap(sent, err, domain.MFAEmailRateLimitMaxSent)
+}
+
+// codeSendCap refuses another code once max were sent within the window.
+// The cap is an abuse defense, so a count that could not be read refuses
+// the send too: ignoring the error meant the cap silently stopped existing
+// exactly when the database was least healthy.
+func codeSendCap(sent int, countErr error, maxSent int) error {
+	if countErr != nil {
 		return identityaccess.ErrMFAStatusUnavailable
 	}
-	if count >= domain.MFAEmailRateLimitMaxSent {
+	if sent >= maxSent {
 		return identityaccess.ErrMFARateLimited
 	}
-
 	return nil
 }
 

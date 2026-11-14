@@ -86,6 +86,7 @@ export function importDebtorNumberText(row: ImportRow): string | null {
 export const PAYER_KEY_LABELS: Record<PayerKey, string> = {
   email: "E-Mail der Familie",
   contract_id: "Vertragsnummer",
+  debtor_number: "Debitorennummer",
 };
 
 export const IMPORT_STATUS: Record<
@@ -95,6 +96,7 @@ export const IMPORT_STATUS: Record<
   ready: { label: "Bereit", tone: "green" },
   clarify: { label: "Bitte klären", tone: "orange" },
   duplicate: { label: "Schon vorhanden", tone: "gray" },
+  same_mandate: { label: "Gleiches Mandat", tone: "gray" },
   conflict: { label: "Konflikt", tone: "red" },
   invalid: { label: "Fehlerhaft", tone: "red" },
   imported: { label: "Übernommen", tone: "green" },
@@ -142,6 +144,8 @@ export function importProblemText(problem: ImportProblem): string {
       return `${field} hat mehr als 70 Zeichen.`;
     case "payer_unknown":
       return "Zu diesem Zahler gibt es bei Ihnen keinen Vertrag.";
+    case "payer_ambiguous":
+      return "Diese Debitorennummer haben bei Ihnen mehrere Familien oder Kinder. moto weiß nicht, wer zahlt.";
     case "family_unknown":
       return "Im Vertrag fehlt die E-Mail-Adresse der Familie.";
     case "creditor_mismatch":
@@ -200,6 +204,9 @@ export function matchesImportFilter(
       return row.status === "ready" || row.status === "imported";
     case "problems":
       return row.status === "conflict" || row.status === "invalid";
+    case "duplicate":
+      // A sibling's row repeats a mandate of the file (#7009).
+      return row.status === "duplicate" || row.status === "same_mandate";
     default:
       return row.status === filter;
   }

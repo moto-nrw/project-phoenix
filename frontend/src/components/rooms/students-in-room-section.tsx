@@ -532,7 +532,7 @@ export function StudentsInRoomSection({
                   size="compact"
                   onClick={openInSearch}
                   aria-label="Alle Kinder öffnen"
-                  title="Alle Kinder öffnen"
+                  tooltip="Öffnet die Kinderliste, gefiltert auf die Kinder in diesem Raum."
                   className="shrink-0"
                 >
                   Alle Kinder
@@ -650,6 +650,15 @@ function BulkMoveToolbar({
   const canMove = selectedCount > 0 && targetValue.length > 0 && !isMoving;
   const allSelected = totalCount > 0 && selectedCount === totalCount;
   const noTargets = targetOptions.length === 0;
+  let moveBlockedReason: string | undefined;
+  if (selectedCount === 0) {
+    moveBlockedReason = "Wählen Sie zuerst mindestens ein Kind aus.";
+  } else if (noTargets) {
+    moveBlockedReason =
+      "Gerade gibt es keinen Raum, in den Sie Kinder setzen können.";
+  } else if (targetValue.length === 0) {
+    moveBlockedReason = "Wählen Sie zuerst einen Zielraum.";
+  }
 
   return (
     <SelectionBar
@@ -672,6 +681,11 @@ function BulkMoveToolbar({
           size="compact"
           onClick={allSelected ? onClearSelection : onSelectAll}
           disabled={isMoving}
+          tooltip={
+            allSelected
+              ? "Hebt die Auswahl aller Kinder auf."
+              : "Wählt alle Kinder in diesem Raum aus."
+          }
           className="shrink-0"
         >
           {allSelected ? "Aufheben" : "Alle auswählen"}
@@ -702,6 +716,8 @@ function BulkMoveToolbar({
           loadingText="Bewege..."
           onClick={onMoveSelected}
           disabled={!canMove}
+          tooltip="Setzt die ausgewählten Kinder sofort in den Zielraum."
+          disabledReason={moveBlockedReason}
           className="w-full sm:w-auto"
         >
           In Raum setzen
@@ -870,7 +886,7 @@ function SelectableStudentRow({
         size="compact"
         onClick={onOpen}
         aria-label={`${fullName} Profil öffnen`}
-        title="Profil öffnen"
+        tooltip="Öffnet die Akte des Kindes."
         className="shrink-0"
       >
         Profil

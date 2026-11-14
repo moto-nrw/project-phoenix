@@ -64,9 +64,13 @@ func (f *AccountMFAFlows) notifyAdminReset(txCtx context.Context, accountID int6
 	if !found || account.Email == "" {
 		return nil
 	}
+	locale := ""
+	if account.PortalLocale != nil {
+		locale = *account.PortalLocale
+	}
 	return f.securityNotice.NotifyMFAResetByAdmin(txCtx, identityaccess.MFAResetByAdminMail{
 		Recipient: account.Email, ReferenceID: accountID,
-		ResetAt: resetAt.Format("02.01.2006 15:04"), ByOperator: byOperator,
+		ResetAt: resetAt.Format("02.01.2006 15:04"), ByOperator: byOperator, Locale: locale,
 	}, fmt.Sprintf("%d:%d", accountID, resetAt.UnixNano()))
 }
 

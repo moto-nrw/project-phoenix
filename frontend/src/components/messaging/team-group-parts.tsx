@@ -72,6 +72,7 @@ export function GroupReadReceipt({
           onClick={toggle}
           aria-expanded={isOpen}
           aria-controls={panelId}
+          tooltip="Zeigt, wer die Nachricht schon gelesen hat und wer nicht."
           className="mt-1"
         >
           {label}
@@ -197,6 +198,7 @@ export function GroupMembersPanel({
               type="button"
               variant="outline"
               size="md"
+              tooltip="Öffnet ein Fenster, um Mitarbeitende in den Gruppenchat aufzunehmen."
               onClick={() => setAddOpen(true)}
             >
               Personen hinzufügen
@@ -231,6 +233,8 @@ export function GroupMembersPanel({
                       {
                         label: "Aus dem Gruppenchat entfernen",
                         destructive: true,
+                        description:
+                          "Nimmt die Person aus dem Gruppenchat. moto fragt vorher nach",
                         onClick: () => setRemoving(member),
                       },
                     ]}
@@ -254,6 +258,7 @@ export function GroupMembersPanel({
           type="button"
           variant="outline_danger"
           size="md"
+          tooltip="Nimmt Sie aus dem Gruppenchat, moto fragt vorher nach."
           onClick={() => setLeaving(true)}
         >
           Gruppenchat verlassen
@@ -287,6 +292,7 @@ export function GroupMembersPanel({
         description={`${removing?.name ?? ""} sieht den Gruppenchat und seine Nachrichten danach nicht mehr.`}
         gate={{ mode: "twoStep", firstStepLabel: "Entfernen" }}
         confirmLabel="Ja, entfernen"
+        confirmTooltip="Nimmt die Person sofort aus dem Gruppenchat."
         loadingLabel="Wird entfernt..."
         loading={busy}
       />
@@ -298,6 +304,7 @@ export function GroupMembersPanel({
         title="Gruppenchat verlassen?"
         confirmText="Verlassen"
         confirmVariant="danger"
+        confirmTooltip="Nimmt Sie sofort aus dem Gruppenchat."
         isConfirmLoading={busy}
         loadingText="Chat wird verlassen …"
       >

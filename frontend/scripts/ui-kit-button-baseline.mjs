@@ -16,7 +16,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/segmented-control.tsx",
-    lines: [149, 190, 208],
+    lines: [155, 201, 219],
     reason: "SegmentedControl: Wertauswahl, kein Knopf",
   },
   {
@@ -82,7 +82,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/help/help-view.tsx",
-    lines: [1052],
+    lines: [1057],
     reason: "Artikel-Navigation der Hilfe (aria-current), Navigationszeile",
   },
   {

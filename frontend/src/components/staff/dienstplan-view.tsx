@@ -380,6 +380,7 @@ function DienstplanContent() {
         type="button"
         variant="outline"
         size="md"
+        tooltip="Wechselt zur Übersicht aller Mitarbeitenden."
         onClick={() => router.push("/staff")}
       >
         Zu den Mitarbeitenden
@@ -568,6 +569,7 @@ function DienstplanContent() {
               selben Fenster dorthin. */}
           <ButtonLink
             href={tenantPath("/database/shift-types")}
+            tooltip="Öffnet die Dienstarten in der Datenverwaltung."
             variant="primary"
             size="md"
           >
@@ -584,6 +586,8 @@ function DienstplanContent() {
                 {
                   label: "Drucken oder exportieren",
                   icon: <Printer className="h-4 w-4" aria-hidden />,
+                  description:
+                    "Öffnet ein Fenster, um den Plan zu drucken oder zu speichern.",
                   onClick: () => setExportOpen(true),
                 },
               ]}

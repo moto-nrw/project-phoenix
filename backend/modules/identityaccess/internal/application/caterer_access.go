@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 	"time"
 
@@ -39,6 +38,7 @@ type CatererAccess struct {
 	// runs on (#4497); a composition without them refuses its flows.
 	mfa      *AccountMFAFlows
 	passkeys *AccountPasskeyFlows
+	factor   voluntaryFactor
 	attach   func(context.Context) context.Context
 	now      func() time.Time
 	logger   *slog.Logger
@@ -74,11 +74,16 @@ func NewCatererAccess(auth *AccountAuthentication, deps CatererAccessDependencie
 	if attach == nil {
 		attach = func(ctx context.Context) context.Context { return ctx }
 	}
-	return &CatererAccess{
+	caterers := &CatererAccess{
 		auth: auth, store: deps.Store, delivery: deps.Delivery, passwords: deps.Passwords, verifier: deps.Verifier,
 		schools: deps.Schools, runtime: deps.Runtime, mfa: deps.MFA, passkeys: deps.Passkeys,
 		attach: attach, now: time.Now, logger: logger,
-	}, nil
+	}
+	caterers.factor = voluntaryFactor{
+		portal: domain.PortalCaterer, auth: auth, mfa: deps.MFA, verifier: deps.Verifier, runtime: deps.Runtime, logger: logger,
+		member: caterers.signedInCaterer, mint: caterers.mintProven, notEnabled: identityaccess.ErrCatererMFANotEnabled,
+	}
+	return caterers, nil
 }
 
 // inSchool reports whether the caller opened a school's transaction.
@@ -395,16 +400,8 @@ func (c *CatererAccess) catererSchools(ctx context.Context, accountID int64) (do
 		}
 		// School liveness belongs to Organisation & Tenancy. Resolve the
 		// linked schools in bulk before the portal opens any tenant.
-		active, err := c.schools.ListActiveSchoolsByID(readCtx, schools)
-		if err != nil {
-			return err
-		}
-		live := make(map[int64]bool, len(active))
-		for _, school := range active {
-			live[school.ID] = true
-		}
-		schools = slices.DeleteFunc(schools, func(id int64) bool { return !live[id] })
-		return nil
+		schools, err = c.auth.liveSchoolIDs(readCtx, schools)
+		return err
 	})
 	if err != nil {
 		return domain.Caterer{}, nil, failed("find caterer schools", err)

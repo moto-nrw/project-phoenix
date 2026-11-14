@@ -19,6 +19,7 @@ import {
   SCHOOL_SWITCH_MISSING_HINT,
   useOpenTraegerSchool,
 } from "~/components/traeger/use-open-traeger-school";
+import { TraegerCodeStepModal } from "~/components/traeger/traeger-code-step-modal";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import {
   TRAEGER_HANDOFF_OPEN,
@@ -60,7 +61,7 @@ export default function TraegerSchoolsPage() {
   const schools = schoolData ?? [];
   const loading = schoolData === null && !schoolsError;
   const router = useRouter();
-  const { canOpen, opening, open } = useOpenTraegerSchool();
+  const { canOpen, opening, open, codeStepModal } = useOpenTraegerSchool();
 
   const columns = useMemo<DataTableColumn<TraegerSchool>[]>(
     () =>
@@ -164,6 +165,7 @@ export default function TraegerSchoolsPage() {
           />
         }
       />
+      <TraegerCodeStepModal {...codeStepModal} />
     </TenantPage>
   );
 }

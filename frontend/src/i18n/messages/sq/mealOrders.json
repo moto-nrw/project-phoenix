@@ -27,5 +27,8 @@
   "changesAdded": "{count, plural, one {# fëmijë më shumë} other {# fëmijë më shumë}}",
   "changesRemoved": "{count, plural, one {# fëmijë më pak} other {# fëmijë më pak}}",
   "deliveryHeader": "Lista e dorëzimeve të javës",
-  "errorObjectDelivery": "lista e dorëzimeve"
+  "errorObjectDelivery": "lista e dorëzimeve",
+  "deliveryDownloadDescription": "Shkarkon listën e dorëzimeve të kësaj jave",
+  "monthExportDescription": "Hap një dritare për të zgjedhur muajin dhe formatin",
+  "monthDownloadDescription": "Shkarkon vaktet e porositura për çdo fëmijë për këtë muaj"
 }

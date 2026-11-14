@@ -571,7 +571,16 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/auth/tokens/expired"}:                            notCaptured,
 
 	// Parents portal.
-	{http.MethodPost, "/parent/auth/login"}:                                                                       session("login_success"),
+	{http.MethodPost, "/parent/auth/login"}: session("login_success"),
+	// The parents' second factor (#7051): a redeemed code completes the
+	// sign-in; switching it on or off and the remembered devices are
+	// account settings, not core actions.
+	{http.MethodPost, "/parent/auth/mfa/verify"}:                                                                  session("login_success"),
+	{http.MethodPost, "/parent/auth/mfa/resend"}:                                                                  notCaptured,
+	{http.MethodPost, "/parent/me/mfa/start"}:                                                                     notCaptured,
+	{http.MethodPost, "/parent/me/mfa/confirm"}:                                                                   notCaptured,
+	{http.MethodPost, "/parent/me/mfa/disable"}:                                                                   notCaptured,
+	{http.MethodDelete, "/parent/me/mfa/trusted-devices/{deviceId}"}:                                              notCaptured,
 	{http.MethodPost, "/parent/auth/password-reset"}:                                                              notCaptured,
 	{http.MethodPost, "/parent/auth/password-reset/confirm"}:                                                      notCaptured,
 	{http.MethodPost, "/parent/enrollments/{tenantSlug}/submit"}:                                                  event("enrollment_submitted"),
@@ -632,6 +641,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/school/auth/password-reset"}:                                                   notCaptured,
 	{http.MethodPost, "/school/auth/password-reset/confirm"}:                                           notCaptured,
 	{http.MethodPost, "/school/auth/switch-school"}:                                                    notCaptured,
+	{http.MethodDelete, "/school/auth/mfa/trusted-devices/{deviceId}"}:                                 notCaptured,
 	{http.MethodPost, "/school/calendar/appointments"}:                                                 event("school_appointment_created"),
 	{http.MethodDelete, "/school/calendar/appointments/{appointmentId}"}:                               event("school_appointment_deleted"),
 	{http.MethodPut, "/school/calendar/appointments/{appointmentId}"}:                                  event("school_appointment_updated"),

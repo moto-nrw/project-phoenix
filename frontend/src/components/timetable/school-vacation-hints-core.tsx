@@ -175,6 +175,7 @@ function SchoolVacationHintList({
             aria-label={`Termine absagen: ${hint.name}`}
             onClick={() => onCancel(hint)}
             disabled={busy === hint.startDate}
+            tooltip="Öffnet ein Fenster, um die Termine in diesen Ferien abzusagen."
           >
             Termine absagen
           </Button>
@@ -184,6 +185,7 @@ function SchoolVacationHintList({
             variant="surface"
             size={size}
             aria-label={`Termine absagen: ${hint.name}`}
+            tooltip="Öffnet den Betreuungsplan, um die Termine in diesen Ferien abzusagen."
           >
             Termine absagen
           </ButtonLink>
@@ -194,6 +196,7 @@ function SchoolVacationHintList({
             variant="surface"
             size={size}
             aria-label={`Schließtage eintragen: ${hint.name}`}
+            tooltip="Öffnet Schuljahr und Kalender, um Schließtage einzutragen."
           >
             Schließtage eintragen
           </ButtonLink>
@@ -205,6 +208,7 @@ function SchoolVacationHintList({
           aria-label={`Betreuung ist geplant: ${hint.name}`}
           onClick={() => void confirmCare(hint)}
           disabled={busy === hint.startDate}
+          tooltip="Bestätigt sofort für die ganze Schule, dass in diesen Ferien Betreuung ist."
         >
           Betreuung ist geplant
         </Button>

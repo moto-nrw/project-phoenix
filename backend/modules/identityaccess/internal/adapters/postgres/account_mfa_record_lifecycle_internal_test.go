@@ -65,7 +65,7 @@ func TestNativeMFATrustedDeviceLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	stamp := time.Now().Truncate(time.Microsecond)
 	require.NoError(t, records.TouchTrustedDevice(ctx, first.ID, stamp))
-	active, found, err := records.FindActiveTrustedDevice(ctx, account.ID, home, first.TokenHash)
+	active, found, err := records.FindActiveTrustedDevice(ctx, account.ID, domain.DeviceBinding{TenantID: home}, first.TokenHash)
 	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, first.ID, active.ID)
@@ -73,14 +73,14 @@ func TestNativeMFATrustedDeviceLifecycle(t *testing.T) {
 	require.True(t, stamp.Equal(*active.LastUsedAt))
 	require.NoError(t, records.RevokeAllTrustedDevices(ctx, account.ID, time.Now()))
 	for _, device := range []domain.AccountTrustedDevice{first, second} {
-		_, found, _ := records.FindActiveTrustedDevice(ctx, account.ID, device.TenantID, device.TokenHash)
+		_, found, _ := records.FindActiveTrustedDevice(ctx, account.ID, domain.DeviceBinding{TenantID: device.TenantID}, device.TokenHash)
 		require.False(t, found, "account-wide revocation must reach every school")
 	}
 	_, err = records.CreateTrustedDevice(ctx, domain.AccountTrustedDevice{
 		AccountID: account.ID, TenantID: home, TokenHash: "expired", ExpiresAt: time.Now().Add(-time.Minute),
 	})
 	require.NoError(t, err)
-	devices, err := records.ListActiveTrustedDevices(ctx, account.ID, home)
+	devices, err := records.ListActiveTrustedDevices(ctx, account.ID, domain.DeviceBinding{TenantID: home})
 	require.NoError(t, err)
 	require.Empty(t, devices, "neither expired nor revoked devices may be listed")
 }

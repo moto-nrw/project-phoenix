@@ -33,6 +33,7 @@ export function traegerSchoolSwitchTopic(): HelpTopic {
       "moto zeigt `Die Schule konnte nicht geöffnet werden.`? Der Link gilt nur kurz und nur einmal. Öffnen Sie die Schule noch einmal im Träger-Portal.",
       "moto sagt, die Schule gehöre nicht zu Ihrem Träger? Laden Sie die Seite neu. Fehlt die Schule dann, wenden Sie sich an das moto-Team.",
       "moto bittet Sie, sich neu anzumelden? Melden Sie sich im Träger-Portal neu an und öffnen Sie die Schule noch einmal.",
+      "moto sagt `Diese Schule verlangt jetzt eine Anmeldung mit Code.`? Das kann auch in einem Tab der Schule kommen. Wählen Sie `Mit Code neu anmelden`. Melden Sie sich im Träger-Portal an. Geben Sie nach dem Passwort den Code aus Ihrer E-Mail ein. Öffnen Sie die Schule dann noch einmal.",
     ],
     related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.traegerSchoolView],
   };

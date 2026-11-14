@@ -84,6 +84,19 @@ export function guardianNoticeIncomplete(
   return draft.title.trim() === "" || draft.message.trim() === "";
 }
 
+/**
+ * Why `guardianNoticeIncomplete` blocks the cancellation: the preview is still
+ * loading, or subject or text is missing (#6643).
+ */
+export function guardianNoticeBlockedReason(
+  draft: GuardianNoticeDraft | null,
+  reach: GuardianNoticeReach | null,
+): string {
+  return draft === null && reach === null
+    ? "moto prüft noch, welche Familien die Nachricht erreicht."
+    : "Geben Sie zuerst Betreff und Text an die Eltern ein.";
+}
+
 function familiesLabel(count: number): string {
   if (count === 1) return "Erreicht 1 Familie.";
   return `Erreicht ${count} Familien.`;

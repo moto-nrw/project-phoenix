@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { ExportRecipient } from "~/lib/traeger-export-handovers-api";
 import TraegerExportRecipientPage from "./page";
@@ -76,6 +77,18 @@ function renderPage() {
   );
 }
 
+async function saveChanges(user: ReturnType<typeof userEvent.setup>) {
+  // The kit replaces the blocked button when saving becomes available.
+  // Resolve it inside waitFor so the click targets the current control.
+  const save = await waitFor(() => {
+    const button = screen.getByRole("button", { name: "Speichern" });
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute("aria-disabled", "true");
+    return button;
+  });
+  await user.click(save);
+}
+
 it("shows the ready recipient and every handover without the password", async () => {
   renderPage();
   expect(
@@ -96,10 +109,12 @@ it("shows the ready recipient and every handover without the password", async ()
 });
 
 it("keeps the stored password unless one is typed", async () => {
+  const user = userEvent.setup();
   renderPage();
   const directory = await screen.findByLabelText("Zielordner");
-  fireEvent.change(directory, { target: { value: "/eingang/moto" } });
-  fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+  await user.clear(directory);
+  await user.type(directory, "/eingang/moto");
+  await saveChanges(user);
   await waitFor(() => expect(api.saveExportRecipient).toHaveBeenCalledTimes(1));
   expect(api.saveExportRecipient.mock.calls[0]![0]).toBe("7");
   expect(api.saveExportRecipient.mock.calls[0]![1]).toMatchObject({
@@ -110,21 +125,20 @@ it("keeps the stored password unless one is typed", async () => {
 });
 
 it("asks for the password again when the destination changes", async () => {
+  const user = userEvent.setup();
   renderPage();
-  fireEvent.change(await screen.findByLabelText("Adresse"), {
-    target: { value: "andere.example.org" },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+  const address = await screen.findByLabelText("Adresse");
+  await user.clear(address);
+  await user.type(address, "andere.example.org");
+  await saveChanges(user);
   expect(
     await screen.findByText(
       /moto schickt es nur an die Adresse, für die Sie es eingegeben haben/,
     ),
   ).toBeInTheDocument();
   expect(api.saveExportRecipient).not.toHaveBeenCalled();
-  fireEvent.change(screen.getByLabelText("Passwort"), {
-    target: { value: "neues-geheimnis" },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+  await user.type(await screen.findByLabelText("Passwort"), "neues-geheimnis");
+  await saveChanges(user);
   await waitFor(() =>
     expect(api.saveExportRecipient).toHaveBeenCalledWith(
       "7",

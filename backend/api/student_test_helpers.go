@@ -411,7 +411,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Settings:          settingsService,
 		Pickups:           pickupScheduleService,
 		Arrivals:          arrivalScheduleService,
-		PlannedStudentIDs: instanceService.GetPlannedStudentIDsByDate,
+		PlannedStudentIDs: instanceService.GetPlannedStudentIDsByDate, Timetable: reposTimetable.Timetable, BlockTypes: NewTimetableBlockDisplayForTests(db),
 		CareDays:          careDayService,
 		CareParticipation: careLifecycleService,
 		ExcusedRequests:   excusedRequestService,

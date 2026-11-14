@@ -90,7 +90,7 @@ describe("PlannedExitModal", () => {
     expect(screen.getByLabelText("Letzter Arbeitstag")).toHaveValue("");
     expect(
       screen.getByRole("button", { name: "Austritt planen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("suggests the contract end when it loads after opening", () => {

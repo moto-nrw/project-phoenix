@@ -304,6 +304,7 @@ function MandateCard({
               variant="outline_danger"
               size="md"
               className="shrink-0"
+              tooltip={t("revokeTooltip")}
               onClick={() => setConfirming(true)}
             >
               {t("revoke")}
@@ -317,12 +318,14 @@ function MandateCard({
         onConfirm={() => void revoke()}
         title={t("revokeTitle")}
         confirmText={t("revokeConfirm")}
+        confirmTooltip={t("revokeConfirmTooltip")}
         cancelText={t("cancel")}
         confirmVariant="danger"
         isConfirmLoading={revoking}
         isDismissDisabled={revoking}
         loadingText={t("revoking")}
         closeLabel={t("close")}
+        closeTooltip={t("revokeCloseTooltip")}
         mobileSheet
       >
         <div className="space-y-2 text-sm text-gray-700">
@@ -350,6 +353,7 @@ function MandateTextCard({ mandate }: Readonly<{ mandate: SepaMandate }>) {
           type="button"
           variant="outline"
           size="md"
+          tooltip={t("downloadTooltip")}
           onClick={() =>
             downloadBlob(
               new Blob([proof.text], { type: "text/plain;charset=utf-8" }),
@@ -610,6 +614,7 @@ function AccountStep({
             className="w-full sm:w-auto"
             isLoading={checking}
             loadingText={t("checking")}
+            tooltip={t("nextTooltip")}
           >
             {t("next")}
           </Button>
@@ -725,6 +730,7 @@ function ConfirmStep({
             variant="outline"
             size="md"
             disabled={granting}
+            tooltip={t("backTooltip")}
             onClick={onBack}
           >
             {t("back")}
@@ -735,6 +741,7 @@ function ConfirmStep({
             size="md"
             isLoading={granting}
             loadingText={t("granting")}
+            tooltip={t("grantTooltip")}
           >
             {t("grant")}
           </Button>

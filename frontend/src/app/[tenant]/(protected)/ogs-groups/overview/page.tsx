@@ -102,6 +102,7 @@ function GroupOverviewContent() {
                   onClick={() =>
                     void refresh({ force: true, groupsOnly: true })
                   }
+                  tooltip="Versucht noch einmal, die Gruppen zu laden."
                 >
                   Erneut versuchen
                 </Button>

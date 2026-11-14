@@ -51,7 +51,9 @@ func TestLoginsRefuseAnAccountErasedAfterTheCredentialCheck(t *testing.T) {
 			return err
 		},
 		"parent": func(f *authFixture) error {
-			_, _, err := f.auth.loginParentWithAudit(context.Background(), "user2@example.com", "secret", "192.0.2.1", "tests")
+			_, err := newParentAccess(f.auth, nil, nil, f.runtime, f.auth.logger).login(context.Background(), identityaccess.ParentLoginRequest{
+				Email: "user2@example.com", Password: "secret", IPAddress: "192.0.2.1", UserAgent: "tests",
+			})
 			return err
 		},
 	} {

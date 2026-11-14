@@ -266,6 +266,7 @@ export function SurveyEditorFields({
             variant="outline"
             size="md"
             className="gap-1.5"
+            tooltip="Fügt unten eine neue, leere Frage an."
             onClick={() =>
               update({ questions: [...draft.questions, newQuestionDraft()] })
             }
@@ -305,6 +306,7 @@ function QuestionEditor({
           {
             label: "Nach oben",
             icon: <ArrowUp className="size-4" aria-hidden />,
+            description: "Schiebt die Frage eine Stelle nach oben",
             onClick: () => onMove(index - 1),
           },
         ]
@@ -314,6 +316,7 @@ function QuestionEditor({
           {
             label: "Nach unten",
             icon: <ArrowDown className="size-4" aria-hidden />,
+            description: "Schiebt die Frage eine Stelle nach unten",
             onClick: () => onMove(index + 1),
           },
         ]
@@ -324,6 +327,7 @@ function QuestionEditor({
             label: "Frage entfernen",
             icon: <Trash2 className="size-4" aria-hidden />,
             destructive: true,
+            description: "Entfernt die Frage sofort aus dem Formular",
             onClick: onRemove,
           },
         ]
@@ -426,6 +430,7 @@ function QuestionEditor({
                     variant="ghost"
                     size="icon"
                     aria-label={`Antwort ${optionIndex + 1} entfernen`}
+                    tooltip="Entfernt diese Antwort sofort aus der Frage."
                     onClick={() =>
                       onChange({
                         ...question,
@@ -448,6 +453,7 @@ function QuestionEditor({
               variant="outline"
               size="compact"
               className="mt-2 gap-1.5"
+              tooltip="Fügt ein weiteres leeres Antwortfeld an."
               onClick={() =>
                 onChange({ ...question, options: [...question.options, ""] })
               }

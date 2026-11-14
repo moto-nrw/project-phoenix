@@ -37,12 +37,13 @@ type RunStore interface {
 	// PeriodContributions reads the frozen contributions of the period by
 	// registration.
 	PeriodContributions(ctx context.Context, organizationID, periodID int64) (map[int64]parentbilling.HolidayContribution, error)
-	// IssuedRegistrations names the registrations of the period that an
-	// invoice of the service already bills: one that is not cancelled.
-	IssuedRegistrations(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]bool, error)
-	// CancelledInvoices names per registration the cancelled invoice of the
-	// period that no invoice replaces yet (#4690).
-	CancelledInvoices(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]parentbilling.BillingDocumentLink, error)
+	// IssuedInvoices names the invoices of the period of the service that
+	// are not cancelled, by registration and child (#7007).
+	IssuedInvoices(ctx context.Context, organizationID int64, service string, periodID int64) (map[parentbilling.HolidayInvoiceKey]bool, error)
+	// CancelledInvoices names per registration, and child of an invoice
+	// per child, the cancelled invoice of the period that no invoice
+	// replaces yet (#4690, #7007).
+	CancelledInvoices(ctx context.Context, organizationID int64, service string, periodID int64) (map[parentbilling.HolidayInvoiceKey]parentbilling.BillingDocumentLink, error)
 	// ReferencingDocuments reads the cancellations, credits and replacing
 	// invoices of the given documents (#4690).
 	ReferencingDocuments(ctx context.Context, organizationID int64, documentIDs []int64) ([]parentbilling.BillingDocument, error)
@@ -487,7 +488,7 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 	if err != nil {
 		return preview{}, fmt.Errorf("parent billing: read holiday contributions: %w", err)
 	}
-	issued, err := b.store.IssuedRegistrations(ctx, reviewer.OrganizationID, run.Service, run.HolidayPeriodID)
+	issued, err := b.store.IssuedInvoices(ctx, reviewer.OrganizationID, run.Service, run.HolidayPeriodID)
 	if err != nil {
 		return preview{}, fmt.Errorf("parent billing: read issued invoices: %w", err)
 	}
@@ -503,15 +504,15 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 	if err != nil {
 		return preview{}, err
 	}
-	result := buildPreview(previewInput{
-		run: run, registrations: registrations, contributions: contributions, issued: issued, corrections: corrections,
-		replaces: replaces, replaced: replaced,
-	})
 	scope, err := debtorNumberScopeOf(ctx, b.settings, reviewer.OrganizationID)
 	if err != nil {
 		return preview{}, err
 	}
-	payments, err := readInvoicePayments(ctx, b.store, reviewer.OrganizationID, 0, run.ID, scope)
+	result := buildPreview(previewInput{
+		run: run, registrations: registrations, contributions: contributions, issued: issued, corrections: corrections,
+		replaces: replaces, replaced: replaced, perChild: scope == parentbilling.DebtorNumberScopeChild,
+	})
+	payments, err := readInvoicePayments(ctx, b.store, reviewer.OrganizationID, 0, run.ID, scope, hasChildInvoices(result.documents))
 	if err != nil {
 		return preview{}, err
 	}
@@ -675,7 +676,7 @@ func (b *BillingRuns) releasedDetail(ctx context.Context, organizationID int64, 
 		return err
 	}
 	detail.DocumentKind = issuedDocumentKind(detail.Documents)
-	payments, err := readInvoicePayments(ctx, b.store, organizationID, 0, detail.ID, parentbilling.DebtorNumberScopePayer)
+	payments, err := readInvoicePayments(ctx, b.store, organizationID, 0, detail.ID, parentbilling.DebtorNumberScopePayer, false)
 	if err != nil {
 		return err
 	}
@@ -699,28 +700,7 @@ func (b *BillingRuns) previewDetail(ctx context.Context, reviewer parentbilling.
 		detail.Documents[i].DocumentKind = kind.DocumentKind
 	}
 	detail.MissingDebtorNumbers, detail.PaymentTextMissingDebtorNumbers, err = b.missingDebtorNumbers(ctx, reviewer.OrganizationID, current.documents)
-	if err != nil {
-		return err
-	}
-	detail.SharedChildDebtorNumbers, err = b.sharedChildDebtorNumbers(ctx, reviewer.OrganizationID, current.documents)
 	return err
-}
-
-// sharedChildDebtorNumbers counts the draft invoices of several children
-// when the Träger keeps a number per child (#7007): until the holiday
-// invoice is split per child, such an invoice carries one number for all.
-func (b *BillingRuns) sharedChildDebtorNumbers(ctx context.Context, organizationID int64, documents []parentbilling.BillingDocument) (int, error) {
-	scope, err := debtorNumberScopeOf(ctx, b.settings, organizationID)
-	if err != nil || scope != parentbilling.DebtorNumberScopeChild {
-		return 0, err
-	}
-	shared := 0
-	for _, document := range documents {
-		if len(document.Children) > 1 {
-			shared++
-		}
-	}
-	return shared, nil
 }
 
 // issuedDocumentKind is the kind a released run froze: the kind of its

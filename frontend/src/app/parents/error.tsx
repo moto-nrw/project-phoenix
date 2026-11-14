@@ -40,7 +40,6 @@ export default function ParentError({
         error={{
           attempt: 1,
           message: message.charAt(0).toUpperCase() + message.slice(1),
-          // oxlint-disable-next-line ui-kit/menu-item-needs-description -- `retry` von LoadErrorAlert ist kein Menüeintrag, nur gleich geformt (#6756)
           retry: { label: catalog("retry"), onClick: retry },
         }}
       />

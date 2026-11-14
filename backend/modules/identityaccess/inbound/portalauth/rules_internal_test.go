@@ -119,6 +119,11 @@ func TestSwitchRefusals(t *testing.T) {
 		identityaccess.ErrMustUseSchoolPortal:       {http.StatusForbidden, "identity.use_school_portal"},
 		identityaccess.ErrAccountNoSchoolPortalRole: {http.StatusForbidden, "school.no_school_portal_role"},
 		identityaccess.ErrDemoSessionTenantLocked:   {http.StatusForbidden, "identity.demo_session"},
+		// A school without remembered devices (#6955): the account's own
+		// switch signs in at the target school, a session from the
+		// Träger-Portal goes back there.
+		identityaccess.ErrSwitchRequiresCodeProof: {http.StatusUnauthorized, "identity.mfa_session_required"},
+		identityaccess.ErrSchoolRequiresCodeProof: {http.StatusForbidden, "traeger.school_requires_code"},
 	})
 }
 

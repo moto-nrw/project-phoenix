@@ -64,6 +64,7 @@ export function PickupExtensionTodos({
               variant="surface"
               size="md"
               onClick={() => setOpen(tasks)}
+              tooltip="Öffnet ein Fenster, um einen Termin für die längere Zeit zu wählen."
             >
               {tasks.length === 1 ? "Termin wählen" : "Termine wählen"}
             </Button>

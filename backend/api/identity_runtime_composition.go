@@ -5,6 +5,7 @@ import (
 	"net"
 
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/parentauth"
 	schoolPortal "github.com/moto-ogs/project-phoenix/modules/schoolportal"
 	parentAPI "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
@@ -62,13 +63,27 @@ func SchoolPortalMFA(mfa identityaccess.AccountMFA) schoolPortal.MFARuntime {
 			return mfa.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: proof.AccountID, TenantID: proof.TenantID, Scope: identityaccess.MFAChallengeScopeSchool, MFAResetGeneration: proof.MFAResetGeneration})
 		},
 		PrepareTrustedDevice: mfa.PrepareTrustedDevice,
+		ListTrustedDevices:   mfa.ListTrustedDevices,
+		RevokeTrustedDevice:  mfa.RevokeTrustedDevice,
 	}
 }
 
-// parentPortalLogin binds the parents portal's login runtime.
-func parentPortalLogin(sessions identityaccess.ParentAccountLogin) parentAPI.LoginRuntime {
-	if sessions == nil {
+// parentIdentity is what the parents portal's sign-in needs of Identity &
+// Access: the password check of a binding Erklärung and the sign-in with
+// its second factor (#7051).
+type parentIdentity interface {
+	ConfirmAccountPassword(ctx context.Context, accountID int64, password string) error
+}
+
+// parentPortalLogin binds the parents portal's sign-in runtime. Without the
+// parent flows the portal answers the login with 503.
+func parentPortalLogin(identity parentIdentity) parentAPI.LoginRuntime {
+	if identity == nil {
 		return parentAPI.LoginRuntime{}
 	}
-	return parentAPI.LoginRuntime{Login: sessions.LoginParentWithAudit, ConfirmPassword: sessions.ConfirmAccountPassword}
+	runtime := parentAPI.LoginRuntime{ConfirmPassword: identity.ConfirmAccountPassword}
+	if access, ok := identity.(identityaccess.ParentPortalAccess); ok && access.Parents() != nil {
+		runtime.Routes = parentauth.NewResource(access.Parents())
+	}
+	return runtime
 }

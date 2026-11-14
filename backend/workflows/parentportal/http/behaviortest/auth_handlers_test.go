@@ -11,29 +11,32 @@ import (
 
 	rootAPI "github.com/moto-ogs/project-phoenix/api"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	parent "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
-// stubParentAuthService supplies the login runtime the composition root
-// binds in production. Only the login closure is stood up — a handler that
-// reached for anything else would nil-deref and fail the test loudly, which
-// is exactly what we want (the parent login handler must not touch anything
-// else).
+// stubParentAuthService supplies the reset runtime the composition root
+// binds in production. The sign-in routes are the owner's (parentauth, which
+// tests the login itself); here a stand-in mounts /login so the rate limit
+// of the public routes stays covered.
 type stubParentAuthService struct {
-	loginParent func(ctx context.Context, email, password, ip, ua string) (string, string, error)
 	resetParent func(ctx context.Context, email string) error
 	confirm     func(ctx context.Context, token, newPassword string) error
 }
 
+type stubSignInRoutes struct{}
+
+func (stubSignInRoutes) MountSignIn(r chi.Router, _ func(context.Context, string)) {
+	r.Post("/login", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+}
+func (stubSignInRoutes) MountSession(chi.Router)          {}
+func (stubSignInRoutes) MountCredentialChecks(chi.Router) {}
+
 func (s *stubParentAuthService) loginRuntime() parent.LoginRuntime {
-	return parent.LoginRuntime{
-		Login: func(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
-			return s.loginParent(ctx, email, password, ipAddress, userAgent)
-		},
-	}
+	return parent.LoginRuntime{Routes: stubSignInRoutes{}}
 }
 
 // The reset runtime the composition root binds (#3332), stood up here from
@@ -77,24 +80,6 @@ func newTestResource(svc *stubParentAuthService) *parent.Resource {
 	return parent.NewResource(parent.ResourceConfig{Auth: svc.loginRuntime(), Resets: svc.resetRuntime()})
 }
 
-// postLogin runs a single POST against the login handler via the resource's
-// router so we exercise the same dispatch path the real server uses.
-func postLogin(t *testing.T, rs *parent.Resource, body map[string]string) *httptest.ResponseRecorder {
-	t.Helper()
-	jsonBody, err := json.Marshal(body)
-	require.NoError(t, err)
-
-	// Mount via the public router so we cover routing + middleware shape,
-	// matching the convention in CLAUDE.md (rule 5: no test-export wrappers).
-	// Router() returns the chi router scoped to the resource, so the
-	// /parent prefix isn't part of the request path here.
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-	rs.Router(rootAPI.ParentSessionChain).ServeHTTP(rr, req)
-	return rr
-}
-
 func postPasswordReset(t *testing.T, rs *parent.Resource, body map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
 	jsonBody, err := json.Marshal(body)
@@ -130,34 +115,6 @@ func decodeError(t *testing.T, rr *httptest.ResponseRecorder) loginErrorBody {
 	var body loginErrorBody
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	return body
-}
-
-func TestParentLogin_Success_Returns200WithTokens(t *testing.T) {
-	t.Parallel()
-
-	svc := &stubParentAuthService{
-		loginParent: func(_ context.Context, email, password, _, _ string) (string, string, error) {
-			assert.Equal(t, "parent@example.com", email)
-			assert.Equal(t, "correct-horse-battery", password)
-			return "access-tok", "refresh-tok", nil
-		},
-	}
-	rr := postLogin(t, newTestResource(svc), map[string]string{
-		"email":    "parent@example.com",
-		"password": "correct-horse-battery",
-	})
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	var resp struct {
-		Status string `json:"status"`
-		Data   struct {
-			AccessToken  string `json:"access_token"`
-			RefreshToken string `json:"refresh_token"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-	assert.Equal(t, "access-tok", resp.Data.AccessToken)
-	assert.Equal(t, "refresh-tok", resp.Data.RefreshToken)
 }
 
 func TestParentPasswordReset_NeutralSuccess(t *testing.T) {
@@ -229,42 +186,6 @@ func TestParentPasswordResetConfirm_Success(t *testing.T) {
 // on the form with a correction hint, a 500 surfaces a generic failure. A
 // regression that collapsed these into one status would either hide a real
 // server error behind a "check your input" message or vice versa.
-
-func TestParentLogin_MalformedEmail_Returns400(t *testing.T) {
-	t.Parallel()
-
-	// Bind() rejects a non-email before the service is ever called.
-	svc := &stubParentAuthService{
-		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
-			t.Fatal("service must not be called for an invalid request body")
-			return "", "", nil
-		},
-	}
-	rr := postLogin(t, newTestResource(svc), map[string]string{
-		"email":    "not-an-email",
-		"password": "whatever",
-	})
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestParentLogin_UnexpectedError_Returns500(t *testing.T) {
-	t.Parallel()
-
-	// A non-AuthError (or AuthError with an unrecognized cause) is a real
-	// server fault — it must not masquerade as a credentials problem.
-	svc := &stubParentAuthService{
-		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
-			return "", "", errors.New("database exploded")
-		},
-	}
-	rr := postLogin(t, newTestResource(svc), map[string]string{
-		"email":    "parent@example.com",
-		"password": "correct",
-	})
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-}
 
 func TestParentPasswordReset_MalformedEmail_Returns400(t *testing.T) {
 	t.Parallel()

@@ -3,6 +3,7 @@ paths:
   - ".github/workflows/**"
   - ".github/actions/**"
   - "scripts/backend-test-matrix*"
+  - "scripts/backend-package-budgets*"
   - "scripts/test-*"
   - "backend/**/*_test.go"
   - "backend/test/**"
@@ -49,9 +50,13 @@ push to `ci-gate`:
 | One Go package in that job | ≤ 60 s | over 2 min |
 | Any other test job or shard | ≤ 3 min | over 4 min |
 
-A per-package budget checked by CI (#6784) is the source of truth for that
-row once it exists. Runs above target are debt to pay down, never headroom
-for more tests. The isolated-database deadline (10 min Go default minus
+`scripts/backend-package-budgets.json` is the package row's red line,
+checked by the step "Check backend package time budgets". An entry changes
+only with a measurement in the PR: at least 20 runs over full suites,
+selections and both runner sizes, about 1.5 times the maximum. Lower it when
+a package gets faster; a falsely red budget gets a new measurement, not a
+round raise. Runs above target are debt to pay down, never headroom for more
+tests. The isolated-database deadline (10 min Go default minus
 `isolatedTestDatabaseDeadlineReserve`, about 7 min 25 s) is the failure
 point, not a budget.
 
@@ -78,12 +83,16 @@ than 30 s.
    suite measurement on base and branch.
 
 **Lesson of #6784 (November 2026).** No single pull request went red; the
-creep did. In four days the median of `api` grew from 39 s to 313 s,
-`dataimport/importtest` from 4 s to 310 s, and the backend job from 244 s
-to 504 s. Matrices merged without a runtime check drove it (#6510, #6514,
-#6307: about 5000 uploads), pull requests compiled cold, and #6517
-turned slow into red. The repair stalled when an
-agent read the test rule as forbidding to thin those matrices.
+creep did: in four days `api` grew from 39 s to 313 s and the backend job
+from 244 s to 504 s, driven by matrices merged without a runtime check
+(#6510, #6514, #6307) and cold compiles. The repair stalled when an agent
+read the test rule as forbidding to thin those matrices.
+
+**State in November 2026.** Runs with backend tests: median 271 s to
+`ci-gate` (14.11.). The backend job is CPU-bound, Postgres about half; seed
+smoke `isolation` (175–292 s) ends last most often. Details: `ci-cost`
+skill. `ci-runtime-watch.yml` opens an issue when a week's median exceeds
+5 min.
 
 ## New or changed tests
 

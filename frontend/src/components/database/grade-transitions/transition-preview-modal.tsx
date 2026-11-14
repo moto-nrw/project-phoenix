@@ -260,6 +260,7 @@ export function TransitionPreviewModal({
                 variant="outline"
                 size="md"
                 onClick={onBackToEditor}
+                tooltip="Öffnet den Entwurf wieder zum Ändern."
               >
                 Zurück zum Entwurf
               </Button>
@@ -269,6 +270,7 @@ export function TransitionPreviewModal({
                 variant="outline"
                 size="md"
                 onClick={onClose}
+                noTooltip="Schließt die Vorschau, sie ändert nichts."
               >
                 Schließen
               </Button>
@@ -279,6 +281,7 @@ export function TransitionPreviewModal({
                 size="md"
                 onClick={() => setConfirmOpen(true)}
                 disabled={!preview || applying}
+                tooltip="Versetzt die Kinder und blendet die Abgänge aus. moto fragt vorher nach."
               >
                 Schuljahreswechsel anwenden
               </Button>
@@ -293,6 +296,7 @@ export function TransitionPreviewModal({
         onConfirm={handleApply}
         title="Wirklich anwenden?"
         confirmText="Ja, anwenden"
+        confirmTooltip="Versetzt die Kinder sofort und blendet die Abgänge aus."
         cancelText="Abbrechen"
         isConfirmLoading={applying}
         loadingText="Wird angewendet …"

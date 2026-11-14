@@ -1072,7 +1072,7 @@ export function CareScheduleManager({
                 variant="outline"
                 size="md"
                 className="gap-1.5"
-                tooltip="Öffnet die festen Zeiten jeder Woche zum Bearbeiten."
+                tooltip="Öffnet die festen Zeiten jeder Woche zum Ändern."
                 onClick={() => {
                   setRosterImpact(null);
                   setIsEditingWeekly(true);

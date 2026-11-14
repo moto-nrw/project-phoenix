@@ -365,6 +365,33 @@ func TestTraegerRoleChangeReachesTheSessionAtItsNextRefresh(t *testing.T) {
 	assert.Equal(t, []string{identityaccess.TraegerRolePersonnel, identityaccess.TraegerRoleReadOnly}, change.After, "and after the change")
 }
 
+// TestTraegerWithdrawnRoleEndsTheSessionAtOnce: a role taken away ends the
+// person's Träger sessions, so the per-request family check of the serving
+// root (#5194) refuses the access token that still carries the withdrawn
+// right, instead of at the token's expiry (#6850).
+func TestTraegerWithdrawnRoleEndsTheSessionAtOnce(t *testing.T) {
+	t.Parallel()
+	db, router, identity, unit := newTraegerAccountsPortal(t)
+	gated := testpkg.SessionVerifier(RequireLiveAccessSession(identity)(traegerPortalRoutes(t, db, identity, unit, owners.HolidayTestSchoolCalendar{})))
+	organizationID := traegerBuero(t, db, "Träger Rechteentzug")
+	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
+	colleague, session := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleBilling, identityaccess.TraegerRoleReadOnly)
+	rec := traegerCall(t, gated, http.MethodGet, "/traeger/accounts/", session.AccessToken, nil)
+	require.Equal(t, http.StatusForbidden, rec.Code, "the live session reaches the route authorization: %s", rec.Body.String())
+
+	rec = traegerCall(t, gated, http.MethodPut, fmt.Sprintf("/traeger/accounts/%d/roles", colleague.ID), admin.AccessToken,
+		map[string]any{"roles": []string{identityaccess.TraegerRoleReadOnly}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = traegerCall(t, gated, http.MethodGet, "/traeger/accounts/", session.AccessToken, nil)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code, "the access token with the withdrawn right is refused at its next request")
+	ctx := tenant.WithUnitOfWork(context.Background(), unit)
+	_, _, err := identity.RefreshTokenWithAudit(ctx, session.RefreshToken, "", "", "")
+	assert.Error(t, err, "nor can the session be renewed")
+	rec = traegerCall(t, gated, http.MethodGet, "/traeger/accounts/", admin.AccessToken, nil)
+	assert.Equal(t, http.StatusOK, rec.Code, "the Leitung who changed the roles stays signed in")
+}
+
 func TestTraegerInvitationCanBeRevoked(t *testing.T) {
 	t.Parallel()
 	db, router, _, _ := newTraegerAccountsPortal(t)

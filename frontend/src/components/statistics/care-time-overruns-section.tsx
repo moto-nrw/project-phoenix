@@ -134,6 +134,8 @@ export function CareTimeOverrunsSection({
     { kind: "header", label: "Exportieren" },
     ...EXPORT_FORMATS.map(({ format, label, Icon }) => ({
       label: exporting === format ? "Wird exportiert…" : label,
+      description:
+        "Lädt die Liste für den gewählten Zeitraum und Filter herunter",
       icon: <Icon className="h-4 w-4" aria-hidden />,
       onClick: () => void downloadExport(format),
       disabled: !data || exporting !== null,

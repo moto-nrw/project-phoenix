@@ -244,8 +244,7 @@ function OperatorAccountsPageContent() {
                 setMfaAccount(null);
                 setMfaSchoolContext(null);
               }}
-              scope="operator"
-              schoolId={mfaSchoolContext.id}
+              target={{ kind: "operator", schoolId: mfaSchoolContext.id }}
               accountId={mfaAccount.accountId}
               accountLabel={`${mfaAccount.firstName} ${mfaAccount.lastName}`.trim()}
             />

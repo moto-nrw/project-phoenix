@@ -150,7 +150,12 @@ function GroupDetailContent({
     setFormResetCounter((n) => n + 1);
   };
 
-  const headerActions = <DetailDeleteButton onClick={onDeleteClick} />;
+  const headerActions = (
+    <DetailDeleteButton
+      onClick={onDeleteClick}
+      tooltip="Löscht eine Gruppe ohne Kinder, moto fragt vorher nach."
+    />
+  );
 
   const tabs: DetailTab[] = [
     {

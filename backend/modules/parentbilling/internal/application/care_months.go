@@ -532,7 +532,7 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	if err != nil {
 		return rule, month, err
 	}
-	payments, err := readInvoicePayments(ctx, c.store, organizationID, run.ID, 0, scope)
+	payments, err := readInvoicePayments(ctx, c.store, organizationID, run.ID, 0, scope, false)
 	if err != nil {
 		return rule, month, err
 	}
@@ -645,7 +645,7 @@ func (c *CareBilling) releasedDetail(ctx context.Context, organizationID int64, 
 	detail.Duplicates = holdView(holds)
 	detail.DocumentKind = issuedCareDocumentKind(invoices)
 	// The dates of the release, which its invoices copied.
-	payments, err := readInvoicePayments(ctx, c.store, organizationID, detail.ID, 0, parentbilling.DebtorNumberScopePayer)
+	payments, err := readInvoicePayments(ctx, c.store, organizationID, detail.ID, 0, parentbilling.DebtorNumberScopePayer, false)
 	if err != nil {
 		return err
 	}

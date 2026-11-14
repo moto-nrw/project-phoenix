@@ -30,6 +30,7 @@ export function ParentSepaMandateEntry({
         )}
         variant="outline"
         size="md"
+        tooltip={t("inboxButtonTooltip")}
       >
         {t("inboxButton")}
       </ButtonLink>

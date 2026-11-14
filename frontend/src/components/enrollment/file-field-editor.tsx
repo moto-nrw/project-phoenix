@@ -273,10 +273,13 @@ export function IncomeDeclarationButton({
   fields,
   onAdd,
   disabled,
+  disabledReason,
 }: Readonly<{
   fields: readonly FormField[];
   onAdd: () => void;
   disabled: boolean;
+  /** Why `disabled` locks the button, e.g. a running upload. */
+  disabledReason?: string;
 }>) {
   const present = hasIncomeDeclaration(fields);
   return (
@@ -284,11 +287,12 @@ export function IncomeDeclarationButton({
       type="button"
       onClick={onAdd}
       disabled={disabled || present}
-      title={
+      disabledReason={
         present
           ? "Die Einkommenserklärung ist schon im Formular."
-          : "Fügt die Frage nach der Einkommensstufe und das Hochladen des Nachweises hinzu."
+          : disabledReason
       }
+      tooltip="Fügt die Frage nach der Einkommensstufe und das Hochladen des Nachweises hinzu."
       variant="outline"
       size="md"
       className="inline-flex items-center justify-center gap-2"

@@ -86,6 +86,12 @@ var schoolSessionErrorRules = []common.ErrorRule{
 	{Target: identityaccess.ErrInvalidToken, Render: func(err error) render.Renderer {
 		return common.ErrorForbiddenWithCode(errors.New("the Absprung requires a live Träger session with a second factor; sign in again"), common.CodeTraegerSecondFactorRequired)
 	}},
+	// The school switched remembered devices off and the Träger session
+	// proved its factor only by one (#6955): the person signs in to the
+	// Träger-Portal again with a code; the Träger session itself stays valid.
+	{Target: identityaccess.ErrSchoolRequiresCodeProof, Render: func(err error) render.Renderer {
+		return common.ErrorForbiddenWithCode(err, common.CodeTraegerSchoolRequiresCode)
+	}},
 	{Target: identityaccess.ErrAccountInactive, Render: func(err error) render.Renderer {
 		return common.ErrorUnauthorizedWithCode(err, common.CodeIdentitySessionAccountInactive)
 	}},

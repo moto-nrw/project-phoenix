@@ -30,6 +30,10 @@ import { credentialError } from "~/components/auth/credential-error";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import {
+  TRAEGER_SIGN_IN_WITH_CODE_LABEL,
+  traegerSignInWithCodeUrl,
+} from "~/lib/traeger-handoff";
+import {
   BrandLink,
   BrandLogo,
   BrandTraegerLine,
@@ -42,6 +46,36 @@ const SWITCH_REFUSALS = [
   "identity.tenant_access_denied",
   "identity.mfa_session_required",
 ] as const;
+
+/**
+ * The way on after a refused switch: a missing second factor signs in at the
+ * target school; a session from the Träger-Portal that the school refused
+ * for its remembered device (#6955) signs in there with the code, since the
+ * person may hold no account at the school; anything else may retry.
+ */
+function switchErrorOptions(
+  err: unknown,
+  targetName: string,
+  ways: { readonly openTargetLogin: () => void; readonly retry: () => void },
+) {
+  const code = err instanceof ApiError ? err.code : undefined;
+  if (code === "identity.mfa_session_required") {
+    return {
+      object: targetName,
+      action: { label: "Zur Schulanmeldung", onClick: ways.openTargetLogin },
+    };
+  }
+  if (code === "traeger.school_requires_code") {
+    return {
+      object: targetName,
+      action: {
+        label: TRAEGER_SIGN_IN_WITH_CODE_LABEL,
+        onClick: () => globalThis.location.assign(traegerSignInWithCodeUrl()),
+      },
+    };
+  }
+  return { object: `das Wechseln zu ${targetName}`, retry: ways.retry };
+}
 
 interface BrandTenantSwitcherProps {
   readonly href?: string;
@@ -177,22 +211,13 @@ export function BrandTenantSwitcher({
           };
           // Kein Zugang zur Schule kommt als 401: ohne den Code-Abgleich
           // spränge der Fehlerweg wortlos zur Anmeldung (#2517).
-          void showSwitchError(credentialError(err, SWITCH_REFUSALS), {
-            object:
-              err instanceof ApiError &&
-              err.code === "identity.mfa_session_required"
-                ? targetTenant.name
-                : `das Wechseln zu ${targetTenant.name}`,
-            ...(err instanceof ApiError &&
-            err.code === "identity.mfa_session_required"
-              ? {
-                  action: {
-                    label: "Zur Schulanmeldung",
-                    onClick: openTargetLogin,
-                  },
-                }
-              : { retry: () => latestSwitchRef.current(targetTenant) }),
-          });
+          void showSwitchError(
+            credentialError(err, SWITCH_REFUSALS),
+            switchErrorOptions(err, targetTenant.name, {
+              openTargetLogin,
+              retry: () => latestSwitchRef.current(targetTenant),
+            }),
+          );
         }
         setIsSwitching(false);
       }
@@ -246,6 +271,7 @@ export function BrandTenantSwitcher({
     for (const t of orgTenants) {
       menuItems.push({
         label: t.name,
+        description: "Wechselt zu dieser Einrichtung",
         onClick: () => void handleSwitch(t),
       });
     }
@@ -258,6 +284,7 @@ export function BrandTenantSwitcher({
         ariaLabel="Einrichtung wechseln"
         items={menuItems}
         disabled={isSwitching}
+        triggerTooltip="Zeigt Ihre Einrichtungen, ein Eintrag wechselt dorthin."
         onOpen={() => setSchoolPortalHint(null)}
         wrapperClassName="min-w-0 block"
         triggerClassName="-mx-1.5 max-w-[200px] min-w-0 gap-2.5 rounded-lg px-1.5 py-1 hover:bg-gray-100 disabled:opacity-50 sm:max-w-[260px] lg:max-w-[300px]"

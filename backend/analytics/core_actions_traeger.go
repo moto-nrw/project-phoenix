@@ -10,11 +10,18 @@ import (
 // exists; a Träger session names no school, so ActorOf yields no actor either.
 // init merges the table into coreActions.
 var traegerCoreActions = map[RouteKey]CoreAction{
-	{http.MethodPost, "/traeger/auth/login"}:                            notCaptured,
-	{http.MethodPost, "/traeger/auth/mfa/enroll/confirm"}:               notCaptured,
-	{http.MethodPost, "/traeger/auth/mfa/enroll/start"}:                 notCaptured,
-	{http.MethodPost, "/traeger/auth/mfa/resend"}:                       notCaptured,
-	{http.MethodPost, "/traeger/auth/mfa/verify"}:                       notCaptured,
+	{http.MethodPost, "/traeger/auth/login"}:              notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/enroll/confirm"}: notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/enroll/start"}:   notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/resend"}:         notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/verify"}:         notCaptured,
+	// The code step in the running session (#7068) renews the person's own
+	// session, no work of a school.
+	{http.MethodPost, "/traeger/auth/mfa/step-up"}:        notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/step-up/verify"}: notCaptured,
+	// Forgetting a remembered device (#6955) changes the person's security,
+	// not a school's work: no school to count it for.
+	{http.MethodDelete, "/traeger/auth/mfa/trusted-devices/{deviceId}"}: notCaptured,
 	{http.MethodPost, "/traeger/auth/password-reset"}:                   notCaptured,
 	{http.MethodPost, "/traeger/auth/password-reset/confirm"}:           notCaptured,
 	{http.MethodPost, "/traeger/accounts/invitations"}:                  notCaptured,
@@ -85,7 +92,8 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/holiday-quotes/{token}"}:                                                  notCaptured,
 	// The debtor number of a confirmed registration (#5621) belongs to the
 	// Träger as well.
-	{http.MethodPut, "/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/debtor-number"}: notCaptured,
+	{http.MethodPut, "/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/debtor-number"}:        notCaptured,
+	{http.MethodPut, "/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/child-debtor-numbers"}: notCaptured,
 	// The cost bearers of a Träger and the cost takeover (#5627) belong to
 	// the Träger too, and so does the proof the Träger-Büro uploads.
 	{http.MethodPost, "/traeger/cost-bearers/"}:                                              notCaptured,

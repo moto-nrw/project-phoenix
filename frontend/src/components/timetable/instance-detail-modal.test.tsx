@@ -635,7 +635,7 @@ describe("InstanceDetailModal", () => {
     );
 
     const button = screen.getByRole("button", { name: "Beenden ab 13:00" });
-    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-disabled", "true");
   });
 
   it("names the earlier completion time of a lead before the planned end", () => {
@@ -654,7 +654,7 @@ describe("InstanceDetailModal", () => {
     );
 
     const button = screen.getByRole("button", { name: "Beenden ab 15:45" });
-    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-disabled", "true");
   });
 
   it("completes an active instance", async () => {

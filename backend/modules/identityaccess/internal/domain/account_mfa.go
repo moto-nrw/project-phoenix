@@ -46,17 +46,38 @@ type AccountMFAChallenge struct {
 // cookie. TenantID pins the trust to one school: a cookie issued for school
 // A never bypasses MFA at school B.
 type AccountTrustedDevice struct {
-	ID         int64
-	AccountID  int64
-	TenantID   int64
-	TokenHash  string
-	UserAgent  *string
-	IPAddress  net.IP
-	ExpiresAt  time.Time
-	LastUsedAt *time.Time
-	RevokedAt  *time.Time
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID        int64
+	AccountID int64
+	TenantID  int64
+	// OrganizationID is the Träger of a device the Träger-Portal remembered
+	// (#6955); zero for a school's and the caterer portal's device.
+	OrganizationID int64
+	// ParentPortal marks a device the parents portal remembered (#7051); it
+	// names neither a school nor a Träger, like the caterer portal's.
+	ParentPortal bool
+	TokenHash    string
+	UserAgent    *string
+	IPAddress    net.IP
+	ExpiresAt    time.Time
+	LastUsedAt   *time.Time
+	RevokedAt    *time.Time
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+// DeviceBinding names the portal a remembered device belongs to: a school's
+// (TenantID > 0), the Träger-Portal's at one Träger (OrganizationID > 0),
+// the parents portal's (ParentPortal) or the caterer portal's (none of
+// them). A device of one portal never answers for another (#6955, #7051).
+type DeviceBinding struct {
+	TenantID       int64
+	OrganizationID int64
+	ParentPortal   bool
+}
+
+// Binding is the portal the device was remembered at.
+func (d AccountTrustedDevice) Binding() DeviceBinding {
+	return DeviceBinding{TenantID: d.TenantID, OrganizationID: d.OrganizationID, ParentPortal: d.ParentPortal}
 }
 
 // AccountMFAOverride is an admin's verdict on one account. TenantID is nil

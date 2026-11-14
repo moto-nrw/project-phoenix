@@ -21,6 +21,8 @@ interface PublicLinkCopyButtonProps {
   readonly url: string;
   readonly componentId: string;
   readonly label?: string;
+  /** What a click does; names who the copied link is for. */
+  readonly tooltip?: string;
   /** Title and file name of the link's QR code, shown by a second button. */
   readonly qrCode: { readonly title: string; readonly fileName: string };
 }
@@ -29,6 +31,7 @@ export function PublicLinkCopyButton({
   url,
   componentId,
   label = "Elternlink kopieren",
+  tooltip = "Kopiert den Link, damit Sie ihn an Eltern weitergeben können.",
   qrCode,
 }: PublicLinkCopyButtonProps) {
   const { copied, copy } = useClipboardCopy(componentId, 2000);
@@ -50,7 +53,7 @@ export function PublicLinkCopyButton({
           });
         }}
         aria-label={accessibleLabel}
-        title={accessibleLabel}
+        tooltip={tooltip}
       >
         <Icon className="h-4 w-4" aria-hidden="true" />
       </Button>

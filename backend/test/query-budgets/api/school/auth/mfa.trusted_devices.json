@@ -1,0 +1,7 @@
+{
+  "scenario": "api.school.auth.mfa.trusted_devices",
+  "max": 4,
+  "exact": true,
+  "description": "GET /school/auth/mfa/trusted-devices (#6955): composed school second factor behind the school session chain, signed school JWT from a code sign-in that remembered the device; one device DTO of the account at the session's school. Same records read as GET /auth/mfa/trusted-devices, whose budget proves it flat in the number of devices.",
+  "route": "GET /school/auth/mfa/trusted-devices"
+}

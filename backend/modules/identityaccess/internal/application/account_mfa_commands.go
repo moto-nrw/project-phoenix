@@ -170,24 +170,24 @@ func (r accountMFACommands) CreateTrustedDevice(ctx context.Context, device doma
 	})
 	return value0, err
 }
-func (r accountMFACommands) FindActiveTrustedDevice(ctx context.Context, accountID, tenantID int64, tokenHash string) (value0 domain.AccountTrustedDevice, value1 bool, err error) {
+func (r accountMFACommands) FindActiveTrustedDevice(ctx context.Context, accountID int64, binding domain.DeviceBinding, tokenHash string) (value0 domain.AccountTrustedDevice, value1 bool, err error) {
 	if r.runtime.HasTransaction(ctx) {
-		return r.AccountMFARecords.FindActiveTrustedDevice(ctx, accountID, tenantID, tokenHash)
+		return r.AccountMFARecords.FindActiveTrustedDevice(ctx, accountID, binding, tokenHash)
 	}
 
 	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		value0, value1, err = r.AccountMFARecords.FindActiveTrustedDevice(txCtx, accountID, tenantID, tokenHash)
+		value0, value1, err = r.AccountMFARecords.FindActiveTrustedDevice(txCtx, accountID, binding, tokenHash)
 		return err
 	})
 	return value0, value1, err
 }
-func (r accountMFACommands) ListActiveTrustedDevices(ctx context.Context, accountID, tenantID int64) (value0 []domain.AccountTrustedDevice, err error) {
+func (r accountMFACommands) ListActiveTrustedDevices(ctx context.Context, accountID int64, binding domain.DeviceBinding) (value0 []domain.AccountTrustedDevice, err error) {
 	if r.runtime.HasTransaction(ctx) {
-		return r.AccountMFARecords.ListActiveTrustedDevices(ctx, accountID, tenantID)
+		return r.AccountMFARecords.ListActiveTrustedDevices(ctx, accountID, binding)
 	}
 
 	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		value0, err = r.AccountMFARecords.ListActiveTrustedDevices(txCtx, accountID, tenantID)
+		value0, err = r.AccountMFARecords.ListActiveTrustedDevices(txCtx, accountID, binding)
 		return err
 	})
 	return value0, err

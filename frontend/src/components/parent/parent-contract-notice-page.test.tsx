@@ -264,12 +264,16 @@ describe("ParentContractNoticePage (#4682, § 312k BGB)", () => {
     expect(screen.getByRole("radio", { name: /31.01.2027/ })).not.toBeChecked();
     expect(
       screen.getByRole("button", { name: "Jetzt kündigen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Jetzt kündigen" }));
     expect(mocks.declareMyContractNotice).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("radio", { name: /31.01.2027/ }));
     expect(
       screen.getByRole("button", { name: "Jetzt kündigen" }),
     ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Jetzt kündigen" }),
+    ).not.toHaveAttribute("aria-disabled");
   });
 
   it("shows the Träger's notice once the reason is not accepted", async () => {

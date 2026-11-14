@@ -95,5 +95,16 @@
     "title": "{version}. sürüme onay: {date}.",
     "note": "Okul metni daha sonra değiştirdi. Bu metne verdiğiniz onay, siz geri alana kadar geçerlidir.",
     "endsToo": "Bu, {version}. sürüme verdiğiniz onayı da sona erdirir."
+  },
+  "actionTooltip": {
+    "agreed": "{name} için onay verir, moto önce sorar.",
+    "declined": "{name} için reddeder, moto önce sorar.",
+    "revoked": "{name} için onayınızı geri alır, moto önce sorar.",
+    "revokeEarlier": "Sürüm {version} için onayınızı geri alır, moto önce sorar."
+  },
+  "confirmTooltip": {
+    "agreed": "Onayınızı hemen kaydeder, okul bunu görür.",
+    "declined": "Reddinizi hemen kaydeder, okul bunu görür.",
+    "revoked": "Onayınızı hemen geri alır, okul bunu görür."
   }
 }

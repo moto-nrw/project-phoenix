@@ -82,7 +82,8 @@ export function traegerAccountsTopic(): HelpTopic {
     ],
     differences: [
       "Sie sehen in den Einstellungen kein `Mitglieder und Rollen`? Dann haben Sie nicht die Rolle `Leitung`.",
-      "Geänderte Rollen gelten nach wenigen Minuten. Eine entfernte Person kann sich nicht mehr anmelden. Eine offene Sitzung endet nach wenigen Minuten.",
+      "Neue Rollen gelten nach wenigen Minuten. Nehmen Sie eine Rolle weg, wird die Person sofort abgemeldet. Sie meldet sich dann neu an. Das gilt auch für Ihre eigenen Rollen.",
+      "Eine entfernte Person wird sofort abgemeldet. Sie kann sich nicht mehr anmelden.",
     ],
     troubleshootingDetails: [
       "Sie können bei `Leitung` keinen Haken entfernen? Dann hat nur diese Person die Rolle. Geben Sie die Rolle zuerst einer anderen Person.",

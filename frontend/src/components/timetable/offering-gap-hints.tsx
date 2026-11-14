@@ -179,6 +179,7 @@ export function OfferingGapHints({
                         aria-label={`Regeltermin anlegen: „${gap.offering.name}“`}
                         onClick={() => onCreateSeries(gap)}
                         disabled={busyOfferingId === gap.offering.id}
+                        tooltip="Öffnet einen neuen Regeltermin, passend zu diesem Angebot ausgefüllt."
                       >
                         Regeltermin anlegen
                       </Button>
@@ -190,6 +191,7 @@ export function OfferingGapHints({
                       aria-label={`Kein Regeltermin nötig: „${gap.offering.name}“`}
                       onClick={() => void decide(gap, true)}
                       disabled={busyOfferingId === gap.offering.id}
+                      tooltip="Blendet den Hinweis in diesem Zeitraum sofort für alle aus."
                     >
                       Kein Regeltermin nötig
                     </Button>
@@ -207,6 +209,7 @@ export function OfferingGapHints({
               aria-expanded={expanded}
               aria-controls={openListId}
               onClick={() => setExpanded((current) => !current)}
+              noTooltip="Zeigt nur mehr oder weniger Zeilen, an den Angeboten ändert sich nichts."
             >
               {expanded ? (
                 <>
@@ -241,6 +244,7 @@ export function OfferingGapHints({
                   aria-label={`Hinweis wieder zeigen: „${gap.offering.name}“`}
                   onClick={() => void decide(gap, false)}
                   disabled={busyOfferingId === gap.offering.id}
+                  tooltip="Zeigt den Hinweis sofort wieder für alle in der Liste oben."
                 >
                   Hinweis wieder zeigen
                 </Button>

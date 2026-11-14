@@ -255,6 +255,41 @@ describe("POST /api/auth/login", () => {
     );
   });
 
+  // A sign-in that must prove the factor by code (#6955) leaves the
+  // remembered device behind and keeps the BFF's flag to itself.
+  it("drops the trusted-device cookie when the sign-in asks for the code", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      Response.json({ status: "mfa_required", challenge_token: "c" }),
+    );
+    const request = new NextRequest("http://localhost:3000/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:3000",
+        cookie: "mfa_trust_device=device-1",
+      },
+      body: JSON.stringify({
+        email: "a@b.de",
+        password: "x",
+        ignore_trusted_device: true,
+      }),
+    });
+    // Anker: the request carries the device cookie.
+    expect(request.cookies.get("mfa_trust_device")?.value).toBe("device-1");
+
+    await POST(request);
+
+    const [, init] = vi.mocked(global.fetch).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(new Headers(init.headers).get("cookie")).toBeNull();
+    expect(JSON.parse(String(init.body))).toEqual({
+      email: "a@b.de",
+      password: "x",
+    });
+  });
+
   it("returns 503 when fetch throws an error", async () => {
     const loginPayload = { email: "test@example.com", password: "Test1234!" };
 
