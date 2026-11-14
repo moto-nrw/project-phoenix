@@ -13,8 +13,8 @@ not is not tied, and everything depends on what changes less.
 
 ## Plan of the PRs
 
-1. Backend: portal facts and the voluntary factor (fixes A to F).
-2. Backend: second-factor machinery (fixes G to K).
+1. Backend: portal facts and the voluntary factor (fixes A to E).
+2. Backend: mail copy table and second-factor machinery (fixes F to K).
 3. Frontend: sign-in and second-factor screens (fixes L to P).
 
 ## Fix A: a portal fact decides, not a portal name (done, PR 1)
@@ -113,11 +113,11 @@ session it mints (`mint`) and its refusal for a factor that is not on.
   `test/transaction_boundaries.json`.
 - E3 done. `keptAtNoSchool` replaces two identical closures.
 
-## Fix F: the parents' mail copy is one table (done, PR 1)
+## Fix F: the parents' mail copy is one table (open, PR 2)
 
-- F1 done. Four tables keyed by language became `parentCopies`, one struct
-  per language. The rendered content of every mail in every language is
-  byte-identical (dumped before and after, `cmp`).
+- F1 `parent_security_mails.go`: four tables keyed by language, kept in step
+  by convention and by a test that compares their lengths. One table of one
+  struct per language; the rendered content must stay byte-identical.
 
 ## Fix G to K: second-factor machinery (PR 2)
 
@@ -165,9 +165,6 @@ session it mints (`mint`) and its refusal for a factor that is not on.
 
 PR 1:
 
-- `parent_security_mails_test.go`: three `assert.Len` comparisons of the
-  tables removed. One table of one struct per language cannot hold a
-  language with a missing part; the test still renders every language.
 - `LoginParentWithAudit` call sites (`behavior/traeger_parent_session_test.go`,
   `behavior/auth_service_shim_test.go`, `api/password_login_protection_test.go`,
   `internal/application/mint_live_account_internal_test.go`): the call
