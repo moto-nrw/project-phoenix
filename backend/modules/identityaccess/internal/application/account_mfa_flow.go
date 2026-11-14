@@ -677,22 +677,26 @@ func (f *AccountMFAFlows) activateDeliveredChallenge(ctx context.Context, challe
 }
 
 func (f *AccountMFAFlows) requireChallengeRateLimit(ctx context.Context, accountID int64) error {
-	// The hard cap of three codes per fifteen minutes is an abuse defense,
-	// so a failed count refuses the send instead of waving it through:
-	// ignoring the error meant the cap silently stopped existing exactly
-	// when the database was least healthy.
-	since := f.now().Add(-domain.MFAEmailRateLimitWindow)
-	count, err := f.records.CountChallengesSince(ctx, accountID, since)
+	sent, err := f.records.CountChallengesSince(ctx, accountID, f.now().Add(-domain.MFAEmailRateLimitWindow))
 	if err != nil {
 		f.logger.Warn("mfa code rate-limit lookup failed; refusing to issue a code",
 			slog.Int64("account_id", accountID),
 			slog.String("error", err.Error()))
+	}
+	return codeSendCap(sent, err, domain.MFAEmailRateLimitMaxSent)
+}
+
+// codeSendCap refuses another code once max were sent within the window.
+// The cap is an abuse defense, so a count that could not be read refuses
+// the send too: ignoring the error meant the cap silently stopped existing
+// exactly when the database was least healthy.
+func codeSendCap(sent int, countErr error, maxSent int) error {
+	if countErr != nil {
 		return identityaccess.ErrMFAStatusUnavailable
 	}
-	if count >= domain.MFAEmailRateLimitMaxSent {
+	if sent >= maxSent {
 		return identityaccess.ErrMFARateLimited
 	}
-
 	return nil
 }
 

@@ -13,10 +13,7 @@ import (
 // (#7051).
 func TestParentSecurityMailsSpeakEveryPortalLanguage(t *testing.T) {
 	t.Parallel()
-	assert.Len(t, parentCodeCopies, len(parentFooters))
-	assert.Len(t, parentDeviceCopies, len(parentFooters))
-	assert.Len(t, parentResetCopies, len(parentFooters))
-	for lang := range parentFooters {
+	for lang := range parentCopies {
 		code := MFACodeMailContent(MFACodeMail{Parent: true, Locale: lang, Code: "482157", ExpiryMinutes: 10, TrustedDeviceEnabled: true, TrustedDeviceDays: 90}, "https://eltern.example")
 		device := TrustedDeviceAddedMailContent(TrustedDeviceMail{Parent: true, Locale: strings.ToUpper(lang), TrustedDays: 90}, "https://eltern.example")
 		assert.Equal(t, "parent-mfa-email-code.html", code.Template, lang)
@@ -24,6 +21,8 @@ func TestParentSecurityMailsSpeakEveryPortalLanguage(t *testing.T) {
 		for name, mail := range map[string]Mail{"code": code, "device": device} {
 			content := mail.Content.(map[string]any)
 			assert.Equal(t, lang, content["Lang"], "%s %s", lang, name)
+			assert.NotEmpty(t, content["FooterText"], "%s %s has its footer", lang, name)
+			assert.NotEmpty(t, content["PoweredByLabel"], "%s %s names the logo", lang, name)
 			rendered := fmt.Sprint(content)
 			assert.NotContains(t, rendered, "%!", "%s %s fills in every number", lang, name)
 			assert.Contains(t, rendered, "90", "%s %s names the days", lang, name)

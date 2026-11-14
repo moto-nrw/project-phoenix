@@ -120,24 +120,67 @@ session it mints (`mint`) and its refusal for a factor that is not on.
   `test/transaction_boundaries.json`.
 - E3 done. `keptAtNoSchool` replaces two identical closures.
 
-## Fix F: the parents' mail copy is one table (open, PR 2)
+## Fix F: the parents' mail copy is one table (done, PR 2)
 
-- F1 `parent_security_mails.go`: four tables keyed by language, kept in step
-  by convention and by a test that compares their lengths. One table of one
-  struct per language; the rendered content must stay byte-identical.
+- F1 done. Four tables keyed by language became `parentCopies`, one struct
+  per language. The rendered content of the code mail, the device notice
+  and the reset notice in every language is byte-identical (dumped before
+  and after, `cmp`).
 
 ## Fix G to K: second-factor machinery (PR 2)
 
-- G1 Dead and stale public constants (`account_mfa.go:59-90`,
-  `operator_mfa_flows.go:26-31`) with a comment that states a fallback that
-  does not exist.
-- H1 Account and operator twins: send cap, code generation, device token,
-  cookie check, revoke loop.
-- I1 Two names per operator operation and three styles of refusal
-  translation.
-- J1 Passkey record surface only tests call (`internal/ports/records.go:337-395`).
-- K1 `IssueTrustedDevice` without a production caller, working through a
-  context key.
+- G1 done. Public constants nothing read are gone
+  (`MFATrustedDeviceCookieDefaultDays`, `AdminRoleName`, `MFAMode*`,
+  `MFAEmailCodeLength`, `MFAEmailRateLimit*`, `MFALockoutDuration`,
+  `OperatorMFAChallengeTTL`, `OperatorMFARateLimitWindow`,
+  `OperatorMFATrustedDeviceDuration`), with the comment that named a
+  fallback the gate does not have. The three that tests read stay and are
+  pinned to the domain's values (`TestPublicCodePolicyIsTheDomains`): the
+  domain may not import the public package.
+- H1 done in part. The send cap is one rule (`codeSendCap`), and the
+  operator flow draws its code with `newMFAEmailCode` like the account
+  flow. Kept: the device token, cookie check and revoke loop stay twins;
+  they differ in table, binding and audit ledger, and a shared helper would
+  hold two or three lines each.
+- I1 done in part. `OperatorMFAFlows.ResendChallenge` is private: one
+  public name per operation (pass-through budget 207 to 206). Kept:
+  `Enroll`, `Disable` and `IssueTrustedDevice` beside their `…Operator…`
+  names. Each holds an administrative transaction, and
+  `test/transaction_boundaries.json` accepts no renamed site.
+- J1 open. The public-typed passkey record methods
+  (`internal/ports/records.go`, `AccountPasskeyQuery` and its siblings)
+  serve only `integration/{account,operator}_passkey_test.go`. Removing
+  them means rewriting 618 test lines against the domain errors; that is a
+  change of its own.
+- K1 kept. `AccountMFAFlows.IssueTrustedDevice` reads its prepared policy
+  from a context key. Passing the policy as a parameter moves the
+  administrative transaction into a new function, which the transaction
+  register refuses. The public method has no production caller but about 36
+  test call sites; removing it is a change of its own.
+- Kept: the code length exists in the domain and in `api/common` (wire
+  validation). `api/common` may not read the owner's domain.
+
+## Fix Q: the sub-portal facts are one table (done, PR 2)
+
+A session of the tenant or the parents portal that names a Träger follows
+its own rules (Träger school, Träger parent). Which kinds name a Träger,
+whether their rows name a school and how a token says so was decided in six
+places by kind or portal name.
+
+- Q1 done. `domain.traegerKinds` lists the kinds that name a Träger with
+  the school their rows demand; `SessionKind.NamesTraeger`,
+  `AccountSession.traegerShapeHolds` and `KeptAtSchool` read it, and so does
+  `sameTraeger` in the refresh.
+- Q2 done. `Portal.TraegerKind` names a portal's sub-portal
+  (`SessionKindOf` reads it), and `Portal.OrgNamesSession` says whether the
+  org_id of a token names the Träger of its session
+  (`SessionClaims.SessionKind`, `refreshNamesTokenTraeger`).
+- Proof: `TestSessionRowsNameATraegerOnlyInTheirKind` passes unchanged on
+  the old rules and on the table.
+- R1 kept. The gate's `IsRequired` (`internal/ports/policy.go`) takes an
+  `email` its only implementation ignores. Without it
+  `CapabilityGate.IsRequired` changes its registered pass-through text and
+  form, which the register accepts only with a new decision.
 
 ## Fix L to P: frontend (PR 3)
 
@@ -177,3 +220,15 @@ PR 1:
   `internal/application/mint_live_account_internal_test.go`): the call
   changed to the parents portal's sign-in, every assertion is unchanged.
 - Added `TestParentTrustedDevicesAnswerLikeTheSecondFactorSettings`.
+
+PR 2:
+
+- `parent_security_mails_test.go`: three `assert.Len` comparisons of the
+  tables removed: one table of one struct per language cannot hold a
+  language without one of the mails. The lengths also caught a language
+  without a footer; the test now asserts the footer and its label on every
+  rendered mail instead.
+- `operator_mfa_flow_internal_test.go`: no change (the renamed
+  `resendChallenge` has no test caller).
+- Added `TestPublicCodePolicyIsTheDomains` and
+  `TestSessionRowsNameATraegerOnlyInTheirKind`.

@@ -481,11 +481,8 @@ func tokenSchool(s *AccountAuthentication, b sessionBinding) successorTenant {
 // came through (#4654), a parent session at a Träger its Träger (ADR 0216);
 // a session of every other kind names none.
 func sameTraeger(kind domain.SessionKind, orgID int64, session domain.AccountSession) bool {
-	namesTraeger := func(k domain.SessionKind) bool {
-		return k == domain.SessionKindTraegerSchool || k == domain.SessionKindTraegerParent || k == domain.SessionKind(domain.PortalOrg.Name)
-	}
 	stored := session.SessionKind()
-	if namesTraeger(kind) || namesTraeger(stored) {
+	if kind.NamesTraeger() || stored.NamesTraeger() {
 		return kind == stored && session.OrganizationID == orgID
 	}
 	return true
