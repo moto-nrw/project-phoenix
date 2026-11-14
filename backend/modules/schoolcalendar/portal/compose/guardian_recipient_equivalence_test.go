@@ -41,7 +41,7 @@ func legacyRecipientAudiences(t *testing.T, ctx context.Context, cfg calendarCom
 	}
 	result := map[int64]calendarCompose.GuardianNotificationAudience{}
 	for _, id := range ids {
-		result[id] = calendarCompose.GuardianNotificationAudience{Profiles: profiles, StudentsByGuardian: map[int64][]int64{}}
+		result[id] = calendarCompose.GuardianNotificationAudience{Profiles: profiles, StudentsByGuardian: map[int64][]int64{}, Answers: map[int64]calendarCompose.GuardianNotificationAnswer{}}
 	}
 	for _, row := range rows {
 		if row.GuardianProfileID == nil {
@@ -62,6 +62,7 @@ func legacyRecipientAudiences(t *testing.T, ctx context.Context, cfg calendarCom
 			audience := result[row.AppointmentID]
 			audience.GuardianIDs = append(audience.GuardianIDs, guardian)
 			audience.StudentsByGuardian[guardian] = append(audience.StudentsByGuardian[guardian], children...)
+			audience.Answers[guardian] = calendarCompose.GuardianNotificationAnswer{Status: row.Status, OccurrenceResponses: row.OccurrenceResponses}
 			result[row.AppointmentID] = audience
 		}
 	}

@@ -27,7 +27,7 @@
     },
     "parent_appointment_reminder": {
       "label": "Terminerinnerung",
-      "description": "Kurz vor einem Termin, zu dem Sie eingeladen sind."
+      "description": "Kurz vor einem Termin, zu dem Sie eingeladen sind. Nicht bei Terminen, die Sie abgesagt haben."
     },
     "parent_request_decided": {
       "label": "Entscheidung über Ihre Anfrage",

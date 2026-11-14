@@ -46,6 +46,8 @@
   "changeAnswer": "Antwort ändern",
   "acceptedOn": "Für {date} zugesagt.",
   "declinedOn": "Für {date} abgesagt.",
+  "noReminder": "Keine Erinnerung",
+  "noReminderDetail": "Sie bekommen für diesen Termin keine Erinnerung.",
   "errorObjectOverview": "die Rückmeldungen",
   "responses": {
     "title": "Rückmeldungen",

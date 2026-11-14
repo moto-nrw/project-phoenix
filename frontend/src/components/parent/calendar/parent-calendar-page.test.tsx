@@ -610,6 +610,52 @@ describe("ParentCalendarPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("sagt bei einer Absage, dass keine Erinnerung kommt", async () => {
+    mockedCalendar.mockResolvedValue(
+      calendarResponse([
+        event({
+          can_respond: true,
+          response_status: "declined",
+          recipient_id: "77",
+        }),
+        event({
+          id: "e2",
+          appointment_id: "appointment-2",
+          title: "Sommerfest",
+          start_date: "2026-08-21",
+          end_date: "2026-08-21",
+          can_respond: true,
+          response_status: "accepted",
+          recipient_id: "78",
+        }),
+      ]),
+    );
+    renderPage();
+
+    const declinedRow = await screen.findByRole("article", {
+      name: "Elternabend",
+    });
+    expect(within(declinedRow).getByText("Abgesagt")).toBeInTheDocument();
+    expect(
+      within(declinedRow).getByText("Keine Erinnerung"),
+    ).toBeInTheDocument();
+    const acceptedRow = screen.getByRole("article", { name: "Sommerfest" });
+    expect(within(acceptedRow).getByText("Zugesagt")).toBeInTheDocument();
+    expect(
+      within(acceptedRow).queryByText("Keine Erinnerung"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(declinedRow).getByRole("button", { name: /Elternabend, 18:00/ }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Elternabend" });
+    expect(
+      within(dialog).getByText(
+        "Sie bekommen für diesen Termin keine Erinnerung.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("zeigt bei leerer Liste einen Leerzustand und danach das Abo", async () => {
     renderPage();
 

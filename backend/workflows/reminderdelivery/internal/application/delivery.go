@@ -277,7 +277,7 @@ func (s *preparation) enqueueReminderAudience(
 		profilesByAccount: make(map[int64][]int64, len(recipients.GuardianIDs)),
 		localeByAccount:   make(map[int64]string, len(recipients.GuardianIDs)),
 	}
-	for _, profile := range uniqueReminderGuardianProfiles(recipients) {
+	for _, profile := range uniqueReminderGuardianProfiles(recipients, reminder.occurrence) {
 		inserted, err := s.enqueueReminderEmail(ctx, reminder, recipients, profile, preferences, brand)
 		if err != nil {
 			return queued, audience, err
@@ -295,11 +295,13 @@ func (s *preparation) enqueueReminderAudience(
 	return queued, audience, nil
 }
 
-func uniqueReminderGuardianProfiles(recipients ports.GuardianAudience) []*ports.GuardianProfile {
+// uniqueReminderGuardianProfiles lists each guardian to remind of this
+// occurrence once. A guardian who declined the date is left out (#7014).
+func uniqueReminderGuardianProfiles(recipients ports.GuardianAudience, occurrence appointments.Date) []*ports.GuardianProfile {
 	profiles := make([]*ports.GuardianProfile, 0, len(recipients.GuardianIDs))
 	seen := make(map[int64]bool, len(recipients.GuardianIDs))
 	for _, id := range recipients.GuardianIDs {
-		if profile := recipients.Profiles[id]; profile != nil && !seen[id] {
+		if profile := recipients.Profiles[id]; profile != nil && !seen[id] && !recipients.DeclinedOn(id, occurrence) {
 			seen[id] = true
 			profiles = append(profiles, profile)
 		}
