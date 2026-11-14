@@ -777,6 +777,7 @@ export function ClassDayClass({
                   saving={savingHandover}
                   saveLabel="Übergeben"
                   savingLabel="Übergibt…"
+                  saveTooltip="Übergibt die Klasse, die OGS sieht sofort, wer nicht da ist."
                 />
               }
             >
@@ -888,6 +889,7 @@ export function ClassDayClass({
                       }}
                       disabled={hintSaving}
                       className="w-full sm:mr-auto sm:w-auto"
+                      tooltip="Löscht den Hinweis für die OGS, moto fragt vorher nach."
                     >
                       Hinweis löschen
                     </Button>
@@ -896,6 +898,7 @@ export function ClassDayClass({
                     onCancel={closeHint}
                     onSave={() => void saveHint()}
                     saving={hintSaving}
+                    saveTooltip="Speichert den Hinweis, die OGS sieht ihn sofort."
                     stretchOnPhone
                   />
                 </div>
@@ -1008,6 +1011,7 @@ export function ClassDayClass({
                   variant="outline"
                   size="md"
                   disabled={savingMorning}
+                  tooltip="Setzt alle offenen Kinder auf „Da“, gespeichert wird danach."
                   onClick={() =>
                     setDraftState({
                       key: reportKey,
@@ -1029,6 +1033,7 @@ export function ClassDayClass({
                 variant="outline"
                 size="md"
                 onClick={() => setExceptionDialogOpen(true)}
+                tooltip="Öffnet ein Fenster, um die Ankunftszeit der Klasse zu ändern."
               >
                 {isToday
                   ? "Ankunft heute ändern"
@@ -1047,6 +1052,8 @@ export function ClassDayClass({
                   setTripModalOpen(true);
                 }}
                 disabled={tripStudents.length === 0}
+                disabledReason="An diesem Tag steht kein Kind dieser Klasse in der Liste."
+                tooltip="Öffnet ein Fenster, um Kinder als unterwegs zu melden."
               >
                 Ausflug oder Klassenfahrt melden
               </Button>
@@ -1060,6 +1067,7 @@ export function ClassDayClass({
                 variant="outline"
                 size="md"
                 onClick={openHint}
+                tooltip="Öffnet ein Fenster für einen Hinweis, den die OGS heute sieht."
               >
                 Hinweis für die OGS
               </Button>
@@ -1093,6 +1101,7 @@ export function ClassDayClass({
                     variant="outline"
                     size="md"
                     onClick={openHandover}
+                    tooltip="Öffnet die Übergabe, um zu ändern, wer nicht da ist."
                   >
                     Übergabe ändern
                   </Button>
@@ -1104,6 +1113,7 @@ export function ClassDayClass({
                       withdrawErrors.clear();
                       setWithdrawOpen(true);
                     }}
+                    tooltip="Nimmt die Übergabe an die OGS zurück, moto fragt vorher nach."
                   >
                     Übergabe zurücknehmen
                   </Button>
@@ -1115,6 +1125,7 @@ export function ClassDayClass({
                   variant="primary"
                   size="md"
                   onClick={openHandover}
+                  tooltip="Öffnet die Übergabe, dort markieren Sie, wer nicht da ist."
                 >
                   Klasse übergeben
                 </Button>
@@ -1140,6 +1151,7 @@ export function ClassDayClass({
                     variant="outline"
                     size="md"
                     onClick={homeworkForm.openNew}
+                    tooltip="Öffnet ein Fenster für Hausaufgaben, die OGS sieht sie."
                   >
                     Hausaufgaben eintragen
                   </Button>
@@ -1173,10 +1185,14 @@ export function ClassDayClass({
                           items={[
                             {
                               label: "Ändern",
+                              description:
+                                "Öffnet die Hausaufgabe zum Bearbeiten",
                               onClick: () => homeworkForm.openEdit(entry),
                             },
                             {
                               label: "Löschen",
+                              description:
+                                "Löscht die Hausaufgabe, moto fragt vorher nach",
                               destructive: true,
                               onClick: () => homeworkForm.askDelete(entry),
                             },
@@ -1312,6 +1328,7 @@ export function ClassDayClass({
                 onSave={() => void saveMorning()}
                 saving={savingMorning}
                 saveLabel="Anwesenheit speichern"
+                saveTooltip="Speichert die Anwesenheit; Fehlen ohne Meldung erfährt die Schulverwaltung."
                 cancelLabel="Verwerfen"
               />
             </div>

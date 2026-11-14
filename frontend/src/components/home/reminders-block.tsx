@@ -50,6 +50,7 @@ export function RemindersBlock() {
         <HomeCardLink
           href={tenantPath("/reminders")}
           label="Erinnerungen: alle ansehen"
+          tooltip="Öffnet die Liste aller Ihrer Erinnerungen."
         >
           Alle ansehen
         </HomeCardLink>

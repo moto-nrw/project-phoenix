@@ -58,6 +58,7 @@ export function BookingLeftoverTodos({
           href={tenantPath("/betreuungsplan?view=serien")}
           variant="surface"
           size="md"
+          tooltip="Öffnet die Regeltermine im Betreuungsplan, dort prüfen Sie die Kinder."
         >
           Kinder prüfen
         </ButtonLink>

@@ -66,6 +66,7 @@ export function StaffTodayBlock({
         <HomeCardLink
           href={tenantPath("/staff")}
           label="Personal heute: zum Team"
+          tooltip="Öffnet die Liste aller Mitarbeitenden."
         >
           Zum Team
         </HomeCardLink>

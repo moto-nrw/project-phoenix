@@ -15,11 +15,14 @@ import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
 export function HomeCardLink({
   href,
   label,
+  tooltip,
   children,
 }: {
   readonly href: string;
   /** Der vorgelesene Name, mit Kartentitel. */
   readonly label: string;
+  /** Welche Seite der Link öffnet, als ein Satz (#6777). */
+  readonly tooltip: string;
   readonly children: ReactNode;
 }) {
   return (
@@ -28,11 +31,23 @@ export function HomeCardLink({
       variant="outline"
       size="compact"
       aria-label={label}
+      tooltip={tooltip}
       className="shrink-0 whitespace-nowrap"
     >
       {children}
     </ButtonLink>
   );
+}
+
+/**
+ * Erklärung am Weiterlink „Zum Betreuungsplan“ / „Heute öffnen“ (#6777):
+ * `useDayPlanHref` führt reine Adminkonten in den Betreuungsplan, alle
+ * anderen in ihren Tagesplan.
+ */
+export function dayPlanLinkTooltip(dayPlanHref: string): string {
+  return dayPlanHref.endsWith("/betreuungsplan")
+    ? "Öffnet den Betreuungsplan der Schule."
+    : "Öffnet Ihren Tagesplan für heute.";
 }
 
 /**

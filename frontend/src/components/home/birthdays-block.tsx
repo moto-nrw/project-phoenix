@@ -151,6 +151,7 @@ export function BirthdaysBlock({
                 size="compact"
                 className="mt-1"
                 onClick={() => setAllOpen(true)}
+                tooltip="Öffnet ein Fenster mit allen Geburtstagen der gezeigten Woche."
               >
                 Noch {hiddenCount}{" "}
                 {hiddenCount === 1 ? "Geburtstag" : "Geburtstage"} ansehen

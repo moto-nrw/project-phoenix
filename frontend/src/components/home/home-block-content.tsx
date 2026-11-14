@@ -99,14 +99,23 @@ function ListCard({
   concept,
   href,
   linkText = "Ansehen",
+  linkTooltip,
   children,
-}: Readonly<{
-  title: string;
-  concept: MotoConcept;
-  href?: string;
-  linkText?: string;
-  children: ReactNode;
-}>) {
+}: Readonly<
+  {
+    title: string;
+    concept: MotoConcept;
+    children: ReactNode;
+  } & (
+    | { href?: undefined; linkText?: undefined; linkTooltip?: undefined }
+    | {
+        href: string;
+        linkText?: string;
+        /** Welche Seite der Link öffnet, als ein Satz (#6777). */
+        linkTooltip: string;
+      }
+  )
+>) {
   return (
     <HomeCard
       title={title}
@@ -114,7 +123,11 @@ function ListCard({
       inlineActions
       actions={
         href ? (
-          <HomeCardLink href={href} label={`${title}: ${linkText}`}>
+          <HomeCardLink
+            href={href}
+            label={`${title}: ${linkText}`}
+            tooltip={linkTooltip ?? ""}
+          >
             {linkText}
           </HomeCardLink>
         ) : undefined
@@ -185,6 +198,7 @@ function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
       title="Laufende Aktivitäten"
       concept={activitiesConcept}
       href={data.tenantPath("/activities")}
+      linkTooltip="Öffnet die Liste aller Aktivitäten."
     >
       {data.analyticsLoading ? (
         <SkeletonRows />
@@ -258,6 +272,7 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
       title="Laufende Betreuung"
       concept={groupsConcept}
       href={data.tenantPath("/ogs-groups")}
+      linkTooltip="Öffnet die Übersicht der Gruppen."
     >
       {data.analyticsLoading ? (
         <SkeletonRows />
@@ -370,6 +385,7 @@ function StudentsCard({ data }: { readonly data: HomeBlockData }) {
       concept={childrenConcept}
       href={data.tenantPath("/students/search")}
       linkText="Alle Kinder"
+      linkTooltip="Öffnet die Suche über alle Kinder der Schule."
     >
       <div className="space-y-2">
         {STUDENT_STATUS_ROWS.map((row) => {

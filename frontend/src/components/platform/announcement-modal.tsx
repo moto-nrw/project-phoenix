@@ -137,6 +137,11 @@ export function AnnouncementModal() {
         variant="success"
         size="md"
         onClick={() => void handleDismiss()}
+        tooltip={
+          currentIndex < totalCount - 1
+            ? "Blendet diese Meldung aus und zeigt die nächste."
+            : "Schließt die Meldung, sie erscheint danach nicht mehr."
+        }
       >
         {currentIndex < totalCount - 1 ? "Weiter" : "Verstanden"}
       </Button>
@@ -160,6 +165,11 @@ export function AnnouncementModal() {
         </>
       }
       footer={footer}
+      closeTooltip={
+        totalCount > 1
+          ? "Schließt alle Meldungen, sie erscheinen danach nicht mehr."
+          : "Schließt die Meldung, sie erscheint danach nicht mehr."
+      }
     >
       {/* Announcement content */}
       <div>
