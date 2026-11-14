@@ -41,7 +41,8 @@ func (a parentAnnouncementDeliveryAdapter) ListForEntity(ctx context.Context, te
 			FirstName: row.FirstName, LastName: row.LastName, RecipientEmail: row.RecipientEmail,
 			Reachability: row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,
 			MailOutcome: row.MailOutcome, AddressMark: row.AddressMark, Stopped: row.Stopped, StopShared: row.StopShared, MailedTo: row.MailedTo, ProviderBlock: row.ProviderBlock,
-			SentAt: row.SentAt, Attempts: row.Attempts,
+			Departed: row.Departed,
+			SentAt:   row.SentAt, Attempts: row.Attempts,
 		})
 	}
 	return result, nil

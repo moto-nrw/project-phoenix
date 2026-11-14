@@ -256,6 +256,7 @@ type ParentAnnouncementEmailDeliveryStatus struct {
 	AddressMark       string
 	Stopped           bool
 	StopShared        bool
+	Departed          bool
 	MailedTo          *string
 	ProviderBlock     string
 	LastError         *string

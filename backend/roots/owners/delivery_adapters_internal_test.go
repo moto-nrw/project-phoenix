@@ -21,6 +21,18 @@ func (d letterStatusesDouble) EmailDeliveryStatuses(context.Context, int64, deli
 	return d.rows, nil
 }
 
+func TestLetterRowsKeepTheCurrentDepartureHold(t *testing.T) {
+	t.Parallel()
+	adapter := announcementDeliveryAdapter{module: letterStatusesDouble{rows: []deliveryContract.EmailDeliveryStatus{
+		{Departed: true, Outcome: deliveryContract.EmailHeldByDeparture},
+	}}}
+	rows, err := adapter.ListForEntity(context.Background(), 7, "parent_announcement", 42)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.True(t, rows[0].Departed)
+	assert.False(t, rows[0].Stopped)
+}
+
 // embeddedOutcomes names the embedded reads: its method of the same name would
 // otherwise collide with the field.
 type embeddedOutcomes = delivery.EmailOutcomes

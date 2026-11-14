@@ -42,6 +42,7 @@ type EmailDeliveryStatus struct {
 	AddressMark       string  `json:"address_mark,omitempty"`
 	Stopped           bool    `json:"stopped,omitempty"`
 	StopShared        bool    `json:"stop_shared,omitempty"`
+	Departed          bool    `json:"-"`
 	// MailedTo is where this mail went; MailOutcome belongs to it. RecipientEmail is
 	// the current address, where another mail goes.
 	MailedTo *string `json:"mailed_to,omitempty"`
@@ -405,8 +406,8 @@ func (s *service) LetterStatus(ctx context.Context, id int64) (*LetterStatus, er
 }
 
 // addLetterMailOutcome counts what the provider reported and what a resend could
-// still change. A marked address, a stopped person and a current block at the
-// provider are never resendable: the mail would stay back again (#5934). A row
+// still change. A marked address, a stopped or departed person and a current
+// block at the provider are never resendable: the mail would stay back again. A row
 // without an address is not either. A mail that came back without any of these is,
 // and so is one to an address someone has corrected since.
 func addLetterMailOutcome(summary *LetterSummary, r EmailDeliveryStatus) {
@@ -421,7 +422,7 @@ func addLetterMailOutcome(summary *LetterSummary, r EmailDeliveryStatus) {
 		summary.EmailsDelivered++
 	case r.MailOutcome == mailOutcomeDelayed:
 		summary.EmailsDelayed++
-	case r.EmailStatus == "failed" && r.RecipientEmail != nil && *r.RecipientEmail != "":
+	case r.EmailStatus == "failed" && !r.Departed && r.RecipientEmail != nil && *r.RecipientEmail != "":
 		summary.EmailsResendable++
 	}
 }

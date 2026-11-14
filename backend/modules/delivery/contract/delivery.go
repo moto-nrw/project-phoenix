@@ -97,6 +97,9 @@ type EmailDeliveryStatus struct {
 	MailedTo    *string          `json:"mailed_to,omitempty"`
 	AddressMark EmailAddressMark `json:"address_mark,omitempty"`
 	Stopped     bool             `json:"stopped,omitempty"`
+	// Departed is the current departure hold at RecipientEmail, not the outcome
+	// of an earlier mail. It clears when the school knows that address again.
+	Departed bool `json:"-"`
 	// StopShared says another holder of the address carries no stop, so mail to the
 	// address still goes out.
 	StopShared bool `json:"stop_shared,omitempty"`

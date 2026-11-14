@@ -1439,7 +1439,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
-      "reason": "Read-only newly exposed target: communication reaches modules/delivery/runtime.Capability.EmailDeliveryStatuses (delivery-platform) through roots/owners.announcementDeliveryAdapter.ListForEntity. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Since #5934 it also passes on what became of the mail, read in the same statement.",
+      "reason": "Read-only newly exposed target: communication reaches modules/delivery/runtime.Capability.EmailDeliveryStatuses (delivery-platform) through roots/owners.announcementDeliveryAdapter.ListForEntity. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Since #5934 it also passes on what became of the mail, read in the same statement. The current departure hold (#5960) is read there too and excludes letter retries until the address is known again.",
       "source_owner": "communication",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.Capability.EmailDeliveryStatuses",
       "target_owner": "delivery-platform"

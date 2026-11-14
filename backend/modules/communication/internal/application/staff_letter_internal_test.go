@@ -782,6 +782,56 @@ func TestLetterSummaryOnlyOffersWhatAResendCanReach(t *testing.T) {
 	}
 }
 
+type currentLetterStatuses struct {
+	ParentAnnouncementDeliveryRecorder
+	rows []communication.ParentAnnouncementEmailDeliveryStatus
+}
+
+func (s currentLetterStatuses) ListForEntity(context.Context, int64, string, int64) ([]communication.ParentAnnouncementEmailDeliveryStatus, error) {
+	return s.rows, nil
+}
+
+func TestLetterRetriesWaitForTheFamilysReturn(t *testing.T) {
+	t.Parallel()
+
+	published := time.Now().Add(-time.Hour)
+	a := letterDraft(StaffParentAnnouncementDeliveryLetter, StaffEmailAudiencePortalOnly)
+	a.PublishedAt = &published
+	address := "ausgetreten@example.test"
+	current := currentLetterStatuses{rows: []communication.ParentAnnouncementEmailDeliveryStatus{
+		{DeliveryID: 1, RecipientEmail: &address, EmailStatus: "failed", MailOutcome: "held_by_departure", Departed: true},
+	}}
+	deliveries := &letterDeliveries{}
+	outbox := &letterOutbox{}
+	svc := newLetterService(&letterRepo{announcement: a}, outbox, deliveries)
+
+	for _, phase := range []struct {
+		departed bool
+		want     int
+	}{{departed: true}, {departed: false, want: 1}} {
+		current.rows[0].Departed = phase.departed
+		rows, err := (parentAnnouncementDeliveryAdapter{current}).ListForEntity(context.Background(), a.GetTenantID(), "parent_announcement", a.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		deliveries.list = rows
+		status, err := svc.LetterStatus(context.Background(), a.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status.Summary.EmailsResendable != phase.want || status.Summary.EmailsStopped != 0 {
+			t.Errorf("departed=%t: summary = %+v", phase.departed, status.Summary)
+		}
+		count, err := svc.ResendFailedEmails(context.Background(), a.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != phase.want || len(outbox.requests) != phase.want {
+			t.Errorf("departed=%t: resent %d, queued %d, want %d", phase.departed, count, len(outbox.requests), phase.want)
+		}
+	}
+}
+
 func TestResendFailedEmailsLeavesAStoppedOrMarkedAddressAlone(t *testing.T) {
 	t.Parallel()
 
