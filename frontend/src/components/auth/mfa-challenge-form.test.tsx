@@ -49,9 +49,9 @@ async function enterCode(code: string) {
   });
 }
 
-// The accessible name is the label followed by the button's description.
-const REMEMBER = /^Bestätigen und dieses Gerät 90 Tage merken/;
-const ONCE = /^Nur dieses Mal bestätigen/;
+// The accessible name is the answer followed by the line for whom it is meant.
+const REMEMBER = /^Ja, merken und anmelden/;
+const ONCE = /^Nein, nur anmelden/;
 
 /** Types the code and confirms without remembering the device. */
 async function submitCodeOnce(code: string) {
@@ -81,25 +81,26 @@ describe("MFAChallengeForm", () => {
     expect(screen.getAllByRole("textbox").length).toBeGreaterThanOrEqual(6);
   });
 
-  // #6955: the person decides with one of two buttons. A complete code
+  // #6955: the person decides with one of two answers. A complete code
   // alone sends nothing, so no device is remembered without a choice.
   it("waits for a choice once the code is complete", async () => {
     global.fetch = mockOk({ status: "authenticated" });
 
     render(<MFAChallengeForm {...defaultProps} onSuccess={vi.fn()} />);
 
-    // Blocked with a reason the person can read, so `aria-disabled`.
+    // Blocked, and the line under the answers says what is missing.
     const remember = screen.getByRole("button", { name: REMEMBER });
     const once = screen.getByRole("button", { name: ONCE });
-    expect(remember).toHaveAttribute("aria-disabled", "true");
-    expect(once).toHaveAttribute("aria-disabled", "true");
+    expect(remember).toBeDisabled();
+    expect(once).toBeDisabled();
+    expect(
+      screen.getByText("Geben Sie zuerst den Code ein."),
+    ).toBeInTheDocument();
     fireEvent.click(remember);
     fireEvent.click(once);
 
     await enterCode("123456");
 
-    expect(remember).not.toHaveAttribute("aria-disabled");
-    expect(once).not.toHaveAttribute("aria-disabled");
     expect(remember).toBeEnabled();
     expect(once).toBeEnabled();
     expect(global.fetch).not.toHaveBeenCalled();
@@ -126,9 +127,7 @@ describe("MFAChallengeForm", () => {
       }
 
       expect(inputs[5]).toHaveValue("6");
-      expect(screen.getByRole("button", { name: ONCE })).not.toHaveAttribute(
-        "aria-disabled",
-      );
+      expect(screen.getByRole("button", { name: ONCE })).toBeEnabled();
       expect(document.activeElement).toBe(document.body);
 
       act(() => vi.advanceTimersToNextFrame());
@@ -137,7 +136,7 @@ describe("MFAChallengeForm", () => {
     },
   );
 
-  it("confirms without remembering the device on „Nur dieses Mal“", async () => {
+  it("confirms without remembering the device on „Nein, nur anmelden“", async () => {
     global.fetch = mockOk({ status: "authenticated" });
     const onSuccess = vi.fn();
 
@@ -180,12 +179,11 @@ describe("MFAChallengeForm", () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  // Tooltips do not show on a tablet: each button says on its face for
-  // whom it is meant.
-  it("says on each button for whom it is meant", () => {
+  // Each answer says on its face for whom it is meant, also on a tablet.
+  it("says on each answer for whom it is meant", () => {
     render(<MFAChallengeForm {...defaultProps} onSuccess={vi.fn()} />);
     expect(screen.getByRole("button", { name: REMEMBER })).toHaveTextContent(
-      "Nur auf Ihrem eigenen Gerät.",
+      "Nur für Ihr eigenes Gerät.",
     );
     expect(screen.getByRole("button", { name: ONCE })).toHaveTextContent(
       "Für Geräte, die mehrere Personen nutzen.",
@@ -201,10 +199,8 @@ describe("MFAChallengeForm", () => {
       />,
     );
     expect(
-      screen.getByRole("button", {
-        name: /^Bestätigen und dieses Gerät 14 Tage merken/,
-      }),
-    ).toBeInTheDocument();
+      screen.getByRole("button", { name: /^Ja, merken und anmelden/ }),
+    ).toHaveTextContent("14 Tage kein Code auf diesem Gerät.");
   });
 
   it.each([
@@ -215,7 +211,7 @@ describe("MFAChallengeForm", () => {
     ["operator", "in Ihrem Profil"],
   ] as const)(
     "tells a %s account where the remembered device can be removed",
-    (scope, place) => {
+    async (scope, place) => {
       render(
         <MFAChallengeForm
           {...defaultProps}
@@ -223,6 +219,8 @@ describe("MFAChallengeForm", () => {
           onSuccess={vi.fn()}
         />,
       );
+      // The line appears with the choice, once the code is complete.
+      await enterCode("123456");
       expect(
         screen.getByText(`Gemerkte Geräte entfernen Sie ${place}.`),
       ).toBeInTheDocument();
@@ -271,15 +269,9 @@ describe("MFAChallengeForm", () => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: ONCE })).toHaveAttribute(
-        "aria-disabled",
-        "true",
-      );
+      expect(screen.getByRole("button", { name: ONCE })).toBeDisabled();
     });
-    expect(screen.getByRole("button", { name: REMEMBER })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    expect(screen.getByRole("button", { name: REMEMBER })).toBeDisabled();
     expect(screen.getByLabelText("Stelle 1")).toHaveValue("");
   });
 

@@ -39,8 +39,8 @@ export function traegerLoginTopic(): HelpTopic {
       "Wählen Sie dann `Träger öffnen`.",
       "moto zeigt die `Code-Eingabe`. Öffnen Sie die E-Mail von moto.",
       "Geben Sie den sechsstelligen Code ein.",
-      "Ist es Ihr eigenes Gerät? Wählen Sie `Bestätigen und dieses Gerät 90 Tage merken`. Dort fragt moto dann 90 Tage lang keinen Code ab.",
-      "Nutzen mehrere Personen das Gerät? Wählen Sie `Nur dieses Mal bestätigen`.",
+      "Ist es Ihr eigenes Gerät? Wählen Sie `Ja, merken und anmelden`. Dort fragt moto dann 90 Tage lang keinen Code ab.",
+      "Nutzen mehrere Personen das Gerät? Wählen Sie `Nein, nur anmelden`.",
     ],
     result: "moto öffnet die Seite `Schulen` mit allen Schulen Ihres Trägers.",
     notes: [

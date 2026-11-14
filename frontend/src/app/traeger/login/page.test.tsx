@@ -103,13 +103,13 @@ describe("TraegerLoginPage", () => {
     // portals, and only on the button that says so.
     expect(
       screen.getByRole("button", {
-        name: /^Bestätigen und dieses Gerät 90 Tage merken/,
+        name: /^Ja, merken und anmelden/,
       }),
     ).toBeInTheDocument();
     await enterCode("123456");
     expect(fetchMock).not.toHaveBeenCalled();
     fireEvent.click(
-      screen.getByRole("button", { name: /^Nur dieses Mal bestätigen/ }),
+      screen.getByRole("button", { name: /^Nein, nur anmelden/ }),
     );
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
