@@ -53,5 +53,10 @@
   "newsLetterBindingHint": "Diese E-Mail ist nur zur Information. Es zählt die Bestätigung hier im Eltern-Portal. Eine sorgeberechtigte Person pro Kind genügt.",
   "newsErrorObjectAnswer": "die Antwort",
   "newsErrorObjectConfirmation": "die Lesebestätigung",
-  "newsErrorObjectAttachments": "die Liste der Dateien"
+  "newsErrorObjectAttachments": "die Liste der Dateien",
+  "newsPollClearTooltip": "Entfernt die Auswahl, gesendet wird erst mit „Antwort speichern“.",
+  "newsPollSaveTooltip": "Sendet Ihre Antwort sofort an die Schule.",
+  "newsPollSaveDisabledReason": "Wählen Sie zuerst eine Antwort oder ändern Sie Ihre Auswahl.",
+  "newsReadAndConfirmTooltip": "Bestätigt der Schule sofort, dass Sie den Elternbrief gelesen haben.",
+  "newsCloseUnsavedTooltip": "Schließt den Elternbrief, Ihre neue Auswahl geht verloren."
 }

@@ -107,5 +107,15 @@
     "title": "Erste Schritte ausblenden?",
     "body": "Die Anleitungen finden Sie weiterhin in der Hilfe.",
     "confirm": "Ausblenden"
+  },
+  "tooltips": {
+    "open": "Zeigt die Liste Ihrer ersten Schritte.",
+    "collapse": "Verkleinert die Liste zu einem Knopf am Bildschirmrand.",
+    "show": "Zeigt Ihnen die markierten Bereiche Schritt für Schritt.",
+    "guide": "Öffnet die Anleitung in einem neuen Tab.",
+    "installGuide": "Öffnet die Anleitung in einem neuen Tab und hakt den Schritt ab.",
+    "complete": "Schließt die ersten Schritte ab und blendet sie auf diesem Gerät aus.",
+    "dismiss": "Blendet die ersten Schritte auf diesem Gerät aus, moto fragt vorher nach.",
+    "dismissConfirm": "Blendet die ersten Schritte auf diesem Gerät aus."
   }
 }

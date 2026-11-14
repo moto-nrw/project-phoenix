@@ -26,5 +26,6 @@
   "note": "Ky vërtetim dokumenton një deklaratë të thjeshtë elektronike. Nuk zëvendëson një nënshkrim në letër kur ai kërkohet me ligj.",
   "noteSigned": "Përgjigjet e nënshkruara janë dhënë si nënshkrim elektronik i thjeshtë me nënshkrim të vizatuar.",
   "errorObjectProof": "dokumenti i vërtetimit",
-  "errorObjectPdf": "skedari PDF"
+  "errorObjectPdf": "skedari PDF",
+  "downloadTooltip": "E ruan dëshminë si PDF në këtë pajisje."
 }

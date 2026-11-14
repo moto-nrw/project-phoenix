@@ -442,6 +442,7 @@ export function OfferingChangeRequestModal({
               size="md"
               className="hidden sm:inline-flex"
               onClick={onClose}
+              noTooltip="Schließt das Fenster, ohne eine Anfrage zu senden."
             >
               {t("careOfferingsModal.cancel")}
             </Button>
@@ -451,8 +452,18 @@ export function OfferingChangeRequestModal({
               className="w-full sm:w-auto"
               onClick={() => void handleSubmit()}
               disabled={submitting || loading || !catalog || emptyCatalog}
+              disabledReason={
+                emptyCatalog
+                  ? t("careOfferingsModal.noOfferingsDisabledReason")
+                  : undefined
+              }
               isLoading={submitting}
               loadingText={t("careOfferingsModal.submitting")}
+              tooltip={
+                editRequestId
+                  ? t("careOfferingsModal.saveEditTooltip")
+                  : t("careOfferingsModal.submitTooltip")
+              }
             >
               {editRequestId
                 ? t("careOfferingsModal.saveEdit")
@@ -658,6 +669,11 @@ export function OfferingChangeRequestModal({
         title={t("careOfferingsModal.withdrawalConfirmTitle")}
         confirmText={t("careOfferingsModal.withdrawalConfirmSubmit")}
         cancelText={t("careOfferingsModal.withdrawalConfirmBack")}
+        confirmTooltip={
+          editRequestId
+            ? t("careOfferingsModal.withdrawalConfirmEditTooltip")
+            : t("careOfferingsModal.withdrawalConfirmTooltip")
+        }
         isConfirmLoading={submitting}
         loadingText={t("careOfferingsModal.submitting")}
       >

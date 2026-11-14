@@ -111,7 +111,14 @@
         "pending": "Invitation is on its way",
         "no_account": "Contact without access to the app",
         "active_no_access": "Has an account but no access to this child yet"
-      }
+      },
+      "inviteTooltip": "Opens a window to give a person access to the app.",
+      "sendTooltip": "Invites the person right away; depending on settings, the {careTerm} checks first.",
+      "sendDisabledReason": "First enter the person's email address.",
+      "grantTooltip": "Requests full app access for this person; moto asks you to confirm first.",
+      "grantConfirmTooltip": "Sends the request to the {careTerm} right away.",
+      "removeTooltip": "Removes this person's access to this child; moto asks you to confirm first.",
+      "removeConfirmTooltip": "Removes this person's app access to this child immediately."
     },
     "errorObjectContacts": "the list of contacts",
     "errorObjectAccounts": "the list of connected accounts",
@@ -120,7 +127,19 @@
     "reloadObject": "the contacts view",
     "savedButStale": "Your change is saved. Only the display is not up to date yet.",
     "errorObjectContact": "the change to the contact",
-    "errorObjectPickup": "the pickup arrangement"
+    "errorObjectPickup": "the pickup arrangement",
+    "addContactTooltip": "Opens a form for a contact or pickup person without an account.",
+    "editContactTooltip": "Opens this person's contact details for editing.",
+    "managePickupTooltip": "Opens the pickup rules and emergency contact setting for this person.",
+    "pickupNotesTooltip": "Opens the pickup note for this person.",
+    "removePhoneTooltip": "Removes this number from the form.",
+    "addPhoneTooltip": "Adds an empty field for another number.",
+    "createContactTooltip": "Adds the contact; the {careTerm} sees it right away.",
+    "createContactWithPickupTooltip": "Adds the contact and sends the pickup permission to the {careTerm}.",
+    "saveContactTooltip": "Saves the contact details; the {careTerm} sees them right away.",
+    "savePickupTooltip": "Saves the details; the {careTerm} sees them right away.",
+    "savePickupRequestTooltip": "Sends the pickup permission to the {careTerm}; it applies once confirmed.",
+    "savePickupRevokeTooltip": "Removes the pickup right immediately; the {careTerm} sees this."
   },
   "back": "Back to My children",
   "backSingle": "Back to My child",

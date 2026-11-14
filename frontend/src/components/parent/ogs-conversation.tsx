@@ -1002,7 +1002,13 @@ function QuickActionPill({
       variant="surface"
       size="md"
       onClick={() => onPick(action.key)}
-      title={careT(`actions.${action.key}.hint`)}
+      tooltip={todayT(
+        action.key === "sick"
+          ? "actions.sickTooltip"
+          : withMode
+            ? "actions.pickupWithModeTooltip"
+            : "actions.pickupTooltip",
+      )}
       className="min-w-0 grow gap-1.5 sm:grow-0"
     >
       {action.key === "sick" ? (

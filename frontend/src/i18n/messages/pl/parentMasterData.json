@@ -168,7 +168,12 @@
     "withdrawalConfirmSubmit": "Wyślij prośbę",
     "errorObjectCatalog": "lista ofert",
     "errorObjectRequest": "prośba o zmianę",
-    "submitting": "Wysyłanie …"
+    "submitting": "Wysyłanie …",
+    "submitTooltip": "Od razu wysyła prośbę do {careTerm} do sprawdzenia.",
+    "saveEditTooltip": "Od razu zastępuje otwartą prośbę nowym wyborem.",
+    "withdrawalConfirmTooltip": "Od razu wysyła do {careTerm} prośbę o wypisanie z opieki.",
+    "withdrawalConfirmEditTooltip": "Od razu zastępuje otwartą prośbę wypisaniem z opieki.",
+    "noOfferingsDisabledReason": "Nie można zarezerwować opieki, proszę skontaktować się z {careTerm}."
   },
   "weekdayShort": {
     "1": "Pn",

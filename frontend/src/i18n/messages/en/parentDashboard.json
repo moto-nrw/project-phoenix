@@ -53,5 +53,10 @@
   "newsLetterBindingHint": "This e-mail is for information only. What counts is the confirmation here in the parent portal. One guardian per child is enough.",
   "newsErrorObjectAnswer": "the reply",
   "newsErrorObjectConfirmation": "the read confirmation",
-  "newsErrorObjectAttachments": "the list of files"
+  "newsErrorObjectAttachments": "the list of files",
+  "newsPollClearTooltip": "Clears the choice; nothing is sent until \"Save answer\".",
+  "newsPollSaveTooltip": "Sends your answer to the school right away.",
+  "newsPollSaveDisabledReason": "First choose an answer or change your selection.",
+  "newsReadAndConfirmTooltip": "Confirms to the school right away that you have read the message.",
+  "newsCloseUnsavedTooltip": "Closes the message; your new selection is lost."
 }

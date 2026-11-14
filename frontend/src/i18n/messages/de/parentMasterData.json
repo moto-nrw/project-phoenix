@@ -168,7 +168,12 @@
     "withdrawalConfirmSubmit": "Anfrage senden",
     "errorObjectCatalog": "die Liste der Angebote",
     "errorObjectRequest": "die Änderungsanfrage",
-    "submitting": "Wird gesendet …"
+    "submitting": "Wird gesendet …",
+    "submitTooltip": "Schickt die Anfrage sofort an die {careTerm} zur Prüfung.",
+    "saveEditTooltip": "Ersetzt Ihre offene Anfrage sofort durch die neue Auswahl.",
+    "withdrawalConfirmTooltip": "Schickt die Abmeldung von der Betreuung sofort als Anfrage an die {careTerm}.",
+    "withdrawalConfirmEditTooltip": "Ersetzt Ihre offene Anfrage sofort durch die Abmeldung von der Betreuung.",
+    "noOfferingsDisabledReason": "Es ist keine Betreuung buchbar, wenden Sie sich an die {careTerm}."
   },
   "weekdayShort": {
     "1": "Mo",

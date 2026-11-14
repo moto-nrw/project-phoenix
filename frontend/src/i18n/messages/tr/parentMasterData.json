@@ -168,7 +168,12 @@
     "withdrawalConfirmSubmit": "Talebi gönder",
     "errorObjectCatalog": "teklif listesi",
     "errorObjectRequest": "değişiklik talebi",
-    "submitting": "Gönderiliyor …"
+    "submitting": "Gönderiliyor …",
+    "submitTooltip": "Talebi hemen gönderir, {careTerm} inceler.",
+    "saveEditTooltip": "Açık talebinizi hemen yeni seçimle değiştirir.",
+    "withdrawalConfirmTooltip": "Bakımı tamamen sonlandırma talebini hemen gönderir, {careTerm} inceler.",
+    "withdrawalConfirmEditTooltip": "Açık talebinizi hemen bakımı tamamen sonlandırma talebiyle değiştirir.",
+    "noOfferingsDisabledReason": "Rezerve edilebilir bakım yok, lütfen {careTerm} ile iletişime geçin."
   },
   "weekdayShort": {
     "1": "Pzt",

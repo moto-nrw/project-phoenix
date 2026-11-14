@@ -111,7 +111,14 @@
         "pending": "Davet yolda",
         "no_account": "Uygulama erişimi olmayan kişi",
         "active_no_access": "Hesabı var ama bu çocuğa henüz erişimi yok"
-      }
+      },
+      "inviteTooltip": "Bir kişiye uygulamaya erişim vermek için bir pencere açar.",
+      "sendTooltip": "Kişiyi hemen davet eder; ayara göre önce {careTerm} kontrol eder.",
+      "sendDisabledReason": "Önce kişinin e-posta adresini girin.",
+      "grantTooltip": "Bu kişi için tam uygulama erişimi ister, moto önce sorar.",
+      "grantConfirmTooltip": "Talebi hemen gönderir, {careTerm} inceler.",
+      "removeTooltip": "Bu kişinin bu çocuğa erişimini kaldırır, moto önce sorar.",
+      "removeConfirmTooltip": "Bu kişinin uygulamada bu çocuğa erişimini hemen kaldırır."
     },
     "errorObjectContacts": "kişi listesi",
     "errorObjectAccounts": "bağlı hesaplar listesi",
@@ -120,7 +127,19 @@
     "reloadObject": "kişiler görünümü",
     "savedButStale": "Değişikliğiniz kaydedildi. Yalnızca görünüm henüz güncel değil.",
     "errorObjectContact": "kişi değişikliği",
-    "errorObjectPickup": "teslim alma düzeni"
+    "errorObjectPickup": "teslim alma düzeni",
+    "addContactTooltip": "Hesabı olmayan bir iletişim veya teslim alma kişisi için form açar.",
+    "editContactTooltip": "Bu kişinin iletişim bilgilerini düzenlemek için açar.",
+    "managePickupTooltip": "Bu kişi için teslim alma kurallarını ve acil durum kişisi ayarını açar.",
+    "pickupNotesTooltip": "Bu kişi için teslim alma notunu açar.",
+    "removePhoneTooltip": "Bu numarayı formdan kaldırır.",
+    "addPhoneTooltip": "Başka bir numara için boş bir alan ekler.",
+    "createContactTooltip": "Kişiyi ekler, {careTerm} bunu hemen görür.",
+    "createContactWithPickupTooltip": "Kişiyi ekler; teslim alma izni {careTerm} onayına gider.",
+    "saveContactTooltip": "İletişim bilgilerini kaydeder, {careTerm} bunları hemen görür.",
+    "savePickupTooltip": "Bilgileri kaydeder, {careTerm} bunları hemen görür.",
+    "savePickupRequestTooltip": "Teslim alma iznini gönderir; izin ancak {careTerm} onaylayınca geçerli olur.",
+    "savePickupRevokeTooltip": "Teslim alma hakkını hemen kaldırır, {careTerm} bunu görür."
   },
   "back": "Çocuklarım sayfasına dön",
   "backSingle": "Çocuğum sayfasına dön",

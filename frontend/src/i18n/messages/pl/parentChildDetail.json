@@ -111,7 +111,14 @@
         "pending": "Zaproszenie zostało wysłane",
         "no_account": "Kontakt bez dostępu do aplikacji",
         "active_no_access": "Ma konto, ale nie ma jeszcze dostępu do tego dziecka"
-      }
+      },
+      "inviteTooltip": "Otwiera okno, aby dać osobie dostęp do aplikacji.",
+      "sendTooltip": "Od razu zaprasza osobę, zależnie od ustawień {careTerm} najpierw to sprawdza.",
+      "sendDisabledReason": "Najpierw proszę wpisać adres e-mail tej osoby.",
+      "grantTooltip": "Prosi o pełny dostęp do aplikacji dla tej osoby, moto najpierw zapyta.",
+      "grantConfirmTooltip": "Od razu wysyła prośbę do {careTerm}.",
+      "removeTooltip": "Odbiera tej osobie dostęp do tego dziecka, moto najpierw zapyta.",
+      "removeConfirmTooltip": "Od razu odbiera tej osobie dostęp do tego dziecka w aplikacji."
     },
     "errorObjectContacts": "lista kontaktów",
     "errorObjectAccounts": "lista połączonych kont",
@@ -120,7 +127,19 @@
     "reloadObject": "widok kontaktów",
     "savedButStale": "Twoja zmiana została zapisana. Tylko widok nie jest jeszcze aktualny.",
     "errorObjectContact": "zmiana kontaktu",
-    "errorObjectPickup": "ustalenie dotyczące odbioru"
+    "errorObjectPickup": "ustalenie dotyczące odbioru",
+    "addContactTooltip": "Otwiera formularz dla osoby kontaktowej lub odbierającej bez konta.",
+    "editContactTooltip": "Otwiera dane kontaktowe tej osoby do edycji.",
+    "managePickupTooltip": "Otwiera zasady odbioru i ustawienie kontaktu alarmowego dla tej osoby.",
+    "pickupNotesTooltip": "Otwiera uwagę dotyczącą odbioru dla tej osoby.",
+    "removePhoneTooltip": "Usuwa ten numer z formularza.",
+    "addPhoneTooltip": "Dodaje puste pole na kolejny numer.",
+    "createContactTooltip": "Dodaje kontakt, {careTerm} od razu go widzi.",
+    "createContactWithPickupTooltip": "Dodaje kontakt i wysyła zgodę na odbiór do {careTerm}.",
+    "saveContactTooltip": "Zapisuje dane kontaktowe, {careTerm} od razu je widzi.",
+    "savePickupTooltip": "Zapisuje dane, {careTerm} od razu je widzi.",
+    "savePickupRequestTooltip": "Wysyła zgodę na odbiór do {careTerm}, obowiązuje dopiero po potwierdzeniu.",
+    "savePickupRevokeTooltip": "Od razu odbiera prawo do odbioru, {careTerm} to widzi."
   },
   "back": "Wróć do sekcji Moje dzieci",
   "backSingle": "Wróć do sekcji Moje dziecko",

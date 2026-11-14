@@ -53,5 +53,10 @@
   "newsLetterBindingHint": "Цей лист на ел. пошту лише для інформації. Зараховується підтвердження тут, у батьківському порталі. Достатньо одного законного представника на дитину.",
   "newsErrorObjectAnswer": "відповідь",
   "newsErrorObjectConfirmation": "підтвердження прочитання",
-  "newsErrorObjectAttachments": "список файлів"
+  "newsErrorObjectAttachments": "список файлів",
+  "newsPollClearTooltip": "Знімає вибір, надсилання лише після «Зберегти відповідь».",
+  "newsPollSaveTooltip": "Одразу надсилає вашу відповідь до школи.",
+  "newsPollSaveDisabledReason": "Спершу виберіть відповідь або змініть вибір.",
+  "newsReadAndConfirmTooltip": "Одразу підтверджує школі, що ви прочитали лист.",
+  "newsCloseUnsavedTooltip": "Закриває лист, новий вибір буде втрачено."
 }

@@ -123,13 +123,11 @@
   "actions": {
     "sick": {
       "label": "Report absence",
-      "shortLabel": "Absence",
-      "hint": "Report your child absent for one or more days"
+      "shortLabel": "Absence"
     },
     "pickup": {
       "label": "Change pick-up time for one day",
-      "shortLabel": "Change pick-up time",
-      "hint": "Adjust the pick-up time for a single day"
+      "shortLabel": "Change pick-up time"
     }
   },
   "request": {
