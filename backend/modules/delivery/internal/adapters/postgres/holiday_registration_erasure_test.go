@@ -50,11 +50,11 @@ func TestHolidayRegistrationErasureTakesEveryMailOfTheRegistration(t *testing.T)
 	// first and goes with any of them.
 	insert("holiday_closure_notice", "bundled", kept, fmt.Sprintf(`{"registration_ids":[%d,%d]}`, kept, erased))
 
-	raw := postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase)
+	store := postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase)
 	var deleted int
 	require.NoError(t, tenant.WithAdminTx(ctx, db, func(ctx context.Context, _ bun.Tx) error {
 		var err error
-		deleted, err = raw.EraseHolidayRegistrationMails(ctx, []int64{organization}, []int64{erased})
+		deleted, err = store.EraseHolidayRegistrationMails(ctx, []int64{organization}, []int64{erased})
 		return err
 	}))
 
