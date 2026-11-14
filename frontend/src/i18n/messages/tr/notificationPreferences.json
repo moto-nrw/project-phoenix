@@ -27,7 +27,7 @@
     },
     "parent_appointment_reminder": {
       "label": "Randevu hatırlatması",
-      "description": "Davet edildiğiniz bir randevudan kısa süre önce."
+      "description": "Davet edildiğiniz bir randevudan kısa süre önce. Katılmayacağınızı bildirdiğiniz randevular için gönderilmez."
     },
     "parent_request_decided": {
       "label": "Talebiniz hakkında karar",

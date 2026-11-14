@@ -46,6 +46,8 @@
   "changeAnswer": "Change reply",
   "acceptedOn": "Accepted for {date}.",
   "declinedOn": "Declined for {date}.",
+  "noReminder": "No reminder",
+  "noReminderDetail": "You will not get a reminder for it.",
   "errorObjectOverview": "the replies",
   "responses": {
     "title": "Replies",

@@ -27,7 +27,7 @@
     },
     "parent_appointment_reminder": {
       "label": "Przypomnienie o terminie",
-      "description": "Krótko przed terminem, na który są Państwo zaproszeni."
+      "description": "Krótko przed terminem, na który są Państwo zaproszeni. Nie dotyczy odrzuconych terminów."
     },
     "parent_request_decided": {
       "label": "Decyzja w sprawie Państwa prośby",
