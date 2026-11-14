@@ -5,50 +5,13 @@ import {
   type EnvelopableAuthStep,
   type PortalKey,
 } from "./portal-paths";
+import { signInAnswer, type SignInAnswer } from "./sign-in-answer";
 
 export type LoginScope = PortalKey;
-
-interface MFARequiredLoginResponse {
-  status: "mfa_required";
-  challenge_token: string;
-  masked_email: string;
-  /**
-   * Mirrors security.mfa_trusted_device_enabled for the tenant. Omitted by
-   * older backends — treat undefined as `true` so the checkbox keeps
-   * appearing for clients that haven't shipped this field yet.
-   */
-  trusted_device_enabled?: boolean;
-  /**
-   * Mirrors security.mfa_trusted_device_days for the tenant. The frontend
-   * uses it to render "Auf diesem Gerät N Tage merken" with the exact day
-   * count the backend will issue the cookie for. Omitted by older
-   * backends — treat undefined as the registry default.
-   */
-  trusted_device_days?: number;
-}
-
-/**
- * MFAEnrollmentRequiredLoginResponse is the new (post-#1430) login shape
- * for accounts on an MFA-required tenant that have no credential yet.
- * `access_token` carries an enrollment-scoped JWT that ONLY authorizes
- * `/auth/mfa/enroll/*` — it is rejected by every other authenticated
- * route. `refresh_token` is intentionally absent: the full session is
- * minted by `/auth/mfa/enroll/confirm` after the user proves they own
- * the inbox.
- */
-interface MFAEnrollmentRequiredLoginResponse {
-  status: "mfa_enrollment_required";
-  access_token: string;
-  masked_email: string;
-  mfa_enrollment_required: true;
-}
 
 export interface MFAResult {
   status: "authenticated";
 }
-
-type LoginResponse =
-  MFAResult | MFARequiredLoginResponse | MFAEnrollmentRequiredLoginResponse;
 
 interface OperatorEnvelope<T> {
   status: string;
@@ -139,7 +102,7 @@ interface LoginParams {
 export async function login(
   scope: LoginScope,
   params: LoginParams,
-): Promise<LoginResponse> {
+): Promise<SignInAnswer> {
   // Tenant login requires a tenant slug. School login accepts one only for
   // a handoff from the OGS portal, where it pins a multi-school Lehrkraft to
   // the school they selected.
@@ -152,7 +115,7 @@ export async function login(
         }
       : { email: params.email, password: params.password };
 
-  return postStep<LoginResponse>(scope, "login", payload);
+  return signInAnswer(scope, await postStep<unknown>(scope, "login", payload));
 }
 
 interface VerifyParams {

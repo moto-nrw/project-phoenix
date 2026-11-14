@@ -18,6 +18,8 @@ not is not tied, and everything depends on what changes less.
 3. Frontend: sign-in and second-factor screens (fixes L to P).
 4. Backend follow-ups: the passkey record surface (J1) and the four small
    items of the final round (fix T).
+5. Frontend follow-ups: one reading of the sign-in answer (N1) and one
+   stale-session sign-out (O1).
 
 ## Fix A: a portal fact decides, not a portal name (done, PR 1)
 
@@ -208,17 +210,33 @@ Paths are relative to `frontend/src/`.
   four functions and the account page put them together again. The page
   now calls `emailCodeFactorApi("/api/caterer/account/mfa")` like the
   parents' settings.
-- N1 open. The sign-in answer is mapped three times (`mfa-api.ts` with the
-  pages of tenant, school and operator, `portal-password-login.ts`,
-  `traeger-api.ts`) and `MFAStep` is declared per page. The defaults differ
-  by wire family on purpose (the caterer's answer omits a false flag), and
-  the page tests mock the wire shape, so one mapping changes three test
-  suites. A change of its own.
-- O1 done in part. Clearing the session error from the address and the
-  „Sitzung abgelaufen“ notice existed four times (tenant, school, Träger,
-  caterer). Now `clearSessionErrorFromUrl` and `useSessionExpiredNotice`
-  (`lib/login-session-notice.ts`). Open: signing a stale session out on
-  the login pages (three identical copies, two that differ).
+- N1 done (PR 5). `lib/sign-in-answer.ts` reads the answer of every
+  portal's password step (`signInAnswer`) and declares the one `MFAStep`;
+  the six login pages keep the answer as their code step. The wire
+  differences are a table per portal, not code: a missing
+  `trusted_device_enabled` means „remember“ for tenant, school and operator
+  (pointer field) and „nothing to remember“ for the caterer (`omitempty`), the parents portal
+  and the Träger-Portal; only the Träger-Portal refuses an answer it cannot
+  read (502). The caterer's invitation page uses the same `MFAStep`. Kept: three transports. `traegerLogin` names the Träger and asks
+  for the code on a remembered device, `portalPasswordLogin` builds its
+  refusal from the response, `mfa-api` from the parsed body; they differ in
+  what they send and throw, not in what they read. Kept: the default of 90
+  days stays in `MFAChallengeForm`; the pages' own `?? 90` repeated it.
+- O1 done (PR 3 and 5). Clearing the session error from the address and
+  the „Sitzung abgelaufen“ notice existed four times (tenant, school,
+  Träger, caterer). Now `clearSessionErrorFromUrl` and
+  `useSessionExpiredNotice` (`lib/login-session-notice.ts`). Signing a stale
+  session out existed on all six login pages; now `signOutStaleSession`
+  beside them. It answers null at once when there is nothing to end, so a
+  page still reaches its form in the tick it did before. The differences
+  that are real stay with their page: operator and parents show their
+  waiting state while the sign-out runs, because their form is locked for
+  as long as the session carries an error, and the parents page says so
+  with „Wiederholen“ when the sign-out fails (`onFailure`). Not real: the
+  Träger page started the sign-out without waiting and the three log names;
+  one name now, `stale_session_signout_failed`, and the debug line
+  `clearing_stale_session` of tenant and school is gone. Kept: the operator
+  page reads `SessionExpired` itself; it has no deliberate-logout flag.
 - P1 done. `MFAAdminOverrideModal` took `scope` and three optional ids, one
   of which each scope needed, checked by a throw at click time. It takes one
   `target` now (`{kind, …id}`); a target without its id does not compile.
@@ -391,3 +409,15 @@ PR 4:
   `testpkg.CreateTestAccountPasskey`; statements, budget and assertions are
   unchanged.
 - Added `TestDeviceBindingNamesOneRealm`.
+
+PR 5:
+
+- No existing test changed: the page tests of tenant, operator and caterer
+  mock the wire, those of school, parents and Träger their transport, and
+  all pass as they were.
+- Added `lib/login-session-notice.test.ts`: nothing to end answers at
+  once, a stale session is signed out once, a failed sign-out is reported
+  and can be tried again.
+- Added `lib/sign-in-answer.test.ts`: the code step of every portal, the
+  two wire families of a missing remember-device field, the setup step, the
+  Träger's choice and its refusal of an unreadable answer.

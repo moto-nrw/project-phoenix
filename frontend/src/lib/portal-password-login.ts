@@ -5,24 +5,13 @@
 
 import { apiErrorFromResponse, transportFetch } from "./api-error";
 import { portalAuthAnswer, portalAuthPath } from "./portal-paths";
+import { signInAnswer, type SignInAnswer } from "./sign-in-answer";
 
-export type PortalPasswordLoginResult =
-  | { status: "authenticated" }
-  | {
-      status: "mfa_required";
-      challengeToken: string;
-      maskedEmail: string;
-      trustedDeviceEnabled: boolean;
-      trustedDeviceDays?: number;
-    };
-
-interface BackendPasswordLogin {
-  status?: "authenticated" | "mfa_required";
-  challenge_token?: string;
-  masked_email?: string;
-  trusted_device_enabled?: boolean;
-  trusted_device_days?: number;
-}
+/** The caterer's and the parents' sign-in never asks for a setup step. */
+export type PortalPasswordLoginResult = Extract<
+  SignInAnswer,
+  { status: "authenticated" | "mfa_required" }
+>;
 
 export async function portalPasswordLogin(
   portal: "caterer" | "parent",
@@ -40,19 +29,9 @@ export async function portalPasswordLogin(
   if (!response.ok) {
     throw await apiErrorFromResponse(response, `${portal} login failed`);
   }
-  const data = portalAuthAnswer<BackendPasswordLogin>(
+  const answer = signInAnswer(
     portal,
-    "login",
-    await response.json(),
+    portalAuthAnswer<unknown>(portal, "login", await response.json()),
   );
-  if (data.status === "mfa_required") {
-    return {
-      status: "mfa_required",
-      challengeToken: data.challenge_token ?? "",
-      maskedEmail: data.masked_email ?? "",
-      trustedDeviceEnabled: data.trusted_device_enabled ?? false,
-      trustedDeviceDays: data.trusted_device_days,
-    };
-  }
-  return { status: "authenticated" };
+  return answer.status === "mfa_required" ? answer : { status: "authenticated" };
 }
