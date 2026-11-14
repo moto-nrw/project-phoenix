@@ -122,7 +122,6 @@ interface EmailCodeFactorSectionProps {
   readonly copy?: EmailCodeFactorCopy;
   /** Symbol tile before the title. */
   readonly leading?: ReactNode;
-  readonly headingLevel?: 2 | 3;
   /**
    * The device card only makes sense while the factor is on: switching it
    * off deletes the remembered devices in the backend.
@@ -143,7 +142,6 @@ export function EmailCodeFactorSection({
   api,
   copy = GERMAN_EMAIL_CODE_FACTOR_COPY,
   leading,
-  headingLevel = 2,
   onEnabledChange,
   renderIdle,
 }: EmailCodeFactorSectionProps) {
@@ -324,7 +322,7 @@ export function EmailCodeFactorSection({
       }
       description={copy.description}
       leading={leading}
-      headingLevel={headingLevel}
+      headingLevel={2}
       actions={action}
       loading={state === null && !loadError}
       loadingRows={1}
