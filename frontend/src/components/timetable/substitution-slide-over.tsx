@@ -503,20 +503,21 @@ export function SubstitutionSlideOver({
       noticeReach,
       Boolean(instance && instance.date >= berlinTodayISO()),
     );
-  // Warum „Speichern“ gesperrt ist (#6773). Die Reihenfolge folgt `save()`.
+  // Warum „Speichern“ gesperrt ist (#6773); `save()` prüft dieselbe Sperre.
   const saveBlockedReason = !hasChanges
     ? "Ändern Sie zuerst etwas an diesem Termin."
     : !cancel && !peopleValid
       ? "Wählen Sie zuerst für jede abwesende Person die Termine aus."
-      : noticeIncomplete
-        ? noticeDraft?.send
-          ? "Geben Sie zuerst Betreff und Text an die Eltern ein."
-          : "moto prüft noch, welche Familien die Nachricht erreicht."
+      : noticeIncomplete && noticeDraft?.send
+        ? "Geben Sie zuerst Betreff und Text an die Eltern ein."
         : undefined;
+  // Solange moto die Familien noch zählt, bleibt „Speichern“ nur nativ
+  // gesperrt: ein Ladezustand, kein Grund für den Nutzer (#6773).
+  const noticeLoading = noticeIncomplete && !noticeDraft?.send;
   const saveTooltip = !cancel
-    ? "Speichert Abwesenheit und Ersatz für die gewählten Termine."
+    ? "Speichert Ihre Änderungen an Besetzung und Abwesenheiten."
     : guardianNoticePayload(noticeDraft, noticeReach)
-      ? "Sagt diesen Termin ab und informiert die Eltern per App und E-Mail."
+      ? "Sagt diesen Termin ab und informiert die Eltern sofort per App und E-Mail."
       : "Sagt diesen Termin ab, die Eltern bekommen keine Nachricht.";
 
   function handleSubmit(event: React.FormEvent) {
@@ -525,15 +526,7 @@ export function SubstitutionSlideOver({
   }
 
   async function save() {
-    if (!instance || !hasChanges || (!cancel && !peopleValid) || saving) return;
-    if (
-      cancel &&
-      guardianNoticeIncomplete(
-        noticeDraft,
-        noticeReach,
-        Boolean(instance && instance.date >= berlinTodayISO()),
-      )
-    )
+    if (!instance || saveBlockedReason !== undefined || noticeLoading || saving)
       return;
     const target = instance;
     await pending.run(async (op) => {
@@ -1039,7 +1032,9 @@ export function SubstitutionSlideOver({
                     isLoading={saving}
                     loadingText="Speichere …"
                     tooltip={saveTooltip}
-                    disabled={saving || saveBlockedReason !== undefined}
+                    disabled={
+                      saving || noticeLoading || saveBlockedReason !== undefined
+                    }
                     disabledReason={saveBlockedReason}
                   >
                     Speichern

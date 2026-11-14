@@ -174,7 +174,7 @@ export function TemplateCard({
                   label: "Archivieren",
                   icon: <Archive className="h-3.5 w-3.5" aria-hidden />,
                   description:
-                    "Nimmt den Regeltermin aus der Liste, Termine bleiben. moto fragt vorher nach",
+                    "Nimmt den Regeltermin aus der Liste. moto fragt vorher nach",
                   onClick: () => onArchive(template),
                 },
               ]}

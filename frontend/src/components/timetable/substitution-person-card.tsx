@@ -79,7 +79,7 @@ function MarkAbsentAction({ person, name, onUpdate }: PersonHeaderProps) {
       variant="outline_danger"
       size="md"
       aria-label={`${name} als abwesend markieren`}
-      tooltip="Markiert die Person als abwesend, danach wählen Sie Termine und Ersatz."
+      tooltip="Markiert die Person beim Speichern als abwesend."
       onClick={() =>
         onUpdate({
           absent: true,

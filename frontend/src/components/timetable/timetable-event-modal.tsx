@@ -428,19 +428,6 @@ export function TimetableEventModal({
     isSeriesFlow,
   ]);
   const closingDayConflict = closingDayInfo?.conflict ?? null;
-  // Was „Speichern“ tut und warum es gesperrt ist (#6773). Eine Serie gilt
-  // ab heute oder ab diesem Termin, ein einzelner Termin nur für sich.
-  const statusLocked =
-    isEditingInstance && initialInstance?.status !== "planned";
-  const saveTooltip = `${
-    isSeriesFlow
-      ? isEditingSeries
-        ? "Speichert die Änderung für die kommenden Termine der Serie."
-        : "Legt den Regeltermin an und trägt seine Termine ein."
-      : isEditingInstance
-        ? "Speichert die Änderung nur für diesen Termin."
-        : "Legt den Termin im Betreuungsplan an."
-  }${closingDayConflict === null ? "" : " moto fragt wegen des Schließtags vorher nach."}`;
   const closingDayConfirmationKey =
     closingDayConflict === null
       ? null
@@ -451,6 +438,26 @@ export function TimetableEventModal({
           calendarPeriodId: form.calendarPeriodId,
           weekPattern: form.weekPattern,
         });
+  // Was „Speichern“ tut und warum es gesperrt ist (#6773).
+  const statusLocked =
+    isEditingInstance && initialInstance?.status !== "planned";
+  // Dieselbe Bedingung wie die Rückfrage im onSubmit unten.
+  const closingDayAsks =
+    closingDayConfirmationKey !== null && !isScopedSeriesEdit;
+  // Reihenfolge wie in handleSubmit: Ein Termin einer Serie mit „Nur diese
+  // Woche“ ändert nur sich selbst, auch wenn „Wiederholt sich“ an ist.
+  const saveTarget = isEditingSeries
+    ? "Speichert die Änderung für die kommenden Termine der Serie."
+    : isEditingInstance && initialInstance?.activityGroupId
+      ? "Speichert die Änderung nur für diesen Termin."
+      : isSeriesFlow
+        ? "Legt den Regeltermin an und trägt seine Termine ein."
+        : isEditingInstance
+          ? "Speichert die Änderung nur für diesen Termin."
+          : "Legt den Termin im Betreuungsplan an.";
+  const saveTooltip = closingDayAsks
+    ? `${saveTarget} moto fragt wegen des Schließtags vorher nach.`
+    : saveTarget;
   const [closingDayPrompt, setClosingDayPrompt] = useState<{
     conflict: ClosingDayConflict;
     count: number;
@@ -636,10 +643,7 @@ export function TimetableEventModal({
               // Mirror handleSubmit's early-return guards: on those paths no
               // validation runs, so the flag would stay set and a later,
               // unrelated fieldErrors change could trigger a spurious step jump.
-              if (
-                !submitting &&
-                !(isEditingInstance && initialInstance?.status !== "planned")
-              ) {
+              if (!submitting && !statusLocked) {
                 submitAttempted.current = true;
               }
               void handleSubmit(event);
@@ -923,7 +927,7 @@ export function TimetableEventModal({
                 disabled={closingDaysLoading || statusLocked}
                 disabledReason={
                   statusLocked
-                    ? "Laufende, beendete und abgesagte Termine lassen sich nicht mehr ändern."
+                    ? "Nur geplante Termine können bearbeitet werden."
                     : undefined
                 }
               >
