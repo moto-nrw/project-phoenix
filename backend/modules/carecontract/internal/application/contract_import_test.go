@@ -96,7 +96,7 @@ func TestContractImportMappingSettlesTheOnlySchoolAndModule(t *testing.T) {
 	only.offerings = only.offerings[:1]
 	only.modules = only.offerings
 	one := settleContractImportMapping(suggested, []importSchool{only})
-	assert.Equal(t, int64(2), one.SchoolID)
+	assert.Equal(t, only.school.ID, one.SchoolID)
 	assert.Equal(t, "Ganztag", one.ModuleName)
 	_, unmapped, err := resolveContractImportMapping(headers, one, []importSchool{only})
 	require.NoError(t, err)
@@ -150,7 +150,7 @@ func TestContractImportRowBecomesAContractOfTheRunningPhase(t *testing.T) {
 	candidate := importCheckOf(t).candidate(importRow(nil), 2)
 	row := candidate.row
 	require.Equal(t, carecontract.ContractImportReady, row.Status, problemsOf(row))
-	assert.Equal(t, int64(1), row.SchoolID)
+	assert.Equal(t, candidate.contract.SchoolID, row.SchoolID)
 	assert.Equal(t, []string{"OGS bis 14 Uhr"}, row.ModuleNames)
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, row.Weekdays)
 	assert.Equal(t, importDay(2027, 7, 31), row.EndsOn, "the contract ends with the phase of its module")
@@ -196,15 +196,43 @@ func TestContractImportRowProblems(t *testing.T) {
 	}
 }
 
-// A contract that runs for years books the module of the running phase and
-// keeps its own first day.
-func TestContractImportRowKeepsTheStartOfAnOlderContract(t *testing.T) {
+// A contract that runs for years books the module of the running phase: in
+// moto it begins with that phase, as a contract from an application does,
+// and keeps the day it was concluded.
+func TestContractImportRowOfAnOlderContractStartsWithTheRunningPhase(t *testing.T) {
 	t.Parallel()
 	candidate := importCheckOf(t).candidate(importRow(map[int]string{6: "01.08.2024"}), 2)
 	require.Equal(t, carecontract.ContractImportReady, candidate.row.Status, problemsOf(candidate.row))
-	assert.Equal(t, importDay(2024, 8, 1), candidate.row.EffectiveFrom)
-	assert.Equal(t, int64(10), candidate.contract.Version.Services[0].CareOfferingID, "the module of the running school year")
+	assert.Equal(t, importDay(2026, 8, 1), candidate.row.EffectiveFrom)
+	assert.Equal(t, []string{carecontract.ContractImportHintStartMoved}, candidate.row.Hints)
+	assert.Equal(t, "OGS bis 14 Uhr", candidate.contract.Version.Services[0].ModuleName)
+	assert.Equal(t, importDay(2027, 7, 31), candidate.row.EndsOn, "the module of the running school year")
 	assert.Equal(t, calendar.NewDate(2024, 8, 1).BerlinMidnight(), candidate.contract.ConcludedAt)
+	assert.Equal(t, "lia\x1fbeispiel\x1f2018-05-03\x1f2026-08-01", candidate.contract.ImportKey)
+
+	ended := importCheckOf(t).candidate(importRow(map[int]string{6: "01.08.2024", 7: "31.07.2025"}), 2).row
+	assert.Equal(t, []string{"ends_on:ended"}, problemsOf(ended), "a contract that ended before the phase is ended, not misdated")
+}
+
+// A contract an earlier import stored is not stored again once it ended or
+// was withdrawn: the row is a duplicate that names it.
+func TestContractImportRecognisesAnEarlierImportThatEnded(t *testing.T) {
+	t.Parallel()
+	ended := calendar.NewDate(2026, 10, 31)
+	stored := ports.ContractChild{ContractID: 12, SchoolID: 1, Status: carecontract.StatusTerminated, FirstName: "Lia", LastName: "Beispiel",
+		BirthDate: importDay(2018, 5, 3), EndsOn: &ended, ImportOrigin: "lia\x1fbeispiel\x1f2018-05-03\x1f2026-08-01"}
+	withdrawn := ports.ContractChild{ContractID: 13, SchoolID: 1, Status: carecontract.StatusWithdrawn, FirstName: "Ben", LastName: "Muster"}
+	check := importCheckOf(t, stored, withdrawn)
+
+	row := check.candidate(importRow(nil), 2).row
+	assert.Equal(t, carecontract.ContractImportDuplicate, row.Status)
+	assert.Equal(t, stored.ContractID, row.ContractID)
+	assert.Equal(t, []string{carecontract.ContractImportHintImportedBefore}, row.Hints)
+
+	later := check.candidate(importRow(map[int]string{6: "01.12.2026"}), 3).row
+	assert.Equal(t, carecontract.ContractImportConflict, later.Status, "the same child twice in one file stays a conflict")
+	other := check.candidate(importRow(map[int]string{0: "Ben", 1: "Muster"}), 4).row
+	assert.Equal(t, carecontract.ContractImportReady, other.Status, "a withdrawn contract from an application blocks nothing")
 }
 
 // Two modules in one cell make one contract over both; it has no price of
@@ -228,14 +256,14 @@ func TestContractImportRowBooksSeveralModules(t *testing.T) {
 func TestContractImportFindsDuplicatesAndRepeatedChildren(t *testing.T) {
 	t.Parallel()
 	ended := calendar.NewDate(2026, 7, 31)
-	check := importCheckOf(t,
-		ports.ContractChild{ContractID: 7, SchoolID: 1, FirstName: "LIA", LastName: "beispiel"},
+	running := ports.ContractChild{ContractID: 7, SchoolID: 1, FirstName: "LIA", LastName: "beispiel"}
+	check := importCheckOf(t, running,
 		ports.ContractChild{ContractID: 8, SchoolID: 1, FirstName: "Ben", LastName: "Muster", EndsOn: &ended},
 		ports.ContractChild{ContractID: 9, SchoolID: 2, FirstName: "Mia", LastName: "Anders", BirthDate: importDay(2018, 1, 1)})
 
 	duplicate := check.candidate(importRow(nil), 2).row
 	assert.Equal(t, carecontract.ContractImportDuplicate, duplicate.Status)
-	assert.Equal(t, int64(7), duplicate.ContractID)
+	assert.Equal(t, running.ContractID, duplicate.ContractID)
 
 	again := check.candidate(importRow(map[int]string{1: "Muster", 0: "Ben"}), 3).row
 	assert.Equal(t, carecontract.ContractImportReady, again.Status, "the old contract has ended")

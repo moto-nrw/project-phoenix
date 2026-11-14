@@ -79,18 +79,31 @@ type contractImportCheck struct {
 	templates templateIndex
 	running   []importChildKey
 	contracts []int64
-	today     calendar.Date
-	seen      []importChildKey
-	lines     []int
+	// origins are the contracts earlier imports stored, by school and
+	// origin, whatever became of them.
+	origins map[importOrigin]int64
+	today   calendar.Date
+	seen    []importChildKey
+	lines   []int
 }
 
-// newContractImportCheck prepares the check. running are the children of the
-// contracts of the Träger that still hold today.
+// importOrigin names a contract an import stored at a school.
+type importOrigin struct {
+	schoolID int64
+	origin   string
+}
+
+// newContractImportCheck prepares the check over the children of the
+// contracts of the Träger: those that still hold today count as running.
 func newContractImportCheck(index contractImportIndex, schools []importSchool, templates templateIndex,
 	running []ports.ContractChild, today calendar.Date) *contractImportCheck {
-	check := &contractImportCheck{index: index, schools: schools, templates: templates, today: today}
+	check := &contractImportCheck{index: index, schools: schools, templates: templates, today: today, origins: map[importOrigin]int64{}}
 	for _, child := range running {
-		if child.EndsOn != nil && child.EndsOn.Before(today) {
+		if child.ImportOrigin != "" {
+			check.origins[importOrigin{child.SchoolID, child.ImportOrigin}] = child.ContractID
+		}
+		if child.Status == carecontract.StatusWithdrawn || child.Status == carecontract.StatusEnded ||
+			(child.EndsOn != nil && child.EndsOn.Before(today)) {
 			continue
 		}
 		check.running = append(check.running, childKeyOf(child.SchoolID, child.FirstName, child.LastName, child.BirthDate))
@@ -143,7 +156,7 @@ func (r rowReader) date(field string, required bool) *calendar.Date {
 // candidate reads one row.
 func (c *contractImportCheck) candidate(cells []string, line int) importCandidate {
 	candidate := importCandidate{row: carecontract.ContractImportRow{Line: line, Problems: []carecontract.ContractImportProblem{},
-		ModuleNames: []string{}, Weekdays: []string{}}}
+		Hints: []string{}, ModuleNames: []string{}, Weekdays: []string{}}}
 	row := &candidate.row
 	reader := rowReader{check: c, cells: cells, row: row}
 
@@ -165,9 +178,14 @@ func (c *contractImportCheck) candidate(cells []string, line int) importCandidat
 
 	school, hasSchool := reader.school()
 	var booking importBooking
+	fileStart := row.EffectiveFrom
 	if hasSchool && row.EffectiveFrom != nil {
 		booking = reader.booking(school, *row.EffectiveFrom, fileEnd)
 		row.EndsOn = booking.endsOn
+		if booking.startsOn.After(*row.EffectiveFrom) {
+			start := booking.startsOn
+			row.EffectiveFrom, row.Hints = &start, append(row.Hints, carecontract.ContractImportHintStartMoved)
+		}
 	} else if fileEnd != nil {
 		row.EndsOn = fileEnd
 	}
@@ -176,7 +194,7 @@ func (c *contractImportCheck) candidate(cells []string, line int) importCandidat
 	}
 	c.decide(&candidate)
 	if row.Status == carecontract.ContractImportReady {
-		candidate.contract = importedContract(line, school, *row, booking, party, concludedOn, c.today)
+		candidate.contract = importedContract(line, school, *row, booking, party, firstDate(concludedOn, fileStart), c.today)
 		if booking.endsOn != nil {
 			candidate.until = *booking.endsOn
 		}
@@ -265,28 +283,50 @@ func (c *contractImportCheck) decide(candidate *importCandidate) {
 			return
 		}
 	}
+	if id, stored := c.origins[importOrigin{candidate.childKey.schoolID, importOriginOf(*row)}]; stored {
+		// An earlier import stored this contract; it ended or was withdrawn
+		// since. It is not stored a second time.
+		row.Status, row.ContractID = carecontract.ContractImportDuplicate, id
+		row.Hints = append(row.Hints, carecontract.ContractImportHintImportedBefore)
+		return
+	}
 	row.Status = carecontract.ContractImportReady
 }
 
-// importedContract is the contract a ready row stores: concluded on paper,
-// its first version in force from the day the file names.
-func importedContract(line int, school importSchool, row carecontract.ContractImportRow, booking importBooking,
-	party ports.NewParty, concludedOn *calendar.Date, today calendar.Date) ports.ImportedContract {
-	from := *row.EffectiveFrom
-	concluded := from
-	if concluded.After(today) {
-		concluded = today
-	}
-	if concludedOn != nil {
-		concluded = *concludedOn
-	}
+// importOriginOf is the origin of the contract a row without problems
+// names: the child without case, its date of birth and the first day.
+func importOriginOf(row carecontract.ContractImportRow) string {
 	birth := ""
 	if row.ChildBirthDate != nil {
 		birth = row.ChildBirthDate.String()
 	}
+	return strings.Join([]string{foldImportName(row.ChildFirstName), foldImportName(row.ChildLastName), birth, row.EffectiveFrom.String()}, "\x1f")
+}
+
+func firstDate(dates ...*calendar.Date) *calendar.Date {
+	for _, date := range dates {
+		if date != nil {
+			return date
+		}
+	}
+	return nil
+}
+
+// importedContract is the contract a ready row stores: concluded on paper
+// on the day the file names (its conclusion, else its first day there, never
+// after today), its first version in force from the first day in moto.
+func importedContract(line int, school importSchool, row carecontract.ContractImportRow, booking importBooking,
+	party ports.NewParty, concludedOn *calendar.Date, today calendar.Date) ports.ImportedContract {
+	from := *row.EffectiveFrom
+	concluded := from
+	if concludedOn != nil {
+		concluded = *concludedOn
+	}
+	if concluded.After(today) {
+		concluded = today
+	}
 	return ports.ImportedContract{
-		Line: line, SchoolID: school.school.ID, ConcludedAt: concluded.BerlinMidnight(), Party: party,
-		ImportKey: strings.Join([]string{foldImportName(row.ChildFirstName), foldImportName(row.ChildLastName), birth, from.String()}, "\x1f"),
+		Line: line, SchoolID: school.school.ID, ConcludedAt: concluded.BerlinMidnight(), Party: party, ImportKey: importOriginOf(row),
 		Version: carecontract.Version{
 			Number: 1, Status: carecontract.VersionEffective, Source: carecontract.SourceImport, EffectiveFrom: from,
 			EndsOn: booking.endsOn, ChildFirstName: row.ChildFirstName, ChildLastName: row.ChildLastName,

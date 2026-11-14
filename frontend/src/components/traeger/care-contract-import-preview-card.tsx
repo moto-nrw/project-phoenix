@@ -23,6 +23,7 @@ import {
   contractCountLabel,
   contractImportChild,
   contractImportDebtorText,
+  contractImportHintText,
   contractImportPeriod,
   contractImportProblemText,
   contractImportWeekdays,
@@ -35,9 +36,10 @@ function NotesCell({ row }: Readonly<{ row: ContractImportRow }>) {
   const lines = row.problems.map((problem) =>
     contractImportProblemText(problem, row),
   );
-  if (row.status === "duplicate") {
+  if (row.status === "duplicate" && !row.hints.includes("imported_before")) {
     lines.unshift("Das Kind hat an dieser Schule schon einen Vertrag.");
   }
+  lines.push(...row.hints.map(contractImportHintText));
   const debtor = contractImportDebtorText(row);
   if (debtor) lines.push(debtor);
   if (lines.length === 0) return <span className="text-gray-400">–</span>;
@@ -88,14 +90,6 @@ export function CareContractImportPreviewCard({
 
   const columns: DataTableColumn<ContractImportRow>[] = [
     {
-      key: "line",
-      header: "Zeile",
-      render: (row) => (
-        <span className="text-gray-500 tabular-nums">{row.line}</span>
-      ),
-      sortValue: (row) => row.line,
-    },
-    {
       key: "child",
       header: "Kind",
       render: (row) => (
@@ -104,12 +98,15 @@ export function CareContractImportPreviewCard({
             {contractImportChild(row)}
           </span>
           <span className="block text-xs text-gray-500">
-            {row.childBirthDate
-              ? `geb. ${formatDate(row.childBirthDate)}`
-              : "ohne Geburtsdatum"}
+            {`Zeile ${row.line} · ${
+              row.childBirthDate
+                ? `geb. ${formatDate(row.childBirthDate)}`
+                : "ohne Geburtsdatum"
+            }`}
           </span>
         </span>
       ),
+      // The file's own order is the start; the name sorts on request.
       sortValue: (row) => `${row.childLastName} ${row.childFirstName}`,
       stacked: "title",
     },

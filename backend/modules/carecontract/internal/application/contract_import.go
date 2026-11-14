@@ -178,6 +178,15 @@ func (i *ContractImports) evaluate(ctx context.Context, reviewer carecontract.Re
 		}
 		result.Applied = true
 	}
+	shown := summarizeContractImport(result, candidates)
+	return shown, trail(ctx, i.store, organizationID, reviewer.AccountID, 0, 0, ActionRead,
+		map[string]any{"view": "import", "rows": len(candidates), "applied": result.Applied})
+}
+
+// summarizeContractImport puts the rows into the answer and counts them. It
+// answers per school the contracts the rows name: stored ones and the
+// running contracts of duplicates.
+func summarizeContractImport(result *carecontract.ContractImport, candidates []importCandidate) map[int64][]int64 {
 	shown := map[int64][]int64{}
 	numbers := map[string]bool{}
 	for _, candidate := range candidates {
@@ -192,8 +201,7 @@ func (i *ContractImports) evaluate(ctx context.Context, reviewer carecontract.Re
 		}
 	}
 	result.Counts.DebtorNumbers = len(numbers)
-	return shown, trail(ctx, i.store, organizationID, reviewer.AccountID, 0, 0, ActionRead,
-		map[string]any{"view": "import", "rows": len(candidates), "applied": result.Applied})
+	return shown
 }
 
 // apply stores the ready rows, records each with the file and its line and

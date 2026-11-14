@@ -238,27 +238,13 @@ func parseImportWeekdays(value string) ([]string, bool) {
 	text := strings.NewReplacer("–", "-", "—", "-", " bis ", "-", " und ", ",", "&", ",", "+", ",", ";", ",", "/", ",", "|", ",").
 		Replace(" " + strings.ToLower(value) + " ")
 	chosen := map[string]bool{}
-	for _, part := range strings.Split(text, ",") {
-		for _, word := range strings.Fields(strings.ReplaceAll(part, " - ", "-")) {
-			from, to, ranged := strings.Cut(word, "-")
-			first, okFirst := importWeekdayNames[textnorm.HeaderKey(from)]
-			if !okFirst {
-				return nil, false
-			}
-			last := first
-			if ranged {
-				var okLast bool
-				if last, okLast = importWeekdayNames[textnorm.HeaderKey(to)]; !okLast {
-					return nil, false
-				}
-			}
-			start, end := slices.Index(weekdayOrder, first), slices.Index(weekdayOrder, last)
-			if end < start {
-				return nil, false
-			}
-			for _, day := range weekdayOrder[start : end+1] {
-				chosen[day] = true
-			}
+	for _, word := range strings.FieldsFunc(strings.ReplaceAll(text, " - ", "-"), func(r rune) bool { return r == ',' || r == ' ' }) {
+		start, end, ok := importWeekdaySpan(word)
+		if !ok {
+			return nil, false
+		}
+		for _, day := range weekdayOrder[start : end+1] {
+			chosen[day] = true
 		}
 	}
 	days := []string{}
@@ -268,4 +254,22 @@ func parseImportWeekdays(value string) ([]string, bool) {
 		}
 	}
 	return days, len(days) > 0
+}
+
+// importWeekdaySpan reads one word as a weekday or a range of weekdays and
+// answers its first and last position in the week.
+func importWeekdaySpan(word string) (int, int, bool) {
+	from, to, ranged := strings.Cut(word, "-")
+	first, ok := importWeekdayNames[textnorm.HeaderKey(from)]
+	if !ok {
+		return 0, 0, false
+	}
+	last := first
+	if ranged {
+		if last, ok = importWeekdayNames[textnorm.HeaderKey(to)]; !ok {
+			return 0, 0, false
+		}
+	}
+	start, end := slices.Index(weekdayOrder, first), slices.Index(weekdayOrder, last)
+	return start, end, end >= start
 }

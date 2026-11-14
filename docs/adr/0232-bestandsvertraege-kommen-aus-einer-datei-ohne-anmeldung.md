@@ -44,22 +44,27 @@ entschieden, den Import für SJR Pforzheim vorzuziehen (Kommentar in #4723).
    Vertragstag; je Träger und Schule eindeutig. Die erste Version trägt die
    Herkunft `import`.
 3. **Ein importierter Vertrag ist abgeschlossen.** Status `aktiv`, Version 1
-   `wirksam` ab dem Tag aus der Datei, Verfahren `papier`. Abschlusstag ist das
-   Datum aus der Datei, sonst der Vertragsbeginn, höchstens heute. Die Eltern
+   `wirksam`, Verfahren `papier`. Abschlusstag ist das Datum aus der Datei,
+   sonst der Vertragsbeginn aus der Datei, höchstens heute. Die Eltern
    bekommen keine Mail und kein PDF von moto: Sie halten ihren Vertrag schon.
    Der Verlauf nennt Datei, Zeile und das Konto, das importiert hat.
 4. **Module und Bedingungen wie bei jedem Vertrag.** Eine Zeile bucht Module
    ihrer Schule über deren Namen, an den genannten Wochentagen oder an den
    Tagen des Moduls. Die Vertragsbedingungen kommen aus den Bedingungen des
    Trägers für das Modul; ohne Bedingungen, oder bei verschiedenen Bedingungen
-   mehrerer Module, übernimmt moto die Zeile nicht. Der Vertrag endet wie ein
-   Vertrag aus einer Anmeldung mit der Phase seines Moduls, früher nur mit
-   einem Ende aus der Datei oder einer festen Laufzeit.
+   mehrerer Module, übernimmt moto die Zeile nicht. Der Vertrag beginnt und
+   endet wie ein Vertrag aus einer Anmeldung mit der Phase seines Moduls: Lief
+   er schon vorher, beginnt Version 1 mit der Phase, und der frühere Tag
+   bleibt als Abschlusstag stehen. Er endet früher nur mit einem Ende aus der
+   Datei oder einer festen Laufzeit. So rechnet die Elternabrechnung nie einen
+   Monat vor der Phase mit deren Modul ab.
 5. **Keine Dubletten.** Hat ein Kind an der Schule einen Vertrag, der weder
    widerrufen noch beendet ist, bekommt es keinen zweiten. Verglichen werden
    Schule und Name; zwei verschiedene Geburtsdaten trennen zwei Kinder, ein
    fehlendes Geburtsdatum trennt nie. Ein Kind, das die Datei zweimal nennt,
-   ist ein Konflikt. Der Import übernimmt nur die Vorschau, die das Büro
+   ist ein Konflikt. Einen Vertrag, den ein früherer Import angelegt hat,
+   legt moto nicht noch einmal an, auch wenn er inzwischen beendet oder
+   widerrufen ist; die Zeile nennt ihn als vorhanden. Der Import übernimmt nur die Vorschau, die das Büro
    bestätigt hat (Fingerabdruck); sonst `care_contract.import_changed`.
 6. **Kein Abgleich mit Kindern der Schule.** Der Import setzt `student_id`
    nicht (ADR 0214). Der Vertrag hält seine eigene Kopie von Kind und Eltern.
@@ -78,6 +83,26 @@ entschieden, den Import für SJR Pforzheim vorzuziehen (Kommentar in #4723).
    Träger-Transaktion und trägt danach in das Zugriffsprotokoll jeder Schule
    ein, deren Verträge er gezeigt oder angelegt hat (ADR 0084 §7). Die Datei
    wird nie gespeichert.
+
+## Register
+
+Die Entscheidung ändert diese Register (ADR 0057 Punkt 5, ADR 0070):
+
+- **Compose-Budgets** (`backend/test/module_legacy_budget_ratchet_test.go`):
+  `modules/carecontract/compose` 175 → 181 (Konstruktor `NewContractImports`
+  und der Typ seiner Ports), `modules/parentbilling/compose` 129 → 134
+  (Konstruktor `NewContractImportNumbers`), Summe 13477 → 13488. Beide
+  Konstruktoren bauen nur ihren Owner (ADR 0068).
+- **Träger-Transaktion** (`backend/test/traeger_transaction.go`,
+  `transaction_boundaries.json`): `ContractImports.ImportContracts` und
+  `ContractImports.ContractImportLog` öffnen die Träger-Transaktion selbst,
+  weil der Import davor jede Schule in ihrer Tenant-Transaktion liest und
+  danach in deren Zugriffsprotokoll schreibt (ADR 0105).
+- **Kommando-Effekte und Pass-through**
+  (`backend/architecture/command-effects/`, `passthrough/`): die Bindung
+  `roots/owners.CareContractDebtorNumbers` mit `DebtorNumberScope` (Lesen,
+  übersetzt) und `DecideImportedDebtorNumbers` (Blatt-Kommando nach ADR 0067).
+- **Abfragebudget**: `api.traeger.care_contract_imports`, zwei Abfragen.
 
 ## Verworfene Optionen
 

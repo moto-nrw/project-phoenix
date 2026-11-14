@@ -23,6 +23,7 @@ const row: ContractImportRow = {
   partyName: "Eva Beispiel",
   partyEmail: "",
   problems: [],
+  hints: [],
   contractId: null,
   repeatsLine: null,
   debtorNumber: "",

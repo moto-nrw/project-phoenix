@@ -73,6 +73,8 @@ export const CONTRACT_IMPORT_FIELD_HINTS: Partial<
 > = {
   child_birth_date: "Unterscheidet Kinder mit gleichem Namen.",
   weekdays: "Zum Beispiel „Mo-Do“. Ohne Spalte gelten die Tage des Moduls.",
+  effective_from:
+    "Frühestens der Beginn des Schuljahrs, in dem das Modul läuft.",
   ends_on: "Ohne Datum endet der Vertrag mit dem Schuljahr des Moduls.",
   concluded_on: "Ohne Spalte gilt der Vertragsbeginn.",
   party_last_name: "Die Person, die den Vertrag unterschrieben hat.",
@@ -211,6 +213,18 @@ export function contractImportProblemText(
         : `Das Kind steht schon in Zeile ${row.repeatsLine}.`;
     default:
       return `${label} prüfen.`;
+  }
+}
+
+/** Hinweise, die eine Zeile nicht aufhalten. */
+export function contractImportHintText(hint: string): string {
+  switch (hint) {
+    case "start_moved":
+      return "Der Vertrag lief schon vorher. In moto beginnt er mit dem Schuljahr des Moduls.";
+    case "imported_before":
+      return "moto hat diesen Vertrag schon einmal importiert. Er ist inzwischen beendet.";
+    default:
+      return hint;
   }
 }
 

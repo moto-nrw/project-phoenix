@@ -33,7 +33,7 @@ export type ContractImportRowStatus =
   "ready" | "duplicate" | "conflict" | "invalid" | "imported";
 
 /** What the import does with the debtor number of a row; "" without one. */
-export type ContractDebtorNumberStatus =
+type ContractDebtorNumberStatus =
   "" | "new" | "same" | "differs" | "rows_differ" | "invalid" | "no_family";
 
 /** Header of the column each field comes from; "" leaves it unmapped. */
@@ -47,7 +47,7 @@ export interface ContractImportMapping {
   readonly moduleName: string;
 }
 
-export interface ContractImportProblem {
+interface ContractImportProblem {
   readonly field: ContractImportField;
   readonly code: string;
 }
@@ -66,6 +66,8 @@ export interface ContractImportRow {
   readonly partyName: string;
   readonly partyEmail: string;
   readonly problems: readonly ContractImportProblem[];
+  /** Notes that do not hold the row back: "start_moved", "imported_before". */
+  readonly hints: readonly string[];
   /** The stored contract, or the running one a duplicate row found. */
   readonly contractId: string | null;
   /** The line that names the same child before this row. */
@@ -74,7 +76,7 @@ export interface ContractImportRow {
   readonly debtorNumberStatus: ContractDebtorNumberStatus;
 }
 
-export interface ContractImportCounts {
+interface ContractImportCounts {
   readonly ready: number;
   readonly duplicate: number;
   readonly conflict: number;
@@ -84,7 +86,7 @@ export interface ContractImportCounts {
   readonly debtorConflicts: number;
 }
 
-export interface ContractImportModule {
+interface ContractImportModule {
   readonly name: string;
   readonly phaseName: string;
   readonly hasConditions: boolean;
@@ -147,6 +149,7 @@ interface BackendRow {
   party_name: string;
   party_email: string;
   problems: ContractImportProblem[] | null;
+  hints?: string[] | null;
   contract_id?: number;
   repeats_line?: number;
   debtor_number?: string;
@@ -213,6 +216,7 @@ function mapRow(row: BackendRow): ContractImportRow {
     partyName: row.party_name,
     partyEmail: row.party_email,
     problems: row.problems ?? [],
+    hints: row.hints ?? [],
     contractId: row.contract_id ? String(row.contract_id) : null,
     repeatsLine: row.repeats_line ?? null,
     debtorNumber: row.debtor_number ?? "",

@@ -46,6 +46,7 @@ function row(
     partyName: "Eva Beispiel",
     partyEmail: "eva.beispiel@example.org",
     problems: [],
+    hints: [],
     contractId: null,
     repeatsLine: null,
     debtorNumber: "70001",

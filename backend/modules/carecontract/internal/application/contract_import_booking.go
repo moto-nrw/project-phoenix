@@ -23,6 +23,9 @@ type importBooking struct {
 	phaseName string
 	price     *int64
 	endsOn    *calendar.Date
+	// startsOn is the first day of the contract in moto: the day the file
+	// names, or the first day of the phase of its modules when that is later.
+	startsOn calendar.Date
 }
 
 // defaultImportWeekdays are the days of a module without fixed days when the
@@ -33,7 +36,20 @@ var defaultImportWeekdays = []string{"mon", "tue", "wed", "thu", "fri"}
 func (r rowReader) booking(school importSchool, from calendar.Date, fileEnd *calendar.Date) importBooking {
 	modules := r.modules(school, from)
 	days, daysOK := r.weekdays()
-	booking := importBooking{services: []carecontract.Service{}}
+	booking := importBooking{services: []carecontract.Service{}, startsOn: from}
+	if fileEnd != nil && fileEnd.Before(from) {
+		r.problem(carecontract.ContractImportFieldEndsOn, carecontract.ContractImportProblemBeforeStart)
+		booking.endsOn = fileEnd
+		return booking
+	}
+	for _, module := range modules {
+		// A contract that ran before the phase of its module begins with
+		// that phase, as a booking does (bookingWithinPhase).
+		if module.ServiceStart != nil && module.ServiceStart.After(booking.startsOn) {
+			booking.startsOn = *module.ServiceStart
+		}
+	}
+	from = booking.startsOn
 	if len(modules) == 0 || !daysOK {
 		booking.endsOn = fileEnd
 		return booking
@@ -209,32 +225,10 @@ func serviceWeekdays(services []carecontract.Service) []string {
 
 // endsOn is the last day of the contract: the end the file names, the end
 // of the phase of its modules or the end of a fixed term, whichever comes
-// first; nil for an open contract. An end before the first day or before
-// today is a problem: the import takes over running contracts only.
+// first; nil for an open contract. An end before today is a problem: the
+// import takes over running contracts only.
 func (r rowReader) endsOn(modules []carecontract.Offering, terms carecontract.TemplateInput, from calendar.Date, fileEnd *calendar.Date) *calendar.Date {
-	if fileEnd != nil && fileEnd.Before(from) {
-		r.problem(carecontract.ContractImportFieldEndsOn, carecontract.ContractImportProblemBeforeStart)
-		return fileEnd
-	}
-	// The modules end with their phase; the contract holds as long as the
-	// longest of them, and not at all when one of them has no end.
-	var phaseEnd *calendar.Date
-	for i, module := range modules {
-		if module.ServiceEnd == nil {
-			phaseEnd = nil
-			break
-		}
-		if i == 0 || module.ServiceEnd.After(*phaseEnd) {
-			phaseEnd = module.ServiceEnd
-		}
-	}
-	var until *calendar.Date
-	for _, end := range []*calendar.Date{fileEnd, phaseEnd} {
-		if end != nil && (until == nil || end.AddDays(1).Before(*until)) {
-			exclusive := end.AddDays(1)
-			until = &exclusive
-		}
-	}
+	until := earliestImportEnd(fileEnd, latestPhaseEnd(modules))
 	ends := endsOn(terms, from, until)
 	last := ends
 	if last == nil && until != nil {
@@ -244,10 +238,41 @@ func (r rowReader) endsOn(modules []carecontract.Offering, terms carecontract.Te
 	}
 	switch {
 	case last == nil:
-	case last.Before(from):
-		r.problem(carecontract.ContractImportFieldModule, carecontract.ContractImportProblemOutsidePhase)
 	case last.Before(r.check.today):
 		r.problem(carecontract.ContractImportFieldEndsOn, carecontract.ContractImportProblemEnded)
+	case last.Before(from):
+		r.problem(carecontract.ContractImportFieldModule, carecontract.ContractImportProblemOutsidePhase)
 	}
 	return last
+}
+
+// latestPhaseEnd is the last day of the longest phase of the modules: the
+// contract holds as long as the longest of them, and without an end when one
+// of them has none.
+func latestPhaseEnd(modules []carecontract.Offering) *calendar.Date {
+	var latest *calendar.Date
+	for _, module := range modules {
+		if module.ServiceEnd == nil {
+			return nil
+		}
+		if latest == nil || module.ServiceEnd.After(*latest) {
+			latest = module.ServiceEnd
+		}
+	}
+	return latest
+}
+
+// earliestImportEnd is the day after the earliest of the given last days,
+// the exclusive end endsOn reads; nil when none is given.
+func earliestImportEnd(ends ...*calendar.Date) *calendar.Date {
+	var until *calendar.Date
+	for _, end := range ends {
+		if end == nil {
+			continue
+		}
+		if exclusive := end.AddDays(1); until == nil || exclusive.Before(*until) {
+			until = &exclusive
+		}
+	}
+	return until
 }

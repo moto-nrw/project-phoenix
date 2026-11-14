@@ -23,8 +23,11 @@ import (
 //   - It books modules of its school as every contract does, with the
 //     conditions the Träger keeps for them; a module without conditions
 //     takes over no contract.
-//   - A child that has a running contract at the school gets no second one:
-//     a repeated import of a file stores nothing twice.
+//   - A child that has a running contract at the school gets no second one,
+//     and a contract an import stored once is never stored again: a repeated
+//     import of a file stores nothing twice.
+//   - A contract begins no earlier than the phase of its modules and ends
+//     with it, as a contract from an application does.
 //   - The file itself is never stored.
 //   - The import links no child of a school: a name and a date of birth do
 //     not prove who a child is (ADR 0214). The contract keeps its own copy.
@@ -100,6 +103,17 @@ const (
 	// ContractImportProblemRepeated is a child another row of the file
 	// names for the same school.
 	ContractImportProblemRepeated = "repeated"
+)
+
+// Hints of a row; none holds it back.
+const (
+	// ContractImportHintStartMoved is a contract that ran before the phase
+	// of its module began: in moto it starts with that phase, as a contract
+	// from an application does, and keeps the day it was concluded.
+	ContractImportHintStartMoved = "start_moved"
+	// ContractImportHintImportedBefore is a duplicate whose contract an
+	// earlier import stored and that has ended or was withdrawn since.
+	ContractImportHintImportedBefore = "imported_before"
 )
 
 // What the import does with the debtor number of a row; the
@@ -222,6 +236,7 @@ type ContractImportRow struct {
 	PartyName      string                  `json:"party_name"`
 	PartyEmail     string                  `json:"party_email"`
 	Problems       []ContractImportProblem `json:"problems"`
+	Hints          []string                `json:"hints"`
 	// ContractID is the contract the import stored, or the running contract
 	// a duplicate row found.
 	ContractID int64 `json:"contract_id,omitempty"`

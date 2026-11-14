@@ -7,17 +7,19 @@ import (
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
-// ContractChild is the child of a contract of the Träger that was neither
-// withdrawn nor ended, as its newest version names it, with the last day the
-// contract holds: the end of a termination, else the end of that version.
+// ContractChild is the child of a contract of the Träger, as its newest
+// version names it, with the last day the contract holds: the end of a
+// termination, else the end of that version. ImportOrigin is the origin of a
+// contract an import stored, empty for one from an application.
 type ContractChild struct {
-	ContractID int64
-	SchoolID   int64
-	Status     string
-	FirstName  string
-	LastName   string
-	BirthDate  *calendar.Date
-	EndsOn     *calendar.Date
+	ContractID   int64
+	SchoolID     int64
+	Status       string
+	FirstName    string
+	LastName     string
+	BirthDate    *calendar.Date
+	EndsOn       *calendar.Date
+	ImportOrigin string
 }
 
 // ImportedContract is a contract an import file names (#4723): its school,
