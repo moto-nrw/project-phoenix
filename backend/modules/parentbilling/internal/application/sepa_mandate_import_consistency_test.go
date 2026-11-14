@@ -88,3 +88,59 @@ func TestImportCheckDeduplicatesMatchingCollectionDates(t *testing.T) {
 	assert.Equal(t, parentbilling.ImportRowSameMandate, second.row.Status)
 	assert.Equal(t, 2, second.row.SameMandateLine)
 }
+
+func TestImportCheckKeepsSiblingDeduplicationAfterClarification(t *testing.T) {
+	t.Parallel()
+	for name, history := range map[string][2]string{
+		"missing history":        {"", ""},
+		"unknown sequence":       {"?", ""},
+		"contradictory sequence": {"FRST", "2026-10-01"},
+	} {
+		for _, answer := range []string{parentbilling.SequenceFirst, parentbilling.SequenceRecurring} {
+			t.Run(name+"/"+answer, func(t *testing.T) {
+				cells := importRow("SJR-1", "2026-02-01", importIBAN, "a@example.org", importCreditor, history[0], history[1])
+				initial := newTestImportCheck(nil, nil)
+				require.Equal(t, parentbilling.ImportRowClarify, initial.row(cells, 2).row.Status)
+				require.Equal(t, parentbilling.ImportRowSameMandate, initial.row(cells, 3).row.Status)
+
+				answered := newTestImportCheck(nil, map[int]string{2: answer})
+				first := answered.row(cells, 2)
+				require.Equal(t, parentbilling.ImportRowReady, first.row.Status, problemCodes(first.row))
+				for _, line := range []int{3, 4} {
+					sibling := answered.row(cells, line)
+					assert.Equal(t, parentbilling.ImportRowSameMandate, sibling.row.Status, problemCodes(sibling.row))
+					assert.Equal(t, 2, sibling.row.SameMandateLine)
+					assert.Equal(t, answer, sibling.row.Sequence)
+					assert.Equal(t, first.row.LastCollectedOn, sibling.row.LastCollectedOn)
+					assert.Equal(t, first.row.Hints, sibling.row.Hints)
+					assert.Empty(t, sibling.row.Problems)
+				}
+			})
+		}
+	}
+}
+
+func TestImportCheckDoesNotSpreadClarificationToDifferentMandatesOrHistories(t *testing.T) {
+	t.Parallel()
+	first := importRow("SJR-1", "2026-02-01", importIBAN, "a@example.org", importCreditor, "FRST", "2026-10-01")
+	for name, change := range map[string]func([]string){
+		"other family":               func(cells []string) { cells[4] = "b@example.org" },
+		"other account":              func(cells []string) { cells[2] = "DE02120300000000202051" },
+		"other signature":            func(cells []string) { cells[1] = "2026-03-01" },
+		"other collection date":      func(cells []string) { cells[7] = "2026-09-01" },
+		"explicit recurring history": func(cells []string) { cells[6] = "RCUR" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			check := newTestImportCheck(nil, map[int]string{2: parentbilling.SequenceFirst})
+			require.Equal(t, parentbilling.ImportRowReady, check.row(first, 2).row.Status)
+			other := append([]string(nil), first...)
+			change(other)
+			assert.Equal(t, parentbilling.ImportRowConflict, check.row(other, 3).row.Status)
+		})
+	}
+	t.Run("explicit sibling answer", func(t *testing.T) {
+		check := newTestImportCheck(nil, map[int]string{2: parentbilling.SequenceFirst, 3: parentbilling.SequenceRecurring})
+		require.Equal(t, parentbilling.ImportRowReady, check.row(first, 2).row.Status)
+		assert.Equal(t, parentbilling.ImportRowConflict, check.row(first, 3).row.Status)
+	})
+}

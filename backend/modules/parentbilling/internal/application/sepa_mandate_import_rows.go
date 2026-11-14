@@ -76,6 +76,8 @@ type importCandidate struct {
 	// payerNumber is the stored debtor number the payer column named
 	// (#7009), whose read the trail of the number records.
 	payerNumber string
+	// sourceHistory is the file's collection history before a clarification.
+	sourceHistory importCollectionHistory
 }
 
 // Problems that make a row a conflict or a row to clarify; every other
@@ -322,7 +324,8 @@ func (c *importCheck) readSequence(candidate *importCandidate, cells []string) {
 		addProblem(row, parentbilling.ImportFieldLastCollected, parentbilling.ImportProblemBeforeSigned)
 	}
 	sequence, unclear := c.fileSequence(row, cells)
-	if answer, ok := c.sequences[row.Line]; ok && unclear != "" &&
+	candidate.sourceHistory = importCollectionHistory{sequence: sequence, unclear: unclear, lastCollectedOn: row.LastCollectedOn}
+	if answer := c.sequenceAnswer(candidate); unclear != "" &&
 		(answer == parentbilling.SequenceFirst || answer == parentbilling.SequenceRecurring) {
 		sequence, unclear = answer, ""
 		if answer == parentbilling.SequenceFirst {
@@ -338,6 +341,19 @@ func (c *importCheck) readSequence(candidate *importCandidate, cells []string) {
 		row.Hints = append(row.Hints, parentbilling.ImportHintLastCollectionUnknown)
 	}
 	c.checkLapse(row)
+}
+
+// sequenceAnswer shares a clarification only with rows of the same mandate
+// whose original collection history agrees. An explicit row answer wins.
+func (c *importCheck) sequenceAnswer(candidate *importCandidate) string {
+	if answer, ok := c.sequences[candidate.row.Line]; ok {
+		return answer
+	}
+	if first, ok := c.fileMandates[candidate.row.Reference]; ok && first.sameDetails(candidate) &&
+		first.sourceHistory.sameAs(candidate.sourceHistory) {
+		return c.sequences[first.line]
+	}
+	return ""
 }
 
 // fileSequence is the sequence the file tells, or why it stays unclear.
@@ -460,14 +476,14 @@ type fileMandate struct {
 	line                           int
 	family, iban, holder, creditor string
 	signedOn                       calendar.Date
-	sequence                       string
-	lastCollectedOn                *calendar.Date
+	history, sourceHistory         importCollectionHistory
 }
 
 func fileMandateOf(candidate *importCandidate) fileMandate {
 	mandate := fileMandate{line: candidate.row.Line, family: candidate.family, iban: candidate.iban,
 		holder: candidate.row.AccountHolder, creditor: candidate.creditorID,
-		sequence: candidate.row.Sequence, lastCollectedOn: candidate.row.LastCollectedOn}
+		history:       importCollectionHistory{sequence: candidate.row.Sequence, lastCollectedOn: candidate.row.LastCollectedOn},
+		sourceHistory: candidate.sourceHistory}
 	if candidate.row.SignedOn != nil {
 		mandate.signedOn = *candidate.row.SignedOn
 	}
@@ -478,16 +494,29 @@ func fileMandateOf(candidate *importCandidate) fileMandate {
 // family, account, holder, creditor, signing date and collection history.
 // Anything else under the reference stays a conflict.
 func (m fileMandate) repeatedBy(candidate *importCandidate) bool {
-	other := fileMandateOf(candidate)
-	// Compare optional collection dates by value, not their row-local pointers.
-	if (m.lastCollectedOn == nil) != (other.lastCollectedOn == nil) {
+	return m.sameDetails(candidate) && m.history.sameAs(importCollectionHistory{
+		sequence: candidate.row.Sequence, lastCollectedOn: candidate.row.LastCollectedOn})
+}
+
+func (m fileMandate) sameDetails(candidate *importCandidate) bool {
+	return m.family != "" && m.family == candidate.family && m.iban == candidate.iban &&
+		m.holder == candidate.row.AccountHolder && m.creditor == candidate.creditorID &&
+		candidate.row.SignedOn != nil && m.signedOn == *candidate.row.SignedOn
+}
+
+// importCollectionHistory compares the file's history or the clarified history
+// by value, including whether the last collection is known.
+type importCollectionHistory struct {
+	sequence, unclear string
+	lastCollectedOn   *calendar.Date
+}
+
+func (h importCollectionHistory) sameAs(other importCollectionHistory) bool {
+	if h.sequence != other.sequence || h.unclear != other.unclear ||
+		(h.lastCollectedOn == nil) != (other.lastCollectedOn == nil) {
 		return false
 	}
-	if m.lastCollectedOn != nil && *m.lastCollectedOn != *other.lastCollectedOn {
-		return false
-	}
-	other.line, other.lastCollectedOn = m.line, m.lastCollectedOn
-	return m.family != "" && other == m
+	return h.lastCollectedOn == nil || *h.lastCollectedOn == *other.lastCollectedOn
 }
 
 func hasProblemIn(problems []parentbilling.SEPAMandateImportProblem, codes []string) bool {
