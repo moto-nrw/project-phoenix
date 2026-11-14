@@ -949,6 +949,20 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
         ],
       },
       {
+        // Einstellung „Einfache Seitenleiste für die Betreuung“ (#6956);
+        // Liste: STAFF_NAV_SIMPLE_ENTRIES in lib/staff-navigation.ts.
+        title: "Die einfache Seitenleiste",
+        description:
+          "Ihre OGS kann für die Betreuung eine einfache Seitenleiste einschalten. Dann stehen dort nur die Seiten für den Betreuungsalltag, ohne Gruppen.",
+        ordered: false,
+        steps: [
+          "Sie suchen eine Seite, die nicht dabei ist? Wählen Sie ganz unten `Alle Seiten anzeigen`. Auf dem Handy steht der Knopf unter `Mehr`.",
+          "Mit `Weniger Seiten anzeigen` kommen Sie zur einfachen Seitenleiste zurück.",
+          "moto merkt sich Ihre Wahl auf diesem Gerät.",
+          "Wer die OGS leitet, sieht immer alle Seiten. Die Leitung schaltet die einfache Seitenleiste unter `Einstellungen` › `Betrieb` ein.",
+        ],
+      },
+      {
         title: "Auf dem Handy oder Tablet",
         steps: [
           "Nutzen Sie die Leiste unten, um häufige Bereiche zu öffnen.",
@@ -982,6 +996,7 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
       "Sie wissen, wo Sie die wichtigsten Bereiche und die passende Hilfe finden.",
     differences: [
       "Welche Bereiche Sie sehen, hängt von Ihrer Rolle und den Einstellungen Ihrer OGS ab.",
+      "Sie sehen keine Gruppen wie `Tagesbetrieb` oder `Team`? Dann hat Ihre OGS die einfache Seitenleiste eingeschaltet. Alle Seiten zeigt `Alle Seiten anzeigen` ganz unten.",
       "Unter `Bausteine` fehlt eine Karte? Dann steht sie schon auf Ihrer Startseite. Oder Ihre Rolle oder Ihre OGS sieht sie nicht vor.",
       // Kopfzeile aus BrandTraegerLine (#4656): nur bei einem Träger mit
       // mehreren Schulen, und nur am Computer, wo auch der Schulname steht.
