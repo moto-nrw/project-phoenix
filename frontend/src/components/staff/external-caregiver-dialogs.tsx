@@ -19,6 +19,7 @@ import {
   EXTERNAL_CAREGIVER_HINT,
   EXTERNAL_FIELDS,
   ExternalAccessChoice,
+  externalCreateTooltip,
   ExternalCaregiverFields,
   emailFieldHint,
   useExternalCaregiverForm,
@@ -85,6 +86,7 @@ export function ExternalCaregiverCreateModal({
             size="md"
             onClick={close}
             disabled={form.isSaving}
+            noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
           >
             Abbrechen
           </Button>
@@ -95,6 +97,7 @@ export function ExternalCaregiverCreateModal({
             onClick={() => void save()}
             isLoading={form.isSaving}
             loadingText="Wird angelegt ..."
+            tooltip={externalCreateTooltip(form.values.access)}
           >
             Anlegen
           </Button>
@@ -212,6 +215,7 @@ export function ExternalInvitationModal({
             size="md"
             onClick={onClose}
             disabled={isSaving}
+            noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
           >
             Abbrechen
           </Button>
@@ -222,6 +226,11 @@ export function ExternalInvitationModal({
             onClick={() => void invite()}
             isLoading={isSaving}
             loadingText="Wird gesendet ..."
+            tooltip={
+              pending
+                ? "Schickt sofort eine neue Einladung, die alte gilt nicht mehr."
+                : "Schickt der Person sofort eine Einladung per E-Mail."
+            }
           >
             {pending ? "Erneut senden" : "Einladen"}
           </Button>

@@ -184,13 +184,59 @@ places by kind or portal name.
 
 ## Fix L to P: frontend (PR 3)
 
-- L1 `app/api/parent/me/mfa/{confirm,disable}` copy the caterer's routes.
-- M1 `lib/caterer-mfa-api.ts` takes `emailCodeFactorApi` apart and the
-  account page puts it together again.
-- N1 Three mappings of the sign-in answer and six local `MFAStep` types.
-- O1 Session notice and stale-session handling copied on the sign-in pages.
-- P1 `mfa-admin-override-modal`: `scope` plus three optional ids with
-  runtime throws; `headingLevel` never passed.
+Paths are relative to `frontend/src/`.
+
+- L1 done. `app/api/parent/me/mfa/confirm` copied the caterer's route line
+  for line (50 lines, the parents' copy without a test). Both are now
+  `createFactorConfirmRoute` (`lib/factor-routes.server.ts`) with their
+  path, retry reason and log names; the switch-off routes share
+  `currentPasswordBody`. The retry literal stays in each route file:
+  `credential-route-coverage.test.ts` reads it there.
+- M1 done. `lib/caterer-mfa-api.ts` took `emailCodeFactorApi` apart into
+  four functions and the account page put them together again. The page
+  now calls `emailCodeFactorApi("/api/caterer/account/mfa")` like the
+  parents' settings.
+- N1 open. The sign-in answer is mapped three times (`mfa-api.ts` with the
+  pages of tenant, school and operator, `portal-password-login.ts`,
+  `traeger-api.ts`) and `MFAStep` is declared per page. The defaults differ
+  by wire family on purpose (the caterer's answer omits a false flag), and
+  the page tests mock the wire shape, so one mapping changes three test
+  suites. A change of its own.
+- O1 done in part. Clearing the session error from the address and the
+  „Sitzung abgelaufen“ notice existed four times (tenant, school, Träger,
+  caterer). Now `clearSessionErrorFromUrl` and `useSessionExpiredNotice`
+  (`lib/login-session-notice.ts`). Open: signing a stale session out on
+  the login pages (three identical copies, two that differ).
+- P1 done. `MFAAdminOverrideModal` took `scope` and three optional ids, one
+  of which each scope needed, checked by a throw at click time. It takes one
+  `target` now (`{kind, …id}`); a target without its id does not compile.
+  `EmailCodeFactorSection` lost `headingLevel`, which no caller passed.
+- Kept: one `route.ts` per portal and path (the App Router and the route
+  guards enumerate them); the trusted-device proxy of the parents portal
+  under `/api/parent/auth/mfa/trusted-devices` (`TrustedDevicesSection`
+  derives every portal's path the same way); the per-key copy mapping in
+  `parent-sign-in-section.tsx` (next-intl checks the keys).
+
+## Final round (after PR 1 to 3)
+
+A last read-only hunt over the merged code found one defect and otherwise
+only small items.
+
+- S1 done, bug fix (#7084). A Träger-Portal session could not be renewed
+  once the request named a client address: the refresh audited at the
+  session's school, a Träger session has none, and only the parent session
+  at a Träger fell back to the account's default school. The refresh now
+  asks `AccountSession.KeptAtSchool` (the table of fix Q) and files through
+  `schoollessAudit`; `traegerLoginAudit` was the same code and is gone.
+  Test: `TestTraegerSessionRefreshesWithAClientAddress` (fails on the old
+  rule).
+- Open, small: the realm of a remembered device is derived three ways (the
+  context keys, `DeviceBinding`, the three flags of the device mail), a
+  `DeviceBinding.Realm()` would be the one place; `Portal.TrustedDevice` is
+  true for every portal since #7051 and #6955 and decides nothing (a test
+  pins it to the token gates); „the schools a caterer supplies now“ is read
+  by the same three calls in `caterer_session.go` and `caterer_access.go`;
+  `CatererAccess.tenantless` repeats the factor's `bind`.
 
 ## Special cases that stay
 
@@ -232,3 +278,16 @@ PR 2:
   `resendChallenge` has no test caller).
 - Added `TestPublicCodePolicyIsTheDomains` and
   `TestSessionRowsNameATraegerOnlyInTheirKind`.
+
+PR 3:
+
+- `app/caterer/konto/page.test.tsx`: the mock moved from the deleted
+  `caterer-mfa-api` to `email-code-factor-api`; assertions unchanged.
+- `components/auth/mfa-admin-override-modal.test.tsx` and its stories: the
+  props `scope` plus id became `target`; assertions unchanged.
+- `app/api/route-cache-policy.test.ts`: `createFactorConfirmRoute` joined
+  the register of factories that answer `private, no-store` (it runs through
+  the portal's `withAuth`, which the two routes called directly before).
+- `lib/personal-storage.test.ts`: the inventory names
+  `login-session-notice.ts` as the reader of the logout flag in place of the
+  four login pages.

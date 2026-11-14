@@ -27,5 +27,8 @@
   "changesAdded": "{count, plural, one {# Kind mehr} other {# Kinder mehr}}",
   "changesRemoved": "{count, plural, one {# Kind weniger} other {# Kinder weniger}}",
   "deliveryHeader": "Lieferliste der Woche",
-  "errorObjectDelivery": "die Lieferliste"
+  "errorObjectDelivery": "die Lieferliste",
+  "deliveryDownloadDescription": "Lädt die Lieferliste dieser Woche herunter",
+  "monthExportDescription": "Öffnet ein Fenster, um Monat und Format zu wählen",
+  "monthDownloadDescription": "Lädt die bestellten Essen je Kind für diesen Monat herunter"
 }

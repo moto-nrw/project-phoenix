@@ -25,5 +25,7 @@
   "submitObject": "përgjigjja juaj",
   "participated": "U përgjigj",
   "needsAnswer": "Nevojitet përgjigje",
-  "questionLabel": "Pyetja {number} nga {total}"
+  "questionLabel": "Pyetja {number} nga {total}",
+  "submitTooltip": "Dërgon menjëherë përgjigjen tuaj te shkolla, me emrin tuaj.",
+  "submitTooltipAnonymous": "Dërgon menjëherë përgjigjen tuaj te shkolla, pa emrin tuaj."
 }

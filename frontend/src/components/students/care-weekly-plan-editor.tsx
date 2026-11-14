@@ -406,7 +406,7 @@ export function CareWeeklyPlanGrid({
                     tooltip={
                       expandedWeekdays.has(day.value)
                         ? "Blendet die Notizen für diesen Wochentag aus."
-                        : "Zeigt die Notizen für diesen Wochentag zum Bearbeiten."
+                        : "Zeigt die Notizen für diesen Wochentag zum Ändern."
                     }
                     onClick={() => toggleNotes(day.value)}
                   >

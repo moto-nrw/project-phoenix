@@ -481,6 +481,7 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
             variant="outline"
             onClick={loadMore}
             disabled={isLoading}
+            tooltip="Hängt ältere Einträge des Protokolls unten an die Liste an."
           >
             Weitere Einträge laden
           </Button>

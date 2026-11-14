@@ -330,6 +330,7 @@ function StaffOnboardingForPerson() {
         onCollapse={() => setView("beacon")}
         onDismiss={() => setConfirmDismiss(true)}
         finishLabel="Abschließen"
+        finishTooltip="Blendet die Checkliste sofort für Sie aus."
         onFinish={() => void run(() => setStaffOnboardingDismissed(true))}
         finished={
           <>

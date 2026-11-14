@@ -141,7 +141,9 @@ describe("StundenkontoPanel", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Zurücksetzen" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Zurücksetzen" }),
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("bucht einen negativen Eröffnungssaldo in Minuten zum Stichtag", async () => {
@@ -336,7 +338,10 @@ describe("StundenkontoPanel", () => {
       target: { value: "Übernahme Altsystem" },
     });
 
-    expect(screen.getByRole("button", { name: "Buchen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Buchen" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("sperrt einen zweiten Eröffnungssaldo", () => {
@@ -363,7 +368,7 @@ describe("StundenkontoPanel", () => {
 
     expect(
       screen.getByRole("button", { name: "Eröffnungssaldo" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(screen.getAllByText("Eröffnungssaldo")).toHaveLength(2);
   });
 

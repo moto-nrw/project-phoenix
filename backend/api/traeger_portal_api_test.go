@@ -566,3 +566,27 @@ func (closureTestHolidays) ValidHolidayRegion(string) bool { return true }
 func (closureTestHolidays) ListHolidays(context.Context, string, string, string) ([]schoolcalendar.Holiday, error) {
 	return nil, nil
 }
+
+// A browser's refresh names its client address, so the refresh is audited. A
+// Träger session is kept at no school: its refresh is filed like its sign-in,
+// at the account's default school.
+func TestTraegerSessionRefreshesWithAClientAddress(t *testing.T) {
+	t.Parallel()
+	db, router, identity, unit := newTraegerPortal(t)
+	password := testpkg.NewTestPassword()
+	organization := traegerOrganization(t, db, "Träger Refresh Adresse", true)
+	account := traegerAccount(t, db, password)
+	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleAdministration)
+	code, answer := traegerSignIn(t, router, account.Email, password, 0)
+	require.Equal(t, http.StatusOK, code)
+	ctx := tenant.WithUnitOfWork(context.Background(), unit)
+
+	access, _, err := identity.RefreshTokenWithAudit(ctx, answer.RefreshToken, "", "192.0.2.10", "tests")
+	require.NoError(t, err)
+	assert.Equal(t, float64(organization), traegerTokenClaims(t, access)["org_id"])
+
+	var filed []int64
+	require.NoError(t, db.NewRaw(`SELECT tenant_id FROM audit.auth_events WHERE account_id = ? AND event_type = 'token_refresh'`,
+		account.ID).Scan(context.Background(), &filed))
+	assert.Equal(t, []int64{testpkg.Tenant(t)}, filed, "the refresh is in the ledger of the account's school")
+}

@@ -275,6 +275,7 @@ function SharingFooter({
         variant="outline"
         size="md"
         disabled={saving}
+        noTooltip="Abbrechen schließt das Fenster und ändert nichts."
         onClick={close}
       >
         {t("cancel")}
@@ -285,6 +286,7 @@ function SharingFooter({
         size="md"
         isLoading={saving}
         loadingText={t("saving")}
+        tooltip={t("saveTooltip")}
         onClick={save}
       >
         {t("save")}
@@ -381,6 +383,7 @@ function SharingDialog({
       onClose={() => control.setOpen(false)}
       title={t("title")}
       closeLabel={t("close")}
+      closeTooltip={t("closeTooltip")}
       backdropLabel={t("close")}
       mobileSheet
       isDismissDisabled={saving}
@@ -434,7 +437,13 @@ export function RequestSharingControl(props: RequestSharingControlProps) {
   if (!sharing.state) return null;
   return (
     <>
-      <Button type="button" variant="ghost" size="md" onClick={control.show}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="md"
+        tooltip={t("buttonTooltip")}
+        onClick={control.show}
+      >
         {t("button")}
       </Button>
       <SharingDialog control={control} t={t} />

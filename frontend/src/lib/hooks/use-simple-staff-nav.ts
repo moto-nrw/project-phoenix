@@ -12,6 +12,10 @@ import {
 /** Der Umschalter unten in der Seitenleiste und im Menü „Mehr“. */
 const SIMPLE_STAFF_NAV_SHOW_ALL_LABEL = "Alle Seiten anzeigen";
 const SIMPLE_STAFF_NAV_SHOW_SIMPLE_LABEL = "Weniger Seiten anzeigen";
+const SIMPLE_STAFF_NAV_SHOW_ALL_TOOLTIP =
+  "Zeigt im Menü alle Seiten, die Sie öffnen dürfen.";
+const SIMPLE_STAFF_NAV_SHOW_SIMPLE_TOOLTIP =
+  "Zeigt im Menü nur die Seiten für den Betreuungsalltag.";
 
 const STORAGE_PREFIX = "simple-staff-nav-show-all";
 const SHOW_ALL = "1";
@@ -64,6 +68,8 @@ export interface SimpleStaffNav {
   /** Der Umschalter unten: wechselt in die jeweils andere Ansicht. */
   readonly toggle: () => void;
   readonly toggleLabel: string;
+  /** Was der Umschalter bewirkt (#6643). */
+  readonly toggleTooltip: string;
 }
 
 /**
@@ -109,5 +115,8 @@ export function useSimpleStaffNav(session: Session | null): SimpleStaffNav {
     toggleLabel: active
       ? SIMPLE_STAFF_NAV_SHOW_ALL_LABEL
       : SIMPLE_STAFF_NAV_SHOW_SIMPLE_LABEL,
+    toggleTooltip: active
+      ? SIMPLE_STAFF_NAV_SHOW_ALL_TOOLTIP
+      : SIMPLE_STAFF_NAV_SHOW_SIMPLE_TOOLTIP,
   };
 }

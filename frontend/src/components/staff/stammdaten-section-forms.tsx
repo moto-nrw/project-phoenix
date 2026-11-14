@@ -480,6 +480,7 @@ export function QualifikationenFields({
                   variant="ghost"
                   size="icon"
                   aria-label="Qualifikation entfernen"
+                  tooltip="Nimmt die Qualifikation aus dem Formular, gelöscht wird erst beim Speichern."
                   onClick={() =>
                     onChange({
                       qualifikationen: rows.filter((_, i) => i !== index),
@@ -514,6 +515,7 @@ export function QualifikationenFields({
         onClick={() =>
           onChange({ qualifikationen: [...rows, emptyQualificationRow()] })
         }
+        tooltip="Fügt eine leere Zeile für eine weitere Qualifikation hinzu."
       >
         <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
         Qualifikation hinzufügen

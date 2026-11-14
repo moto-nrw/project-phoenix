@@ -10,9 +10,8 @@ import (
 )
 
 // The caterer's session (ADR 0077). A caterer belongs to no school: its
-// token carries no tenant, its claims come from the caterer it belongs to
-// (catererEligibility), and its successor session follows the schools the
-// caterer still supplies.
+// token carries no tenant, its claims come from the caterer it belongs to,
+// and its successor session follows the schools the caterer still supplies.
 //
 // auth.tokens and audit.auth_events both require a school, so a caterer's
 // session row and its audit events are kept at a school it supplies: the

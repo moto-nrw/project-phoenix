@@ -69,5 +69,13 @@
   "checkFields": "Lütfen bilgilerinizi kontrol edin.",
   "privacy": "Hesap bilgilerinizi şifreli saklıyoruz. Kurum tam IBAN'ı yalnızca ödeme çekimi için kullanır.",
   "inboxButton": "Otomatik ödeme",
-  "inboxActive": "Otomatik ödeme verildi"
+  "inboxActive": "Otomatik ödeme verildi",
+  "inboxButtonTooltip": "Bu sözleşmenin otomatik ödeme talimatını açar.",
+  "revokeTooltip": "Bu hesap için talimatı iptal eder. moto önce sorar.",
+  "revokeConfirmTooltip": "Talimatı sonraki tüm faturalar için hemen iptal eder.",
+  "revokeCloseTooltip": "Pencereyi kapatır; talimat geçerli kalır.",
+  "downloadTooltip": "Talimat metnini cihazınıza dosya olarak kaydeder.",
+  "nextTooltip": "Bilgilerinizi kontrol eder ve talimat metnini gösterir.",
+  "backTooltip": "Hesap bilgilerinizi yeniden gösterir; talimat henüz verilmedi.",
+  "grantTooltip": "Talimatı hemen verir; ardından kurumunuz tahsilat yapabilir."
 }

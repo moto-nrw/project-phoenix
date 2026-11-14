@@ -71,6 +71,7 @@ export function StaffNoticesBlock() {
         <HomeCardLink
           href={tenantPath("/tagesinformationen")}
           label="Tagesinformationen: alle ansehen"
+          tooltip="Öffnet alle Tagesinformationen für das Team."
         >
           Alle ansehen
         </HomeCardLink>

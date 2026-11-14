@@ -58,7 +58,7 @@ func (s *AccountAuthentication) CompleteTraegerStepUp(ctx context.Context, reque
 			},
 			sourceFamilyID: request.FamilyID,
 			retireFamilyID: request.FamilyID,
-			audit:          s.traegerLoginAudit(ctx, account.ID, request.IPAddress, request.UserAgent),
+			audit:          s.schoollessAudit(ctx, account.ID, domain.AuthEventLogin, request.IPAddress, request.UserAgent),
 		})
 		if err != nil {
 			return nil, err

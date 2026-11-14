@@ -261,6 +261,7 @@ export function PasswordChangeModal({
               size="md"
               onClick={handleClose}
               className="flex-1"
+              noTooltip="Abbrechen schließt den Dialog und ändert nichts."
             >
               Abbrechen
             </Button>
@@ -270,6 +271,7 @@ export function PasswordChangeModal({
               size="md"
               disabled={isLoading}
               className="flex-1"
+              tooltip="Speichert sofort Ihr neues Passwort für die Anmeldung."
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">

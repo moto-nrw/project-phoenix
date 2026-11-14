@@ -16,5 +16,9 @@
   "closeGuide": "Anleitung schließen",
   "close": "Dialog schließen",
   "introStaff": "Schalten Sie Benachrichtigungen ein. moto meldet sich dann bei wichtigen Ereignissen, auch wenn die App geschlossen ist.",
-  "enabling": "Wird aktiviert …"
+  "enabling": "Wird aktiviert …",
+  "remindLaterTooltip": "Schließt das Fenster, moto erinnert Sie in einer Woche wieder.",
+  "enableTooltip": "Schaltet Benachrichtigungen zu allen Themen auf diesem Gerät ein.",
+  "installAppTooltip": "Installiert moto als App auf diesem Gerät.",
+  "closeGuideTooltip": "Schließt die Anleitung, moto erinnert Sie nach einem Tag wieder."
 }

@@ -30,7 +30,9 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
 import {
   familiesBookedSentence,
+  NOTIFY_PARENTS_TOOLTIP,
   noticeStatusView,
+  SHOW_MORE_NO_TOOLTIP,
   shownNotice,
   useNoticeList,
   useNoticeNotify,
@@ -180,6 +182,11 @@ export function TraegerHolidayClosureNotices({
         size="md"
         onClick={() => void notifyAll()}
         isLoading={notifyingAll}
+        tooltip={
+          suggested.length > 0
+            ? "Sendet allen betroffenen Eltern sofort eine E-Mail."
+            : "Sendet die nicht zugestellten E-Mails sofort noch einmal."
+        }
         loadingText="Wird gesendet..."
       >
         <Mail className="h-4 w-4" aria-hidden="true" />
@@ -257,6 +264,7 @@ export function TraegerHolidayClosureNotices({
               variant="surface"
               size="compact"
               aria-label={`Eltern informieren: ${row.title}`}
+              tooltip={NOTIFY_PARENTS_TOOLTIP}
               onClick={() => void notify(row.notice)}
             >
               <Mail className="h-4 w-4" aria-hidden="true" />
@@ -303,6 +311,7 @@ export function TraegerHolidayClosureNotices({
               aria-expanded={expanded}
               aria-controls={openListId}
               onClick={toggleExpanded}
+              noTooltip={SHOW_MORE_NO_TOOLTIP}
             >
               {expanded ? (
                 <>

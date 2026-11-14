@@ -103,13 +103,15 @@ func (s *AccountAuthentication) hasTraegerParentAccess(ctx context.Context, acco
 	return len(organizations) > 0, err
 }
 
-// schoollessAudit files the event of a session without a school at the
-// account's default school; the authentication ledger is school-scoped, and
-// an account set up for a holiday registration may have none.
+// schoollessAudit files the event of a session kept at no school (a Träger
+// session, ADR 0084; a parent session at a Träger, ADR 0216) at the account's
+// default school: the authentication ledger is school-scoped. An account
+// without a school, like a person who works only in the Träger-Büro, has no
+// ledger to file it in, so the event is only logged.
 func (s *AccountAuthentication) schoollessAudit(ctx context.Context, accountID int64, event, ipAddress, userAgent string) *mintAudit {
 	schoolID, _, err := s.resolveAccountTenantDefault(ctx, accountID)
 	if err != nil {
-		s.logger.Info("parent session at a Träger without a school ledger",
+		s.logger.Info("session without a school ledger",
 			slog.Int64("account_id", accountID),
 			slog.String("event_type", event))
 		return nil

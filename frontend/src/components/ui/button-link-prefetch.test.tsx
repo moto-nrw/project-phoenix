@@ -61,7 +61,11 @@ describe("ButtonLink intent prefetch", () => {
 
   it("prefetches the HomeCardLink destination on focus without changing its accessible name", () => {
     render(
-      <HomeCardLink href="/ogs-groups" label="Meine Gruppe öffnen">
+      <HomeCardLink
+        href="/ogs-groups"
+        label="Meine Gruppe öffnen"
+        tooltip="Öffnet die Seite Ihrer Gruppe."
+      >
         Zur Gruppe
       </HomeCardLink>,
     );

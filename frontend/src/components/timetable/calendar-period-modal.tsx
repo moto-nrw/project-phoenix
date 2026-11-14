@@ -631,6 +631,7 @@ export function CalendarPeriodModal({
                 variant="outline_danger"
                 size="md"
                 onClick={() => setDeleteConfirmOpen(true)}
+                tooltip="Löscht den Kalenderzeitraum, moto fragt vorher nach."
                 isLoading={deleting}
                 loadingText="Lösche …"
                 className="w-full sm:w-auto"
@@ -647,6 +648,7 @@ export function CalendarPeriodModal({
                 size="md"
                 className="flex-1 sm:flex-none"
                 onClick={onClose}
+                noTooltip="Abbrechen schließt nur das Fenster, ohne etwas zu ändern."
               >
                 Abbrechen
               </Button>
@@ -658,6 +660,7 @@ export function CalendarPeriodModal({
                 size="md"
                 className="flex-1 sm:flex-none"
                 onClick={onClose}
+                noTooltip="Der Zeitraum ist schon gespeichert, Schließen schließt nur das Fenster."
               >
                 Schließen
               </Button>
@@ -671,6 +674,14 @@ export function CalendarPeriodModal({
                 isLoading={submitting}
                 loadingText="Speichere …"
                 disabled={!canSubmit}
+                disabledReason={
+                  save.pending ? undefined : missingFieldReason(form)
+                }
+                tooltip={
+                  persisted
+                    ? "Speichert die Änderungen für alle Pläne dieses Zeitraums."
+                    : "Legt den Kalenderzeitraum an, die Pläne können ihn dann nutzen."
+                }
               >
                 {persisted ? "Speichern" : "Anlegen"}
               </Button>
@@ -756,4 +767,14 @@ function Field({ label, htmlFor, required = false, children }: FieldProps) {
       {children}
     </div>
   );
+}
+
+// Grund für den gesperrten Speichern-Knopf; während des Speicherns bleibt er
+// ohne Grund nativ gesperrt (#6643).
+function missingFieldReason(form: FormState): string | undefined {
+  if (form.name.trim().length === 0)
+    return "Geben Sie zuerst eine Bezeichnung ein.";
+  if (form.startDate === "" || form.endDate === "")
+    return "Wählen Sie zuerst Startdatum und Enddatum aus.";
+  return undefined;
 }

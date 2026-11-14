@@ -405,10 +405,10 @@ describe("/staff — Berechtigungs-Split", () => {
     );
     expect(
       screen.getByRole("button", { name: "Nächster Monat" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByRole("button", { name: "Monat abschließen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("aktualisiert nach dem Abschluss beide Monatskarten-Cachefamilien", async () => {

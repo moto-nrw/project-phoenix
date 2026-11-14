@@ -11,7 +11,10 @@
   "share": "Share",
   "homeScreen": "Add to Home Screen",
   "install": "Install app",
+  "installTooltip": "Installs moto as an app; your device asks you first.",
   "addToHome": "Add to Home screen",
   "openInChrome": "Open in Chrome",
-  "close": "Close hint"
+  "openInChromeTooltip": "Opens this page in Chrome, where you can install moto.",
+  "close": "Close hint",
+  "closeTooltip": "Hides this hint on this device for good."
 }

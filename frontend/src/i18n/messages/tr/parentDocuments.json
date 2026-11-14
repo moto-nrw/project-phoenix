@@ -44,5 +44,14 @@
   "withdrawn": "Cayıldı",
   "showConfirmation": "Onayı görüntüle",
   "terminationInReview": "Feshedildi, bitiş tarihi inceleniyor",
-  "familyChildren": "Ailedeki çocukları girin"
+  "familyChildren": "Ailedeki çocukları girin",
+  "downloadTooltip": "Belgeyi PDF olarak cihazınıza indirir.",
+  "downloadFileTooltip": "Dosyayı cihazınıza indirir.",
+  "signNowTooltip": "Sözleşmeyi okumanız ve imzalamanız için açar.",
+  "familyChildrenTooltip": "Çocuk sayınızı belirttiğiniz sayfayı açar.",
+  "familyChildrenViewTooltip": "Kurumun ailenizde kaç çocuk saydığını gösterir.",
+  "cancelContractTooltip": "Fesih sayfasını açar; gönderim ancak sonraki sayfada olur.",
+  "withdrawContractTooltip": "Cayma sayfasını açar; gönderim ancak sonraki sayfada olur.",
+  "showConfirmationTooltip": "Feshi, bitiş tarihi ve onayla birlikte gösterir.",
+  "showWithdrawalTooltip": "Cayma beyanını onayıyla birlikte gösterir."
 }

@@ -95,5 +95,16 @@
     "title": "Zgoda na wersję {version}: {date}.",
     "note": "Szkoła później zmieniła tekst. Twoja zgoda na ten tekst obowiązuje, dopóki jej nie wycofasz.",
     "endsToo": "Kończy to również Twoją zgodę na wersję {version}."
+  },
+  "actionTooltip": {
+    "agreed": "Wyraża zgodę w sprawie dziecka {name}, moto najpierw zapyta.",
+    "declined": "Odmawia zgody w sprawie dziecka {name}, moto najpierw zapyta.",
+    "revoked": "Wycofuje zgodę w sprawie dziecka {name}, moto najpierw zapyta.",
+    "revokeEarlier": "Wycofuje zgodę na wersję {version}, moto najpierw zapyta."
+  },
+  "confirmTooltip": {
+    "agreed": "Od razu zapisuje zgodę, szkoła ją widzi.",
+    "declined": "Od razu zapisuje odmowę, szkoła ją widzi.",
+    "revoked": "Od razu wycofuje zgodę, szkoła to widzi."
   }
 }

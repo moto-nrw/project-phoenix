@@ -15,7 +15,10 @@ import {
 import { createPortal } from "react-dom";
 import { ActionHint } from "~/components/ui/action-hint";
 import { useKitDefault } from "~/components/ui/kit-locale";
-import { buttonClassName } from "~/components/ui/button";
+import {
+  BLOCKED_ACTIVATION_PROPS,
+  buttonClassName,
+} from "~/components/ui/button";
 import type { ButtonSize, ButtonVariant } from "~/components/ui/button-styles";
 import Link from "~/components/ui/navigation-link";
 import { Check, MoreVertical } from "lucide-react";
@@ -49,6 +52,12 @@ interface OverflowMenuProps {
   readonly onOpen?: () => void;
   /** Prevents opening the menu while its actions are unavailable. */
   readonly disabled?: boolean;
+  /**
+   * Why the menu cannot open (#6757), like `Button`'s `disabledReason`: with
+   * `disabled`, the trigger stays focusable as `aria-disabled`, opens nothing
+   * and shows the reason on hover, focus and tap.
+   */
+  readonly disabledReason?: string;
   /**
    * Trigger footprint. `"default"` is the 36px page-header kebab; `"sm"` is a
    * compact 24px kebab with a smaller icon and a more muted default color, for
@@ -129,6 +138,7 @@ export function OverflowMenu({
   triggerTabIndex,
   onOpen,
   disabled = false,
+  disabledReason,
   triggerSize = "default",
   triggerClassName = "",
   triggerContent,
@@ -425,19 +435,24 @@ export function OverflowMenu({
 
   if (items.length === 0) return null;
 
-  const triggerHint =
-    triggerTooltip ??
-    (triggerRole === undefined
-      ? triggerContent == null
-        ? kitDefault(KEBAB_TOOLTIP)
-        : kitDefault(TEXT_TRIGGER_TOOLTIP)
-      : undefined);
+  const blocked = disabled && Boolean(disabledReason);
+  const triggerHint = blocked
+    ? disabledReason
+    : (triggerTooltip ??
+      (triggerRole === undefined
+        ? triggerContent == null
+          ? kitDefault(KEBAB_TOOLTIP)
+          : kitDefault(TEXT_TRIGGER_TOOLTIP)
+        : undefined));
   const trigger = (
     <button
       ref={triggerRef}
       type="button"
       onClick={handleOpen}
-      disabled={disabled}
+      // Wie am gesperrten `Button`: kein Klick erreicht einen Vorfahren.
+      {...(blocked && BLOCKED_ACTIVATION_PROPS)}
+      disabled={disabled && !blocked}
+      aria-disabled={blocked || undefined}
       role={triggerRole}
       aria-selected={triggerAriaSelected}
       tabIndex={triggerTabIndex}
@@ -467,7 +482,9 @@ export function OverflowMenu({
       data-setup-tour={tourTarget}
     >
       {triggerHint ? (
-        <ActionHint text={triggerHint}>{trigger}</ActionHint>
+        <ActionHint text={triggerHint} showOnTap={blocked}>
+          {trigger}
+        </ActionHint>
       ) : (
         trigger
       )}

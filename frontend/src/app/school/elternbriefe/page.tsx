@@ -48,6 +48,7 @@ import {
 } from "~/lib/parent-announcements-api";
 import { fetchClassDayClassesSchool } from "~/lib/school-class-day-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
+import { NO_OWN_CLASS_REASON } from "~/components/school/no-own-class";
 import {
   emptySchoolParentLetterDraft,
   SCHOOL_PARENT_LETTER_KINDS,
@@ -237,6 +238,8 @@ export default function SchoolParentLettersPage() {
           className="gap-1.5"
           onClick={openCreate}
           disabled={!!classesError || classes.length === 0}
+          disabledReason={noClasses ? NO_OWN_CLASS_REASON : undefined}
+          tooltip="Öffnet einen neuen Brief an die Eltern Ihrer Klasse."
         >
           <Plus className="h-4 w-4" aria-hidden />
           Neuer Elternbrief

@@ -11,7 +11,10 @@
   "share": "Ndaj",
   "homeScreen": "Shto në ekranin kryesor",
   "install": "Instalo aplikacionin",
+  "installTooltip": "Instalon moto si aplikacion, pajisja ju pyet më parë.",
   "addToHome": "Shto në ekranin kryesor",
   "openInChrome": "Hap në Chrome",
-  "close": "Mbyll njoftimin"
+  "openInChromeTooltip": "Hap këtë faqe në Chrome, ku mund ta instaloni moto.",
+  "close": "Mbyll njoftimin",
+  "closeTooltip": "Fsheh këtë njoftim përgjithmonë në këtë pajisje."
 }

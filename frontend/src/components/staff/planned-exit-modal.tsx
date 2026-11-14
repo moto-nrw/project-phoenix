@@ -101,6 +101,7 @@ export function PlannedExitModal({
         size="md"
         onClick={onClose}
         disabled={saving}
+        noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
       >
         Abbrechen
       </Button>
@@ -112,6 +113,14 @@ export function PlannedExitModal({
         isLoading={saving}
         loadingText="Wird gespeichert…"
         disabled={saving || day === "" || day < today}
+        disabledReason={
+          day === ""
+            ? "Wählen Sie zuerst den letzten Arbeitstag aus."
+            : day < today
+              ? "Der letzte Arbeitstag darf nicht in der Vergangenheit liegen."
+              : undefined
+        }
+        tooltip="Plant den Austritt, danach entzieht moto den Zugang und entfernt die Person."
       >
         {plannedDay ? "Speichern" : "Austritt planen"}
       </Button>

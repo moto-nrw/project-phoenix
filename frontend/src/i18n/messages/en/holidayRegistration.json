@@ -204,5 +204,17 @@
     "guardian": "Legal guardian",
     "relative": "Relative"
   },
-  "accountHintLoginTooltip": "Opens the sign-in, then brings you back here."
+  "accountHintLoginTooltip": "Opens the sign-in, then brings you back here.",
+  "addChildHint": "Adds another child to this registration.",
+  "removeChildHint": "Removes this child from the registration and discards its details.",
+  "addPickupHint": "Adds another person for emergencies or pick-up.",
+  "removeContactHint": "Removes this person from the registration.",
+  "toSummaryHint": "Shows all details for checking, without sending yet.",
+  "contributionRetryHint": "Calculates the fee again.",
+  "submitHint": "Sends the registration to the provider, who decides on the place.",
+  "submitBindingHint": "Registers your child with the provider as binding; the place is still open.",
+  "submitCaptchaPending": "Please complete the security check first.",
+  "submitUploadsPending": "Please wait until all files are uploaded.",
+  "doneToRegistrationsHint": "Opens the list of your holiday registrations.",
+  "doneToStatusHint": "Shows how far the provider has got with your registration."
 }

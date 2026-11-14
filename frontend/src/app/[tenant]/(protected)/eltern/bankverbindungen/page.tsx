@@ -241,6 +241,11 @@ function BankverbindungenContent() {
         <OverflowMenu
           ariaLabel="Weitere Aktionen"
           disabled={exportUnavailable}
+          disabledReason={
+            !isLoading && !loadFailed && rows.length === 0
+              ? "Es stehen noch keine Kinder in der Liste."
+              : undefined
+          }
           items={[
             {
               label: "Exportieren",

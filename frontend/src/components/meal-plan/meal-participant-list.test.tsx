@@ -655,9 +655,10 @@ describe("MealParticipantList", () => {
           "An diesem Tag ist die OGS geschlossen. Es gibt kein Essen.",
         ),
       ).toBeInTheDocument();
+      // Gesperrt mit Grund: aria-disabled statt disabled (#6643).
       expect(
         screen.getByRole("button", { name: "Anmeldung ändern" }),
-      ).toBeDisabled();
+      ).toHaveAttribute("aria-disabled", "true");
     });
 
     // Der Kopfknopf wählt kein Kind vor: das Kind wird im Fenster gewählt.
@@ -748,9 +749,10 @@ describe("MealParticipantList", () => {
       expect(
         (await screen.findAllByText("Muster, Mia")).length,
       ).toBeGreaterThan(0);
+      // Gesperrt mit Grund: aria-disabled statt disabled (#6643).
       expect(
         screen.getByRole("button", { name: "Anmeldung ändern" }),
-      ).toBeDisabled();
+      ).toHaveAttribute("aria-disabled", "true");
       expect(
         screen.queryByRole("button", { name: "Aktionen für Mia Muster" }),
       ).not.toBeInTheDocument();

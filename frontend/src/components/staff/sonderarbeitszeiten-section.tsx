@@ -318,6 +318,7 @@ export function SonderarbeitszeitenSection({
       variant="primary"
       size="md"
       onClick={openCreate}
+      tooltip="Öffnet ein Fenster für andere Stunden in einem Zeitraum."
       className="shrink-0 gap-2"
     >
       <Plus className="h-4 w-4" aria-hidden="true" />
@@ -352,6 +353,8 @@ export function SonderarbeitszeitenSection({
           {
             label: "Löschen",
             destructive: true,
+            description:
+              "Löscht die Sonderarbeitszeit, moto fragt vorher nach.",
             onClick: () => {
               deleteErrors.clear();
               setDeleteTarget(row);
@@ -413,6 +416,7 @@ export function SonderarbeitszeitenSection({
               size="md"
               onClick={() => setDraft(null)}
               disabled={saving}
+              noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
             >
               Abbrechen
             </Button>
@@ -421,9 +425,11 @@ export function SonderarbeitszeitenSection({
               variant="primary"
               size="md"
               onClick={() => void handleSave()}
-              disabled={saving}
+              isLoading={saving}
+              loadingText="Speichert…"
+              tooltip="Speichert die Stunden, das Soll der Person ändert sich dann."
             >
-              {saving ? "Speichert…" : "Speichern"}
+              Speichern
             </Button>
           </div>
         }

@@ -35,14 +35,13 @@ export const TenantScope: Story = {
         : undefined,
     ),
   args: {
-    scope: "tenant",
+    target: { kind: "tenant" },
   },
 };
 
 export const OperatorScope: Story = {
   args: {
-    scope: "operator",
-    schoolId: "1",
+    target: { kind: "operator", schoolId: "1" },
   },
 };
 

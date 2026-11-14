@@ -113,7 +113,7 @@ describe("StaffTimeExportModal", () => {
 
     expect(
       screen.getByRole("button", { name: "Dezimalstunden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText(/Zeitformat gilt nur für Monatssummen/),
     ).toBeInTheDocument();
@@ -144,10 +144,10 @@ describe("StaffTimeExportModal", () => {
     // Zeitraum und Detailgrad sind bei DATEV fixiert.
     expect(
       screen.getByRole("button", { name: "Gesamtes Jahr 2026" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByRole("button", { name: "Einzelne Tage" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(fetchReportMock).toHaveBeenCalledWith(2026, 6, "datev_lodas");
 
     fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
@@ -184,7 +184,7 @@ describe("StaffTimeExportModal", () => {
     expect(screen.getByText(/Fortbildung/)).toBeInTheDocument();
     expect(screen.getByText(/noch nicht abgeschlossen/)).toBeInTheDocument();
     const exportButton = screen.getByRole("button", { name: "Exportieren" });
-    expect(exportButton).toBeDisabled();
+    expect(exportButton).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(exportButton);
     expect(globalThis.location.href).toBe("");
   });
@@ -206,7 +206,10 @@ describe("StaffTimeExportModal", () => {
         ),
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Exportieren" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Exportieren" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("requires a successful report for the currently selected DATEV format", async () => {
@@ -227,21 +230,30 @@ describe("StaffTimeExportModal", () => {
     );
     expect(
       screen.getByRole("button", { name: "Exportieren" }),
+    ).not.toHaveAttribute("aria-disabled");
+    expect(
+      screen.getByRole("button", { name: "Exportieren" }),
     ).not.toBeDisabled();
 
     fireEvent.click(
       screen.getByRole("button", { name: "DATEV Lohn und Gehalt" }),
     );
 
-    expect(screen.getByRole("button", { name: "Exportieren" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Exportieren" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(fetchReportMock).toHaveBeenLastCalledWith(2026, 6, "datev_lug");
 
     resolveSecondReport(emptyReport);
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: "Exportieren" }),
-      ).not.toBeDisabled(),
+      ).not.toHaveAttribute("aria-disabled"),
     );
+    expect(
+      screen.getByRole("button", { name: "Exportieren" }),
+    ).not.toBeDisabled();
   });
 
   it("keeps the DATEV download blocked after a report failure and allows retrying", async () => {
@@ -260,7 +272,10 @@ describe("StaffTimeExportModal", () => {
         catalogText("general.unavailable", "die Vorschau der DATEV-Datei"),
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Exportieren" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Exportieren" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(globalThis.location.href).toBe("");
     const callsBeforeRetry = fetchReportMock.mock.calls.length;
 
@@ -270,6 +285,9 @@ describe("StaffTimeExportModal", () => {
       expect(screen.getByText(/12 Buchungszeilen/)).toBeInTheDocument(),
     );
     expect(fetchReportMock).toHaveBeenCalledTimes(callsBeforeRetry + 1);
+    expect(
+      screen.getByRole("button", { name: "Exportieren" }),
+    ).not.toHaveAttribute("aria-disabled");
     expect(
       screen.getByRole("button", { name: "Exportieren" }),
     ).not.toBeDisabled();
@@ -317,7 +335,7 @@ describe("StaffTimeExportModal", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "An die Gegenstelle übertragen" }),
-      ).toBeDisabled();
+      ).toHaveAttribute("aria-disabled", "true");
       expect(
         screen.getByRole("button", { name: "Exportieren" }),
       ).toBeInTheDocument();
@@ -336,6 +354,7 @@ describe("StaffTimeExportModal", () => {
       const option = await screen.findByRole("button", {
         name: "An die Gegenstelle übertragen",
       });
+      expect(option).not.toHaveAttribute("aria-disabled");
       expect(option).not.toBeDisabled();
       fireEvent.click(option);
 
