@@ -495,6 +495,7 @@ export function ZeiterfassungTab({
               </>
             }
             submitLabel="Monat wieder öffnen"
+            submitTooltip="Hebt den Abschluss dieses Monats nur für diese Person auf."
             successMessage="Der Monat ist wieder geöffnet."
             errorObject="das Öffnen des Monats"
             destructive

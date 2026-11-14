@@ -392,7 +392,10 @@ describe("ShiftMoveDialog person change", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Diese Dienstart ist inaktiv",
     );
-    expect(screen.getByRole("button", { name: "Verschieben" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Verschieben" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(staffShiftService.moveShift).not.toHaveBeenCalled();
   });
 

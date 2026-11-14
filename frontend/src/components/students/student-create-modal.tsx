@@ -652,6 +652,7 @@ export function StudentCreateModal({
                       href={tenantPath("/enrollment-phases")}
                       variant="surface"
                       size="compact"
+                      tooltip="Wechselt zu den Anmeldephasen, Ihre Eingaben hier gehen verloren."
                     >
                       Anmeldephasen öffnen
                     </ButtonLink>
@@ -821,6 +822,7 @@ export function StudentCreateModal({
                                   onClick={() => removeGuardian(index)}
                                   disabled={save.pending}
                                   aria-label="Erziehungsberechtigte/n entfernen"
+                                  tooltip="Nimmt diese Person wieder aus dem Formular."
                                   className="shrink-0"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -848,6 +850,7 @@ export function StudentCreateModal({
                             size="md"
                             onClick={() => setGuardianModalOpen(true)}
                             disabled={save.pending}
+                            tooltip="Öffnet das Formular für eine neue Person bei diesem Kind."
                             className="flex-1 gap-2"
                           >
                             <Plus className="h-4 w-4" />
@@ -859,6 +862,7 @@ export function StudentCreateModal({
                             size="md"
                             onClick={() => setGuardianPickerOpen(true)}
                             disabled={save.pending}
+                            tooltip="Sucht eine Person, die schon bei einem anderen Kind eingetragen ist."
                             className="flex-1 gap-2"
                           >
                             <Search className="h-4 w-4" />
@@ -913,6 +917,7 @@ export function StudentCreateModal({
                           }}
                           disabled={save.pending}
                           aria-label="Betreuungszeiten entfernen"
+                          tooltip="Nimmt den Wochenplan wieder aus dem Formular."
                           className="shrink-0"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -926,6 +931,7 @@ export function StudentCreateModal({
                       size="md"
                       onClick={handleOpenCarePlan}
                       disabled={save.pending}
+                      tooltip="Öffnet Ankunft und Abholung für jeden Wochentag."
                       className="w-full gap-2"
                     >
                       <Plus className="h-4 w-4" />
@@ -993,6 +999,7 @@ export function StudentCreateModal({
                 size="md"
                 onClick={onClose}
                 disabled={save.pending}
+                noTooltip="Schließt das Formular, ohne etwas anzulegen."
                 className="flex-1"
               >
                 Abbrechen
@@ -1003,6 +1010,11 @@ export function StudentCreateModal({
                   variant="primary"
                   size="md"
                   data-setup-tour="student-submit"
+                  tooltip={
+                    mode === "list-entry"
+                      ? "Legt den Eintrag mit Name und Klasse an, ohne Betreuung."
+                      : "Legt das Kind an, Eltern bekommen dabei keine Einladung."
+                  }
                   isLoading={save.pending}
                   loadingText="Wird erstellt..."
                   className="flex-1"

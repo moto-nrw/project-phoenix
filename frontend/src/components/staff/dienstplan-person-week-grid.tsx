@@ -528,6 +528,7 @@ export function DienstplanPersonWeekGrid({
                           className="shrink-0"
                           disabled={closingDaysLoading}
                           aria-label={`Schicht anlegen, ${label}`}
+                          tooltip="Öffnet ein Fenster für eine neue Schicht an diesem Tag."
                           onClick={() =>
                             requestCreate(
                               date,
