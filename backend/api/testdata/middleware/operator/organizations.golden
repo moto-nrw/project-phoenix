@@ -4,11 +4,13 @@
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.ParseVerified > modules/identityaccess/sessiontoken.RequireLiveSession.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > github.com/go-chi/jwtauth/v5.Verify# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > modules/identityaccess/inbound/operator.RequiresOperatorScope > api.SecurityPrincipalMiddleware > modules/identityaccess/inbound/operator.RequiresActiveOperator#
 	DELETE /operator/organizations/{id}/beleg-retention/suspensions/{suspensionId}
 	DELETE /operator/organizations/{id}/erasure-order
+	DELETE /operator/organizations/{id}/staff-release
 	DELETE /operator/organizations/{id}/traeger-members/invitations/{invitationId}
 	DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa
 	DELETE /operator/organizations/{id}/traeger-settings/values/{key}
 	GET /operator/organizations/{id}/beleg-retention
 	GET /operator/organizations/{id}/erasure-order
+	GET /operator/organizations/{id}/staff-release
 	GET /operator/organizations/{id}/traeger-members
 	GET /operator/organizations/{id}/traeger-members/invitations
 	GET /operator/organizations/{id}/traeger-settings/schema
@@ -18,6 +20,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /operator/organizations/{id}/beleg-retention/suspensions
 	POST /operator/organizations/{id}/erasure-order
 	POST /operator/organizations/{id}/sample-children
+	POST /operator/organizations/{id}/staff-release
 	POST /operator/organizations/{id}/traeger-members
 	POST /operator/organizations/{id}/traeger-members/invitations
 	POST /operator/organizations/{id}/traeger-members/invitations/{invitationId}/resend

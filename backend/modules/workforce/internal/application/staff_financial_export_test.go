@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // #6412: the return export opens a staff member's IBAN, tax ID and social
@@ -60,4 +63,30 @@ func TestStaffBankExportFieldsOpenOnlyTheirOwnRow(t *testing.T) {
 			t.Fatalf("%s: got %q, %v", name, value, err)
 		}
 	}
+}
+
+// TestTraegerStaffValuesOpenForTheTraegerReturnExport pins #4705: the
+// return export of a Träger opens the sealed bank values of its staff
+// records and of their trail with the context of their record; a value
+// copied into another record does not open.
+func TestTraegerStaffValuesOpenForTheTraegerReturnExport(t *testing.T) {
+	t.Parallel()
+	fields := NewStaffBankExportFields(fakeBankCipher{})
+	sealed, err := fakeBankCipher{}.Seal([]byte("DE89370400440532013000"), recordBankContext("iban", 7, 42))
+	require.NoError(t, err)
+	record := map[string]json.RawMessage{"organization_id": json.RawMessage("7"), "id": json.RawMessage("42")}
+
+	opened, err := fields.OpenExportField("workforce.staff_records", "iban_sealed", record, sealed)
+	require.NoError(t, err)
+	assert.Equal(t, "DE89370400440532013000", opened)
+	_, err = fields.OpenExportField("workforce.staff_records", "iban_sealed", map[string]json.RawMessage{"organization_id": json.RawMessage("7"), "id": json.RawMessage("43")}, sealed)
+	require.Error(t, err, "a value copied into another record does not open")
+
+	trail, err := fakeBankCipher{}.Seal([]byte("12345678901"), changeBankContext("tax_id", 7, 42))
+	require.NoError(t, err)
+	opened, err = fields.OpenExportField("workforce.staff_record_changes", "value_sealed", map[string]json.RawMessage{
+		"organization_id": json.RawMessage("7"), "staff_record_id": json.RawMessage("42"), "field": json.RawMessage(`"tax_id"`),
+	}, trail)
+	require.NoError(t, err)
+	assert.Equal(t, "12345678901", opened)
 }

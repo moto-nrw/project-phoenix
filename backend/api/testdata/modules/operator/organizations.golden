@@ -1,6 +1,7 @@
 DELETE /operator/organizations/{id} -> basis
 DELETE /operator/organizations/{id}/beleg-retention/suspensions/{suspensionId} -> basis
 DELETE /operator/organizations/{id}/erasure-order -> basis
+DELETE /operator/organizations/{id}/staff-release -> basis
 DELETE /operator/organizations/{id}/traeger-members/invitations/{invitationId} -> basis
 DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa -> basis
 DELETE /operator/organizations/{id}/traeger-settings/values/{key} -> basis
@@ -12,6 +13,7 @@ GET /operator/organizations/{id}/devices -> basis
 GET /operator/organizations/{id}/erasure-order -> basis
 GET /operator/organizations/{id}/persons -> basis
 GET /operator/organizations/{id}/schools -> basis
+GET /operator/organizations/{id}/staff-release -> basis
 GET /operator/organizations/{id}/traeger-members -> basis
 GET /operator/organizations/{id}/traeger-members/invitations -> basis
 GET /operator/organizations/{id}/traeger-settings/schema -> basis
@@ -23,6 +25,7 @@ POST /operator/organizations/{id}/beleg-retention/suspensions -> basis
 POST /operator/organizations/{id}/erasure-order -> basis
 POST /operator/organizations/{id}/restore -> basis
 POST /operator/organizations/{id}/sample-children -> basis
+POST /operator/organizations/{id}/staff-release -> basis
 POST /operator/organizations/{id}/traeger-members -> basis
 POST /operator/organizations/{id}/traeger-members/invitations -> basis
 POST /operator/organizations/{id}/traeger-members/invitations/{invitationId}/resend -> basis

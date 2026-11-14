@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -12,28 +12,26 @@ import (
 	"github.com/moto-ogs/project-phoenix/api/common"
 	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
-	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
-	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-ogs/project-phoenix/modules/workforce"
 	"github.com/moto-ogs/project-phoenix/modules/workforce/http/traegerstaff"
 	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // mountTraegerStaffRoutes serves the Personalstamm of ADR 0089 (#4705) at
-// /traeger/staff-records behind the Träger right „Personal“.
-func mountTraegerStaffRoutes(root chi.Router, db transactionruntime.Database, env owners.RootEnvironment, organizations HolidayOrganizations,
-	persons peopledirectory.Capability, membership schoolmembership.Capability, people owners.PeopleRows, audit owners.AuditOwner,
+// /traeger/staff-records behind the Träger right „Personal“, over the
+// personnel record staffAdmin the root built for the schools.
+func mountTraegerStaffRoutes(root chi.Router, staffAdmin *workforce.StaffAdmin, organizations HolidayOrganizations,
+	persons TraegerPersons, membership TraegerStaff, accessLog owners.DataAccessAppender,
 ) error {
-	staffAdmin, err := owners.BuildWorkforceStaffAdmin(db, env, persons, membership, people, audit)
-	if err != nil {
-		return fmt.Errorf("traeger staff records: %w", err)
+	if staffAdmin == nil {
+		return errors.New("traeger staff records: the personnel record is required")
 	}
 	records := staffAdmin.TraegerStaffRecords(workforce.TraegerStaffPorts{
 		Schools:     traegerStaffSchools{organizations: organizations},
 		Employments: traegerSchoolEmployments{staff: membership},
 		Persons:     traegerSchoolPersons{persons: persons},
-		Access:      traegerStaffAccessLog{log: audit.Persistence.DataAccessLog},
+		Access:      traegerStaffAccessLog{log: accessLog},
 		Runtime:     traegerDocumentRuntime{},
 	})
 	resource := traegerstaff.NewRecordsResource(records, common.RequiresPermission(identityaccess.TraegerRightStaffManage))
@@ -70,7 +68,7 @@ func (s traegerStaffSchools) TraegerSchools(ctx context.Context, organizationID 
 // tenant transaction from School Membership. External caregivers are no
 // staff of the Träger (ADR 0089 section 1) and stay out.
 type traegerSchoolEmployments struct {
-	staff schoolmembership.Capability
+	staff TraegerStaff
 }
 
 func (s traegerSchoolEmployments) SchoolEmployments(ctx context.Context, staffIDs []int64) ([]workforce.TraegerSchoolEmployment, error) {
@@ -91,7 +89,7 @@ func (s traegerSchoolEmployments) SchoolEmployments(ctx context.Context, staffID
 // traegerSchoolPersons reads the persons behind the employments from the
 // People Directory.
 type traegerSchoolPersons struct {
-	persons peopledirectory.Capability
+	persons TraegerPersons
 }
 
 func (p traegerSchoolPersons) SchoolPersons(ctx context.Context, personIDs []int64) ([]workforce.TraegerSchoolPerson, error) {
