@@ -223,6 +223,11 @@ func suggestImportMapping(headers []string) parentbilling.SEPAMandateImportMappi
 	if payer := importHeaderKey(mapping.Columns.Payer); payer != "" && !strings.Contains(payer, "mail") {
 		mapping.PayerKey = parentbilling.PayerByContract
 	}
+	// A file without contract numbers and addresses names its payers by the
+	// debtor number (#7009), as the master data of OGS Connect does.
+	if mapping.Columns.Payer == "" && mapping.Columns.DebtorNumber != "" {
+		mapping.Columns.Payer, mapping.PayerKey = mapping.Columns.DebtorNumber, parentbilling.PayerByDebtorNumber
+	}
 	return mapping
 }
 

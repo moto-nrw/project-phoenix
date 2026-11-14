@@ -394,6 +394,7 @@ func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, p
 		Generation:           predecessor.Generation + 1,
 		PortalScope:          domain.PersistedPortalScope(scope),
 		MFAVerified:          predecessor.MFAVerified,
+		MFAByDevice:          predecessor.MFAByDevice,
 		CreatedAt:            now,
 		UpdatedAt:            now,
 	}

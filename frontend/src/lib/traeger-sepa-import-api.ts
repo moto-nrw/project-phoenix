@@ -28,10 +28,17 @@ export type ImportField =
   | "last_collected_on"
   | "debtor_number";
 
-export type PayerKey = "email" | "contract_id";
+/** debtor_number: the number moto keeps, per child or per payer (#7009). */
+export type PayerKey = "email" | "contract_id" | "debtor_number";
 
 export type ImportRowStatus =
-  "ready" | "clarify" | "duplicate" | "conflict" | "invalid" | "imported";
+  | "ready"
+  | "clarify"
+  | "duplicate"
+  | "same_mandate"
+  | "conflict"
+  | "invalid"
+  | "imported";
 
 /** Header of the column each field comes from; "" leaves it unmapped. */
 type ImportColumns = Readonly<Record<ImportField, string>>;
@@ -68,6 +75,11 @@ export interface ImportRow {
   readonly hints: readonly string[];
   /** Debtor number of the row for the family (#4693), "" without the column. */
   readonly debtorNumber: string;
+  /**
+   * The line whose mandate a sibling's row repeats (#7009); null for every
+   * other row.
+   */
+  readonly sameMandateLine: number | null;
   readonly debtorNumberStatus: DebtorNumberStatus | "";
 }
 
@@ -149,6 +161,7 @@ interface BackendRow {
   hints: string[] | null;
   debtor_number?: string;
   debtor_number_status?: DebtorNumberStatus;
+  same_mandate_line?: number;
 }
 
 interface BackendResult {
@@ -203,6 +216,7 @@ function mapRow(row: BackendRow): ImportRow {
     hints: row.hints ?? [],
     debtorNumber: row.debtor_number ?? "",
     debtorNumberStatus: row.debtor_number_status ?? "",
+    sameMandateLine: row.same_mandate_line ?? null,
   };
 }
 

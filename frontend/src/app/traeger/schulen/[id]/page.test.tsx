@@ -6,19 +6,22 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
-const { mockFetchSchool, mockStartSession, mockUseSession } = vi.hoisted(
-  () => ({
+const { mockFetchSchool, mockStartSession, mockUseSession, mockSignOut } =
+  vi.hoisted(() => ({
     mockFetchSchool: vi.fn(),
     mockStartSession: vi.fn(),
     mockUseSession: vi.fn(),
-  }),
-);
+    mockSignOut: vi.fn(),
+  }));
 
 vi.mock("~/lib/traeger-url", () => ({
   traegerPath: (path: string) => path,
 }));
 
-vi.mock("next-auth/react", () => ({ useSession: mockUseSession }));
+vi.mock("next-auth/react", () => ({
+  useSession: mockUseSession,
+  signOut: mockSignOut,
+}));
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "2" }),
   usePathname: () => "/schulen/2",
@@ -169,6 +172,59 @@ describe("TraegerSchoolPage", () => {
     expect(openSpy).toHaveBeenCalledWith("", "_blank");
     expect(mockStartSession).toHaveBeenCalledWith("2");
     openSpy.mockRestore();
+  });
+
+  // A school without remembered devices asks for the code (#6955): the
+  // refusal offers to sign in again, and that sign-in ignores the device.
+  it("offers a sign-in with code when the school refuses a remembered device", async () => {
+    mockUseSession.mockReturnValue(
+      sessionWith(["traeger_overview:read", "traeger_school:switch"]),
+    );
+    mockFetchSchool.mockResolvedValue(SCHOOL);
+    mockStartSession.mockRejectedValue(
+      new ApiError("refused", 403, { code: "traeger.school_requires_code" }),
+    );
+    mockSignOut.mockResolvedValue(undefined);
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
+    const openSpy = vi.spyOn(globalThis, "open").mockReturnValue(null);
+    const revoke = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    localStorage.setItem("supervision-last-session", "Gruppe Sonne");
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Schul-App öffnen: OGS Am Bach, neuer Tab",
+      }),
+    );
+    expect(
+      await screen.findByText(
+        catalogText("traeger.school_requires_code", "die Schule"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mit Code neu anmelden" }),
+    );
+
+    await vi.waitFor(() =>
+      expect(assign).toHaveBeenCalledWith("/traeger/login"),
+    );
+    // Without the shell the full portal logout runs: the server revokes
+    // the session before the cookie goes, and the account's data goes too.
+    expect(revoke).toHaveBeenCalledWith(
+      "/api/traeger/auth/logout",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    expect(localStorage.getItem("supervision-last-session")).toBeNull();
+    expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBe("1");
+    sessionStorage.clear();
+    assign.mockRestore();
+    openSpy.mockRestore();
+    revoke.mockRestore();
   });
 
   it("shows a refused school instead of figures", async () => {

@@ -906,7 +906,23 @@ Backend paths in this section are relative to `backend/`:
   `POST /auth/switch-tenant` (a second tab of the same Träger) re-check the
   active membership, the right, an active school of that Träger and the
   second-factor proof inherited from the Träger session; failures answer 404
-  `traeger.school_not_found`, 403, or 401 `identity.mfa_session_required`. A
+  `traeger.school_not_found`, 403, or 401 `identity.mfa_session_required`.
+  A Träger session whose factor only a remembered device proved
+  (`auth.tokens.mfa_by_device`, carried by refresh, Absprung and switch) is
+  refused with 403 `traeger.school_requires_code` at a school whose
+  `security.mfa_trusted_device_enabled` is off or unreadable (#6955), on
+  `POST /traeger/school-sessions` and on `POST /auth/switch-tenant` of a
+  Träger school session into a school of the Träger where the account holds
+  no mapping. The Träger portal then runs its logout (revoke, clear, session
+  barrier) and signs in once without the device cookie (the BFF drops it for
+  `ignore_trusted_device`); the school app links to the Träger login with
+  `?mit-code=1`, where a running Träger session ends only through the button
+  „Abmelden und mit Code anmelden“, never by the visit. A switch into a
+  school where the account holds its own mapping, and a switch between the
+  account's own schools, answer 401 `identity.mfa_session_required` and sign
+  in at the target school. The school's
+  `mfa_trusted_device_days` is not applied at the Absprung; an in-session
+  code step instead of the new sign-in is #7068. A
   switch to a school where the account holds its own mapping keeps its own
   role. Every Absprung writes `traeger_school_switch` (metadata
   `organization_id`) to the school's `audit.auth_events` in the mint

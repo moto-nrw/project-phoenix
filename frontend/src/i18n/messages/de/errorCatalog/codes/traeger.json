@@ -25,6 +25,7 @@
   "member_not_found": "Diese Person gehört nicht mehr zum Träger-Büro. Bitte laden Sie die Seite neu.",
   "no_membership": "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team.",
   "school_not_found": "Diese Schule gehört nicht zu Ihrem Träger. Bitte laden Sie die Seite neu.",
+  "school_requires_code": "Diese Schule verlangt jetzt eine Anmeldung mit Code. Bitte melden Sie sich im Träger-Portal neu an.",
   "second_factor_required": "Zum Öffnen einer Schule brauchen Sie einen zweiten Anmeldenachweis. Bitte melden Sie sich im Träger-Portal neu an.",
   "shared_document_not_found": "Der Träger hat dieses Dokument nicht mehr freigegeben. Bitte laden Sie die Seite neu."
 }
