@@ -77,5 +77,14 @@
   "payroll_wage_type_name_taken": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "qualification_type_name_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "qualification_type_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "work_time_model_archived": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+  "work_time_model_archived": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "staff_kept_by_traeger": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "traeger_staff_already_linked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "traeger_staff_link_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "traeger_staff_not_released": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "traeger_staff_record_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "traeger_staff_release_exists": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "traeger_staff_release_in_use": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "traeger_staff_release_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "traeger_staff_release_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
 }

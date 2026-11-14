@@ -131,6 +131,7 @@ func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, absen
 		OffboardingCleanup: cleanup,
 		DocumentFiles:      documentFiles,
 		Staff:              capabilities.Staff,
+		TraegerKeep:        capabilities.TraegerKeep,
 		Documents:          capabilities.Documents,
 		WorkSessions:       capabilities.WorkSessions,
 		StaffAbsences:      capabilities.StaffAbsences,

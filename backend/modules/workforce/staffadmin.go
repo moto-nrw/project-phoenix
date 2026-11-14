@@ -137,6 +137,10 @@ type StaffFinancialMasked struct {
 	IBANMasked                 *string
 	TaxIDMasked                *string
 	SocialSecurityNumberMasked *string
+	// KeptByTraeger is true when the Träger keeps the values in its staff
+	// record (#4705, ADR 0089 section 6); the school then holds none and
+	// changes neither them nor the personnel number.
+	KeptByTraeger bool
 }
 
 // StaffFinancialPlain carries the unmasked values after an audited reveal.

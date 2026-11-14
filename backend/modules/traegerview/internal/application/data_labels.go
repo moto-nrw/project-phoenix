@@ -47,6 +47,8 @@ var dataLabels = map[string]string{
 	"care_contracts":                      "Betreuungsverträge",
 	"care_time_overruns":                  "Kinder mit längerer Betreuung als gebucht",
 	"traeger_document_download":           "Dokument des Trägers (heruntergeladen)",
+	"traeger_staff_records":               "Personalakten des Trägers",
+	"traeger_staff_financial":             "Bank- und Steuerdaten einer Personalakte",
 	"student_record":                      "Angaben zu einem Kind",
 	"guardian_record":                     "Angaben zu Eltern",
 	"guardian_bank_details":               "Bankverbindung von Eltern",

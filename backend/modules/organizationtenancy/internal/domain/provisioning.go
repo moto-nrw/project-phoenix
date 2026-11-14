@@ -50,6 +50,10 @@ const (
 	// operator read or changed (#4720, ADR 0184); the resource ID is the
 	// Träger.
 	AuditResourceBelegRetention = "beleg_retention"
+	// AuditResourceTraegerStaffRelease is the release „Personal beim Träger“
+	// the operator read, granted or withdrew (#4705, ADR 0089 section 2); the
+	// resource ID is the Träger.
+	AuditResourceTraegerStaffRelease = "traeger_staff_release"
 )
 
 // Device vocabulary shared with Device Fleet.

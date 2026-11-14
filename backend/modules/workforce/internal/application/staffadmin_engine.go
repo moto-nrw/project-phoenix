@@ -263,6 +263,7 @@ func MapStaffAdminError(err error) error {
 		{domain.ErrStaffPersonnelNumberTaken, workforce.ErrPersonnelNumberTaken},
 		{domain.ErrPersonnelNumberInvalid, workforce.ErrPersonnelNumberInvalid},
 		{domain.ErrStaffStammdatenInvalid, workforce.ErrStaffStammdatenInvalid},
+		{domain.ErrStaffKeptByTraeger, workforce.ErrStaffKeptByTraeger},
 	} {
 		if errors.Is(err, pair.cause) {
 			return &workforce.StaffAdminError{Kind: pair.kind, Cause: err}

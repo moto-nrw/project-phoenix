@@ -99,17 +99,34 @@ type staffAdminEngine interface {
 	StaffDocuments
 }
 
+// staffAdminTraeger is the Träger side of the personnel record (#4705).
+type staffAdminTraeger interface {
+	StaffTraegerKeep
+	TraegerStaffRecords(collaborators TraegerStaffPorts) TraegerStaffRecords
+}
+
+// StaffTraegerKeep tells the school whether its Träger keeps an employment
+// in its staff record (#4705, ADR 0089 section 6): the personnel number and
+// the bank and tax values are then the Träger's, read-only for the school.
+type StaffTraegerKeep interface {
+	StaffKeptByTraeger(ctx context.Context, staffID int64) (bool, error)
+}
+
 // StaffAdmin is the public facade of the personnel-record administration: the
 // Stammdaten sections, the payroll number, the audited financial reads and
-// the Dokumente tab. It serves StaffRecordAdmin and StaffDocuments.
-type StaffAdmin struct{ engine staffAdminEngine }
+// the Dokumente tab. It serves StaffRecordAdmin, StaffDocuments and
+// StaffTraegerKeep.
+type StaffAdmin struct {
+	engine  staffAdminEngine
+	traeger staffAdminTraeger
+}
 
-// NewStaffAdmin wraps the composed engine.
-func NewStaffAdmin(engine staffAdminEngine) *StaffAdmin {
-	if engine == nil {
-		panic("workforce: staff admin engine is required")
+// NewStaffAdmin wraps the composed engine and its Träger side.
+func NewStaffAdmin(engine staffAdminEngine, traeger staffAdminTraeger) *StaffAdmin {
+	if engine == nil || traeger == nil {
+		panic("workforce: staff admin engine and its Träger side are required")
 	}
-	return &StaffAdmin{engine: engine}
+	return &StaffAdmin{engine: engine, traeger: traeger}
 }
 
 func (a *StaffAdmin) UpdatePersonnelNumber(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*StaffProfile, error) {
@@ -210,4 +227,14 @@ func (a *StaffAdmin) MarkQueuedStaffDocumentFileCleanupCompleteByFilename(ctx co
 
 func (a *StaffAdmin) ActivateQueuedStaffDocumentFileCleanup(ctx context.Context, storedName string) error {
 	return a.engine.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName)
+}
+
+func (a *StaffAdmin) StaffKeptByTraeger(ctx context.Context, staffID int64) (bool, error) {
+	return a.traeger.StaffKeptByTraeger(ctx, staffID)
+}
+
+// TraegerStaffRecords is the Personalstamm of the Träger-Portal (#4705, ADR
+// 0089) over this personnel record; the root binds the collaborators.
+func (a *StaffAdmin) TraegerStaffRecords(collaborators TraegerStaffPorts) TraegerStaffRecords {
+	return a.traeger.TraegerStaffRecords(collaborators)
 }

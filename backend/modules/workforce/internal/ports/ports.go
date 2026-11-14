@@ -372,3 +372,36 @@ type StaffAdminAudit interface {
 	RecordPersonnelNumberChange(context.Context, domain.PersonnelNumberChange) error
 	RecordDataAccess(context.Context, domain.DataAccess) error
 }
+
+// TraegerStaffStore is the persistence of the Personalstamm (#4705). The
+// Träger methods join the Träger transaction of the record's Träger, the
+// school methods the tenant transaction of one school, the release methods
+// the administrative transaction of the moto team.
+type TraegerStaffStore interface {
+	TraegerStaffRelease(ctx context.Context, organizationID int64) (*domain.TraegerStaffRelease, error)
+	ListStaffRecords(ctx context.Context, organizationID int64) ([]domain.TraegerStaffRecord, error)
+	FindStaffRecord(ctx context.Context, organizationID, recordID int64, forUpdate bool) (domain.TraegerStaffRecord, error)
+	LinkedEmployments(ctx context.Context, organizationID int64, schoolIDs, staffIDs []int64) ([]domain.TraegerStaffLink, error)
+	SaveStaffRecord(ctx context.Context, record domain.TraegerStaffRecord) (int64, error)
+	SealStaffRecord(ctx context.Context, record domain.TraegerStaffRecord) error
+	InsertStaffLinks(ctx context.Context, organizationID, recordID, accountID int64, links []domain.TraegerStaffLink) error
+	AppendStaffChanges(ctx context.Context, organizationID int64, changes []domain.TraegerStaffChange) error
+	ListStaffChanges(ctx context.Context, organizationID, recordID int64, limit int) ([]domain.TraegerStaffChange, error)
+	DeleteStaffRecord(ctx context.Context, organizationID, recordID int64) error
+
+	TraegerStaffKeep
+	SchoolFinancialRows(ctx context.Context, staffIDs []int64) ([]domain.StaffFinancialData, error)
+	DeleteSchoolFinancialRow(ctx context.Context, staffID int64) error
+	InsertSchoolFinancialRow(ctx context.Context, data domain.StaffFinancialData) error
+
+	ReleaseOfTraeger(ctx context.Context, organizationID int64) (*domain.TraegerStaffRelease, error)
+	CountStaffRecords(ctx context.Context, organizationID int64) (int, error)
+	InsertRelease(ctx context.Context, release domain.TraegerStaffRelease) (domain.TraegerStaffRelease, error)
+	DeleteRelease(ctx context.Context, organizationID int64) (bool, error)
+}
+
+// TraegerStaffKeep tells the school which of its employments a record of
+// its Träger holds, in the school's tenant transaction.
+type TraegerStaffKeep interface {
+	KeptStaffIDs(ctx context.Context, staffIDs []int64) ([]int64, error)
+}

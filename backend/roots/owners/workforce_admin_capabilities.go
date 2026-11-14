@@ -24,6 +24,9 @@ type WorkforceAdminCapabilities struct {
 	Overview           workforceModule.StaffOverview
 	AuditLog           workforceModule.TimeTrackingAuditLog
 	TimeExport         workforceModule.StaffTimeExport
+	// TraegerKeep tells the school which employments its Träger keeps in
+	// its staff records (#4705).
+	TraegerKeep workforceModule.StaffTraegerKeep
 }
 
 // NewWorkforceAdminCapabilities bundles the staff directory and the
@@ -34,6 +37,7 @@ func NewWorkforceAdminCapabilities(people peoplePorts.PersonDirectory, staffAdmi
 	capabilities := WorkforceAdminCapabilities{Staff: newStaffDirectoryCapability(people, staffAdmin)}
 	if staffAdmin != nil {
 		capabilities.Documents = staffAdmin
+		capabilities.TraegerKeep = staffAdmin
 	}
 	if timeTracking != nil {
 		capabilities.WorkSessions = timeTracking.WorkSessions

@@ -89,6 +89,26 @@ function Value({
   return <span className="font-normal text-gray-400">{emptyText}</span>;
 }
 
+/**
+ * Der Hinweis, dass der Träger einen Wert in seiner Personalakte führt
+ * (#4705, ADR 0089 Abschnitt 6): Die Schule sieht, wer ändert und wohin sie
+ * sich wendet.
+ */
+function TraegerKeepsNotice({ what }: { readonly what: string }) {
+  return (
+    <InsetPanel className="flex items-start gap-2">
+      <Lock
+        className="mt-0.5 h-4 w-4 shrink-0 text-gray-400"
+        aria-hidden="true"
+      />
+      <p className="text-sm text-gray-600">
+        {what} führt der Träger in seiner Personalakte. Ändern kann sie die
+        Personalverwaltung des Trägers.
+      </p>
+    </InsetPanel>
+  );
+}
+
 export function StammdatenTab({
   staffId,
   canManagePayroll,
@@ -110,7 +130,7 @@ export function StammdatenTab({
   const berlinToday = useBerlinToday();
 
   const {
-    data: personnelNumber,
+    data: payroll,
     error: payrollError,
     isLoading: payrollLoading,
     mutate: mutatePayroll,
@@ -221,8 +241,14 @@ export function StammdatenTab({
     qualificationEntries,
     berlinToday,
   );
-  const payrollEditable = canManagePayroll && !payrollLoading;
-  const financialEditable = canViewFinancial && !financialError;
+  // Führt der Träger die Person in seiner Personalakte, sind Personalnummer
+  // und Bankdaten seine (#4705); die Schule sieht sie nur.
+  const personnelNumber = payroll?.personnelNumber ?? null;
+  const payrollKept = payroll?.keptByTraeger === true;
+  const financialKept = financial?.keptByTraeger === true;
+  const payrollEditable = canManagePayroll && !payrollLoading && !payrollKept;
+  const financialEditable =
+    canViewFinancial && !financialError && !financialKept;
   const canStartEditing =
     !readOnly && (sectionsEditable || payrollEditable || financialEditable);
 
@@ -747,18 +773,20 @@ export function StammdatenTab({
           {editing && draft && payrollEditable ? (
             <PersonnelNumberFields draft={draft} onChange={patchDraft} />
           ) : (
-            <DataGrid>
-              {payrollLoading ? (
-                <DataFieldSkeleton />
-              ) : (
-                <DataField label="Personalnummer" mono>
-                  <Value
-                    value={personnelNumber ?? null}
-                    emptyText="Nicht gesetzt"
-                  />
-                </DataField>
-              )}
-            </DataGrid>
+            <div className="space-y-3">
+              <DataGrid>
+                {payrollLoading ? (
+                  <DataFieldSkeleton />
+                ) : (
+                  <DataField label="Personalnummer" mono>
+                    <Value value={personnelNumber} emptyText="Nicht gesetzt" />
+                  </DataField>
+                )}
+              </DataGrid>
+              {payrollKept ? (
+                <TraegerKeepsNotice what="Diese Personalnummer" />
+              ) : null}
+            </div>
           )}
         </SectionCard>
       ) : null}
@@ -768,9 +796,13 @@ export function StammdatenTab({
         <SectionCard
           collapsible
           title="Bank & Steuer"
-          description="Jeder Abruf der gespeicherten Werte wird im Audit-Log protokolliert."
+          description={
+            financialKept
+              ? undefined
+              : "Jeder Abruf der gespeicherten Werte wird im Audit-Log protokolliert."
+          }
           action={
-            !editing && !financialError ? (
+            !editing && !financialError && !financialKept ? (
               <Button
                 type="button"
                 variant="surface"
@@ -800,6 +832,8 @@ export function StammdatenTab({
         >
           {financialError ? (
             <LoadErrorAlert error={financialLoadError} />
+          ) : financialKept ? (
+            <TraegerKeepsNotice what="Die Bank- und Steuerdaten" />
           ) : editing && draft ? (
             draft.financial ? (
               <FinancialFields

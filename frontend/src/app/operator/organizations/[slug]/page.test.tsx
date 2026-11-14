@@ -142,6 +142,16 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutateMatching: () => vi.fn(async () => []),
 }));
 
+// The release „Personal beim Träger“ (#4705) loads on its own; these
+// tests count the reloads of the Träger page.
+vi.mock("~/lib/operator/traeger-staff-release-api", () => ({
+  traegerStaffReleaseService: {
+    getState: vi.fn().mockResolvedValue({ release: null, records: 0 }),
+    grant: vi.fn(),
+    withdraw: vi.fn(),
+  },
+}));
+
 vi.mock("~/lib/operator/provisioning-api", async () => {
   const actual = await vi.importActual<
     typeof import("~/lib/operator/provisioning-api")

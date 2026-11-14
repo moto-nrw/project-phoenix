@@ -151,6 +151,9 @@ type StammdatenFinancialMaskedResponse struct {
 	IBANMasked                 *string `json:"iban_masked"`
 	TaxIDMasked                *string `json:"tax_id_masked"`
 	SocialSecurityNumberMasked *string `json:"social_security_number_masked"`
+	// KeptByTraeger is true when the Träger keeps the values in its staff
+	// record (#4705); the school then holds none.
+	KeptByTraeger bool `json:"kept_by_traeger"`
 }
 
 // StammdatenFinancialRevealResponse carries the unmasked values after the
@@ -398,6 +401,7 @@ func (rs *StaffAdminResource) getStammdatenFinancial(w http.ResponseWriter, r *h
 		IBANMasked:                 masked.IBANMasked,
 		TaxIDMasked:                masked.TaxIDMasked,
 		SocialSecurityNumberMasked: masked.SocialSecurityNumberMasked,
+		KeptByTraeger:              masked.KeptByTraeger,
 	}, "Financial data retrieved successfully")
 }
 
@@ -415,6 +419,10 @@ func (rs *StaffAdminResource) revealStammdatenFinancial(w http.ResponseWriter, r
 	}
 	plain, err := rs.PersonService.RevealStaffFinancial(r.Context(), id, accountID, role)
 	if err != nil {
+		if errors.Is(err, workforce.ErrStaffKeptByTraeger) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforceStaffKeptByTraeger))
+			return
+		}
 		if common.IsNotFound(err) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
@@ -453,6 +461,8 @@ func (rs *StaffAdminResource) updateStammdatenFinancial(w http.ResponseWriter, r
 		switch {
 		case errors.Is(err, workforce.ErrStaffStammdatenInvalid):
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeWorkforceStammdatenInvalid))
+		case errors.Is(err, workforce.ErrStaffKeptByTraeger):
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforceStaffKeptByTraeger))
 		case common.IsNotFound(err):
 			common.RenderError(w, r, common.ErrorNotFound(err))
 		default:

@@ -39,6 +39,9 @@ func (p *PayrollNumberRequest) Bind(_ *http.Request) error {
 type PayrollNumberResponse struct {
 	StaffID         int64   `json:"staff_id"`
 	PersonnelNumber *string `json:"personnel_number"`
+	// KeptByTraeger is true when the Träger keeps the number in its staff
+	// record (#4705); the school reads it and cannot change it.
+	KeptByTraeger bool `json:"kept_by_traeger"`
 }
 
 // getPayrollNumber returns the staff member's Personalnummer. A separate
@@ -54,7 +57,21 @@ func (rs *StaffAdminResource) getPayrollNumber(w http.ResponseWriter, r *http.Re
 		common.RenderError(w, r, common.ErrorNotFound(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, &PayrollNumberResponse{StaffID: staff.ID, PersonnelNumber: staff.PersonnelNumber}, "Personnel number retrieved successfully")
+	kept, err := rs.keptByTraeger(r, staff.ID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, &PayrollNumberResponse{StaffID: staff.ID, PersonnelNumber: staff.PersonnelNumber, KeptByTraeger: kept}, "Personnel number retrieved successfully")
+}
+
+// keptByTraeger reports whether the Träger keeps the employment in its
+// staff record; without the capability none is kept.
+func (rs *StaffAdminResource) keptByTraeger(r *http.Request, staffID int64) (bool, error) {
+	if rs.traegerKeep == nil {
+		return false, nil
+	}
+	return rs.traegerKeep.StaffKeptByTraeger(r.Context(), staffID)
 }
 
 // updatePayrollNumber sets or clears the Personalnummer. The service writes
@@ -83,6 +100,8 @@ func (rs *StaffAdminResource) updatePayrollNumber(w http.ResponseWriter, r *http
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeWorkforcePersonnelNumberInvalid))
 		case errors.Is(err, workforce.ErrPersonnelNumberTaken):
 			common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforcePersonnelNumberTaken))
+		case errors.Is(err, workforce.ErrStaffKeptByTraeger):
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforceStaffKeptByTraeger))
 		case common.IsNotFound(err):
 			common.RenderError(w, r, common.ErrorNotFound(err))
 		default:

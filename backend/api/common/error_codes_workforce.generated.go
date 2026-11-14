@@ -66,12 +66,21 @@ const CodeWorkforceShiftSeriesOutsidePeriod = "workforce.shift_series_outside_pe
 const CodeWorkforceShiftSeriesWeekCycleMissing = "workforce.shift_series_week_cycle_missing"
 const CodeWorkforceShiftTypeArchived = "workforce.shift_type_archived"
 const CodeWorkforceShiftTypeInactive = "workforce.shift_type_inactive"
+const CodeWorkforceStaffKeptByTraeger = "workforce.staff_kept_by_traeger"
 const CodeWorkforceStaffProfileMissing = "workforce.staff_profile_missing"
 const CodeWorkforceStammdatenInvalid = "workforce.stammdaten_invalid"
 const CodeWorkforceTargetOverrideHoursInvalid = "workforce.target_override_hours_invalid"
 const CodeWorkforceTargetOverrideOverlap = "workforce.target_override_overlap"
 const CodeWorkforceTargetOverrideRangeInvalid = "workforce.target_override_range_invalid"
 const CodeWorkforceTargetOverrideTooLong = "workforce.target_override_too_long"
+const CodeWorkforceTraegerStaffAlreadyLinked = "workforce.traeger_staff_already_linked"
+const CodeWorkforceTraegerStaffLinkInvalid = "workforce.traeger_staff_link_invalid"
+const CodeWorkforceTraegerStaffNotReleased = "workforce.traeger_staff_not_released"
+const CodeWorkforceTraegerStaffRecordNotFound = "workforce.traeger_staff_record_not_found"
+const CodeWorkforceTraegerStaffReleaseExists = "workforce.traeger_staff_release_exists"
+const CodeWorkforceTraegerStaffReleaseInUse = "workforce.traeger_staff_release_in_use"
+const CodeWorkforceTraegerStaffReleaseInvalid = "workforce.traeger_staff_release_invalid"
+const CodeWorkforceTraegerStaffReleaseNotFound = "workforce.traeger_staff_release_not_found"
 const CodeWorkforceVacationOpeningAbsencesBeforeCutoff = "workforce.vacation_opening_absences_before_cutoff"
 const CodeWorkforceVacationOpeningAlreadyExists = "workforce.vacation_opening_already_exists"
 const CodeWorkforceVacationQuotaBelowUsed = "workforce.vacation_quota_below_used"
@@ -147,12 +156,21 @@ var errorCodeClassesWorkforce = []errorCodeClass{
 	{CodeWorkforceShiftSeriesWeekCycleMissing, "input"},
 	{CodeWorkforceShiftTypeArchived, "business_rejection"},
 	{CodeWorkforceShiftTypeInactive, "business_rejection"},
+	{CodeWorkforceStaffKeptByTraeger, "business_rejection"},
 	{CodeWorkforceStaffProfileMissing, "business_rejection"},
 	{CodeWorkforceStammdatenInvalid, "input"},
 	{CodeWorkforceTargetOverrideHoursInvalid, "input"},
 	{CodeWorkforceTargetOverrideOverlap, "business_rejection"},
 	{CodeWorkforceTargetOverrideRangeInvalid, "input"},
 	{CodeWorkforceTargetOverrideTooLong, "input"},
+	{CodeWorkforceTraegerStaffAlreadyLinked, "business_rejection"},
+	{CodeWorkforceTraegerStaffLinkInvalid, "input"},
+	{CodeWorkforceTraegerStaffNotReleased, "business_rejection"},
+	{CodeWorkforceTraegerStaffRecordNotFound, "input"},
+	{CodeWorkforceTraegerStaffReleaseExists, "business_rejection"},
+	{CodeWorkforceTraegerStaffReleaseInUse, "business_rejection"},
+	{CodeWorkforceTraegerStaffReleaseInvalid, "input"},
+	{CodeWorkforceTraegerStaffReleaseNotFound, "input"},
 	{CodeWorkforceVacationOpeningAbsencesBeforeCutoff, "business_rejection"},
 	{CodeWorkforceVacationOpeningAlreadyExists, "business_rejection"},
 	{CodeWorkforceVacationQuotaBelowUsed, "business_rejection"},

@@ -205,6 +205,17 @@ const (
 	// at every school of the Träger while it reaches none. StudentID is NULL;
 	// metadata carries the channel, organization_id and document_id.
 	ResourceTypeTraegerDocumentDownload = "traeger_document_download"
+	// ResourceTypeTraegerStaffRecords records the Personalverwaltung of the
+	// Träger-Büro reading the people of a school in its staff records
+	// (#4705, ADR 0089 section 6): written at each school whose people a
+	// view shows. StudentID is NULL; metadata carries the channel,
+	// organization_id, the view and the row count.
+	ResourceTypeTraegerStaffRecords = "traeger_staff_records"
+	// ResourceTypeTraegerStaffFinancial records the Personalverwaltung
+	// reading the bank and tax values of a staff record, masked or revealed
+	// (#4705): written at every Einsatzort of the record before a value
+	// leaves. Metadata as for ResourceTypeTraegerStaffRecords.
+	ResourceTypeTraegerStaffFinancial = "traeger_staff_financial"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

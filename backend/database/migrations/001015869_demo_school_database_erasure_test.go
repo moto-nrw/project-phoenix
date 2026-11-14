@@ -137,6 +137,8 @@ var demoErasureSchoolTablesOutsideThePlan = map[string]struct {
 	"platform.school_erasures":                 {true, "evidence of an operator's school erasure; IDs and counts only"},
 	"platform.traeger_document_reads":          {true, "Träger document reads keep their own three-year deadline; the visitor account is anonymized (#4048)"},
 	"platform.traeger_document_releases":       {true, "a Träger release goes with its document or the Träger (ADR 0157)"},
+	"workforce.staff_record_links":             {true, "an Einsatzort of a Träger staff record names the school by plain id and goes with its record or the Träger (ADR 0232)"},
+	"workforce.staff_record_changes":           {true, "the trail of a Träger staff record names the school of a value and goes with its record or the Träger (ADR 0232)"},
 	"platform.demo_school_file_erasures":       {true, "the #5544 file marker carries the database erasure evidence: time and row counts per table (ADR 0148, ADR 0189)"},
 	"platform.demo_school_origins":             {true, "the demo origin: school ID and time only; it keeps a reused ID from ever looking like a real school (ADR 0148)"},
 }

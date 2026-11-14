@@ -77,6 +77,11 @@
   "api/operator/provisioning/organizations/[id]/schools": [
     "GET operator /operator/organizations/id%2F1/schools"
   ],
+  "api/operator/provisioning/organizations/[id]/staff-release": [
+    "DELETE operator /operator/organizations/id%2F1/staff-release",
+    "GET operator /operator/organizations/id%2F1/staff-release",
+    "POST operator /operator/organizations/id%2F1/staff-release"
+  ],
   "api/operator/provisioning/organizations/summaries": [
     "GET operator /operator/organizations/summaries"
   ],

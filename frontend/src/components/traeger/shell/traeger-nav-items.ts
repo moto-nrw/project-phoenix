@@ -28,6 +28,7 @@ import { peopleConcept } from "~/lib/concepts/people";
 import { reportsConcept } from "~/lib/concepts/reports";
 import { schoolsConcept } from "~/lib/concepts/schools";
 import { settingsConcept } from "~/lib/concepts/settings";
+import { staffConcept } from "~/lib/concepts/staff";
 import { utilizationConcept } from "~/lib/concepts/utilization";
 
 /** Das Recht, das „Mitglieder und Rollen" öffnet (ADR 0084, #4650). */
@@ -40,6 +41,8 @@ const CONTRACTS_RIGHT = "traeger_contracts:manage";
 const REPORTS_RIGHT = "traeger_reports:read";
 /** Das Recht, das die Abrechnungsläufe öffnet (#4668). */
 const BILLING_RIGHT = "traeger_billing:manage";
+/** Das Recht, das die Personalakten öffnet (Rolle Personal, #4705). */
+const STAFF_RIGHT = "traeger_staff:manage";
 /** Das Recht, das das Zugriffsprotokoll öffnet (#4655). */
 const ACCESS_LOG_RIGHT = "traeger_access_log:read";
 /**
@@ -163,6 +166,22 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         label: "Dokumente",
         concept: documentsConcept,
         right: OVERVIEW_RIGHT,
+      },
+    ],
+  },
+  {
+    // Personal über alle Schulen (ADR 0089): heute die Personalakten (#4705);
+    // Verträge, Nachweise und Planung kommen hier hinzu.
+    key: "personal",
+    label: "Personal",
+    items: [
+      {
+        key: "personalakten",
+        href: "/traeger/personal",
+        label: "Personalakten",
+        shortLabel: "Personal",
+        concept: staffConcept,
+        right: STAFF_RIGHT,
       },
     ],
   },

@@ -77,5 +77,14 @@
   "payroll_wage_type_name_taken": "{object} could not be saved. Please check your entries.",
   "qualification_type_name_taken": "{object} could not be changed. Please check its current status.",
   "qualification_type_not_found": "{object} could not be changed. Please check its current status.",
-  "work_time_model_archived": "{object} could not be changed. Please check its current status."
+  "work_time_model_archived": "{object} could not be changed. Please check its current status.",
+  "staff_kept_by_traeger": "{object} could not be changed. Please check its current status.",
+  "traeger_staff_already_linked": "{object} could not be changed. Please check its current status.",
+  "traeger_staff_link_invalid": "{object} could not be saved. Please check your entries.",
+  "traeger_staff_not_released": "{object} could not be changed. Please check its current status.",
+  "traeger_staff_record_not_found": "{object} could not be saved. Please check your entries.",
+  "traeger_staff_release_exists": "{object} could not be changed. Please check its current status.",
+  "traeger_staff_release_in_use": "{object} could not be changed. Please check its current status.",
+  "traeger_staff_release_invalid": "{object} could not be saved. Please check your entries.",
+  "traeger_staff_release_not_found": "{object} could not be saved. Please check your entries."
 }

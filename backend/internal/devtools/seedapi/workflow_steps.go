@@ -282,7 +282,11 @@ func traegerSteps(seeder *Seeder) []Step {
 	if seeder.options.DeferHistory {
 		return steps
 	}
-	return append(steps, traegerCareSteps(seeder)...)
+	// Only a full seed links staff records: a demo order's school employs
+	// the visitor, whose name must not reach a record of the Träger
+	// (ADR 0232 point 9).
+	steps = append(steps, traegerCareSteps(seeder)...)
+	return append(steps, traegerSerial(seedTraegerStaffStep{})...)
 }
 
 // traegerSetupSteps prepare the Träger: office, holidays, settings and

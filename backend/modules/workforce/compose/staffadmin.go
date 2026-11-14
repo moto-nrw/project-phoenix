@@ -50,14 +50,14 @@ func NewStaffAdmin(dependencies StaffAdminDependencies) (*workforce.StaffAdmin, 
 	}
 	unit := transaction{lock: store.AcquireXactLock}
 	records := application.NewRecords(store, unit, application.Clock{Time: now}, application.NewOptionalObserver(dependencies.Observe))
-	return workforce.NewStaffAdmin(application.NewStaffAdminEngine(application.NewStaffAdmin(
-		records, unit, application.NewStaffSubjects(dependencies.Subjects), application.NewStaffAudit(dependencies.Audit),
-		domain.DocumentAuthority{
-			Health: permissions.StaffDocumentsHealth, Financial: permissions.StaffFinancial, General: permissions.StaffDocuments,
-			Allows: dependencies.Allows,
-		},
-		application.Clock{Time: now}, logger.Warn, dependencies.BankData,
-	), records)), nil
+	authority := domain.DocumentAuthority{Health: permissions.StaffDocumentsHealth, Financial: permissions.StaffFinancial, General: permissions.StaffDocuments, Allows: dependencies.Allows}
+	admin := application.NewStaffAdmin(records, unit, application.NewStaffSubjects(dependencies.Subjects), application.NewStaffAudit(dependencies.Audit), authority, application.Clock{Time: now}, logger.Warn, dependencies.BankData, postgres.NewTraegerStaffStore())
+	return workforce.NewStaffAdmin(application.NewStaffAdminEngine(admin, records), admin), nil
+}
+
+// NewTraegerStaffReleases composes the release „Personal beim Träger“ (#4705).
+func NewTraegerStaffReleases() workforce.TraegerStaffReleases {
+	return application.NewTraegerStaffReleases(postgres.NewTraegerStaffStore())
 }
 
 // --- documents --------------------------------------------------------------

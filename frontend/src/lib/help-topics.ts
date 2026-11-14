@@ -257,6 +257,7 @@ export const HELP_TOPICS = {
   traegerCareContracts: "betreuungsvertraege-senden",
   traegerCareTimeOverruns: "laenger-als-gebucht",
   traegerSharedDocuments: "dokumente-fuer-eltern-und-schulen-freigeben",
+  traegerStaffRecords: "personalakten-ueber-alle-schulen",
   schoolTraegerDocuments: "dokumente-vom-traeger-in-der-ogs",
   traegerSchoolSwitch: "in-eine-schule-wechseln",
   traegerSchoolView: "zahlen-und-stammdaten-einer-schule-ansehen",

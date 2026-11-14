@@ -2176,7 +2176,7 @@ class StaffMonthCloseService {
 // tab. time_tracking:manage backend-side — callers gate rendering on the
 // permission so no request fires without it.
 class StaffPayrollNumberService {
-  async get(staffId: string): Promise<string | null> {
+  async get(staffId: string): Promise<StaffPayrollNumber> {
     const response = await sessionFetch(`/api/staff/${staffId}/payroll-number`);
     if (!response.ok) {
       throw await apiErrorFromResponse(
@@ -2185,9 +2185,12 @@ class StaffPayrollNumberService {
       );
     }
     const json = (await response.json()) as {
-      data: { personnel_number: string | null };
+      data: { personnel_number: string | null; kept_by_traeger?: boolean };
     };
-    return json.data.personnel_number;
+    return {
+      personnelNumber: json.data.personnel_number,
+      keptByTraeger: json.data.kept_by_traeger ?? false,
+    };
   }
 
   async update(
@@ -2264,10 +2267,22 @@ export interface StaffStammdaten {
   qualifikationen: StammdatenQualifikation[];
 }
 
+/**
+ * Die Personalnummer einer Beschäftigung. `keptByTraeger`: Der Träger führt
+ * die Person in seiner Personalakte (#4705); die Nummer ist dann seine, und
+ * die Schule ändert sie nicht.
+ */
+interface StaffPayrollNumber {
+  personnelNumber: string | null;
+  keptByTraeger: boolean;
+}
+
 interface StaffFinancialMasked {
   ibanMasked: string | null;
   taxIdMasked: string | null;
   socialSecurityNumberMasked: string | null;
+  /** Der Träger führt die Werte in seiner Personalakte (#4705). */
+  keptByTraeger: boolean;
 }
 
 export interface StaffFinancialPlain {
@@ -2467,12 +2482,14 @@ class StaffStammdatenService {
         iban_masked: string | null;
         tax_id_masked: string | null;
         social_security_number_masked: string | null;
+        kept_by_traeger?: boolean;
       };
     };
     return {
       ibanMasked: json.data.iban_masked,
       taxIdMasked: json.data.tax_id_masked,
       socialSecurityNumberMasked: json.data.social_security_number_masked,
+      keptByTraeger: json.data.kept_by_traeger ?? false,
     };
   }
 

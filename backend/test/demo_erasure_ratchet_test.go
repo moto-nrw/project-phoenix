@@ -32,7 +32,8 @@ const traegerBueroOnly = "Träger-Büro of the shared demo Träger: the seed ass
 // users.message_attachments and users.message_attachment_cleanup, which stay
 // with the messages of the school. ADR 0218 adds the recipient and the
 // handover journal of the Träger-Büro, which no visitor reaches; ADR 0222
-// the format each of its recipients receives.
+// the format each of its recipients receives. ADR 0232 adds the staff
+// records of the Träger-Büro with their links and trail.
 var demoErasureExceptions = map[string]string{
 	"active.activity_session_attendance":             schoolContentUntil5559,
 	"active.activity_sessions":                       schoolContentUntil5559,
@@ -149,6 +150,9 @@ var demoErasureExceptions = map[string]string{
 	"platform.traeger_documents":                     traegerBueroOnly,
 	"platform.traeger_master_data_audit":             traegerBueroOnly,
 	"platform.traeger_profiles":                      traegerBueroOnly + "; invented master data of the demo Träger",
+	"workforce.staff_record_changes":                 traegerBueroOnly + "; the trail of a staff record of the Träger goes with its record (ADR 0232)",
+	"workforce.staff_record_links":                   traegerBueroOnly + "; an Einsatzort of a staff record names a school by plain id and goes with its record (ADR 0232)",
+	"workforce.staff_records":                        traegerBueroOnly + "; the staff records of the Träger go with the Träger or when the Personalverwaltung dissolves them (ADR 0232)",
 	"schedule.activity_exceptions":                   schoolContentUntil5559,
 	"schedule.activity_instances":                    schoolContentUntil5559,
 	"schedule.care_schedule_change_requests":         schoolContentUntil5559,
@@ -235,7 +239,9 @@ var demoErasureExceptions = map[string]string{
 // stay with the messages they belong to (+2).
 // ADR 0218: the recipient and the handover journal of the Träger-Büro (+2).
 // ADR 0222: the format each recipient of the Träger-Büro receives (+1).
-const demoErasureExceptionBudget = 192
+// ADR 0232: the staff records of the Träger-Büro with their links and
+// trail (+3).
+const demoErasureExceptionBudget = 195
 
 func TestDemoErasureExceptionsKeepTheirBudget(t *testing.T) {
 	t.Parallel()

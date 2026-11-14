@@ -1,0 +1,9 @@
+DELETE /traeger/staff-records/{id}
+GET /traeger/staff-records/
+GET /traeger/staff-records/{id}
+GET /traeger/staff-records/{id}/financial
+POST /traeger/staff-records/
+POST /traeger/staff-records/link-preview
+POST /traeger/staff-records/{id}/financial/reveal
+PUT /traeger/staff-records/{id}/financial
+PUT /traeger/staff-records/{id}/personnel-number

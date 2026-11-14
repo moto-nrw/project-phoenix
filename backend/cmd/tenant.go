@@ -181,6 +181,8 @@ func tenantExportSealedFields() (organizationtenancy.TenantExportSealedFieldsByT
 		"parent_billing.sepa_mandate_consents":     sepa,
 		"users.guardian_financial_data":            peopleCompose.NewGuardianBankExportFields(bankData),
 		"users.staff_financial_data":               workforceCompose.NewStaffBankExportFields(bankData),
+		"workforce.staff_records":                  workforceCompose.NewStaffBankExportFields(bankData),
+		"workforce.staff_record_changes":           workforceCompose.NewStaffBankExportFields(bankData),
 		"users.student_care_profiles":              studentDirectoryViewCompose.NewReader(healthData),
 		"enrollment.holiday_registrations":         holiday,
 		"enrollment.holiday_registration_children": holiday,

@@ -86,6 +86,8 @@ const GROUP_ORDER_BY_ROLE: Readonly<
   traeger: [
     "einstieg",
     "anmeldeverwaltung",
+    // Personalakten über alle Schulen (#4705).
+    "personal",
     // Dokumente für Eltern und Schulen freigeben (#4692).
     "elternarbeit",
     "auswertung",
