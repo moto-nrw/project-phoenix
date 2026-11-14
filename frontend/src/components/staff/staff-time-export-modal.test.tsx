@@ -231,6 +231,9 @@ describe("StaffTimeExportModal", () => {
     expect(
       screen.getByRole("button", { name: "Exportieren" }),
     ).not.toHaveAttribute("aria-disabled");
+    expect(
+      screen.getByRole("button", { name: "Exportieren" }),
+    ).not.toBeDisabled();
 
     fireEvent.click(
       screen.getByRole("button", { name: "DATEV Lohn und Gehalt" }),
@@ -248,6 +251,9 @@ describe("StaffTimeExportModal", () => {
         screen.getByRole("button", { name: "Exportieren" }),
       ).not.toHaveAttribute("aria-disabled"),
     );
+    expect(
+      screen.getByRole("button", { name: "Exportieren" }),
+    ).not.toBeDisabled();
   });
 
   it("keeps the DATEV download blocked after a report failure and allows retrying", async () => {
@@ -282,6 +288,9 @@ describe("StaffTimeExportModal", () => {
     expect(
       screen.getByRole("button", { name: "Exportieren" }),
     ).not.toHaveAttribute("aria-disabled");
+    expect(
+      screen.getByRole("button", { name: "Exportieren" }),
+    ).not.toBeDisabled();
   });
 
   // Übertragung an die Gegenstelle (#3050). Die Tests pinnen vor allem die
@@ -346,6 +355,7 @@ describe("StaffTimeExportModal", () => {
         name: "An die Gegenstelle übertragen",
       });
       expect(option).not.toHaveAttribute("aria-disabled");
+      expect(option).not.toBeDisabled();
       fireEvent.click(option);
 
       expect(screen.getByText(/dateien\.beispiel\.de/)).toBeInTheDocument();

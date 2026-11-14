@@ -76,7 +76,8 @@ function OptionGroup<T extends string>({
   disabledReason,
 }: {
   readonly label: string;
-  readonly options: readonly { id: T; label: string }[];
+  /** `hint`: was die Wahl außer der Einstellung auslöst (#6771). */
+  readonly options: readonly { id: T; label: string; hint?: string }[];
   readonly value: T;
   readonly onChange: (value: T) => void;
   readonly disabled?: boolean;
@@ -96,7 +97,12 @@ function OptionGroup<T extends string>({
             disabled={disabled}
             disabledReason={disabledReason}
             onClick={() => onChange(option.id)}
-            noTooltip="Wählt nur eine Einstellung für den Export, das Wort nennt sie."
+            {...(option.hint
+              ? { tooltip: option.hint }
+              : {
+                  noTooltip:
+                    "Wählt nur eine Einstellung für den Export, das Wort nennt sie.",
+                })}
           >
             {option.label}
           </Button>
@@ -106,13 +112,16 @@ function OptionGroup<T extends string>({
   );
 }
 
+const DATEV_HINT =
+  "Zeigt vor dem Export eine Vorschau, fehlende Personalnummern sperren ihn.";
+
 const DATEV_FIXED_REASON =
   "Eine DATEV-Datei enthält immer die Monatssummen eines Monats.";
 
 /** Warum eine DATEV-Datei noch nicht heruntergeladen werden kann. */
 function datevBlockedReason(state: DatevReportState): string {
   if (state.status === "failed") {
-    return "Ohne Vorschau der DATEV-Datei bleibt der Export gesperrt.";
+    return "Beheben Sie zuerst den Fehler bei der Vorschau oben.";
   }
   if (state.status === "ready") {
     return "Tragen Sie zuerst die fehlenden Personalnummern ein.";
@@ -453,8 +462,12 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
           options={[
             { id: "csv", label: "CSV" },
             { id: "xlsx", label: "Excel" },
-            { id: "datev_lodas", label: "DATEV LODAS" },
-            { id: "datev_lug", label: "DATEV Lohn und Gehalt" },
+            { id: "datev_lodas", label: "DATEV LODAS", hint: DATEV_HINT },
+            {
+              id: "datev_lug",
+              label: "DATEV Lohn und Gehalt",
+              hint: DATEV_HINT,
+            },
           ]}
           value={format}
           onChange={setFormat}

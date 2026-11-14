@@ -97,10 +97,10 @@ export function StundenkontoPanel({
   );
   const openingDisabledHint = () => {
     if (hasOpening) {
-      return "Es gibt schon einen Eröffnungssaldo. Löschen Sie zuerst die bestehende Buchung.";
+      return "Löschen Sie zuerst den bestehenden Eröffnungssaldo.";
     }
     if (!canResetClosedPeriod) {
-      return "Ein Eröffnungssaldo ist erst nach dem ersten abgeschlossenen Kontotag möglich.";
+      return "Ein Eröffnungssaldo geht erst nach dem ersten abgeschlossenen Kontotag.";
     }
     return undefined;
   };
@@ -315,7 +315,8 @@ const modalCopy = {
     success: "Die Auszahlung ist gebucht.",
     object: "die Auszahlung",
     submit: "Auszahlen",
-    submitTooltip: "Zieht die Stunden sofort als Auszahlung vom Konto ab.",
+    submitTooltip:
+      "Bucht die Stunden sofort als Auszahlung zum gewählten Datum.",
   },
   comp_time: {
     title: "Freizeitausgleich gewähren",
@@ -325,7 +326,7 @@ const modalCopy = {
     object: "die Buchung",
     submit: "Gewähren",
     submitTooltip:
-      "Zieht die Stunden sofort als Freizeitausgleich vom Konto ab.",
+      "Bucht die Stunden sofort als Freizeitausgleich zum gewählten Datum.",
   },
 } as const;
 
@@ -688,7 +689,7 @@ function OpeningModal({
           submitting={submitting}
           canSubmit={canSubmit}
           submitLabel="Buchen"
-          submitTooltip="Bucht den Stand sofort, das Konto steht dann auf diesem Wert."
+          submitTooltip="Bucht den Stand sofort, das Konto steht am Stichtag auf diesem Wert."
           missingInputReason="Tragen Sie zuerst einen gültigen Stand und eine Begründung ein."
           onCancel={onClose}
           onSubmit={handleSubmit}

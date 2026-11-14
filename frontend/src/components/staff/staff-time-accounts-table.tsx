@@ -395,7 +395,7 @@ export function StaffTimeAccountsTable({
             aria-expanded={showCustomSaldo}
             tooltip={
               showCustomSaldo
-                ? "Blendet das Feld aus und zeigt wieder alle Personen."
+                ? "Blendet das Feld aus und hebt die eigene Grenze auf."
                 : "Blendet ein Feld für eine eigene Grenze beim Saldo ein."
             }
           >
@@ -407,7 +407,11 @@ export function StaffTimeAccountsTable({
             variant={onlyWithHints ? "primary" : "outline"}
             onClick={() => setOnlyWithHints((value) => !value)}
             aria-pressed={onlyWithHints}
-            tooltip="Zeigt nur Personen mit zu kurzer Pause oder über 10 Std. Arbeit."
+            tooltip={
+              onlyWithHints
+                ? "Zeigt wieder alle Personen, auch ohne Hinweise."
+                : "Zeigt nur Personen mit zu kurzer Pause oder über 10 Std. Arbeit."
+            }
           >
             Mit Hinweisen
           </Button>
@@ -417,7 +421,7 @@ export function StaffTimeAccountsTable({
               size="compact"
               variant="outline"
               onClick={onExport}
-              tooltip="Öffnet die Auswahl, welche Zeiten als Datei heruntergeladen werden."
+              tooltip="Öffnet die Auswahl von Zeitraum und Format für den Export."
             >
               <Download className="mr-1 h-3 w-3" />
               Exportieren
@@ -442,7 +446,7 @@ export function StaffTimeAccountsTable({
               onClick={onCloseMonth}
               disabled={!monthIsOver}
               disabledReason="Den laufenden Monat können Sie erst ab dem 1. des Folgemonats abschließen."
-              tooltip="Öffnet ein Fenster, um die Konten aller Personen zum Monatsende einzufrieren."
+              tooltip="Öffnet ein Fenster, um die Konten aller Personen zum Monatsende festzuschreiben."
             >
               <Lock className="mr-1 h-3 w-3" />
               Monat abschließen
@@ -459,7 +463,7 @@ export function StaffTimeAccountsTable({
               size="compact"
               variant="ghost"
               onClick={onCloseMonth}
-              tooltip="Öffnet ein Fenster, um wieder geöffnete Konten erneut einzufrieren."
+              tooltip="Öffnet ein Fenster, um wieder geöffnete Konten erneut festzuschreiben."
             >
               Erneut abschließen
             </Button>
