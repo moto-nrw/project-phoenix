@@ -498,6 +498,11 @@ export function ManualApprovedEnrollmentModal({
               showBlockedOfferings
               offeringBookingStats={bookingStats}
               submitLabel="Kind anlegen und freigeben"
+              submitTooltip={
+                sendNotification
+                  ? "Legt das Kind an, sagt den Platz verbindlich zu und benachrichtigt die Eltern."
+                  : "Legt das Kind an und sagt den Platz verbindlich zu, ohne E-Mail."
+              }
             />
           ) : null}
         </div>
