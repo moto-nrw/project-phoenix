@@ -4,6 +4,7 @@
 
 import { Alert } from "~/components/ui/alert";
 import { SectionLabel } from "~/components/ui/section-label";
+import { ListGroupHeader } from "~/components/ui/list-group-header";
 import React, { useRef, useCallback, useState, useMemo } from "react";
 import {
   PortalBottomNavLink,
@@ -32,6 +33,7 @@ import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useHelpHref } from "~/lib/hooks/use-help-href";
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
+import { useSidebarGroups } from "~/lib/hooks/use-sidebar-groups";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import {
   STAFF_NEWS_TITLE,
@@ -94,6 +96,7 @@ import {
   STAFF_NAV_GROUPS,
   STAFF_NAV_TOP,
   type StaffNavEntry,
+  type StaffNavGroupKey,
   type StaffNavSectionKey,
 } from "~/lib/staff-navigation";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -504,7 +507,14 @@ function itemForEntry(entry: StaffNavEntry): AdditionalNavItem | undefined {
 
 interface DrawerGroup {
   readonly key: string;
-  readonly label: string | null;
+  /**
+   * Die Gruppe der Seitenleiste, die hier klappt (#7048). Start- und
+   * Fußzeilen und das Operator-Menü stehen ohne Gruppe und immer offen.
+   */
+  readonly group: {
+    readonly key: StaffNavGroupKey;
+    readonly label: string;
+  } | null;
   readonly items: readonly AdditionalNavItem[];
 }
 
@@ -577,6 +587,12 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
     rawPathname,
     tenantSlug,
     routingMode,
+  );
+  // Offene Gruppen im Mehr-Menü (#7048): derselbe gespeicherte Stand wie in
+  // der Seitenleiste, die Gruppe der aktuellen Seite steht offen.
+  const { isGroupOpen, toggleGroup } = useSidebarGroups(
+    pathname,
+    searchParams.get("from"),
   );
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
   // subdomain/operator/parent mode). Used for tenant-scoped navigation links.
@@ -962,22 +978,22 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
       ? [
           {
             key: "operator",
-            label: null,
+            group: null,
             items: resolvedOperatorAdditionalItems.filter(
               (i) => !mainHrefs.has(i.href),
             ),
           },
         ]
       : [
-          { key: "top", label: null, items: entriesToItems(STAFF_NAV_TOP) },
+          { key: "top", group: null, items: entriesToItems(STAFF_NAV_TOP) },
           ...STAFF_NAV_GROUPS.map((group) => ({
             key: group.key,
-            label: group.label,
+            group: { key: group.key, label: group.label },
             items: entriesToItems(group.entries),
           })),
           {
             key: "bottom",
-            label: null,
+            group: null,
             items: entriesToItems(STAFF_NAV_BOTTOM),
           },
         ];
@@ -1099,63 +1115,98 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     />
                   </div>
                 ) : null}
-                {visibleDrawerGroups.map((group) => (
-                  <div key={group.key} className="space-y-2">
-                    {/* Gruppenüberschrift wie in der Seitenleiste; die
-                        Start- und Fußzeilen stehen ohne. */}
-                    {group.label && (
-                      <SectionLabel as="p" className="px-1">
-                        {group.label}
-                      </SectionLabel>
-                    )}
-                    {group.items.map((item) => {
-                      const isActive = isActiveRoute(
-                        item.href,
-                        item.activePaths,
-                      );
-                      const href =
-                        item.href === STAFF_FLAT_PAGES.help.href
-                          ? helpHref
-                          : TENANT_SCOPED_HREFS.has(item.href)
-                            ? tenantPath(navigationEntryTarget(item.href))
-                            : navigationEntryTarget(item.href);
+                {visibleDrawerGroups.map(({ key, group, items }) => {
+                  const isOpen = group === null || isGroupOpen(group.key);
+                  // Zugeklappt nennt die Überschrift, was ihre Zeilen zählen
+                  // (#6566, wie die Seitenleiste); offen tragen es die Zeilen.
+                  const unreadCount = items.some(
+                    (item) =>
+                      item.href === ENROLLMENT_SECTION.href && !item.locked,
+                  )
+                    ? enrollmentsUnreadCount
+                    : 0;
+                  return (
+                    <div key={key} className="space-y-2">
+                      {/* Gruppenüberschrift wie in der Seitenleiste, mit einem
+                        Tipp auf- und zuklappbar; die Start- und Fußzeilen
+                        stehen ohne. */}
+                      {group ? (
+                        // Ziel der Touren (#3748): Station „Gruppe öffnen“,
+                        // wenn der Eintrag zugeklappt ist.
+                        <div data-setup-tour={`mobile-nav-group-${group.key}`}>
+                          <ListGroupHeader
+                            as="h3"
+                            title={group.label}
+                            className="rounded-lg px-3"
+                            collapsible={{
+                              expanded: isOpen,
+                              onToggle: () => toggleGroup(group.key),
+                            }}
+                            addon={
+                              !isOpen && unreadCount > 0 ? (
+                                <UnreadBadge
+                                  count={unreadCount}
+                                  tone={
+                                    group.key === "eltern" ? "parents" : "staff"
+                                  }
+                                  noun="ungelesene Anmeldungen"
+                                />
+                              ) : undefined
+                            }
+                          />
+                        </div>
+                      ) : null}
+                      {isOpen
+                        ? items.map((item) => {
+                            const isActive = isActiveRoute(
+                              item.href,
+                              item.activePaths,
+                            );
+                            const href =
+                              item.href === STAFF_FLAT_PAGES.help.href
+                                ? helpHref
+                                : TENANT_SCOPED_HREFS.has(item.href)
+                                  ? tenantPath(navigationEntryTarget(item.href))
+                                  : navigationEntryTarget(item.href);
 
-                      return (
-                        <PortalNavSheetLink
-                          key={item.href}
-                          href={href}
-                          label={item.label}
-                          icon={
-                            <MobileNavIcon
-                              item={item}
-                              active={isActive}
-                              className={`h-5 w-5 ${isActive ? "" : "text-gray-600"}`}
-                            />
-                          }
-                          active={isActive}
-                          plain
-                          newTab={item.newTab}
-                          // Ziel der geführten Touren (#3748), wie in der
-                          // Seitenleiste.
-                          data-setup-tour={`nav-${item.href}`}
-                          onClick={closeOverflowMenu}
-                          badge={
-                            item.locked ? (
-                              <ModuleLockMark className="ml-auto" />
-                            ) : item.href === ENROLLMENT_SECTION.href ? (
-                              <UnreadBadge
-                                count={enrollmentsUnreadCount}
-                                tone="staff"
-                                noun="ungelesene Anmeldungen"
-                                className="ml-auto"
+                            return (
+                              <PortalNavSheetLink
+                                key={item.href}
+                                href={href}
+                                label={item.label}
+                                icon={
+                                  <MobileNavIcon
+                                    item={item}
+                                    active={isActive}
+                                    className={`h-5 w-5 ${isActive ? "" : "text-gray-600"}`}
+                                  />
+                                }
+                                active={isActive}
+                                plain
+                                newTab={item.newTab}
+                                // Ziel der geführten Touren (#3748), wie in der
+                                // Seitenleiste.
+                                data-setup-tour={`nav-${item.href}`}
+                                onClick={closeOverflowMenu}
+                                badge={
+                                  item.locked ? (
+                                    <ModuleLockMark className="ml-auto" />
+                                  ) : item.href === ENROLLMENT_SECTION.href ? (
+                                    <UnreadBadge
+                                      count={enrollmentsUnreadCount}
+                                      tone="staff"
+                                      noun="ungelesene Anmeldungen"
+                                      className="ml-auto"
+                                    />
+                                  ) : null
+                                }
                               />
-                            ) : null
-                          }
-                        />
-                      );
-                    })}
-                  </div>
-                ))}
+                            );
+                          })
+                        : null}
+                    </div>
+                  );
+                })}
               </div>
               {(mode === "teacher" ||
                 mode === "operator" ||

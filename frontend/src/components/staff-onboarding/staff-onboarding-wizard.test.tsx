@@ -303,7 +303,7 @@ describe("StaffOnboardingWizard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Zeig es mir" }));
     const bubble = await screen.findByRole("dialog", { name: "Stempeluhr" });
-    expect(bubble).toHaveTextContent("Station 4 von 4");
+    expect(bubble).toHaveTextContent("Station 5 von 5");
     expect(api.setStaffOnboardingStepState).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
@@ -479,6 +479,39 @@ describe("StaffOnboardingWizard", () => {
     entry.dataset.setupTour = "nav-/calendar";
     visible(entry);
     fireEvent.click(more);
+    expect(
+      await screen.findByRole("dialog", { name: "Mein Kalender öffnen" }),
+    ).toHaveTextContent("Wählen Sie „Mein Kalender“.");
+  });
+
+  // Im Mehr-Menü klappen die Gruppen (#7048): Steht die Gruppe des Eintrags
+  // zu, öffnet die Tour sie zuerst.
+  it("opens the collapsed group in Mehr on a phone before the entry", async () => {
+    onboarding = {
+      ...newPerson(),
+      doneSteps: ["groups", "students", "attendance"],
+    };
+    render(<StaffOnboardingWizard />);
+    const more = visible(document.createElement("button"));
+    more.dataset.setupTour = "nav-more";
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeig es mir" }));
+    await screen.findByRole("dialog", { name: "Mehr öffnen" });
+
+    // „Mehr“ öffnet das Menü, die Gruppe „Team“ steht zu.
+    const group = document.createElement("div");
+    group.dataset.setupTour = "mobile-nav-group-team";
+    visible(group);
+    fireEvent.click(more);
+    expect(
+      await screen.findByRole("dialog", { name: "Team öffnen" }),
+    ).toHaveTextContent("Wählen Sie im Menü „Team“.");
+
+    // Aufgeklappt zeigt sie „Mein Kalender“.
+    const entry = document.createElement("a");
+    entry.dataset.setupTour = "nav-/calendar";
+    visible(entry);
+    fireEvent.click(group);
     expect(
       await screen.findByRole("dialog", { name: "Mein Kalender öffnen" }),
     ).toHaveTextContent("Wählen Sie „Mein Kalender“.");
