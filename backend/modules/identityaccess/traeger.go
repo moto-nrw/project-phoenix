@@ -157,23 +157,30 @@ const (
 // TraegerLoginResult is the Träger login answer: a token pair, the Träger to
 // choose from, or the second factor still to pass. On the enrollment branch
 // AccessToken is the enrollment token. OrganizationID names the Träger the
-// login resolved on both second-factor branches.
+// login resolved on both second-factor branches and the Träger a minted
+// session is at. On the code branch TrustedDeviceEnabled and
+// TrustedDeviceDays offer remembering the device (#6955); an unreadable
+// setting offers nothing.
 type TraegerLoginResult struct {
-	Status         TraegerLoginStatus
-	AccessToken    string
-	RefreshToken   string
-	ChallengeToken string
-	MaskedEmail    string
-	OrganizationID int64
-	Organizations  []TraegerOrganization
+	Status               TraegerLoginStatus
+	AccessToken          string
+	RefreshToken         string
+	ChallengeToken       string
+	MaskedEmail          string
+	OrganizationID       int64
+	Organizations        []TraegerOrganization
+	TrustedDeviceEnabled bool
+	TrustedDeviceDays    int
 }
 
 // TraegerAccountLogin signs an account in to the Träger-Portal. A zero
-// organizationID picks the only Träger of the account or asks for a choice.
-// IssueTraegerTokensForVerifiedMFA mints the Träger session after a proven
-// second factor of the org scope.
+// organizationID picks the only Träger of the account or asks for a choice;
+// trustedDeviceCookie is the browser's remember-device cookie, which signs an
+// enrolled account in without a code when it names a device of the account
+// at that Träger (#6955). IssueTraegerTokensForVerifiedMFA mints the Träger
+// session after a proven second factor of the org scope.
 type TraegerAccountLogin interface {
-	LoginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (*TraegerLoginResult, error)
+	LoginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64, trustedDeviceCookie string) (*TraegerLoginResult, error)
 	IssueTraegerTokensForVerifiedMFA(ctx context.Context, proof VerifiedMFAChallenge, organizationID int64, ipAddress, userAgent string) (*TraegerLoginResult, error)
 }
 

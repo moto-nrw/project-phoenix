@@ -117,6 +117,19 @@ func (s *Store) SaveChildDebtorNumbers(ctx context.Context, organizationID, acco
 // child as it had it, nil when the child had none. The row stays with an
 // empty number: the child stays known, also without a contract (#7007).
 func (s *Store) DeleteChildDebtorNumber(ctx context.Context, organizationID, accountID int64, familyEmail, childKey string) (*parentbilling.ChildDebtorNumber, error) {
+	removed, err := s.DeleteChildDebtorNumbers(ctx, organizationID, accountID, familyEmail, []string{childKey})
+	if err != nil || len(removed) == 0 {
+		return nil, err
+	}
+	return &removed[0], nil
+}
+
+// DeleteChildDebtorNumbers clears a family's numbers in one statement,
+// returning the old values for their audit events. Other Träger are excluded.
+func (s *Store) DeleteChildDebtorNumbers(ctx context.Context, organizationID, accountID int64, familyEmail string, childKeys []string) ([]parentbilling.ChildDebtorNumber, error) {
+	if len(childKeys) == 0 {
+		return nil, nil
+	}
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
@@ -125,18 +138,14 @@ func (s *Store) DeleteChildDebtorNumber(ctx context.Context, organizationID, acc
 	if err := db.NewRaw(`UPDATE parent_billing.child_debtor_numbers AS child
 		SET debtor_number = '', updated_by_account_id = ?3, updated_at = CURRENT_TIMESTAMP
 		FROM (SELECT id, debtor_number FROM parent_billing.child_debtor_numbers
-			WHERE organization_id = ?0 AND family_email = ?1 AND child_key = ?2 AND debtor_number <> '' FOR UPDATE) AS before
+			WHERE organization_id = ?0 AND family_email = ?1 AND child_key = ANY(?2::text[]) AND debtor_number <> '' ORDER BY id FOR UPDATE) AS before
 		WHERE child.id = before.id
 		RETURNING child.id, child.organization_id, child.family_email, child.child_key, child.child_first_name, child.child_last_name,
 			child.child_birth_date, before.debtor_number, child.last_used_on, child.updated_by_account_id, child.updated_at`,
-		organizationID, familyEmail, childKey, accountRef(accountID)).Scan(ctx, &removed); err != nil {
-		return nil, fmt.Errorf("delete the debtor number of the child: %w", err)
+		organizationID, familyEmail, pgdialect.Array(childKeys), accountRef(accountID)).Scan(ctx, &removed); err != nil {
+		return nil, fmt.Errorf("delete the debtor numbers of the children: %w", err)
 	}
-	if len(removed) == 0 {
-		return nil, nil
-	}
-	number := removed[0].number()
-	return &number, nil
+	return childNumbersOfRows(removed), nil
 }
 
 // ExtendChildDebtorNumbers moves the last day each number is needed to the

@@ -86,6 +86,8 @@ describe("TraegerLoginPage", () => {
       challengeToken: "challenge",
       maskedEmail: "b***@traeger.example",
       organizationId: "7",
+      trustedDeviceEnabled: true,
+      trustedDeviceDays: 90,
     });
     fetchMock.mockResolvedValue(jsonResponse({ status: "authenticated" }));
     mockSignIn.mockResolvedValue({ error: undefined });
@@ -97,10 +99,18 @@ describe("TraegerLoginPage", () => {
       await screen.findByRole("heading", { name: "Code-Eingabe" }),
     ).toBeInTheDocument();
     expect(screen.getByText("b***@traeger.example")).toBeInTheDocument();
+    // Since #6955 the Träger-Portal remembers a device like the other
+    // portals, and only on the button that says so.
     expect(
-      screen.queryByRole("checkbox", { name: /Tage merken/ }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", {
+        name: /^Ja, merken und anmelden/,
+      }),
+    ).toBeInTheDocument();
     await enterCode("123456");
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Nein, nur anmelden/ }),
+    );
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const [url, init] = fetchMock.mock.calls[0]!;

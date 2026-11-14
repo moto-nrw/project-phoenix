@@ -23,6 +23,10 @@ gemeinsamen CSP von `frontend/src/proxy.ts`.
   Endpunkt und steht als Object-URL im Frame. Eine `blob:`-Adresse entsteht
   nur durch Skript der eigenen Origin; fremde Origins bleiben als Frame
   gesperrt. Das Turnstile-Formular behält seine eigene `frame-src`.
+- Nur der Demo-Build (`NEXT_PUBLIC_APP_ENV=demo`) ergänzt
+  `https://meetings-eu1.hubspot.com` in `frame-src`: „Termin buchen“ im
+  Demo-Streifen zeigt den Terminkalender der Website als Dialog. Andere Builds
+  erhalten diese Ausnahme nicht.
 - `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `nosniff` und
   `Referrer-Policy: strict-origin-when-cross-origin` bleiben erhalten.
 - Nur das öffentliche Tenant-Phasenformular erhält die Turnstile-Ausnahme für

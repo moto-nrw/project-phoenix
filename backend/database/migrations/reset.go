@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/uptrace/bun"
 )
@@ -41,23 +42,6 @@ const droppablePublicTypesQuery = `
 	    WHERE d.classid = 'pg_type'::regclass AND d.objid = t.oid AND d.deptype IN ('e', 'i')
 	  )
 	ORDER BY t.typname
-`
-
-// droppablePublicRoutinesQuery lists the functions and procedures in the public
-// schema that a reset may drop, as quoted, schema-qualified signatures. Routines
-// an extension owns (pg_depend.deptype = 'e'), such as those of btree_gist or
-// unaccent, stay: DROP ROUTINE on them fails, and they go with their extension.
-const droppablePublicRoutinesQuery = `
-	SELECT format('%I.%I(%s)', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
-	FROM pg_proc p
-	JOIN pg_namespace n ON n.oid = p.pronamespace
-	WHERE n.nspname = 'public'
-	  AND p.prokind IN ('f', 'p')
-	  AND NOT EXISTS (
-	    SELECT 1 FROM pg_depend d
-	    WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e'
-	  )
-	ORDER BY 1
 `
 
 // resetSchemas lists the schemas to drop and recreate. NOTE: keep in sync with all CREATE SCHEMA calls across migrations,
@@ -124,9 +108,9 @@ func resetDatabase(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 		logger.WarnContext(ctx, "failed to drop bun migration tables", "error", err)
 	}
 
-	// 2. Sweep public, the one schema step 1 keeps: routines and custom types
-	// that migrations created there.
-	if err := sweepPublicSchema(ctx, db, logger); err != nil {
+	// 2. Drop what migrations left in the public schema: functions and
+	// custom types (dropPublicLeftovers).
+	if err := dropPublicLeftovers(ctx, db, logger); err != nil {
 		return err
 	}
 
@@ -155,17 +139,41 @@ func resetDatabase(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 	return nil
 }
 
-// droppablePublicTypes returns the names of the types in the public schema that
-// a reset may drop. See droppablePublicTypesQuery for what is filtered out.
-// sweepPublicSchema drops what migrations left in public. Routines go first,
-// such as public.f_phone_search_key: a migration that recreates one with a
-// plain CREATE FUNCTION fails on the next replay otherwise. Custom types follow.
-func sweepPublicSchema(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
+// droppablePublicRoutinesQuery lists the functions and procedures in the
+// public schema a reset may drop: every one an extension does not own
+// (pg_depend.deptype = 'e'), with its identity arguments.
+const droppablePublicRoutinesQuery = `
+	SELECT p.proname, pg_get_function_identity_arguments(p.oid)
+	FROM pg_proc p
+	JOIN pg_namespace n ON n.oid = p.pronamespace
+	WHERE n.nspname = 'public'
+	  AND p.prokind IN ('f', 'p')
+	  AND NOT EXISTS (
+	    SELECT 1 FROM pg_depend d
+	    WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e'
+	  )
+	ORDER BY p.proname, 2
+`
+
+// publicRoutine is a function or procedure in public with its identity
+// arguments.
+type publicRoutine struct {
+	name, arguments string
+}
+
+// dropPublicLeftovers drops what migrations left in the public schema,
+// which step 1 keeps.
+//
+// Functions first (#7009): a plain CREATE FUNCTION there, such as
+// f_phone_search_key, fails on the next migration of a reset database
+// otherwise. Functions of extensions stay.
+//
+// Then the custom types. Collect the names first so no rows stay open while
+// the DROP statements run.
+func dropPublicLeftovers(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 	if err := dropPublicRoutines(ctx, db, logger); err != nil {
 		return err
 	}
-	// Collect the type names
-	// first so no rows stay open while the DROP statements run.
 	typeNames, err := droppablePublicTypes(ctx, db)
 	if err != nil {
 		return fmt.Errorf("failed to query custom types: %w", err)
@@ -177,42 +185,63 @@ func sweepPublicSchema(ctx context.Context, db *bun.DB, logger *slog.Logger) err
 		// non-default search_path the two could disagree: the drop would target
 		// another schema's type or, with IF EXISTS, quietly do nothing and
 		// leave the public type behind for the next CREATE TYPE to collide with.
-		_, err := db.ExecContext(ctx, "DROP TYPE IF EXISTS ?.? CASCADE",
-			bun.Ident(publicSchema), bun.Ident(typeName))
-		if err != nil {
+		if _, err := db.ExecContext(ctx, "DROP TYPE IF EXISTS ?.? CASCADE",
+			bun.Ident(publicSchema), bun.Ident(typeName)); err != nil {
 			return fmt.Errorf("failed to drop type %s.%s: %w", publicSchema, typeName, err)
 		}
 	}
 	return nil
 }
 
-// dropPublicRoutines drops every routine droppablePublicRoutines lists.
+// dropPublicRoutines drops every function and procedure in public that no
+// extension owns.
 func dropPublicRoutines(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 	routines, err := droppablePublicRoutines(ctx, db)
 	if err != nil {
-		return fmt.Errorf("failed to query public routines: %w", err)
+		return fmt.Errorf("failed to query public functions: %w", err)
 	}
 	for _, routine := range routines {
-		logger.DebugContext(ctx, "dropping routine", "routine", routine)
-		// The signature comes from format('%I.%I(%s)') in the catalog query,
-		// so it is already quoted and schema-qualified.
-		if _, err := db.ExecContext(ctx, "DROP ROUTINE IF EXISTS "+routine+" CASCADE"); err != nil {
-			return fmt.Errorf("failed to drop routine %s: %w", routine, err)
+		logger.DebugContext(ctx, "dropping public function", "function", routine.name)
+		if _, err := db.ExecContext(ctx, routine.dropStatement()); err != nil {
+			return fmt.Errorf("failed to drop function %s.%s: %w", publicSchema, routine.name, err)
 		}
 	}
 	return nil
 }
 
-// droppablePublicRoutines returns the signatures droppablePublicRoutinesQuery
-// lists. The rows are closed before any DROP runs.
-func droppablePublicRoutines(ctx context.Context, db *bun.DB) ([]string, error) {
-	var routines []string
-	if err := db.NewRaw(droppablePublicRoutinesQuery).Scan(ctx, &routines); err != nil {
-		return nil, fmt.Errorf("query droppable public routines: %w", err)
-	}
-	return routines, nil
+// dropStatement drops the routine. The name is quoted; the arguments come
+// from the catalog (pg_get_function_identity_arguments). It carries no bind
+// placeholder, which bun would read in "?(".
+func (r publicRoutine) dropStatement() string {
+	return fmt.Sprintf("DROP ROUTINE IF EXISTS %s.%s(%s) CASCADE", quoteIdent(publicSchema), quoteIdent(r.name), r.arguments)
 }
 
+// quoteIdent quotes a PostgreSQL identifier.
+func quoteIdent(name string) string {
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+}
+
+// droppablePublicRoutines returns the functions and procedures in public a
+// reset may drop.
+func droppablePublicRoutines(ctx context.Context, db *bun.DB) ([]publicRoutine, error) {
+	rows, err := db.QueryContext(ctx, droppablePublicRoutinesQuery)
+	if err != nil {
+		return nil, fmt.Errorf("query droppable public functions: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var routines []publicRoutine
+	for rows.Next() {
+		var routine publicRoutine
+		if err := rows.Scan(&routine.name, &routine.arguments); err != nil {
+			return nil, fmt.Errorf("scan public function: %w", err)
+		}
+		routines = append(routines, routine)
+	}
+	return routines, rows.Err()
+}
+
+// droppablePublicTypes returns the names of the types in the public schema that
+// a reset may drop. See droppablePublicTypesQuery for what is filtered out.
 func droppablePublicTypes(ctx context.Context, db *bun.DB) ([]string, error) {
 	rows, err := db.QueryContext(ctx, droppablePublicTypesQuery)
 	if err != nil {

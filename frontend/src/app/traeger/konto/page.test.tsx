@@ -9,6 +9,12 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/traeger-api", () => api);
+// The device list has its own tests and needs a session provider.
+vi.mock("~/components/settings/trusted-devices-section", () => ({
+  TrustedDevicesSection: ({ scope }: { scope: string }) => (
+    <section aria-label={`Vertraute Geräte (${scope})`} />
+  ),
+}));
 
 import TraegerAccountPage from "./page";
 
@@ -38,6 +44,9 @@ describe("TraegerAccountPage", () => {
       name: "Karl Kasse",
     });
     renderPage();
+    expect(
+      await screen.findByRole("region", { name: "Vertraute Geräte (traeger)" }),
+    ).toBeInTheDocument();
 
     expect(
       await screen.findByText("kasse@traeger.example"),

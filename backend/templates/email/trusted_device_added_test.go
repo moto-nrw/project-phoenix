@@ -28,9 +28,10 @@ func TestTrustedDeviceAddedTemplate_Renders(t *testing.T) {
 	require.NotNil(t, tpl.Lookup("trusted-device-added.html"), "template must register under its filename")
 
 	tests := []struct {
-		name        string
-		data        map[string]any
-		mustContain []string
+		name           string
+		data           map[string]any
+		mustContain    []string
+		mustNotContain []string
 	}{
 		{
 			name: "happy path with IP",
@@ -77,6 +78,26 @@ func TestTrustedDeviceAddedTemplate_Renders(t *testing.T) {
 				"30",
 			},
 		},
+		{
+			// A device of the Träger-Portal (#6955) is managed in the
+			// Träger account page and reset by the moto team, not by a
+			// school's administration.
+			name: "Träger-Portal device",
+			data: map[string]any{
+				"LogoURL":     "https://example.com/logo.png",
+				"DeviceLabel": "Firefox auf Windows",
+				"AddedAt":     "14.11.2026 08:15",
+				"TrustedDays": 90,
+				"Traeger":     true,
+			},
+			mustContain: []string{
+				"Firefox auf Windows",
+				"im Träger-Portal",
+				"Konto → Meine vertrauten Geräte",
+				"moto-Team",
+			},
+			mustNotContain: []string{"Administration Ihrer Schule", "Caterer-Portal"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -87,6 +108,9 @@ func TestTrustedDeviceAddedTemplate_Renders(t *testing.T) {
 
 			for _, snippet := range tt.mustContain {
 				assert.Contains(t, rendered, snippet, "rendered output must contain %q", snippet)
+			}
+			for _, snippet := range tt.mustNotContain {
+				assert.NotContains(t, rendered, snippet, "rendered output must not contain %q", snippet)
 			}
 		})
 	}

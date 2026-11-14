@@ -299,7 +299,7 @@ func appendNew[T any](list, entries []T) []T {
 // of the monthly care.
 func (n *CareFeeNotices) withPayments(ctx context.Context, organizationID int64, notices []parentbilling.CareNotice, issuedOn calendar.Date) error {
 	// A notice names no debtor number: the payer's terms are enough.
-	payments, err := readInvoicePayments(ctx, n.billing.store, organizationID, 0, 0, parentbilling.DebtorNumberScopePayer)
+	payments, err := readInvoicePayments(ctx, n.billing.store, organizationID, 0, 0, parentbilling.DebtorNumberScopePayer, false)
 	if err != nil {
 		return err
 	}

@@ -68,7 +68,8 @@ export function useRequestMails(requestId: string) {
 /**
  * The mails to a family with their status. The defaults name the mails of an
  * enrollment request; the holiday registrations of a Träger pass their own
- * title, names and next step (#6976). A mail with `created_at` names when it
+ * title, names and symbol (#6976, #6999). Their next step stands in the notice
+ * above, so it does not repeat here. A mail with `created_at` names when it
  * came about, so two mails of one kind stay apart.
  */
 export function RequestMailStatus({
@@ -76,14 +77,14 @@ export function RequestMailStatus({
   loadError,
   title = "E-Mails an die Familie",
   labels = REQUEST_MAIL_LABELS,
-  note,
+  leading,
 }: Readonly<{
   mails: readonly AdminRequestMail[];
   loadError: ReturnType<typeof useRequestMails>["loadError"];
   title?: string;
   labels?: Readonly<Record<string, string>>;
-  /** A line under the list, in place of the hints of a school's address list. */
-  note?: ReactNode;
+  /** The symbol of the card, as the other cards of the page carry one. */
+  leading?: ReactNode;
 }>) {
   return (
     <>
@@ -93,6 +94,7 @@ export function RequestMailStatus({
       {mails.length > 0 && (
         <SectionCard
           title={title}
+          leading={leading}
           description="Hier sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind."
           className="mb-4"
         >
@@ -124,7 +126,6 @@ export function RequestMailStatus({
               );
             })}
           </ul>
-          {note && <p className="mt-2 text-sm text-gray-600">{note}</p>}
           {mails.some((mail) => mail.address_mark) && (
             <p className="mt-2 text-sm text-gray-600">
               An die Adresse dieser Anmeldung geht keine Mail raus. Bitte

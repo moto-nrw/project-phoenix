@@ -10,6 +10,7 @@ import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { SectionCard } from "~/components/ui/section-card";
 import { usePublishTraegerOwnProfile } from "~/components/traeger/traeger-own-name";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -170,6 +171,7 @@ export default function TraegerAccountPage() {
             </DataGrid>
           </SectionCard>
           <NameCard name={profile.name} onSaved={showProfile} />
+          <TrustedDevicesSection scope="traeger" />
         </>
       ) : null}
     </TenantPage>

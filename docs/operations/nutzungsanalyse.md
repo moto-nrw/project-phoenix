@@ -381,7 +381,7 @@ question) lives in the dashboard descriptions.
 | Eltern-App | `moto-app.de` | The same for parents; parents have no school | created by the sync |
 | Schul-App | `moto-app.de` | The same for teachers in the school portal | created by the sync |
 | Schule im Verlauf | `moto-app.de` | One school over time (`school_id` filter, do not save it) | <https://eu.posthog.com/project/140838/dashboard/1046854> |
-| Demo | `demo` | Conversion to „Kostenlos starten“, time in the demo, what visitors look at and try, where they stop, dead and rage clicks | created by the sync |
+| Demo | `demo` | Conversion to „Termin buchen“, time in the demo, what visitors look at and try, where they stop, dead and rage clicks | created by the sync |
 
 A school counts as active through use: page views, core actions, and kiosk
 bookings (`ACTIVE_USE`), not a failed login or a dead click. Rage clicks come
@@ -414,10 +414,10 @@ fails for a route template without an area, so a new page needs one.
 
 The demo funnel starts with the link request (`demo_link_requested` from the
 backend). The click on „Demo starten" before it happens on the website,
-which measures with Umami, not PostHog. So does the intake form behind
-„Kostenlos starten" (`moto-ogs.de/start/?src=demo`): Umami events
-`start-form-start`, `start-form-step`, `start-form-submit`, and
-`start-form-result`, each with `src`.
+which measures with Umami, not PostHog. The funnel ends with the click on
+„Termin buchen" (`demo_start_clicked`; until the switch from „Kostenlos
+starten" the same event counted that button). The button opens the HubSpot
+booking calendar in a new tab; booked appointments live in HubSpot.
 
 ## Privacy policy (website, `moto-ogs.de/datenschutz`)
 

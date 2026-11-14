@@ -7,7 +7,15 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
@@ -106,7 +114,10 @@ describe("TraegerHolidayRegistrationPage", () => {
     mockConfirm.mockReset().mockResolvedValue(HOLIDAY_CONTRIBUTION);
     mockContribution.mockResolvedValue(HOLIDAY_CONTRIBUTION);
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
-    mockFamilyDebtorNumber.mockResolvedValue("");
+    mockFamilyDebtorNumber.mockResolvedValue({
+      debtorNumber: "",
+      children: [],
+    });
     mockHealth.mockReset();
     mockHealth.mockResolvedValue(HOLIDAY_REGISTRATION_HEALTH);
     mockEdit.mockReset();
@@ -419,7 +430,10 @@ describe("TraegerHolidayRegistrationPage", () => {
   });
 
   it("proposes the number the family already has at the confirmation (#6692)", async () => {
-    mockFamilyDebtorNumber.mockResolvedValue("20 815");
+    mockFamilyDebtorNumber.mockResolvedValue({
+      debtorNumber: "20 815",
+      children: [],
+    });
     render(
       <ToastProvider>
         <TraegerHolidayRegistrationPage />
@@ -582,6 +596,18 @@ describe("TraegerHolidayRegistrationPage", () => {
   it("warns when a mail to the parents did not arrive (#6737)", async () => {
     mockRegistration.mockResolvedValue({
       ...HOLIDAY_REGISTRATION,
+      mails: [
+        {
+          kind: "holiday_registration_received",
+          outcome: "undeliverable",
+          createdAt: null,
+        },
+        {
+          kind: "holiday_registration_accepted",
+          outcome: "blocked",
+          createdAt: null,
+        },
+      ],
       mailProblems: [
         { kind: "holiday_registration_received", state: "failed" },
         { kind: "holiday_registration_accepted", state: "blocked" },
@@ -594,7 +620,7 @@ describe("TraegerHolidayRegistrationPage", () => {
     );
 
     expect(
-      await screen.findByText("E-Mail an die Eltern prüfen"),
+      await screen.findByText("Mails an die Eltern prüfen"),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -603,9 +629,48 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
+        "Informieren Sie die Familie am besten per Telefon. Prüfen Sie die E-Mail-Adresse unter „Eltern“ und ändern Sie sie, wenn sie falsch ist.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
         "Die Annahme-Mail wurde nicht gesendet. An diese Adresse gehen zurzeit keine Mails.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("leads from the mail notice to the parents' phone and address (#6999)", async () => {
+    const scrolled = vi
+      .spyOn(Element.prototype, "scrollIntoView")
+      .mockImplementation(() => undefined);
+    onTestFinished(() => scrolled.mockRestore());
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      mails: [
+        {
+          kind: "holiday_registration_received",
+          outcome: "undeliverable",
+          createdAt: null,
+        },
+      ],
+      mailProblems: [
+        { kind: "holiday_registration_received", state: "failed" },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Zu den Eltern" }),
+    );
+
+    const parents = screen.getByRole("heading", { name: "Eltern" });
+    expect(parents).toHaveFocus();
+    expect(scrolled).toHaveBeenCalledWith({ block: "start" });
+    expect(scrolled.mock.contexts[0]).toBe(parents.closest("section"));
   });
 
   it("shows no mail warning while the mails are on their way (#6737)", async () => {
@@ -616,10 +681,9 @@ describe("TraegerHolidayRegistrationPage", () => {
       </ToastProvider>,
     );
 
+    // Anker: the page shows the parents' address.
     expect(await screen.findByText("eva@example.org")).toBeInTheDocument();
-    expect(
-      screen.queryByText("E-Mail an die Eltern prüfen"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/an die Eltern prüfen/)).not.toBeInTheDocument();
   });
 
   it("lists every mail of the registration with its status (#6976)", async () => {
@@ -656,7 +720,7 @@ describe("TraegerHolidayRegistrationPage", () => {
     );
 
     const section = (
-      await screen.findByRole("heading", { name: "Mails" })
+      await screen.findByRole("heading", { name: "Mails an die Eltern" })
     ).closest("section");
     expect(section).not.toBeNull();
     const rows = within(section!).getAllByRole("listitem");
@@ -667,11 +731,13 @@ describe("TraegerHolidayRegistrationPage", () => {
       "Mail zu SchließtagenNicht gesendet",
       "Mail zum ElternkontoNicht zustellbar",
     ]);
+    // The next step stands once, in the notice above, not again under the
+    // list (#6999).
+    // Anker: the notice above carries the next step exactly once.
+    expect(screen.getAllByText(/Informieren Sie die Familie/)).toHaveLength(1);
     expect(
-      within(section!).getByText(
-        "Bei mindestens einer Mail gibt es ein Problem. Informieren Sie die Familie am besten per Telefon. Prüfen Sie die E-Mail-Adresse unter „Eltern“ und ändern Sie sie, wenn sie falsch ist.",
-      ),
-    ).toBeInTheDocument();
+      within(section!).queryByText(/Informieren Sie die Familie/),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByText(
         "Die Mail zu Schließtagen wurde nicht gesendet. An diese Adresse gehen zurzeit keine Mails.",
@@ -711,7 +777,7 @@ describe("TraegerHolidayRegistrationPage", () => {
     );
 
     const section = (
-      await screen.findByRole("heading", { name: "Mails" })
+      await screen.findByRole("heading", { name: "Mails an die Eltern" })
     ).closest("section");
     expect(
       within(section!)
@@ -770,11 +836,91 @@ describe("TraegerHolidayRegistrationPage", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/wurde nicht gesendet/)).not.toBeInTheDocument();
+    // The parents chose this; their address is right, so the notice asks
+    // for a call and not for another address (#6999).
+    // Anker: the notice names the call.
+    expect(
+      screen.getByText("Informieren Sie die Familie am besten per Telefon."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Prüfen Sie die E-Mail-Adresse/),
+    ).not.toBeInTheDocument();
     const section = screen
-      .getByRole("heading", { name: "Mails" })
+      .getByRole("heading", { name: "Mails an die Eltern" })
       .closest("section");
-    expect(within(section!).getByText("Nicht zustellbar")).toBeInTheDocument();
+    // The badge says what the notice says, never that the mail did not
+    // arrive (#6999).
+    expect(
+      within(section!).getByText("Als unerwünscht gemeldet"),
+    ).toBeInTheDocument();
+    expect(
+      within(section!).queryByText("Nicht zustellbar"),
+    ).not.toBeInTheDocument();
     expect(within(section!).getByText("Abgemeldet")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["a school stopped the mails to the person", "held_by_stop", "blocked"],
+    ["the send failed before a server took it", "send_failed", "failed"],
+  ] as const)(
+    "asks for no other address when %s (#6999)",
+    async (_case, outcome, state) => {
+      mockRegistration.mockResolvedValue({
+        ...HOLIDAY_REGISTRATION,
+        mails: [
+          { kind: "holiday_registration_received", outcome, createdAt: null },
+        ],
+        mailProblems: [{ kind: "holiday_registration_received", state }],
+      });
+      render(
+        <ToastProvider>
+          <TraegerHolidayRegistrationPage />
+        </ToastProvider>,
+      );
+
+      // Anker: the notice is there and names the call.
+      expect(
+        await screen.findByText(
+          "Informieren Sie die Familie am besten per Telefon.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/Prüfen Sie die E-Mail-Adresse/),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("asks for no other address on a cancelled registration (#6999)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      status: "cancelled",
+      mails: [
+        {
+          kind: "holiday_registration_received",
+          outcome: "undeliverable",
+          createdAt: null,
+        },
+      ],
+      mailProblems: [
+        { kind: "holiday_registration_received", state: "failed" },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    // Anker: the notice of the cancelled registration names the call.
+    expect(
+      await screen.findByText("Mail an die Eltern prüfen"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Informieren Sie die Familie am besten per Telefon."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Prüfen Sie die E-Mail-Adresse/),
+    ).not.toBeInTheDocument();
   });
 
   it("shows no mail section before any mail exists (#6976)", async () => {
@@ -789,7 +935,7 @@ describe("TraegerHolidayRegistrationPage", () => {
       await screen.findByRole("heading", { name: "Eltern" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", { name: "Mails" }),
+      screen.queryByRole("heading", { name: "Mails an die Eltern" }),
     ).not.toBeInTheDocument();
   });
 

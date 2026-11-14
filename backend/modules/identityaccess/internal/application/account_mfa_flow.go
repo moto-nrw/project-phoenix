@@ -397,12 +397,14 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 	}
 	device := domain.AccountTrustedDevice{
 		AccountID: accountID,
-		// The row carries the school, so a cookie issued at school A can
-		// never bypass MFA at school B.
-		TenantID:  tenantID,
-		TokenHash: domain.HashTrustedDeviceToken(rawToken),
-		IPAddress: ip,
-		ExpiresAt: expiresAt,
+		// The row carries the school or the Träger, so a cookie issued at
+		// school A can never bypass MFA at school B, nor one of Träger A at
+		// Träger B or at the caterer portal.
+		TenantID:       tenantID,
+		OrganizationID: deviceTraeger(ctx, tenantID),
+		TokenHash:      domain.HashTrustedDeviceToken(rawToken),
+		IPAddress:      ip,
+		ExpiresAt:      expiresAt,
 	}
 	if userAgent != "" {
 		label := userAgent
@@ -422,7 +424,7 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 		}); err != nil {
 			return err
 		}
-		return f.notifyTrustedDeviceAdded(txCtx, accountID, stored.ID, userAgent, ip, days, tenantID == 0)
+		return f.notifyTrustedDeviceAdded(txCtx, accountID, stored, userAgent, ip, days)
 	})
 	if err != nil {
 		return "", time.Time{}, err
@@ -442,7 +444,7 @@ func (f *AccountMFAFlows) VerifyTrustedDevice(ctx context.Context, accountID, te
 	if !ok {
 		return false, nil
 	}
-	device, found, err := f.records.FindActiveTrustedDevice(ctx, accountID, tenantID, domain.HashTrustedDeviceToken(rawToken))
+	device, found, err := f.records.FindActiveTrustedDevice(ctx, accountID, tenantID, deviceTraeger(ctx, tenantID), domain.HashTrustedDeviceToken(rawToken))
 	if err != nil || !found {
 		return false, nil
 	}
@@ -451,10 +453,10 @@ func (f *AccountMFAFlows) VerifyTrustedDevice(ctx context.Context, accountID, te
 }
 
 // RevokeTrustedDevice revokes one device after proving it belongs to the
-// calling account at the calling school, so neither an id guess nor a token
-// from another school can revoke it.
+// calling account at the calling school or Träger, so neither an id guess nor
+// a token from another school, Träger or portal can revoke it.
 func (f *AccountMFAFlows) RevokeTrustedDevice(ctx context.Context, accountID, tenantID, deviceID int64) error {
-	devices, err := f.records.ListActiveTrustedDevices(ctx, accountID, tenantID)
+	devices, err := f.records.ListActiveTrustedDevices(ctx, accountID, tenantID, deviceTraeger(ctx, tenantID))
 	if err != nil {
 		return err
 	}
@@ -483,9 +485,10 @@ func (f *AccountMFAFlows) trustedDeviceHint(ctx context.Context, tenantID int64)
 	return days > 0, days
 }
 
-// notifyTrustedDeviceAdded mails the holder. A device without a school is
-// the caterer portal's (#4497), whose holder manages it in its account.
-func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID, deviceID int64, userAgent string, ip net.IP, days int, caterer bool) error {
+// notifyTrustedDeviceAdded mails the holder. A device of the Träger-Portal
+// names its Träger (#6955), one without a school and without a Träger is the
+// caterer portal's (#4497); both holders manage it in their account.
+func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID int64, device domain.AccountTrustedDevice, userAgent string, ip net.IP, days int) error {
 	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
 	if err != nil || !found || account.Email == "" {
 		f.logger.Warn("could not load account for trusted-device-added mail",
@@ -496,8 +499,9 @@ func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountI
 	return f.mail.NotifyTrustedDeviceAdded(ctx, domain.TrustedDeviceMail{
 		Recipient: account.Email, ReferenceID: accountID,
 		DeviceLabel: domain.ShortenUserAgent(userAgent), RequestIP: domain.AuditIPString(ip),
-		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: days, Caterer: caterer,
-	}, deviceID)
+		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: days,
+		Caterer: device.TenantID == 0 && device.OrganizationID == 0, Traeger: device.OrganizationID > 0,
+	}, device.ID)
 }
 
 // ===== Audit =====
@@ -583,9 +587,21 @@ func withoutSchoolLedgerContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, schoolLedgerKey{}, true)
 }
 
+// withoutSchoolLedger reports a flow of a portal without a school. A call
+// bound to a Träger's devices is the Träger-Portal's, which has none either.
 func withoutSchoolLedger(ctx context.Context) bool {
 	marked, _ := ctx.Value(schoolLedgerKey{}).(bool)
-	return marked
+	return marked || identityaccess.TraegerDeviceOf(ctx) > 0
+}
+
+// deviceTraeger is the Träger a trusted-device call is bound to: the one
+// identityaccess.WithTraegerDevice names on a call without a school (#6955),
+// zero on a school's call and on the caterer portal's.
+func deviceTraeger(ctx context.Context, tenantID int64) int64 {
+	if tenantID != 0 {
+		return 0
+	}
+	return identityaccess.TraegerDeviceOf(ctx)
 }
 
 func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.AccountMFAChallenge, message domain.MFACodeMail, credentialGeneration *int64) (domain.AccountMFAChallenge, func(context.Context) error, error) {

@@ -222,6 +222,8 @@ describe("traeger-api", () => {
         challenge_token: "challenge",
         masked_email: "a***@b.de",
         organization_id: 7,
+        trusted_device_enabled: true,
+        trusted_device_days: 90,
       }),
     );
     await expect(
@@ -231,6 +233,24 @@ describe("traeger-api", () => {
       challengeToken: "challenge",
       maskedEmail: "a***@b.de",
       organizationId: "7",
+      trustedDeviceEnabled: true,
+      trustedDeviceDays: 90,
+    });
+
+    // An answer without the fields offers nothing to remember (#6955).
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        status: "mfa_required",
+        challenge_token: "challenge",
+        masked_email: "a***@b.de",
+        organization_id: 7,
+      }),
+    );
+    await expect(
+      traegerLogin({ email: "a@b.de", password: "pw" }),
+    ).resolves.toMatchObject({
+      status: "mfa_required",
+      trustedDeviceEnabled: false,
     });
 
     fetchMock.mockResolvedValueOnce(

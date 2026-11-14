@@ -397,3 +397,28 @@ editierbaren Rechnungsentwurf, und eine ausgestellte Rechnung ändert sich nie.
   `care_amendments_unresolved`; ein Port `CareBillingSettings.CareAmendable`
   (Abfrage auf die Träger-Einstellungen); Demo-Löschung über
   `platform.erase_closed_demo_visitors` mit dem Vertrag.
+
+## Nachtrag 2026-11-14: Ferienrechnung je Kind (#7007)
+
+Führt ein Träger die Debitorennummer je Kind (`parent_billing.debtor_number_scope`
+= `child`, Entscheidung Option A in #7007), stellt der Lauf für jedes Kind
+einer Ferienanmeldung eine eigene Rechnung aus. Die Regel „eine Rechnung je
+Anmeldung und Leistung“ gilt dann je Anmeldung, Kind und Leistung.
+
+1. `parent_billing.documents.holiday_registration_child_id` nennt das Kind
+   einer Rechnung je Kind; `NULL` ist eine Rechnung der ganzen Anmeldung wie
+   bisher. `uq_documents_first_invoice` ist eindeutig je Anmeldung und Kind.
+2. **Die erste Rechnung legt die Form fest.** Eine Anmeldung, die schon eine
+   Rechnung hat, ausgestellt oder storniert, behält deren Form: Eine vor der
+   Umstellung als Ganzes abgerechnete Anmeldung bleibt eine Rechnung, auch
+   nach Storno und Neuausstellung. Nur Anmeldungen ohne Rechnung folgen der
+   Einstellung. Storno, Gutschrift und Neuausstellung übernehmen das Kind der
+   Rechnung, der sie folgen (`HolidayInvoiceKey`).
+3. Die Geschwisterermäßigung steht schon heute als Position beim Kind, das
+   sie bekommt; sie wandert mit ihm auf seine Rechnung.
+4. Jede Rechnung je Kind nimmt die Nummer ihres Kindes. Die Nummer der
+   Anmeldung gilt nur, wenn die Anmeldung ein Kind hat. Das Bestätigen fragt
+   bei mehreren Kindern je Kind nach der Nummer und merkt sie beim Kind.
+5. Briefe, Mails, SEPA-Lastschriften, DATEV und Sollstellung bleiben je
+   Rechnung; Eltern mit mehreren Kindern bekommen mehrere Rechnungen. Ein
+   Brief nennt weiter nie Kinder einer anderen Anmeldung.

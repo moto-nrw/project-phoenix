@@ -143,8 +143,10 @@ const OUTCOME_COPY: Record<MailOutcome, MailStatusCopy> = {
     explanation:
       "Die Mail ist seit Tagen verzögert. Sie können sie noch einmal senden.",
   },
+  // The mail arrived; the person reported it afterwards (#6999). It never
+  // reads like a mail that did not arrive.
   complained: {
-    label: "Nicht zustellbar",
+    label: "Als unerwünscht gemeldet",
     tone: "red",
     explanation: "Diese Person hat die Mail als unerwünscht gemeldet.",
   },

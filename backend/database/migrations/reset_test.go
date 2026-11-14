@@ -2,7 +2,6 @@ package migrations
 
 import (
 	"context"
-	"slices"
 	"strings"
 	"testing"
 
@@ -113,44 +112,56 @@ func TestResetDropsEveryListedPublicType(t *testing.T) {
 	}
 }
 
-func mustExec(t *testing.T, db *bun.DB, query string) {
-	t.Helper()
-	if _, err := db.ExecContext(context.Background(), query); err != nil {
-		t.Fatalf("exec %q: %v", query, err)
-	}
-}
-
-// TestResetDropsPublicRoutines proves a reset leaves no routine a migration
-// created in public, so a plain CREATE FUNCTION runs again on the next replay,
-// while the routines of an extension stay listed out.
-func TestResetDropsPublicRoutines(t *testing.T) {
-	// Safe in parallel: TestMain enables PerTestDatabases, so the reset only
-	// sweeps this test's own disposable clone.
+// TestResetDropsThePublicFunctionsOfMigrations keeps a reset database
+// migratable (#7009): a function a migration creates in public goes, one an
+// extension owns stays.
+func TestResetDropsThePublicFunctionsOfMigrations(t *testing.T) {
+	// Safe in parallel: TestMain enables PerTestDatabases, so this test
+	// mutates its own disposable clone.
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
 	mustExec(t, db, `CREATE EXTENSION IF NOT EXISTS btree_gist`)
-	const create = `CREATE FUNCTION public.reset_drop_routine(text) RETURNS text
-		LANGUAGE sql IMMUTABLE AS $$ SELECT $1 $$`
-	mustExec(t, db, `DROP FUNCTION IF EXISTS public.reset_drop_routine(text)`)
-	mustExec(t, db, create)
+	mustExec(t, db, `DROP FUNCTION IF EXISTS public.reset_drop_fn(text, integer)`)
+	mustExec(t, db, `CREATE FUNCTION public.reset_drop_fn(text, integer) RETURNS text LANGUAGE sql IMMUTABLE AS 'SELECT $1'`)
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(context.Background(), `DROP FUNCTION IF EXISTS public.reset_drop_fn(text, integer)`)
+	})
 
 	routines, err := droppablePublicRoutines(ctx, db)
 	if err != nil {
-		t.Fatalf("list droppable public routines: %v", err)
+		t.Fatalf("list droppable public functions: %v", err)
 	}
-	if !slices.Contains(routines, "public.reset_drop_routine(text)") {
-		t.Fatalf("a routine a migration created must be listed, got %v", routines)
-	}
+	listed := map[string]string{}
 	for _, routine := range routines {
-		if strings.HasPrefix(routine, "public.gbt_") {
-			t.Errorf("extension-owned routine %s must not be listed; it goes with btree_gist", routine)
+		listed[routine.name] = routine.arguments
+	}
+	if listed["reset_drop_fn"] != "text, integer" {
+		t.Errorf("the migration's function must be listed with its arguments, got %v", routines)
+	}
+	for name := range listed {
+		if strings.HasPrefix(name, "gbt_") {
+			t.Errorf("extension-owned function %s must not be listed", name)
 		}
 	}
-
-	if err := resetDatabase(ctx, db, nil); err != nil {
-		t.Fatalf("reset: %v", err)
+	for _, routine := range routines {
+		if _, err := db.ExecContext(ctx, routine.dropStatement()); err != nil {
+			t.Errorf("drop function %s: %v", routine.name, err)
+		}
 	}
-	mustExec(t, db, create)
+	remaining, err := droppablePublicRoutines(ctx, db)
+	if err != nil {
+		t.Fatalf("re-list droppable public functions: %v", err)
+	}
+	if len(remaining) != 0 {
+		t.Errorf("functions still droppable after the drop loop: %v", remaining)
+	}
+}
+
+func mustExec(t *testing.T, db *bun.DB, query string) {
+	t.Helper()
+	if _, err := db.ExecContext(context.Background(), query); err != nil {
+		t.Fatalf("exec %q: %v", query, err)
+	}
 }

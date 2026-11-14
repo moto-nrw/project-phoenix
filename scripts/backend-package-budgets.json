@@ -1,25 +1,30 @@
 {
-  "defaultSeconds": 120,
+  "defaultSeconds": 90,
+  "defaultReason": "Slowest packages without an entry, 14.11.2026: at most 45 s in 16 runs after #7038, but 55-63 s in pull requests of 13.11. before it (modules/careplan/contracttest, modules/enrollment/http/behaviortest, modules/careplan/http); 90 s is about 1.5 times that maximum, because the runs after #7038 are one light Saturday.",
   "packages": {
     "api": {
-      "seconds": 330,
-      "reason": "Full suite on blacksmith-8vcpu (#6784): 147-193 s with a warm build cache, 178-255 s when most test packages compile in the same job. Target is 60 s (ci-test-performance.md); lower this budget as the package gets faster."
-    },
-    "modules/organizationtenancy/compose": {
-      "seconds": 330,
-      "reason": "Full suite (#6784): 121-188 s warm, 158-251 s compiling. Per-test tenants for school lifecycle and erasure (#6452)."
+      "seconds": 240,
+      "reason": "25 runs after #7038 (14.11.2026, 07:50-11:10 UTC, light Saturday load): 91-140 s on blacksmith-8vcpu, 131-155 s for the full suite on blacksmith-4vcpu, 51-54 s in small selections there; budget is 1.5 times the maximum. Target is 60 s (ci-test-performance.md); lower this budget as the package gets faster."
     },
     "modules/dataimport/importtest": {
-      "seconds": 300,
-      "reason": "Full suite (#6784): 171 s warm, 199 s compiling, after the fault matrices were reduced to their representatives (5040 to 884 uploads); 245-389 s before."
+      "seconds": 160,
+      "reason": "23 runs after #7038 (14.11.2026): 63-97 s on blacksmith-8vcpu, 86-102 s for the full suite on blacksmith-4vcpu; budget is 1.5 times the maximum."
     },
     "database/migrations": {
-      "seconds": 150,
-      "reason": "Full suite (#6784): 55-62 s warm, 76-106 s compiling. Runs every migration on fresh databases."
+      "seconds": 130,
+      "reason": "21 runs after #7038 (14.11.2026): 46-68 s on blacksmith-8vcpu, 65-72 s for the full suite on blacksmith-4vcpu, 34 s in a small selection there. Migration pull requests on blacksmith-4vcpu took 71-107 s before #7038 and are barely measured since, so the budget stays above 1.5 times the new maximum (110 s) until weekday runs exist. Runs every migration on fresh databases."
+    },
+    "modules/organizationtenancy/compose": {
+      "seconds": 100,
+      "reason": "20 runs after #7038 (14.11.2026): 37-61 s on blacksmith-8vcpu, 36-41 s for the full suite on blacksmith-4vcpu; budget is 1.5 times the maximum. Per-test tenants for school lifecycle and erasure (#6452)."
     },
     "cmd": {
-      "seconds": 150,
-      "reason": "Full suite (#6784): 43-52 s warm, 63-100 s compiling."
+      "seconds": 100,
+      "reason": "23 runs after #7038 (14.11.2026): 16-34 s. On blacksmith-4vcpu it took 49-90 s before #7038 and is barely measured there since; lower it to the default once weekday runs on that runner exist."
+    },
+    "internal/architecture": {
+      "seconds": 110,
+      "reason": "16 runs after #7038 (14.11.2026): 20-45 s with the child-process builds in the warmed cache. They compile cold when a pull request changes much Go code: 53-100 s in six runs of 13.11. before the warm job ran these tests."
     }
   }
 }

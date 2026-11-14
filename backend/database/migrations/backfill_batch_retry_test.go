@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -23,7 +24,9 @@ import (
 // so the tests replace only the copy statements with real statements of the
 // same shape; connection, sampler, BEGIN, SET LOCAL, checkpoint, COMMIT,
 // rollback, flush, rewind and the retry loops run for real on a
-// fault-injecting pool (testpkg.NewStatementFaultPool).
+// fault-injecting pool: a cell of the clone's shared fault pool
+// (testpkg.NewStatementFaultCells), or a pool of its own
+// (testpkg.NewStatementFaultPool) for a cell that breaks a connection.
 
 const (
 	monitorSamplePrefix = "SELECT coalesce(wait_event_type"
@@ -49,6 +52,12 @@ type faultPlan struct {
 	site     string
 	main     string
 	rollback string
+}
+
+// breaksConnection reports whether a failure of the plan is
+// driver.ErrBadConn, on which database/sql discards the connection.
+func (p faultPlan) breaksConnection() bool {
+	return p.monitor == "bad_conn" || p.main == "bad_conn" || p.rollback == "bad_conn"
 }
 
 // Failure sites, grouped by the classes of the PR's Klasse-12 plan.
@@ -329,13 +338,40 @@ func backfillTestDB(t *testing.T) *bun.DB {
 	return db
 }
 
-// newBatch opens a fault pool and a seeded tenant of its own.
-func newBatch(t *testing.T, super *bun.DB, d backfillDriver) (*bun.DB, *testpkg.StatementFaults, int64) {
+// faultCells holds the shared fault pool of each clone TestBackfillBatchRetry
+// opened: *bun.DB of the clone -> *testpkg.StatementFaultCells.
+var faultCells sync.Map
+
+// newBatch opens a cell of the clone's shared fault pool and a seeded tenant
+// of its own. A cell whose plan breaks a connection (newConnection) keeps a
+// fault pool of its own with fresh connections, as every cell had before the
+// shared pool.
+func newBatch(t *testing.T, super *bun.DB, d backfillDriver, newConnection bool) (*bun.DB, *testpkg.StatementFaults, int64) {
 	t.Helper()
-	pool, faults := testpkg.NewStatementFaultPool(t)
+	var pool *bun.DB
+	var faults *testpkg.StatementFaults
+	if cells, ok := faultCells.Load(super); ok && !newConnection {
+		pool, faults = testpkg.NewStatementFaultCell(t, cells.(*testpkg.StatementFaultCells))
+	} else {
+		pool, faults = testpkg.NewStatementFaultPool(t)
+	}
+	warmBatchConnections(t, pool)
 	tenantID, _ := testpkg.CreateTestTenant(t, super)
 	d.seed(t, super, tenantID)
 	return pool, faults, tenantID
+}
+
+// warmBatchConnections opens both connections before fault injection. Cold
+// connection setup must not consume the sampler's one-second acquire budget
+// and abort a case before its intended failure site is reached.
+func warmBatchConnections(t *testing.T, pool *bun.DB) {
+	t.Helper()
+	batch, err := pool.DB.Conn(t.Context())
+	require.NoError(t, err)
+	defer func() { require.NoError(t, batch.Close()) }()
+	monitor, err := pool.DB.Conn(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, monitor.Close())
 }
 
 // expectedDecision is the decision on the direct result of a failed step.
@@ -360,11 +396,11 @@ var (
 	minimumKinds = []string{"", "57014", "40P01"}
 )
 
-// runPlan arms plan on a fresh pool and tenant, runs one batch and checks the
-// decision and every checkpoint value it left.
+// runPlan arms plan on a cell and a fresh tenant, runs one batch and checks
+// the decision and every checkpoint value it left.
 func runPlan(t *testing.T, super *bun.DB, d backfillDriver, plan faultPlan, want outcome) {
 	t.Helper()
-	pool, faults, tenantID := newBatch(t, super, d)
+	pool, faults, tenantID := newBatch(t, super, d, plan.breaksConnection())
 	seams := driverSeams{}
 	failOnFirstCall := func(call int) error {
 		if call == 1 {
@@ -505,7 +541,7 @@ func assertRow(t *testing.T, want, got checkpointRow, label string) {
 
 func assertOutcome(t *testing.T, d backfillDriver, plan faultPlan, want outcome, result batchResult, row checkpointRow) {
 	t.Helper()
-	label := fmt.Sprintf("%s %+v", d.name, plan)
+	label := fmt.Sprintf("%s %+v (batch error: %v)", d.name, plan, result.err)
 	// Failures before the copy never reach it.
 	beforeCopy := plan.main != none && (plan.site == siteBackendPID || plan.site == siteBegin ||
 		plan.site == siteLimits || plan.site == siteLimitsLast || (d.owner && plan.site == siteBodyFirst))
@@ -646,7 +682,7 @@ func checkServerRejectedCommit(t *testing.T, super *bun.DB) {
 		for _, code := range []string{"40P01", "40001", "55P03", "23505", "23514"} {
 			t.Run(d.name+"/"+code, func(t *testing.T) {
 				t.Parallel()
-				pool, _, tenantID := newBatch(t, super, d)
+				pool, _, tenantID := newBatch(t, super, d, false)
 				result := d.run(t, pool, super, tenantID, driverSeams{copy: func(ctx context.Context, tx bun.Tx, call int) error {
 					if call > 1 {
 						return nil
@@ -715,7 +751,8 @@ func checkUnknownCommit(t *testing.T, super *bun.DB) {
 		for _, applied := range []bool{true, false} {
 			t.Run(fmt.Sprintf("%s/applied=%v", d.name, applied), func(t *testing.T) {
 				t.Parallel()
-				pool, faults, tenantID := newBatch(t, super, d)
+				// The unknown COMMIT is driver.ErrBadConn: a pool of its own.
+				pool, faults, tenantID := newBatch(t, super, d, true)
 				pids := make(chan int, 1)
 				held := holdLockWhileWaiting(t, super, tenantID, pids, hold)
 				codes := []string{"40P01", "40001", "55P03"}
@@ -803,7 +840,7 @@ func checkRewind(t *testing.T, super *bun.DB) {
 	for _, d := range allDrivers[:3] {
 		t.Run(d.name, func(t *testing.T) {
 			t.Parallel()
-			pool, _, tenantID := newBatch(t, super, d)
+			pool, _, tenantID := newBatch(t, super, d, false)
 			createOrphanTarget(t, super, d, tenantID)
 			require.Equal(t, 1, targetRows(t, super, d, tenantID))
 			var beforeRetry checkpointRow
@@ -840,7 +877,7 @@ func checkSamplerOrder(t *testing.T, super *bun.DB) {
 		for _, failing := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/samplerFails=%v", d.name, failing), func(t *testing.T) {
 				t.Parallel()
-				pool, faults, tenantID := newBatch(t, super, d)
+				pool, faults, tenantID := newBatch(t, super, d, false)
 				counter := testpkg.CaptureQueries(t, pool)
 				seams := driverSeams{}
 				if failing {
@@ -902,11 +939,13 @@ func waitSampled(t *testing.T, counter *testpkg.QueryCounter) {
 var backfillAttemptChecks = map[string]func(*testing.T, *bun.DB){}
 
 // One isolated clone serves every group: the legacy tables and the probes are
-// database-global, and the leaves run in parallel on their own pools and
-// tenants.
+// database-global, and the leaves run in parallel on their own tenants and
+// cells of one shared fault pool.
 func TestBackfillBatchRetry(t *testing.T) {
 	t.Parallel()
 	super := backfillTestDB(t)
+	faultCells.Store(super, testpkg.NewStatementFaultCells(t))
+	t.Cleanup(func() { faultCells.Delete(super) })
 	t.Run("FullCross", func(t *testing.T) { checkFullCross(t, super) })
 	t.Run("MainAxis", func(t *testing.T) { checkMainAxis(t, super) })
 	t.Run("Minimum", func(t *testing.T) { checkMinimum(t, super) })

@@ -41,6 +41,13 @@ function writeStoredGroups(groups: readonly StaffNavGroupKey[]) {
   }
 }
 
+/**
+ * Jede eingehängte Instanz (Seitenleiste und Mehr-Menü, #7048) hört hier mit.
+ * Beide hängen gleichzeitig ein, auch wenn je nach Breite nur eine zu sehen
+ * ist; ohne Abgleich schriebe die eine später ihren veralteten Stand zurück.
+ */
+const listeners = new Set<(groups: readonly StaffNavGroupKey[]) => void>();
+
 function withGroup(
   groups: readonly StaffNavGroupKey[],
   group: StaffNavGroupKey | null,
@@ -63,6 +70,9 @@ function withGroup(
  * dasselbe Bild liefern), deshalb wird der gespeicherte Stand erst nach dem
  * Einhängen übernommen — dasselbe Muster wie useSidebarAccordion.
  *
+ * Alle eingehängten Instanzen teilen einen Stand: Seitenleiste und Mehr-Menü
+ * (#7048) zeigen dieselben offenen Gruppen.
+ *
  * Geschrieben wird nur bei einer echten Änderung (Klick, Auto-Aufklappen,
  * Übernahme des Speichers), nie aus einem Effekt, der den Zustand
  * beobachtet: der liefe beim Einhängen mit dem Standard los und überschriebe
@@ -79,9 +89,19 @@ export function useSidebarGroups(pathname: string, fromParam?: string | null) {
   const latest = useRef(openGroups);
 
   const apply = useCallback((next: readonly StaffNavGroupKey[]) => {
-    latest.current = next;
-    setOpenGroups(next);
     writeStoredGroups(next);
+    for (const listener of listeners) listener(next);
+  }, []);
+
+  useEffect(() => {
+    const listener = (next: readonly StaffNavGroupKey[]) => {
+      latest.current = next;
+      setOpenGroups(next);
+    };
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
   }, []);
 
   useEffect(() => {
