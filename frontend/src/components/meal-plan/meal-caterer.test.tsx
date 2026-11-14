@@ -243,11 +243,12 @@ describe("MealCaterer", () => {
     render(<MealCaterer canManageSupply />, { wrapper: ToastProvider });
 
     expect(await screen.findByText("Nicht zustellbar")).toBeInTheDocument();
+    // Desktop shows the note as a sub-row, the phone rows in the cell.
     expect(
-      screen.getByText(
+      screen.getAllByText(
         "Die Mail kam nicht an. Stimmt die Adresse nicht, widerrufen Sie die Einladung und laden Sie neu ein.",
-      ),
-    ).toBeInTheDocument();
+      ).length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText("Zugestellt")).toBeInTheDocument();
   });
 

@@ -42,6 +42,14 @@ const logger = createLogger({ component: "MealCaterer" });
 
 const EMPTY_FORM = { email: "", catererName: "", deliveryAddress: "" };
 
+/** What the school learns about an invitation's mail and does next (#5960). */
+function catererMailNote(invitation: MealCatererInvitation): string | null {
+  return invitationMailNote(
+    invitation,
+    "Stimmt die Adresse nicht, widerrufen Sie die Einladung und laden Sie neu ein.",
+  );
+}
+
 /**
  * Der Caterer der Schule (ADR 0077): wer liefert, eine Einladung per E-Mail
  * und das Ende der Belieferung. Der Link der Einladung geht nur an den
@@ -231,9 +239,10 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
           false,
           invitation.providerBlock,
         );
+        const mailNote = catererMailNote(invitation);
         return (
           <>
-            <span className="block truncate">{invitation.email}</span>
+            <span className="block wrap-anywhere">{invitation.email}</span>
             {mailCopy && (
               <span className="mt-1 block">
                 <StatusBadge
@@ -243,6 +252,12 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
                 />
               </span>
             )}
+            {/* The phone rows have no sub-row, so the note stands here. */}
+            {mailNote && (
+              <span className="mt-1 block text-xs text-gray-600 md:hidden">
+                {mailNote}
+              </span>
+            )}
           </>
         );
       },
@@ -250,7 +265,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
     {
       key: "expires",
       header: "Gültig bis",
-      stacked: "meta",
+      stacked: "field",
       render: (invitation) => formatBerlinDate(invitation.expiresAt),
     },
     {
@@ -345,10 +360,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
               rowHasInteractiveControls
               stackedOnMobile
               renderSubRows={(invitation) => {
-                const mailNote = invitationMailNote(
-                  invitation,
-                  "Stimmt die Adresse nicht, widerrufen Sie die Einladung und laden Sie neu ein.",
-                );
+                const mailNote = catererMailNote(invitation);
                 return mailNote
                   ? [{ key: `${invitation.id}-mail-note`, content: mailNote }]
                   : [];
