@@ -2380,13 +2380,13 @@
       "target_owner": "traeger-view"
     },
     {
-      "binding": "github.com/moto-ogs/project-phoenix/api.holidayMailStates.HolidayMailProblems",
+      "binding": "github.com/moto-ogs/project-phoenix/api.holidayMailStates.HolidayMails",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayMailStates.HolidayMailProblems",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/delivery/runtime.TraegerMails.TraegerEmailStatusesByKey. #6737: the review of the holiday registrations names the receipt and acceptance mails that did not reach the parents, read by idempotency key in the caller's Träger transaction, without recipient or payload.",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayMailStates.HolidayMails",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/delivery/runtime.TraegerMails.TraegerEmailStatusesOf. #6737, #6976: the review of the holiday registrations names every mail to the parents with its outcome, read by registration and by the keys of the closing day notices in one statement in the caller's Träger transaction, without recipient or payload.",
       "source_owner": "enrollment",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.TraegerMails.TraegerEmailStatusesByKey",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.TraegerMails.TraegerEmailStatusesOf",
       "target_owner": "delivery-platform"
     },
     {

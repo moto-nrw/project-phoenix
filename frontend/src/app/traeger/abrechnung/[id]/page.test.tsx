@@ -79,6 +79,7 @@ const PREVIEW: BillingRunDetail = {
   unbilled: 1,
   missingDebtorNumbers: 0,
   paymentTextMissingDebtorNumbers: 0,
+  sharedChildDebtorNumbers: 0,
   numberPattern: "FE-{NNNN}",
   numberRangeSet: true,
   fingerprint: "c0ffee",

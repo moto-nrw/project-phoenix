@@ -85,6 +85,11 @@ func (s settingsDouble) DebtorNumberFormat(context.Context, int64) (parentbillin
 	return parentbilling.DebtorNumberFormat{}, nil
 }
 
+// DebtorNumberScope keeps the number per payer, the default (#7007).
+func (s settingsDouble) DebtorNumberScope(context.Context, int64) (string, error) {
+	return parentbilling.DebtorNumberScopePayer, nil
+}
+
 func (s settingsDouble) HolidayChain(context.Context, int64) (parentbilling.HolidayChainSettings, error) {
 	return parentbilling.HolidayChainSettings{
 		SiblingRank: parentbilling.SiblingRankHighestContribution, CostTakeoverOrder: parentbilling.CostTakeoverAfterDiscount,

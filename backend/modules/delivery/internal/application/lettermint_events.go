@@ -14,6 +14,12 @@ import (
 
 const lettermintHeaderOutbox = "X-Moto-Outbox-Id"
 
+// The block values that never lift, as the webhook and the Team API both name them.
+const (
+	lettermintScopeGlobal = "global"
+	lettermintTypeDomain  = "domain"
+)
+
 // lettermintBlocklistAnswer recognizes a receiving server that refuses the provider's IP
 // or its reputation, not the address. Then neither the address is at fault nor
 // would a retry over the same provider help.
@@ -64,10 +70,11 @@ type lettermintEnvelope struct {
 	Event     string    `json:"event"`
 	Timestamp time.Time `json:"timestamp"`
 	Data      struct {
+		lettermintBlock
 		MessageID  string          `json:"message_id"`
 		Headers    json.RawMessage `json:"headers"`
-		Reason     lettermintText  `json:"reason"`
 		ReasonCode lettermintText  `json:"reason_code"`
+		Metadata   json.RawMessage `json:"metadata"`
 		Response   *struct {
 			StatusCode   int    `json:"status_code"`
 			EnhancedCode string `json:"enhanced_status_code"`
@@ -124,6 +131,7 @@ func (*lettermintWebhook) Parse(body []byte) (domain.ReportedEmailEvent, error) 
 	diagnostic := envelope.diagnostic()
 	event := outcome.event(diagnostic)
 	event.KeepsAddress = event.KeepsAddress || envelope.answerClearsAddress()
+	envelope.block().apply(&event)
 	event.ProviderEventID = envelope.ID
 	event.OccurredAt = envelope.Timestamp
 	event.ProviderMessageID = envelope.Data.MessageID
@@ -168,6 +176,53 @@ func (e lettermintEnvelope) answerClearsAddress() bool {
 	return strings.HasPrefix(enhanced, "5.") && !lettermintAddressStatuses[enhanced]
 }
 
+// lettermintBlock is what a suppressed event names about the block that held the
+// mail back. The webhook documents it in data, the Team API puts it in the event's
+// metadata, and the event of #6998 showed it there too.
+type lettermintBlock struct {
+	Reason          lettermintText `json:"reason"`
+	Scope           lettermintText `json:"scope"`
+	SuppressionType lettermintText `json:"suppression_type"`
+	MatchedValue    lettermintText `json:"matched_value"`
+}
+
+// lettermintBlockOf reads the block from an event's metadata. Metadata of any
+// other form names no block.
+func lettermintBlockOf(raw json.RawMessage) lettermintBlock {
+	var block lettermintBlock
+	if json.Unmarshal(raw, &block) != nil {
+		return lettermintBlock{}
+	}
+	return block
+}
+
+func (e lettermintEnvelope) block() lettermintBlock {
+	if block := e.Data.lettermintBlock; block.Scope != "" || block.SuppressionType != "" {
+		return block
+	}
+	return lettermintBlockOf(e.Data.Metadata)
+}
+
+// permanent reports a block on Lettermint's global list or of a whole domain. The
+// team's list, the only one SuppressionActive can read, holds neither, so the
+// block never reads as gone; and only a corrected address gets a mail through.
+func (b lettermintBlock) permanent() bool {
+	return b.Scope == lettermintScopeGlobal || b.SuppressionType == lettermintTypeDomain
+}
+
+// apply makes a mail held back by a permanent block a bounce for good (#6998): the
+// address goes on the school's list and asks to be checked. No security mail takes
+// the fallback either, since the provider holds the domain back for a reason, a
+// mistyped one with a mail server of its own being the common case. A block of one
+// address on the team's list stays a suppression: that list says whether it holds.
+func (b lettermintBlock) apply(event *domain.EmailDeliveryEvent) {
+	if event.State != domain.EmailDeliverySuppressed || !b.permanent() {
+		return
+	}
+	event.State, event.KeepsAddress, event.Reroute = domain.EmailDeliveryFailed, false, false
+	event.Diagnostic = joinDiagnostic(string(b.Reason), string(b.Scope), string(b.SuppressionType), string(b.MatchedValue))
+}
+
 func (e lettermintEnvelope) diagnostic() string {
 	parts := []string{}
 	if response := e.Data.Response; response != nil {
@@ -177,6 +232,11 @@ func (e lettermintEnvelope) diagnostic() string {
 		parts = append(parts, response.EnhancedCode, response.Content)
 	}
 	parts = append(parts, string(e.Data.ReasonCode), string(e.Data.Reason))
+	return joinDiagnostic(parts...)
+}
+
+// joinDiagnostic joins the parts of a diagnostic that say something.
+func joinDiagnostic(parts ...string) string {
 	kept := parts[:0]
 	for _, part := range parts {
 		if part = strings.TrimSpace(part); part != "" {

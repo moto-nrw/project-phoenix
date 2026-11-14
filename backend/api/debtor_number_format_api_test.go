@@ -59,7 +59,7 @@ func TestDebtorNumberFormatIsOffByDefault(t *testing.T) {
 	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
 	rec := traegerJSON(t, f.traeger, billing, http.MethodGet, debtorNumberFormatPath, nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.JSONEq(t, `{"digits_only":false,"min_digits":0,"max_digits":0}`, string(decodeSchoolPortalRaw(t, rec.Body.Bytes())))
+	assert.JSONEq(t, `{"digits_only":false,"min_digits":0,"max_digits":0,"scope":"payer"}`, string(decodeSchoolPortalRaw(t, rec.Body.Bytes())))
 
 	require.Equal(t, http.StatusOK, f.confirmWith(t, f.siblings, map[string]any{"debtor_number": "10 4711-A"}).Code,
 		"without the setting any one-line text is a number, as before")
@@ -80,7 +80,7 @@ func TestEveryPathChecksTheFormatOfTheTraeger(t *testing.T) {
 		"the confirmation names the format before the office types")
 	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, debtorNumberFormatPath, nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.JSONEq(t, `{"digits_only":true,"min_digits":5,"max_digits":5}`, string(decodeSchoolPortalRaw(t, rec.Body.Bytes())))
+	assert.JSONEq(t, `{"digits_only":true,"min_digits":5,"max_digits":5,"scope":"payer"}`, string(decodeSchoolPortalRaw(t, rec.Body.Bytes())))
 
 	// Confirmation.
 	assertFormatRefused(t, f.confirmWith(t, f.siblings, map[string]any{"debtor_number": "20 815"}),

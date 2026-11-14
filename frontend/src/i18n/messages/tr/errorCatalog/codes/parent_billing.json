@@ -21,6 +21,7 @@
   "contribution_rule_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "contribution_rule_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "contribution_rule_overlap": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "child_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "cost_bearer_in_use": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "cost_bearer_inactive": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "cost_bearer_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

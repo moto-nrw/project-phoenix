@@ -462,6 +462,8 @@ export interface AdminRequestMail {
   address_mark?: EmailAddressMark;
   stopped?: boolean;
   outcome_at?: string;
+  /** When the mail came about; only the holiday registrations send it (#6976). */
+  created_at?: string;
 }
 
 export async function getAdminRequestMails(

@@ -172,4 +172,16 @@ type BillingFamilies interface {
 	// DebtorNumberFormat is the format every number the office enters must
 	// have (#6675), so a form can name it.
 	DebtorNumberFormat(ctx context.Context, reviewer HolidayReviewer) (DebtorNumberFormat, error)
+	// DebtorNumberScope says whom the numbers name (#7007).
+	DebtorNumberScope(ctx context.Context, reviewer HolidayReviewer) (string, error)
+	// FamilyChildren lists every family with a contract or a number of a
+	// child, with its children and their numbers (#7007), whatever the
+	// Träger's scope, so numbers can be prepared before it changes. The read
+	// of every number is recorded in its trail.
+	FamilyChildren(ctx context.Context, reviewer HolidayReviewer) ([]FamilyChildNumbers, error)
+	// SetChildDebtorNumber sets the number of a child of a family when the
+	// Träger keeps one per child (#7007); empty removes it. A child that is
+	// no child of a contract of the family and has no number is
+	// ErrChildNotFound.
+	SetChildDebtorNumber(ctx context.Context, reviewer HolidayReviewer, input ChildDebtorNumberInput) (FamilyChild, error)
 }

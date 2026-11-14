@@ -6,6 +6,12 @@
   "api/traeger/billing-families/debtor-number": [
     "PUT traeger /traeger/billing-families/debtor-number"
   ],
+  "api/traeger/billing-families/child-debtor-number": [
+    "PUT traeger /traeger/billing-families/child-debtor-number"
+  ],
+  "api/traeger/billing-families/children": [
+    "GET traeger /traeger/billing-families/children"
+  ],
   "api/traeger/billing-families/debtor-number-format": [
     "GET traeger /traeger/billing-families/debtor-number-format"
   ]
