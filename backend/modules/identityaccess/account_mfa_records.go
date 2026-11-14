@@ -161,6 +161,10 @@ type MFAResetByAdminMail struct {
 	ResetAt     string
 	// ByOperator names the moto team instead of the school's administration.
 	ByOperator bool
+	// Locale is the language the account chose in the parents portal, or
+	// empty. A parent gets the notice in it, worded for the parents portal
+	// (#7051).
+	Locale string
 }
 
 // LoginAddressChangedMail tells the previous address of an account that an

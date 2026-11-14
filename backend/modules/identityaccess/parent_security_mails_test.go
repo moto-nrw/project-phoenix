@@ -15,6 +15,7 @@ func TestParentSecurityMailsSpeakEveryPortalLanguage(t *testing.T) {
 	t.Parallel()
 	assert.Len(t, parentCodeCopies, len(parentFooters))
 	assert.Len(t, parentDeviceCopies, len(parentFooters))
+	assert.Len(t, parentResetCopies, len(parentFooters))
 	for lang := range parentFooters {
 		code := MFACodeMailContent(MFACodeMail{Parent: true, Locale: lang, Code: "482157", ExpiryMinutes: 10, TrustedDeviceEnabled: true, TrustedDeviceDays: 90}, "https://eltern.example")
 		device := TrustedDeviceAddedMailContent(TrustedDeviceMail{Parent: true, Locale: strings.ToUpper(lang), TrustedDays: 90}, "https://eltern.example")
@@ -28,10 +29,15 @@ func TestParentSecurityMailsSpeakEveryPortalLanguage(t *testing.T) {
 			assert.Contains(t, rendered, "90", "%s %s names the days", lang, name)
 		}
 		assert.Contains(t, code.Content.(map[string]any)["Validity"], "10", lang)
+		reset := MFAResetByAdminMailContent(MFAResetByAdminMail{Locale: lang, ResetAt: "14.11.2026 13:40", ByOperator: true}, "")
+		assert.Equal(t, "parent-mfa-reset.html", reset.Template, lang)
+		assert.Contains(t, reset.Content.(map[string]any)["Body"], "14.11.2026 13:40", lang)
 	}
 	german := MFACodeMailContent(MFACodeMail{Parent: true, Locale: "fr", ExpiryMinutes: 10}, "")
 	assert.Equal(t, "de", german.Content.(map[string]any)["Lang"])
 	assert.Empty(t, german.Content.(map[string]any)["Tip"], "no remembered device, no tip")
 	staff := MFACodeMailContent(MFACodeMail{Locale: "en"}, "")
 	assert.Equal(t, "mfa-email-code.html", staff.Template, "codes of the other portals stay German")
+	assert.Equal(t, "account-mfa-reset.html", MFAResetByAdminMailContent(MFAResetByAdminMail{}, "").Template,
+		"an account without a parents-portal language keeps the staff notice")
 }

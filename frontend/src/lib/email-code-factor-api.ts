@@ -6,7 +6,7 @@
 import { authFetch } from "./api-helpers";
 
 /** The second factor as the account settings show it. */
-export interface EmailCodeFactorStatus {
+interface EmailCodeFactorStatus {
   enabled: boolean;
   /** False when the factor cannot be switched on for this account. */
   available: boolean;

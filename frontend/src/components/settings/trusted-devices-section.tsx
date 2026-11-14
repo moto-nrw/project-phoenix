@@ -74,7 +74,7 @@ export interface TrustedDevicesCopy {
   readonly dateLocale: string;
 }
 
-export const GERMAN_TRUSTED_DEVICES_COPY: TrustedDevicesCopy = {
+const GERMAN_TRUSTED_DEVICES_COPY: TrustedDevicesCopy = {
   title: "Meine vertrauten Geräte",
   description:
     "Gemerkte Geräte überspringen den 2FA-Code. Entfernen Sie Geräte, die Sie nicht mehr nutzen.",

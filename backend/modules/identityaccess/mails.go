@@ -258,6 +258,9 @@ func adminActor(byOperator bool) string {
 // MFAResetByAdminMailContent tells an account holder that an administrator
 // reset their second factor (#6862). It carries no link.
 func MFAResetByAdminMailContent(message MFAResetByAdminMail, origin string) Mail {
+	if message.Locale != "" {
+		return parentMFAResetMail(message, origin)
+	}
 	return Mail{
 		Subject:  "Ihre Zwei-Faktor-Anmeldung bei moto wurde zurückgesetzt",
 		Template: "account-mfa-reset.html",

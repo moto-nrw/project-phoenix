@@ -3,14 +3,9 @@
 // order and delivery-list code. Every call goes through a Next.js route under
 // /api/caterer/account/mfa, which forwards it with the caterer session.
 
-import {
-  emailCodeFactorApi,
-  type EmailCodeFactorStatus,
-} from "./email-code-factor-api";
+import { emailCodeFactorApi } from "./email-code-factor-api";
 
 const routes = emailCodeFactorApi("/api/caterer/account/mfa");
-
-export type CatererMFAStatus = EmailCodeFactorStatus;
 
 export const fetchCatererMFAStatus = () => routes.status();
 export const startCatererMFA = () => routes.start();

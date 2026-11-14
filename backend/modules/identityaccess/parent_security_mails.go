@@ -67,15 +67,15 @@ var parentCodeCopies = map[string]parentCodeCopy{
 		Security:    "Nuk keni hyrë ju? Atëherë fshijeni këtë email. Në llogarinë tuaj nuk ndryshon asgjë. moto nuk e kërkon kurrë këtë kod me telefon, në chat ose me email.",
 	},
 	"pl": {
-		Subject:     "Twój kod logowania do moto",
-		Title:       "Twój kod logowania",
+		Subject:     "Państwa kod logowania do moto",
+		Title:       "Państwa kod logowania",
 		Greeting:    "Dzień dobry,",
-		Intro:       "ktoś właśnie loguje się do portalu dla rodziców moto Twoim adresem e-mail. Wpisz ten kod na stronie logowania:",
-		CodeLabel:   "Twój kod",
+		Intro:       "ktoś właśnie loguje się do portalu dla rodziców moto Państwa adresem e-mail. Proszę wpisać ten kod na stronie logowania:",
+		CodeLabel:   "Państwa kod",
 		Validity:    "Kod jest ważny %[1]d minut i tylko jeden raz.",
 		RequestFrom: "Żądanie z adresu IP",
-		Tip:         "Wskazówka: na własnym urządzeniu możesz po wpisaniu kodu wybrać „Tak, zapamiętaj i zaloguj”. Wtedy moto nie poprosi o kod na tym urządzeniu przez %[2]d dni.",
-		Security:    "To nie Ty się logujesz? Usuń tę wiadomość. Na Twoim koncie nic się nie zmieni. moto nigdy nie pyta o ten kod przez telefon, czat ani e-mail.",
+		Tip:         "Wskazówka: na własnym urządzeniu mogą Państwo po wpisaniu kodu wybrać „Tak, zapamiętaj i zaloguj”. Wtedy moto nie poprosi o kod na tym urządzeniu przez %[2]d dni.",
+		Security:    "To nie Państwo się logują? Proszę usunąć tę wiadomość. Na Państwa koncie nic się nie zmieni. moto nigdy nie pyta o ten kod przez telefon, czat ani e-mail.",
 	},
 	"tr": {
 		Subject:     "moto giriş kodunuz",
@@ -155,13 +155,13 @@ var parentDeviceCopies = map[string]parentDeviceCopy{
 		Subject:     "moto zapamiętało nowe urządzenie",
 		Title:       "Nowe zapamiętane urządzenie",
 		Greeting:    "Dzień dobry,",
-		Intro:       "właśnie zalogowano się do portalu dla rodziców i wybrano „Tak, zapamiętaj i zaloguj”. Na tym urządzeniu moto nie poprosi o kod przez %[1]d dni.",
+		Intro:       "właśnie zalogowali się Państwo do portalu dla rodziców i wybrali „Tak, zapamiętaj i zaloguj”. Na tym urządzeniu moto nie poprosi o kod przez %[1]d dni.",
 		DeviceLabel: "Urządzenie",
 		IPLabel:     "Adres IP",
 		TimeLabel:   "Czas",
-		NotYouTitle: "To nie Ty?",
-		NotYou:      "Od razu zmień hasło. Następnie usuń urządzenie w portalu dla rodziców w sekcji „Ustawienia → Logowanie”.",
-		Recovery:    "Nie możesz już wejść na konto? Skontaktuj się ze szkołą. Zespół moto może wtedy zresetować logowanie z kodem.",
+		NotYouTitle: "To nie byli Państwo?",
+		NotYou:      "Proszę od razu zmienić hasło. Następnie proszę usunąć urządzenie w portalu dla rodziców w sekcji „Ustawienia → Logowanie”.",
+		Recovery:    "Nie mają Państwo już dostępu do konta? Proszę skontaktować się ze szkołą. Zespół moto może wtedy zresetować logowanie z kodem.",
 	},
 	"tr": {
 		Subject:     "moto yeni bir cihazı hatırladı",
@@ -187,6 +187,86 @@ var parentDeviceCopies = map[string]parentDeviceCopy{
 		NotYou:      "Негайно змініть пароль. Потім видаліть пристрій у батьківському порталі в розділі «Налаштування → Вхід».",
 		Recovery:    "Ви більше не можете увійти в обліковий запис? Зверніться до своєї школи. Команда moto зможе скинути вхід із кодом.",
 	},
+}
+
+// parentResetCopy is the notice of a reset of the code, as a parent reads it.
+// %[1]s is the moment of the reset.
+type parentResetCopy struct {
+	Subject, Title, Greeting, Body, Again, NotYouTitle, NotYou string
+}
+
+var parentResetCopies = map[string]parentResetCopy{
+	"de": {
+		Subject: "Ihre Anmeldung mit Code wurde zurückgesetzt", Title: "Ihre Anmeldung mit Code wurde zurückgesetzt", Greeting: "Hallo,",
+		Body:        "Am %[1]s wurde die Anmeldung mit Code für Ihr moto-Konto zurückgesetzt. Ihre gemerkten Geräte sind gelöscht. Sie melden sich jetzt wieder nur mit Ihrem Passwort an.",
+		Again:       "Im Eltern-Portal schalten Sie die Anmeldung mit Code unter „Einstellungen → Anmeldung“ wieder ein.",
+		NotYouTitle: "Haben Sie das nicht beauftragt?",
+		NotYou:      "Ändern Sie sofort Ihr Passwort: Wählen Sie auf der Anmeldeseite „Passwort vergessen?“. Melden Sie sich danach bei Ihrer Schule.",
+	},
+	"en": {
+		Subject: "Your sign-in with a code was reset", Title: "Your sign-in with a code was reset", Greeting: "Hello,",
+		Body:        "On %[1]s, sign-in with a code was reset for your moto account. Your remembered devices have been deleted. You now sign in with your password only.",
+		Again:       "In the parents portal you can turn sign-in with a code back on under “Settings → Sign-in”.",
+		NotYouTitle: "You did not ask for this?",
+		NotYou:      "Change your password right away: on the sign-in page choose “Forgot your password?”. Then contact your school.",
+	},
+	"ru": {
+		Subject: "Вход с кодом сброшен", Title: "Вход с кодом сброшен", Greeting: "Здравствуйте!",
+		Body:        "%[1]s вход с кодом для вашей учётной записи moto был сброшен. Ваши запомненные устройства удалены. Теперь вы входите только с паролем.",
+		Again:       "В родительском портале вход с кодом можно снова включить в разделе «Настройки → Вход».",
+		NotYouTitle: "Вы этого не заказывали?",
+		NotYou:      "Сразу смените пароль: на странице входа выберите «Забыли пароль?». Затем обратитесь в свою школу.",
+	},
+	"sq": {
+		Subject: "Hyrja me kod u rivendos", Title: "Hyrja me kod u rivendos", Greeting: "Përshëndetje,",
+		Body:        "Më %[1]s hyrja me kod për llogarinë tuaj moto u rivendos. Pajisjet tuaja të mbajtura mend u fshinë. Tani hyni vetëm me fjalëkalimin tuaj.",
+		Again:       "Në portalin e prindërve mund ta aktivizoni përsëri hyrjen me kod te „Cilësimet → Hyrja“.",
+		NotYouTitle: "Nuk e keni kërkuar ju këtë?",
+		NotYou:      "Ndryshoni menjëherë fjalëkalimin: në faqen e hyrjes zgjidhni „Keni harruar fjalëkalimin?“. Pastaj drejtohuni shkollës suaj.",
+	},
+	"pl": {
+		Subject: "Logowanie z kodem zostało zresetowane", Title: "Logowanie z kodem zostało zresetowane", Greeting: "Dzień dobry,",
+		Body:        "Dnia %[1]s logowanie z kodem dla Państwa konta moto zostało zresetowane. Zapamiętane urządzenia zostały usunięte. Teraz logują się Państwo tylko hasłem.",
+		Again:       "W portalu dla rodziców mogą Państwo ponownie włączyć logowanie z kodem w sekcji „Ustawienia → Logowanie”.",
+		NotYouTitle: "Nie zlecali Państwo tego?",
+		NotYou:      "Proszę od razu zmienić hasło: na stronie logowania proszę wybrać „Nie pamiętają Państwo hasła?”. Następnie proszę skontaktować się ze szkołą.",
+	},
+	"tr": {
+		Subject: "Kodla girişiniz sıfırlandı", Title: "Kodla girişiniz sıfırlandı", Greeting: "Merhaba,",
+		Body:        "%[1]s tarihinde moto hesabınız için kodla giriş sıfırlandı. Hatırlanan cihazlarınız silindi. Artık yalnızca şifrenizle giriş yaparsınız.",
+		Again:       "Veli portalında kodla girişi „Ayarlar → Giriş“ bölümünden yeniden açabilirsiniz.",
+		NotYouTitle: "Bunu siz istemediniz mi?",
+		NotYou:      "Hemen şifrenizi değiştirin: Giriş sayfasında „Şifrenizi mi unuttunuz?“ seçeneğini seçin. Ardından okulunuza başvurun.",
+	},
+	"uk": {
+		Subject: "Вхід із кодом скинуто", Title: "Вхід із кодом скинуто", Greeting: "Вітаємо!",
+		Body:        "%[1]s вхід із кодом для вашого облікового запису moto було скинуто. Ваші запам’ятовані пристрої видалено. Тепер ви входите лише з паролем.",
+		Again:       "У батьківському порталі вхід із кодом можна знову увімкнути в розділі «Налаштування → Вхід».",
+		NotYouTitle: "Ви цього не замовляли?",
+		NotYou:      "Негайно змініть пароль: на сторінці входу виберіть «Забули пароль?». Потім зверніться до своєї школи.",
+	},
+}
+
+// parentMFAResetMail tells an account that chose a language in the parents
+// portal, in that language, that its code was reset (#7051). Like the staff
+// notice it carries no link.
+func parentMFAResetMail(message MFAResetByAdminMail, origin string) Mail {
+	lang := parentLocale(message.Locale)
+	text := parentResetCopies[lang]
+	return Mail{
+		Subject:  text.Subject,
+		Template: "parent-mfa-reset.html",
+		Content: withFooter(lang, map[string]any{
+			"Lang":        lang,
+			"LogoURL":     trimmedLogoURL(origin),
+			"Title":       text.Title,
+			"Greeting":    text.Greeting,
+			"Body":        fmt.Sprintf(text.Body, message.ResetAt),
+			"Again":       text.Again,
+			"NotYouTitle": text.NotYouTitle,
+			"NotYou":      text.NotYou,
+		}),
+	}
 }
 
 // parentFooters are the footer lines of an automatic mail, as the parents

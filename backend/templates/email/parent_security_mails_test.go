@@ -37,4 +37,11 @@ func TestParentSecurityMailTemplatesRender(t *testing.T) {
 	}))
 	assert.Contains(t, device.String(), "Firefox auf Linux")
 	assert.Contains(t, device.String(), "Einstellungen → Anmeldung")
+
+	var reset bytes.Buffer
+	require.NoError(t, tpl.ExecuteTemplate(&reset, "parent-mfa-reset.html", map[string]any{
+		"Lang": "en", "Title": "Your sign-in with a code was reset", "Body": "On 14.11.2026 13:40, sign-in with a code was reset.",
+	}))
+	assert.Contains(t, reset.String(), "On 14.11.2026 13:40")
+	assert.NotContains(t, reset.String(), "<a ", "a reset notice carries no link")
 }

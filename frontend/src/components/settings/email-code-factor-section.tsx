@@ -75,7 +75,7 @@ export interface EmailCodeFactorCopy {
   readonly disableObject: string;
 }
 
-export const GERMAN_EMAIL_CODE_FACTOR_COPY: EmailCodeFactorCopy = {
+const GERMAN_EMAIL_CODE_FACTOR_COPY: EmailCodeFactorCopy = {
   title: "Zwei-Faktor-Anmeldung",
   description:
     "Freiwillig. Ist sie eingeschaltet, geben Sie bei der Anmeldung nach dem Passwort einen Code ein. Den Code schickt moto an Ihre E-Mail-Adresse.",

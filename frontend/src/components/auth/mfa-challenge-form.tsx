@@ -73,7 +73,7 @@ export interface MFAChallengeCopy {
 }
 
 /** The German copy of a portal's code step. */
-export function germanMFAChallengeCopy(scope: LoginScope): MFAChallengeCopy {
+function germanMFAChallengeCopy(scope: LoginScope): MFAChallengeCopy {
   return {
     back: "Zurück",
     backLabel: "Zurück zum Login",
