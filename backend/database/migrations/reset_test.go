@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -117,4 +118,39 @@ func mustExec(t *testing.T, db *bun.DB, query string) {
 	if _, err := db.ExecContext(context.Background(), query); err != nil {
 		t.Fatalf("exec %q: %v", query, err)
 	}
+}
+
+// TestResetDropsPublicRoutines proves a reset leaves no routine a migration
+// created in public, so a plain CREATE FUNCTION runs again on the next replay,
+// while the routines of an extension stay listed out.
+func TestResetDropsPublicRoutines(t *testing.T) {
+	// Safe in parallel: TestMain enables PerTestDatabases, so the reset only
+	// sweeps this test's own disposable clone.
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+
+	mustExec(t, db, `CREATE EXTENSION IF NOT EXISTS btree_gist`)
+	const create = `CREATE FUNCTION public.reset_drop_routine(text) RETURNS text
+		LANGUAGE sql IMMUTABLE AS $$ SELECT $1 $$`
+	mustExec(t, db, `DROP FUNCTION IF EXISTS public.reset_drop_routine(text)`)
+	mustExec(t, db, create)
+
+	routines, err := droppablePublicRoutines(ctx, db)
+	if err != nil {
+		t.Fatalf("list droppable public routines: %v", err)
+	}
+	if !slices.Contains(routines, "public.reset_drop_routine(text)") {
+		t.Fatalf("a routine a migration created must be listed, got %v", routines)
+	}
+	for _, routine := range routines {
+		if strings.HasPrefix(routine, "public.gbt_") {
+			t.Errorf("extension-owned routine %s must not be listed; it goes with btree_gist", routine)
+		}
+	}
+
+	if err := resetDatabase(ctx, db, nil); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	mustExec(t, db, create)
 }
