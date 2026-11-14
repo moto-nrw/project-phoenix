@@ -14,6 +14,9 @@ const MIN_FRAME_HEIGHT = 300;
 const READY_FALLBACK_MS = 1500;
 // Below this width HubSpot switches to its own scrolling phone layout.
 const SCALE_MIN_WIDTH = 640;
+// Below this scale the text and touch targets get too small; the calendar
+// keeps its size and scrolls inside the frame instead.
+const SCALE_MIN = 0.6;
 
 const BOOKING_ORIGIN = new URL(DEMO_BOOKING_URL).origin;
 const EMBED_URL = (() => {
@@ -31,7 +34,8 @@ export function calendarScale(
   if (width < SCALE_MIN_WIDTH) return 1;
   const scale = height / frameHeight;
   // A scale of about 0.99 would only blur the text.
-  return scale >= 0.98 ? 1 : Math.round(scale * 1000) / 1000;
+  if (scale >= 0.98 || scale < SCALE_MIN) return 1;
+  return Math.round(scale * 1000) / 1000;
 }
 
 interface DemoBookingDialogProps {

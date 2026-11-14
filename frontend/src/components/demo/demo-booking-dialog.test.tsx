@@ -54,4 +54,10 @@ describe("DemoBookingDialog", () => {
     expect(calendarScale(900, 572, 715)).toBe(0.8);
     expect(calendarScale(400, 500, 715)).toBe(1);
   });
+
+  it("keeps the calendar at full size when shrinking would make it unreadable", () => {
+    expect(calendarScale(900, 430, 715)).toBe(0.601);
+    expect(calendarScale(900, 420, 715)).toBe(1);
+    expect(calendarScale(900, 198, 715)).toBe(1);
+  });
 });
