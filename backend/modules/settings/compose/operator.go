@@ -6,10 +6,10 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	configSvc "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	configSvc "github.com/moto-ogs/project-phoenix/modules/settings/internal/application"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import { LOCATION_COLORS, getLocationBadgeTone } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getPillTone } from "~/lib/kit-palette";
 import { Alert } from "./alert";
 
 describe("Alert", () => {
@@ -208,7 +209,7 @@ describe("Alert", () => {
         />,
       );
 
-      const tone = getLocationBadgeTone(LOCATION_COLORS.NOT_ARRIVAL);
+      const tone = getPillTone(LOCATION_COLORS.NOT_ARRIVAL);
       const alert = screen.getByRole("status");
       expect(alert).toHaveStyle({
         backgroundColor: tone.backgroundColor,

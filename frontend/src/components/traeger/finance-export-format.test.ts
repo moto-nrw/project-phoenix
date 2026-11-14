@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { SollMapping } from "~/lib/traeger-finance-exports-api";
-import { byLabel, sollFileName, sollPreview } from "./finance-export-format";
+import {
+  bookingTextSample,
+  byLabel,
+  sollFileName,
+  sollPreview,
+} from "./finance-export-format";
 import { sollMappingErrors } from "./soll-mapping-editor";
 
 const MAPPING: SollMapping = {
@@ -67,13 +72,60 @@ describe("finance export format", () => {
     ]);
   });
 
+  it("previews the credit column and the booking text (#7008)", () => {
+    expect(
+      sollPreview(
+        {
+          ...MAPPING,
+          columns: [
+            { field: "invoice_number", header: "Rechnungsnummer", value: "" },
+            { field: "amount", header: "Rechnungsbetrag", value: "" },
+            { field: "credit_amount", header: "Gutschrift", value: "" },
+            {
+              field: "booking_text",
+              header: "Buchungstext",
+              value: "SKB {Monat} {Kind}",
+            },
+          ],
+        },
+        112,
+      ),
+    ).toEqual([
+      "Rechnungsnummer;Rechnungsbetrag;Gutschrift;Buchungstext",
+      "MB-2026-0110;78,00;;SKB 10/2026 Lia Müller",
+      "MB-2026-0111;;78,00;SKB 10/2026 Lia Müller",
+    ]);
+  });
+
+  it("refuses a placeholder of a booking text it does not know", () => {
+    const columns = [
+      { field: "booking_text" as const, header: "Text", value: "SKB {Name}" },
+    ];
+    expect(sollMappingErrors({ ...MAPPING, columns })).toEqual({
+      "columns.0.value":
+        "{Name} kennt moto nicht. Wählen Sie einen Platzhalter darunter.",
+    });
+    expect(
+      sollMappingErrors({
+        ...MAPPING,
+        columns: [{ ...columns[0]!, value: "SKB {Monat} {Empfänger}" }],
+      }),
+    ).toEqual({});
+    expect(bookingTextSample("{Rechnungsnummer}: {Empfänger}", 1)).toBe(
+      "MB-2026-0111: Eva Müller",
+    );
+  });
+
   it("names the file and who downloaded it", () => {
     expect(sollFileName(MAPPING.fileNamePattern, 110)).toBe(
       "csv-export-bewegungsdaten-110.csv",
     );
-    expect(byLabel(true, true)).toBe("von Ihnen");
-    expect(byLabel(false, true)).toBe("von einem anderen Konto");
-    expect(byLabel(false, false)).toBe("von einem gelöschten Konto");
+    // #4693: the name of the account, never its e-mail address.
+    expect(byLabel(true, true, "Eva Müller")).toBe("von Ihnen");
+    expect(byLabel(false, true, "Eva Müller")).toBe("von Eva Müller");
+    expect(byLabel(false, true, "")).toBe("von einem Konto ohne Namen");
+    expect(byLabel(false, true, "  ")).toBe("von einem Konto ohne Namen");
+    expect(byLabel(false, false, "")).toBe("von einem gelöschten Konto");
   });
 
   it("refuses what the backend would refuse, at the field", () => {

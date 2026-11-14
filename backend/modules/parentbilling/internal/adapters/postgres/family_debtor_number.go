@@ -9,8 +9,8 @@ import (
 
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The debtor number of a family (#6692). A holiday registration writes it at
@@ -62,8 +62,10 @@ func (s *Store) LockFamilies(ctx context.Context, organizationID int64, families
 // given, the number. A number that changes names the registration it came
 // from; the same number again keeps where it came from, so a registration
 // that took the proposal never becomes its origin. It answers the rows it
-// wrote. A row without a number only changes when one is given: a
-// confirmation without a number refreshes only the use of a remembered one.
+// wrote. A contract row without a number only changes when one is given: a
+// confirmation without a number refreshes only the use of a remembered one,
+// or of a row of the holiday care without a contract, which a Träger that
+// keeps the number per child knows its families by (#7007).
 func (s *Store) RememberFamilies(ctx context.Context, organizationID, accountID int64, families []parentbilling.FamilyMemory) ([]parentbilling.FamilyBilling, error) {
 	if len(families) == 0 {
 		return nil, nil
@@ -94,7 +96,8 @@ func (s *Store) RememberFamilies(ctx context.Context, organizationID, accountID 
 			updated_by_account_id = ?7, updated_at = CURRENT_TIMESTAMP
 		FROM unnest(?1::text[], ?2::text[], ?3::text[], ?4::date[], ?5::text[], ?6::boolean[], ?8::bigint[])
 			AS memory(email, first_name, last_name, used_on, number, set, origin)
-		WHERE family.organization_id = ?0 AND family.family_email = memory.email AND (memory.set OR family.debtor_number IS NOT NULL)
+		WHERE family.organization_id = ?0 AND family.family_email = memory.email
+			AND (memory.set OR family.debtor_number IS NOT NULL OR family.care_contract_id IS NULL)
 		RETURNING family.*`,
 		organizationID, pgdialect.Array(emails), pgdialect.Array(first), pgdialect.Array(last), pgdialect.Array(used),
 		pgdialect.Array(numbers), pgdialect.Array(set), accountRef(accountID), pgdialect.Array(origins)).Scan(ctx, &rows); err != nil {
@@ -171,7 +174,8 @@ func (s *Store) SetFamilyDebtorNumber(ctx context.Context, organizationID, accou
 // Träger (parent_billing.lock_beleg_retention). The count per Träger goes
 // into the deletion log (BelegFamilyDebtorNumber); audit.data_deletions
 // belongs to a school and cannot hold it. Then it deletes the trail entries
-// without a contract whose row is gone and which are as old.
+// without a contract whose row is gone and which are as old, and the
+// numbers of children under the same rule (#7007).
 func (s *Store) DeleteExpiredFamilies(ctx context.Context, today calendar.Date) (int, error) {
 	db, err := adminDB(ctx)
 	if err != nil {
@@ -179,8 +183,10 @@ func (s *Store) DeleteExpiredFamilies(ctx context.Context, today calendar.Date) 
 	}
 	cutoff := calendar.NewDate(today.Year()-parentbilling.FamilyDebtorNumberRetentionYears, time.January, 1)
 	var traeger []int64
-	if err := db.NewRaw(`SELECT DISTINCT organization_id FROM parent_billing.family_billing
-		WHERE care_contract_id IS NULL AND last_used_on < ?::date ORDER BY organization_id`, cutoff).Scan(ctx, &traeger); err != nil {
+	if err := db.NewRaw(`SELECT organization_id FROM parent_billing.family_billing
+			WHERE care_contract_id IS NULL AND last_used_on < ?0::date
+		UNION SELECT organization_id FROM parent_billing.child_debtor_numbers WHERE last_used_on < ?0::date
+		ORDER BY organization_id`, cutoff).Scan(ctx, &traeger); err != nil {
 		return 0, fmt.Errorf("parent billing postgres: list the Träger of expired family debtor numbers: %w", err)
 	}
 	if err := lockTraeger(ctx, db, traeger...); err != nil {
@@ -221,7 +227,11 @@ func (s *Store) DeleteExpiredFamilies(ctx context.Context, today calendar.Date) 
 	if err != nil {
 		return 0, err
 	}
-	return families + int(events), nil
+	children, err := deleteExpiredChildNumbers(ctx, db, cutoff, today)
+	if err != nil {
+		return 0, err
+	}
+	return families + int(events) + children, nil
 }
 
 func familiesOfRows(rows []familyBillingRow) []parentbilling.FamilyBilling {

@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"testing"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -109,6 +109,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.student_photos_enabled",
 		// Child search as the only child navigation (#1321).
 		"operations.child_search_only_navigation",
+		// Simple staff navigation for caregivers (#6956).
+		"operations.simple_staff_navigation",
 		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
 		"security.mfa_mode",
 		"security.mfa_trusted_device_enabled",
@@ -2138,6 +2140,23 @@ func TestChildSearchOnlyNavigationSetting(t *testing.T) {
 	assert.Nil(t, def.DependsOn, "stand-alone toggle, no DependsOn")
 }
 
+// TestSimpleStaffNavigationSetting guards the simple navigation switch
+// (#6956): off by default so no school's navigation changes until it opts
+// in, and a toggle the school changes itself (config:update, shared).
+func TestSimpleStaffNavigationSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeySimpleStaffNavigation)
+	require.NotNil(t, def, "operations.simple_staff_navigation should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "must default to false - every page stays in the navigation until a school opts in")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "organisation", def.Category, "sits next to the other navigation switch")
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy, "the school decides, not the operator")
+	assert.Nil(t, def.DependsOn, "stand-alone toggle, no DependsOn")
+}
+
 func TestTrackingSettings_Types(t *testing.T) {
 	t.Parallel()
 
@@ -2574,5 +2593,43 @@ func TestCareFacilityTermSetting(t *testing.T) {
 	}
 	for _, bad := range []string{"", " ", " GTS", "GTS ", "<b>GTS</b>", "{term}", "GTS\nNord", "<script>", "a\"b", "#GTS", "Schule & Hort", "https://x.de"} {
 		assert.False(t, pattern.MatchString(bad), bad)
+	}
+}
+
+// #6851, #6852: both credits are off by default, so existing schools keep
+// their results; the rounding direction only shows while rounding is on.
+func TestTimeTrackingCreditSettings(t *testing.T) {
+	t.Parallel()
+
+	packUp := config.GetDefinition(config.KeyTrackingPackUpMinutes)
+	require.NotNil(t, packUp)
+	assert.Equal(t, config.FieldNumber, packUp.Type)
+	assert.Equal(t, 0, packUp.Default)
+	require.NotNil(t, packUp.Validation)
+	assert.Equal(t, 0.0, *packUp.Validation.Min)
+	assert.Equal(t, 60.0, *packUp.Validation.Max)
+
+	interval := config.GetDefinition(config.KeyTrackingRoundingIntervalMinutes)
+	require.NotNil(t, interval)
+	assert.Equal(t, config.FieldSelect, interval.Type)
+	assert.Equal(t, config.TrackingRoundingOff, interval.Default)
+	values := make([]any, 0, len(interval.Options.Static))
+	for _, option := range interval.Options.Static {
+		values = append(values, option.Value)
+	}
+	assert.Equal(t, []any{"0", "5", "10", "15", "30"}, values)
+
+	mode := config.GetDefinition(config.KeyTrackingRoundingMode)
+	require.NotNil(t, mode)
+	assert.Equal(t, config.TrackingRoundingNearest, mode.Default)
+	require.NotNil(t, mode.DependsOn)
+	assert.Equal(t, config.KeyTrackingRoundingIntervalMinutes, mode.DependsOn.Key)
+	assert.Equal(t, "neq", mode.DependsOn.Condition)
+
+	for _, def := range []*config.Definition{packUp, interval, mode} {
+		assert.Equal(t, "operations", def.Tab, def.Key)
+		assert.Equal(t, "zeiterfassung", def.Category, def.Key)
+		assert.Equal(t, "config:update", def.WritePermission, def.Key)
+		assert.Equal(t, config.AccessShared, def.AccessPolicy, def.Key)
 	}
 }

@@ -10,6 +10,13 @@ import (
 // account lifecycle dependencies the administration flows need.
 var ErrAccountAdministrationUnavailable = errors.New("account administration is not composed")
 
+// ErrAccountSharedAcrossSchools refuses a school administrator's change to
+// what holds for the whole account, its login address and its second
+// factor, while the account also belongs to another school or to a Träger
+// (#6862). Such an account's identity is not one school's to rewrite; the
+// operator changes it.
+var ErrAccountSharedAcrossSchools = errors.New("account also belongs to another school or a Träger")
+
 // ManagedAccount is one platform account as the administration reports it.
 // The credential never leaves the owner.
 type ManagedAccount struct {
@@ -68,8 +75,8 @@ type OwnPasswordChange struct {
 // is likewise account-wide and reserved for the authorized platform deletion flow.
 //
 // Refusals arrive wrapped in an AuthenticationError whose Op names the
-// flow, carrying ErrAccountNotFound, ErrInvalidCredentials or
-// ErrPasswordTooWeak.
+// flow, carrying ErrAccountNotFound, ErrAccountSharedAcrossSchools,
+// ErrInvalidCredentials or ErrPasswordTooWeak.
 type AccountAdministration interface {
 	// AnonymizeAccountForDeletion replaces identifying fields for an already
 	// authorized platform deletion workflow. It is account-wide, preserves

@@ -3,10 +3,10 @@ package groups_test
 import (
 	"testing"
 
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
+	schoolStructureCompose "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

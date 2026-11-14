@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/classlist"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/classlist"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 // The class-list import is the first user of the chunk executor (#5827, ADR

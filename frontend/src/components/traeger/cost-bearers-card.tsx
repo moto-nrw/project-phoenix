@@ -7,7 +7,7 @@
 // lässt sich nur ausschalten, nicht löschen. Neu angelegt wird im Dialog;
 // „Ändern“ macht die Zeile selbst zum Formular (Bauart 2, kein Overlay).
 
-import { Building2, Plus } from "lucide-react";
+import { Building2, Pencil, Plus, Trash2 } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -21,7 +21,10 @@ import {
 } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
@@ -115,7 +118,7 @@ function CostBearerFields({
   return (
     <>
       <Input
-        controlSize="compact"
+        controlSize="touch"
         id={`${idPrefix}-name`}
         name="name"
         label="Name"
@@ -136,7 +139,7 @@ function CostBearerFields({
         onChange={(event) => onChange({ address: event.target.value })}
       />
       <Input
-        controlSize="compact"
+        controlSize="touch"
         id={`${idPrefix}-file-reference`}
         name="file_reference"
         label="Ihr Aktenzeichen beim Kostenträger (freiwillig)"
@@ -344,6 +347,7 @@ export function CostBearersCard({
           type="button"
           variant="outline"
           size="md"
+          tooltip="Öffnet ein Fenster für einen neuen Kostenträger."
           onClick={() => setCreating(true)}
         >
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -368,10 +372,7 @@ export function CostBearersCard({
                 onSaved={afterWrite.refresh}
               />
             ) : (
-              <li
-                key={bearer.id}
-                className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-start"
-              >
+              <ResponsiveActionRow key={bearer.id} align="start">
                 <div className="min-w-0 space-y-0.5 text-sm text-gray-700">
                   <p className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold wrap-anywhere text-gray-900">
@@ -394,11 +395,19 @@ export function CostBearersCard({
                 </div>
                 <OverflowMenu
                   ariaLabel={`Aktionen für ${bearer.name}`}
-                  triggerSize="sm"
                   items={[
-                    { label: "Ändern", onClick: () => setEditingId(bearer.id) },
+                    {
+                      icon: <Pencil className="size-4" aria-hidden />,
+                      label: "Ändern",
+                      description:
+                        "Öffnet die Angaben in dieser Zeile zum Bearbeiten.",
+                      onClick: () => setEditingId(bearer.id),
+                    },
                     {
                       label: bearer.active ? "Ausschalten" : "Einschalten",
+                      description: bearer.active
+                        ? "Nimmt den Kostenträger sofort aus der Auswahl beim Bestätigen von Anmeldungen."
+                        : "Bietet den Kostenträger sofort wieder beim Bestätigen von Anmeldungen an.",
                       onClick: () => void switchActive(bearer),
                     },
                     ...(bearer.inUse
@@ -406,13 +415,16 @@ export function CostBearersCard({
                       : [
                           {
                             label: "Löschen",
+                            description:
+                              "Löscht den Kostenträger. moto fragt vorher nach.",
+                            icon: <Trash2 className="size-4" aria-hidden />,
                             destructive: true,
                             onClick: () => setDeleting(bearer),
                           },
                         ]),
                   ]}
                 />
-              </li>
+              </ResponsiveActionRow>
             ),
           )}
         </ResponsiveActionList>

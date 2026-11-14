@@ -5,9 +5,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // composedAccountMFA serves the public MFA capability over the flows this
@@ -141,7 +141,7 @@ func (c ComposedAccountMFA) VerifyTrustedDevice(ctx context.Context, accountID, 
 }
 
 func (c ComposedAccountMFA) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error) {
-	devices, err := c.Flows.records.ListActiveTrustedDevices(c.ctx(ctx), accountID, tenantID)
+	devices, err := c.Flows.records.ListActiveTrustedDevices(c.ctx(ctx), accountID, tenantID, deviceTraeger(ctx, tenantID))
 	if err != nil {
 		return nil, MFAError(err)
 	}

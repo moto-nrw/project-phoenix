@@ -6,13 +6,13 @@ import (
 	time "time"
 
 	chi "github.com/go-chi/chi/v5"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	excusedrequests "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	lists "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	excusedrequests "github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	lists "github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // PrivacyConsentReader is the projection's tenant-scoped read port. The root
@@ -22,15 +22,17 @@ type PrivacyConsentReader interface {
 }
 
 type ResourceConfig struct {
-	AbsenceOverview         studentpresence.StatusDayOverviews
-	ActiveEnrollments       ActiveEnrollments
-	ActiveService           StudentPresence
-	ArrivalScheduleService  careplan.ArrivalScheduleService
-	CareDayService          careplan.CareDayQuery
-	CareLifecycleService    careplan.CareLifecycle
-	ClassHandovers          ClassHandoverReader
-	ClassListEntries        ClassListEntryReader
-	CompanionService        careplan.StudentCompanions
+	AbsenceOverview        studentpresence.StatusDayOverviews
+	ActiveEnrollments      ActiveEnrollments
+	ActiveService          StudentPresence
+	ArrivalScheduleService careplan.ArrivalScheduleService
+	CareDayService         careplan.CareDayQuery
+	CareLifecycleService   careplan.CareLifecycle
+	ClassHandovers         ClassHandoverReader
+	ClassListEntries       ClassListEntryReader
+	CompanionService       careplan.StudentCompanions
+	// EnrollmentAnswers serves the registration answer filter (#6954).
+	EnrollmentAnswers       EnrollmentAnswerFilters
 	ExcusedRequestService   excusedrequests.Service
 	InstanceService         PlannedStudents
 	ListExportService       lists.Renderer
@@ -72,6 +74,7 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(childRead, withTx).Get("/", rs.listStudents)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/care-offerings", rs.listCareOfferingOptions)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/enrollment-answer-filters", rs.listEnrollmentAnswerOptions)
 	r.With(childRead, withTx).Get("/{id}", rs.getStudent)
 	r.With(childRead, withTx).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/visit-history", rs.getStudentVisitHistory)

@@ -19,4 +19,4 @@
     --- PASS: TestStudentOwnerContractObservedLockWaitAndTimeout/released (0.74s)
     --- PASS: TestStudentOwnerContractObservedLockWaitAndTimeout/timeout (5.30s)
 PASS
-ok  	github.com/moto-nrw/project-phoenix/database/migrations	6.614s
+ok  	github.com/moto-ogs/project-phoenix/database/migrations	6.614s

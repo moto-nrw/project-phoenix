@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type Client interface {
@@ -99,6 +99,9 @@ type RuntimeCounts struct {
 	// OpenRoomBlockChildren counts children checked into the block running in
 	// a released room (#3281).
 	OpenRoomBlockChildren int
+	// AppCheckIns counts the children the team checked in on the app
+	// straight into a room while a terminal was offline (#6953).
+	AppCheckIns int
 	// EarlyCareChildren counts the children of the Frühbetreuung.
 	EarlyCareChildren int
 	// EarlyPickups counts the children sent home at midday.

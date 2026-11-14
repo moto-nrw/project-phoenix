@@ -2,7 +2,7 @@
 
 package api
 
-import "github.com/moto-nrw/project-phoenix/modules/carecontract"
+import "github.com/moto-ogs/project-phoenix/modules/carecontract"
 
 // ContractChangeDecisionForTest keeps cross-owner review fixtures on the typed root.
 type ContractChangeDecisionForTest = carecontract.ChangeDecision

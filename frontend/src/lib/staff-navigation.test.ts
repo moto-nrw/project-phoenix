@@ -6,6 +6,7 @@ import {
   STAFF_NAV_BOTTOM,
   STAFF_NAV_DEFAULT_OPEN_GROUPS,
   STAFF_NAV_GROUPS,
+  STAFF_NAV_SIMPLE_ENTRIES,
   STAFF_NAV_TOP,
 } from "~/lib/staff-navigation";
 
@@ -133,5 +134,31 @@ describe("staff navigation tree", () => {
       expect(getStaffNavGroupForPathname("/profile")).toBeNull();
       expect(getStaffNavGroupForPathname("/settings")).toBeNull();
     });
+  });
+});
+
+describe("simple staff navigation (#6956)", () => {
+  it("keeps only the pages of the daily care work, in tree order", () => {
+    expect(
+      STAFF_NAV_SIMPLE_ENTRIES.map((entry) =>
+        entry.kind === "page" ? entry.href : entry.section,
+      ),
+    ).toEqual([
+      "/tagesplan",
+      "groups",
+      "/students/search",
+      "supervisions",
+      "/rooms",
+      "/time-tracking",
+      "/calendar",
+      "/tagesinformationen",
+    ]);
+  });
+
+  it("takes every simple entry from the tree, so no page appears only there", () => {
+    const treeEntries = STAFF_NAV_GROUPS.flatMap((group) => group.entries);
+    for (const entry of STAFF_NAV_SIMPLE_ENTRIES) {
+      expect(treeEntries).toContainEqual(entry);
+    }
   });
 });

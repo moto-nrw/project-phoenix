@@ -162,7 +162,7 @@ describe("AdminSessionEditModal", () => {
     });
     fireEvent.change(secondPause, { target: { value: "" } });
     expect(secondPause).toHaveAttribute("aria-invalid", "true");
-    expect(save).toBeDisabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText("Bitte geben Sie volle Minuten von 0 bis 300 ein."),
     ).toBeInTheDocument();
@@ -221,7 +221,7 @@ describe("AdminSessionEditModal", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "Änderungen speichern" }),
-      ).toBeDisabled();
+      ).toHaveAttribute("aria-disabled", "true");
       expect(mocks.updateSession).not.toHaveBeenCalled();
     },
   );
@@ -346,7 +346,7 @@ describe("AdminSessionEditModal", () => {
       expect(screen.getByText(message)).toBeInTheDocument();
       expect(input).toHaveAttribute("aria-invalid", "true");
       const save = screen.getByRole("button", { name: "Änderungen speichern" });
-      expect(save).toBeDisabled();
+      expect(save).toHaveAttribute("aria-disabled", "true");
       fireEvent.click(save);
       expect(mocks.updateSession).not.toHaveBeenCalled();
     });
@@ -368,7 +368,7 @@ describe("AdminSessionEditModal", () => {
       ).toBeInTheDocument();
       expect(checkInField()).toHaveAttribute("aria-invalid", "true");
       const save = screen.getByRole("button", { name: "Änderungen speichern" });
-      expect(save).toBeDisabled();
+      expect(save).toHaveAttribute("aria-disabled", "true");
       fireEvent.click(save);
       expect(mocks.updateSession).not.toHaveBeenCalled();
     });

@@ -4,8 +4,8 @@ status: accepted
 
 # The dev tools are a binary of their own
 
-Decision for [#4096](https://github.com/moto-nrw/project-phoenix/issues/4096)
-under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580). It
+Decision for [#4096](https://github.com/moto-ogs/project-phoenix/issues/4096)
+under [#2580](https://github.com/moto-ogs/project-phoenix/issues/2580). It
 decides the separate binary that
 [ADR 0056](0056-the-server-root-is-the-http-host.md) left open (considered
 option 5). The policy change activates in epoch 49.

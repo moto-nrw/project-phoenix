@@ -224,6 +224,7 @@ function ProfileContent() {
             className="gap-2"
             onClick={() => avatarInputRef.current?.click()}
             disabled={isSaving}
+            tooltip="Ersetzt Ihr Profilbild sofort durch ein Bild von Ihrem Gerät."
           >
             <Camera className="h-4 w-4" aria-hidden="true" />
             Profilbild ändern
@@ -243,6 +244,7 @@ function ProfileContent() {
               onClick={() => setIsEditing(true)}
               disabled={isSaving}
               className="gap-1.5"
+              tooltip="Zeigt Felder, um Vor- und Nachnamen zu ändern."
             >
               <Pencil className="h-3.5 w-3.5" />
               Bearbeiten
@@ -290,6 +292,7 @@ function ProfileContent() {
                   formErrors.clear();
                   resetFormFromProfile();
                 }}
+                tooltip="Verwirft Ihre Änderungen am Namen."
               >
                 Abbrechen
               </Button>
@@ -300,6 +303,7 @@ function ProfileContent() {
                 isLoading={isSaving}
                 loadingText="Speichern…"
                 onClick={() => void handleSaveProfile()}
+                noTooltip="Speichert nur Vor- und Nachnamen, ohne weitere Folgen."
               >
                 Speichern
               </Button>
@@ -324,6 +328,7 @@ function ProfileContent() {
             variant="outline"
             size="md"
             onClick={() => setShowPasswordModal(true)}
+            tooltip="Öffnet ein Fenster, um Ihr Passwort zu ändern."
           >
             Ändern
           </Button>

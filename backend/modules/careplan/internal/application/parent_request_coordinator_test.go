@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
 )
 
 type masterDataBulkStub struct {
@@ -28,6 +28,14 @@ type masterDataBulkStub struct {
 func (s *masterDataBulkStub) LockBulkRequest(_ context.Context, requestID int64) error {
 	s.lockedRequests = append(s.lockedRequests, requestID)
 	return s.lockErr
+}
+
+func (s *masterDataBulkStub) LockBulkClassChanges(context.Context, map[int64]*careplan.MasterDataReviewItem) error {
+	return nil
+}
+
+func (s *masterDataBulkStub) FollowBulkClassChanges(ctx context.Context, apply func(context.Context) error) error {
+	return apply(ctx)
 }
 
 func (s *masterDataBulkStub) LockBulkStudents(_ context.Context, studentIDs []int64) error {

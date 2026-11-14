@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/observability"
+	"github.com/moto-ogs/project-phoenix/observability"
 	"github.com/stretchr/testify/require"
 )
 

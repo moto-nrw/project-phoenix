@@ -1,10 +1,10 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
-	applicationNative "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/adapters/postgres"
+	applicationNative "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // New binds Enrollment to the ambient transaction, never to an unscoped pool when a caller forgot its transaction.
@@ -24,3 +24,8 @@ func newStore() *postgres.Store {
 // NewOfferingSelectionReferences binds the catalog's deletion guard to the
 // caller's school transaction and Enrollment's own selection table.
 func NewOfferingSelectionReferences() enrollment.OfferingSelectionReferences { return newStore() }
+
+// NewStudentAnswers reads the school's registration answers in the caller's tenant transaction (ADR 0231).
+func NewStudentAnswers() enrollment.StudentAnswers {
+	return applicationNative.NewStudentAnswers(newStore())
+}

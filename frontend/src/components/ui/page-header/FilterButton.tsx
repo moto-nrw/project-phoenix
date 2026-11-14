@@ -38,8 +38,16 @@ export function FilterButton({
       size="icon"
       onClick={onClick}
       data-testid={testId}
-      aria-label={showCountBadge ? `Filter (${activeCount} aktiv)` : "Filter"}
+      // The count stands in the name itself, not in parentheses: a
+      // parenthetical counts as an aside, and the shown digit must be part
+      // of the name (WCAG 2.5.3, axe label-content-name-mismatch).
+      aria-label={showCountBadge ? `Filter, ${activeCount} aktiv` : "Filter"}
       aria-expanded={isOpen}
+      tooltip={
+        isOpen
+          ? "Blendet die Filter wieder aus."
+          : "Zeigt die Filter für diese Liste."
+      }
       data-filters-active={showRing ? "" : undefined}
       className={cn("relative", className)}
     >
@@ -57,13 +65,17 @@ export function FilterButton({
         />
       </svg>
       {showCountBadge ? (
-        <NotificationBadge
-          count={activeCount}
-          tone="blue"
-          size="sm"
-          ariaLabel={`${activeCount} aktive Filter`}
-          className="absolute -top-1 -right-1 tabular-nums shadow-sm"
-        />
+        // The button's name already says how many filters are active; the
+        // badge only shows it, so assistive tech does not read it twice.
+        <span aria-hidden="true" className="absolute -top-1 -right-1 flex">
+          <NotificationBadge
+            count={activeCount}
+            tone="blue"
+            size="sm"
+            ariaLabel={`${activeCount} aktive Filter`}
+            className="tabular-nums shadow-sm"
+          />
+        </span>
       ) : null}
     </Button>
   );

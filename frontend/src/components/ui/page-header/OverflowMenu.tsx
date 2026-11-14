@@ -1,5 +1,6 @@
 "use client";
 
+import { CONTROL_HEIGHT_CLASS, iconOnlyMarker } from "../control-geometry";
 import { Z_LAYER } from "../overlay-styles";
 import {
   useEffect,
@@ -12,87 +13,23 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { ActionHint } from "~/components/ui/action-hint";
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { buttonClassName } from "~/components/ui/button";
 import type { ButtonSize, ButtonVariant } from "~/components/ui/button-styles";
 import Link from "~/components/ui/navigation-link";
 import { Check, MoreVertical } from "lucide-react";
+import { SHEET_SCOPE_SELECTOR, useOverlay } from "../overlay-stack";
+import type {
+  OverflowMenuCheckboxItem,
+  OverflowMenuEntry,
+  OverflowMenuItem,
+  OverflowMenuRadioItem,
+} from "./types";
 
-export interface OverflowMenuItem {
-  /** Visible label. */
-  readonly label: string;
-  /** One short line under the label that says what the entry does. */
-  readonly description?: string;
-  /** Optional left icon. */
-  readonly icon?: ReactNode;
-  /** Click handler. The menu closes automatically before this fires. */
-  readonly onClick: () => void;
-  /** Optional right-side hint, typically a count (e.g. "3"). */
-  readonly badge?: string | number;
-  /** Renders the item with a destructive (red) text colour. */
-  readonly destructive?: boolean;
-  /** When true, the item renders disabled and its onClick is suppressed. */
-  readonly disabled?: boolean;
-  /**
-   * When set, the item renders as a link (next/link, or a plain anchor with
-   * `target="_blank"` when `external` is true) instead of a button, keeping
-   * native link semantics (middle-click, cmd-click). `onClick` still fires
-   * after the menu closes — pass a no-op when only navigation is needed.
-   */
-  readonly href?: string;
-  /** With `href`: open in a new tab via a plain anchor (noopener noreferrer). */
-  readonly external?: boolean;
-  /** Marks the current item in a navigational overflow menu, with a checkmark. */
-  readonly selected?: boolean;
-  /** Target of a guided tour (`data-setup-tour`), for an entry a tour points at. */
-  readonly tourTarget?: string;
-}
-
-/** Non-interactive thin divider between item groups. */
-interface OverflowMenuSeparator {
-  readonly kind: "separator";
-}
-
-/** Non-interactive uppercase label grouping the entries below it. */
-interface OverflowMenuHeader {
-  readonly kind: "header";
-  readonly label: string;
-}
-
-/** Single-select row with a checkmark shown when active (role="menuitemradio"). */
-interface OverflowMenuRadioItem {
-  readonly kind: "radio";
-  readonly label: string;
-  /** One short line under the label that says what the choice means. */
-  readonly description?: string;
-  readonly checked: boolean;
-  readonly onClick: () => void;
-  readonly disabled?: boolean;
-}
-
-/**
- * On/off row with a checkmark shown while on (role="menuitemcheckbox"), for a
- * personal switch that belongs to the page, e.g. an e-mail on new entries.
- */
-interface OverflowMenuCheckboxItem {
-  readonly kind: "checkbox";
-  readonly label: string;
-  readonly checked: boolean;
-  readonly onClick: () => void;
-  readonly disabled?: boolean;
-  /**
-   * Leaves the menu open after the toggle. For a list of switches that are
-   * set together (which table columns to show): closing after every row
-   * would make the user reopen the menu once per column.
-   */
-  readonly keepOpen?: boolean;
-}
-
-export type OverflowMenuEntry =
-  | OverflowMenuItem
-  | OverflowMenuHeader
-  | OverflowMenuRadioItem
-  | OverflowMenuCheckboxItem
-  | OverflowMenuSeparator;
+// Die Typen stehen in `./types`; der Re-Export erspart Aufrufern, die das Menü
+// rendern, einen zweiten Import.
+export type { OverflowMenuEntry, OverflowMenuItem } from "./types";
 
 interface OverflowMenuProps {
   /** Menu items to render. Empty array → renders nothing. */
@@ -126,6 +63,12 @@ interface OverflowMenuProps {
   /** Optional visible trigger content; the default is the kebab icon. */
   readonly triggerContent?: ReactNode;
   /**
+   * What a click on the trigger does (#6744). Defaults to „Zeigt weitere
+   * Aktionen.“ for the kebab and to a neutral sentence for a text trigger;
+   * a page tab (`triggerRole="tab"`) gets none.
+   */
+  readonly triggerTooltip?: string;
+  /**
    * Draws the trigger as a kit button. `triggerContent` is its label,
    * `triggerClassName` carries layout only, as on `Button`.
    */
@@ -135,6 +78,11 @@ interface OverflowMenuProps {
   };
   /** Layout of the box around the trigger (width, flex); default `inline-block`. */
   readonly wrapperClassName?: string;
+  /**
+   * Stop of a guided tour (`data-setup-tour`) on the box around the trigger,
+   * like `tourTarget` of an entry. Spares the caller a wrapper of its own.
+   */
+  readonly tourTarget?: string;
   /**
    * Optional CSS selector for an ancestor of the trigger. When set, the menu
    * stretches to that ancestor's width and sits inside it (8px inset), instead
@@ -151,12 +99,23 @@ interface OverflowMenuProps {
   readonly portalOwnerId?: string;
   /** Stacking level for a document-level menu owned by an overlay. */
   readonly portalZIndex?: number;
+  /**
+   * Side the menu opens on when it fits on both. `above` suits a trigger at
+   * the top of a phone row: the menu then leaves the row's own details in
+   * view. Without room above it opens below, as by default.
+   */
+  readonly preferredSide?: "below" | "above";
 }
+
+const KEBAB_TOOLTIP = "Zeigt weitere Aktionen.";
+// Ein Menü hinter einem Textknopf: erst ein Eintrag darin wirkt.
+const TEXT_TRIGGER_TOOLTIP = "Öffnet die Auswahl, noch passiert nichts.";
 
 /**
  * Generic kebab (⋮) overflow menu. Anchored bottom-right of the trigger by
  * default; flips to bottom-left if the page edge is too close on the right, and
- * flips ABOVE the trigger when it sits too close to the viewport bottom.
+ * flips ABOVE the trigger when it sits too close to the viewport bottom (or
+ * opens above first with `preferredSide="above"`).
  *
  * Closes on outside click, Escape key, or item activation. Built without a
  * popover library to avoid adding a Radix dep just for one use site — the
@@ -173,26 +132,30 @@ export function OverflowMenu({
   triggerSize = "default",
   triggerClassName = "",
   triggerContent,
+  triggerTooltip,
   triggerButton,
   wrapperClassName = "inline-block",
+  tourTarget,
   matchContainerSelector,
   portalOwnerId,
   portalZIndex,
+  preferredSide = "below",
 }: OverflowMenuProps) {
+  const kitDefault = useKitDefault();
   // Size variant: the "default" values are byte-for-byte the previous hardcoded
   // ones, so unchanged callers keep the exact 36px trigger + 20px icon +
   // gray-600 color. "sm" shrinks to a 24px trigger (44px under pointer:
   // coarse), 16px icon, and a muted gray-400 (splitting color from the string
   // avoids a Tailwind text-* conflict that class-string order would not resolve).
   const triggerSizeClass =
-    // Default-Kebab: Breite folgt der Höhe (`aspect-square`), damit der
-    // runde Hover-Kreis rund bleibt, wenn die Kopfkarte ihre Bedienhöhe
-    // (40/44 px) per Nachfahren-Selektor erzwingt.
+    // Default-Kebab: Höhe `dense` (control-geometry.ts). Die Breite folgt der
+    // Höhe (`aspect-square`), damit der runde Hover-Kreis rund bleibt, wenn
+    // die Kopfkarte ihre Bedienhöhe (`HEAD_CONTROL_HEIGHT`) erzwingt.
     triggerContent != null
       ? ""
       : triggerSize === "sm"
         ? "size-6 pointer-coarse:size-11"
-        : "aspect-square h-9";
+        : `aspect-square ${CONTROL_HEIGHT_CLASS.dense}`;
   const triggerColorClass =
     triggerSize === "sm" ? "text-gray-400" : "text-gray-600";
   const iconSizeClass = triggerSize === "sm" ? "size-4" : "size-5";
@@ -204,6 +167,10 @@ export function OverflowMenu({
   const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  // On the overlay stack, so the panel the menu opened from (an
+  // `AnchoredPopover`) counts a press in it as its own. Escape stays with the
+  // menu's own handler.
+  useOverlay(isOpen, "popover", { takesEscape: false, elementRef: menuRef });
   const focusOnOpenRef = useRef(false);
   const openAnchorRef = useRef<{ top: number; left: number } | null>(null);
   const menuId = useId();
@@ -288,7 +255,7 @@ export function OverflowMenu({
       const scope = portalOwnerId
         ? null
         : trigger.closest(
-            '[data-overflow-menu-scope="true"], [data-date-picker-focus-trap="true"]',
+            `[data-overflow-menu-scope="true"], ${SHEET_SCOPE_SELECTOR}`,
           );
       const nextPortalContainer =
         scope instanceof HTMLElement ? scope : document.body;
@@ -316,7 +283,12 @@ export function OverflowMenu({
         0,
         window.innerHeight - rect.bottom - gap - viewportInset,
       );
-      const flipUp = roomBelow < estimatedMenuHeight && roomAbove > roomBelow;
+      const fitsBelow = roomBelow >= estimatedMenuHeight;
+      const flipUp =
+        preferredSide === "above"
+          ? roomAbove >= estimatedMenuHeight ||
+            (!fitsBelow && roomAbove > roomBelow)
+          : !fitsBelow && roomAbove > roomBelow;
       const vertical: CSSProperties = flipUp
         ? {
             bottom: scopeRect
@@ -453,35 +425,52 @@ export function OverflowMenu({
 
   if (items.length === 0) return null;
 
+  const triggerHint =
+    triggerTooltip ??
+    (triggerRole === undefined
+      ? triggerContent == null
+        ? kitDefault(KEBAB_TOOLTIP)
+        : kitDefault(TEXT_TRIGGER_TOOLTIP)
+      : undefined);
+  const trigger = (
+    <button
+      ref={triggerRef}
+      type="button"
+      onClick={handleOpen}
+      disabled={disabled}
+      role={triggerRole}
+      aria-selected={triggerAriaSelected}
+      tabIndex={triggerTabIndex}
+      aria-label={ariaLabel}
+      aria-haspopup="menu"
+      aria-expanded={isOpen}
+      aria-controls={isOpen ? menuId : undefined}
+      className={
+        triggerButton
+          ? buttonClassName({
+              ...triggerButton,
+              className: triggerClassName,
+            })
+          : `inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none ${triggerClassName}`
+      }
+    >
+      {triggerContent ?? <MoreVertical className={iconSizeClass} aria-hidden />}
+    </button>
+  );
+
   return (
     <div
       className={`relative ${wrapperClassName}`}
       // Das Gerüst der Kopfkarte streckt auf dem Telefon Textknöpfe über die
       // Zeile; ein reines Symbol behält sein Maß.
-      data-icon-only={triggerContent == null ? "" : undefined}
+      {...iconOnlyMarker(triggerContent == null)}
+      data-setup-tour={tourTarget}
     >
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={handleOpen}
-        disabled={disabled}
-        role={triggerRole}
-        aria-selected={triggerAriaSelected}
-        tabIndex={triggerTabIndex}
-        aria-label={ariaLabel}
-        aria-haspopup="menu"
-        aria-expanded={isOpen}
-        aria-controls={isOpen ? menuId : undefined}
-        className={
-          triggerButton
-            ? buttonClassName({ ...triggerButton, className: triggerClassName })
-            : `inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} focus-visible:ring-moto-blue/50 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none ${triggerClassName}`
-        }
-      >
-        {triggerContent ?? (
-          <MoreVertical className={iconSizeClass} aria-hidden />
-        )}
-      </button>
+      {triggerHint ? (
+        <ActionHint text={triggerHint}>{trigger}</ActionHint>
+      ) : (
+        trigger
+      )}
 
       {isOpen && portalContainer
         ? createPortal(
@@ -537,9 +526,11 @@ export function OverflowMenu({
                           : "menuitemcheckbox"
                       }
                       aria-checked={entry.checked}
+                      // Name from content (the title), the second line as
+                      // description: it is aria-hidden so it stays out of
+                      // the name, and aria-describedby still reads it.
                       {...(entry.kind === "radio" && entry.description
                         ? {
-                            "aria-labelledby": `${menuId}-${index}-label`,
                             "aria-describedby": `${menuId}-${index}-description`,
                           }
                         : {})}
@@ -565,6 +556,7 @@ export function OverflowMenu({
                           </span>
                           <span
                             id={`${menuId}-${index}-description`}
+                            aria-hidden="true"
                             className="text-xs font-normal text-gray-500"
                           >
                             {entry.description}
@@ -598,11 +590,11 @@ export function OverflowMenu({
                   ? "cursor-not-allowed opacity-50"
                   : "hover:bg-gray-50 active:bg-gray-100";
                 const itemClassName = `flex w-full ${item.description ? "items-start" : "items-center"} gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`;
+                // Name from content (the title), the second line as
+                // description: aria-hidden keeps it out of the name and
+                // aria-describedby still reads it (WCAG 2.5.3, label in name).
                 const describedProps = item.description
-                  ? {
-                      "aria-labelledby": `${menuId}-${index}-label`,
-                      "aria-describedby": `${menuId}-${index}-description`,
-                    }
+                  ? { "aria-describedby": `${menuId}-${index}-description` }
                   : {};
 
                 const inner = (
@@ -621,6 +613,7 @@ export function OverflowMenu({
                         </span>
                         <span
                           id={`${menuId}-${index}-description`}
+                          aria-hidden="true"
                           className="text-xs font-normal text-gray-500"
                         >
                           {item.description}

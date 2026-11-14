@@ -1,9 +1,14 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { LogIn, LogOut } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { SelectionBar } from "~/components/ui/selection-bar";
+import {
+  CHECKIN_HINTS,
+  selectAllBlockedReason,
+} from "~/components/students/school-checkin-hints";
 import {
   leftOutLabel,
   type SelectAllControl,
@@ -26,6 +31,10 @@ interface SchoolCheckinSelectionBarProps {
   readonly runningAction?: "in" | "out" | null;
   /** „Alle N auswählen“ for the children on screen (#4762). */
   readonly selectAll?: SelectAllControl;
+  /** „Anmelden in“ (#6953): where a check-in puts the children. */
+  readonly targetPicker?: ReactNode;
+  /** The chosen target's room, so the Anmelden button names it. */
+  readonly targetRoomName?: string | null;
 }
 
 /**
@@ -50,6 +59,8 @@ export function SchoolCheckinSelectionBar({
   isRunning,
   runningAction = null,
   selectAll,
+  targetPicker,
+  targetRoomName = null,
 }: SchoolCheckinSelectionBarProps) {
   const noneSelected = selectedCount === 0;
   const leftOut = selectAll ? leftOutLabel(selectAll.leftOutCount) : null;
@@ -76,6 +87,7 @@ export function SchoolCheckinSelectionBar({
       className={selectionActive ? "ml-1" : undefined}
       onClick={onFinish}
       disabled={isRunning}
+      tooltip={CHECKIN_HINTS.finish}
     >
       Fertig
     </Button>
@@ -109,6 +121,8 @@ export function SchoolCheckinSelectionBar({
                 disabled={
                   selectAll.count === 0 || selectAll.allSelected || isRunning
                 }
+                tooltip={CHECKIN_HINTS.selectAll}
+                disabledReason={selectAllBlockedReason(selectAll)}
               >
                 Alle {selectAll.count} auswählen
               </Button>
@@ -135,13 +149,17 @@ export function SchoolCheckinSelectionBar({
               size="compact"
               onClick={() => onBulkAction("in")}
               disabled={noneSelected || isRunning}
+              tooltip={CHECKIN_HINTS.checkIn}
+              disabledReason={
+                noneSelected ? CHECKIN_HINTS.noneSelected : undefined
+              }
             >
               {runningAction === "in" ? (
                 <SpinnerIcon className="h-3.5 w-3.5" />
               ) : (
                 <LogIn className="h-3.5 w-3.5" aria-hidden />
               )}
-              Anmelden
+              {targetRoomName ? `In ${targetRoomName} anmelden` : "Anmelden"}
             </Button>
             <Button
               type="button"
@@ -149,6 +167,10 @@ export function SchoolCheckinSelectionBar({
               size="compact"
               onClick={() => onBulkAction("out")}
               disabled={noneSelected || isRunning}
+              tooltip={CHECKIN_HINTS.checkOut}
+              disabledReason={
+                noneSelected ? CHECKIN_HINTS.noneSelected : undefined
+              }
             >
               {runningAction === "out" ? (
                 <SpinnerIcon className="h-3.5 w-3.5" />
@@ -163,6 +185,10 @@ export function SchoolCheckinSelectionBar({
           finishButton
         )
       }
-    />
+    >
+      {targetPicker ? (
+        <div className="mt-2 border-t border-gray-100 pt-2">{targetPicker}</div>
+      ) : null}
+    </SelectionBar>
   );
 }

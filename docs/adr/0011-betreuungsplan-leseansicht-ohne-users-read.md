@@ -5,7 +5,7 @@ Datum: 2026-08-15 · Status: deprecated (historisch, teilweise überholt) · Iss
 ## Einordnung vom 2026-09-05
 
 Die folgenden Abschnitte dokumentieren den damaligen Stand, nicht die aktuelle
-Berechtigungsspezifikation. [#2329](https://github.com/moto-nrw/project-phoenix/issues/2329)
+Berechtigungsspezifikation. [#2329](https://github.com/moto-ogs/project-phoenix/issues/2329)
 hat den gruppenbezogenen Datenzugriff entfernt; die Aussage zu
 `gdpr.student_data_scope` gilt nicht mehr. Den aktuellen Zugriff auf Kinderdaten
 beschreibt [backend/CLAUDE.md](../../backend/CLAUDE.md). Auch die damaligen Rollen-

@@ -2,9 +2,9 @@
 
 Status: accepted. Freigegeben von Yannick Wenger am 10.11.2026 (#6468).
 Gilt für den Einrichtungs-Assistenten neuer Schulen aus
-[#2832](https://github.com/moto-nrw/project-phoenix/issues/2832). Führt den
+[#2832](https://github.com/moto-ogs/project-phoenix/issues/2832). Führt den
 Projection-Owner `school-setup` ein, den
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580) nur mit einer
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580) nur mit einer
 Architekturentscheidung zulässt.
 
 ## Kontext

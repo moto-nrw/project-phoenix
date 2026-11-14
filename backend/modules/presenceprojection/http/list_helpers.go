@@ -11,12 +11,12 @@ import (
 	strings "strings"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	securityruntime "github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // studentListParams holds all query parameters for student listing
@@ -92,6 +92,9 @@ type studentListParams struct {
 	// Zero = off; parseCareOfferingFilter validates it.
 	careOfferingID   int64
 	careOfferingDate calendar.Date
+	// enrollmentAnswer keeps the children with this answer to one of the
+	// school's own registration questions (#6954). nil = off.
+	enrollmentAnswer *enrollmentAnswer
 }
 
 // Values accepted by the care_status query parameter (#2487).
@@ -320,6 +323,7 @@ func (p *studentListParams) canUseGroupOnlyShortcut() bool {
 		p.roomID == 0 &&
 		len(p.studentIDs) == 0 &&
 		p.careStatus == CareStatusAll &&
+		p.enrollmentAnswer == nil &&
 		!p.hasInMemoryFilters()
 }
 

@@ -4,15 +4,13 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 var errMFAServiceUnavailable = errors.New("mfa service is not configured for this deployment")
@@ -149,11 +147,9 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 
 // mfaListTrustedDevices returns the calling user's active trusted-device
 // records so they can see and revoke them from the admin Sicherheit tab.
-// Filtered to the authenticated account — ownership is enforced in the
-// service layer too, but scoping the query here keeps the data path tight.
-//
-// The DTO + mapping helper live in api/common so the operator-side
-// /operator/auth/mfa/trusted-devices endpoint can reuse them.
+// Trust is per-(account, tenant): the tenant comes from the claims, so the
+// settings page never leaks devices trusted in another tenant. The DTO and
+// the handlers are shared with the school and Träger portals (portalauth).
 func (rs *Resource) mfaListTrustedDevices(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -163,31 +159,15 @@ func (rs *Resource) mfaListTrustedDevices(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	// Trust is per-(account, tenant) — pass the tenant from claims so the
-	// settings page never leaks devices trusted in another tenant. The
-	// route runs inside TenantTxMiddleware, but threading the value
-	// explicitly avoids relying on context state at the handler boundary.
-	devices, err := rs.MFAService.ListTrustedDevices(r.Context(), int64(claims.ID), claims.TenantID)
-	if err != nil {
-		mapMFAError(w, r, err)
-		return
-	}
-	render.JSON(w, r, common.MapTrustedDevices(devices, func(d identityaccess.AccountTrustedDevice) common.TrustedDeviceRow {
-		return common.TrustedDeviceRow{
-			ID:         d.ID,
-			UserAgent:  d.UserAgent,
-			IPAddress:  d.IPAddress,
-			CreatedAt:  d.CreatedAt,
-			ExpiresAt:  d.ExpiresAt,
-			LastUsedAt: d.LastUsedAt,
-		}
-	}))
+	portalauth.ListTrustedDevices(w, r, func(ctx context.Context) ([]identityaccess.AccountTrustedDevice, error) {
+		return rs.MFAService.ListTrustedDevices(ctx, int64(claims.ID), claims.TenantID)
+	})
 }
 
 // mfaRevokeTrustedDevice deletes one trusted device the user has
-// previously remembered. The service double-checks ownership so an
-// attacker with an access token for account A can't revoke device rows
-// belonging to account B via id-guessing.
+// previously remembered. The service double-checks ownership and the
+// tenant, so an access token for (account A, tenant T1) revokes neither a
+// device of account B nor one trusted in tenant T2.
 func (rs *Resource) mfaRevokeTrustedDevice(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -197,20 +177,9 @@ func (rs *Resource) mfaRevokeTrustedDevice(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	idStr := chi.URLParam(r, "deviceId")
-	deviceID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || deviceID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid device id")))
-		return
-	}
-	// Tenant scope is enforced at the service layer too: a user with an
-	// access token for (account A, tenant T1) can't revoke a device that
-	// was trusted in tenant T2.
-	if err := rs.MFAService.RevokeTrustedDevice(r.Context(), int64(claims.ID), claims.TenantID, deviceID); err != nil {
-		mapMFAError(w, r, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	portalauth.RevokeTrustedDevice(w, r, func(ctx context.Context, deviceID int64) error {
+		return rs.MFAService.RevokeTrustedDevice(ctx, int64(claims.ID), claims.TenantID, deviceID)
+	})
 }
 
 // completeMFAExchange mints the tenant session of a proven second factor

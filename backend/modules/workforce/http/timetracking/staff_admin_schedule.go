@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 )
 
 // getSchedule handles GET /api/staff/{id}/schedule
@@ -85,7 +85,9 @@ func (rs *StaffAdminResource) updateSchedule(w http.ResponseWriter, r *http.Requ
 	if err := rs.WorkSessionService.UpdateStaffSchedule(r.Context(), staff.ID, req.toServiceInput()); err != nil {
 		// ErrInvalidWorkTime is the Workforce module refusing the version itself,
 		// such as a valid_from it does not accept (#3892).
-		if errors.Is(err, workforce.ErrScheduleValidation) || errors.Is(err, workforce.ErrInvalidWorkTime) {
+		if errors.Is(err, workforce.ErrWorkTimeModelArchived) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforceWorkTimeModelArchived))
+		} else if errors.Is(err, workforce.ErrScheduleValidation) || errors.Is(err, workforce.ErrInvalidWorkTime) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServer(err))

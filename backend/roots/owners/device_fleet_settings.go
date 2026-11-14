@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	devicefleetCompose "github.com/moto-ogs/project-phoenix/modules/devicefleet/compose"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // DeviceOnlineWindowSettings is the subset of the settings service the

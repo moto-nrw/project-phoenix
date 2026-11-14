@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The billing run for a holiday period (spec #4611 user stories 70, 71, 75
@@ -135,9 +135,12 @@ type BillingPosition struct {
 // invoice a draft proposes (#5663); they are positions too. ChildID is zero
 // on an issued invoice once the registration is gone.
 type BillingChild struct {
-	ChildID            int64                      `json:"child_id"`
-	FirstName          string                     `json:"first_name"`
-	LastName           string                     `json:"last_name"`
+	ChildID   int64  `json:"child_id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	// BirthDate finds the debtor number of the child when the Träger keeps
+	// one per child (#7007); the draft alone carries it.
+	BirthDate          calendar.Date              `json:"-"`
 	Positions          []BillingPosition          `json:"positions"`
 	Corrections        []BillingCorrection        `json:"corrections"`
 	CarriedCorrections []BillingCarriedCorrection `json:"carried_corrections"`
@@ -216,10 +219,14 @@ type BillingRunDetail struct {
 	Unbilled                        int               `json:"unbilled"`
 	MissingDebtorNumbers            int               `json:"missing_debtor_numbers"`
 	PaymentTextMissingDebtorNumbers int               `json:"payment_text_missing_debtor_numbers"`
-	NumberPattern                   string            `json:"number_pattern"`
-	NumberRangeSet                  bool              `json:"number_range_set"`
-	BilledInAdvance                 bool              `json:"billed_in_advance"`
-	Letters                         *BillingLetters   `json:"letters"`
+	// SharedChildDebtorNumbers counts, when the Träger keeps a number per
+	// child (#7007), the invoices of several children: each carries one
+	// number, the registration's or its first child's.
+	SharedChildDebtorNumbers int             `json:"shared_child_debtor_numbers"`
+	NumberPattern            string          `json:"number_pattern"`
+	NumberRangeSet           bool            `json:"number_range_set"`
+	BilledInAdvance          bool            `json:"billed_in_advance"`
+	Letters                  *BillingLetters `json:"letters"`
 	// DueDates are the due dates of the run per payment method (#4689).
 	DueDates []RunDueDate `json:"due_dates"`
 	// DocumentKindState is the kind the run issues (#4688).
@@ -277,6 +284,8 @@ type HolidayBillingChild struct {
 	ID        int64
 	FirstName string
 	LastName  string
+	// BirthDate tells the child apart for its own debtor number (#7007).
+	BirthDate calendar.Date
 }
 
 // HolidayBillingRegistration is a confirmed registration with the parent

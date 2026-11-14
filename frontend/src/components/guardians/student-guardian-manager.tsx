@@ -842,7 +842,8 @@ export default function StudentGuardianManager({
                 size="md"
                 onClick={() => setIsPickerOpen(true)}
                 className="gap-1"
-                title="Vorhandene/n Erziehungsberechtigte/n suchen"
+                aria-label="Vorhandene/n suchen"
+                tooltip="Sucht eine Person, die schon bei einem anderen Kind eingetragen ist."
               >
                 <Search className="h-4 w-4" />
                 <span className="hidden sm:inline">Vorhandene/n suchen</span>
@@ -854,7 +855,8 @@ export default function StudentGuardianManager({
                 onClick={handleOpenCreateModal}
                 data-setup-tour="guardian-add"
                 className="gap-1"
-                title="Erziehungsberechtigte/n hinzufügen"
+                aria-label="Erziehungsberechtigte/n hinzufügen"
+                tooltip="Öffnet das Formular für eine neue Person bei diesem Kind."
               >
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">Hinzufügen</span>

@@ -1752,8 +1752,8 @@ describe("staff-api", () => {
     });
   });
 
-  describe("staffMonthSummaryService.getScheduleTargetsRange", () => {
-    // The Übersicht charts price history against these targets and reach back
+  describe("staffMonthSummaryService.getDailyProjectionRange", () => {
+    // The Übersicht charts sum this projection over history and reach back
     // to the account start ("Gesamt"), which can be years — while the endpoint
     // rejects anything over MAX_TARGET_RANGE_DAYS. One request would 400 and
     // the charts would show no Soll at all (#1842).
@@ -1768,13 +1768,16 @@ describe("staff-api", () => {
                 {
                   date: new URL(url, "http://x").searchParams.get("from"),
                   target_minutes: 480,
+                  credit_minutes: 0,
+                  actual_minutes: 0,
+                  balance_minutes: 0,
                 },
               ],
             }),
         } as unknown as Response),
       );
 
-      const result = await staffMonthSummaryService.getScheduleTargetsRange(
+      const result = await staffMonthSummaryService.getDailyProjectionRange(
         "1",
         "2024-01-01",
         "2026-06-01",
@@ -1782,7 +1785,8 @@ describe("staff-api", () => {
 
       const requested = mockFetch.mock.calls.map((c) => {
         const params = new URL(c[0] as string, "http://x").searchParams;
-        expect(params.get("target_only")).toBe("true");
+        // The full projection: the charts read Ist, Gutschrift and Saldo.
+        expect(params.get("target_only")).toBeNull();
         return `${params.get("from")}..${params.get("to")}`;
       });
       // 2.5 years -> three 366-day windows, contiguous and gapless, the last
@@ -1794,9 +1798,9 @@ describe("staff-api", () => {
       ]);
       // Every window's answer lands in one map — the stub echoes each
       // window's first day back.
-      expect(result.get("2024-01-01")).toBe(480);
-      expect(result.get("2025-01-01")).toBe(480);
-      expect(result.get("2026-01-02")).toBe(480);
+      expect(result.get("2024-01-01")?.targetMinutes).toBe(480);
+      expect(result.get("2025-01-01")?.targetMinutes).toBe(480);
+      expect(result.get("2026-01-02")?.targetMinutes).toBe(480);
       expect(result.size).toBe(3);
     });
 
@@ -1831,7 +1835,7 @@ describe("staff-api", () => {
       });
 
       // ~15 years -> 15 windows, far more than the pool of 4.
-      const result = await staffMonthSummaryService.getScheduleTargetsRange(
+      const result = await staffMonthSummaryService.getDailyProjectionRange(
         "1",
         "2011-01-01",
         "2026-01-01",
@@ -1840,7 +1844,7 @@ describe("staff-api", () => {
       expect(mockFetch.mock.calls.length).toBeGreaterThan(4);
       expect(peak).toBeLessThanOrEqual(4);
       // Every window still resolves and merges — nothing is dropped by the pool.
-      expect(result.get("2011-01-01")).toBe(480);
+      expect(result.get("2011-01-01")?.targetMinutes).toBe(480);
     });
 
     it("asks once when the range fits the window", async () => {
@@ -1849,18 +1853,26 @@ describe("staff-api", () => {
         ok: true,
         json: () =>
           Promise.resolve({
-            data: [{ date: "2026-06-01", target_minutes: 240 }],
+            data: [
+              {
+                date: "2026-06-01",
+                target_minutes: 240,
+                credit_minutes: 0,
+                actual_minutes: 0,
+                balance_minutes: 0,
+              },
+            ],
           }),
       } as Response);
 
-      const result = await staffMonthSummaryService.getScheduleTargetsRange(
+      const result = await staffMonthSummaryService.getDailyProjectionRange(
         "1",
         "2026-06-01",
         "2026-06-30",
       );
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
-      expect(result.get("2026-06-01")).toBe(240);
+      expect(result.get("2026-06-01")?.targetMinutes).toBe(240);
     });
   });
 

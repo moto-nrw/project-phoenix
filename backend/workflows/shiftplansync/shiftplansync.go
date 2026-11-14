@@ -19,8 +19,8 @@ package shiftplansync
 import (
 	"context"
 
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // ScheduleSubstitution is the Terminvertretung entry of /api/substitutions in
@@ -59,6 +59,16 @@ type SickCascade interface {
 	// LockSickReportWrite takes, before Workforce writes an absence, the
 	// absence gate of its subject, the staff-shift gates the cascade will
 	// need and the day locks of every day it may stamp or release, in the
-	// canonical lock order (#6232). absenceID is 0 for a new absence.
-	LockSickReportWrite(ctx context.Context, staffID, absenceID int64, dateStart, dateEnd string) error
+	// canonical lock order (#6232). absenceID is 0 for a new absence, which
+	// names its canonical absenceType; an existing absence keeps its stored
+	// type when absenceType is empty.
+	LockSickReportWrite(ctx context.Context, staffID, absenceID int64, absenceType, dateStart, dateEnd string) error
+	// AbsencePlanGaps lists the absences in force whose shifts and blocks
+	// from today on do not yet carry their effect (#7021): the dry run of
+	// MarkSickForRange over every such absence of the school.
+	AbsencePlanGaps(ctx context.Context) ([]workforce.AbsencePlanGap, error)
+	// MarkAbsenceInForce re-applies MarkSickForRange to one stored absence
+	// on the actor's behalf and reports false when it is no longer in
+	// force. The caller holds the absence's write locks.
+	MarkAbsenceInForce(ctx context.Context, absenceID, actorStaffID int64, actorAccountID *int64) (bool, error)
 }

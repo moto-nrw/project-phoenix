@@ -7,15 +7,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type phaseExpiryServiceStub struct {

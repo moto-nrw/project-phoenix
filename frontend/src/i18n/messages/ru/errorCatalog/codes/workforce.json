@@ -55,6 +55,7 @@
   "shift_series_no_occurrences": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "shift_series_outside_period": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "shift_series_week_cycle_missing": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+  "shift_type_archived": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "shift_type_inactive": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "staff_profile_missing": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "stammdaten_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",
@@ -75,5 +76,6 @@
   "payroll_wage_type_in_use": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "payroll_wage_type_name_taken": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "qualification_type_name_taken": "Не удалось изменить: {object}. Проверьте текущее состояние.",
-  "qualification_type_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние."
+  "qualification_type_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "work_time_model_archived": "Не удалось изменить: {object}. Проверьте текущее состояние."
 }

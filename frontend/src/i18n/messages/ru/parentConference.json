@@ -27,5 +27,8 @@
   "booked": "Вы записаны на {time}.",
   "cancelled": "Ваша запись отменена.",
   "errorObject": "родительскую консультацию",
-  "errorObjectBooking": "запись"
+  "errorObjectBooking": "запись",
+  "cancelTooltip": "Отменяет встречу, время освобождается. moto сначала спросит.",
+  "entryActionTooltip": "Открывает свободное время дня встреч с учителем для записи.",
+  "entryActionBookedTooltip": "Открывает вашу встречу, там её можно перенести или отменить."
 }

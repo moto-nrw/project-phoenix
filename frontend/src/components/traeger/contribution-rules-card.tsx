@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Receipt } from "lucide-react";
+import { Pencil, Plus, Receipt, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -32,20 +32,24 @@ const KIND_TEXT: Record<
     readonly title: string;
     readonly description: string;
     readonly add: string;
+    /** What the add button opens (#6761). */
+    readonly addHint: string;
     readonly empty: string;
   }
 > = {
   sibling: {
     title: "Geschwister",
     description:
-      "Geschwister in derselben Ferienanmeldung zahlen weniger. Das erste Kind zahlt voll. Welches das ist, steht in den Einstellungen unter Allgemein im Bereich Ferienbetreuung.",
-    add: "Geschwisterregel hinzufügen",
+      "Für die Ferienbetreuung: Geschwister in derselben Ferienanmeldung zahlen weniger. Das erste Kind zahlt voll. Welches das ist, steht in den Einstellungen unter Allgemein im Bereich Ferienbetreuung.",
+    add: "Geschwisterregel anlegen",
+    addHint: "Öffnet ein Fenster für eine neue Ermäßigung bei Geschwistern.",
     empty: "Keine Geschwisterregel. Alle Kinder zahlen den vollen Preis.",
   },
   benefits_exemption: {
     title: "Befreiung bei Leistungsbezug",
     description: `${EXEMPTION_RULE_SCOPE} Befreite Familien zahlen nichts.`,
-    add: "Befreiungsregel hinzufügen",
+    add: "Befreiungsregel anlegen",
+    addHint: "Öffnet ein Fenster für eine neue Befreiung bei Leistungsbezug.",
     empty:
       "Keine Befreiungsregel. Alle Familien zahlen, auch bei Leistungsbezug.",
   },
@@ -121,14 +125,17 @@ export function ContributionRulesCard({
       render: (rule) => (
         <OverflowMenu
           ariaLabel={`Aktionen für die Regel ${ruleValidity(rule)}`}
-          triggerSize="sm"
           items={[
             {
               label: "Ändern",
+              description: "Öffnet die Regel zum Bearbeiten.",
+              icon: <Pencil className="size-4" aria-hidden />,
               onClick: () => setEdit({ kind: "change", rule }),
             },
             {
               label: "Löschen",
+              description: "Löscht die Regel. moto fragt vorher nach.",
+              icon: <Trash2 className="size-4" aria-hidden />,
               destructive: true,
               onClick: () => setDeleting(rule),
             },
@@ -149,6 +156,7 @@ export function ContributionRulesCard({
           type="button"
           variant="outline"
           size="md"
+          tooltip={text.addHint}
           onClick={() => setEdit({ kind: "create", ruleKind: kind })}
         >
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />

@@ -114,3 +114,13 @@ func demoVisitorErasureFamilyDebtorNumbersDown(ctx context.Context, db *bun.DB) 
 	}
 	return nil
 }
+
+// restoreDemoVisitorFamiliesErasure installs platform.erase_demo_visitor_families
+// as this migration created it, for the way down of 20261113200000, whose
+// tables the current repeatable definition reads (#7007).
+func restoreDemoVisitorFamiliesErasure(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, demoVisitorFamiliesErasureSQL); err != nil {
+		return fmt.Errorf("restore the erasure of the demo visitor's families: %w", err)
+	}
+	return nil
+}

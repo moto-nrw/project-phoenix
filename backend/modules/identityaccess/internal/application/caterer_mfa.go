@@ -6,8 +6,8 @@ import (
 	"net"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // The caterer's second factor (#4497, ADR 0077 point 7). The caterer
@@ -370,7 +370,8 @@ func (c *CatererAccess) listTrustedDevices(ctx context.Context, accountID int64)
 	if err := c.secondFactorOf(ctx, accountID); err != nil {
 		return nil, err
 	}
-	return c.mfa.records.ListActiveTrustedDevices(ctx, accountID, 0)
+	// The caterer's devices name neither a school nor a Träger (#6955).
+	return c.mfa.records.ListActiveTrustedDevices(ctx, accountID, 0, 0)
 }
 
 // RevokeCatererTrustedDevice forgets one remembered device of the caterer.

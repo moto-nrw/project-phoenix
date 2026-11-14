@@ -3,7 +3,7 @@ package compose
 import (
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestMain gives every test its own tenant (#2419). The lease table is

@@ -2,7 +2,7 @@
 name: ci-cost
 description: Use when changing CI workflows, runners, job splits or shards, CI caches or checkouts, or when the CI bill or a slow pull request run needs investigating. Measures billed vCPU-minutes before and after and applies the cost patterns proven in moto's and t3code's CI.
 metadata:
-  author: moto-nrw
+  author: moto-ogs
   version: "1.0.0"
 ---
 
@@ -31,7 +31,11 @@ skill is how to measure and decide.
    suites; `main.yml` or `lint.yml` runs all lint jobs (`detect-changes` in
    `main.yml`). A changed cache key makes the first run cold: rerun the job
    once (`gh run rerun <run> --job <job>`) and report warm and cold
-   separately. Runner noise is large; one run is not a measurement. Done when
+   separately. Runner noise is large; one run is not a measurement. A cache
+   only development writes is cold in every run of the PR that changes its
+   key or paths: a temporary commit that saves it from the PR makes reruns
+   warm. A rerun keeps the workflow of its run's commit, so rerunning two
+   variant runs in turn compares them on the same cache (#7032). Done when
    a before/after table covers every change type the edit affects.
 5. **Write the PR** with that table (vCPU-minutes, dollars, critical-path
    wall-clock) and the options you measured and rejected, with numbers.
@@ -61,10 +65,28 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   request runs cancelled.
 - **Cheap checkouts.** `fetch-depth: 1` with `filter: blob:none` unless the
   job reads history or blobs; t3code checks out only the manifests its change
-  detection reads.
+  detection reads. A comparison with one fixed commit needs only that commit:
+  `git fetch --depth=1 origin <sha>`. Only merge-base and ancestry checks need
+  history; the architecture ratchet's fetch took 30–45 s with `--unshallow`
+  and 0–1 s flat (#7032).
 - **Cache what downloads, not what links.** Cache toolchains and browsers by
   version. t3code measured a pnpm store on a sticky disk slower than a cache
   tarball (pnpm copies across filesystems instead of hard-linking).
+- **Bound a cache that restores by prefix and saves again.** Go keeps an
+  entry five unused days, so such a cache keeps every older build: the
+  backend build cache grew from 2.2 to 9.65 GB in twelve hours and its
+  restore from 15 to 75 s (#6784). `scripts/go-cache-sweep.sh` keeps the
+  entries one run uses.
+- **One writer on development.** A cache saved by a pull request serves
+  that pull request alone; save shared entries on development pushes (the
+  default branch every pull request reads) and let pull requests only
+  restore: `backend-build-cache.yml` (#6784, architecture ratchet #6962),
+  `frontend-bundle-base.yml` (#7023). Writer and readers need the same
+  runner, env and key, so a test ties the two jobs together
+  (`scripts/architecture-build-cache.test.mjs`).
+- **`-trimpath` for a tree in a temporary directory.** Without it the
+  directory enters every Go action ID: the architecture ratchet extracted its
+  base into a new directory per run and compiled it cold every time (#6962).
 - **Cached test results need verification.** t3code caches per test file and
   reruns one hit per shard uncached. Here `go test -count=1` stays: database
   tests depend on state outside Go's cache key.
@@ -76,6 +98,12 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   Blacksmith.
 - Sticky disks (`build.yml` Docker layer cache) bill bytes ever written;
   `sticky-disk-cleanup.yml` deletes them nightly.
+- Service containers start before the first step: 9-11 s in the seed
+  smoke. Started in the background of its first step, they cost nothing
+  visible; the image pulls slow checkout and cache restore by 1-5 s, because
+  hosted setup shares one network link (#6985). setup-go's cache beside an own
+  Go cache loads the build cache twice: `cache: false` with the modules in the
+  own cache saved 4-8 s, in the architecture ratchet 10 s (#7032).
 - The seed smoke stalled on Blacksmith once (run 38232330367) and runs on a
   fresh hosted VM; test it repeatedly before moving it.
 - The nightly race run keeps four backend shards (`SPLIT_SUITES`): race
@@ -91,13 +119,85 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   gained nothing (305 s against 311 s) and slowed them, because they then ran
   at the same time; `scripts/backend-package-budgets.json` holds each
   package's budget.
+- "Backend tests" writes a "CPU seconds" table into its job summary (build,
+  vet, link, Postgres, test binaries). Compare shares of the busy seconds, not
+  job durations: the same full suite took 1431 to 2183 busy CPU seconds and
+  193 to 295 s on six runners of one size (13.11.).
+- In a full suite with a warm build cache Postgres takes about half of the
+  busy CPU seconds, the test binaries a third, linking a seventh. Cloning
+  and dropping databases is a few seconds of that; the rest is fixture work,
+  about 920,000 SELECT and 313,000 INSERT statements. The local server's
+  `fsync=off`, `full_page_writes=off` and `wal_level=minimal` changed nothing
+  on the job's tmpfs.
+- A test that runs `go list -export` or `packages.Load` in a child process
+  with its own environment (`internal/architecture`: `CGO_ENABLED=0`, policy
+  tags) compiles actions the warm job's `go test -exec true ./...` never
+  touches. Only running that test in the warm job, before the sweep, puts them
+  in the cache: locally 225 CPU s cold against 81 one commit later. In CI the
+  restored cache already held two thirds of them (199 MB new): the package
+  took 21-28 s warm against 40-41 s, the job's busy CPU did not move (#7038).
+  With `-trimpath`, temporary directories do not change the action IDs.
+- Postgres stores SCRAM verifiers with 4096 iterations, paid by server and
+  client on every login: 11.3 ms CPU per connection against 3.1 ms with
+  `initdb --set scram_iterations=1` (pgbench -C). The setting covers the
+  superuser and every role created later. Full suite, same branch: 1153-1280
+  busy CPU s against 1292-1440 (#7038).
+- A fault matrix with a private pool per cell pays new sessions per cell.
+  One shared pool per matrix with a handle per cell (`testpkg.CellPool`),
+  local, CI flags, three alternating runs (14.11.): `database/migrations`
+  3660 against 1115 sessions, Postgres 94 against 71 CPU s, binary 13.7
+  against 9.3 CPU s, wall 26 against 23 s; `dataimport/importtest` 1230
+  against 611 sessions, Postgres and wall within noise. The meal-write matrix
+  in `api` has nothing to gain: 1517 of its 1534 connections replace ones
+  its `bad_conn` and 57014 cells break on purpose. Count connections before
+  sharing a pool.
+- A typical feature pull request compiles more than it tests: `api` 21 times
+  and `roots/owners` 7 times, 60 % of its compile CPU (#6914). `GOGC=400`
+  for the toolchain alone saved 13 % of the build CPU locally; `-exec "env -u
+  GOGC"` keeps it away from the test binaries.
+- `GOGC=200` for the test binaries, rejected (#7045): locally `api` used 19 %
+  less CPU, but in three full suites per variant busy CPU did not fall (1151 to
+  1241 s without, 1171 to 1292 s with; 1146 to 1571 s without and 1146 to
+  1215 s with, both with `-vet=off`), and peak memory rose 0.6-1.0 GiB. The
+  job summary prints peak memory in use (MemTotal minus MemAvailable, tmpfs
+  included): 5.8-7.3 of 30.9 GiB on 8 vCPU. The full suite on 4 vCPU, an
+  upper bound for the small runner's selections, peaked at 5.7-6.2 of
+  15.4 GiB, with `GOGC=200` at 7.2.
+- `go test` vets with `-vet=off` here (#7045): golangci-lint's default govet
+  set holds every analyzer of go test's subset, and lint selects the same
+  packages. Its default `exclusions.generated: strict` dropped findings in
+  generated files, which go test vets; `generated: disable` closes that and
+  found nothing. vet cost 17-55 CPU s (about 2 % of busy) in pull requests
+  with Go changes and 0-12 s in full suites of an unchanged tree, whose vet
+  results come from the warmed build cache.
+- A job in front of the job that sets the wall-clock time costs its duration
+  plus a runner start: "Select backend tests" took 40–67 s plus 6–15 s. The
+  long job selects for itself, as t3code's does.
+- Blacksmith jobs keep `actions/cache` entries in Blacksmith's own store,
+  with GitHub's branch scoping: they are missing from `gh cache list`, do not
+  count against the 10 GB, and a GitHub-hosted job cannot read them. That
+  store holds 25 GB and evicts entries unused for seven days; `gh cache
+  delete` cannot reach them, so bound them with `scripts/go-cache-sweep.sh`.
+- Two cold `next experimental-analyze` builds of one tree differed by 1-4 B
+  on 256 of 257 routes in 16 of 33 pairs (13.11.), identical otherwise;
+  the ratchet tolerance is 2 % or 10 KiB.
+- Two cold Next.js builds started side by side on four cores took as long as
+  one after the other (207 s against 210 s).
+- The architecture ratchet's projections (25–33 s) beside its check on four
+  vCPU, alternating reruns with a warm cache: 43–76 s against 59–86 s one
+  after the other. The check itself slowed down, the pair still gained 7–16 s
+  (#7032).
+- The script suite "restore" took 303–313 s on a hosted runner, 232 s of it
+  the encrypted daily backup restore test; a change to
+  `scripts/posthog-dashboards.mjs` alone waited for it. Pull requests now
+  start it only for its own inputs (`restore-suite` filter, #6962).
 - A pull request run with the full suites cost about $0.18–0.27 after #5770
   (check "CI cost"); the backend tests alone, warm, about $0.05.
 
 ## Commands
 
 ```bash
-R=moto-nrw/project-phoenix
+R=moto-ogs/project-phoenix
 # Runs of one workflow in a window
 gh api "repos/$R/actions/workflows/main.yml/runs?created=2026-11-01..2026-11-05&per_page=100" \
   --paginate -q '.workflow_runs[]|select(.conclusion=="success")|.id'

@@ -82,9 +82,18 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    `Input` + `CustomSelect` werden zu `FilterConfig[]` (`type: "dropdown"`).
    Nur wenn ein Filter wirklich nicht abbildbar ist: `type: "custom"` mit
    `render`, und den aktiven Zustand über `activeFilters` melden. Ab etwa
-   drei Filtern sammelt `filterVariant="quiet"` sie hinter einer
-   Schaltfläche; darunter stehen sie in der Zeile. Beides sind Einstellungen
-   des Gerüsts — keine Seite konfiguriert `PageHeaderWithSearch` selbst.
+   drei Filtern sammelt `filterPanel` sie hinter einer Schaltfläche mit
+   Zahl (`filterPanel={{ sections }}` gibt der Fläche Überschriften);
+   darunter stehen sie in der Zeile. `badge` zeigt eine Zahl, die sich mit
+   der Filterung ändert. Alles das sind Props des Gerüsts — `TenantPage`
+   ist der einzige Seitenkopf, und keine Seite rendert die Suchzeile
+   (`TenantPageSearchRow`) selbst. Auch ein Layout-Adapter reicht nur Daten
+   weiter: `DatabasePageLayout` nimmt sie als `searchRow`, `searchSlot`
+   bleibt Bedienbändern vorbehalten, die keine Suchzeile sind (Planung,
+   Kindakte). Ein Seitentest, der die Suchzeile ersetzt, mockt
+   `~/components/ui/tenant-page-search-row`: der Mock bekommt genau die
+   Such-Props der Seite. Eine Suche außerhalb der Kopfkarte (Bedienband,
+   Karte) nimmt `SearchBar` aus `ui/page-header/SearchBar`.
    Ein Filter mit Mehrfachauswahl (`type: "buttons"`, `multiSelect`) rendert
    als Chip-Reihe, ein Einfachfilter als `SegmentedControl`: eine
    Filterreihe darf nie aussehen wie eine zweite Reiterleiste.
@@ -155,7 +164,10 @@ lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
    - `SectionCard` — Inhaltsfläche mit Kopf; OHNE `title` die reine Fläche
      (das frühere `<section className="moto-content-surface …">`).
    - `TileCard` — anklickbare Kachel (Kind, Raum, Mitarbeiter, Nachricht).
-     Mit `containsControls`, wenn die Kachel eigene Bedienelemente trägt.
+     Mit `nativeAnchor` für einen Dokumentwechsel, `newTab` für einen neuen
+     Tab. Rahmen, Polster, Hover und Fokusring kommen aus `card-surface.ts`,
+     wie bei `StatCard` mit Link (dort trägt der Link den Ring); `SectionCard`
+     teilt Rahmen und Polster.
    - `StatCard` — jede Kennzahl, mit `icon`, `href` und `loading`.
    - `CollectionGrid` — DAS Kachelgitter jeder Sammlung: Spalten aus
      `auto-fit` mit Mindest-Kachelbreite, Abstand 16 px (mobil 12 px).
@@ -196,14 +208,15 @@ lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
     eine Antwort, `text-sm leading-6` für den Satz darunter — das
     Eltern-Portal-Muster). `text-[9px]`…`text-[11px]` sind gesperrt
     (`ui-kit/no-tiny-text`, hard-zero).
-17. **Eine Bedienhöhe: 40 px, unter sm 44 px.** `CONTROL_HEIGHT` im Gerüst
-    zieht Knöpfe, Links in Button-Optik (`ButtonLink`), Felder und
-    Auswahllisten der Kopfkarte auf 40 px (Telefon: 44 px, die
-    Touch-Untergrenze — dieselbe wie die Fingerregel des Button-Kits).
-    `SegmentedControl` (Spur 40 px),
-    `ToggleChip` (`h-10`) und die Navigationsgruppe der
-    `PlanningContextBar` teilen dieses Maß. Kein 32-px-Bedienelement mehr
-    neben einem 40er in derselben Zeile.
+17. **Eine Bedienhöhe.** Die Maße stehen in `control-geometry.ts`, nicht
+    hier: `HEAD_CONTROL_HEIGHT` zieht Knöpfe, Links in Button-Optik
+    (`ButtonLink`), Felder und Auswahllisten der Kopfkarte auf die
+    Bedienhöhe (Telefon: die Touch-Untergrenze, dieselbe wie die
+    Fingerregel des Button-Kits). `SegmentedControl` (Spur, die Segmente
+    tragen `CONTROL_PART`), `ToggleChip` und die Navigationsgruppe der
+    `PlanningContextBar` teilen dieses Maß. Felder und Auswahlen wählen ihre
+    Höhe aus einem Vokabular (`ControlSize`). Kein kleineres Bedienelement
+    neben einem auf Bedienhöhe in derselben Zeile.
     `ui-kit/no-control-height-override` sperrt `h-8`, `h-9` und `!size-*` an
     Eingabefeldern, Auswahllisten und Kebab-Menüs (#5605).
 18. **Höchstens EIN Bedienband in der Kopfkarte.** Titel und Statuszeile
@@ -228,15 +241,16 @@ die Kosten einer Desktop-Karte in einer 390-px-Spalte. Das entscheidet
   zurückgenommen (30.08. und 03.09.2026). Der Seitenname steht mobil im
   `h1` der Karte, weil die Shell dort keine Kopfzeile hat.
 - **Aktionen**: eine Aktion steht neben der Statuszeile. Ab zwei Aktionen
-  bleiben Symbolknöpfe (`data-icon-only`: Kebab, `Button size="icon"`,
+  bleiben Symbolknöpfe (`ICON_ONLY` aus `control-geometry.ts`: Kebab,
+  `Button size="icon"`, Ansichts-Umschalter,
   schwebender Anlegen-Knopf) neben der Statuszeile, jeder Textknopf bekommt
   darunter eine volle Zeile. Keine halb gefüllte Zeile, kein gedrungener
   Knopf neben Leerraum.
 - **Reiter als Pillen** im scrollenden Band: aktiv gefüllt, der Rest grau.
   Die Grundlinie des Desktops liest sich mobil als Text.
 - **Dichte**: Blöcke im 12-px-Rhythmus (`space-y-3`), `SectionCard` mit
-  `p-4`, `StatCard` ohne Symbol mit `p-3`, Kacheln (`TileCard`,
-  Kinderkarte) mit `p-3`. Der 24-px-Rhythmus ist ein Desktop-Maß.
+  `p-4`, `StatCard` und `TileCard` ebenfalls mit `p-4` (#6565), die
+  Kinderkarte mit `p-3`. Der 24-px-Rhythmus ist ein Desktop-Maß.
 - **Ein Radius auf allen Breakpoints**: Karten bleiben auch auf dem Telefon
   `rounded-2xl` (24 px, `--card-radius`), wie im Eltern-Portal und überall
   sonst in der App. Eine Zwischenfassung hatte SectionCard, StatCard und
@@ -261,16 +275,17 @@ Desktop-Wert unvariiert als Grundwert (`p-5`, nicht `sm:p-5`) — sonst
 stehen zwei Varianten-Regeln für dieselbe Eigenschaft nebeneinander und
 welche gewinnt, hängt an der internen Sortierung von Tailwind.
 
-| Mass                     | Desktop            | `compact`       | Telefon  |
-| ------------------------ | ------------------ | --------------- | -------- |
-| Seitenrand der Hülle     | 32 px              | 20 px           | 16 px    |
-| Kopfkarte, `SectionCard` | 20/24 px           | 16 px           | 16 px    |
-| `StatCard`, `TileCard`   | 20 px              | 16 px           | 12/16 px |
-| Titel (`prominent`)      | 28 px              | 24 px           | 24 px    |
-| Titel (Standard)         | 24 px              | 20 px           | 20 px    |
-| Rumpf-Rhythmus           | 24 px              | 16 px           | 12 px    |
-| Reiterband               | 12 px, `text-base` | 8 px, `text-sm` | Pillen   |
-| Tabellenzelle senkrecht  | 12 px              | 8 px            | 12 px    |
+Kopfkarte: Innenrand und Titelgrade aller Stufen stehen als
+`HEAD_PADDING` und `HEAD_TITLE_SIZE` in `control-geometry.ts`.
+
+| Mass                    | Desktop            | `compact`       | Telefon  |
+| ----------------------- | ------------------ | --------------- | -------- |
+| Seitenrand der Hülle    | 32 px              | 20 px           | 16 px    |
+| `SectionCard`           | 20/24 px           | 16 px           | 16 px    |
+| `StatCard`, `TileCard`  | 20 px              | 16 px           | 12/16 px |
+| Rumpf-Rhythmus          | 24 px              | 16 px           | 12 px    |
+| Reiterband              | 12 px, `text-base` | 8 px, `text-sm` | Pillen   |
+| Tabellenzelle senkrecht | 12 px              | 8 px            | 12 px    |
 
 Nicht in der Stufe: die Bedienhöhe. 768–1023 px ist genau der Tablet-
 Bereich, und ein 36-px-Knopf unterschreitet dort das Touch-Mass. Regel 17

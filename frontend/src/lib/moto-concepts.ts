@@ -53,6 +53,7 @@ import { messagesConcept } from "~/lib/concepts/messages";
 import { parentMessagesConcept } from "~/lib/concepts/parentMessages";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 import { newsConcept } from "~/lib/concepts/news";
+import { mailsConcept } from "~/lib/concepts/mails";
 import { announcementsConcept } from "~/lib/concepts/announcements";
 import { pollsConcept } from "~/lib/concepts/polls";
 import { confirmationsConcept } from "~/lib/concepts/confirmations";
@@ -62,6 +63,8 @@ import { databaseConcept } from "~/lib/concepts/database";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { reportsConcept } from "~/lib/concepts/reports";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
+import { siblingsConcept } from "~/lib/concepts/siblings";
+import { singleParentConcept } from "~/lib/concepts/singleParent";
 import { weekProtocolsConcept } from "~/lib/concepts/weekProtocols";
 import { listsConcept } from "~/lib/concepts/lists";
 import { devicesConcept } from "~/lib/concepts/devices";
@@ -140,6 +143,7 @@ const registry = {
   parentMessages: parentMessagesConcept,
   parentConversations: parentConversationsConcept,
   news: newsConcept,
+  mails: mailsConcept,
   announcements: announcementsConcept,
   polls: pollsConcept,
   confirmations: confirmationsConcept,
@@ -149,6 +153,8 @@ const registry = {
   enrollments: enrollmentsConcept,
   reports: reportsConcept,
   holidayWeeks: holidayWeeksConcept,
+  siblings: siblingsConcept,
+  singleParent: singleParentConcept,
   weekProtocols: weekProtocolsConcept,
   lists: listsConcept,
   devices: devicesConcept,

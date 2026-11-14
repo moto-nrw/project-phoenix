@@ -33,6 +33,11 @@
     "messageHint": "{careTerm} für {name} kontaktieren",
     "pickupWithMode": "Abholung für {name} ändern",
     "pickupCompactWithMode": "Abholung ändern",
-    "pickupHintWithMode": "Abholzeit oder Abholart für einen Tag ändern"
+    "pickupHintWithMode": "Abholzeit oder Abholart für einen Tag ändern",
+    "profileTooltip": "Öffnet die Seite Ihres Kindes mit allen Angaben.",
+    "sickTooltip": "Öffnet das Formular, um Ihr Kind abzumelden.",
+    "pickupTooltip": "Öffnet das Formular für eine Anfrage zur Abholzeit.",
+    "pickupWithModeTooltip": "Öffnet das Formular für eine Anfrage zur Abholung.",
+    "messageTooltip": "Öffnet die Nachrichten mit der {careTerm} zu Ihrem Kind."
   }
 }

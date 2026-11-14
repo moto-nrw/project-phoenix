@@ -3,7 +3,7 @@ package careplanhttp
 import (
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // rosterImpactResponse is the wire form of a booking change's effect on the

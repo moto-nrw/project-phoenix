@@ -7,6 +7,7 @@
 // widerrufene bleibt im Verlauf. Nur die Rolle „Abrechnung“ sieht die Karte;
 // jede andere bekommt 403, und die Karte bleibt weg.
 
+import { Eye, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -82,7 +83,7 @@ export function useSepaMandates(enabled: boolean, contractId?: string) {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Mandate",
+        object: "die Liste der Mandate",
         retry: () => void load(),
       });
     }
@@ -187,7 +188,7 @@ function HistoryModal({
         });
         if (!current) return;
         setEvents([]);
-        void show(err, { object: "den Verlauf" });
+        void show(err, { object: "die Liste der Änderungen" });
       });
     // The people of the Träger-Büro name the accounts; a role that may not
     // read them sees the account number instead.
@@ -267,14 +268,22 @@ function MandateMenu({
   return (
     <OverflowMenu
       ariaLabel={`Aktionen für das Mandat ${mandate.reference}`}
-      triggerSize="sm"
       items={[
-        { label: "Verlauf ansehen", onClick: () => onHistory(mandate) },
+        {
+          icon: <Eye className="size-4" aria-hidden />,
+          label: "Verlauf ansehen",
+          description:
+            "Zeigt, wer das Mandat wann erfasst oder widerrufen hat.",
+          onClick: () => onHistory(mandate),
+        },
         ...(mandate.revokedOn
           ? []
           : [
               {
                 label: "Widerrufen",
+                description:
+                  "Beendet das Mandat zu einem Datum. moto fragt vorher nach.",
+                icon: <Undo2 className="size-4" aria-hidden />,
                 destructive: true,
                 onClick: () => onRevoke(mandate),
               },
@@ -317,13 +326,13 @@ function FamilyMandates({
               </DataField>
               <DataField label="Konto">
                 <span
-                  className="block font-mono tabular-nums"
+                  className="block font-mono tabular-nums md:whitespace-nowrap"
                   data-analytics-block
                 >
                   {inForce.ibanMasked}
                 </span>
                 <span className="block text-gray-600">
-                  {inForce.accountHolder}
+                  Kontoinhaber: {inForce.accountHolder}
                 </span>
               </DataField>
               <DataField label="Unterschrieben am">
@@ -331,7 +340,7 @@ function FamilyMandates({
                   {formatDate(inForce.signedOn)}
                 </span>
               </DataField>
-              <DataField label="Nächste Abbuchung">
+              <DataField label="Art der nächsten Abbuchung">
                 {nextDebitLabel(inForce)}
               </DataField>
               <DataField label="Zuletzt abgebucht">
@@ -413,6 +422,7 @@ export function SepaMandatesCard({
   contractId,
   holder = "",
   mandates: given,
+  scopeLabel = "Alle",
   onChanged,
 }: Readonly<{
   /** The contract whose family the card shows; none shows every family. */
@@ -421,6 +431,8 @@ export function SepaMandatesCard({
   holder?: string;
   /** Mandates the page loaded itself; the card loads them otherwise. */
   mandates?: SepaMandate[];
+  /** Which mandates the page shows, named in the card („Gültige“). */
+  scopeLabel?: string;
   onChanged?: () => void;
 }>) {
   const own = useSepaMandates(given === undefined, contractId);
@@ -453,7 +465,7 @@ export function SepaMandatesCard({
                 href={traegerPath(
                   `/traeger/abrechnung/lastschrift/${mandate.contractId}`,
                 )}
-                className="font-medium text-gray-900 underline-offset-2 hover:underline"
+                className="font-medium text-gray-900 underline-offset-2 hover:underline md:whitespace-nowrap"
               >
                 {mandateFamily(mandate)}
               </NavigationLink>
@@ -466,12 +478,24 @@ export function SepaMandatesCard({
       stacked: forFamily ? "title" : "field",
       render: (mandate) => (
         <span className="block min-w-0">
-          <span className="block font-mono break-all text-gray-900">
+          {/* A reference is one ID: it stays whole from the tablet on. */}
+          <span className="block font-mono wrap-anywhere text-gray-900 md:whitespace-nowrap">
             {mandate.reference}
           </span>
           <span className="block text-sm text-gray-500">
             {MANDATE_KIND_LABELS[mandate.kind]}
           </span>
+          {/* On a tablet the next debit stands under the kind, named: the
+              table has no room for its own column there. Its value stays
+              whole; the line breaks after the colon. */}
+          {mandate.revokedOn ? null : (
+            <span className="hidden text-sm text-gray-500 md:block xl:hidden">
+              Nächste Abbuchung:{" "}
+              <span className="whitespace-nowrap">
+                {nextDebitLabel(mandate)}
+              </span>
+            </span>
+          )}
         </span>
       ),
     },
@@ -479,13 +503,24 @@ export function SepaMandatesCard({
       key: "account",
       header: "Konto",
       stacked: "field",
+      // On a phone the account takes the row's full width: the masked IBAN
+      // stays on one line, and „Kontoinhaber“ names the second line.
+      stackedLabel: false,
       render: (mandate) => (
         <span className="block min-w-0" data-analytics-block>
-          <span className="block font-mono text-gray-900 tabular-nums md:whitespace-nowrap">
-            {mandate.ibanMasked}
+          {/* The phone row shows its label above the full-width IBAN;
+              screen readers hear the field's own label. */}
+          <span className="block text-sm text-gray-500 md:hidden" aria-hidden>
+            Konto
+          </span>
+          {/* One line on every width: a split IBAN is misread. */}
+          <span className="block font-mono whitespace-nowrap text-gray-900 tabular-nums">
+            {/* The last two groups are the digits that tell accounts apart:
+                they stay together. */}
+            {mandate.ibanMasked.replace(/ (\S+)$/, "\u00A0$1")}
           </span>
           <span className="block truncate text-sm text-gray-500">
-            {mandate.accountHolder}
+            Kontoinhaber: {mandate.accountHolder}
           </span>
         </span>
       ),
@@ -502,9 +537,13 @@ export function SepaMandatesCard({
       ),
     },
     {
+      // Its own column from the laptop on, so first and later debits
+      // compare down the list; on a phone its own field.
       key: "next",
       header: "Nächste Abbuchung",
       stacked: "field",
+      className: "max-xl:hidden",
+      headerClassName: "max-xl:hidden",
       render: (mandate) => nextDebitLabel(mandate),
     },
     {
@@ -547,6 +586,7 @@ export function SepaMandatesCard({
         type="button"
         variant="outline"
         size="md"
+        tooltip="Öffnet ein Fenster für das unterschriebene Mandat der Familie."
         onClick={() => setCreating(true)}
       >
         Mandat erfassen
@@ -571,7 +611,7 @@ export function SepaMandatesCard({
       description={
         forFamily
           ? "Damit buchen Sie den Beitrag dieser Familie ab. Die IBAN sehen Sie nur verdeckt."
-          : "Alle Mandate Ihrer Familien. Ein neues Mandat erfassen Sie beim Vertrag der Familie unter „Mandat erfassen“."
+          : `${scopeLabel} Mandate Ihrer Familien. Ein neues Mandat erfassen Sie beim Vertrag der Familie unter „Mandat erfassen“.`
       }
       actions={createAction}
       loading={mandates === null && !own.error}
@@ -592,6 +632,8 @@ export function SepaMandatesCard({
           rows={mandates}
           getRowKey={(mandate) => mandate.id}
           rowHasInteractiveControls
+          // Seven columns on a laptop: narrower cells keep every one in view.
+          dense
           stackedOnMobile
         />
       ) : mandates ? (

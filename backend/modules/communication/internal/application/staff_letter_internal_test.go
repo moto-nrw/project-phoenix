@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/roots/communicationtest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/roots/communicationtest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // --- doubles -----------------------------------------------------------------
@@ -41,6 +41,10 @@ func (r *letterRepo) ListOptions(_ context.Context, _ int64) ([]*StaffParentAnno
 func (r *letterRepo) PublishIfDraft(_ context.Context, _ int64, publishedAt time.Time) (bool, error) {
 	r.announcement.PublishedAt = &publishedAt
 	return true, nil
+}
+
+func (r *letterRepo) RecordRecipients(context.Context, int64, int64) error {
+	return nil
 }
 
 func (r *letterRepo) SetPublished(_ context.Context, _ int64, publishedAt *time.Time) error {

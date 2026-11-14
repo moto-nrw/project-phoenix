@@ -106,7 +106,10 @@ describe.each([
       fireEvent.click(screen.getByRole("button", { name: "Refresh metadata" }));
       expect(
         await screen.findByText(
-          catalogText("general.unavailable", "den Ferienzeitraum"),
+          catalogText(
+            "general.unavailable",
+            "die Übersicht des Ferienzeitraums",
+          ),
         ),
       ).toBeInTheDocument();
       await waitFor(() => expect(schools).toHaveBeenCalledTimes(2));

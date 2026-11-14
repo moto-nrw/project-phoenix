@@ -11,6 +11,7 @@ import {
   PortalOverflowBottomNav,
   type PortalOverflowNavItem,
 } from "~/components/ui/portal-overflow-bottom-nav";
+import { moreConcept } from "~/lib/concepts/more";
 import {
   SettingsReturnPathMemory,
   useSettingsReturnHref,
@@ -181,6 +182,7 @@ export function StaffSettingsBottomNav() {
   return (
     <PortalOverflowBottomNav
       items={[back, ...items]}
+      moreConcept={moreConcept}
       navItemAttribute="data-staff-settings-nav-item"
     />
   );

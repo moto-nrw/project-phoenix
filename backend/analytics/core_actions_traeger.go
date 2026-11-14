@@ -10,21 +10,28 @@ import (
 // exists; a Träger session names no school, so ActorOf yields no actor either.
 // init merges the table into coreActions.
 var traegerCoreActions = map[RouteKey]CoreAction{
-	{http.MethodPost, "/traeger/auth/login"}:                            notCaptured,
-	{http.MethodPost, "/traeger/auth/mfa/enroll/confirm"}:               notCaptured,
-	{http.MethodPost, "/traeger/auth/mfa/enroll/start"}:                 notCaptured,
-	{http.MethodPost, "/traeger/auth/mfa/resend"}:                       notCaptured,
-	{http.MethodPost, "/traeger/auth/mfa/verify"}:                       notCaptured,
+	{http.MethodPost, "/traeger/auth/login"}:              notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/enroll/confirm"}: notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/enroll/start"}:   notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/resend"}:         notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/verify"}:         notCaptured,
+	// Forgetting a remembered device (#6955) changes the person's security,
+	// not a school's work: no school to count it for.
+	{http.MethodDelete, "/traeger/auth/mfa/trusted-devices/{deviceId}"}: notCaptured,
 	{http.MethodPost, "/traeger/auth/password-reset"}:                   notCaptured,
 	{http.MethodPost, "/traeger/auth/password-reset/confirm"}:           notCaptured,
 	{http.MethodPost, "/traeger/accounts/invitations"}:                  notCaptured,
 	{http.MethodDelete, "/traeger/accounts/invitations/{invitationId}"}: notCaptured,
 	{http.MethodPut, "/traeger/accounts/{accountId}/roles"}:             notCaptured,
-	{http.MethodDelete, "/traeger/accounts/{accountId}"}:                notCaptured,
-	{http.MethodPost, "/traeger/invitations/{token}/accept"}:            notCaptured,
-	{http.MethodPost, "/traeger/holiday-periods/"}:                      notCaptured,
-	{http.MethodPut, "/traeger/holiday-periods/{id}"}:                   notCaptured,
-	{http.MethodPost, "/traeger/holiday-periods/{id}/publish"}:          notCaptured,
+	// The name of a person of the Träger-Büro (#4693) belongs to the Träger,
+	// not to a school: no school to count it for.
+	{http.MethodPut, "/traeger/accounts/{accountId}/name"}:     notCaptured,
+	{http.MethodPut, "/traeger/profile/name"}:                  notCaptured,
+	{http.MethodDelete, "/traeger/accounts/{accountId}"}:       notCaptured,
+	{http.MethodPost, "/traeger/invitations/{token}/accept"}:   notCaptured,
+	{http.MethodPost, "/traeger/holiday-periods/"}:             notCaptured,
+	{http.MethodPut, "/traeger/holiday-periods/{id}"}:          notCaptured,
+	{http.MethodPost, "/traeger/holiday-periods/{id}/publish"}: notCaptured,
 	// The form of a holiday period (#5198) belongs to the Träger, not to a
 	// school: no school to count it for.
 	{http.MethodPut, "/traeger/holiday-periods/{id}/form"}: notCaptured,
@@ -152,12 +159,13 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/traeger/care-cost-shares/{id}"}:                         notCaptured,
 	// Payment terms, family deviations and due dates of a run (#4689)
 	// belong to the Träger, no school to count them for.
-	{http.MethodPut, "/traeger/billing-terms/{service}"}:            notCaptured,
-	{http.MethodPut, "/traeger/family-billing/"}:                    notCaptured,
-	{http.MethodPut, "/traeger/billing-families/debtor-number"}:     notCaptured,
-	{http.MethodDelete, "/traeger/family-billing/{id}"}:             notCaptured,
-	{http.MethodPut, "/traeger/billing-run-due-dates/care/{id}"}:    notCaptured,
-	{http.MethodPut, "/traeger/billing-run-due-dates/holiday/{id}"}: notCaptured,
+	{http.MethodPut, "/traeger/billing-terms/{service}"}:              notCaptured,
+	{http.MethodPut, "/traeger/family-billing/"}:                      notCaptured,
+	{http.MethodPut, "/traeger/billing-families/debtor-number"}:       notCaptured,
+	{http.MethodPut, "/traeger/billing-families/child-debtor-number"}: notCaptured,
+	{http.MethodDelete, "/traeger/family-billing/{id}"}:               notCaptured,
+	{http.MethodPut, "/traeger/billing-run-due-dates/care/{id}"}:      notCaptured,
+	{http.MethodPut, "/traeger/billing-run-due-dates/holiday/{id}"}:   notCaptured,
 	// The SEPA creditor and the mandates of the families (#4695) belong to
 	// the Träger, no school to count them for.
 	{http.MethodPut, "/traeger/sepa-creditor/"}:                      notCaptured,
@@ -175,6 +183,16 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/finance-exports/booking-accounts/revenue-accounts"}:     notCaptured,
 	{http.MethodPost, "/traeger/finance-exports/booking-accounts/cost-centers"}:        notCaptured,
 	{http.MethodDelete, "/traeger/finance-exports/booking-accounts/cost-centers/{id}"}: notCaptured,
+	// The recipients of the finance exports, the format each receives and
+	// the handover of a file (#6824, ADR 0218; #6911, ADR 0222) belong to
+	// the Träger, no school to count them for.
+	{http.MethodPost, "/traeger/export-recipient/"}:                               notCaptured,
+	{http.MethodPut, "/traeger/export-recipient/formats"}:                         notCaptured,
+	{http.MethodPut, "/traeger/export-recipient/{id}"}:                            notCaptured,
+	{http.MethodDelete, "/traeger/export-recipient/{id}"}:                         notCaptured,
+	{http.MethodPost, "/traeger/finance-handovers/runs/{kind}/{id}/sollstellung"}: notCaptured,
+	{http.MethodPost, "/traeger/finance-handovers/runs/{kind}/{id}/datev"}:        notCaptured,
+	{http.MethodPost, "/traeger/finance-handovers/runs/{kind}/{id}/pain008"}:      notCaptured,
 	// The import of existing mandates (#6198) belongs to the Träger, not to
 	// a school; the preview stores nothing.
 	{http.MethodPost, "/traeger/sepa-mandates/imports"}:         notCaptured,

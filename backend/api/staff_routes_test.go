@@ -27,6 +27,7 @@ var staffRouteSurface = []string{
 	"DELETE /{id}/vacation/opening",
 	"GET /",
 	"GET /absences/pending",
+	"GET /absences/plan-gaps",
 	"GET /absences/requests",
 	"GET /available",
 	"GET /by-role",
@@ -45,6 +46,7 @@ var staffRouteSurface = []string{
 	"GET /time-tracking/month-close",
 	"GET /time-tracking/overview",
 	"GET /time-tracking/payroll-dispatch",
+	"GET /time-tracking/target-coverage",
 	// The school's own wage types and surcharge rules on /payroll (#4807).
 	"GET /time-tracking/payroll-rules",
 	"POST /time-tracking/payroll-rules/wage-types",
@@ -78,6 +80,7 @@ var staffRouteSurface = []string{
 	"POST /",
 	"POST /absences/{absenceId}/approve",
 	"POST /absences/{absenceId}/deny",
+	"POST /absences/{absenceId}/plan-sync",
 	"POST /absences/{absenceId}/question",
 	"POST /externals",
 	"POST /externals/{id}/invitation",

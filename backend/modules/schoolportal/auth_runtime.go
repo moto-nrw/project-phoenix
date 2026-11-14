@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // The school login, the school session mint, the school switch and the
@@ -53,11 +53,19 @@ type MFARuntime struct {
 	StartChallenge       func(ctx context.Context, accountID, tenantID int64, ip net.IP, credentialGeneration int64) (string, error)
 	Enroll               func(ctx context.Context, proof VerifiedChallenge) error
 	PrepareTrustedDevice func(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error)
+	// ListTrustedDevices and RevokeTrustedDevice reach only the account's
+	// remembered devices at the session's school (#6955).
+	ListTrustedDevices  func(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error)
+	RevokeTrustedDevice func(ctx context.Context, accountID, tenantID, deviceID int64) error
 }
 
 func (rt *MFARuntime) complete() bool {
 	return rt != nil && rt.VerifyChallenge != nil && rt.VerifyChallengeForOwner != nil &&
 		rt.ResendChallenge != nil && rt.StartChallenge != nil && rt.Enroll != nil && rt.PrepareTrustedDevice != nil
+}
+
+func (rt *MFARuntime) devicesComplete() bool {
+	return rt != nil && rt.ListTrustedDevices != nil && rt.RevokeTrustedDevice != nil
 }
 
 var (

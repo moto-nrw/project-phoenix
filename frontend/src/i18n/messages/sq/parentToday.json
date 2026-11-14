@@ -33,6 +33,11 @@
     "messageHint": "Kontakto {careTerm}-në për {name}",
     "pickupWithMode": "Ndrysho marrjen për {name}",
     "pickupCompactWithMode": "Ndrysho marrjen",
-    "pickupHintWithMode": "Ndrysho orën ose mënyrën e marrjes për një ditë"
+    "pickupHintWithMode": "Ndrysho orën ose mënyrën e marrjes për një ditë",
+    "profileTooltip": "Hap faqen e fëmijës suaj me të gjitha të dhënat.",
+    "sickTooltip": "Hap formularin për të njoftuar mungesën e fëmijës.",
+    "pickupTooltip": "Hap formularin për të kërkuar një orë tjetër marrjeje.",
+    "pickupWithModeTooltip": "Hap formularin për të kërkuar ndryshim të marrjes.",
+    "messageTooltip": "Hap mesazhet me {careTerm} për fëmijën tuaj."
   }
 }

@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // ParentChildReadsWithDelay answers the parents portal's child lookup only

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	"github.com/moto-nrw/project-phoenix/internal/careplanning"
+	"github.com/moto-ogs/project-phoenix/internal/careplanning"
 )
 
 type DayLocks struct {

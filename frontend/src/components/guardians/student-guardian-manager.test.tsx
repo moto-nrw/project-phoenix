@@ -537,7 +537,9 @@ describe("StudentGuardianManager", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTitle("Erziehungsberechtigte/n hinzufügen"),
+          screen.getByRole("button", {
+            name: "Erziehungsberechtigte/n hinzufügen",
+          }),
         ).toBeInTheDocument();
       });
     });
@@ -562,7 +564,9 @@ describe("StudentGuardianManager", () => {
       });
 
       expect(
-        screen.queryByTitle("Erziehungsberechtigte/n hinzufügen"),
+        screen.queryByRole("button", {
+          name: "Erziehungsberechtigte/n hinzufügen",
+        }),
       ).not.toBeInTheDocument();
     });
   });
@@ -573,11 +577,17 @@ describe("StudentGuardianManager", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTitle("Erziehungsberechtigte/n hinzufügen"),
+          screen.getByRole("button", {
+            name: "Erziehungsberechtigte/n hinzufügen",
+          }),
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTitle("Erziehungsberechtigte/n hinzufügen"));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Erziehungsberechtigte/n hinzufügen",
+        }),
+      );
 
       expect(screen.getByTestId("guardian-form-modal")).toBeInTheDocument();
       expect(screen.getByText("Create Guardian")).toBeInTheDocument();
@@ -592,11 +602,17 @@ describe("StudentGuardianManager", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTitle("Erziehungsberechtigte/n hinzufügen"),
+          screen.getByRole("button", {
+            name: "Erziehungsberechtigte/n hinzufügen",
+          }),
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTitle("Erziehungsberechtigte/n hinzufügen"));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Erziehungsberechtigte/n hinzufügen",
+        }),
+      );
       fireEvent.click(screen.getByTestId("submit-form"));
 
       await waitFor(() => {
@@ -639,11 +655,17 @@ describe("StudentGuardianManager", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTitle("Erziehungsberechtigte/n hinzufügen"),
+          screen.getByRole("button", {
+            name: "Erziehungsberechtigte/n hinzufügen",
+          }),
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTitle("Erziehungsberechtigte/n hinzufügen"));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Erziehungsberechtigte/n hinzufügen",
+        }),
+      );
       fireEvent.click(screen.getByTestId("submit-form"));
 
       await waitFor(() => {
@@ -1123,11 +1145,17 @@ describe("StudentGuardianManager", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTitle("Erziehungsberechtigte/n hinzufügen"),
+          screen.getByRole("button", {
+            name: "Erziehungsberechtigte/n hinzufügen",
+          }),
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTitle("Erziehungsberechtigte/n hinzufügen"));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Erziehungsberechtigte/n hinzufügen",
+        }),
+      );
 
       expect(screen.getByTestId("guardian-form-modal")).toBeInTheDocument();
 
@@ -1167,12 +1195,12 @@ describe("StudentGuardianManager", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+          screen.getByRole("button", { name: "Vorhandene/n suchen" }),
         ).toBeInTheDocument();
       });
 
       fireEvent.click(
-        screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+        screen.getByRole("button", { name: "Vorhandene/n suchen" }),
       );
 
       expect(screen.getByTestId("guardian-picker-panel")).toBeInTheDocument();
@@ -1185,12 +1213,12 @@ describe("StudentGuardianManager", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+          screen.getByRole("button", { name: "Vorhandene/n suchen" }),
         ).toBeInTheDocument();
       });
 
       fireEvent.click(
-        screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+        screen.getByRole("button", { name: "Vorhandene/n suchen" }),
       );
       fireEvent.click(screen.getByTestId("picker-select"));
 
@@ -1232,12 +1260,12 @@ describe("StudentGuardianManager", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+          screen.getByRole("button", { name: "Vorhandene/n suchen" }),
         ).toBeInTheDocument();
       });
 
       fireEvent.click(
-        screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+        screen.getByRole("button", { name: "Vorhandene/n suchen" }),
       );
       fireEvent.click(screen.getByTestId("picker-select"));
 
@@ -1256,12 +1284,12 @@ describe("StudentGuardianManager", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+          screen.getByRole("button", { name: "Vorhandene/n suchen" }),
         ).toBeInTheDocument();
       });
 
       fireEvent.click(
-        screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+        screen.getByRole("button", { name: "Vorhandene/n suchen" }),
       );
       expect(screen.getByTestId("guardian-picker-panel")).toBeInTheDocument();
 
@@ -1480,7 +1508,7 @@ describe("StudentGuardianManager", () => {
       mockLinkGuardianToStudent.mockResolvedValue(undefined);
       render(<StudentGuardianManager studentId="student-123" />);
       fireEvent.click(
-        await screen.findByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+        await screen.findByRole("button", { name: "Vorhandene/n suchen" }),
       );
       fireEvent.click(screen.getByTestId("picker-select"));
 

@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
 import type { HomeGroupSnapshot, HomePickup } from "~/lib/hooks/use-home-group";
-import { getLocationBadgeTone, LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getPillTone } from "~/lib/kit-palette";
 import type { OgsLiveWireStudent } from "~/lib/ogs-group-live-api";
 import { catalogText } from "~/test/error-catalog-text";
 
@@ -137,6 +138,29 @@ describe("MyGroupBlock (#2180)", () => {
     ).toHaveAttribute("href", "/test-tenant/ogs-groups");
   });
 
+  // #5710: zum Unterricht abgemeldet heißt „Im Unterricht“, auch krank gemeldet.
+  it("nennt ein zum Unterricht abgemeldetes krankes Kind „Im Unterricht“", () => {
+    snapshot.current = withGroup({
+      away: [
+        student({
+          id: "1",
+          sick: true,
+          current_location: "Im Unterricht",
+          day_planning_status: "not_coming_today",
+          day_planning_label: "krank gemeldet",
+        }),
+      ],
+      present: 20,
+    });
+
+    render(<MyGroupBlock />);
+
+    // Anker: das Kind erscheint mit seinem erfassten Unterrichtsort.
+    expect(screen.getByText("Im Unterricht")).toBeInTheDocument();
+    expect(screen.queryByText("Krank")).not.toBeInTheDocument();
+    expect(screen.queryByText("krank gemeldet")).not.toBeInTheDocument();
+  });
+
   // Die Reihenfolge ist die Dringlichkeit: wer längst da sein sollte, dann
   // was auf einen zukommt, zuletzt, was schon entschieden ist.
   it("stellt Fehlende vor Abholungen vor Abwesende", () => {
@@ -204,8 +228,7 @@ describe("MyGroupBlock (#2180)", () => {
     render(<MyGroupBlock />);
 
     expect(screen.getByText("Schule")).toHaveStyle({
-      backgroundColor: getLocationBadgeTone(LOCATION_COLORS.AT_SCHOOL)
-        .backgroundColor,
+      backgroundColor: getPillTone(LOCATION_COLORS.AT_SCHOOL).backgroundColor,
     });
     expect(screen.getByText("Zuhause")).toBeInTheDocument();
   });

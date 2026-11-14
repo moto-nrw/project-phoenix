@@ -9,7 +9,8 @@
     "body": "Eine Änderung konnte nicht gespeichert werden. Wenn Sie die Seite verlassen, geht sie verloren.",
     "leave": "Trotzdem verlassen",
     "stay": "Hierbleiben",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "retryTooltip": "Speichert die letzte Änderung noch einmal."
   },
   "healthDirectHint": "Änderungen werden direkt gespeichert. Das {careTerm}-Team sieht die Hinweise sofort.",
   "healthPlaceholder": "Zum Beispiel Allergien, Unverträglichkeiten oder wichtige Medikamente.",
@@ -41,7 +42,8 @@
     "submitting": "Anfrage wird gesendet…",
     "cancel": "Abbrechen",
     "noChange": "Bitte ändern Sie mindestens eine Angabe.",
-    "required": "Eine geänderte Angabe darf nicht leer sein."
+    "required": "Eine geänderte Angabe darf nicht leer sein.",
+    "submitTooltip": "Schickt die Anfrage sofort an die {careTerm} zur Prüfung."
   },
   "sections": {
     "child": "Persönliche Angaben",
@@ -131,7 +133,8 @@
     "decisionApplied": "Das wurde geändert:",
     "decisionConsidered": "Angefragte Änderung:",
     "decisionOverridden": "Die Betreuung hat {names} nicht mitgebucht.",
-    "errorObject": "die gebuchte Betreuung"
+    "errorObject": "die gebuchte Betreuung",
+    "requestButtonTooltip": "Öffnet ein Formular, um eine andere Betreuung anzufragen."
   },
   "careOfferingsModal": {
     "title": "Gebuchte Betreuung ändern",
@@ -198,7 +201,10 @@
     "noCourses": "Zurzeit gibt es keine Kurse.",
     "errorObjectList": "die Liste der Kurse",
     "errorObjectRequest": "die Kursanfrage",
-    "errorObjectWithdraw": "die Rücknahme der Kursanfrage"
+    "errorObjectWithdraw": "die Rücknahme der Kursanfrage",
+    "requestTooltip": "Schickt die Kursanfrage sofort an die {careTerm}.",
+    "withdrawTooltip": "Nimmt die Kursanfrage sofort zurück.",
+    "requestBlocked": "Schreiben Sie zuerst eine Begründung."
   },
   "careSchedule": {
     "arrival": "Ankunftszeit",
@@ -242,10 +248,15 @@
     "pendingNotice": "Die {careTerm} prüft Ihre Änderung. Bis zur Bestätigung bleibt der bisherige Wochenplan gültig.",
     "requestedAt": "Angefragt am {date}",
     "errorObject": "die Liste der Betreuungszeiten",
-    "requestErrorObject": "die Anfrage zum Wochenplan"
+    "requestErrorObject": "die Anfrage zum Wochenplan",
+    "requestButtonTooltip": "Öffnet ein Formular, um Änderungen am Wochenplan anzufragen.",
+    "requestSubmitTooltip": "Schickt die Anfrage sofort an die {careTerm} zur Prüfung."
   },
   "errorObject": "die Übersicht der Angaben",
   "errorObjectChange": "die Änderung",
   "errorObjectRequest": "die Anfrage",
-  "errorNoEnrollment": "Für Ihr Kind gibt es keine gültige Anmeldung mehr. Bitte wenden Sie sich an die Schule."
+  "errorNoEnrollment": "Für Ihr Kind gibt es keine gültige Anmeldung mehr. Bitte wenden Sie sich an die Schule.",
+  "identityRequestButtonTooltip": "Öffnet ein Formular, um geänderte Angaben anzufragen.",
+  "requestEditTooltip": "Öffnet Ihre offene Anfrage zum Ändern.",
+  "departureEditTooltip": "Öffnet die Abholung je Wochentag. Änderungen prüft die {careTerm}."
 }

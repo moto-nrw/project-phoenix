@@ -28,7 +28,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { formatChatDateTime } from "~/lib/date-helpers";
-import { formatBytes } from "~/lib/files-api";
+import { formatBytes } from "~/lib/file-format";
 import { createLogger } from "~/lib/logger";
 import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
@@ -382,6 +382,12 @@ export function DeclarationStatusPanel({
             size="md"
             onClick={() => void remind()}
             disabled={busy !== null || waiting === 0}
+            disabledReason={
+              waiting === 0
+                ? "Gerade gibt es niemanden, den moto erinnern kann."
+                : undefined
+            }
+            tooltip="Schickt sofort eine E-Mail an Eltern, die noch nicht geantwortet haben."
             isLoading={busy === "remind"}
             loadingText="Wird gesendet …"
             className="gap-1.5"

@@ -18,13 +18,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 const billingFamilyDebtorNumberPath = "/traeger/billing-families/debtor-number"
@@ -327,11 +327,17 @@ func TestFamilyNumberOutlivesTheRegistrationAndHasItsOwnPeriod(t *testing.T) {
 	}
 	require.NoError(t, f.db.NewRaw(`SELECT beleg_type, to_char(deleted_on, 'YYYY-MM-DD') AS deleted_on, deleted_count
 		FROM parent_billing.beleg_deletions WHERE organization_id = ?`, f.office.organization).Scan(ctx, &logged))
-	assert.Equal(t, []struct {
+	assert.ElementsMatch(t, []struct {
 		Type    string `bun:"beleg_type"`
 		On      string `bun:"deleted_on"`
 		Deleted int    `bun:"deleted_count"`
-	}{{Type: "family_debtor_number", On: "2031-01-03", Deleted: 1}}, logged, "the deletion log of the Träger counts it")
+	}{{Type: "family_debtor_number", On: "2031-01-03", Deleted: 1},
+		{Type: "family_debtor_number", On: "2031-01-03", Deleted: 2}}, logged,
+		"the deletion log counts the payer row and the two children's identities kept across scope changes")
+	var children int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.child_debtor_numbers
+		WHERE organization_id = ?`, f.office.organization).Scan(ctx, &children))
+	assert.Zero(t, children, "the children's identities follow the same retention")
 	var trail int
 	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.family_billing_events
 		WHERE organization_id = ? AND care_contract_id IS NULL`, f.office.organization).Scan(ctx, &trail))

@@ -169,7 +169,7 @@ export function TrustedDevicesSection({
         <EmptyState
           variant="compact"
           title="Sie haben aktuell keine vertrauten Geräte gespeichert."
-          description="Beim nächsten Login können Sie ein Gerät merken lassen, um den 2FA-Code dort zu überspringen."
+          description="Wenn moto beim Anmelden nach einem Code fragt, können Sie Ihr Gerät dort merken."
         />
       )}
       {!loading && !loadFailed && devices && devices.length > 0 && (
@@ -201,6 +201,8 @@ export function TrustedDevicesSection({
                   items={[
                     {
                       label: "Entfernen",
+                      description:
+                        "moto fragt vorher nach, danach braucht das Gerät wieder den 2FA-Code.",
                       icon: <Trash2 className="h-4 w-4" aria-hidden />,
                       destructive: true,
                       disabled: revokingId === d.id,

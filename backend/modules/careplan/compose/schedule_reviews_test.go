@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -66,7 +66,7 @@ func TestScheduleNativeQueueDiffScopeHistoryAndPreviewFailure(t *testing.T) {
 	deps := ScheduleReviewDependencies{StudentDirectory: testpkg.StudentDirectory{}, People: directory, Bookings: scheduleReviewBookingsFixture{}, Classes: scheduleReviewClassesFixture{},
 		Scope:                 func(context.Context) (ReviewScope, error) { return ReviewScope{GroupIDs: []int64{group.ID}}, nil },
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil }, Today: func() careplan.Date { return "2026-03-30" }, Blocks: blocks,
-		Fingerprint: func([]byte) string { t.Fatal("failed block preview must not produce an impact token"); return "" },
+		Fingerprint: func(content []byte) string { return string(content) },
 	}
 	queue, err := NewScheduleReviews(db, func(Observation) {}, deps)
 	require.NoError(t, err)
@@ -88,6 +88,7 @@ func TestScheduleNativeQueueDiffScopeHistoryAndPreviewFailure(t *testing.T) {
 	require.Len(t, items, 2)
 	require.Equal(t, "Termin", *items[0].Reason)
 	require.False(t, items[0].ImpactAvailable)
+	require.Empty(t, items[0].ImpactToken, "failed block preview must not produce an impact token")
 	require.Equal(t, "15:00", items[0].Diff[0].Old, "a preview failure must not erase the independently resolved diff")
 	require.Equal(t, 1, blocks.calls)
 	ended := directory.students[student.ID]

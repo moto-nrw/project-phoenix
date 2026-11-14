@@ -45,12 +45,13 @@ describe("TraegerBottomNav", () => {
     sessionUser.permissions = [];
   });
 
-  it("follows the sidebar: main navigation, then Hilfe and Einstellungen (#5685)", () => {
-    // Ohne Dashboard (#4674) passen alle Ziele in die Leiste.
-    // Drei Ziele der Hauptnavigation lassen Platz für Hilfe und
-    // Einstellungen; „Anmeldung verwalten“ öffnet seit #4704 zwei Ziele.
+  it("follows the sidebar: main navigation, the rest behind Mehr (#5685)", async () => {
+    // Ohne Dashboard (#4674): die Reihenfolge der Seitenleiste; was nicht in
+    // die Leiste passt, steht hinter „Mehr“. „Anmeldung verwalten“ öffnet
+    // seit #4704 zwei Ziele.
     sessionUser.permissions = [
       "traeger_enrollment:manage",
+      "traeger_billing:manage",
       "traeger_accounts:manage",
     ];
     render(<TraegerBottomNav />);
@@ -63,14 +64,21 @@ describe("TraegerBottomNav", () => {
       "Schulen",
       "Ferienbetreuung",
       "Anmeldephasen",
-      "Hilfe",
-      "Einstellungen",
+      "Abrechnungsläufe",
     ]);
     expect(bar().getByRole("link", { name: "Schulen" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(bar().queryByRole("button", { name: "Mehr" })).toBeNull();
+    fireEvent.click(bar().getByRole("button", { name: "Mehr" }));
+    const drawer = within(await screen.findByRole("dialog"));
+    expect(
+      drawer.getByRole("link", { name: "Preise und Ermäßigungen" }),
+    ).toHaveAttribute("href", "/abrechnung/preise");
+    expect(drawer.getByRole("link", { name: "Hilfe" })).toBeInTheDocument();
+    expect(
+      drawer.getByRole("link", { name: "Einstellungen" }),
+    ).toBeInTheDocument();
   });
 
   it("puts Hilfe and Einstellungen behind Mehr once the Dashboard fills the bar (#4674, #5685)", async () => {
@@ -89,10 +97,12 @@ describe("TraegerBottomNav", () => {
 
     fireEvent.click(bar().getByRole("button", { name: "Mehr" }));
     const drawer = within(await screen.findByRole("dialog"));
-    expect(drawer.getByRole("link", { name: "Abrechnung" })).toHaveAttribute(
-      "href",
-      "/abrechnung",
-    );
+    expect(
+      drawer.getByRole("link", { name: "Abrechnungsläufe" }),
+    ).toHaveAttribute("href", "/abrechnung");
+    expect(
+      drawer.getByRole("link", { name: "Familien und Zahlung" }),
+    ).toHaveAttribute("href", "/abrechnung/familien");
     expect(drawer.getByRole("link", { name: "Hilfe" })).toHaveAttribute(
       "href",
       "/help?role=traeger",
@@ -123,9 +133,14 @@ describe("TraegerBottomNav", () => {
       "href",
       "/abrechnung",
     );
-    const more = bar().getByRole("button", { name: "Mehr" });
-    // A page behind Mehr is open: Mehr carries the mark.
+    // A page behind Mehr is open: the Mehr field carries the mark and shows
+    // that page by its short name, so the bar says where the person is; the
+    // accessible name starts with the visible words (WCAG 2.5.3).
+    const more = bar().getByRole("button", {
+      name: "Vorgaben, Mehr: Abrechnungsvorgaben",
+    });
     expect(more).toHaveAttribute("data-active", "true");
+    expect(more).toHaveTextContent("Vorgaben");
 
     fireEvent.click(more);
     const drawer = within(await screen.findByRole("dialog"));

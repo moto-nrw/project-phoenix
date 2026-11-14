@@ -3,11 +3,11 @@ package application
 import (
 	"context"
 
-	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	owner0 "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // StudentRecords binds the retained boundary vocabulary directly to the native

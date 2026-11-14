@@ -4,9 +4,9 @@ status: accepted
 
 # Grade Transition is an application workflow
 
-The school-year rollover cutover in [#2711](https://github.com/moto-nrw/project-phoenix/issues/2711)
+The school-year rollover cutover in [#2711](https://github.com/moto-ogs/project-phoenix/issues/2711)
 implements the last irreversible lifecycle workflow required by
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), after the
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), after the
 staff offboarding in [ADR 0013](0013-staff-offboarding-is-an-application-workflow.md)
 and the student deletion in [ADR 0016](0016-student-deletion-is-an-application-workflow.md).
 Add `grade-transition` as a workflow owner, with no runtime data ownership.
@@ -39,7 +39,7 @@ class and lifecycle writes on a child, and with them the class-writes gate
 named below, from People Directory to School Membership. The acquisition order
 and the window the exclusive gate closes are unchanged; only the owner holding
 the first gate changes. The move takes effect with the caller switch in
-[#2759](https://github.com/moto-nrw/project-phoenix/issues/2759). Until then
+[#2759](https://github.com/moto-ogs/project-phoenix/issues/2759). Until then
 this section describes the running system.
 
 ## Lock order and consistency

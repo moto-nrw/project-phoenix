@@ -9,6 +9,7 @@ const meta: Meta<typeof MFAChallengeForm> = {
 export default meta;
 type Story = StoryObj<typeof MFAChallengeForm>;
 
+// The two confirm buttons (#6955): nothing is remembered without a choice.
 export const Default: Story = {
   args: {
     scope: "tenant",
@@ -31,6 +32,7 @@ export const WithCancelAndCustomTrustedDevice: Story = {
   },
 };
 
+// Where no device can be remembered, the code is checked once it is complete.
 export const TrustedDeviceDisabled: Story = {
   args: {
     scope: "tenant",

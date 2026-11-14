@@ -3,13 +3,12 @@
 
 import { Fragment, Suspense, useCallback, useEffect, useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { COUNTER_TONE } from "~/lib/counter-tones";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
-  useAttendanceLogEnabled,
   useChildSearchOnlyNavigation,
   useStaffMessagingEnabled,
-  useDisplayEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
   useTenantRoutingModeSafe,
@@ -37,7 +36,6 @@ import {
   isCaregiver,
   leadsSchool,
 } from "~/lib/auth-utils";
-import { STUDENT_READ_PERMISSIONS } from "~/lib/student-access";
 import { canOpenActiveSupervision } from "~/lib/active-supervision-access";
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
@@ -45,6 +43,7 @@ import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSidebarGroups } from "~/lib/hooks/use-sidebar-groups";
+import { useSimpleStaffNav } from "~/lib/hooks/use-simple-staff-nav";
 import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import {
   isStaffSettingsPath,
@@ -75,13 +74,17 @@ import { useHelpHref } from "~/lib/hooks/use-help-href";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { SidebarAccordionSection } from "~/components/ui/sidebar-accordion-section";
 import { SidebarGroup } from "~/components/ui/sidebar-group";
+import { ListBulletsIcon } from "@phosphor-icons/react/ssr";
 import {
+  combineSidebarRowBadges,
+  SidebarRowButton,
   SidebarRowLink,
   SidebarRowPlaceholder,
   SidebarSectionHeading,
   type SidebarRowBadge,
 } from "~/components/ui/sidebar-row";
 import { SidebarSubItem } from "~/components/ui/sidebar-sub-item";
+import { NavSceneIcon } from "~/components/ui/nav-scene-icon/nav-scene-icon";
 import {
   SIDEBAR_ICON_CLASSES,
   SIDEBAR_NAV_GAP,
@@ -89,10 +92,8 @@ import {
   portalSidebarTopOffset,
 } from "~/components/ui/sidebar-geometry";
 import { PortalSidebarFrame } from "~/components/ui/portal-sidebar";
-import { navigationIcons } from "~/lib/navigation-icons";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
-import { NavSceneFallback } from "~/components/ui/nav-scene-icon/nav-scene-icon";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
   getActivePlanningSubPageHref,
@@ -112,9 +113,19 @@ import {
   STAFF_FLAT_PAGES,
 } from "~/lib/section-navigation";
 import {
+  STAFF_NAV_ITEMS,
+  staffNavBorrowedActiveHref,
+  staffNavItemPermitted,
+  staffNavPathActive,
+  staffNavSettingOn,
+  useStaffNavSettings,
+  type StaffNavItem,
+} from "./staff-nav-items";
+import {
   STAFF_NAV_BOTTOM,
   STAFF_NAV_CONCEPTS,
   STAFF_NAV_GROUPS,
+  STAFF_NAV_SIMPLE_ENTRIES,
   STAFF_NAV_TOP,
   type StaffNavEntry,
   type StaffNavSectionKey,
@@ -125,58 +136,26 @@ import { groupsConcept } from "~/lib/concepts/groups";
 import { supervisionConcept } from "~/lib/concepts/supervision";
 import { accountsConcept } from "~/lib/concepts/accounts";
 import { mealPlanConcept } from "~/lib/concepts/mealPlan";
-import { activitiesConcept } from "~/lib/concepts/activities";
 import { announcementsConcept } from "~/lib/concepts/announcements";
-import { calendarConcept } from "~/lib/concepts/calendar";
-import { carePlanConcept } from "~/lib/concepts/carePlan";
-import { childrenConcept } from "~/lib/concepts/children";
-import { dashboardConcept } from "~/lib/concepts/dashboard";
-import { dayReportConcept } from "~/lib/concepts/dayReport";
 import { devicesConcept } from "~/lib/concepts/devices";
-import { emergencyConcept } from "~/lib/concepts/emergency";
-import { filesConcept } from "~/lib/concepts/files";
-import { groupAccessConcept } from "~/lib/concepts/groupAccess";
-import { helpConcept } from "~/lib/concepts/help";
-import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
-import { infoDisplaysConcept } from "~/lib/concepts/infoDisplays";
 import { operatorsConcept } from "~/lib/concepts/operators";
 import { organizationsConcept } from "~/lib/concepts/organizations";
 import { peopleConcept } from "~/lib/concepts/people";
 import { reportsConcept } from "~/lib/concepts/reports";
-import { requestsConcept } from "~/lib/concepts/requests";
 import { rfidConcept } from "~/lib/concepts/rfid";
-import { roomsConcept } from "~/lib/concepts/rooms";
 import { schoolsConcept } from "~/lib/concepts/schools";
-import { settingsConcept } from "~/lib/concepts/settings";
-import { staffConcept } from "~/lib/concepts/staff";
-import { staffPlanConcept } from "~/lib/concepts/staffPlan";
-import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 
-// Type für Navigation Items
+// Eine Zeile der Seitenleiste. Die Seiten der Mitarbeiter-Navigation kommen
+// aus der geteilten Liste (staff-nav-items.ts), Operator-Seiten von hier.
 interface NavItem {
-  href: string;
-  label: string;
-  // SVG path; only drawn when the item has no concept icon.
-  icon?: string;
-  concept?: MotoConcept;
-  requiresAdmin?: boolean;
-  // Show when the caller holds this tenant permission (admins always pass). Use
-  // instead of requiresAdmin for items open to more than admins, e.g. the
-  // Änderungsanfragen queue (users:update, scoped per child in the backend).
-  // An array shows the item when ANY listed permission is held (matching
-  // backend RequiresAnyPermission routes).
-  requiresPermission?: string | readonly string[];
-  // All listed permissions are required (matching RequiresAllPermissions).
-  requiresAllPermissions?: readonly string[];
-  alwaysShow?: boolean;
-  hideForAdmin?: boolean;
-  comingSoon?: boolean;
-  bottomPinned?: boolean;
-  activeColor?: string;
-  newTab?: boolean;
+  readonly href: string;
+  readonly label: string;
+  readonly concept: MotoConcept;
+  readonly comingSoon?: boolean;
+  readonly newTab?: boolean;
   // Modul nicht gebucht (#4894): nur Leitungen sehen den Eintrag, mit
   // Schloss. Er führt auf die Seite, die das erklärt.
-  locked?: boolean;
+  readonly locked?: boolean;
 }
 
 /**
@@ -198,205 +177,12 @@ function moduleGate(
   return { show: settingOn, locked: false };
 }
 
-// Flat navigation items with their icon, colour and visibility rule. WHERE a
-// page sits in the sidebar (group and order) is decided by the tree in
-// ~/lib/staff-navigation (#2826); a page missing there never renders.
-const NAV_ITEMS: NavItem[] = [
-  {
-    // Startseite aller Rollen (#2180): sie setzt sich aus Bausteinen
-    // zusammen, die jeder für sich am Recht der Person hängen. Deshalb steht
-    // der Eintrag für alle da — auch für eine Rolle, die nur einen einzigen
-    // Baustein sieht.
-    ...STAFF_FLAT_PAGES.dashboard,
-    icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
-    concept: dashboardConcept,
-    activeColor: "text-moto-blue",
-    alwaysShow: true,
-  },
-  {
-    // Tages-Betreuungsplan (#2383): Einstieg der Betreuungskräfte in den
-    // laufenden Tag. Für Admins versteckt — sie haben den vollen
-    // Betreuungsplan im Planungsbereich. schedules:read spiegelt das Gate
-    // der Route (/timetable/operations/planned-now); ohne das Recht wäre
-    // der Eintrag nur ein sicherer 403. Weiteres Gating (binary,
-    // timetable.enabled) siehe filteredNavItems.
-    ...STAFF_FLAT_PAGES.tagesplan,
-    icon: navigationIcons.betreuungsplan,
-    concept: carePlanConcept,
-    activeColor: "text-moto-green",
-    requiresPermission: "schedules:read",
-    hideForAdmin: true,
-  },
-  {
-    // Alle Kinder liest das Schülerverzeichnis: users:read oder, für die
-    // Rolle „Gast“, students:read (ADR 0091). Ohne beides, etwa als
-    // AG-Leitung, wäre der Eintrag eine Sackgasse.
-    ...STAFF_FLAT_PAGES.studentSearch,
-    icon: navigationIcons.userSingle,
-    concept: childrenConcept,
-    requiresPermission: STUDENT_READ_PERMISSIONS,
-  },
-  {
-    ...STAFF_FLAT_PAGES.activities,
-    icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-    concept: activitiesConcept,
-    activeColor: "text-moto-coral",
-    // Dasselbe Recht wie GET /api/activities (#4573, AG-Leitung).
-    requiresPermission: ["activities:list", "activities:read"],
-  },
-  {
-    ...STAFF_FLAT_PAGES.rooms,
-    icon: navigationIcons.rooms,
-    concept: roomsConcept,
-    activeColor: "text-moto-navy",
-    // Dasselbe Recht wie GET /api/rooms (#4573, AG-Leitung).
-    requiresPermission: "rooms:read",
-  },
-  {
-    ...STAFF_FLAT_PAGES.staff,
-    concept: staffConcept,
-    icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
-    activeColor: "text-moto-orange",
-    // Dasselbe Recht wie GET /api/staff (#4573, AG-Leitung).
-    requiresPermission: ["users:read", "staff:manage", "staff:stammdaten"],
-  },
-  {
-    ...STAFF_FLAT_PAGES.calendar,
-    icon: navigationIcons.calendar,
-    concept: calendarConcept,
-    activeColor: "text-moto-indigo",
-    // Backend gates GET /api/calendar/my on calendar:own; match it so
-    // restricted/custom roles without the permission don't land on a 403 page.
-    requiresPermission: "calendar:own",
-  },
-  {
-    // Gemeinsame Übersicht für Gruppenübergaben, Terminvertretungen und
-    // zusätzliche Aufsichten. Einzelne Aktionen bleiben serverseitig geprüft.
-    ...STAFF_FLAT_PAGES.substitutions,
-    icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
-    concept: groupAccessConcept,
-    activeColor: "text-moto-purple",
-    // Die Seite öffnet nur mit substitutions:read (#4573, AG-Leitung).
-    requiresPermission: "substitutions:read",
-  },
-  {
-    ...STAFF_FLAT_PAGES.infoDisplays,
-    concept: infoDisplaysConcept,
-    icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
-    activeColor: "text-moto-blue",
-    requiresPermission: ["display:read", "display:manage"],
-  },
-  {
-    ...STAFF_FLAT_PAGES.timeTracking,
-    icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
-    concept: timeTrackingConcept,
-    // Die eigene Zeiterfassung liest das Backend nur mit time_tracking:own;
-    // externe Kräfte (#4573) erfassen keine Arbeitszeit.
-    requiresPermission: "time_tracking:own",
-  },
-  {
-    // Eigener Dienstplan (#3821): die Route liest nur über time_tracking:own.
-    // Ohne Betreuungsplan der Schule gibt es keine Schichten (filteredNavItems).
-    ...STAFF_FLAT_PAGES.ownShiftPlan,
-    icon: navigationIcons.dienstplan,
-    concept: staffPlanConcept,
-    requiresPermission: "time_tracking:own",
-  },
-  {
-    // Tagesauswertung (#1456): rückwirkender Tagesstatus pro Gruppe
-    // (Anwesend/Krank/Entschuldigt/Abwesend). Als Auswertung unten bei den
-    // Berichts-Einträgen einsortiert. Opt-in über
-    // gdpr.attendance_log_enabled — Gating siehe filteredNavItems.
-    ...STAFF_FLAT_PAGES.dayLog,
-    concept: dayReportConcept,
-    icon: "M9 12h6m-6 4h6M9 8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2zM9 3v2m6-2v2",
-    activeColor: "text-moto-green",
-    requiresPermission: "users:read",
-  },
-  {
-    // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und
-    // Mitarbeitenden an einem Ort. Sichtbarkeit hängt an zwei getrennten
-    // Rechte-Regeln (Eltern-Reiter bzw. Mitarbeitende-Reiter) — Gating unten
-    // in filteredNavItems über canOpenRequestsPage, weil requiresPermission
-    // das users:absence+users:read-Paar nicht ausdrücken kann.
-    ...STAFF_FLAT_PAGES.anfragen,
-    icon: navigationIcons.tray,
-    concept: requestsConcept,
-    activeColor: "text-moto-blue",
-  },
-  {
-    // Dateiablage (#2596): jeder mit Tenant-Zugang sieht den Eintrag; welche
-    // Ordner sichtbar sind, entscheidet das Backend pro Ordner.
-    ...STAFF_FLAT_PAGES.dateien,
-    icon: "M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z",
-    concept: filesConcept,
-    activeColor: "text-moto-indigo",
-    alwaysShow: true,
-  },
-  {
-    // Statistik (#2606): Anwesenheitsquoten je Kind, Gruppe und Zeitraum
-    // plus Raumauslastung. Das Backend verlangt config:read UND users:read.
-    ...STAFF_FLAT_PAGES.statistics,
-    icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-    requiresAllPermissions: ["config:read", "users:read"],
-    concept: reportsConcept,
-    activeColor: "text-moto-blue",
-  },
-  {
-    // Ferienwochen (#4665): Teilnehmerliste der ausrichtenden OGS. Das
-    // Backend verlangt config:read wie die Anmeldelisten.
-    ...STAFF_FLAT_PAGES.holidayWeeks,
-    icon: navigationIcons.calendar,
-    requiresPermission: "config:read",
-    concept: holidayWeeksConcept,
-    activeColor: "text-moto-orange",
-  },
-  {
-    ...STAFF_FLAT_PAGES.emergency,
-    icon: navigationIcons.emergency,
-    concept: emergencyConcept,
-    activeColor: "text-moto-wine",
-    // Die Notfallliste exportiert das Backend nur mit users:read (#4573,
-    // AG-Leitung).
-    requiresPermission: "users:read",
-    bottomPinned: true,
-  },
-  {
-    ...STAFF_FLAT_PAGES.help,
-    icon: navigationIcons.book,
-    concept: helpConcept,
-    activeColor: "text-moto-green",
-    alwaysShow: true,
-    bottomPinned: true,
-    newTab: true,
-  },
-  {
-    ...STAFF_FLAT_PAGES.settings,
-    concept: settingsConcept,
-    icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z",
-    activeColor: "text-gray-500",
-    // Die Einstellungen schreibt das Backend mit config:manage; dasselbe
-    // Recht öffnet den Eintrag für eine Leitungsrolle der Schule (#3469).
-    requiresPermission: "config:manage",
-    bottomPinned: true,
-  },
-];
-
-// Shared accent for all Verwaltung items. Source of truth:
-// LOCATION_COLORS.OTHER_ROOM in ~/lib/location-helper (#5080D8). Tailwind's
-// JIT scans for literal class strings, so the hex is inlined here rather
-// than interpolated at runtime. If LOCATION_COLORS.OTHER_ROOM ever changes,
-// update this literal to match.
-const OPERATOR_VERWALTUNG_ACTIVE_COLOR = "text-moto-blue";
-
 interface OperatorNavSection {
   readonly label: string;
   readonly items: readonly NavItem[];
 }
 
-// Operator navigation, grouped into static labeled sections. Icons sourced
-// from ~/lib/navigation-icons so the desktop sidebar and the mobile bottom
-// nav/overflow drawer stay visually consistent per page.
+// Operator navigation, grouped into static labeled sections.
 const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
   {
     label: "VERWALTUNG",
@@ -404,58 +190,37 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
       {
         href: "/operator/organizations",
         label: "Träger",
-        icon: navigationIcons.rooms,
         concept: organizationsConcept,
-        activeColor: "text-moto-petrol",
-        alwaysShow: true,
       },
       {
         href: "/operator/schools",
         label: "Schulen",
-        icon: navigationIcons.buildingOffice,
         concept: schoolsConcept,
-        activeColor: "text-moto-gold",
-        alwaysShow: true,
       },
       {
         href: "/operator/accounts",
         label: "Konten",
-        icon: navigationIcons.profile,
         concept: accountsConcept,
-        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
-        alwaysShow: true,
       },
       {
         href: "/operator/caterers",
         label: "Caterer",
-        icon: navigationIcons.profile,
         concept: mealPlanConcept,
-        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
-        alwaysShow: true,
       },
       {
         href: "/operator/devices",
         label: "Geräte",
-        icon: navigationIcons.device,
         concept: devicesConcept,
-        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
-        alwaysShow: true,
       },
       {
         href: "/operator/persons",
         label: "Personen",
-        icon: navigationIcons.userSingle,
         concept: peopleConcept,
-        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
-        alwaysShow: true,
       },
       {
         href: "/operator/unregistered-tags",
         label: "Unbekannte RFID",
-        icon: navigationIcons.security,
         concept: rfidConcept,
-        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
-        alwaysShow: true,
       },
     ],
   },
@@ -465,10 +230,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
       {
         href: "/operator/billing",
         label: "Stichtagszahlen",
-        icon: navigationIcons.chart,
         concept: reportsConcept,
-        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
-        alwaysShow: true,
       },
     ],
   },
@@ -478,10 +240,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
       {
         href: "/operator/announcements",
         label: "Ankündigungen",
-        icon: navigationIcons.bell,
         concept: announcementsConcept,
-        activeColor: "text-moto-amber",
-        alwaysShow: true,
       },
     ],
   },
@@ -491,34 +250,11 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
       {
         href: "/operator/operators",
         label: "Operatoren",
-        icon: navigationIcons.group,
         concept: operatorsConcept,
-        activeColor: "text-moto-purple",
-        alwaysShow: true,
       },
     ],
   },
 ];
-
-// Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
-// concepts with no operational meaning when the tenant only tracks
-// in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
-// accordion is gated separately below (it's not in NAV_ITEMS).
-const BINARY_HIDDEN_HREFS = new Set<string>([
-  "/rooms",
-  "/activities",
-  "/tagesplan",
-]);
-const GROUP_NAV_ICON =
-  "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z";
-// Icon paths shared between the expanded accordion headers and the collapsed
-// icon rail (#2825), so both renderings can never drift apart.
-const SUPERVISION_NAV_ICON =
-  "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z";
-const DATABASE_NAV_ICON =
-  "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4";
-const ENROLLMENT_NAV_ICON =
-  "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z";
 
 // Tenant-scoped [tenant]/… routes. In path-routing mode a bare "/messages"
 // leaves the current tenant path entirely and a bare "/eltern/…" is read as
@@ -537,14 +273,57 @@ const TENANT_SCOPED_HREFS = new Set<string>([
 // Vorlesetext des Anmeldungen-Zählers (#3778).
 const ENROLLMENTS_UNREAD_NOUN = "ungelesene Anmeldungen";
 
-const ROW_BADGE_LABELS: Readonly<
-  Record<string, { readonly tone: "staff" | "parents"; readonly noun: string }>
-> = {
-  "/anfragen": { tone: "staff", noun: "offene Anfragen" },
-  "/messages": { tone: "parents", noun: "ungelesene Nachrichten" },
-  "/team-chat": { tone: "staff", noun: "ungelesene Nachrichten" },
-  "/tagesinformationen": { tone: "staff", noun: "offene Tagesinformationen" },
+// `one` ist die Einzahl („1 offene Anfrage“), `noun` die Mehrzahl.
+interface CounterNoun {
+  readonly one: string;
+  readonly noun: string;
+}
+
+const ENROLLMENTS_COUNTER: CounterNoun = {
+  one: "ungelesene Anmeldung",
+  noun: ENROLLMENTS_UNREAD_NOUN,
 };
+
+const ROW_BADGE_LABELS: Readonly<
+  Record<
+    string,
+    CounterNoun & {
+      readonly tone: (typeof COUNTER_TONE)["staff" | "parents"];
+    }
+  >
+> = {
+  "/anfragen": {
+    tone: COUNTER_TONE.staff,
+    one: "offene Anfrage",
+    noun: "offene Anfragen",
+  },
+  "/messages": {
+    tone: COUNTER_TONE.parents,
+    one: "ungelesene Nachricht",
+    noun: "ungelesene Nachrichten",
+  },
+  // Wie die Zeile benannt, sonst klingt er wie der Eltern-Chat (#6566).
+  "/team-chat": {
+    tone: COUNTER_TONE.staff,
+    one: "ungelesene Nachricht im Team-Chat",
+    noun: "ungelesene Nachrichten im Team-Chat",
+  },
+  "/tagesinformationen": {
+    tone: COUNTER_TONE.staff,
+    one: "offene Tagesinformation",
+    noun: "offene Tagesinformationen",
+  },
+};
+
+/** Das gezählte Wort in Einzahl oder Mehrzahl („offene Anfrage“ / „… Anfragen“). */
+function counterNoun(count: number, noun: CounterNoun): string {
+  return count === 1 ? noun.one : noun.noun;
+}
+
+/** Der Vorlesetext eines Zählers, „1 offene Anfrage“ / „3 offene Anfragen“. */
+function counterAriaLabel(count: number, noun: CounterNoun): string {
+  return `${count} ${counterNoun(count, noun)}`;
+}
 
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
@@ -727,8 +506,8 @@ function SidebarContent({
   const isBinaryMode = presenceMode === "binary";
   // Gebuchte Module (#4894): offen, mit Schloss oder gar nicht.
   const moduleNav = useModuleNavigation();
-  const displayEnabled = useDisplayEnabled();
-  const attendanceLogEnabled = useAttendanceLogEnabled();
+  // Schulschalter der Seiten aus der geteilten Liste.
+  const navSettings = useStaffNavSettings();
   // Betreuungsplan-Flag für den Tagesplan-Eintrag (#2383): vom Tenant-Resolve,
   // damit es auch für Betreuungskräfte ohne config:read aufgelöst ist.
   const tagesplanEnabled = useTimetableEnabled();
@@ -773,6 +552,9 @@ function SidebarContent({
   // Kinder nur über „Alle Kinder“ (#1321): Gruppen und Aktuelle
   // Aufsicht verlassen die Leiste und stehen dort als Reiter.
   const childSearchOnlyNavigation = useChildSearchOnlyNavigation();
+  // Einfache Seitenleiste (#6956): nur die Seiten des Betreuungsalltags,
+  // ohne Gruppen. Die Person kann selbst alle Seiten einblenden.
+  const simpleNav = useSimpleStaffNav(session ?? null);
 
   // Die Adresse hinter dem Eintrag `Hilfe` ganz unten, mit dem Kontext der
   // Sitzung. Die mobile Navigation holt sie aus demselben Hook (#3575).
@@ -879,57 +661,48 @@ function SidebarContent({
     "/tagesinformationen": staffNoticesPendingCount,
   };
 
-  // Filter flat navigation items based on permissions. Das Modul der Seite
-  // entscheidet zuerst (#4894): nicht gebucht heißt weg oder Schloss.
-  const filteredNavItems = NAV_ITEMS.flatMap((item) => {
+  // Die Seiten aus der geteilten Liste (staff-nav-items.ts). Das Modul der
+  // Seite entscheidet zuerst (#4894): nicht gebucht heißt weg oder Schloss.
+  const navViewer = {
+    session,
+    isAdmin: userIsAdmin,
+    isCaregiver: userIsCaregiver,
+    openCareGroupMode,
+  };
+  const filteredNavItems: NavItem[] = STAFF_NAV_ITEMS.flatMap((item) => {
     // Der Binärmodus schließt diese Seiten vollständig aus. Auch eine Leitung
     // darf hier kein Schloss sehen, weil die Zielseite nicht erklärt, sondern
     // als nicht passende Anwesenheitsart gesperrt ist.
-    if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return [];
+    if (isBinaryMode && item.binaryHidden) return [];
     const gate = moduleGate(
       moduleNav.page(item.href),
       isNavItemPermitted(item),
       true,
     );
-    return gate.show ? [{ ...item, locked: gate.locked }] : [];
+    return gate.show
+      ? [
+          {
+            href: item.href,
+            label: item.label,
+            concept: item.concept,
+            newTab: item.newTab,
+            locked: gate.locked,
+          },
+        ]
+      : [];
   });
 
-  function isNavItemPermitted(item: NavItem): boolean {
+  function isNavItemPermitted(item: StaffNavItem): boolean {
     // Anfragen (#2429/#2911): JWT-Rechte allein reichen nicht. Für
     // Elternanfragen muss zusätzlich der aktuelle serverseitige Prüfbereich
     // (Admin, Gruppenleitung oder Vertretung) gelten.
-    if (item.href === "/anfragen") {
+    if (item.href === STAFF_FLAT_PAGES.anfragen.href) {
       return changeRequestAccess.canOpenRequestsPage;
     }
-    if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
-    // Info-Point Dashboard is opt-in (display.enabled, default off) — hide
-    // the admin entry until a school explicitly turns the feature on.
-    if (!displayEnabled && item.href === "/info-displays") return false;
-    // Tagesauswertung (#1456) hängt am Anwesenheitsprotokoll-Gate
-    // (gdpr.attendance_log_enabled, Opt-in, Default aus).
-    if (!attendanceLogEnabled && item.href === "/day-log") return false;
-    // Tagesplan (#2383) nur an Schulen, die den Betreuungsplan nutzen. Das
-    // Flag kommt vom Tenant-Resolve und ist damit auch ohne config:read da.
-    if (!tagesplanEnabled && item.href === "/tagesplan") return false;
-    if (item.alwaysShow) return true;
-    // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
-    // admins or anyone holding the permission (any of them, for arrays),
-    // matching the backend route gate.
-    if (item.requiresPermission && !userIsAdmin) {
-      const required =
-        typeof item.requiresPermission === "string"
-          ? [item.requiresPermission]
-          : item.requiresPermission;
-      if (!required.some((p) => hasPermission(session, p))) return false;
-    }
-    if (
-      item.requiresAllPermissions &&
-      !userIsAdmin &&
-      !item.requiresAllPermissions.every((p) => hasPermission(session, p))
-    )
-      return false;
-    if (item.requiresAdmin && !userIsAdmin) return false;
-    return true;
+    return (
+      staffNavSettingOn(item, navSettings) &&
+      staffNavItemPermitted(item, navViewer)
+    );
   }
 
   // Helper to determine active href for student detail pages based on referrer
@@ -959,12 +732,31 @@ function SidebarContent({
     return "/students/search";
   };
 
+  // Ein offener Raum ohne eigene Aufsicht, geöffnet über seine Raumseite,
+  // gehört in der Navigation zu „Räume“, nicht zu „Aktuelle Aufsicht“ (#4372).
+  const isViewingSharedOpenRoom =
+    pathname.startsWith("/active-supervisions") &&
+    isSharedOpenRoom(supervisedRooms, {
+      roomId: searchParams.get("room"),
+      sessionId: searchParams.get("session"),
+    });
+
+  // Seiten, die ein anderer Eintrag markiert (geteilte Regel mit der mobilen
+  // Leiste): offener Raum → Räume, „Unterwegs“ aus „Alle Kinder“ → Alle
+  // Kinder.
+  const borrowedActiveHref = staffNavBorrowedActiveHref(
+    pathname,
+    searchParams.get("from"),
+    isViewingSharedOpenRoom,
+  );
+
   // Die Objektrouten (Kindakte, Personalakte, Raumseite) haben keinen eigenen
   // Eintrag in der Seitenleiste: markiert wird die Sammlung, aus der man kam
   // (`?from=`). Die Register der Datenverwaltung verlinken seit #3115 auf
   // dieselben Routen wie die Übersichten; ohne den Rückweg leuchtete dann
   // immer die Übersicht, auch wer aus der Datenverwaltung kam.
   const objectRouteActiveHref = (() => {
+    if (borrowedActiveHref !== null) return borrowedActiveHref;
     const from = searchParams.get("from");
     if (pathname.startsWith("/students/") && pathname !== "/students/search") {
       return getStudentDetailActiveHref(from);
@@ -973,13 +765,6 @@ function SidebarContent({
       return from?.startsWith("/database/personal")
         ? "/database/personal"
         : "/staff";
-    }
-    // „Unterwegs“ öffnet sich auch aus „Alle Kinder“ (#5026).
-    if (
-      pathname === "/rooms/unterwegs" &&
-      from?.startsWith("/students/search")
-    ) {
-      return "/students/search";
     }
     if (pathname.startsWith("/rooms/")) {
       return from?.startsWith("/database/rooms") ? "/database/rooms" : "/rooms";
@@ -1011,15 +796,6 @@ function SidebarContent({
     return null;
   };
 
-  // Ein offener Raum ohne eigene Aufsicht, geöffnet über seine Raumseite,
-  // gehört in der Navigation zu „Räume“, nicht zu „Aktuelle Aufsicht“ (#4372).
-  const isViewingSharedOpenRoom =
-    pathname.startsWith("/active-supervisions") &&
-    isSharedOpenRoom(supervisedRooms, {
-      roomId: searchParams.get("room"),
-      sessionId: searchParams.get("session"),
-    });
-
   // Check if a navigation link should be highlighted as active
   const isActiveLink = (href: string) => {
     if (objectRouteActiveHref !== null) {
@@ -1030,7 +806,6 @@ function SidebarContent({
       return href === operatorDrillInHref;
     }
     if (href === "/home") return pathname === "/home";
-    if (isViewingSharedOpenRoom) return href === STAFF_FLAT_PAGES.rooms.href;
     // Ohne eigene Einträge gehören Gruppen- und Aufsichtsseite zu „Alle
     // Kinder“, von wo aus sie geöffnet werden (#1321).
     if (
@@ -1046,11 +821,6 @@ function SidebarContent({
     if (isPlanningPageHref(href)) {
       return getActivePlanningSubPageHref(pathname) === href;
     }
-    // /calendar-periods gehört zum Betreuungsplan, nicht zum Kalender —
-    // ohne Exakt-Match würde der /calendar-Eintrag per Präfix mitleuchten.
-    if (href === "/calendar") {
-      return pathname === "/calendar" || pathname.startsWith("/calendar/");
-    }
     if (href.startsWith("/parents/")) {
       // On the parents host the proxy rewrites /parents/* internally while the
       // browser (and usePathname) shows the external path without the prefix —
@@ -1060,7 +830,7 @@ function SidebarContent({
         pathname.startsWith(href.slice("/parents".length))
       );
     }
-    return pathname.startsWith(href);
+    return staffNavPathActive(href, pathname);
   };
 
   // Check if a section's parent header should be highlighted
@@ -1082,56 +852,25 @@ function SidebarContent({
     return !hasSubItemSelected;
   };
 
-  const getIconClasses = (item: NavItem) => {
-    if (!item.comingSoon && item.activeColor && isActiveLink(item.href)) {
-      return `${SIDEBAR_ICON_CLASSES} ${item.activeColor}`;
-    }
-    return SIDEBAR_ICON_CLASSES;
-  };
-
-  const renderNavIcon = (item: NavItem) => {
-    const concept = item.concept ?? null;
-    if (concept) {
-      return (
-        <MotoNavIcon
-          scene
-          concept={concept}
-          active={!item.comingSoon && isActiveLink(item.href)}
-          className={SIDEBAR_ICON_CLASSES}
-        />
-      );
-    }
-
-    return (
-      <NavSceneFallback>
-        <svg
-          className={getIconClasses(item)}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          aria-hidden="true"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d={item.icon ?? ""}
-          />
-        </svg>
-      </NavSceneFallback>
-    );
-  };
+  const renderNavIcon = (item: NavItem) => (
+    <MotoNavIcon
+      scene
+      concept={item.concept}
+      active={!item.comingSoon && isActiveLink(item.href)}
+      className={SIDEBAR_ICON_CLASSES}
+    />
+  );
 
   // Zähler an der Zeile; wie er beim Klappen wandert, regelt die Kit-Zeile.
   const rowBadge = (href: string): SidebarRowBadge | null => {
     const count = rowBadgeCounts[href] ?? 0;
     const badge = ROW_BADGE_LABELS[href];
     if (count <= 0 || !badge) return null;
-    const ariaLabel =
-      href === "/anfragen" && count === 1
-        ? "1 offene Anfrage"
-        : `${count} ${badge.noun}`;
-    return { count, tone: badge.tone, ariaLabel };
+    return {
+      count,
+      tone: badge.tone,
+      ariaLabel: counterAriaLabel(count, badge),
+    };
   };
 
   const collapseState = { collapsed, labelsMounted, labelsVisible };
@@ -1210,12 +949,20 @@ function SidebarContent({
     ...parentSubPages,
     ...communicationSubPages,
     ...planningSubPages,
-  ].map((page) => ({
-    href: page.href,
-    label: page.label,
-    concept: STAFF_NAV_CONCEPTS[page.href],
-    locked: "locked" in page ? page.locked : false,
-  }));
+  ].flatMap((page) => {
+    // Jede Katalogseite hat ein Bild (staff-nav-items.test.ts).
+    const concept = STAFF_NAV_CONCEPTS[page.href];
+    return concept
+      ? [
+          {
+            href: page.href,
+            label: page.label,
+            concept,
+            locked: "locked" in page ? page.locked : false,
+          },
+        ]
+      : [];
+  });
 
   // Alles, was die Person sehen darf, nach Pfad. Der Baum in
   // staff-navigation.ts bestimmt, wo (und ob) eine Zeile erscheint.
@@ -1250,6 +997,34 @@ function SidebarContent({
     childRoomKey ?? "",
     childRoomKey !== null &&
       (childFromParam?.startsWith("/active-supervisions") ?? false),
+  );
+  // Welche Gruppe die Gruppenseite zeigt: die aus `?group=`, sonst die
+  // zuletzt gewählte, die die Seite ohne Parameter wieder öffnet. Ist die
+  // gemerkte nicht (mehr) in der Liste, öffnet die Seite die erste Gruppe
+  // (#6863).
+  const onGroupPage =
+    pathname.startsWith("/ogs-groups") &&
+    !pathname.startsWith(OGS_GROUPS_OVERVIEW_PATH);
+  const rememberedGroupId = useLocalStorageValue(
+    childGroupKey ?? "",
+    childGroupKey !== null && onGroupPage && !currentGroupParam,
+  );
+  const shownGroupParam =
+    currentGroupParam ??
+    (rememberedGroupId && groups.some((group) => group.id === rememberedGroupId)
+      ? rememberedGroupId
+      : null);
+  // Eine fremde Gruppe, die gerade offen ist (direkt oder als Herkunft einer
+  // Kinderseite), steht markiert unter den eigenen. Sonst sähe eine Leitung
+  // ohne eigene Gruppe „Keine eigenen Gruppen“, während sie in einer Gruppe
+  // ist, und nichts zeigte, wo sie gerade ist (#6863).
+  const openGroupId = childGroupId ?? (onGroupPage ? shownGroupParam : null);
+  const openForeignGroup = useMemo(
+    () =>
+      openGroupId
+        ? groups.find((group) => group.id === openGroupId && !isOwnGroup(group))
+        : undefined,
+    [groups, openGroupId],
   );
   const childSessionId = useLocalStorageValue(
     childSessionKey ?? "",
@@ -1510,11 +1285,9 @@ function SidebarContent({
   const renderGroupsSection = () =>
     showGroupAccordion && !openCareGroupMode && !childSearchOnlyNavigation ? (
       <SidebarAccordionSection
-        icon={GROUP_NAV_ICON}
         concept={groupsConcept}
         label={OGS_GROUPS_LABEL}
         tourId="nav-section-groups"
-        activeColor="text-moto-green"
         isExpanded={expanded === "groups"}
         {...sectionProps("groups", handleGroupsToggle)}
         isActive={isAccordionSectionActive(
@@ -1528,7 +1301,7 @@ function SidebarContent({
         }
         isLoading={isLoadingGroups}
         emptyText="Keine eigenen Gruppen"
-        hasChildren={personalGroups.length > 0}
+        hasChildren={personalGroups.length > 0 || Boolean(openForeignGroup)}
       >
         {personalGroups.map((group, index) => (
           <SidebarSubItem
@@ -1540,11 +1313,20 @@ function SidebarContent({
               childGroupId,
               group.id.toString(),
               pathname,
-              currentGroupParam,
+              shownGroupParam,
               index,
             )}
           />
         ))}
+        {openForeignGroup ? (
+          <SidebarSubItem
+            key={openForeignGroup.id}
+            href={ogsGroupHref(openForeignGroup.id)}
+            label={openForeignGroup.name}
+            count={formatGroupAttendanceCount(openForeignGroup.id)}
+            isActive
+          />
+        ) : null}
       </SidebarAccordionSection>
     ) : null;
 
@@ -1558,7 +1340,6 @@ function SidebarContent({
     !childSearchOnlyNavigation ? (
       <>
         <SidebarAccordionSection
-          icon={SUPERVISION_NAV_ICON}
           concept={supervisionConcept}
           label={
             supervisionNavRooms.length > 1
@@ -1566,7 +1347,6 @@ function SidebarContent({
               : "Aktuelle Aufsicht"
           }
           tourId="nav-section-supervisions"
-          activeColor="text-moto-purple"
           isExpanded={expanded === "supervisions"}
           {...sectionProps("supervisions", handleSupervisionsToggle)}
           isActive={
@@ -1613,10 +1393,8 @@ function SidebarContent({
   const renderDatabaseSection = () =>
     databaseSubPages.length > 0 ? (
       <SidebarAccordionSection
-        icon={DATABASE_NAV_ICON}
         concept={databaseConcept}
         label={DATABASE_SECTION.label}
-        activeColor="text-gray-500"
         isExpanded={expanded === "database"}
         tourId="nav-database"
         {...sectionProps("database", handleDatabaseToggle)}
@@ -1659,6 +1437,13 @@ function SidebarContent({
   // Ohne das Modul Online-Anmeldung steht für die Leitung eine Zeile mit
   // Schloss statt des Bereichs (#4894).
   const enrollmentsVisibility = moduleNav.section("enrollments");
+  // Ungelesene Anmeldungen (#3778): am Bereich, an seinem Überblick und in
+  // der Summe der Gruppe Eltern derselbe Zähler.
+  const enrollmentsBadge: SidebarRowBadge = {
+    count: enrollmentsUnreadCount,
+    tone: COUNTER_TONE.staff,
+    ariaLabel: counterAriaLabel(enrollmentsUnreadCount, ENROLLMENTS_COUNTER),
+  };
   const showEnrollments = userLeadsSchool && enrollmentsVisibility === "open";
   const renderEnrollmentsSection = () =>
     userLeadsSchool && enrollmentsVisibility === "locked" ? (
@@ -1670,18 +1455,14 @@ function SidebarContent({
       })
     ) : showEnrollments ? (
       <SidebarAccordionSection
-        icon={ENROLLMENT_NAV_ICON}
         concept={enrollmentsConcept}
         label={ENROLLMENT_SECTION.label}
-        activeColor="text-moto-green"
         isExpanded={expanded === "enrollments"}
         {...sectionProps("enrollments", handleEnrollmentsToggle)}
         isActive={isOnEnrollmentsPage}
         isIconActive={isOnEnrollmentsPage}
         hasChildren={ENROLLMENT_SUB_PAGES.length > 0}
-        badgeCount={enrollmentsUnreadCount}
-        badgeTone="staff"
-        badgeNoun={ENROLLMENTS_UNREAD_NOUN}
+        badge={enrollmentsBadge}
       >
         {ENROLLMENT_SUB_PAGES.map((page) => (
           <SidebarSubItem
@@ -1689,13 +1470,9 @@ function SidebarContent({
             href={page.href}
             label={page.label}
             isActive={activeEnrollmentSubPageHref === page.href}
-            {...(page.href === ENROLLMENT_SECTION.href
-              ? {
-                  badgeCount: enrollmentsUnreadCount,
-                  badgeTone: "staff" as const,
-                  badgeNoun: ENROLLMENTS_UNREAD_NOUN,
-                }
-              : {})}
+            badge={
+              page.href === ENROLLMENT_SECTION.href ? enrollmentsBadge : null
+            }
           />
         ))}
       </SidebarAccordionSection>
@@ -1744,15 +1521,16 @@ function SidebarContent({
     }
   };
 
-  const entryBadgeCount = (entry: StaffNavEntry) => {
+  // Was eine Zeile der Gruppe zählt; die Kopfzeile der Gruppe nennt jeden
+  // Teil (#6566).
+  const entryBadge = (entry: StaffNavEntry): SidebarRowBadge | null => {
     if (entry.kind === "page") {
-      return visibleItemsByHref.has(entry.href)
-        ? (rowBadgeCounts[entry.href] ?? 0)
-        : 0;
+      const item = visibleItemsByHref.get(entry.href);
+      return item && !item.locked ? rowBadge(entry.href) : null;
     }
     return entry.section === "enrollments" && showEnrollments
-      ? enrollmentsUnreadCount
-      : 0;
+      ? enrollmentsBadge
+      : null;
   };
 
   return (
@@ -1810,34 +1588,44 @@ function SidebarContent({
                   Betreuungskräfte — über den Gruppen, wie bisher. */}
             {STAFF_NAV_TOP.map(renderEntry)}
 
+            {/* Einfache Seitenleiste (#6956): die Seiten des
+                  Betreuungsalltags als eine Liste, ohne Gruppen zum
+                  Aufklappen. */}
+            {simpleNav.active
+              ? STAFF_NAV_SIMPLE_ENTRIES.map(renderEntry)
+              : null}
+
             {/* Die fünf Gruppen (#2826), in der Reihenfolge des Baums. Eine
                   Gruppe ohne sichtbare Zeile fällt weg. */}
-            {STAFF_NAV_GROUPS.map((group) => {
-              const rows = group.entries.map(renderEntry);
-              if (!rows.some(Boolean)) return null;
-              return (
-                <div key={group.key} className="pt-2">
-                  <SidebarGroup
-                    label={group.label}
-                    icon={group.icon}
-                    tourId={`nav-group-${group.key}`}
-                    isOpen={isGroupOpen(group.key)}
-                    onToggle={() => toggleGroup(group.key)}
-                    containsActive={group.entries.some(isEntryActive)}
-                    badgeCount={group.entries.reduce(
-                      (sum, entry) => sum + entryBadgeCount(entry),
-                      0,
-                    )}
-                    badgeTone={group.key === "eltern" ? "parents" : "staff"}
-                    collapsed={collapsed}
-                    labelsMounted={labelsMounted}
-                    labelsVisible={labelsVisible}
-                  >
-                    {rows}
-                  </SidebarGroup>
-                </div>
-              );
-            })}
+            {simpleNav.active
+              ? null
+              : STAFF_NAV_GROUPS.map((group) => {
+                  const rows = group.entries.map(renderEntry);
+                  if (!rows.some(Boolean)) return null;
+                  return (
+                    <div key={group.key} className="pt-2">
+                      <SidebarGroup
+                        label={group.label}
+                        icon={group.icon}
+                        tourId={`nav-group-${group.key}`}
+                        isOpen={isGroupOpen(group.key)}
+                        onToggle={() => toggleGroup(group.key)}
+                        containsActive={group.entries.some(isEntryActive)}
+                        badge={combineSidebarRowBadges(
+                          group.entries.map(entryBadge),
+                          group.key === "eltern"
+                            ? COUNTER_TONE.parents
+                            : COUNTER_TONE.staff,
+                        )}
+                        collapsed={collapsed}
+                        labelsMounted={labelsMounted}
+                        labelsVisible={labelsVisible}
+                      >
+                        {rows}
+                      </SidebarGroup>
+                    </div>
+                  );
+                })}
           </nav>
 
           {/* Bottom pinned items — gleiches Raster wie oben, damit der untere
@@ -1846,6 +1634,21 @@ function SidebarContent({
             className={`border-t border-gray-200 ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
           >
             {STAFF_NAV_BOTTOM.map(renderEntry)}
+            {/* Ausgeblendet heißt nicht gesperrt (#6956): jede Person
+                  wechselt selbst zwischen beiden Ansichten. */}
+            {simpleNav.available ? (
+              <SidebarRowButton
+                {...collapseState}
+                label={simpleNav.toggleLabel}
+                icon={
+                  <NavSceneIcon
+                    icon={ListBulletsIcon}
+                    className={SIDEBAR_ICON_CLASSES}
+                  />
+                }
+                onClick={simpleNav.toggle}
+              />
+            ) : null}
           </nav>
         </>
       )}

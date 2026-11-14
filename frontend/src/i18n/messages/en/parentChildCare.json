@@ -39,7 +39,11 @@
     "requestSentPartlyTitle": "Reported and requested",
     "requestSentPartlyBody": "The free days are reported. For the other days, the {careTerm} will check your report. Until then, its entry applies.",
     "errorObject": "the absence report",
-    "submitting": "Reporting …"
+    "submitting": "Reporting …",
+    "submitDirectTooltip": "Reports your child absent right away. The {careTerm} sees it at once.",
+    "submitRequestTooltip": "Sends the absence as a request right away. The {careTerm} must confirm.",
+    "submitTooltip": "Sends the absence to the {careTerm} right away.",
+    "submitBlocked": "The {careTerm} does not accept absences here at the moment."
   },
   "summary": {
     "none": "No absence",
@@ -75,6 +79,7 @@
     "cutoffHint": "You can change today's pickup time until {time}.",
     "cutoffClosed": "Changes for today are only possible until {time}. Please contact the {careTerm}. You can still change other days.",
     "cutoffClosedGeneric": "Today can no longer be changed. Please contact the {careTerm}. You can still change other days.",
+    "careDayEnded": "Today's care has already ended. Today's pick-up time can no longer be changed. You can still change other days.",
     "reset": "Undo the change",
     "resetTitle": "Undo the change?",
     "resetDescription": "The different pick-up time for {date} will be removed. The regular weekly plan applies again.",
@@ -105,7 +110,15 @@
     "statusApprovedChange": "Confirmed, the change has been applied.",
     "errorStaffConflictGeneric": "The {careTerm} has already set a change for this day. Please contact the team.",
     "submitting": "Sending …",
-    "savingEdit": "Saving …"
+    "savingEdit": "Saving …",
+    "resetTooltip": "Removes your change for this day. moto asks first.",
+    "saveEditTooltip": "Changes your open request. The {careTerm} still has to confirm it.",
+    "submitTooltip": "Sends the request to the {careTerm} for confirmation right away.",
+    "disabledBlocked": "The {careTerm} does not accept pickup changes here.",
+    "alreadyHomeBlocked": "Your child is already home today.",
+    "cutoffBlocked": "The time for changes today is over.",
+    "staffSetBlocked": "The {careTerm} has already set this day.",
+    "loadBlocked": "The current times are missing. Please reload the page."
   },
   "actions": {
     "sick": {
@@ -125,5 +138,6 @@
   },
   "requiredHint": "Fields marked with * are required.",
   "timeFormatHint": "Time in the format 15:30",
-  "timeExample": "e.g. 15:30"
+  "timeExample": "e.g. 15:30",
+  "requestEditTooltip": "Opens your open request for editing."
 }

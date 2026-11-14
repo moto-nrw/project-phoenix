@@ -11,10 +11,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // TraegerAccounts is the Träger-Büro account management (ADR 0084 section 4,
@@ -147,30 +147,11 @@ func (t *TraegerAccounts) begin(ctx context.Context, actor identityaccess.Traege
 	if err != nil {
 		return traegerUnit{}, err
 	}
-	traeger, live, err := t.memberships.FindLiveTraeger(ctx, actor.OrganizationID)
+	unit, err := t.memberUnit(ctx, actor)
 	if err != nil {
 		return traegerUnit{}, err
 	}
-	if !live {
-		return traegerUnit{}, identityaccess.ErrNoTraegerMembership
-	}
-	members, err := t.memberships.ListActiveTraegerMemberships(ctx, actor.OrganizationID)
-	if err != nil {
-		return traegerUnit{}, err
-	}
-	unit := traegerUnit{name: traeger.Name, members: members, leaders: leaders}
-	if _, ok := unit.member(actor.AccountID); !ok {
-		return traegerUnit{}, identityaccess.ErrNoTraegerMembership
-	}
-	// The token may outlive a switch-off of the account; the account itself
-	// decides.
-	account, found, _, err := t.store.FindLoginAccount(ctx, actor.AccountID, false)
-	if err != nil {
-		return traegerUnit{}, err
-	}
-	if !found || !account.Active {
-		return traegerUnit{}, identityaccess.ErrAccountInactive
-	}
+	unit.leaders = leaders
 	roles, _, err := t.store.ListTraegerRoles(ctx, actor.OrganizationID, actor.AccountID)
 	if err != nil {
 		return traegerUnit{}, err
@@ -544,6 +525,11 @@ func (t *TraegerAccounts) AcceptTraegerInvitation(ctx context.Context, token str
 	if t == nil {
 		return "", identityaccess.ErrTraegerAccountsUnavailable
 	}
+	name, err := normalizeTraegerMemberName(acceptance.Name)
+	if err != nil {
+		return "", err
+	}
+	acceptance.Name = name
 	verified, err := t.proveExistingAccount(ctx, token, acceptance)
 	if err != nil {
 		return "", err
@@ -609,6 +595,9 @@ func (t *TraegerAccounts) accept(ctx context.Context, token string, verified int
 	if err := t.memberships.ActivateTraegerMembership(ctx, invitation.OrganizationID, account.ID); err != nil {
 		return actor, "", err
 	}
+	if err := t.memberships.NameTraegerMember(ctx, invitation.OrganizationID, account.ID, acceptance.Name); err != nil {
+		return actor, "", err
+	}
 	spent, _, err := t.store.SpendTraegerInvitation(ctx, invitation.ID, t.now())
 	if err != nil {
 		return actor, "", err
@@ -616,7 +605,10 @@ func (t *TraegerAccounts) accept(ctx context.Context, token string, verified int
 	if !spent {
 		return actor, "", identityaccess.ErrInvitationUsed
 	}
-	return actor, account.Email, t.record(ctx, actor, identityaccess.TraegerAccountInvitationAccepted, &account.ID, &account.Email, before, granted)
+	return actor, account.Email, t.appendChange(ctx, identityaccess.TraegerAccountChange{
+		OrganizationID: actor.OrganizationID, ActorAccountID: actor.AccountID, Action: identityaccess.TraegerAccountInvitationAccepted,
+		TargetAccountID: &account.ID, TargetEmail: &account.Email, TargetName: &acceptance.Name, RolesBefore: before, RolesAfter: granted,
+	})
 }
 
 // redeemable reads the invitation behind the token and refuses an unknown,
@@ -678,13 +670,6 @@ func (t *TraegerAccounts) invitedAccount(ctx context.Context, email string, veri
 	}
 	created, _, err := t.store.InsertAccount(ctx, email, hash)
 	return created, err
-}
-
-func (t *TraegerAccounts) record(ctx context.Context, actor identityaccess.TraegerActor, action string, targetAccountID *int64, targetEmail *string, before, after []string) error {
-	return t.audit.RecordTraegerAccountChange(ctx, identityaccess.TraegerAccountChange{
-		OrganizationID: actor.OrganizationID, ActorAccountID: actor.AccountID, Action: action,
-		TargetAccountID: targetAccountID, TargetEmail: targetEmail, RolesBefore: before, RolesAfter: after,
-	})
 }
 
 // normalizeTraegerInvitation lowercases the address and normalizes the role
@@ -764,14 +749,6 @@ func (u traegerUnit) requireLeadershipFor(before, after []string) error {
 		return identityaccess.ErrTraegerAccountsForbidden
 	}
 	return nil
-}
-
-func publicTraegerMember(account domain.TraegerAccount, membership identityPorts.TraegerMembership) identityaccess.TraegerMember {
-	roles := account.Roles
-	if roles == nil {
-		roles = []string{}
-	}
-	return identityaccess.TraegerMember{AccountID: account.AccountID, Email: account.Email, Roles: roles, ActivatedAt: membership.ActivatedAt}
 }
 
 // operatorTraegerInvitation is the invitation as the operator sees it: the

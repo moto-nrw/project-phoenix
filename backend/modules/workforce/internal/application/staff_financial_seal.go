@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/domain"
 )
 
 // Staff bank and tax values are sealed with the bank ring (#6332, ADR 0183).

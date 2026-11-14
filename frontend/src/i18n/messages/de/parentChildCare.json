@@ -39,7 +39,11 @@
     "requestSentPartlyTitle": "Gemeldet und angefragt",
     "requestSentPartlyBody": "Die freien Tage sind gemeldet. Für die anderen Tage prüft die {careTerm} Ihre Meldung. Bis dahin gilt ihr Eintrag.",
     "errorObject": "die Abwesenheitsmeldung",
-    "submitting": "Wird gemeldet …"
+    "submitting": "Wird gemeldet …",
+    "submitDirectTooltip": "Meldet Ihr Kind sofort ab. Die {careTerm} sieht es gleich.",
+    "submitRequestTooltip": "Schickt die Abmeldung sofort als Anfrage. Die {careTerm} muss bestätigen.",
+    "submitTooltip": "Schickt die Abmeldung sofort an die {careTerm}.",
+    "submitBlocked": "Die {careTerm} nimmt hier zurzeit keine Abmeldung an."
   },
   "summary": {
     "none": "Keine Abmeldung",
@@ -75,6 +79,7 @@
     "cutoffHint": "Die Abholzeit für heute können Sie bis {time} Uhr ändern.",
     "cutoffClosed": "Für heute geht das nur bis {time} Uhr. Bitte wenden Sie sich an die {careTerm}. Andere Tage können Sie weiter ändern.",
     "cutoffClosedGeneric": "Für heute ist keine Änderung mehr möglich. Bitte wenden Sie sich an die {careTerm}. Andere Tage können Sie weiter ändern.",
+    "careDayEnded": "Die Betreuung ist für heute schon zu Ende. Die Abholzeit für heute können Sie nicht mehr ändern. Andere Tage können Sie weiter ändern.",
     "reset": "Änderung zurücknehmen",
     "resetTitle": "Änderung zurücknehmen?",
     "resetDescription": "Die abweichende Abholzeit für den {date} wird entfernt. Es gilt wieder der reguläre Wochenplan.",
@@ -105,7 +110,15 @@
     "statusApprovedChange": "Bestätigt, die Änderung wurde übernommen.",
     "errorStaffConflictGeneric": "Für diesen Tag hat die {careTerm} schon eine Änderung eingetragen. Bitte wenden Sie sich an das Team.",
     "submitting": "Wird gesendet …",
-    "savingEdit": "Wird gespeichert …"
+    "savingEdit": "Wird gespeichert …",
+    "resetTooltip": "Entfernt Ihre Änderung für diesen Tag. moto fragt vorher nach.",
+    "saveEditTooltip": "Ändert Ihre offene Anfrage. Die {careTerm} muss sie noch bestätigen.",
+    "submitTooltip": "Schickt die Anfrage sofort an die {careTerm} zur Bestätigung.",
+    "disabledBlocked": "Die {careTerm} nimmt hier keine Änderung der Abholung an.",
+    "alreadyHomeBlocked": "Ihr Kind ist heute schon zuhause.",
+    "cutoffBlocked": "Für heute ist die Zeit für Änderungen vorbei.",
+    "staffSetBlocked": "Die {careTerm} hat diesen Tag schon festgelegt.",
+    "loadBlocked": "Die bisherigen Zeiten fehlen. Bitte laden Sie die Seite neu."
   },
   "actions": {
     "sick": {
@@ -125,5 +138,6 @@
   },
   "requiredHint": "Felder mit * müssen ausgefüllt werden.",
   "timeFormatHint": "Uhrzeit im Format 15:30",
-  "timeExample": "z. B. 15:30"
+  "timeExample": "z. B. 15:30",
+  "requestEditTooltip": "Öffnet Ihre offene Anfrage zum Ändern."
 }

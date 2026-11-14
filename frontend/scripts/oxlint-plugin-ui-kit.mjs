@@ -100,7 +100,8 @@ import {
 // One more keeps form fields on the kit (#5217):
 //
 //   ui-kit/no-kit-domain-import     — files in components/ui import no other
-//                                     components and fetch no data (#5586)
+//                                     components, only pure ~/lib modules
+//                                     and fetch no data (#5586, #6582)
 //   ui-kit/no-raw-table             — no <table> outside components/ui; use
 //                                     DataTable (#5600)
 //   ui-kit/no-em-dash-empty-value   — an empty value is "–", never "—" (#5600)
@@ -139,8 +140,9 @@ import {
 //
 //   ui-kit/no-shadcn-tokens         — no shadcn theme tokens (bg-background,
 //                                     text-muted-foreground …); bg-white/gray-*
-//   ui-kit/no-raw-z-index           — no `z-[n]` inside src/components/ui/;
-//                                     levels come from Z_LAYER
+//   ui-kit/no-raw-z-index           — no `z-[n]` or `z-n` inside
+//                                     src/components/ui/; levels come from
+//                                     Z_LAYER (#6574)
 //
 // One more keeps icon tiles on the kit (#5582):
 //
@@ -214,7 +216,7 @@ const SHADCN_TOKEN_RE =
   /(?<![\w-])(?:bg|text|border(?:-[trblxyse])?|ring|ring-offset|outline|fill|stroke|divide|placeholder|from|via|to|caret|accent|decoration|shadow)-(?:background|foreground|muted(?:-foreground)?|accent(?:-foreground)?|popover(?:-foreground)?|card(?:-foreground)?|primary(?:-foreground)?|secondary(?:-foreground)?|destructive(?:-foreground)?|input|ring|border)(?![\w-])/g;
 // Arbitrary stacking numbers (`z-[9999]`) inside the kit; the levels live in
 // `Z_LAYER` (overlay-styles.ts), the one file this rule skips (#5579).
-const RAW_Z_INDEX_RE = /(?<![\w-])z-\[[^\]\s]+\](?![\w-])/g;
+const RAW_Z_INDEX_RE = /(?<![\w-])z-(?:\[[^\]\s]+\]|\d+)(?![\w-])/g;
 const Z_LAYER_FILE = "src/components/ui/overlay-styles.ts";
 
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
@@ -719,7 +721,6 @@ const SURFACE_CONTROL_ELEMENTS = new Set([
   "select",
   "textarea",
   "Link",
-  "NavLink",
   "NavigationLink",
   "Button",
   "ButtonLink",
@@ -1088,7 +1089,7 @@ const noRawZIndex = makeClassStringRule({
   skipUiKit: false,
   onlyUiKit: true,
   skipFiles: [Z_LAYER_FILE],
-  docs: "Disallow arbitrary z-index numbers in the UI kit; overlays take their level from Z_LAYER.",
+  docs: "Disallow z-index classes in the UI kit; every level comes from Z_LAYER.",
   messageId: "rawZIndex",
   message:
     "{{match}} is a stacking number of its own. Take the level from Z_LAYER / Z_INDEX in overlay-styles.ts, or add a named level there.",
@@ -2422,11 +2423,51 @@ const confirmationLoadingText = {
 // The kit works in every portal, so it knows no domain: a file under
 // components/ui/ imports nothing from other component folders and loads no
 // data. Context arrives through props and slots (#5586).
+//
+// src/lib holds pure helpers next to domain modules (tenant context, concepts,
+// API clients, domain calculations). The kit loads only the modules listed in
+// KIT_PURE_LIB_MODULES: no tenant or school knowledge, no API, no domain rule
+// (#6582). A type-only import stays allowed from every lib
+// module: it leaves no code in the bundle and only names the shape a prop
+// takes (MotoConcept, ModuleKey).
+
+const KIT_PURE_LIB_MODULES = new Set([
+  "src/lib/constants/input-limits",
+  "src/lib/date-helpers",
+  "src/lib/date-picker-labels",
+  "src/lib/file-format",
+  "src/lib/format-utils",
+  "src/lib/hooks/use-berlin-today",
+  "src/lib/hooks/use-latest",
+  "src/lib/hooks/use-media-query",
+  "src/lib/hooks/use-scroll-y",
+  "src/lib/hooks/use-viewport-at-least",
+  "src/lib/kit-palette",
+  // Infrastructure, not domain: frontend/CLAUDE.md requires createLogger for
+  // every log line. It reads the portal only to pick its ingest path.
+  "src/lib/logger",
+  "src/lib/search-fold",
+  "src/lib/use-clipboard-copy",
+  "src/lib/utils",
+]);
 
 const KIT_DATA_HOOK_RE = /^useSWR/;
 
-function kitImportLeavesKit(source, key) {
-  if (source === "swr" || source.startsWith("swr/")) return true;
+/** `import type …`, `export type …`, or only `type` specifiers. */
+function isTypeOnlyImport(node) {
+  if (node.type === "ImportExpression") return false;
+  if (node.importKind === "type" || node.exportKind === "type") return true;
+  const specifiers = node.specifiers ?? [];
+  return (
+    specifiers.length > 0 &&
+    specifiers.every(
+      (specifier) =>
+        specifier.importKind === "type" || specifier.exportKind === "type",
+    )
+  );
+}
+
+function kitImportTarget(source, key) {
   const alias = /^[~@]\/(.*)$/.exec(source);
   let target;
   if (alias) {
@@ -2439,10 +2480,20 @@ function kitImportLeavesKit(source, key) {
     }
     target = parts.join("/");
   } else {
-    return false;
+    return null;
   }
-  if (target.startsWith(UI_KIT_DIR)) return false;
-  return target.startsWith("src/components/") || target.startsWith("src/app/");
+  return target.replace(/\.(?:ts|tsx|js|mjs)$/, "");
+}
+
+function kitImportLeavesKit(node, source, key) {
+  if (source === "swr" || source.startsWith("swr/")) return true;
+  const target = kitImportTarget(source, key);
+  if (target === null || target.startsWith(UI_KIT_DIR)) return false;
+  if (target.startsWith("src/components/") || target.startsWith("src/app/")) {
+    return true;
+  }
+  if (!target.startsWith("src/lib/")) return false;
+  return !KIT_PURE_LIB_MODULES.has(target) && !isTypeOnlyImport(node);
 }
 
 const noKitDomainImport = {
@@ -2454,7 +2505,7 @@ const noKitDomainImport = {
     },
     messages: {
       domainImport:
-        "Das Kit importiert keine Fachlogik ('{{source}}'). Baustein nach components/ui ziehen oder Kontext über Props oder Slots hereinreichen (#5586, .claude/rules/frontend-ui-kit.md).",
+        "Das Kit importiert keine Fachlogik ('{{source}}'). Fachbaustein in seinen Fachordner ziehen oder Kontext über Props oder Slots hereinreichen; aus ~/lib nur reine Module (KIT_PURE_LIB_MODULES) und Typen (#5586, #6582, .claude/rules/frontend-ui-kit.md).",
       dataAccess:
         "Das Kit lädt keine Daten ('{{name}}'). Die Daten kommen über Props vom fachlichen Aufrufer (#5586, .claude/rules/frontend-ui-kit.md).",
     },
@@ -2465,7 +2516,7 @@ const noKitDomainImport = {
     if (!key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
 
     const checkSource = (node, source) => {
-      if (typeof source !== "string" || !kitImportLeavesKit(source, key))
+      if (typeof source !== "string" || !kitImportLeavesKit(node, source, key))
         return;
       context.report({ node, messageId: "domainImport", data: { source } });
     };
@@ -2654,7 +2705,7 @@ const noEmDashEmptyValue = {
 //
 // Jede Aktion nutzt Button, ButtonLink oder buttonClassName aus dem Kit.
 //
-//   no-hand-rolled-button — natives <button>, <a>, <Link>, <NavLink>,
+//   no-hand-rolled-button — natives <button>, <a>, <Link>,
 //     <NavigationLink> oder ein Element mit role="button", das wie ein Knopf
 //     aussieht: Hintergrund- oder Ring-/Rahmenfarbe plus Radius plus Polster
 //     oder Höhe, jeweils ohne Zustandspräfix.
@@ -2675,15 +2726,13 @@ const NATIVE_ACTION_ELEMENTS = new Set([
   "button",
   "a",
   "Link",
-  "NavLink",
   "NavigationLink",
 ]);
 const KIT_BUTTONS = new Set(["Button", "ButtonLink"]);
 const KIT_BUTTON_EXPORTS = new Set(["Button", "ButtonLink", "buttonClassName"]);
-const ACTION_COMPONENTS = new Set(["Link", "NavLink", "NavigationLink"]);
+const ACTION_COMPONENTS = new Set(["Link", "NavigationLink"]);
 const DEFAULT_ACTION_COMPONENTS = new Map([
   ["next/link", "Link"],
-  ["~/components/ui/nav-link", "NavLink"],
   ["~/components/ui/navigation-link", "NavigationLink"],
 ]);
 
@@ -3225,7 +3274,7 @@ const noButtonOverride = makeRatchetRule({
 // prüft, auch in Ternär-Zweigen und Konstanten derselben Datei. Zustände
 // (hover:, active:, aria-pressed:) dürfen grau tönen. Keine Knöpfe in diesem
 // Sinn (frontend-ui-kit.md, Buttons): Schalter, Reiter, Menü- und
-// Auswahleinträge (role), Navigationszeilen (aria-current, NavLink,
+// Auswahleinträge (role), Navigationszeilen (aria-current,
 // NavigationLink) und die Spur eines SegmentedControl. Hart null: keine
 // Baseline; begründete Ausnahmen in der Allowlist (ui-kit-button-baseline.mjs).
 
@@ -3239,7 +3288,7 @@ const NOT_BUTTON_ROLES = new Set([
   "option",
   "radio",
 ]);
-const NAVIGATION_ROWS = new Set(["NavLink", "NavigationLink"]);
+const NAVIGATION_ROWS = new Set(["NavigationLink"]);
 
 function isNavigationOrControl(node, name, bindings) {
   const role = staticAttributeValue(jsxAttribute(node, "role"));
@@ -3712,7 +3761,6 @@ const INTERACTIVE_ELEMENTS = new Set([
   "button",
   "a",
   "Link",
-  "NavLink",
   "NavigationLink",
   "Button",
   "ButtonLink",
@@ -3884,7 +3932,7 @@ const noSelectOverride = {
     },
     messages: {
       override:
-        'Keine eigene Optik am Auswahlfeld ({{tokens}}): Rahmen, Hintergrund, Höhe und Radius kommen aus dem Kit. controlSize="compact" (ListboxDropdown: size) wählen, className nur für Layout (#5580, .claude/rules/frontend-ui-kit.md).',
+        'Keine eigene Optik am Auswahlfeld ({{tokens}}): Rahmen, Hintergrund, Höhe und Radius kommen aus dem Kit. Ohne Angabe 40 px, controlSize="dense" (ListboxDropdown: size) für dichte Zeilen, className nur für Layout (#5580, .claude/rules/frontend-ui-kit.md).',
       unstyled:
         "unstyledTrigger ist nur im Kit erlaubt; außerhalb gilt die Feldoptik von ListboxDropdown (#5580).",
     },
@@ -3989,7 +4037,7 @@ const noControlHeightOverride = {
     },
     messages: {
       override:
-        'Keine eigene Bedienhöhe ({{tokens}}): Input und Auswahlfelder nehmen controlSize="compact" (40 px), OverflowMenu triggerSize (#5605, .claude/rules/frontend-ui-kit.md).',
+        'Keine eigene Bedienhöhe ({{tokens}}): Input nimmt controlSize="compact" (40 px), Auswahlfelder haben 40 px ohne Angabe (ControlSize, control-geometry.ts), OverflowMenu triggerSize (#5605, .claude/rules/frontend-ui-kit.md).',
     },
     schema: [],
   },
@@ -4248,6 +4296,48 @@ const noHandRolledStickyBar = {
   },
 };
 
+// ui-kit/no-hand-rolled-action-row (#6571, hard-zero) — eine Zeile mit eigener
+// Aktionsspalte ist `ResponsiveActionRow`. Fund: `grid-cols-subgrid` außerhalb
+// des Kits, in einem Klassen-String oder einer Konstante.
+function isHandRolledActionRow(text) {
+  return text
+    .split(/\s+/)
+    .some((token) => bareUtility(token) === "grid-cols-subgrid");
+}
+
+const noHandRolledActionRow = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-built subgrid rows outside the UI kit; use ResponsiveActionRow.",
+    },
+    messages: {
+      handRolled:
+        "Keine eigene Zeile mit Aktionsspalte: ResponsiveActionRow (~/components/ui/responsive-action-list) in ResponsiveActionList (#6571).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key.startsWith(UI_KIT_DIR)) return {};
+    const check = (node, text) => {
+      if (isHandRolledActionRow(text)) {
+        context.report({ node, messageId: "handRolled" });
+      }
+    };
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        for (const quasi of node.quasis) check(node, quasi.value.raw);
+      },
+    };
+  },
+};
+
 // ui-kit/no-hand-rolled-field-label (#5589) — die Beschriftung eines Felds kommt
 // aus `FieldLabel` oder der `label`-Prop. Fund: `<label>` mit text-xs/text-sm und
 // font-medium/font-semibold, ein `<span>` dieser Art mit `block` und `mb-*` über
@@ -4492,7 +4582,14 @@ const PORTAL_NAV_KIT_ROW_EXPORTS = new Set([
   "sidebarRowClasses",
   "sidebarLabelClasses",
   "SIDEBAR_GROUP_HEADING_CLASSES",
-  "SIDEBAR_SUB_ITEM_CLASSES",
+  "sidebarSubItemClasses",
+  "sidebarGroupBodyClasses",
+  "sidebarGroupIconClasses",
+  "sidebarChevronClasses",
+  "sidebarFadeClasses",
+  "SIDEBAR_RAIL_BADGE_CLASSES",
+  "SIDEBAR_GROUP_HEADING_RAIL_BADGE_CLASSES",
+  "SidebarRowContent",
 ]);
 
 function hasPortalNavShellSignature(text) {
@@ -5922,6 +6019,292 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/settings/",
   "src/app/traeger/einstellungen/",
   "src/components/settings/",
+  // Kit-Bausteine bringen ihre Standardtexte selbst mit (#6744).
+  "src/components/ui/",
+  // Kinder – Seiten Kinderliste und Eltern (#6748).
+  "src/app/[tenant]/(protected)/eltern/bankverbindungen/page.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/page.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/room-history/page.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/unfallanzeigen/[reportId]/page.tsx",
+  "src/app/[tenant]/(protected)/students/search/page.tsx",
+  "src/app/[tenant]/(protected)/students/search/use-child-scope-tabs.tsx",
+  // Träger-Seiten Übersicht, Ferien, Verträge, Dokumente, Schulen und
+  // Schließtage (#6747).
+  "src/app/traeger/page.tsx",
+  "src/app/traeger/dokumente/page.tsx",
+  "src/app/traeger/dokumente/[id]/page.tsx",
+  "src/app/traeger/ferien/page.tsx",
+  "src/app/traeger/ferien/[id]/anmeldungen/[registrationId]/page.tsx",
+  "src/app/traeger/ferien/[id]/anmeldungen/page.tsx",
+  "src/app/traeger/ferien/[id]/formular/page.tsx",
+  "src/app/traeger/ferien/[id]/page.tsx",
+  "src/app/traeger/ferien/[id]/vergabe/page.tsx",
+  "src/app/traeger/schliesstage/page.tsx",
+  "src/app/traeger/schulen/[id]/page.tsx",
+  "src/app/traeger/uebersicht/page.tsx",
+  "src/app/traeger/vertraege/page.tsx",
+  "src/app/traeger/vertraege/[id]/page.tsx",
+  "src/components/traeger/booking-accounts-cards.tsx",
+  // Träger-Abrechnung, Seiten (#6746).
+  "src/app/traeger/abrechnung/page.tsx",
+  "src/app/traeger/abrechnung/[id]/page.tsx",
+  "src/app/traeger/abrechnung/exporte/feldzuordnung/page.tsx",
+  "src/app/traeger/abrechnung/exporte/konten/page.tsx",
+  "src/app/traeger/abrechnung/exporte/page.tsx",
+  "src/app/traeger/abrechnung/familien/page.tsx",
+  "src/app/traeger/abrechnung/jahresbescheide/[id]/bescheid/[contractId]/page.tsx",
+  "src/app/traeger/abrechnung/jahresbescheide/[id]/page.tsx",
+  "src/app/traeger/abrechnung/jahresbescheide/[id]/versand/page.tsx",
+  "src/app/traeger/abrechnung/jahresbescheide/page.tsx",
+  "src/app/traeger/abrechnung/kinderzahl/page.tsx",
+  "src/app/traeger/abrechnung/kostentraeger/page.tsx",
+  "src/app/traeger/abrechnung/lastschrift/import/page.tsx",
+  "src/app/traeger/abrechnung/lastschrift/page.tsx",
+  "src/app/traeger/abrechnung/monatsbeitraege/[id]/page.tsx",
+  "src/app/traeger/abrechnung/monatsbeitraege/[id]/rechnung/[contractId]/page.tsx",
+  "src/app/traeger/abrechnung/monatsbeitraege/[id]/schreiben/page.tsx",
+  "src/app/traeger/abrechnung/monatsbeitraege/page.tsx",
+  "src/app/traeger/abrechnung/nachweise/page.tsx",
+  // Anmeldung – Ferienwochen und Verwaltung der Anmeldungen (#6749).
+  "src/app/[tenant]/(protected)/ferienwochen/holiday-guest-group-card.tsx",
+  "src/app/[tenant]/(protected)/ferienwochen/page.tsx",
+  "src/components/enrollment/admin-child-data-correction.tsx",
+  "src/components/enrollment/admin-enrollment-change-requests.tsx",
+  "src/components/enrollment/admin-enrollment-detail.tsx",
+  "src/components/enrollment/admin-enrollment-phase-detail.tsx",
+  "src/components/enrollment/admin-enrollment-signature.tsx",
+  "src/components/enrollment/admin-enrollments-list.tsx",
+  "src/components/enrollment/attachment-editor.tsx",
+  "src/components/enrollment/attachment-list.tsx",
+  "src/components/enrollment/care-offerings-editor.tsx",
+  "src/components/enrollment/child-offering-adjustment.tsx",
+  // Mitarbeitende: Seiten, Einladungen, Rollen, Abwesenheiten (#6750).
+  "src/app/[tenant]/(protected)/admin/enrollments/page.tsx",
+  "src/app/[tenant]/(protected)/staff/[id]/page.tsx",
+  "src/app/[tenant]/(protected)/staff/page.tsx",
+  "src/components/admin/guardian-approval-queue.tsx",
+  "src/components/admin/invitation-form.tsx",
+  "src/components/admin/pending-invitations-list.tsx",
+  "src/components/roles/role-permissions-tab.tsx",
+  "src/components/roles/roles-master-detail.tsx",
+  "src/components/staff-preview/staff-preview-banner.tsx",
+  "src/components/staff-preview/staff-preview-modal.tsx",
+  "src/components/staff/absence-booking-modal.tsx",
+  "src/components/staff/absence-decision-modals.tsx",
+  "src/components/staff/absence-rebook-modal.tsx",
+  "src/components/staff/absence-request-row.tsx",
+  "src/components/staff/abwesenheiten-tab.tsx",
+  "src/components/staff/admin-session-edit-modal.tsx",
+  "src/components/staff/allowance-card.tsx",
+  "src/components/staff/arbeitszeitmodell-tab.tsx",
+  // Zeiterfassung, Lohn und Abwesenheiten (#6752).
+  "src/app/[tenant]/(protected)/absences/page.tsx",
+  "src/app/[tenant]/(protected)/payroll/page.tsx",
+  "src/app/[tenant]/(protected)/time-tracking/page.tsx",
+  "src/components/payroll/payroll-rule-modals.tsx",
+  "src/components/time-tracking/edit-history-accordion.tsx",
+  "src/components/time-tracking/leave-requests-card.tsx",
+  "src/components/time-tracking/monatskarte.tsx",
+  "src/components/time-tracking/own-dienstplan-view.tsx",
+  "src/components/time-tracking/vacation-request-modal.tsx",
+  // Datenverwaltung: Seiten AGs, Datenbank, Infobildschirme, Listen (#6753).
+  "src/app/[tenant]/(protected)/activities/page.tsx",
+  "src/app/[tenant]/(protected)/database/exports/page.tsx",
+  "src/app/[tenant]/(protected)/database/personal/import/page.tsx",
+  "src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx",
+  "src/app/[tenant]/(protected)/database/personal/page.tsx",
+  "src/app/[tenant]/(protected)/database/qualifications/page.tsx",
+  "src/app/[tenant]/(protected)/database/shift-types/page.tsx",
+  "src/app/[tenant]/(protected)/database/students/class-list/import/page.tsx",
+  "src/app/[tenant]/(protected)/database/students/class-list/page.tsx",
+  "src/app/[tenant]/(protected)/database/students/ended-care/page.tsx",
+  "src/app/[tenant]/(protected)/database/students/import/page.tsx",
+  "src/app/[tenant]/(protected)/database/students/page.tsx",
+  "src/app/[tenant]/(protected)/info-displays/page.tsx",
+  "src/app/[tenant]/(protected)/lists/page.tsx",
+  // Planung: Kalender, Vertretungen, Betreuungsplan, Schließzeiten (#6751).
+  "src/app/[tenant]/(protected)/calendar/page.tsx",
+  "src/app/[tenant]/(protected)/substitutions/page.tsx",
+  "src/components/calendar/calendar-subscribe-panel.tsx",
+  "src/components/calendar/personal-calendar.tsx",
+  "src/components/planning/calendar-periods-editor.tsx",
+  "src/components/planning/closing-day-modal.tsx",
+  "src/components/planning/closing-days-editor.tsx",
+  "src/components/timetable/betreuungsplan-view.tsx",
+  "src/components/timetable/booking-leftover-hints.tsx",
+  "src/components/timetable/bulk-substitution-modal.tsx",
+  // Kommunikation: Nachrichten, Ankündigungen, Umfragen (#6754).
+  "src/app/[tenant]/(protected)/messages/",
+  "src/app/[tenant]/(protected)/parent-announcements/",
+  "src/app/[tenant]/(protected)/umfragen/",
+  "src/components/announcements/announcement-detail.tsx",
+  "src/components/announcements/announcement-lifecycle-dialogs.tsx",
+  "src/components/announcements/announcement-reminder-dialog.tsx",
+  "src/components/announcements/declaration-status-panel.tsx",
+  "src/components/announcements/letter-status-panel.tsx",
+  "src/components/announcements/parent-target-picker.tsx",
+  "src/components/messaging/chat-bubble.tsx",
+  "src/components/messaging/message-composer.tsx",
+  "src/components/messaging/new-group-message-modal.tsx",
+  "src/components/messaging/new-message-modal.tsx",
+  "src/components/messaging/pickup-request-detail-modal.tsx",
+  // Alltag: Aufsicht, Tagesprotokoll, Notfall, Startseite, Profil (#6755).
+  "src/app/[tenant]/(protected)/active-supervisions/page.tsx",
+  "src/app/[tenant]/(protected)/day-log/page.tsx",
+  "src/app/[tenant]/(protected)/emergency/page.tsx",
+  "src/app/[tenant]/(protected)/home/page.tsx",
+  "src/app/[tenant]/(protected)/profile/page.tsx",
+  "src/app/[tenant]/(protected)/tagesinformationen/page.tsx",
+  "src/app/[tenant]/(protected)/wochenprotokolle/[protocolId]/page.tsx",
+  "src/components/active-supervisions/add-supervisor-modal.tsx",
+  "src/components/active-supervisions/add-unplanned-student-modal.tsx",
+  "src/components/active-supervisions/hand-over-supervision-modal.tsx",
+  "src/components/active-supervisions/open-room-sections.tsx",
+  "src/components/active-supervisions/own-supervision-view.tsx",
+  "src/components/active-supervisions/past-blocks-section.tsx",
+  "src/components/active-supervisions/planned-now-section.tsx",
+  "src/components/active-supervisions/present-children-picker.tsx",
+  "src/components/active-supervisions/spontaneous-activity-start.tsx",
+  "src/components/active-supervisions/states.tsx",
+  "src/components/active-supervisions/timetable-roster.tsx",
+  "src/components/active/unclaimed-rooms.tsx",
+  // Elternportal: Kind, Kalender, Buchungen, Kurse, Vertrag, Ferienanmeldung,
+  // Einstellungen (#6756).
+  "src/app/parents/children/[id]/elternsprechtag/page.tsx",
+  "src/app/parents/error.tsx",
+  "src/app/parents/ferienanmeldung/[token]/page.tsx",
+  "src/app/parents/settings/page.tsx",
+  "src/components/parent/calendar/parent-calendar-page.tsx",
+  "src/components/parent/care-contract-signing-view.tsx",
+  "src/components/parent/care-schedule-request-modal.tsx",
+  "src/components/parent/child-care.tsx",
+  "src/components/parent/child-master-data-request-modal.tsx",
+  "src/components/parent/child-master-data.tsx",
+  "src/components/parent/child/booked-care-section.tsx",
+  "src/components/parent/child/child-consents-section.tsx",
+  "src/components/parent/child/child-day-card.tsx",
+  "src/components/parent/child/child-page.tsx",
+  "src/components/parent/child/courses-section.tsx",
+  "src/components/parent/child/weekly-schedule-section.tsx",
+  "src/components/parent/parent-holiday-registrations-page.tsx",
+  // Träger: Betreuungsverträge, Dokumente und Familien (#6762).
+  "src/components/traeger/care-contract-change-card.tsx",
+  "src/components/traeger/care-contract-change-modal.tsx",
+  "src/components/traeger/care-contract-create-modal.tsx",
+  "src/components/traeger/care-contract-notice-card.tsx",
+  "src/components/traeger/care-contract-notice-modal.tsx",
+  "src/components/traeger/care-contract-paper-modal.tsx",
+  "src/components/traeger/care-contract-signature-card.tsx",
+  "src/components/traeger/care-contract-versions.tsx",
+  "src/components/traeger/care-invoice-amendments.tsx",
+  "src/components/traeger/care-letters-card.tsx",
+  "src/components/traeger/care-letters-summary-card.tsx",
+  "src/components/traeger/care-meal-school-card.tsx",
+  "src/components/traeger/care-notice-run-start-modal.tsx",
+  "src/components/traeger/care-price-list-card.tsx",
+  "src/components/traeger/care-price-module-editor.tsx",
+  "src/components/traeger/care-rules-card.tsx",
+  "src/components/traeger/care-run-invoices.tsx",
+  "src/components/traeger/care-run-letter-invoices.tsx",
+  "src/components/traeger/care-run-meals.tsx",
+  "src/components/traeger/care-run-review.tsx",
+  "src/components/traeger/care-run-start-modal.tsx",
+  "src/components/traeger/document-template-placeholders-card.tsx",
+  "src/components/traeger/document-template-versions-card.tsx",
+  "src/components/traeger/family-billing-form.tsx",
+  // Träger-Abrechnung: Bausteine für Beiträge, SEPA, Finanzen, Exporte (#6761).
+  "src/components/traeger/billing-carried-corrections-card.tsx",
+  "src/components/traeger/billing-document-card.tsx",
+  "src/components/traeger/billing-letter-preview.tsx",
+  "src/components/traeger/billing-letters-card.tsx",
+  "src/components/traeger/billing-letters-modal.tsx",
+  "src/components/traeger/billing-mail-card.tsx",
+  "src/components/traeger/billing-run-overview-card.tsx",
+  "src/components/traeger/billing-terms-card.tsx",
+  "src/components/traeger/contribution-rules-card.tsx",
+  "src/components/traeger/cost-bearer-totals-card.tsx",
+  "src/components/traeger/cost-bearers-card.tsx",
+  "src/components/traeger/export-file-number-card.tsx",
+  "src/components/traeger/finance-export-datev.tsx",
+  "src/components/traeger/finance-export-tables.tsx",
+  "src/components/traeger/number-range-card.tsx",
+  "src/components/traeger/sepa-creditor-card.tsx",
+  "src/components/traeger/sepa-debit-card.tsx",
+  "src/components/traeger/sepa-import-preview-card.tsx",
+  "src/components/traeger/sepa-mandate-status-card.tsx",
+  "src/components/traeger/sepa-mandates-card.tsx",
+  "src/components/traeger/soll-mapping-editor.tsx",
+  // Träger: Ferienbetreuung und Elternbriefe (#6763).
+  "src/components/traeger/holiday-allocation-decision-modal.tsx",
+  "src/components/traeger/holiday-allocation-mode-field.tsx",
+  "src/components/traeger/holiday-allocation-week.tsx",
+  "src/components/traeger/holiday-bulk-confirm-modal.tsx",
+  "src/components/traeger/holiday-criteria-editor.tsx",
+  "src/components/traeger/holiday-form-editor.tsx",
+  "src/components/traeger/holiday-period-form.tsx",
+  "src/components/traeger/holiday-period-publish-card.tsx",
+  "src/components/traeger/holiday-registration-child-card.tsx",
+  "src/components/traeger/holiday-registration-criteria-card.tsx",
+  "src/components/traeger/holiday-registration-edit.tsx",
+  "src/components/traeger/holiday-registration-proof-card.tsx",
+  "src/components/traeger/holiday-registration-status-card.tsx",
+  "src/components/traeger/holiday-week-editor.tsx",
+  "src/components/traeger/holiday-week-places.tsx",
+  "src/components/traeger/holiday-wish.tsx",
+  "src/components/traeger/letter-file-view.tsx",
+  "src/components/traeger/traeger-account-history.tsx",
+  "src/components/traeger/traeger-bank-accounts-card.tsx",
+  "src/components/traeger/traeger-document-upload-modal.tsx",
+  "src/components/traeger/traeger-logo-card.tsx",
+  // Kinder: Sorgeberechtigte und Anwesenheit (#6764).
+  "src/components/guardians/guardian-contact-actions.tsx",
+  "src/components/guardians/guardian-form-modal.tsx",
+  "src/components/guardians/guardian-list.tsx",
+  "src/components/guardians/guardian-picker-panel.tsx",
+  "src/components/guardians/student-guardian-manager.tsx",
+  "src/components/guardians/student-payment-card.tsx",
+  "src/components/students/aggregated-request-list.tsx",
+  "src/components/students/attendance-correction-modal.tsx",
+  // Kinder – Betreuung, Klasse, Begleitung, Kurse, Dokumente (#6765).
+  "src/components/students/care-exit-modal.tsx",
+  "src/components/students/care-plan-editor-modal.tsx",
+  "src/components/students/care-plan-impact.tsx",
+  "src/components/students/care-plan-view.tsx",
+  "src/components/students/care-request-review-item.tsx",
+  "src/components/students/care-resume-modal.tsx",
+  "src/components/students/care-schedule-manager.tsx",
+  "src/components/students/care-weekly-plan-editor.tsx",
+  "src/components/students/care-weekly-plan-modal.tsx",
+  "src/components/students/class-arrival-exception-panel.tsx",
+  "src/components/students/class-bulk-arrival-modal.tsx",
+  "src/components/students/class-trip-bulk-status-modal.tsx",
+  "src/components/students/companion-picker.tsx",
+  "src/components/students/course-waitlist.tsx",
+  "src/components/students/dokumente-tab.tsx",
+  // Kinder: Abholung, Familie, Anfragen, Abmeldung, Auswahl (#6766).
+  "src/components/students/early-checkout-note.tsx",
+  "src/components/students/enrollment-request-item.tsx",
+  "src/components/students/family-protection-control.tsx",
+  "src/components/students/offering-request-review-item.tsx",
+  "src/components/students/parent-messages-card.tsx",
+  "src/components/students/personal-info-edit-panel.tsx",
+  "src/components/students/pickup-adjustment-decision.tsx",
+  "src/components/students/planned-status-days-modal.tsx",
+  "src/components/students/request-feed-dialog.tsx",
+  "src/components/students/request-history-item.tsx",
+  "src/components/students/request-review-card.tsx",
+  "src/components/students/requests/bulk-approval-panel.tsx",
+  "src/components/students/requests/conflict-decision-group.tsx",
+  "src/components/students/requests/request-case-detail.tsx",
+  "src/components/students/requests/request-decision-row.tsx",
+  "src/components/students/requests/withdrawal-cards.tsx",
+  "src/components/students/school-checkin-fab.tsx",
+  "src/components/students/school-checkin-missing-hint.tsx",
+  "src/components/students/school-checkin-mode-mobile.tsx",
+  "src/components/students/school-checkin-selection-bar.tsx",
+  "src/components/students/selection-bulk-invite-modal.tsx",
+  "src/components/students/selection-bulk-pickup-modal.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
@@ -6198,6 +6581,128 @@ const buttonNeedsTooltip = {
   },
 };
 
+// ui-kit/menu-item-needs-description (#6745, Epic #6643)
+//
+// Jeder Eintrag eines Kebab- oder Überlaufmenüs sagt in einer sichtbaren
+// Zeile, was er tut. Im Menü gibt es kein Hover, die Zeile `description` ist
+// also auch auf Handy und Tablet lesbar. Ein Menüeintrag ist wie bei
+// `bauart/no-disabled-menu-item` ein Objektliteral mit `label` und `onClick`
+// oder `href`. Ausgenommen sind Einträge mit `kind` (Auswahl, Schalter,
+// Überschrift: sie sagen, was sie sind) und rein navigierende Einträge mit
+// `selected`, etwa die „Mehr“-Leiste der Navigation; ein statisch falscher
+// Wert wie `false` oder `undefined` ist keine Navigation und befreit nicht.
+// Ein unbekannter Wert bleibt als Navigation ausgenommen. Objekte mit
+// `tooltip` oder `noTooltip` sind Knöpfe, etwa `moreAction` der DataTable;
+// sie erklärt `ui-kit/button-needs-tooltip`, ein Menüeintrag hat kein
+// `tooltip`. Verlangt wird
+// `description` oder ein begründetes `noDescription: "<Grund>"`; ein leerer
+// oder `undefined` gesetzter Wert ist ein Fehler. Wie bei
+// `ui-kit/button-needs-tooltip` gilt ein unbekannter Spread ohne Erklärung als
+// erfüllt, ein Spread hinter der Erklärung wird gemeldet: Er kann sie
+// überschreiben. Die Regel gilt in TOOLTIP_SCOPE.
+
+function staticObjectProperty(node, name) {
+  // Bei doppelten Schlüsseln gilt zur Laufzeit der letzte.
+  return node.properties.findLast(
+    (property) =>
+      property.type === "Property" &&
+      !property.computed &&
+      propertyName(property) === name,
+  );
+}
+
+function isStaticallyFalsy(expression) {
+  if (expression?.type === "Literal") return !expression.value;
+  return (
+    (expression?.type === "Identifier" && expression.name === "undefined") ||
+    (expression?.type === "UnaryExpression" && expression.operator === "void")
+  );
+}
+
+const menuItemNeedsDescription = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Every menu entry says in a visible line what it does: description, or noDescription with a reason.",
+    },
+    messages: {
+      missing:
+        'Menüeintrag ohne Erklärung: `description` mit einer kurzen Zeile zur Folge setzen oder `noDescription: "<Grund>"`, wenn das Wort schon alles sagt (#6643, Schreibregel in .claude/rules/frontend-ui-kit.md).',
+      emptyDescription:
+        'Leere `description`: eine kurze Zeile zur Folge schreiben oder `noDescription: "<Grund>"` setzen (#6643).',
+      emptyReason:
+        "`noDescription` braucht einen Grund, warum das Wort im Menü reicht (#6643).",
+      conflictingExplanation:
+        "`description` und `noDescription` dürfen nicht zusammen gesetzt sein (#6643).",
+      spreadAfterExplanation:
+        "Gespreizte Werte hinter `description`/`noDescription` können die Erklärung überschreiben: den Spread vor die Erklärung stellen (#6643).",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (!inTooltipScope(fileKey(context))) return {};
+    return {
+      ObjectExpression(node) {
+        if (!staticObjectProperty(node, "label")) return;
+        if (
+          !staticObjectProperty(node, "onClick") &&
+          !staticObjectProperty(node, "href")
+        ) {
+          return;
+        }
+        const selected = staticObjectProperty(node, "selected");
+        if (
+          staticObjectProperty(node, "kind") ||
+          staticObjectProperty(node, "tooltip") ||
+          staticObjectProperty(node, "noTooltip") ||
+          (selected && !isStaticallyFalsy(selected.value))
+        ) {
+          return;
+        }
+        const description = staticObjectProperty(node, "description");
+        const noDescription = staticObjectProperty(node, "noDescription");
+        if (description && noDescription) {
+          context.report({
+            node: noDescription,
+            messageId: "conflictingExplanation",
+          });
+          return;
+        }
+        const explanation = description ?? noDescription;
+        const unknownSpread = (property) =>
+          property.type === "SpreadElement" || property.computed;
+        if (
+          explanation &&
+          node.properties
+            .slice(node.properties.indexOf(explanation) + 1)
+            .some(unknownSpread)
+        ) {
+          context.report({ node, messageId: "spreadAfterExplanation" });
+          return;
+        }
+        if (description) {
+          if (isBlankExpression(description.value)) {
+            context.report({
+              node: description,
+              messageId: "emptyDescription",
+            });
+          }
+          return;
+        }
+        if (noDescription) {
+          if (isBlankExpression(noDescription.value)) {
+            context.report({ node: noDescription, messageId: "emptyReason" });
+          }
+          return;
+        }
+        if (node.properties.some(unknownSpread)) return;
+        context.report({ node, messageId: "missing" });
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
@@ -6207,6 +6712,7 @@ export default {
     "confirmation-dismiss-lock": confirmationDismissLock,
     "confirmation-loading-text": confirmationLoadingText,
     "green-fill-white-text": greenFillWhiteText,
+    "menu-item-needs-description": menuItemNeedsDescription,
     "no-button-override": noButtonOverride,
     "no-dead-surface-utility": noDeadSurfaceUtility,
     "no-dynamic-color-class": noDynamicColorClass,
@@ -6244,6 +6750,7 @@ export default {
     "no-hand-rolled-removable-chip": noHandRolledRemovableChip,
     "no-arbitrary-slide-over-width": noArbitrarySlideOverWidth,
     "no-hand-rolled-sticky-bar": noHandRolledStickyBar,
+    "no-hand-rolled-action-row": noHandRolledActionRow,
     "no-slide-over-row-override": noSlideOverRowOverride,
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-hand-rolled-weekday-toggle": noHandRolledWeekdayToggle,

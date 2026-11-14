@@ -305,7 +305,7 @@ export function ParentTargetPicker({
                     variant="surface"
                     size="compact"
                     onClick={() => t.ref_id && removeStudent(t.ref_id)}
-                    title="Entfernen"
+                    tooltip="Nimmt das Kind wieder aus den Empfängern."
                   >
                     <span className="max-w-48 truncate">
                       {t.ref_id ? (studentNames[t.ref_id] ?? "Kind") : "Kind"}

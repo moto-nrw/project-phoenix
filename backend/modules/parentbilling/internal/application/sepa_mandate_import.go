@@ -10,9 +10,9 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/sepa"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/sepa"
 )
 
 // The import of existing SEPA mandates (#6198). A look at a file reads it,
@@ -39,6 +39,8 @@ type MandateImportStore interface {
 	// SetFamilyDebtorNumbers gives each family its debtor number where it
 	// has none and records the change in the family's trail.
 	SetFamilyDebtorNumbers(ctx context.Context, organizationID, accountID int64, numbers []parentbilling.FamilyDebtorNumber) error
+	// ChildNumberStore keeps the numbers of the children (#7007).
+	ChildNumberStore
 }
 
 // importRequiredFields are the fields every import needs a column for.
@@ -87,6 +89,8 @@ func (m *SEPAMandates) ImportSEPAMandates(ctx context.Context, reviewer parentbi
 	if err != nil {
 		return parentbilling.SEPAMandateImport{}, err
 	}
+	// A row without a mandate still gives its debtor number (#7007): the
+	// confirmation covers it and the import takes it over.
 	result.Fingerprint = importFingerprint(result.Mapping, creditor.CreditorID, candidates)
 	if request.Apply {
 		if err := m.applyConfirmed(ctx, reviewer, request, result.Fingerprint, candidates); err != nil {
@@ -94,12 +98,33 @@ func (m *SEPAMandates) ImportSEPAMandates(ctx context.Context, reviewer parentbi
 		}
 		result.Applied = true
 	}
-	for _, candidate := range candidates {
+	shown, withoutMandate := importPreviewRows(candidates)
+	for _, candidate := range shown {
 		result.Rows = append(result.Rows, candidate.row)
 		countImportRow(&result.Counts, candidate.row.Status)
 	}
 	countDebtorNumbers(&result.Counts, candidates)
+	result.Counts.WithoutMandate = withoutMandate
 	return result, nil
+}
+
+// importPreviewRows omits mandate-free rows unless their debtor number
+// needs attention. A copy marks these as conflicts only in the answer;
+// their empty mandate status still prevents validation or mandate writes.
+func importPreviewRows(candidates []importCandidate) ([]importCandidate, int) {
+	shown := make([]importCandidate, 0, len(candidates))
+	withoutMandate := 0
+	for _, candidate := range candidates {
+		if candidate.row.Status == "" {
+			withoutMandate++
+			if !debtorNumberConflict(candidate.row.DebtorNumberStatus) {
+				continue
+			}
+			candidate.row.Status = parentbilling.ImportRowConflict
+		}
+		shown = append(shown, candidate)
+	}
+	return shown, withoutMandate
 }
 
 // bindCreditorChoice keeps the office's choice that the file holds the
@@ -209,18 +234,12 @@ func (m *SEPAMandates) evaluateImport(ctx context.Context, reviewer parentbillin
 	check.accounts = accounts
 	candidates := make([]importCandidate, len(table.rows))
 	for i, cells := range table.rows {
-		candidates[i] = check.row(cells, table.lines[i])
+		candidates[i] = check.candidate(cells, table.lines[i])
 	}
 	if _, mapped := columns.fields[parentbilling.ImportFieldDebtorNumber]; mapped {
-		known, err := m.store.FamilyDebtorNumbers(ctx, reviewer.OrganizationID)
-		if err != nil {
+		if err := m.assignImportedNumbers(ctx, reviewer, candidates, table, columns); err != nil {
 			return nil, err
 		}
-		format, err := debtorNumberFormatOf(ctx, m.formats, reviewer.OrganizationID)
-		if err != nil {
-			return nil, err
-		}
-		assignDebtorNumbers(candidates, table, columns, known, format)
 	}
 	return candidates, nil
 }
@@ -233,26 +252,57 @@ const (
 	importContractYearsAhead = 4
 )
 
-// importPayers indexes the contracts of the Träger in force in the import
-// window by number and by family; a family with several contracts takes
-// the one in force longest, then the oldest.
-func (m *SEPAMandates) importPayers(ctx context.Context, organizationID int64) (importPayers, error) {
-	today := m.today()
+// contractVersionsAround reads the versions of the contracts of the Träger
+// in force from a year before today up to four years ahead, a year at a
+// time: the contracts a file or the list of families can name.
+func contractVersionsAround(ctx context.Context, contracts parentbilling.CareContracts, organizationID int64, today calendar.Date) (
+	[]parentbilling.CareContractVersion, error,
+) {
 	var versions []parentbilling.CareContractVersion
 	for year := -importContractYearsBack; year < importContractYearsAhead; year++ {
 		from := calendar.DateFromTime(today.BerlinMidnight().AddDate(year, 0, 0))
 		to := calendar.DateFromTime(today.BerlinMidnight().AddDate(year+1, 0, -1))
-		chunk, err := m.contracts.VersionsInForce(ctx, organizationID, from, to)
+		chunk, err := contracts.VersionsInForce(ctx, organizationID, from, to)
 		if err != nil {
-			return importPayers{}, fmt.Errorf("parent billing: read the contracts for the import: %w", err)
+			return nil, fmt.Errorf("parent billing: read the contracts: %w", err)
 		}
 		versions = append(versions, chunk...)
 	}
+	return versions, nil
+}
+
+// countChild counts the child of the payer's contract under its family and
+// keeps the latest end of its contracts.
+func (p importPayers) countChild(payer importPayer) {
+	key := parentbilling.ChildKey(payer.child.FirstName, payer.child.LastName, payer.child.BirthDate)
+	if payer.family == "" || key == "" {
+		return
+	}
+	if p.children[payer.family] == nil {
+		p.children[payer.family] = map[string]bool{}
+	}
+	p.children[payer.family][key] = true
+	if child := parentbilling.ChildDebtorNumberKey(payer.family, key); payer.until.After(p.childUntil[child]) {
+		p.childUntil[child] = payer.until
+	}
+}
+
+// importPayers indexes the contracts of the Träger in force in the import
+// window by number and by family; a family with several contracts takes
+// the one in force longest, then the oldest.
+func (m *SEPAMandates) importPayers(ctx context.Context, organizationID int64) (importPayers, error) {
+	versions, err := contractVersionsAround(ctx, m.contracts, organizationID, m.today())
+	if err != nil {
+		return importPayers{}, err
+	}
 	until := map[int64]calendar.Date{}
+	children := map[int64]parentbilling.FamilyChild{}
 	ids := []int64{}
 	for _, version := range versions {
 		if _, seen := until[version.ContractID]; !seen {
 			ids = append(ids, version.ContractID)
+			children[version.ContractID] = parentbilling.FamilyChild{FirstName: version.ChildFirstName,
+				LastName: version.ChildLastName, BirthDate: version.ChildBirthDate}
 		}
 		if version.Until.After(until[version.ContractID]) || until[version.ContractID].IsZero() {
 			until[version.ContractID] = version.Until
@@ -263,12 +313,14 @@ func (m *SEPAMandates) importPayers(ctx context.Context, organizationID int64) (
 	if err != nil {
 		return importPayers{}, fmt.Errorf("parent billing: read the contract parties for the import: %w", err)
 	}
-	payers := importPayers{byContract: map[int64]importPayer{}, byFamily: map[string]importPayer{}}
+	payers := importPayers{byContract: map[int64]importPayer{}, byFamily: map[string]importPayer{}, children: map[string]map[string]bool{},
+		childUntil: map[string]calendar.Date{}}
 	for _, id := range ids {
 		recipient := recipients[id]
 		payer := importPayer{contractID: id, family: parentbilling.FamilyKey(recipient.Email),
-			firstName: recipient.FirstName, lastName: recipient.LastName, until: until[id]}
+			firstName: recipient.FirstName, lastName: recipient.LastName, until: until[id], child: children[id]}
 		payers.byContract[id] = payer
+		payers.countChild(payer)
 		if current, ok := payers.byFamily[payer.family]; payer.family != "" && (!ok || payer.until.After(current.until)) {
 			payers.byFamily[payer.family] = payer
 		}
@@ -287,6 +339,9 @@ func (m *SEPAMandates) applyConfirmed(ctx context.Context, reviewer parentbillin
 	}
 	if err := m.store.SetFamilyDebtorNumbers(ctx, reviewer.OrganizationID, reviewer.AccountID, debtorNumbersToSet(candidates)); err != nil {
 		return fmt.Errorf("parent billing: take over the debtor numbers: %w", err)
+	}
+	if err := m.saveChildNumbers(ctx, reviewer, candidates); err != nil {
+		return err
 	}
 	return m.applyImport(ctx, reviewer, importFileName(request.FileName), candidates)
 }

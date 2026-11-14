@@ -25,9 +25,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // StaffMessagingRouter is the school-portal mount supplied by the application
@@ -205,6 +206,10 @@ func (rs *Resource) mountAuthRoutes(r chi.Router, authRateLimiter func(http.Hand
 			// School switching for Lehrkraft accounts mapped to several
 			// schools — the school-portal sibling of /auth/switch-tenant.
 			r.Post("/switch-school", rs.switchSchool)
+			// The Lehrkraft's own remembered devices at the session's school
+			// (#6955), as the tenant portal's /auth/mfa/trusted-devices.
+			r.Get("/mfa/trusted-devices", rs.listTrustedDevices)
+			r.Delete("/mfa/trusted-devices/{"+portalauth.TrustedDeviceIDParam+"}", rs.revokeTrustedDevice)
 		})
 	})
 

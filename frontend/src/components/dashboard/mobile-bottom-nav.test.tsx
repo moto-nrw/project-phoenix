@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
 import { render, screen, fireEvent, act, within } from "@testing-library/react";
+import { STAFF_NAV_GROUPS } from "~/lib/staff-navigation";
 import {
   expectIdleRenderBudget,
   RENDER_BUDGET_MAX_COMMITS,
@@ -120,6 +121,15 @@ vi.mock("~/lib/hooks/use-enrollments-unread", () => ({
   useEnrollmentsUnread: () => ({ unreadCount: enrollmentsUnread.count }),
 }));
 
+const teamNotes = vi.hoisted(() => ({ notices: [] as unknown[] }));
+vi.mock("~/lib/hooks/use-student-note-team-notices", () => ({
+  useStudentNoteTeamNotices: () => ({ notices: teamNotes.notices }),
+}));
+const pickupChanges = vi.hoisted(() => ({ notices: [] as unknown[] }));
+vi.mock("~/lib/hooks/use-pickup-change-notices", () => ({
+  usePickupChangeNotices: () => ({ notices: pickupChanges.notices }),
+}));
+
 vi.mock("~/lib/operator-url", () => ({
   operatorPath: (path: string) => path,
 }));
@@ -147,6 +157,7 @@ import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
+  useSimpleStaffNavigationSetting,
   useStaffMessagingEnabled,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
@@ -187,6 +198,9 @@ const mockUseChildSearchOnlyNavigation = vi.mocked(
   useChildSearchOnlyNavigation,
 );
 const mockUseStaffMessagingEnabled = vi.mocked(useStaffMessagingEnabled);
+const mockUseSimpleStaffNavigationSetting = vi.mocked(
+  useSimpleStaffNavigationSetting,
+);
 const mockUseSWRDefault = vi.mocked(useSWR);
 
 // Helper to create mock search params - use unknown cast for test flexibility
@@ -230,6 +244,15 @@ function createMockSession(isAdminUser: boolean) {
 describe("MobileBottomNav", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Offene Gruppen des Mehr-Menüs (#7048) leben im Speicher des Browsers.
+    // Die Tests der Einträge sehen alle Gruppen offen, sonst fänden sie die
+    // Zeilen zugeklappter Gruppen nicht und eine Prüfung auf Abwesenheit
+    // bestünde ohne Aussage. Das Klappen selbst prüft der eigene Block.
+    localStorage.clear();
+    localStorage.setItem(
+      "sidebar-open-groups",
+      JSON.stringify(STAFF_NAV_GROUPS.map((group) => group.key)),
+    );
 
     // Default mock implementations
     mockUseShellAuth.mockReturnValue({
@@ -293,6 +316,114 @@ describe("MobileBottomNav", () => {
     mockUseChangeRequestAccess.mockReturnValue({
       canOpenRequestsPage: false,
     } as ReturnType<typeof useChangeRequestAccess>);
+  });
+
+  // Die Gruppen im Mehr-Menü klappen wie in der Seitenleiste (#7048) und
+  // teilen deren gespeicherten Stand (`sidebar-open-groups`).
+  describe("klappbare Gruppen im Mehr-Menü", () => {
+    beforeEach(() => {
+      // Erster Besuch: nichts gespeichert.
+      localStorage.clear();
+    });
+
+    function openMoreAsAdmin() {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+    }
+
+    it("zeigt beim ersten Öffnen nur den Tagesbetrieb offen", () => {
+      openMoreAsAdmin();
+
+      expect(
+        screen.getByRole("button", { name: "Tagesbetrieb" }),
+      ).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("link", { name: "Gruppen" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Verwaltung" }),
+      ).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByText("Datenverwaltung")).not.toBeInTheDocument();
+      // Die Fußzeilen stehen ohne Gruppe und bleiben sichtbar.
+      expect(screen.getByText("Einstellungen").closest("a")).not.toBeNull();
+    });
+
+    it("klappt eine Gruppe mit einem Tipp auf und wieder zu", () => {
+      openMoreAsAdmin();
+      const verwaltung = screen.getByRole("button", { name: "Verwaltung" });
+
+      fireEvent.click(verwaltung);
+      expect(verwaltung).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByText("Datenverwaltung").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/database",
+      );
+
+      fireEvent.click(verwaltung);
+      expect(verwaltung).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByText("Datenverwaltung")).not.toBeInTheDocument();
+    });
+
+    it("öffnet die Gruppe der aktuellen Seite", () => {
+      mockUsePathname.mockReturnValue("/database");
+      openMoreAsAdmin();
+
+      expect(
+        screen.getByRole("button", { name: "Verwaltung" }),
+      ).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+    });
+
+    it("behält die offenen Gruppen nach dem Schließen des Menüs", () => {
+      openMoreAsAdmin();
+      fireEvent.click(screen.getByRole("button", { name: "Planung" }));
+      fireEvent.click(screen.getByRole("button", { name: "Tagesbetrieb" }));
+
+      // Ein Eintrag schließt das Menü.
+      fireEvent.click(screen.getByText("Einstellungen"));
+      expect(
+        screen.queryByRole("button", { name: "Planung" }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+      expect(screen.getByRole("button", { name: "Planung" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+      expect(
+        screen.getByRole("button", { name: "Tagesbetrieb" }),
+      ).toHaveAttribute("aria-expanded", "false");
+      expect(
+        JSON.parse(localStorage.getItem("sidebar-open-groups") ?? "[]"),
+      ).toEqual(["planung"]);
+    });
+
+    it("zeigt ungelesene Anmeldungen an der zugeklappten Gruppe Eltern", () => {
+      enrollmentsUnread.count = 4;
+      try {
+        openMoreAsAdmin();
+        const eltern = screen.getByRole("button", { name: "Eltern" });
+        const header = eltern.closest("h3");
+        expect(
+          within(header!.parentElement!).getByLabelText(
+            "4 ungelesene Anmeldungen",
+          ),
+        ).toBeInTheDocument();
+
+        // Offen trägt die Zeile den Zähler, die Überschrift nicht mehr.
+        fireEvent.click(eltern);
+        expect(
+          screen.getAllByLabelText("4 ungelesene Anmeldungen"),
+        ).toHaveLength(1);
+        expect(
+          within(screen.getByText("Anmeldungen").closest("a")!).getByLabelText(
+            "4 ungelesene Anmeldungen",
+          ),
+        ).toBeInTheDocument();
+      } finally {
+        enrollmentsUnread.count = 0;
+      }
+    });
   });
 
   describe("rendering", () => {
@@ -380,6 +511,53 @@ describe("MobileBottomNav", () => {
         ).toBeInTheDocument();
       } finally {
         enrollmentsUnread.count = 0;
+      }
+    });
+
+    // Unter 1024 px fehlt die Kopfzeile: „Mehr“ trägt den roten Zähler der
+    // geteilten Notizen und geänderten Abholzeiten, das Menü ihre Liste
+    // (#6854, #6855).
+    it("zeigt Neues für die Person am Mehr-Knopf und im Menü", () => {
+      teamNotes.notices = [
+        {
+          noteId: "11",
+          studentId: "7",
+          studentFirstName: "Mia",
+          studentLastName: "Muster",
+          authorName: "Sara Betreuerin",
+          informedAt: "2026-09-09T10:00:00Z",
+        },
+      ];
+      pickupChanges.notices = [
+        {
+          requestId: "21",
+          studentId: "8",
+          studentFirstName: "Noa",
+          date: "2026-09-10",
+          pickupTime: "15:00",
+          withdrawn: false,
+          informedAt: "2026-09-09T11:00:00Z",
+        },
+      ];
+      mockUseSession.mockReturnValue(createMockSession(false));
+      try {
+        render(<MobileBottomNav />);
+        expect(screen.getByLabelText("2 neu für Sie")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+        expect(screen.getByText("Neu für Sie")).toBeInTheDocument();
+        expect(
+          screen.getByRole("link", { name: /Mia Muster/ }),
+        ).toHaveAttribute(
+          "href",
+          expect.stringContaining("/students/7?tab=notizen"),
+        );
+        expect(screen.getByRole("link", { name: /Noa/ })).toHaveAttribute(
+          "href",
+          expect.stringMatching(/\/students\/8$/),
+        );
+      } finally {
+        teamNotes.notices = [];
+        pickupChanges.notices = [];
       }
     });
 
@@ -1044,6 +1222,67 @@ describe("MobileBottomNav", () => {
       // Die Bezeichnung erscheint nur am aktiven Reiter.
       expect(screen.getByText("Suchen")).toBeInTheDocument();
       expect(screen.queryByText("Gruppen")).not.toBeInTheDocument();
+    });
+  });
+
+  // Einfache Seitenleiste (#6956): das Mehr-Menü zeigt nur die Seiten des
+  // Betreuungsalltags, die Reiter bleiben.
+  describe("einfache Seitenleiste (#6956)", () => {
+    beforeEach(() => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSimpleStaffNavigationSetting.mockReturnValue(true);
+    });
+
+    afterEach(() => {
+      mockUseSimpleStaffNavigationSetting.mockReturnValue(false);
+    });
+
+    it("keeps the tabs and lists only the daily care pages under Mehr", () => {
+      render(<MobileBottomNav />);
+
+      const tabHrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(tabHrefs).toContain("/ogs-groups/overview");
+      expect(tabHrefs).toContain("/students/search");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+      expect(screen.getByText("Räume")).toBeInTheDocument();
+      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
+      expect(screen.getByText("Tagesinformationen")).toBeInTheDocument();
+      expect(screen.getByText("Hilfe")).toBeInTheDocument();
+      expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+      expect(screen.queryByText("Team-Chat")).not.toBeInTheDocument();
+      expect(screen.queryByText("Tagesbetrieb")).not.toBeInTheDocument();
+    });
+
+    it("lets the person show every page and switch back", () => {
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Alle Seiten anzeigen" }),
+      );
+      expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
+      expect(screen.getByText("Tagesbetrieb")).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Weniger Seiten anzeigen" }),
+      );
+      expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+    });
+
+    it("keeps the full menu for the school lead", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Tagesbetrieb")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Alle Seiten anzeigen" }),
+      ).not.toBeInTheDocument();
     });
   });
 

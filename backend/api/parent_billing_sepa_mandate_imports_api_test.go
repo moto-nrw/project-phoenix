@@ -21,11 +21,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/encoding/charmap"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 const (
@@ -149,7 +149,7 @@ func TestSEPAMandateImportTakesOverOldMandatesOnce(t *testing.T) {
 	preview = decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes())
 	require.Len(t, preview.Rows, 4)
 	assert.Equal(t, map[string]int{"ready": 2, "clarify": 1, "duplicate": 0, "conflict": 0, "invalid": 1, "imported": 0,
-		"debtor_numbers": 0, "debtor_conflicts": 0}, preview.Counts)
+		"debtor_numbers": 0, "debtor_conflicts": 0, "without_mandate": 0}, preview.Counts)
 	assert.Equal(t, "clarify", preview.Rows[2].Status)
 	assert.Equal(t, 4, preview.Rows[2].Line)
 	assert.Equal(t, "invalid", preview.Rows[3].Status)

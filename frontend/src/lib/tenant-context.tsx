@@ -291,6 +291,18 @@ export function useChildSearchOnlyNavigation(): boolean {
   return ctx?.tenant?.childSearchOnlyNavigation === true;
 }
 
+/**
+ * Returns whether the school switched on the simple navigation
+ * (operations.simple_staff_navigation, #6956). Whether a person actually
+ * sees it also depends on their role and their own choice: read it through
+ * `useSimpleStaffNav`. Defaults to false when tenant metadata is
+ * unavailable, which keeps every page.
+ */
+export function useSimpleStaffNavigationSetting(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.simpleStaffNavigation === true;
+}
+
 /** Whether staff may connect their personal calendar through CalDAV. */
 export function useCalDAVEnabled(): boolean {
   const ctx = useContext(TenantContext);

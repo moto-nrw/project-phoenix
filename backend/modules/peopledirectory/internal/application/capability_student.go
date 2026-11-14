@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 func (s *Service) ListStudentsByID(ctx context.Context, ids []int64) ([]peopledirectory.Student, error) {

@@ -119,8 +119,8 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: () => null,
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: () => null,
 }));
 
 vi.mock("~/components/admin/invitation-form", () => ({

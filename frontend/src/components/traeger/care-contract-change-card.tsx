@@ -137,6 +137,7 @@ export function CareContractChangeCard({
               type="button"
               variant="outline_danger"
               size="md"
+              tooltip="Öffnet ein Fenster, um den Wunsch mit Begründung für die Eltern abzulehnen."
               onClick={() =>
                 setDeciding({ contractId, request, approve: false })
               }
@@ -148,6 +149,7 @@ export function CareContractChangeCard({
                 type="button"
                 variant="success"
                 size="md"
+                tooltip="Öffnet ein Fenster, um den Wunsch ab einem Tag freizugeben."
                 onClick={() =>
                   setDeciding({ contractId, request, approve: true })
                 }

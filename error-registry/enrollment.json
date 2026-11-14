@@ -25,6 +25,18 @@
       "legacy": "enrollment.approval_data_invalid"
     },
     {
+      "code": "enrollment.approval_offering_terms_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.approval_offering_terms_changed"
+    },
+    {
+      "code": "enrollment.approval_staff_profile_required",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "enrollment.approval_staff_profile_required"
+    },
+    {
       "code": "enrollment.captcha_failed",
       "class": "input",
       "parameters": [],
@@ -630,6 +642,12 @@
       "legacy": "enrollment.holiday_registration_state_conflict"
     },
     {
+      "code": "enrollment.holiday_registration_status_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_registration_status_not_found"
+    },
+    {
       "code": "enrollment.holiday_week_booked",
       "class": "business_rejection",
       "parameters": [],
@@ -764,6 +782,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.phase_has_effective_bookings"
+    },
+    {
+      "code": "enrollment.phase_has_requests",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.phase_has_requests"
     },
     {
       "code": "enrollment.phase_eligibility_setting_required",

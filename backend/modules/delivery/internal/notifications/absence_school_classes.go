@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 // Copy for the school-portal notice (#4792).

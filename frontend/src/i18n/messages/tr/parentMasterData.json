@@ -9,7 +9,8 @@
     "body": "Bir değişiklik kaydedilemedi. Sayfadan çıkarsanız bu değişiklik kaybolur.",
     "leave": "Yine de çık",
     "stay": "Burada kal",
-    "retry": "Tekrar dene"
+    "retry": "Tekrar dene",
+    "retryTooltip": "Son değişikliği yeniden kaydeder."
   },
   "healthDirectHint": "Değişiklikler doğrudan kaydedilir. {careTerm} ekibi notları hemen görür.",
   "healthPlaceholder": "Örneğin alerjiler, besin hassasiyetleri veya önemli ilaçlar.",
@@ -41,7 +42,8 @@
     "submitting": "Talep gönderiliyor…",
     "cancel": "İptal",
     "noChange": "Lütfen en az bir bilgiyi değiştirin.",
-    "required": "Değiştirilen bir bilgi boş bırakılamaz."
+    "required": "Değiştirilen bir bilgi boş bırakılamaz.",
+    "submitTooltip": "Talebi inceleme için hemen {careTerm} ekibine gönderir."
   },
   "sections": {
     "child": "Kişisel bilgiler",
@@ -131,7 +133,8 @@
     "decisionApplied": "Bu değiştirildi:",
     "decisionConsidered": "Talep edilen değişiklik:",
     "decisionOverridden": "Bakım ekibi şunları eklemedi: {names}.",
-    "errorObject": "kayıtlı bakım"
+    "errorObject": "kayıtlı bakım",
+    "requestButtonTooltip": "Farklı bir bakım istemek için bir form açar."
   },
   "careOfferingsModal": {
     "title": "Kayıtlı bakımı değiştir",
@@ -198,7 +201,10 @@
     "noCourses": "Şu anda kurs yok.",
     "errorObjectList": "kurs listesi",
     "errorObjectRequest": "kurs talebi",
-    "errorObjectWithdraw": "kurs talebinin geri çekilmesi"
+    "errorObjectWithdraw": "kurs talebinin geri çekilmesi",
+    "requestTooltip": "Kurs talebini hemen {careTerm} ekibine gönderir.",
+    "withdrawTooltip": "Kurs talebini hemen geri çeker.",
+    "requestBlocked": "Önce bir gerekçe yazın."
   },
   "careSchedule": {
     "arrival": "Geliş saati",
@@ -242,10 +248,15 @@
     "pendingNotice": "{careTerm} değişikliğinizi inceliyor. Onaya kadar mevcut haftalık plan geçerli kalır.",
     "requestedAt": "{date} tarihinde talep edildi",
     "errorObject": "bakım saatleri listesi",
-    "requestErrorObject": "haftalık plan talebi"
+    "requestErrorObject": "haftalık plan talebi",
+    "requestButtonTooltip": "Haftalık plan değişikliği istemek için bir form açar.",
+    "requestSubmitTooltip": "Talebi inceleme için hemen {careTerm} ekibine gönderir."
   },
   "errorObject": "bilgi özeti",
   "errorObjectChange": "değişiklik",
   "errorObjectRequest": "talep",
-  "errorNoEnrollment": "Çocuğunuzun artık geçerli bir kaydı yok. Lütfen okulla iletişime geçin."
+  "errorNoEnrollment": "Çocuğunuzun artık geçerli bir kaydı yok. Lütfen okulla iletişime geçin.",
+  "identityRequestButtonTooltip": "Bilgi değişikliği istemek için bir form açar.",
+  "requestEditTooltip": "Açık talebinizi değiştirmek için açar.",
+  "departureEditTooltip": "Her hafta günü için alınışı açar. Değişiklikleri {careTerm} inceler."
 }

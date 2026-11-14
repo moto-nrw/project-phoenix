@@ -129,6 +129,7 @@ export function SelectionBulkPickupModal({
           <Button
             variant="outline"
             size="md"
+            noTooltip="Abbrechen schließt nur den Dialog, ohne etwas zu ändern."
             onClick={handleClose}
             disabled={saving}
           >
@@ -142,6 +143,18 @@ export function SelectionBulkPickupModal({
               saving ||
               schedules.length === 0 ||
               (needsExceptionConfirmation && !exceptionConfirmed)
+            }
+            tooltip={
+              needsExceptionConfirmation
+                ? "Speichert die Zeiten als Ausnahme, die gebuchten Angebote bleiben gleich."
+                : "Speichert die Gehzeiten der ausgefüllten Tage für alle ausgewählten Kinder."
+            }
+            disabledReason={
+              schedules.length === 0
+                ? "Tragen Sie zuerst mindestens eine Gehzeit ein."
+                : needsExceptionConfirmation && !exceptionConfirmed
+                  ? "Bestätigen Sie zuerst die Ausnahmen mit dem Häkchen."
+                  : undefined
             }
           >
             {saving

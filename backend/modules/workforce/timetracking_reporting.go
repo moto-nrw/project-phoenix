@@ -38,6 +38,7 @@ type TimeTrackingOverviewRow struct {
 	Name                  string  `json:"name"`
 	EmploymentType        string  `json:"employment_type"`
 	SollMinutes           int     `json:"soll_minutes"`
+	HasTarget             bool    `json:"has_target"`
 	IstMinutes            int     `json:"ist_minutes"`
 	BalanceMinutes        int     `json:"balance_minutes"`
 	RemainingVacationDays float64 `json:"remaining_vacation_days"`
@@ -50,6 +51,16 @@ type TimeTrackingOverview struct {
 	Year  int                       `json:"year"`
 	Month int                       `json:"month"`
 	Rows  []TimeTrackingOverviewRow `json:"rows"`
+}
+
+// TargetCoverage counts the active staff members without a Soll in a month,
+// from the same has_target as the overview rows. Counts only: the payroll
+// page shows them without the per-person working-time data.
+type TargetCoverage struct {
+	Year               int `json:"year"`
+	Month              int `json:"month"`
+	StaffTotal         int `json:"staff_total"`
+	StaffWithoutTarget int `json:"staff_without_target"`
 }
 
 // OverviewFilters narrows the cross-staff list. Year and Month both zero

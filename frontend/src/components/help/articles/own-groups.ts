@@ -74,7 +74,7 @@ export function ownGroupsTopic(
       "Sehen Sie nur eine Gruppe? Dann öffnet moto sie direkt, ohne Auswahl.",
       "Ist für eine Gruppe keine Gruppenleitung eingetragen, fehlt diese Zeile auf ihrer Karte.",
       "Eine vorübergehend übernommene Gruppe ist mit `Vertretung` markiert.",
-      "In der Seitenleiste stehen unter `Gruppen` nur Ihre eigenen Gruppen. Dahinter steht, wie viele Kinder gerade da sind.",
+      "In der Seitenleiste stehen unter `Gruppen` Ihre eigenen Gruppen. Dahinter steht, wie viele Kinder gerade da sind. Haben Sie eine andere Gruppe geöffnet, steht sie markiert darunter.",
       "Fehlt eine Gruppe? Bitten Sie Ihre Leitung, Ihre Gruppenzuordnung zu prüfen.",
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
       "Fehlt `Gruppen` in der Navigation? Öffnen Sie `Alle Kinder` und wählen Sie oben `Meine Gruppe`. Die Gruppenseite öffnen Sie im Menü mit den drei Punkten unter `Zur Gruppenseite`.",

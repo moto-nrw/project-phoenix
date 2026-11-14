@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/encoding/charmap"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // sollInvoices are an invoice, its Storno and a holiday invoice whose
@@ -70,6 +70,121 @@ func TestSollstellungGolden(t *testing.T) {
 		assert.Equal(t, string(golden), string(data), name)
 	}
 	assert.Equal(t, "csv-export-bewegungsdaten-110.csv", sollFileName(kaemmerei.FileNamePattern, 110))
+}
+
+// buchhaltungMapping is the plain bookkeeping file a Träger hands its tax
+// office instead of a DATEV batch (#7008): nine columns, one row per line of
+// where a document books, credits in a column of their own and a booking
+// text with the month and the child.
+func buchhaltungMapping() parentbilling.SollstellungMapping {
+	return parentbilling.SollstellungMapping{
+		Columns: []parentbilling.SollstellungColumn{
+			{Field: parentbilling.SollFieldInvoiceNumber, Header: "Rechnungsnummer"},
+			{Field: parentbilling.SollFieldInvoiceDate, Header: "Rechnungsdatum"},
+			{Field: parentbilling.SollFieldAmount, Header: "Rechnungsbetrag"},
+			{Field: parentbilling.SollFieldCreditAmount, Header: "Gutschrift"},
+			{Field: parentbilling.SollFieldDebtorNumber, Header: "Debitor-Nr."},
+			{Field: parentbilling.SollFieldRevenueAccount, Header: "Erlöskonto-Nr."},
+			{Field: parentbilling.SollFieldCostCenter, Header: "KOST1"},
+			{Field: parentbilling.SollFieldCostCenter2, Header: "Kostenstellen-Nr."},
+			{Field: parentbilling.SollFieldBookingText, Header: "Buchungstext", Value: "SKB {Monat} {Kind}"},
+		},
+		Delimiter: ";", DecimalSeparator: ",", DateFormat: parentbilling.SollDateGerman, Encoding: parentbilling.SollEncodingUTF8BOM,
+		HeaderRow: true, FileNamePattern: "csv-export-bewegungsdaten-{NR}.csv",
+	}
+}
+
+// The bookkeeping file of a monthly run, byte for byte (#7008): an invoice
+// on two accounts, its Storno in the credit column with an empty amount, a
+// holiday credit and an invoice of a sibling with a debtor number of its
+// own. Invented data only. UPDATE_GOLDEN=1 rewrites the file.
+func TestSollstellungBuchhaltungGolden(t *testing.T) {
+	t.Parallel()
+	mapping, err := normalizeSollMapping(buchhaltungMapping())
+	require.NoError(t, err)
+	october, until := calendar.NewDate(2026, 10, 1), calendar.NewDate(2026, 10, 31)
+	parts := func(sign int64) []parentbilling.ExportBookingPart {
+		return []parentbilling.ExportBookingPart{
+			{AmountCents: sign * 3250, Accounts: parentbilling.PositionAccounts{RevenueAccount: "4410", CostCenter: "100", CostCenter2: "4711", Frozen: true}},
+			{AmountCents: sign * 4550, Accounts: parentbilling.PositionAccounts{RevenueAccount: "4400", CostCenter: "100", CostCenter2: "4711", Frozen: true}},
+		}
+	}
+	invoices := []parentbilling.ExportInvoice{
+		{Number: "2026-0312", Kind: parentbilling.DocumentInvoice, IssuedOn: calendar.NewDate(2026, 10, 30), TotalCents: 7800,
+			DebtorNumber: "70001", ChildName: "Lia Beispiel", ServiceFrom: october, ServiceUntil: until, Parts: parts(1)},
+		{Number: "2026-0313", Kind: parentbilling.DocumentInvoice, IssuedOn: calendar.NewDate(2026, 10, 30), TotalCents: 5600,
+			DebtorNumber: "70002", ChildName: "Tom Beispiel", ServiceFrom: october, ServiceUntil: until,
+			Parts: []parentbilling.ExportBookingPart{{AmountCents: 5600, Accounts: parentbilling.PositionAccounts{RevenueAccount: "4400",
+				CostCenter: "100", CostCenter2: "4712", Frozen: true}}}},
+		{Number: "2026-0314", Kind: parentbilling.DocumentCancellation, IssuedOn: calendar.NewDate(2026, 11, 3), TotalCents: -7800,
+			DebtorNumber: "70001", ChildName: "Lia Beispiel", ServiceFrom: october, ServiceUntil: until, Parts: parts(-1)},
+		{Number: "2026-0315", Kind: parentbilling.DocumentCredit, IssuedOn: calendar.NewDate(2026, 11, 3), TotalCents: -1250,
+			DebtorNumber: "70003", ChildName: "Ida Muster", ServiceFrom: october, ServiceUntil: until,
+			Parts: []parentbilling.ExportBookingPart{{AmountCents: -1250, Accounts: parentbilling.PositionAccounts{RevenueAccount: "4420",
+				CostCenter: "200", Frozen: true}}}},
+	}
+	rows, _, missing := sollRows(mapping, invoices, newBookingResolver(parentbilling.BookingAssignments{}, "4000"))
+	require.Empty(t, missing)
+	data, err := renderSollRows(mapping, rows, 112)
+	require.NoError(t, err)
+	path := filepath.Join("testdata", "sollstellung", "buchhaltung.csv")
+	if os.Getenv("UPDATE_GOLDEN") == "1" {
+		require.NoError(t, os.WriteFile(path, data, 0o600))
+	}
+	golden, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, string(golden), string(data))
+	assert.True(t, strings.HasPrefix(string(data), "\xef\xbb\xbfRechnungsnummer;Rechnungsdatum;Rechnungsbetrag;Gutschrift;Debitor-Nr.;"+
+		"Erlöskonto-Nr.;KOST1;Kostenstellen-Nr.;Buchungstext\r\n"), "the header of the bookkeeping file")
+	assert.Equal(t, "csv-export-bewegungsdaten-112.csv", sollFileName(mapping.FileNamePattern, 112))
+}
+
+// Without a credit column a Storno keeps its negative amount, as before
+// #7008; with one, the amount stays empty and the credit is positive. A
+// booking text fills each placeholder and writes an empty month without a
+// service date.
+func TestSollstellungCreditColumnAndBookingText(t *testing.T) {
+	t.Parallel()
+	mapping := parentbilling.SollstellungMapping{Columns: []parentbilling.SollstellungColumn{
+		{Field: parentbilling.SollFieldAmount},
+		{Field: parentbilling.SollFieldBookingText, Value: "{Rechnungsnummer} {Empfänger}: {Kind} {Monat}"},
+	}, Delimiter: ";", DecimalSeparator: ",", Encoding: parentbilling.SollEncodingUTF8}
+	storno := parentbilling.ExportInvoice{Number: "S-1", Kind: parentbilling.DocumentCancellation, TotalCents: -7800,
+		RecipientName: "Eva Muster", ChildName: "Lia Muster", ServiceFrom: calendar.NewDate(2026, 9, 1)}
+	invoice := parentbilling.ExportInvoice{Number: "R-1", Kind: parentbilling.DocumentInvoice, TotalCents: 1000, RecipientName: "-Ben"}
+	data, err := renderSollRows(mapping, invoiceSollRows([]parentbilling.ExportInvoice{storno, invoice}), 1)
+	require.NoError(t, err)
+	assert.Equal(t, "-78,00;S-1 Eva Muster: Lia Muster 09/2026\r\n10,00;R-1 -Ben:  \r\n", string(data))
+
+	mapping.Columns = append(mapping.Columns, parentbilling.SollstellungColumn{Field: parentbilling.SollFieldCreditAmount})
+	mapping.Columns[1].Value = "{Empfänger}"
+	data, err = renderSollRows(mapping, invoiceSollRows([]parentbilling.ExportInvoice{storno, invoice}), 1)
+	require.NoError(t, err)
+	assert.Equal(t, ";Eva Muster;78,00\r\n10,00;'-Ben;\r\n", string(data), "a booking text that starts like a formula is text")
+}
+
+// A booking text keeps its pattern within the limits of a constant and
+// refuses a placeholder it does not know; other columns drop a value.
+func TestSollstellungBookingTextPattern(t *testing.T) {
+	t.Parallel()
+	base := parentbilling.SollstellungMapping{Delimiter: ";", DecimalSeparator: ",", DateFormat: parentbilling.SollDateGerman,
+		Encoding: parentbilling.SollEncodingUTF8, FileNamePattern: "s-{NR}.csv"}
+	base.Columns = []parentbilling.SollstellungColumn{
+		{Field: parentbilling.SollFieldBookingText, Value: " SKB {Monat} {Kind} "},
+		{Field: parentbilling.SollFieldCreditAmount, Value: "lost"},
+	}
+	mapping, err := normalizeSollMapping(base)
+	require.NoError(t, err)
+	assert.Equal(t, "SKB {Monat} {Kind}", mapping.Columns[0].Value)
+	assert.Empty(t, mapping.Columns[1].Value)
+
+	var fields validation.Errors
+	for _, pattern := range []string{"SKB {Monat} {Name}", strings.Repeat("x", 61), "SKB\n{Kind}"} {
+		base.Columns = []parentbilling.SollstellungColumn{{Field: parentbilling.SollFieldBookingText, Value: pattern}}
+		_, err = normalizeSollMapping(base)
+		require.ErrorAs(t, err, &fields, pattern)
+		assert.Contains(t, fields, "columns.0.value", pattern)
+	}
 }
 
 // Windows-1252 writes umlauts as single bytes and replaces what it lacks.

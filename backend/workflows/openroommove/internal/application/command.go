@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove/ports"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove/ports"
 )
 
 // Dependencies are the owner capabilities and runtime the command coordinates.
@@ -55,28 +55,49 @@ func NewCommand(deps Dependencies) openroommove.Command {
 // A failure anywhere returns an error and the transaction owner rolls back.
 func (c *command) MoveToOpenRoom(ctx context.Context, move openroommove.Move) (openroommove.Result, error) {
 	started := time.Now()
+	result, err := c.move(ctx, move, func(txCtx context.Context, sessionID int64, studentIDs []int64) (ports.MoveOutcome, error) {
+		return c.deps.Moves.MoveIntoRoomSession(txCtx, sessionID, studentIDs, move.Actor)
+	})
+	c.deps.Observe(ports.Observation{Operation: "move_to_open_room", Duration: time.Since(started), Err: err, Moved: len(result.Moved)})
+	return result, err
+}
+
+// CheckInToOpenRoom checks children in to the school and places them in the
+// released room (#6953). It keeps every step of MoveToOpenRoom; step 5 also
+// opens the attendance of the absent children, so a rejected placement or a
+// release removed meanwhile rolls the check-in back with it.
+func (c *command) CheckInToOpenRoom(ctx context.Context, checkIn openroommove.CheckIn) (openroommove.Result, error) {
+	if checkIn.CheckedInBy <= 0 {
+		return openroommove.Result{}, openroommove.ErrInvalidMove
+	}
+	started := time.Now()
+	move := openroommove.Move{StudentIDs: checkIn.StudentIDs, RoomID: checkIn.RoomID, Actor: checkIn.Actor}
+	result, err := c.move(ctx, move, func(txCtx context.Context, sessionID int64, studentIDs []int64) (ports.MoveOutcome, error) {
+		return c.deps.Moves.CheckInIntoRoomSession(txCtx, sessionID, studentIDs, checkIn.CheckedInBy, checkIn.KeepPresent, checkIn.Actor)
+	})
+	c.deps.Observe(ports.Observation{Operation: "check_in_to_open_room", Duration: time.Since(started), Err: err, Moved: len(result.Moved)})
+	return result, err
+}
+
+// placeFunc is the Student Presence step that puts the children into the
+// room session.
+type placeFunc func(txCtx context.Context, sessionID int64, studentIDs []int64) (ports.MoveOutcome, error)
+
+// move runs the unit and returns an empty result on failure, so a caller can
+// never report a half-applied move.
+func (c *command) move(ctx context.Context, move openroommove.Move, place placeFunc) (openroommove.Result, error) {
+	studentIDs := uniquePositive(move.StudentIDs)
+	if move.RoomID <= 0 || len(studentIDs) == 0 {
+		return openroommove.Result{}, openroommove.ErrInvalidMove
+	}
 	var result openroommove.Result
-	err := c.move(ctx, move, &result)
-	c.deps.Observe(ports.Observation{
-		Operation: "move_to_open_room",
-		Duration:  time.Since(started),
-		Err:       err,
-		Moved:     len(result.Moved),
+	err := c.deps.Runtime.WithinTenant(ctx, func(txCtx context.Context) error {
+		return c.moveInTx(txCtx, move, place, &result, studentIDs)
 	})
 	if err != nil {
 		return openroommove.Result{}, err
 	}
 	return result, nil
-}
-
-func (c *command) move(ctx context.Context, move openroommove.Move, result *openroommove.Result) error {
-	studentIDs := uniquePositive(move.StudentIDs)
-	if move.RoomID <= 0 || len(studentIDs) == 0 {
-		return openroommove.ErrInvalidMove
-	}
-	return c.deps.Runtime.WithinTenant(ctx, func(txCtx context.Context) error {
-		return c.moveInTx(txCtx, move, result, studentIDs)
-	})
 }
 
 func (c *command) loadRoom(ctx context.Context, id int64) (facilities.Room, error) {
@@ -234,7 +255,7 @@ func uniquePositive(ids []int64) []int64 {
 	return result
 }
 
-func (c *command) moveInTx(txCtx context.Context, move openroommove.Move, result *openroommove.Result, studentIDs []int64) error {
+func (c *command) moveInTx(txCtx context.Context, move openroommove.Move, place placeFunc, result *openroommove.Result, studentIDs []int64) error {
 	room, err := c.loadRoom(txCtx, move.RoomID)
 	if err != nil {
 		return err
@@ -254,7 +275,7 @@ func (c *command) moveInTx(txCtx context.Context, move openroommove.Move, result
 	if err != nil {
 		return err
 	}
-	outcome, err := c.deps.Moves.MoveIntoRoomSession(txCtx, sessionID, studentIDs, move.Actor)
+	outcome, err := place(txCtx, sessionID, studentIDs)
 	if err != nil {
 		return err
 	}
@@ -273,6 +294,7 @@ func (c *command) moveInTx(txCtx context.Context, move openroommove.Move, result
 		Moved:         outcome.Moved,
 		Unchanged:     outcome.Unchanged,
 		Skipped:       outcome.Skipped,
+		CheckedIn:     outcome.CheckedIn,
 	}
 	return nil
 }

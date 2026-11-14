@@ -4,6 +4,8 @@
     "download": "Скачать",
     "openLabel": "Открыть {label}",
     "downloadLabel": "Скачать {label}",
+    "openHint": "Открывает PDF в новой вкладке.",
+    "downloadHint": "Сохраняет PDF на этом устройстве.",
     "errorObject": "PDF-файл",
     "popupBlocked": "Разрешите открытие нового окна."
   },

@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
 )
 
 // ExcusedCrossKindRequests is the part of the excused-absence workflow the
@@ -66,7 +66,7 @@ func (p ExcusedParentRequests) WriteStaffValue(ctx context.Context, write ports.
 		return careplan.ErrAbsenceRequestInvalidStatus
 	}
 	return ExcusedParentRequestError(p.Requests.WriteStaffValue(ctx, careplan.ExcusedStaffValueWrite{
-		StudentID: write.StudentID, RequestIDs: write.RequestIDs, Reason: write.Reason, Status: status,
+		StudentID: write.StudentID, RequestIDs: write.RequestIDs, Reason: write.Reason, Status: status, ReviewerID: write.ReviewerID,
 	}))
 }
 

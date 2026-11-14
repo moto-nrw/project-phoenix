@@ -1,6 +1,7 @@
 import type { AppLocale } from "~/i18n/locales";
 import { ApiError, errorClassCode } from "~/lib/api-error";
 import { ERROR_CATALOG } from "~/lib/error-catalog.generated";
+import type { ErrorContact } from "~/lib/error-contact";
 import {
   ERROR_CODES,
   ERROR_CODE_CLASSES,
@@ -13,6 +14,10 @@ const catalogs: Record<
   AppLocale,
   {
     classes: Record<ErrorClass, string>;
+    portalClasses: Record<
+      Exclude<ErrorContact, "school">,
+      Partial<Record<ErrorClass, string>>
+    >;
     actions: Record<keyof typeof ERROR_CATALOG.de.actions, string>;
     codes: Partial<Record<ErrorCode, string>>;
   }
@@ -72,11 +77,16 @@ function withDerivedCapacityDetails(
   return { ...details, free_slots: Math.max(0, maximum - current) };
 }
 
-/** No backend sentence is read here. Only the code and structured fields are used. */
+/**
+ * No backend sentence is read here. Only the code and structured fields are used.
+ * `contact` names whom the reader turns to: a class text such as a missing
+ * right sends a Träger-Büro to its own Leitung, not to a school (#6871).
+ */
 export function presentError(
   error: unknown,
   object: string,
   locale: AppLocale = "de",
+  contact: ErrorContact = "school",
 ): ErrorPresentation {
   const catalog = catalogs[locale];
   if (!(error instanceof ApiError)) {
@@ -107,9 +117,14 @@ export function presentError(
   );
   // The class text speaks the reader's language too, also for a code this
   // build does not know yet (#2518).
+  const classTemplate =
+    (contact === "school"
+      ? undefined
+      : catalog.portalClasses[contact][errorClass]) ??
+    catalog.classes[errorClass];
   const message =
     (codeTemplate && interpolate(codeTemplate, object, values)) ||
-    interpolate(catalog.classes[errorClass], object, {}) ||
+    interpolate(classTemplate, object, {}) ||
     catalogs.de.classes.server;
 
   return {

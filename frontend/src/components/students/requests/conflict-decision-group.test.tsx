@@ -235,7 +235,7 @@ describe("ConflictDecisionGroup", () => {
     fireEvent.click(screen.getAllByRole("radio")[0]!);
     expect(
       screen.getByRole("button", { name: "Ergebnis festlegen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("wiederholt das Ergebnis vor dem Speichern und schickt alle Versionen mit", async () => {
@@ -249,7 +249,7 @@ describe("ConflictDecisionGroup", () => {
     );
 
     const save = screen.getByRole("button", { name: "Ergebnis festlegen" });
-    expect(save).toBeDisabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(screen.getAllByRole("radio")[0]!);
     fireEvent.change(screen.getByLabelText("Begründung"), {

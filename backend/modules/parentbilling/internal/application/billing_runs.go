@@ -11,8 +11,8 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Actions of the trail of a run.
@@ -507,7 +507,11 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 		run: run, registrations: registrations, contributions: contributions, issued: issued, corrections: corrections,
 		replaces: replaces, replaced: replaced,
 	})
-	payments, err := readInvoicePayments(ctx, b.store, reviewer.OrganizationID, 0, run.ID)
+	scope, err := debtorNumberScopeOf(ctx, b.settings, reviewer.OrganizationID)
+	if err != nil {
+		return preview{}, err
+	}
+	payments, err := readInvoicePayments(ctx, b.store, reviewer.OrganizationID, 0, run.ID, scope)
 	if err != nil {
 		return preview{}, err
 	}
@@ -520,6 +524,9 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 		return preview{}, err
 	}
 	if err := recordMandateReads(ctx, b.store, reviewer, payments.mandatesRead()); err != nil {
+		return preview{}, err
+	}
+	if err := recordChildNumberReads(ctx, b.store, reviewer, payments.childNumbersRead()); err != nil {
 		return preview{}, err
 	}
 	return result, nil
@@ -668,7 +675,7 @@ func (b *BillingRuns) releasedDetail(ctx context.Context, organizationID int64, 
 		return err
 	}
 	detail.DocumentKind = issuedDocumentKind(detail.Documents)
-	payments, err := readInvoicePayments(ctx, b.store, organizationID, 0, detail.ID)
+	payments, err := readInvoicePayments(ctx, b.store, organizationID, 0, detail.ID, parentbilling.DebtorNumberScopePayer)
 	if err != nil {
 		return err
 	}
@@ -692,7 +699,28 @@ func (b *BillingRuns) previewDetail(ctx context.Context, reviewer parentbilling.
 		detail.Documents[i].DocumentKind = kind.DocumentKind
 	}
 	detail.MissingDebtorNumbers, detail.PaymentTextMissingDebtorNumbers, err = b.missingDebtorNumbers(ctx, reviewer.OrganizationID, current.documents)
+	if err != nil {
+		return err
+	}
+	detail.SharedChildDebtorNumbers, err = b.sharedChildDebtorNumbers(ctx, reviewer.OrganizationID, current.documents)
 	return err
+}
+
+// sharedChildDebtorNumbers counts the draft invoices of several children
+// when the Träger keeps a number per child (#7007): until the holiday
+// invoice is split per child, such an invoice carries one number for all.
+func (b *BillingRuns) sharedChildDebtorNumbers(ctx context.Context, organizationID int64, documents []parentbilling.BillingDocument) (int, error) {
+	scope, err := debtorNumberScopeOf(ctx, b.settings, organizationID)
+	if err != nil || scope != parentbilling.DebtorNumberScopeChild {
+		return 0, err
+	}
+	shared := 0
+	for _, document := range documents {
+		if len(document.Children) > 1 {
+			shared++
+		}
+	}
+	return shared, nil
 }
 
 // issuedDocumentKind is the kind a released run froze: the kind of its

@@ -26,6 +26,8 @@ export function traegerFinanceExportsTopic(): HelpTopic {
           "Wählen Sie oben rechts `Feldzuordnung`.",
           "Wählen Sie bei jeder Spalte den `Inhalt` und tragen Sie den `Spaltennamen` ein.",
           "Mit `Spalte` fügen Sie eine Spalte hinzu. Für einen Wert, der in jeder Zeile gleich ist, wählen Sie `Fester Wert`, etwa ein Konto.",
+          "Für einen Text je Rechnung wählen Sie `Buchungstext`. Schreiben Sie feste Wörter selbst und fügen Sie Platzhalter wie `{Monat}` und `{Kind}` mit einem Klick ein. Aus `SKB {Monat} {Kind}` wird etwa `SKB 10/2026 Lia Müller`.",
+          "Will Ihre Buchhaltung Stornos und Gutschriften in einer eigenen Spalte? Dann wählen Sie `Gutschrift`. Dort steht der Betrag ohne Minus. Die Spalte `Betrag` bleibt bei ihnen leer.",
           "Legen Sie unter `Datei` Trennzeichen, Beträge, Datum, Zeichensatz und Dateinamen fest. `{NR}` im Dateinamen wird zur Dateinummer.",
           "Prüfen Sie die `Vorschau` und wählen Sie `Speichern`.",
         ],
@@ -44,7 +46,7 @@ export function traegerFinanceExportsTopic(): HelpTopic {
         steps: [
           "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
           "Wählen Sie beim Lauf `Sollstellung`. Die Datei wird heruntergeladen.",
-          "Geben Sie die Datei an Ihre Kämmerei.",
+          "Geben Sie die Datei an Ihre Kämmerei. Oder lassen Sie moto sie übergeben, siehe „Exporte an Empfänger übergeben“.",
         ],
       },
     ],
@@ -69,6 +71,7 @@ export function traegerFinanceExportsTopic(): HelpTopic {
       "Beim Import einer Datei zeigt eine Zeile `Geschwister haben verschiedene Nummern`? moto führt eine Nummer je Familie. Tragen Sie die richtige Nummer bei der Familie ein.",
     ],
     related: [
+      HELP_TOPICS.traegerExportHandover,
       HELP_TOPICS.traegerDatevExport,
       HELP_TOPICS.traegerCareMonths,
       HELP_TOPICS.traegerSepaDebitFile,

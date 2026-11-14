@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -171,15 +171,15 @@ func TestNativeMFAChallengeAndDeviceScope(t *testing.T) {
 		AccountID: account.ID, TenantID: home, TokenHash: "opaque-token-hash", ExpiresAt: time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
-	_, found, _ = records.FindActiveTrustedDevice(ctx, account.ID, other, device.TokenHash)
+	_, found, _ = records.FindActiveTrustedDevice(ctx, account.ID, other, 0, device.TokenHash)
 	require.False(t, found)
 	require.NoError(t, records.RevokeTenantTrustedDevices(ctx, account.ID, other, time.Now()))
-	_, found, err = records.FindActiveTrustedDevice(ctx, account.ID, home, device.TokenHash)
+	_, found, err = records.FindActiveTrustedDevice(ctx, account.ID, home, 0, device.TokenHash)
 	require.NoError(t, err)
 	require.True(t, found)
 	require.NoError(t, records.RevokeTrustedDevice(ctx, device.ID, time.Now()))
 	require.Error(t, records.RevokeTrustedDevice(ctx, device.ID, time.Now()))
-	devices, err := records.ListActiveTrustedDevices(ctx, account.ID, home)
+	devices, err := records.ListActiveTrustedDevices(ctx, account.ID, home, 0)
 	require.NoError(t, err)
 	require.Empty(t, devices)
 }

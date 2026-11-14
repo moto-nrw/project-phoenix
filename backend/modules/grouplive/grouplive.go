@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
 )
 
 // ErrForbiddenGroup indicates that the requested group is outside the

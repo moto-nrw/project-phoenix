@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport"
-	app "github.com/moto-nrw/project-phoenix/modules/dataimport/internal/adapters/runtimebinding"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport"
+	app "github.com/moto-ogs/project-phoenix/modules/dataimport/internal/adapters/runtimebinding"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewTransactions binds the import execution port to the tenant runtime.

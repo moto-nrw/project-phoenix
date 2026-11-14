@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import FerienwochenPage from "./page";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type {
+  HolidayHomeSchoolBooking,
   HolidayParticipantList,
   HostedHolidayWeek,
 } from "~/lib/holiday-host-api";
@@ -26,10 +27,12 @@ const {
   downloadMock,
   assignMock,
   ownChildrenMock,
+  homeSchoolMock,
   groupsMock,
   sessionPermissions,
 } = vi.hoisted(() => ({
   ownChildrenMock: vi.fn(),
+  homeSchoolMock: vi.fn(),
   weeksMock: vi.fn(),
   participantsMock: vi.fn(),
   downloadMock: vi.fn(),
@@ -58,6 +61,7 @@ vi.mock("~/lib/holiday-host-api", async (importOriginal) => ({
   downloadHolidayParticipants: downloadMock,
   assignHolidayGuestGroup: assignMock,
   fetchHolidayOwnChildAssignments: ownChildrenMock,
+  fetchHolidayHomeSchoolBookings: homeSchoolMock,
 }));
 
 vi.mock("~/lib/api", () => ({
@@ -180,6 +184,7 @@ describe("FerienwochenPage", () => {
     downloadMock.mockResolvedValue(undefined);
     sessionPermissions.current = [];
     ownChildrenMock.mockResolvedValue([]);
+    homeSchoolMock.mockResolvedValue([]);
     groupsMock.mockResolvedValue([
       { id: "7", name: "Feriengruppe" },
       { id: "8", name: "Bären" },
@@ -439,7 +444,7 @@ describe("FerienwochenPage", () => {
 
     expect(
       await screen.findByText(
-        "Ihre OGS richtet gerade keine Ferienwoche aus. Die Ferienwochen plant der Träger.",
+        "Ihre OGS richtet gerade keine Ferienwoche aus. Die Ferienwochen plant der Träger. Kein Kind Ihrer OGS ist gerade für die Ferienwoche einer anderen OGS bestätigt. Sobald der Träger eine solche Anmeldung bestätigt, steht das Kind hier.",
       ),
     ).toBeInTheDocument();
   });
@@ -451,7 +456,7 @@ describe("FerienwochenPage", () => {
 
     expect(
       await screen.findByText(
-        "Ihre OGS richtet gerade keine Ferienwoche aus. Die Ferienwochen plant der Träger.",
+        "Ihre OGS richtet gerade keine Ferienwoche aus. Die Ferienwochen plant der Träger. Kein Kind Ihrer OGS ist gerade für die Ferienwoche einer anderen OGS bestätigt. Sobald der Träger eine solche Anmeldung bestätigt, steht das Kind hier.",
       ),
     ).toBeInTheDocument();
     expect(participantsMock).not.toHaveBeenCalled();
@@ -506,7 +511,10 @@ describe("FerienwochenPage", () => {
       ),
     ).toBeInTheDocument();
     const take = screen.getByRole("button", { name: "Feriengäste übernehmen" });
-    expect(take).toBeDisabled();
+    expect(take).toHaveAttribute("aria-disabled", "true");
+    expect(take).toHaveAccessibleDescription(
+      "Wählen Sie zuerst eine Gruppe aus.",
+    );
     await waitFor(() =>
       expect(
         screen.getByRole("combobox", { name: "Gruppe für die Feriengäste" }),
@@ -578,9 +586,11 @@ describe("FerienwochenPage", () => {
         "Sommerferien 2026 · 21.09. bis 25.09.2026 · 2 Kinder",
       ),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Feriengäste übernehmen" }),
-    ).toBeDisabled();
+    const take = screen.getByRole("button", { name: "Feriengäste übernehmen" });
+    expect(take).toHaveAttribute("aria-disabled", "true");
+    expect(take).toHaveAccessibleDescription(
+      "Wählen Sie zuerst eine Gruppe aus.",
+    );
     expect(assignMock).not.toHaveBeenCalled();
   });
 
@@ -683,5 +693,150 @@ describe("FerienwochenPage", () => {
         "1 Feriengast in der Gruppe. 2 Kinder Ihrer OGS sind eingeplant.",
       ),
     ).toBeInTheDocument();
+  });
+
+  describe("Kinder bei anderen OGS (#6679)", () => {
+    const running: HolidayHomeSchoolBooking = {
+      childId: "901",
+      firstName: "Tom",
+      lastName: "Beispiel",
+      birthDate: "2017-05-20",
+      weekId: "71",
+      periodName: "Herbstferien 2026",
+      startsOn: "2026-09-07",
+      endsOn: "2026-09-11",
+      hostSchoolId: "3",
+      hostSchoolName: "GS Bissendorf",
+      timeModelName: "bis 15 Uhr",
+      timeModelStartsAt: "08:00",
+      timeModelEndsAt: "15:00",
+      days: [],
+      assignment: "matched",
+      studentId: "42",
+    };
+    const upcoming: HolidayHomeSchoolBooking = {
+      ...running,
+      childId: "902",
+      firstName: "Mia",
+      lastName: "Sonne",
+      weekId: "72",
+      startsOn: "2026-10-12",
+      endsOn: "2026-10-16",
+      days: ["2026-10-12", "2026-10-14"],
+      assignment: "not_found",
+      studentId: null,
+    };
+
+    it("shows the school's children at other OGS when it hosts no week", async () => {
+      weeksMock.mockResolvedValue([]);
+      homeSchoolMock.mockResolvedValue([running, upcoming]);
+
+      renderPage();
+
+      await screen.findByText("Ihre Kinder in Ferienwochen anderer OGS");
+      const table = tableWith("Betreut von");
+      expect(within(table).getByText("Beispiel, Tom")).toBeInTheDocument();
+      expect(within(table).getAllByText("GS Bissendorf")).toHaveLength(2);
+      expect(within(table).getByText("Läuft gerade")).toBeInTheDocument();
+      expect(within(table).getByText("Ab 12.10.")).toBeInTheDocument();
+      expect(
+        within(table).getByText("Mo 12.10., Mi 14.10."),
+      ).toBeInTheDocument();
+      expect(
+        within(table).getByRole("link", { name: "Akte öffnen: Tom Beispiel" }),
+      ).toHaveAttribute("href", "/test-tenant/students/42");
+      expect(within(table).getByText("Nicht zugeordnet")).toBeInTheDocument();
+      expect(
+        screen.getByText("2 Kinder bei anderen OGS · 2 Ferienwochen"),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+      expect(participantsMock).not.toHaveBeenCalled();
+    });
+
+    it("counts each child once and dates the status by its booked days", async () => {
+      weeksMock.mockResolvedValue([]);
+      homeSchoolMock.mockResolvedValue([
+        // Tom nur am Donnerstag dieser Woche und dazu eine zweite Woche.
+        { ...running, days: ["2026-09-10"] },
+        {
+          ...running,
+          weekId: "72",
+          startsOn: "2026-10-12",
+          endsOn: "2026-10-16",
+        },
+        // Ida nur am Montag dieser Woche: Der Tag ist vorbei.
+        { ...running, childId: "903", firstName: "Ida", days: ["2026-09-07"] },
+      ]);
+
+      renderPage();
+
+      await screen.findByText("Ihre Kinder in Ferienwochen anderer OGS");
+      const table = tableWith("Betreut von");
+      expect(within(table).getByText("Ab 10.09.")).toBeInTheDocument();
+      expect(within(table).getByText("Ab 12.10.")).toBeInTheDocument();
+      expect(within(table).getByText("Vorbei")).toBeInTheDocument();
+      expect(within(table).queryByText("Läuft gerade")).not.toBeInTheDocument();
+      expect(
+        screen.getByText("2 Kinder bei anderen OGS · 2 Ferienwochen"),
+      ).toBeInTheDocument();
+    });
+
+    it("puts them in their own tab beside the hosted weeks", async () => {
+      weeksMock.mockResolvedValue([firstWeek]);
+      participantsMock.mockResolvedValue(listOf(firstWeek));
+      homeSchoolMock.mockResolvedValue([running]);
+
+      renderPage();
+
+      await screen.findByText("Muster, Lia", { selector: "td, td *" });
+      // Erst der Reiter lädt die Kinder: Jeder Abruf steht im
+      // Zugriffsprotokoll, ein Blick auf die eigene Woche ist keiner.
+      expect(homeSchoolMock).not.toHaveBeenCalled();
+      const tab = screen.getByRole("tab", { name: "Kinder bei anderen OGS" });
+      fireEvent.click(tab);
+
+      const table = await waitFor(() => tableWith("Betreut von"));
+      expect(within(table).getByText("Beispiel, Tom")).toBeInTheDocument();
+      expect(
+        screen.queryByText("Muster, Lia", { selector: "td, td *" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("says why the tab is empty", async () => {
+      weeksMock.mockResolvedValue([firstWeek]);
+      participantsMock.mockResolvedValue(listOf(firstWeek));
+
+      renderPage();
+
+      fireEvent.click(
+        await screen.findByRole("tab", { name: "Kinder bei anderen OGS" }),
+      );
+
+      expect(
+        await screen.findByText(
+          "Kein Kind Ihrer OGS ist für eine andere OGS bestätigt",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Hier stehen Kinder Ihrer OGS, deren Anmeldung der Träger für eine andere OGS bestätigt hat.",
+          { exact: false },
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("says when the children at other OGS cannot be loaded", async () => {
+      weeksMock.mockResolvedValue([]);
+      homeSchoolMock.mockRejectedValue(new Error("boom"));
+
+      renderPage();
+
+      expect(
+        await screen.findByText("die Kinder bei anderen OGS", { exact: false }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Ihre OGS richtet gerade keine Ferienwoche aus"),
+      ).not.toBeInTheDocument();
+    });
   });
 });

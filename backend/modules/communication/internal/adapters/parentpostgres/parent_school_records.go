@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 )
 
 // WithInboxSchoolNames names the school of every inbox row through schools.

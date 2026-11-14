@@ -18,6 +18,7 @@
  * helpers, the real header), so they stay separate, as does page.test.tsx.
  */
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -35,10 +36,12 @@ import {
   vi,
 } from "vitest";
 import type { FilterConfig } from "~/components/ui/page-header/types";
+import { ApiError } from "~/lib/api-error";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 
 const {
   mockGetStudents,
+  mockFetchAnswerFilters,
   mockUseSWRAuth,
   mockUseImmutableSWR,
   mockPush,
@@ -56,6 +59,7 @@ const {
   mockUseOptionalSupervision: vi.fn(),
   mockUseUserContext: vi.fn(),
   mockPageHeader: vi.fn(),
+  mockFetchAnswerFilters: vi.fn(),
   flags: { childSearchOnly: false },
 }));
 
@@ -102,8 +106,8 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useBreadcrumb: () => ({ breadcrumb: {}, setBreadcrumb: vi.fn() }),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: (props: { filters?: FilterConfig[] }) =>
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: (props: { filters?: FilterConfig[] }) =>
     mockPageHeader(props),
 }));
 
@@ -115,11 +119,11 @@ vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message }: { message: string }) => <div>{message}</div>,
 }));
 
-vi.mock("@/components/ui/location-badge", () => ({
+vi.mock("@/components/students/presence/location-badge", () => ({
   LocationBadge: () => <span />,
 }));
 
-vi.mock("@/components/ui/student-presence-badge", () => ({
+vi.mock("@/components/students/presence/student-presence-badge", () => ({
   StudentPresenceBadge: () => <span data-testid="presence-badge" />,
 }));
 
@@ -208,6 +212,7 @@ vi.mock("~/lib/student-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/student-api")>()),
   fetchStudents: (...args: unknown[]) => mockGetStudents(...args),
   fetchSchoolClasses: vi.fn(() => Promise.resolve([])),
+  fetchEnrollmentAnswerFilters: () => mockFetchAnswerFilters(),
 }));
 
 vi.mock("~/lib/api", () => ({
@@ -288,6 +293,14 @@ beforeEach(() => {
   currentSearch = new URLSearchParams();
   clockNow = null;
   flags.childSearchOnly = false;
+  mockFetchAnswerFilters.mockReset();
+  mockFetchAnswerFilters.mockResolvedValue([
+    {
+      key: "seepferdchen",
+      label: "Seepferdchen vorhanden?",
+      options: [{ value: "true", label: "Ja", count: 3 }],
+    },
+  ]);
   mockUseSession.mockImplementation(() => ({
     data: { user: { token: "t" } },
     status: "authenticated",
@@ -350,7 +363,8 @@ describe("StudentSearchPage — room_id deep-link (#1323)", () => {
     // for the test path; we mimic that here.
     mockUseSWRAuth.mockImplementation(
       (key: string | null, fetcher?: () => Promise<unknown>) => {
-        if (fetcher) {
+        // Like SWR, a null key starts no request.
+        if (fetcher && key !== null) {
           // Fire-and-forget — we only assert on mockGetStudents call shape.
           void fetcher().catch(() => undefined);
         }
@@ -399,6 +413,200 @@ describe("StudentSearchPage — room_id deep-link (#1323)", () => {
     const filteredCall = calls.find((c) => c.roomId === "42");
     expect(filteredCall).toBeDefined();
     expect(filteredCall?.roomId).toBe("42");
+  });
+
+  it("forwards a registration answer from the URL with users:read (#6954)", async () => {
+    mockUseSession.mockImplementation(() => ({
+      data: { user: { token: "t", permissions: ["users:read"] } },
+      status: "authenticated",
+    }));
+    currentSearch = new URLSearchParams({
+      enrollment_answer: "seepferdchen=true",
+    });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(
+        mockGetStudents.mock.calls.some(
+          (call) =>
+            (call[0] as Record<string, unknown>).enrollmentAnswer ===
+            "seepferdchen=true",
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("drops a registration answer the account may not read (#6954)", async () => {
+    mockUseSession.mockImplementation(() => ({
+      data: { user: { token: "t", permissions: ["students:read"] } },
+      status: "authenticated",
+    }));
+    currentSearch = new URLSearchParams({
+      enrollment_answer: "seepferdchen=true",
+    });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(mockGetStudents).toHaveBeenCalled();
+    });
+    expect(
+      mockGetStudents.mock.calls.every(
+        (call) =>
+          (call[0] as Record<string, unknown>).enrollmentAnswer === undefined,
+      ),
+    ).toBe(true);
+  });
+
+  it("drops a stale registration answer the server refuses and still lists the children (#6954)", async () => {
+    // users:read without a staff record: the server refuses the answers, as
+    // on the child's page. A saved link with the filter must not empty the
+    // whole list with a 403.
+    mockUseSession.mockImplementation(() => ({
+      data: { user: { token: "t", permissions: ["users:read"] } },
+      status: "authenticated",
+    }));
+    mockFetchAnswerFilters.mockRejectedValue(
+      new ApiError(
+        "GET /api/students/enrollment-answer-filters failed (403)",
+        403,
+      ),
+    );
+    currentSearch = new URLSearchParams({
+      enrollment_answer: "seepferdchen=true",
+    });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(mockFetchAnswerFilters).toHaveBeenCalled();
+      expect(mockGetStudents).toHaveBeenCalled();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(
+      mockGetStudents.mock.calls.every(
+        (call) =>
+          (call[0] as Record<string, unknown>).enrollmentAnswer === undefined,
+      ),
+    ).toBe(true);
+    // Anker: die ungefilterte Kinderliste ist geladen.
+    expect(await screen.findByTestId("student-card-7")).toBeInTheDocument();
+    expect(screen.queryByText(/Seepferdchen/)).not.toBeInTheDocument();
+  });
+
+  it("holds the list and the export until the server has answered for a saved registration answer (#6954)", async () => {
+    // Loaded before the answer, the list came once without the filter and
+    // again with it, and an export in between carried every child.
+    mockUseSession.mockImplementation(() => ({
+      data: { user: { token: "t", permissions: ["users:read"] } },
+      status: "authenticated",
+    }));
+    let grant: (questions: unknown[]) => void = () => undefined;
+    mockFetchAnswerFilters.mockReturnValue(
+      new Promise<unknown[]>((resolve) => {
+        grant = resolve;
+      }),
+    );
+    currentSearch = new URLSearchParams({
+      enrollment_answer: "seepferdchen=true",
+    });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(mockFetchAnswerFilters).toHaveBeenCalled();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockGetStudents).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(
+      await screen.findByRole("menuitem", { name: /Exportieren/ }),
+    ).toBeDisabled();
+
+    await act(async () => {
+      grant([
+        {
+          key: "seepferdchen",
+          label: "Seepferdchen vorhanden?",
+          options: [{ value: "true", label: "Ja", count: 3 }],
+        },
+      ]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockGetStudents).toHaveBeenCalled();
+    });
+    expect(
+      mockGetStudents.mock.calls.every(
+        (call) =>
+          (call[0] as Record<string, unknown>).enrollmentAnswer ===
+          "seepferdchen=true",
+      ),
+    ).toBe(true);
+    expect(screen.getByRole("menuitem", { name: /Exportieren/ })).toBeEnabled();
+  });
+
+  it("keeps a saved registration answer while the session is still loading (#6954)", async () => {
+    // A loading session names no permissions. Read as "may not ask", it
+    // dropped the saved filter of an account that may.
+    mockUseSession.mockImplementation(() => ({
+      data: null,
+      status: "loading",
+    }));
+    currentSearch = new URLSearchParams({
+      enrollment_answer: "seepferdchen=true",
+    });
+
+    const { rerender } = render(<StudentSearchPage />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockFetchAnswerFilters).not.toHaveBeenCalled();
+
+    mockUseSession.mockImplementation(() => ({
+      data: { user: { token: "t", permissions: ["users:read"] } },
+      status: "authenticated",
+    }));
+    rerender(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(
+        mockGetStudents.mock.calls.some(
+          (call) =>
+            (call[0] as Record<string, unknown>).enrollmentAnswer ===
+            "seepferdchen=true",
+        ),
+      ).toBe(true);
+    });
+    expect(
+      mockGetStudents.mock.calls.every(
+        (call) =>
+          (call[0] as Record<string, unknown>).enrollmentAnswer ===
+          "seepferdchen=true",
+      ),
+    ).toBe(true);
+  });
+
+  it("loads the list at once when no registration answer is saved (#6954)", async () => {
+    mockUseSession.mockImplementation(() => ({
+      data: { user: { token: "t", permissions: ["users:read"] } },
+      status: "authenticated",
+    }));
+    mockFetchAnswerFilters.mockReturnValue(
+      new Promise<unknown[]>(() => undefined),
+    );
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(mockGetStudents).toHaveBeenCalled();
+    });
   });
 
   it("does not forward roomId when no room_id query param is present", async () => {

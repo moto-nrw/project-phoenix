@@ -228,6 +228,7 @@ export function NewGroupMessageModal({
             size="md"
             onClick={onClose}
             disabled={sending}
+            noTooltip="Schließt das Fenster ohne Senden, das Wort sagt es."
           >
             Abbrechen
           </Button>
@@ -237,6 +238,7 @@ export function NewGroupMessageModal({
             size="md"
             onClick={() => void submit()}
             disabled={sending}
+            tooltip={`Schickt die Nachricht sofort an alle Eltern der gewählten ${TARGET_NOUN[type]}.`}
           >
             {sending ? "Wird gesendet…" : "Senden"}
           </Button>

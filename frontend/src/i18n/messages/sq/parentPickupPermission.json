@@ -37,5 +37,6 @@
     "none": "Si zakonisht",
     "hint": "Vetëm personat që i keni shtuar te kontaktet.",
     "manageLink": "Shtoni një person të ri te kontaktet"
-  }
+  },
+  "proofPdfTooltip": "E ruan dëshminë si PDF në këtë pajisje."
 }

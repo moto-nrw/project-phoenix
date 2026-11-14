@@ -186,6 +186,11 @@ function RoleDetailContent({
             variant="outline"
             size="compact"
             onClick={() => setEditing(true)}
+            tooltip={
+              activeTab === "permissions"
+                ? "Öffnet die Berechtigungen dieser Rolle zum Bearbeiten."
+                : "Öffnet Name und Beschreibung der Rolle zum Bearbeiten."
+            }
           >
             <Pencil className="h-3.5 w-3.5" aria-hidden />
             Bearbeiten
@@ -327,7 +332,6 @@ function RoleStammdatenTab({
             size={18}
           />
         }
-        accentColor="purple"
       >
         <DataGrid>
           <DataField label="Name">{getRoleDisplayName(role.name)}</DataField>

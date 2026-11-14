@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // scopeTestTenantRoutes binds real native gates supplied by the shared
@@ -34,3 +34,19 @@ func (rs *StaffAdminResource) Router(protectedTenantRoutes func(chi.Router, func
 func (rs *StaffAdminResource) CleanupOrphanedStaffDocumentFiles(ctx context.Context) (int, error) {
 	return rs.documentFiles.CleanupOrphanedStaffDocumentFiles(ctx)
 }
+
+// ScopeTestTenantRoutes binds the native gates for the route suites of the
+// behaviortest directory, as scopeTestTenantRoutes does for this package.
+func ScopeTestTenantRoutes(authenticate, scope func(http.Handler) http.Handler, preview func(context.Context) bool, principal common.PrincipalFactsReader, settingsCache, identityCache func(http.Handler) http.Handler) func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)) {
+	return scopeTestTenantRoutes(authenticate, scope, preview, principal, settingsCache, identityCache)
+}
+
+// StaffDocumentsDirForTest is the directory the staff documents of tenantID
+// are stored in.
+func StaffDocumentsDirForTest(tenantID int64, uploads common.UploadStorage) string {
+	return staffDocumentsDir(tenantID, uploads)
+}
+
+// ExportTransferReasonNotConfiguredForTest is the transfer reason of a school
+// without an export counterpart.
+const ExportTransferReasonNotConfiguredForTest = exportTransferReasonNotConfigured

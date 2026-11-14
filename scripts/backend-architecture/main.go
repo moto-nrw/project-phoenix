@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/architecture"
-	"github.com/moto-nrw/project-phoenix/internal/passthrough"
+	"github.com/moto-ogs/project-phoenix/internal/architecture"
+	"github.com/moto-ogs/project-phoenix/internal/passthrough"
 )
 
 func main() {

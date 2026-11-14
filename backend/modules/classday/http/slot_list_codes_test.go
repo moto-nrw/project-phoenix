@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

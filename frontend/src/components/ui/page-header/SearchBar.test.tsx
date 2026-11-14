@@ -4,21 +4,11 @@
  */
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { SearchBarDraftProvider, SharedSearchBar } from "./SearchBar";
-import type { SearchBarProps } from "./types";
-
-function SearchBar(props: Readonly<SearchBarProps>) {
-  return (
-    <SearchBarDraftProvider
-      value={props.value}
-      onChange={props.onChange}
-      debounceMs={props.debounceMs}
-      resetKey={props.resetKey}
-    >
-      <SharedSearchBar {...props} />
-    </SearchBarDraftProvider>
-  );
-}
+import {
+  SearchBar,
+  SearchBarDraftProvider,
+  SharedSearchBar,
+} from "./SearchBar";
 
 describe("SearchBar", () => {
   const mockOnChange = vi.fn();

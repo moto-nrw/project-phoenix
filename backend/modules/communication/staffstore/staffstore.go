@@ -4,7 +4,7 @@ package staffstore
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/staffpostgres"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/adapters/staffpostgres"
 	"github.com/uptrace/bun"
 )
 

@@ -4,6 +4,7 @@ import type { ImportResult, ImportRow } from "~/lib/traeger-sepa-import-api";
 import { SepaImportPreviewCard } from "./sepa-import-preview-card";
 
 import { importableCount } from "./sepa-import-format";
+import { usePhoneViewport } from "~/test/helpers/viewport";
 
 function row(line: number, overrides: Partial<ImportRow>): ImportRow {
   return {
@@ -62,6 +63,7 @@ const result: ImportResult = {
     imported: 0,
     debtorNumbers: 0,
     debtorConflicts: 0,
+    withoutMandate: 0,
   },
   rows: [
     row(2, {}),
@@ -115,6 +117,29 @@ describe("SepaImportPreviewCard", () => {
     expect(onAnswer).toHaveBeenCalledWith(3, "recurring");
   });
 
+  it("counts the rows without a mandate once, not as errors (#7009)", () => {
+    render(
+      <SepaImportPreviewCard
+        result={{
+          ...result,
+          counts: { ...result.counts, withoutMandate: 517 },
+        }}
+        answers={{}}
+        applying={false}
+        onAnswer={vi.fn()}
+        onApply={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(
+        /^517 Zeilen ohne Mandat: .* Konflikte sehen Sie mit Zeilennummer unten\.$/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Fehler 1" }),
+    ).toBeInTheDocument();
+  });
+
   it("names the debtor number siblings disagree on (#4693)", () => {
     render(
       <SepaImportPreviewCard
@@ -122,6 +147,9 @@ describe("SepaImportPreviewCard", () => {
           ...result,
           rows: [
             row(2, {
+              status: "conflict",
+              reference: "",
+              ibanMasked: "",
               debtorNumber: "20 0001",
               debtorNumberStatus: "siblings_differ",
             }),
@@ -138,9 +166,7 @@ describe("SepaImportPreviewCard", () => {
       screen.getAllByText(/Geschwister haben verschiedene Nummern/).length,
     ).toBeGreaterThan(0);
     expect(
-      screen.getAllByText(
-        "Debitorennummer 10 0001 wird bei der Familie eingetragen.",
-      ).length,
+      screen.getAllByText("Debitorennummer 10 0001 wird eingetragen.").length,
     ).toBeGreaterThan(0);
   });
 
@@ -204,5 +230,36 @@ describe("SepaImportPreviewCard", () => {
     expect(screen.getAllByText("Fehlerhaft").length).toBeGreaterThan(0);
     expect(screen.queryAllByText("Beispiel 2")).toHaveLength(0);
     expect(screen.getAllByText("Eva Beispiel").length).toBeGreaterThan(0);
+  });
+});
+
+describe("SepaImportPreviewCard on a phone", () => {
+  usePhoneViewport();
+
+  it("shows the file line of a debtor-number conflict without a mandate", () => {
+    render(
+      <SepaImportPreviewCard
+        result={{
+          ...result,
+          rows: [
+            row(23, {
+              status: "conflict",
+              reference: "",
+              ibanMasked: "",
+              debtorNumberStatus: "differs",
+            }),
+          ],
+        }}
+        answers={{}}
+        applying={false}
+        onAnswer={vi.fn()}
+        onApply={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Zeile")).toBeInTheDocument();
+    expect(screen.getByText("23")).toBeInTheDocument();
+    expect(
+      screen.getByText(/In moto steht schon eine andere Nummer/),
+    ).toBeInTheDocument();
   });
 });

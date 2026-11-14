@@ -562,13 +562,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (u calendarPeriodUsage) UsageCounts(ctx context.Context) (map[int64]timetableAPI.CalendarPeriodUsageCounts, error) {\n\tvalues, err := u.usage.Usage(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]timetableAPI.CalendarPeriodUsageCounts, len(values))\n\tfor id, value := range values {\n\t\tresult[id] = timetableAPI.CalendarPeriodUsageCounts(value)\n\t}\n\treturn result, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "api/calendarPeriodUsage.UsageCounts",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (e *capabilityError) Error() string {\n\treturn e.cause.Error()\n}",
       "form": "forward-debt",
       "id": "api/capabilityError.Error",
@@ -961,6 +954,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (d groupStudentsInClassDay) InClassStillHolds(ctx context.Context) (bool, error) {\n\tcareDayEnd, err := d.settings.ResolveString(ctx, settingsplatform.KeySessionEndTime)\n\tif err != nil {\n\t\treturn false, err\n\t}\n\treturn careplan.InClassUntilCareDayEnd(careDayEnd, d.now()), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/groupStudentsInClassDay.InClassStillHolds",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (k holidayKnownChildren) KnownHolidayChildren(ctx context.Context, organizationID, periodID, registrationID int64) ([]enrollment.HolidayKnownChild, error) {\n\tknown, err := k.overview.KnownHolidayChildren(ctx, organizationID, periodID, registrationID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]enrollment.HolidayKnownChild, 0, len(known))\n\tfor _, child := range known {\n\t\tresult = append(result, enrollment.HolidayKnownChild(child))\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/holidayKnownChildren.KnownHolidayChildren",
@@ -1185,6 +1185,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (n parentBillingActorNames) TraegerActorNames(ctx context.Context, organizationID int64, accountIDs []int64) (map[int64]string, error) {\n\tnames, err := n.names.ListTraegerMemberNames(ctx, organizationID, accountIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]string, len(names))\n\tfor _, name := range names {\n\t\tresult[name.AccountID] = name.Name\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingActorNames.TraegerActorNames",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (b parentBillingBillingRegistrations) HolidayBillingPeriod(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) (parentbilling.HolidayBillingPeriod, error) {\n\tperiod, err := b.periods.HolidayPeriod(ctx, reviewer.OrganizationID, periodID)\n\tif err != nil {\n\t\treturn parentbilling.HolidayBillingPeriod{}, parentBillingHolidayError(err)\n\t}\n\treturn parentBillingPeriod(period), nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingBillingRegistrations.HolidayBillingPeriod",
@@ -1314,6 +1321,13 @@
       "evidence": "func (s parentBillingSettings) CareMonthRule(ctx context.Context, organizationID int64) (string, error) {\n\ttexts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingCareMonthChange})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[configModels.KeyParentBillingCareMonthChange], nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingSettings.CareMonthRule",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s parentBillingSettings) DebtorNumberScope(ctx context.Context, organizationID int64) (string, error) {\n\ttexts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingDebtorNumberScope})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\tif texts[configModels.KeyParentBillingDebtorNumberScope] == parentbilling.DebtorNumberScopeChild {\n\t\treturn parentbilling.DebtorNumberScopeChild, nil\n\t}\n\treturn parentbilling.DebtorNumberScopePayer, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingSettings.DebtorNumberScope",
       "owner": "roots"
     },
     {
@@ -2494,13 +2508,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (r EducationRooms) FindRoom(ctx context.Context, id int64) (*educationRepo.RoomProjection, error) {\n\troom, err := r.rooms.FindRoom(ctx, id)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026educationRepo.RoomProjection{ID: room.ID, CreatedAt: room.CreatedAt, UpdatedAt: room.UpdatedAt, Name: room.Name, Building: room.Building, Floor: room.Floor, Capacity: room.Capacity, Category: room.Category, Color: room.Color}, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/EducationRooms.FindRoom",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (s EducationStaff) LockStaff(ctx context.Context, id int64) error {\n\t_, err := s.staff.FindByIDForUpdate(ctx, id)\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/EducationStaff.LockStaff",
@@ -3656,21 +3663,21 @@
     },
     {
       "build": "production",
-      "evidence": "func (r StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID int64, status string, date absencerecords.Date, at time.Time, source string) error {\n\treturn r.Capability.ClearStudentStatusDays(ctx, studentID, status, []careplan.Date{careplan.Date(date)}, at, source)\n}",
+      "evidence": "func (r StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID int64, status string, date absencerecords.Date, at time.Time, source string, accountID *int64) error {\n\treturn r.Capability.ClearStudentStatusDays(ctx, studentID, status, []careplan.Date{careplan.Date(date)}, at, source, accountID)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/StudentStatusDayRepository.MarkCleared",
       "owner": "roots"
     },
     {
       "build": "production",
-      "evidence": "func (r StudentStatusDayRepository) MarkClearedByID(ctx context.Context, id int64, at time.Time, source string) error {\n\treturn r.Capability.ClearStudentStatusDayByID(ctx, id, at, source)\n}",
+      "evidence": "func (r StudentStatusDayRepository) MarkClearedByID(ctx context.Context, id int64, at time.Time, source string, accountID *int64) error {\n\treturn r.Capability.ClearStudentStatusDayByID(ctx, id, at, source, accountID)\n}",
       "form": "forward-debt",
       "id": "roots/owners/StudentStatusDayRepository.MarkClearedByID",
       "owner": "roots"
     },
     {
       "build": "production",
-      "evidence": "func (r StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []absencerecords.Date, at time.Time, source string) error {\n\tpublicDates := make([]careplan.Date, len(dates))\n\tfor i := range dates {\n\t\tpublicDates[i] = careplan.Date(dates[i])\n\t}\n\treturn r.Capability.ClearStudentStatusDays(ctx, studentID, status, publicDates, at, source)\n}",
+      "evidence": "func (r StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []absencerecords.Date, at time.Time, source string, accountID *int64) error {\n\tpublicDates := make([]careplan.Date, len(dates))\n\tfor i := range dates {\n\t\tpublicDates[i] = careplan.Date(dates[i])\n\t}\n\treturn r.Capability.ClearStudentStatusDays(ctx, studentID, status, publicDates, at, source, accountID)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/StudentStatusDayRepository.MarkClearedForDates",
       "owner": "roots"
@@ -3824,7 +3831,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (l TraegerAccountLedger) RecordTraegerAccountChange(ctx context.Context, change identityaccess.TraegerAccountChange) error {\n\tif l.Command == nil {\n\t\treturn errors.New(\"audit Träger account change: command is not configured\")\n\t}\n\treturn l.Command.Append(ctx, \u0026auditModels.TraegerAccountChange{OrganizationID: change.OrganizationID, ActorAccountID: change.ActorAccountID, Action: change.Action, TargetAccountID: change.TargetAccountID, TargetEmail: change.TargetEmail, RolesBefore: change.RolesBefore, RolesAfter: change.RolesAfter})\n}",
+      "evidence": "func (l TraegerAccountLedger) RecordTraegerAccountChange(ctx context.Context, change identityaccess.TraegerAccountChange) error {\n\tif l.Command == nil {\n\t\treturn errors.New(\"audit Träger account change: command is not configured\")\n\t}\n\treturn l.Command.Append(ctx, \u0026auditModels.TraegerAccountChange{OrganizationID: change.OrganizationID, ActorAccountID: change.ActorAccountID, Action: change.Action, TargetAccountID: change.TargetAccountID, TargetEmail: change.TargetEmail, TargetName: change.TargetName, RolesBefore: change.RolesBefore, RolesAfter: change.RolesAfter})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/TraegerAccountLedger.RecordTraegerAccountChange",
       "owner": "roots"
@@ -3841,6 +3848,13 @@
       "evidence": "func (d TraegerBueroDirectory) DeactivateTraegerMembership(ctx context.Context, organizationID, accountID int64) error {\n\tif d.Organizations == nil {\n\t\treturn errTraegerBueroDirectoryUnavailable\n\t}\n\t_, err := d.Organizations.DeactivateTraegerMembership(ctx, organizationID, accountID)\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/TraegerBueroDirectory.DeactivateTraegerMembership",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d TraegerBueroDirectory) NameTraegerMember(ctx context.Context, organizationID, accountID int64, name string) error {\n\tif d.Names == nil {\n\t\treturn errTraegerBueroDirectoryUnavailable\n\t}\n\tset, err := d.Names.SetTraegerMemberName(ctx, organizationID, accountID, name)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif !set {\n\t\treturn identityaccess.ErrTraegerMemberNotFound\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/TraegerBueroDirectory.NameTraegerMember",
       "owner": "roots"
     },
     {
@@ -6921,6 +6935,20 @@
       "evidence": "func (a pickupApprovalAdapter) ValidatePickupPerson(ctx context.Context, studentID, guardianProfileID int64) error {\n\tif a.s.PickupPermissionApprovals == nil {\n\t\treturn errors.New(\"schedule: pickup permission approvals not configured\")\n\t}\n\treturn a.s.ValidatePickupPerson(ctx, studentID, guardianProfileID)\n}",
       "form": "guard-debt",
       "id": "roots/owners/pickupApprovalAdapter.ValidatePickupPerson",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r pickupChangeTeamReach) NotifyPickupChanged(ctx context.Context, push careplan.PickupChangePush) error {\n\treturn r.push.Notify(ctx, StaffPush{TenantID: tenant.FromContext(ctx), Type: deliveryContract.NotificationStudentPickupChanged, IdempotencyKey: fmt.Sprintf(\"student_pickup_changed:%d:%t:%d\", push.RequestID, push.Withdrawn, r.now().UnixNano()), RelatedType: \"care_schedule_request\", RelatedID: push.RequestID, Title: push.Title, Body: push.Body, DeepLink: push.DeepLink, AccountIDs: push.RecipientAccountIDs})\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/pickupChangeTeamReach.NotifyPickupChanged",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r pickupChangeTeamReach) ResponsibleAccountIDs(ctx context.Context, studentID, excludedAccountID int64) ([]int64, error) {\n\tif r.staff == nil {\n\t\treturn nil, errors.New(\"pickup change team: responsible staff are not configured\")\n\t}\n\taccounts, err := r.staff.ResponsibleStaffAccountIDs(ctx, studentID, deliveryContract.NotificationStudentPickupChanged, []int64{excludedAccountID})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"pickup change team: responsible staff: %w\", err)\n\t}\n\treturn accounts, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/pickupChangeTeamReach.ResponsibleAccountIDs",
       "owner": "roots"
     },
     {

@@ -14,8 +14,8 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"golang.org/x/text/encoding/charmap"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The Sollstellung (#4693): a general CSV for the finance system of a
@@ -40,7 +40,10 @@ var (
 var sollTextFields = []string{parentbilling.SollFieldInvoiceNumber, parentbilling.SollFieldRecipientName, parentbilling.SollFieldRecipientStreet,
 	parentbilling.SollFieldRecipientCity, parentbilling.SollFieldChildName, parentbilling.SollFieldSchoolName,
 	parentbilling.SollFieldMandateReference, parentbilling.SollFieldDebtorNumber, parentbilling.SollFieldConstant,
-	parentbilling.SollFieldCostCenter, parentbilling.SollFieldCostCenter2}
+	parentbilling.SollFieldCostCenter, parentbilling.SollFieldCostCenter2, parentbilling.SollFieldBookingText}
+
+// sollPlaceholderPattern finds what a booking text names in braces.
+var sollPlaceholderPattern = regexp.MustCompile(`\{[^{}]*\}`)
 
 // normalizeSollMapping trims a mapping and checks it; every problem is a
 // validation error on its field ("columns.2.header", "delimiter", …).
@@ -89,13 +92,45 @@ func checkSollColumn(errs validation.Errors, key string, column *parentbilling.S
 		errs[key+".header"] = errors.New("is too long or has a line break")
 	case headerRow && column.Header == "":
 		errs[key+".header"] = errors.New("is required with a header row")
-	case column.Field == parentbilling.SollFieldConstant && (utf8.RuneCountInString(column.Value) > parentbilling.MaxSollConstantLength ||
+	case sollKeepsValue(column.Field) && (utf8.RuneCountInString(column.Value) > parentbilling.MaxSollConstantLength ||
 		strings.ContainsAny(column.Value, "\r\n")):
 		errs[key+".value"] = errors.New("is too long or has a line break")
+	case column.Field == parentbilling.SollFieldBookingText && unknownSollPlaceholder(column.Value) != "":
+		errs[key+".value"] = fmt.Errorf("names the unknown placeholder %s", unknownSollPlaceholder(column.Value))
 	}
-	if column.Field != parentbilling.SollFieldConstant {
+	if !sollKeepsValue(column.Field) {
 		column.Value = ""
 	}
+}
+
+// sollKeepsValue says whether a column of the field carries a value: the
+// fixed value of a constant or the pattern of a booking text, both with the
+// same limits.
+func sollKeepsValue(field string) bool {
+	return field == parentbilling.SollFieldConstant || field == parentbilling.SollFieldBookingText
+}
+
+// unknownSollPlaceholder is the first text in braces of a pattern that is
+// no placeholder, empty when there is none: a misspelt placeholder would
+// otherwise stand in every row of the file.
+func unknownSollPlaceholder(pattern string) string {
+	for _, named := range sollPlaceholderPattern.FindAllString(pattern, -1) {
+		if !slices.Contains(parentbilling.SollBookingTextPlaceholders, named) {
+			return named
+		}
+	}
+	return ""
+}
+
+// sollBookingText fills the placeholders of a pattern for one document.
+func sollBookingText(pattern string, invoice parentbilling.ExportInvoice) string {
+	month := ""
+	if !invoice.ServiceFrom.IsZero() {
+		month = invoice.ServiceFrom.Format("01/2006")
+	}
+	return strings.NewReplacer(parentbilling.SollPlaceholderMonth, month, parentbilling.SollPlaceholderChild, invoice.ChildName,
+		parentbilling.SollPlaceholderRecipient, invoice.RecipientName, parentbilling.SollPlaceholderInvoiceNumber, invoice.Number,
+	).Replace(pattern)
 }
 
 // sollFileName writes the file number into the pattern.
@@ -212,10 +247,44 @@ func sollRowValue(mapping parentbilling.SollstellungMapping, column parentbillin
 	switch {
 	case slices.Contains(parentbilling.SollBookingFields, column.Field):
 		return sollLineValue(column, row)
-	case column.Field == parentbilling.SollFieldAmount && row.line != nil:
-		return sollAmount(row.line.amountCents, mapping.DecimalSeparator)
+	case column.Field == parentbilling.SollFieldAmount:
+		if sollIsCredit(row.invoice) && sollHasCreditColumn(mapping) {
+			return ""
+		}
+		return sollAmount(sollRowCents(row), mapping.DecimalSeparator)
+	case column.Field == parentbilling.SollFieldCreditAmount:
+		if !sollIsCredit(row.invoice) {
+			return ""
+		}
+		cents := sollRowCents(row)
+		if cents < 0 {
+			cents = -cents
+		}
+		return sollAmount(cents, mapping.DecimalSeparator)
 	}
 	return sollValue(mapping, column, row.invoice, fileNumber)
+}
+
+// sollRowCents is the amount of a row: its line's, else its document's.
+func sollRowCents(row sollRow) int64 {
+	if row.line != nil {
+		return row.line.amountCents
+	}
+	return row.invoice.TotalCents
+}
+
+// sollIsCredit says whether a document is a Storno or a credit, the rows a
+// credit column takes (#7008).
+func sollIsCredit(invoice parentbilling.ExportInvoice) bool {
+	return invoice.Kind == parentbilling.DocumentCancellation || invoice.Kind == parentbilling.DocumentCredit
+}
+
+// sollHasCreditColumn says whether the mapping writes the credits in a
+// column of their own; without one, the amount column keeps them.
+func sollHasCreditColumn(mapping parentbilling.SollstellungMapping) bool {
+	return slices.ContainsFunc(mapping.Columns, func(column parentbilling.SollstellungColumn) bool {
+		return column.Field == parentbilling.SollFieldCreditAmount
+	})
 }
 
 // sollLineValue is where the line of a row books; a row of a whole
@@ -246,8 +315,6 @@ func sollValue(mapping parentbilling.SollstellungMapping, column parentbilling.S
 			return ""
 		}
 		return sollDate(mapping.DateFormat, *invoice.DueOn)
-	case parentbilling.SollFieldAmount:
-		return sollAmount(invoice.TotalCents, mapping.DecimalSeparator)
 	case parentbilling.SollFieldDebtorNumber:
 		return invoice.DebtorNumber
 	case parentbilling.SollFieldRecipientName:
@@ -276,6 +343,8 @@ func sollValue(mapping parentbilling.SollstellungMapping, column parentbilling.S
 		return strconv.FormatInt(fileNumber, 10)
 	case parentbilling.SollFieldConstant:
 		return column.Value
+	case parentbilling.SollFieldBookingText:
+		return sollBookingText(column.Value, invoice)
 	}
 	return ""
 }
@@ -312,9 +381,9 @@ func sollPaymentMethod(method string) string {
 
 func sollDocumentKind(kind string) string {
 	switch kind {
-	case "cancellation":
+	case parentbilling.DocumentCancellation:
 		return "Storno"
-	case "credit":
+	case parentbilling.DocumentCredit:
 		return "Gutschrift"
 	}
 	return "Rechnung"

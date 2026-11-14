@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	auditModel "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditModel "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 )
 
 // WithRoutedWrites returns the repositories with every write routed through

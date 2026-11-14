@@ -12,11 +12,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // The participant lists of the hosting school (#4665, ADR 0116), mounted at
@@ -62,6 +62,7 @@ func (rs *HolidayHostResource) Router(protectedTenantRoutes func(chi.Router, fun
 		if rs.guests != nil {
 			r.With(rs.requireHealth, withTx).Get("/students/{studentId}/registration", rs.getStudentRegistration)
 			r.With(rs.requireRead, withTx).Get("/{weekId}/own-children", rs.listOwnChildAssignments)
+			r.With(rs.requireRead, rs.withSchoolNames, withTx).Get("/home-school-children", rs.listHomeSchoolBookings)
 			r.With(rs.requireRead, rs.requireAssign, withTx).Put("/{weekId}/guest-group", rs.assignGuestGroup)
 		}
 	})
@@ -253,7 +254,12 @@ func (n holidaySchoolNameMap) homeSchool(id *int64) string {
 	if id == nil {
 		return "Feriengäste"
 	}
-	if name, ok := n[*id]; ok {
+	return n.school(*id)
+}
+
+// school names a school of the Träger.
+func (n holidaySchoolNameMap) school(id int64) string {
+	if name, ok := n[id]; ok {
 		return name
 	}
 	return "Schule nicht mehr vorhanden"

@@ -43,6 +43,10 @@ var (
 	// (operations.parent_pickup_change_cutoff_time) has passed, so today's
 	// pickup time is closed for guardians (#3163). Later days stay open.
 	ErrPickupChangeCutoffPassed = errors.New("parent: same-day pickup change cutoff has passed")
+	// ErrPickupChangeCareDayEnded means the school's care day
+	// (operations.session_end_time) is over, so today's pickup is closed for
+	// guardians, also for a child still in class (#5710). Later days stay open.
+	ErrPickupChangeCareDayEnded = errors.New("parent: today's care day has ended")
 )
 
 // RequestShareVisibility answers whether an account may see one request of

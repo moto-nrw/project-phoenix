@@ -20,6 +20,10 @@ import {
 } from "~/components/database/catalog/catalog-page";
 import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
 import { Button } from "~/components/ui/button";
+import { FramedList } from "~/components/ui/framed-list";
+import { IconTile } from "~/components/ui/icon-tile";
+import { SectionLabel } from "~/components/ui/section-label";
+import { CalendarClock } from "lucide-react";
 import { CatalogColorField } from "~/components/database/catalog-color-field";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
@@ -30,7 +34,7 @@ import { formatCount } from "~/lib/format-utils";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { shiftTypeService } from "~/lib/shift-type-api";
-import type { ShiftType } from "~/lib/shift-type-helpers";
+import type { ShiftType, ShiftTypeUsage } from "~/lib/shift-type-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   STALE_DATA_SUFFIX,
@@ -49,14 +53,83 @@ const CACHE_KEY = "database-shift-types";
 const CATEGORY_CACHE_KEY = "database-shift-type-categories";
 const DEFAULT_COLOR: string = LOCATION_COLORS.GROUP_ROOM;
 
+/** „12 geplante Dienste“ / „1 Schichtserie“ für die Rückfrage (#6845). */
+function usageParts(usage: ShiftTypeUsage): string[] {
+  const parts: string[] = [];
+  if (usage.shifts > 0) {
+    parts.push(
+      usage.shifts === 1
+        ? "1 geplanter Dienst"
+        : `${formatCount(usage.shifts)} geplante Dienste`,
+    );
+  }
+  if (usage.series > 0) {
+    parts.push(
+      usage.series === 1
+        ? "1 Schichtserie"
+        : `${formatCount(usage.series)} Schichtserien`,
+    );
+  }
+  return parts;
+}
+
+/** Geplante Dienste oder Schichtserien tragen die Dienstart: Entfernen
+ *  archiviert sie (#6845). */
+function isArchivable(type: ShiftType): boolean {
+  return (type.usage?.shifts ?? 0) > 0 || (type.usage?.series ?? 0) > 0;
+}
+
 /** Steht außerhalb der Seite, damit die Rückfrage nicht als bei jedem Render
- *  neu erzeugte Komponente gilt. */
-function describeDeletion(type: ShiftType) {
+ *  neu erzeugte Komponente gilt. Eine Dienstart, die geplante Dienste oder
+ *  Schichtserien tragen, wird nicht gelöscht, sondern aus der Auswahl
+ *  genommen: sonst verlören auch vergangene Dienste ihre Dienstart (#6845). */
+function describeDeletion(type: ShiftType, linkedCategories: number) {
+  const parts = type.usage ? usageParts(type.usage) : null;
+  if (parts === null) {
+    return (
+      <p>
+        Die Dienstart <strong className="text-gray-900">{type.name}</strong>{" "}
+        wird entfernt. Tragen geplante Dienste sie noch, behalten diese sie. Für
+        neue Dienste steht sie dann nicht mehr zur Auswahl.
+      </p>
+    );
+  }
+  if (parts.length > 0) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p>
+          <strong className="text-gray-900">{type.name}</strong> verschwindet
+          aus der Auswahl für neue Dienste. Geplante und vergangene Dienste
+          behalten ihre Dienstart.
+        </p>
+        <SectionLabel as="h3">Bleibt im Dienstplan erhalten</SectionLabel>
+        <FramedList>
+          {parts.map((part) => (
+            <li
+              key={part}
+              className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-900"
+            >
+              <IconTile
+                icon={<CalendarClock aria-hidden />}
+                size="xs"
+                tone="neutral"
+              />
+              {part}
+            </li>
+          ))}
+        </FramedList>
+      </div>
+    );
+  }
   return (
-    <>
-      Die Dienstart <strong>{type.name}</strong> wird gelöscht. Bereits geplante
-      Dienste bleiben erhalten, verlieren aber diese Kennzeichnung.
-    </>
+    <p>
+      Die Dienstart <strong className="text-gray-900">{type.name}</strong> wird
+      gelöscht. Kein geplanter Dienst nutzt sie.
+      {linkedCategories === 1 &&
+        " 1 Kategorie des Betreuungsplans verliert diese Zuordnung."}
+      {linkedCategories > 1 &&
+        ` ${formatCount(linkedCategories)} Kategorien des Betreuungsplans verlieren diese Zuordnung.`}
+    </p>
   );
 }
 
@@ -75,7 +148,8 @@ function ShiftTypesPageContent() {
     error: swrError,
     mutate,
   } = useSWRAuth<ShiftType[]>(CACHE_KEY, () =>
-    shiftTypeService.getShiftTypes(),
+    // Die Zahlen sagen der Rückfrage, ob gelöscht oder archiviert wird.
+    shiftTypeService.getShiftTypes({ withUsage: true }),
   );
   const accessRefused =
     swrError instanceof ApiError &&
@@ -284,10 +358,23 @@ function ShiftTypesPageContent() {
       },
       remove: {
         menuLabel: "Löschen",
-        confirmTitle: "Dienstart löschen",
-        describe: describeDeletion,
+        confirmTitle: (type) =>
+          isArchivable(type) ? "Dienstart archivieren?" : "Dienstart löschen?",
+        confirmLabels: (type) =>
+          isArchivable(type)
+            ? { first: "Ja, archivieren", confirm: "Archivieren" }
+            : undefined,
+        describe: (type) =>
+          describeDeletion(
+            type,
+            categoryList.filter((category) => category.shiftTypeId === type.id)
+              .length,
+          ),
         run: (type) => shiftTypeService.deleteShiftType(type.id),
-        toast: (type) => `Die Dienstart „${type.name}“ ist gelöscht.`,
+        toast: (type, removal) =>
+          removal === "archived"
+            ? `Die Dienstart „${type.name}“ steht nicht mehr zur Auswahl. Geplante Dienste behalten sie.`
+            : `Die Dienstart „${type.name}“ ist gelöscht.`,
       },
     };
   }, [categories, categoriesReady]);
@@ -342,6 +429,7 @@ function ShiftTypesPageContent() {
           size="md"
           isLoading={seeding}
           loadingText="Wird angelegt…"
+          tooltip="Legt sofort typische Dienstarten an, die noch fehlen."
           onClick={() => void handleSeed()}
         >
           Beispiele hinzufügen

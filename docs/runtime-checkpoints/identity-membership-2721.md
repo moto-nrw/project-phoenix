@@ -1,6 +1,6 @@
 # School membership and role read evidence (#2721)
 
-Issue: [#2721](https://github.com/moto-nrw/project-phoenix/issues/2721).
+Issue: [#2721](https://github.com/moto-ogs/project-phoenix/issues/2721).
 Measured locally on 2026-09-17, Go 1.27.0, macOS arm64, PostgreSQL 17.11,
 isolated test clone, sequential concurrency 1, five warmups and 30 measured
 calls per operation. The accepted checkpoint remains #3020; this document

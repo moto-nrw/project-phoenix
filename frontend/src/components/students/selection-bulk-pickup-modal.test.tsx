@@ -71,7 +71,7 @@ describe("SelectionBulkPickupModal", () => {
       ),
     ).toBeInTheDocument();
     const save = screen.getByRole("button", { name: "Ausnahmen speichern" });
-    expect(save).toBeDisabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(
       screen.getByRole("checkbox", {

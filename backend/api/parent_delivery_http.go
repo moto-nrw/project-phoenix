@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	parentAPI "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 func bindParentPushSubscriptions(source interface {

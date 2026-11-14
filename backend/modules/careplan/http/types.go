@@ -8,8 +8,8 @@ import (
 	strings "strings"
 	utf8 "unicode/utf8"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	departure "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	departure "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // validateDepartureCompanionNote bounds the free-text "mit wem" companion note

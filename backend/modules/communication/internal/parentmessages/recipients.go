@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
 )
 
 // authorizeThreadParticipants enforces the shared precondition for opening or

@@ -41,6 +41,20 @@ interface SettingsCategoryProps {
   readonly collapsed?: boolean;
   readonly onToggle?: () => void;
   /**
+   * Heading level of the category card: 3 (default) below a section heading,
+   * 2 where the categories stand right under the page title.
+   */
+  readonly headingLevel?: 2 | 3;
+  /**
+   * Names the immediate saving on the open card (Bauart 4, rule 1), where the
+   * page also holds forms with their own save button.
+   */
+  readonly autosaveNote?: boolean;
+  /** Asks before a reset throws away an own text (see SettingsField). */
+  readonly confirmTextReset?: boolean;
+  /** Text areas hold plain text that prints as typed (see SettingsField). */
+  readonly plainTextareas?: boolean;
+  /**
    * Lower-cased search query. When set, only matching settings are listed
    * (all of them when the category name itself matches). The category
    * renders nothing when no setting matches.
@@ -72,6 +86,10 @@ export function SettingsCategory({
   collapsible = false,
   collapsed = false,
   onToggle,
+  headingLevel = 3,
+  autosaveNote = false,
+  confirmTextReset = false,
+  plainTextareas = false,
   filterQuery = "",
   tabLabel,
   renderAddon,
@@ -84,10 +102,19 @@ export function SettingsCategory({
 
   const isCollapsed = collapsible && collapsed;
   const changed = changedCount(visibleItems);
+  // For the Träger every value of such a card holds for all schools: the
+  // card says it once instead of every field.
+  const traegerOnly =
+    audience === "traeger" &&
+    visibleItems.every((item) => item.levels === "traeger");
+  const traegerOnlyNote =
+    visibleItems.length === 1
+      ? "Gilt für alle Schulen. Die Schulen können den Wert nicht ändern."
+      : "Diese Werte gelten für alle Schulen. Die Schulen können sie nicht ändern.";
 
   return (
     <SectionCard
-      headingLevel={3}
+      headingLevel={headingLevel}
       title={displayCategoryLabel(category)}
       titleClassName={hasCategoryLabel(category) ? undefined : "capitalize"}
       titleBadge={
@@ -95,14 +122,33 @@ export function SettingsCategory({
           <>
             {tabLabel && <StatusBadge tone="blue" label={tabLabel} />}
             {changed > 0 && (
-              <StatusBadge tone="gray" label={`${changed} geändert`} />
+              // For the Träger a value of its own is „festgelegt“, as its
+              // fields say; „geändert“ read like an unsaved change there.
+              <StatusBadge
+                tone="gray"
+                label={
+                  audience === "traeger"
+                    ? `${changed} festgelegt`
+                    : `${changed} geändert`
+                }
+              />
             )}
           </>
         ) : undefined
       }
       // While collapsed the card names what it holds, so a person can tell
       // from the closed header whether the setting they need lives here.
-      description={isCollapsed ? categorySummary(visibleItems) : undefined}
+      description={
+        isCollapsed ? (
+          categorySummary(visibleItems)
+        ) : autosaveNote || traegerOnly ? (
+          <>
+            {autosaveNote ? "Änderungen werden sofort gespeichert." : null}
+            {autosaveNote && traegerOnly ? " " : null}
+            {traegerOnly ? <span>{traegerOnlyNote}</span> : null}
+          </>
+        ) : undefined
+      }
       collapsible={collapsible}
       collapsed={collapsible ? collapsed : undefined}
       onCollapsedChange={onToggle}
@@ -120,6 +166,10 @@ export function SettingsCategory({
               onBookingAuthorityEnable={onBookingAuthorityEnable}
               audience={audience}
               revealFn={revealFn}
+              labelLevel={headingLevel === 2 ? 3 : 4}
+              confirmTextReset={confirmTextReset}
+              plainTextareas={plainTextareas}
+              traegerOnlyStated={traegerOnly}
             />
             {renderAddon?.(setting)}
           </div>

@@ -91,6 +91,9 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "proxyDelete",
     "createSchoolDeleteHandler",
     "school.route",
+    // The portal's JSON pass-through, which the tenant, operator and caterer
+    // wrappers export under their own names (#6955).
+    "school.jsonProxy",
     "proxyFile",
     "proxyUpload",
   ],
@@ -105,6 +108,9 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "proxyDelete",
     "proxyFile",
     "proxyUpload",
+    // The builder under proxyDelete, for a removal that answers its result.
+    "traeger.del",
+    "traeger.jsonProxy",
   ],
   "~/lib/backend-proxy-route.server": ["createPublicJsonProxy"],
   "~/lib/auth-proxy.server": ["authStepProxy"],

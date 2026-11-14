@@ -312,6 +312,8 @@ export function PendingInvitationsList({
                 : [
                     {
                       label: "Erneut senden",
+                      description:
+                        "Schickt sofort eine neue E-Mail, der alte Link gilt nicht mehr.",
                       icon: <Send className="h-4 w-4" aria-hidden />,
                       disabled: actionLoading.has(invitation.id),
                       onClick: () => handleResend(invitation.id),
@@ -319,6 +321,8 @@ export function PendingInvitationsList({
                   ]),
               {
                 label: "Löschen",
+                description:
+                  "Macht den Einladungslink ungültig. moto fragt vorher nach.",
                 icon: <Trash2 className="h-4 w-4" aria-hidden />,
                 destructive: true,
                 disabled: actionLoading.has(invitation.id),

@@ -262,6 +262,9 @@ type StudentMoveResult struct {
 	Skipped       []StudentMoveSkipped `json:"skipped"`
 	ActiveGroupID *int64               `json:"active_group_id,omitempty"`
 	RoomID        *int64               `json:"room_id,omitempty"`
+	// CheckedIn names the children a check-in into a session (#6953) checked
+	// in to the school; a plain move leaves it empty.
+	CheckedIn []int64 `json:"checked_in,omitempty"`
 	// PreviousActiveGroupIDs records the source observed after move serialization.
 	// It is service metadata and intentionally not part of the bulk-move API.
 	PreviousActiveGroupIDs map[int64]int64 `json:"-"`
@@ -274,6 +277,9 @@ const (
 
 	StudentMoveSkipNotPresent = "not_present"
 	StudentMoveSkipConflict   = "conflict"
+	// StudentMoveSkipNotFound names a child a check-in into a session could
+	// not check in: unknown, graduated or out of care (#6953).
+	StudentMoveSkipNotFound = "not_found"
 )
 
 // TransitAssignSkipped names a student a transit assignment left out.

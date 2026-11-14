@@ -6,8 +6,8 @@ import (
 
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
 )
 
 // The mails of a Träger (ADR 0110) as the Träger reads them back (#4670):
@@ -37,9 +37,10 @@ func (s *Store) TraegerEmailStatuses(ctx context.Context, organizationID int64, 
 	return toDomainRows(domain.TransportEmail, rows), nil
 }
 
-// traegerEmailStatusesByKeySQL reads the mails of a Träger by idempotency
-// key (ADR 0196), without recipient and payload.
-const traegerEmailStatusesByKeySQL = `SELECT candidate.id, candidate.tenant_id, candidate.organization_id, candidate.kind,
+// traegerEmailCandidatesSQL reads the mails of a Träger without recipient
+// and payload (ADR 0196). A pending closing day notice behind an unresolved
+// notice to the same address reads like that notice: it waits for it.
+const traegerEmailCandidatesSQL = `SELECT candidate.id, candidate.tenant_id, candidate.organization_id, candidate.kind,
  candidate.idempotency_key, candidate.related_entity_type, candidate.related_entity_id,
  CASE WHEN candidate.status = 'pending' AND blocker.id IS NOT NULL THEN 'dead_letter' ELSE candidate.status END AS status,
  candidate.attempts, candidate.next_retry_at, candidate.provider_result,
@@ -57,7 +58,17 @@ const traegerEmailStatusesByKeySQL = `SELECT candidate.id, candidate.tenant_id, 
    AND predecessor.id < candidate.id
   ORDER BY (predecessor.last_error = '` + dispatchOutcomeUnknown + `' ) DESC NULLS LAST, predecessor.id LIMIT 1
  ) AS blocker ON true
- WHERE candidate.tenant_id IS NULL AND candidate.organization_id = ? AND candidate.idempotency_key = ANY(?::text[])
+ WHERE candidate.tenant_id IS NULL AND candidate.organization_id = ? AND `
+
+// traegerEmailStatusesByKeySQL reads the mails of a Träger by idempotency
+// key (ADR 0196), without recipient and payload.
+const traegerEmailStatusesByKeySQL = traegerEmailCandidatesSQL + `candidate.idempotency_key = ANY(?::text[])
+ ORDER BY candidate.created_at, candidate.id`
+
+// traegerEmailStatusesOfSQL reads the mails of a Träger for a set of related
+// entities and by idempotency key in one statement (#6976).
+const traegerEmailStatusesOfSQL = traegerEmailCandidatesSQL + `(candidate.idempotency_key = ANY(?::text[])
+  OR (candidate.related_entity_type = ? AND candidate.related_entity_id = ANY(?::bigint[])))
  ORDER BY candidate.created_at, candidate.id`
 
 // retryFailedTraegerEmailsSQL makes a Träger's dead letters with a known
@@ -93,6 +104,27 @@ func (s *Store) TraegerEmailStatusesByKey(ctx context.Context, organizationID in
 	var rows []intentRow
 	if err := db.NewRaw(traegerEmailStatusesByKeySQL, organizationID, pgdialect.Array(keys)).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("delivery postgres: list Träger email statuses by key: %w", err)
+	}
+	return toDomainRows(domain.TransportEmail, rows), nil
+}
+
+// TraegerEmailStatusesOf lists the mails of a Träger for the related
+// entities and with the idempotency keys in the caller's Träger transaction
+// of that Träger, in one statement (#6976).
+func (s *Store) TraegerEmailStatusesOf(ctx context.Context, organizationID int64, relatedType string, relatedIDs []int64, keys []string) ([]domain.Intent, error) {
+	db, err := RequireTraegerDatabase(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	if keys == nil {
+		keys = []string{}
+	}
+	if relatedIDs == nil {
+		relatedIDs = []int64{}
+	}
+	var rows []intentRow
+	if err := db.NewRaw(traegerEmailStatusesOfSQL, organizationID, pgdialect.Array(keys), relatedType, pgdialect.Array(relatedIDs)).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("delivery postgres: list Träger email statuses of related entities: %w", err)
 	}
 	return toDomainRows(domain.TransportEmail, rows), nil
 }

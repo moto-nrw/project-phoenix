@@ -7,48 +7,48 @@ import (
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	careStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	groupLiveHTTP "github.com/moto-nrw/project-phoenix/modules/grouplive/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
-	projectionStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
-	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
-	reviewStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/requestreview/http"
-	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
-	deleteStudentsHTTP "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/http"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	carePlanModule "github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	careStudentsHTTP "github.com/moto-ogs/project-phoenix/modules/careplan/http"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	"github.com/moto-ogs/project-phoenix/modules/grouplive"
+	groupLiveHTTP "github.com/moto-ogs/project-phoenix/modules/grouplive/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	studentsAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students"
+	projectionStudentsHTTP "github.com/moto-ogs/project-phoenix/modules/presenceprojection/http"
+	"github.com/moto-ogs/project-phoenix/modules/requestreview"
+	requestreviewcompose "github.com/moto-ogs/project-phoenix/modules/requestreview/compose"
+	reviewStudentsHTTP "github.com/moto-ogs/project-phoenix/modules/requestreview/http"
+	schoolMembershipModule "github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	schoolStructureCompose "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	reviewsettings "github.com/moto-ogs/project-phoenix/modules/settings/review"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	presenceStudentsHTTP "github.com/moto-ogs/project-phoenix/modules/studentpresence/http"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/observability"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	reviewbindings "github.com/moto-ogs/project-phoenix/roots/requestreviewbinding"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
+	deleteStudentsHTTP "github.com/moto-ogs/project-phoenix/workflows/studentdeletion/http"
 )
 
 // requestReviewDependencies binds native owner capabilities for the staff projection.
@@ -181,6 +181,8 @@ func mountStudentRoutes(
 	reports owners.PresenceReports, structureViews StructureServices, organizations organizationtenancy.Query,
 	statusDays studentpresence.StatusDays, absences deliveryCompose.AbsenceNotifier, deletion *studentdeletion.Workflow,
 	groupLive grouplive.Query, decisions enrollmentOwner.Decisions, active studentpresence.Presence, resumption careStudentsHTTP.CareResumption,
+	noteTeam peopledirectory.StudentNoteTeamNotices, noteTeamReach studentsAPI.StudentNoteTeamReach, cohorts timetableModule.CohortRosters,
+	answers enrollmentOwner.StudentAnswers,
 ) error {
 	// A direct school_class edit must resync Jahrgang-filtered offering-sourced
 	// Regeltermine like a grade transition does (#2147 review round 10); Care
@@ -203,17 +205,17 @@ func mountStudentRoutes(
 			Persons:                peopleCompose.NewStudentRoutePersons(services.Users),
 			StudentAuditService:    persons,
 			StudentDocumentService: requests.Documents,
-			StudentNotes:           persons,
-			StudentPhotos:          persons,
-			Uploads:                nativeUploads.UploadFiles{},
-			UserContextService:     caller,
+			StudentNotes:           persons, StudentNoteTeam: noteTeam, NoteTeamReach: noteTeamReach,
+			StudentPhotos:      persons,
+			Uploads:            nativeUploads.UploadFiles{},
+			UserContextService: caller,
 		},
 		careStudentsHTTP.ResourceConfig{
 			ArrivalScheduleService: schedules.Arrivals,
 			Broadcaster:            hub,
 			CareLifecycleService:   schedules.Lifecycle, CareResumption: resumption, CareExitRestoration: owners.NewCarePlanRestoration(schedules.Lifecycle, requests.CareOfferings, nil),
-			CareRequestReviews:           careReviews,
-			CareRequestService:           requests.CareRequests,
+			CareRequestReviews: careReviews,
+			CareRequestService: requests.CareRequests, FollowCohortChanges: studentCohortChanges(cohorts),
 			CompanionService:             companions,
 			DocumentStorage:              NewStudentDocumentStorage(),
 			ExcusedRequestService:        requests.Excused,
@@ -229,8 +231,8 @@ func mountStudentRoutes(
 			PartialAbsenceService:        schedules.PartialAbsences,
 			PeopleDirectory:              persons,
 			Persons:                      peopleCompose.NewStudentRoutePersons(services.Users),
-			PickupAdjustmentService:      requests.CareOfferings,
-			PickupScheduleService:        schedules.Pickups, PickupSignatureProofs: staffPickupSignatures{ledger: owners.SignatureLedger()}, Reports: newDeclarationReports(),
+			PickupAdjustmentService:      requests.CareOfferings, PickupChangeNotices: requests.PickupChangeTeam,
+			PickupScheduleService: schedules.Pickups, PickupSignatureProofs: staffPickupSignatures{ledger: owners.SignatureLedger()}, Reports: newDeclarationReports(),
 			Schools: studentSchoolDirectory{schools: organizations}, SettingsService: settings,
 			StudentAccidentReports: requests.AccidentReports, StudentAuditService: persons,
 			StudentConsents:        services.StudentConsents,
@@ -240,7 +242,7 @@ func mountStudentRoutes(
 			WeekdayPickupNotes:     carePlan,
 		},
 		projectionStudentsHTTP.ResourceConfig{
-			PrivacyConsents:        presence,
+			EnrollmentAnswers: newStudentEnrollmentAnswerFilters(answers), PrivacyConsents: presence,
 			AbsenceOverview:        reports.AbsenceOverview,
 			ActiveEnrollments:      studentActiveEnrollments{enrollments: activities},
 			ActiveService:          active,

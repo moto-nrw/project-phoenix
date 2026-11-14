@@ -33,7 +33,7 @@ import { fetchStudent } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
 import { fetchStudentFeedback, type FeedbackEntry } from "~/lib/feedback-api";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { feedbackConcept } from "~/lib/concepts/feedback";
 import { PlanLegend } from "~/components/ui/planning/plan-legend";
 import { ListGroupHeader } from "~/components/ui/list-group-header";
@@ -355,6 +355,11 @@ function StudentFeedbackHistoryPageContent() {
                   size="compact"
                   onClick={() => setShowDetails((prev) => !prev)}
                   aria-expanded={showDetails}
+                  tooltip={
+                    showDetails
+                      ? "Blendet die einzelnen Feedback-Einträge wieder aus."
+                      : "Zeigt jedes Feedback im gewählten Zeitraum einzeln mit Datum."
+                  }
                   className="w-full gap-2"
                 >
                   {showDetails ? (

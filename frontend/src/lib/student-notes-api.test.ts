@@ -102,3 +102,27 @@ describe("studentNotesService activities", () => {
     });
   });
 });
+
+describe("studentNotesService team notice revisions", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("sends the observed note IDs and exact announcement timestamps", async () => {
+    sessionFetch.mockResolvedValueOnce(Response.json({ data: [] }));
+    const informedAt = "2026-09-09T10:00:00.123456Z";
+    await expect(
+      studentNotesService.markTeamNoticesRead("42", [
+        { noteId: "9007199254740993", informedAt },
+      ]),
+    ).resolves.toEqual([]);
+
+    expect(sessionFetch).toHaveBeenCalledWith(
+      "/api/students/42/team-notices/read",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          notices: [{ note_id: "9007199254740993", informed_at: informedAt }],
+        }),
+      }),
+    );
+  });
+});

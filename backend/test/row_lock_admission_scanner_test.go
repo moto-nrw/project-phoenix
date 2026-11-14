@@ -45,7 +45,7 @@ func (s rowLockSite) String() string {
 	return fmt.Sprintf("%s:%d %s (%s)", s.file, s.line, s.function, s.what)
 }
 
-const tenantImportPath = "github.com/moto-nrw/project-phoenix/tenant"
+const tenantImportPath = "github.com/moto-ogs/project-phoenix/tenant"
 
 // scanRowLockSites parses one Go source file and reports every lock site
 // with whether a checked tenant.OrderLock call admits it first: the call

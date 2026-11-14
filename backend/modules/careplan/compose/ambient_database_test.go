@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	postgresNative "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	postgresNative "github.com/moto-ogs/project-phoenix/modules/careplan/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/tenant/tenanttest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 )

@@ -80,7 +80,7 @@ function ContactRow({
         <Input
           id={`billing-letters-contact-${index}-name`}
           label="Betreuung"
-          controlSize="compact"
+          controlSize="touch"
           placeholder="Zum Beispiel: OGS Am Lindenhof"
           value={contact.name}
           maxLength={120}
@@ -94,7 +94,7 @@ function ContactRow({
         <Input
           id={`billing-letters-contact-${index}-phone`}
           label="Telefon"
-          controlSize="compact"
+          controlSize="touch"
           inputMode="tel"
           placeholder="0170 1234567"
           value={contact.phone}
@@ -112,6 +112,7 @@ function ContactRow({
           variant="ghost"
           size="compact"
           aria-label={`Notfallnummer ${contact.name || "ohne Namen"} entfernen`}
+          tooltip="Nimmt diese Notfallnummer aus dem Formular."
           onClick={onRemove}
         >
           <X className="h-4 w-4" aria-hidden="true" />
@@ -267,6 +268,7 @@ export function BillingLettersModal<T = BillingLetters>({
             variant="outline"
             size="md"
             disabled={previewing || saving}
+            tooltip="Öffnet das Schreiben der ersten Familie als PDF in einem neuen Tab."
             onClick={() => void preview()}
             className="w-full sm:w-auto"
           >
@@ -363,6 +365,7 @@ export function BillingLettersModal<T = BillingLetters>({
                 type="button"
                 variant="outline"
                 size="md"
+                tooltip="Fügt eine leere Zeile für eine weitere Notfallnummer an."
                 onClick={() =>
                   setContacts((current) => [
                     ...current,

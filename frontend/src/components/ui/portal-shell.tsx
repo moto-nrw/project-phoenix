@@ -1,3 +1,5 @@
+"use client";
+
 import { Suspense, type ReactNode } from "react";
 import { Z_LAYER } from "./overlay-styles";
 import {
@@ -5,6 +7,10 @@ import {
   NavigationProgressProvider,
 } from "~/components/ui/navigation-progress";
 import { NavigationScrollPosition } from "~/components/ui/navigation-scroll-position";
+import { ButtonLink } from "~/components/ui/button";
+
+/** Ziel des Sprunglinks „Zum Inhalt“: das <main> jeder Portalhülle. */
+const MAIN_CONTENT_ID = "hauptinhalt";
 
 /**
  * Das gemeinsame Gerüst aller vier Portale: gepunkteter Hintergrund,
@@ -61,17 +67,34 @@ export function PortalShell({
        * genau ein Kind, deshalb ändert die Spalte an Abständen nichts.
        */}
       <div className="relative flex min-h-screen flex-col">
+        {/* Der erste Tab-Halt jeder Seite: springt an Kopfzeile und
+            Navigation vorbei zum Inhalt (WCAG 2.4.1). Sichtbar erst mit dem
+            Tastaturfokus. */}
+        <ButtonLink
+          href={`#${MAIN_CONTENT_ID}`}
+          variant="primary"
+          size="compact"
+          noTooltip="„Zum Inhalt“ springt nur zum Inhalt; der Link erscheint erst per Tab, eine Blase würde ihn verdecken."
+          onClick={() =>
+            requestAnimationFrame(() =>
+              document.getElementById(MAIN_CONTENT_ID)?.focus(),
+            )
+          }
+          className={`fixed start-3 top-3 ${Z_LAYER.sheet} -translate-y-20 focus-visible:translate-y-0`}
+        >
+          Zum Inhalt
+        </ButtonLink>
         <NavigationProgressBar />
         <div
           data-portal-background
-          className={`moto-dotted-background moto-dotted-background--app-fixed moto-dotted-background--fullscreen pointer-events-none z-0 ${backgroundClassName}`}
+          className={`moto-dotted-background moto-dotted-background--app-fixed moto-dotted-background--fullscreen pointer-events-none ${Z_LAYER.base} ${backgroundClassName}`}
           aria-hidden="true"
         />
         {topLayer}
 
         <div className={headerClassName}>{header}</div>
 
-        <div className="relative z-10 flex flex-1">
+        <div className={`relative ${Z_LAYER.raised} flex flex-1`}>
           {sidebar}
 
           {/*
@@ -83,8 +106,12 @@ export function PortalShell({
            * Die 7rem unten halten die mobile Leiste frei; sie gibt es nur
            * unter `lg`, deshalb traegt die flache Desktop-Stufe sie nicht.
            */}
-          <main className="compact:p-5 compact:max-lg:pb-[calc(7rem+env(safe-area-inset-bottom))] flex min-w-0 flex-1 flex-col p-8 max-md:p-4 max-md:pb-[calc(7rem+env(safe-area-inset-bottom))]">
-            <div className={`relative z-10 ${contentClassName}`}>
+          <main
+            id={MAIN_CONTENT_ID}
+            tabIndex={-1}
+            className="compact:p-5 compact:max-lg:pb-[calc(7rem+env(safe-area-inset-bottom))] flex min-w-0 flex-1 flex-col p-8 focus:outline-none max-md:p-4 max-md:pb-[calc(7rem+env(safe-area-inset-bottom))]"
+          >
+            <div className={`relative ${Z_LAYER.raised} ${contentClassName}`}>
               {children}
             </div>
           </main>

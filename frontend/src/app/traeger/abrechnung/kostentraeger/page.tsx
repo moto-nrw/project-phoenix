@@ -5,9 +5,9 @@
 // eines Kindes übernimmt, bis wann, und auf welchen Bescheid es sich stützt.
 // Nur das Recht „Abrechnung“ sieht die Seite; jedes Lesen steht im
 // Zugriffsprotokoll des Vertrags. Die Stellen selbst pflegt die Abrechnung
-// unter Einstellungen → Abrechnung.
+// unter Einstellungen → Abrechnungsvorgaben.
 
-import { HandCoins } from "lucide-react";
+import { HandCoins, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   COST_SHARE_KIND_LABELS,
@@ -17,7 +17,10 @@ import {
   CareCostShareModal,
   type CostShareTarget,
 } from "~/components/traeger/care-cost-share-modal";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -42,6 +45,11 @@ import {
   fetchCareCostShares,
 } from "~/lib/traeger-care-cost-shares-api";
 import { traegerPath } from "~/lib/traeger-url";
+
+// Menu icons as in the OGS menus; defined once, outside render.
+const PLUS_ICON = <Plus className="size-4" aria-hidden />;
+const PENCIL_ICON = <Pencil className="size-4" aria-hidden />;
+const TRASH_ICON = <Trash2 className="size-4" aria-hidden />;
 
 const logger = createLogger({ component: "TraegerKostentraegerPage" });
 
@@ -74,14 +82,14 @@ function ShareStatus({ share }: Readonly<{ share: CareCostShare }>) {
     case "expired":
       return <StatusBadge tone="gray" label="Abgelaufen" />;
     default:
-      return <StatusBadge tone="green" label="Gilt" />;
+      return <StatusBadge tone="green" label="Gilt jetzt" />;
   }
 }
 
 function ShareCell({ share }: Readonly<{ share: CareCostShare }>) {
   return (
     <div className="min-w-0">
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-900 max-sm:justify-end">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-900">
         <span className="font-medium wrap-anywhere">
           {share.costBearerName}
         </span>
@@ -93,9 +101,17 @@ function ShareCell({ share }: Readonly<{ share: CareCostShare }>) {
         </span>
         <ShareStatus share={share} />
       </p>
-      <p className="mt-0.5 text-xs wrap-anywhere text-gray-600">
-        {sharePeriod(share)} · {share.reference} · geprüft am{" "}
-        {formatDate(share.checkedOn)}
+      {/* Each fact wraps as a whole and keeps its dot at the line end: a
+          file number never breaks at its hyphen, no line starts with „·“.
+          The reference is a block of its own, so a long one still wraps. */}
+      <p className="mt-0.5 text-sm text-gray-600">
+        <span className="whitespace-nowrap">{sharePeriod(share)} ·</span>{" "}
+        <span className="inline-block max-w-full wrap-anywhere">
+          {share.reference} ·
+        </span>{" "}
+        <span className="whitespace-nowrap">
+          geprüft am {formatDate(share.checkedOn)}
+        </span>
       </p>
     </div>
   );
@@ -147,7 +163,7 @@ export default function TraegerKostentraegerPage() {
       logger.error("care_cost_share_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void deleteErrors.show(err, { object: "den Anteil" });
+      void deleteErrors.show(err, { object: "die Kostenübernahme" });
     } finally {
       setBusy(false);
     }
@@ -211,6 +227,10 @@ export default function TraegerKostentraegerPage() {
       key: "shares",
       header: "Anteile",
       stacked: "field",
+      // On a phone the shares take the row's full width: a cost bearer's
+      // name, amount, validity and reference read as lines, not as a
+      // squeezed value beside a label.
+      stackedLabel: false,
       className: "align-top",
       render: (contract) =>
         contract.shares.length === 0 ? (
@@ -239,21 +259,26 @@ export default function TraegerKostentraegerPage() {
               ? [
                   {
                     label: "Anteil eintragen",
+                    icon: PLUS_ICON,
+                    description:
+                      "Öffnet ein Fenster, um einen Anteil eines Kostenträgers einzutragen",
                     onClick: () => setTarget({ contract, share: null }),
                   },
                 ]
               : []),
             ...contract.shares.flatMap((share) => {
-              const description = `${share.costBearerName}, ${sharePeriod(share)}`;
+              const shareName = `${share.costBearerName}, ${sharePeriod(share)}`;
               return [
                 {
                   label: "Anteil ändern",
-                  description,
+                  icon: PENCIL_ICON,
+                  description: `${shareName}. Öffnet ein Fenster zum Ändern`,
                   onClick: () => setTarget({ contract, share }),
                 },
                 {
                   label: "Anteil löschen",
-                  description,
+                  icon: TRASH_ICON,
+                  description: `${shareName}. moto fragt vorher nach`,
                   destructive: true,
                   onClick: () => setDeleting({ contract, share }),
                 },
@@ -267,8 +292,8 @@ export default function TraegerKostentraegerPage() {
 
   return (
     <TenantPage
-      title="Abrechnung"
-      info={`Hier tragen Sie ein, welcher Kostenträger einen Teil des Monatsbeitrags eines Kindes bezahlt, zum Beispiel Bildung und Teilhabe oder das Jugendamt. Die Familie bekommt dann nur den Rest in Rechnung. moto speichert nur Art, Anteil, Gültigkeit und das Aktenzeichen, keinen Bescheid. Jedes Öffnen dieser Seite steht im Zugriffsprotokoll. Die Stellen selbst legen Sie unter Einstellungen → Abrechnung an.`}
+      title={billingAreaTitle("kostentraeger")}
+      info={`Hier tragen Sie ein, welcher Kostenträger einen Teil des Monatsbeitrags eines Kindes bezahlt, zum Beispiel Bildung und Teilhabe oder das Jugendamt. Die Familie bekommt dann nur den Rest in Rechnung. moto speichert nur Art, Anteil, Gültigkeit und das Aktenzeichen, keinen Bescheid. Jedes Öffnen dieser Seite steht im Zugriffsprotokoll. Die Stellen selbst legen Sie unter Einstellungen → Abrechnungsvorgaben an.`}
       stats={
         data && contracts.length > 0 ? (
           <TenantPageStats
@@ -280,7 +305,7 @@ export default function TraegerKostentraegerPage() {
               },
               {
                 value: data.expiring,
-                label: data.expiring === 1 ? "endet bald" : "enden bald",
+                label: data.expiring === 1 ? "läuft bald ab" : "laufen bald ab",
               },
             ]}
           />
@@ -347,6 +372,7 @@ export default function TraegerKostentraegerPage() {
               href={traegerPath("/traeger/einstellungen/abrechnung")}
               variant="surface"
               size="compact"
+              tooltip="Öffnet die Einstellungen der Abrechnung, dort legen Sie Kostenträger an."
             >
               Kostenträger anlegen
             </ButtonLink>
@@ -367,6 +393,7 @@ export default function TraegerKostentraegerPage() {
                 type="button"
                 variant="surface"
                 size="compact"
+                tooltip="Zeigt nur die Kinder, deren Bescheid bald endet."
                 onClick={() => {
                   setShow("expiring");
                 }}
@@ -392,6 +419,7 @@ export default function TraegerKostentraegerPage() {
                   type="button"
                   variant="surface"
                   size="compact"
+                  tooltip="Leert die Suche und zeigt wieder alle Kinder."
                   onClick={() => {
                     setSearch("");
                     setShow("all");

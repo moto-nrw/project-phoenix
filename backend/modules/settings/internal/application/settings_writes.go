@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 func (s *settingsService) SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error {
@@ -134,7 +134,10 @@ func (s *settingsService) setStoredValueInTx(ctx context.Context, tenantID int64
 		cache.EvictKey(tenantID, key)
 	}
 
-	s.recordSettingAudit(ctx, tenantID, key, "set", oldValue, valueJSON, changedBy, def.Type == config.FieldPassword)
+	// The change commits only with its audit entry (#6844).
+	if err := s.recordSettingAudit(ctx, tenantID, key, "set", oldValue, valueJSON, changedBy, def.Type == config.FieldPassword); err != nil {
+		return &config.SettingsError{Op: "set_value", Err: err}
+	}
 
 	s.logger.Info("setting value updated",
 		"key", key,
@@ -168,7 +171,10 @@ func (s *settingsService) resetStoredValueInTx(ctx context.Context, tenantID int
 		cache.EvictKey(tenantID, key)
 	}
 
-	s.recordSettingAudit(ctx, tenantID, key, "reset", oldValue, nil, changedBy, def.Type == config.FieldPassword)
+	// The change commits only with its audit entry (#6844).
+	if err := s.recordSettingAudit(ctx, tenantID, key, "reset", oldValue, nil, changedBy, def.Type == config.FieldPassword); err != nil {
+		return &config.SettingsError{Op: "reset_value", Err: err}
+	}
 
 	s.logger.Info("setting value reset",
 		"key", key,
@@ -178,7 +184,7 @@ func (s *settingsService) resetStoredValueInTx(ctx context.Context, tenantID int
 	return nil
 }
 
-func (s *settingsService) recordSettingAudit(ctx context.Context, tenantID int64, key, action string, oldValue, newValue json.RawMessage, changedBy *int64, password bool) {
+func (s *settingsService) recordSettingAudit(ctx context.Context, tenantID int64, key, action string, oldValue, newValue json.RawMessage, changedBy *int64, password bool) error {
 	if password {
 		oldValue = json.RawMessage(`"[REDACTED]"`)
 		if newValue != nil {
@@ -187,11 +193,9 @@ func (s *settingsService) recordSettingAudit(ctx context.Context, tenantID int64
 	}
 	audit := config.NewAuditEntry(tenantID, key, action, oldValue, newValue, changedBy)
 	if err := s.auditRepo.Create(ctx, audit); err != nil {
-		s.logger.Error("failed to write audit entry",
-			"key", key,
-			"error", err.Error(),
-		)
+		return fmt.Errorf("record setting change: %w", err)
 	}
+	return nil
 }
 
 // Each standalone override command commits the locked validation, mutation and

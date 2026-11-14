@@ -8,7 +8,10 @@
 
 import { useSession } from "next-auth/react";
 import { useMemo, useState } from "react";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import {
   SepaMandatesCard,
   useSepaMandates,
@@ -16,10 +19,18 @@ import {
 import { ButtonLink } from "~/components/ui/button";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
+import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { hasPermission } from "~/lib/auth-utils";
 import { traegerPath } from "~/lib/traeger-url";
 
 type Show = "in_force" | "revoked" | "all";
+
+/** How the card names what the filter shows. */
+const SCOPE_LABELS: Record<Show, string> = {
+  in_force: "Gültige",
+  revoked: "Widerrufene",
+  all: "Alle",
+};
 
 const SHOW_OPTIONS: { value: Show; label: string }[] = [
   { value: "in_force", label: "Gültig" },
@@ -28,7 +39,7 @@ const SHOW_OPTIONS: { value: Show; label: string }[] = [
 ];
 
 const INFO =
-  "Mit einem SEPA-Mandat buchen Sie den Beitrag einer Familie ab. Ein neues Mandat erfassen Sie beim Vertrag der Familie. Mandate aus einem anderen Programm übernehmen Sie mit „Mandate importieren“. Ihre Gläubiger-ID steht unter Einstellungen → Abrechnung.";
+  "Mit einem SEPA-Mandat buchen Sie den Beitrag einer Familie ab. Ein neues Mandat erfassen Sie beim Vertrag der Familie. Mandate aus einem anderen Programm übernehmen Sie mit „Mandate importieren“. Ihre Gläubiger-ID steht unter Einstellungen → Abrechnungsvorgaben.";
 
 export default function TraegerLastschriftPage() {
   const { data: session } = useSession();
@@ -74,7 +85,7 @@ export default function TraegerLastschriftPage() {
 
   return (
     <TenantPage
-      title="Lastschrift"
+      title={billingAreaTitle("lastschrift")}
       info={INFO}
       tabs={billingTabs("lastschrift")}
       actions={
@@ -83,13 +94,21 @@ export default function TraegerLastschriftPage() {
             href={traegerPath("/traeger/abrechnung/lastschrift/import")}
             variant="outline"
             size="md"
+            tooltip="Öffnet den Import bestehender Mandate aus einer CSV-Datei."
           >
             Mandate importieren
           </ButtonLink>
         ) : null
       }
       error={error}
-      loading={canBill && !error && mandates === null}
+      // A list loads in the shape of its rows.
+      loading={
+        canBill && !error && mandates === null ? (
+          <ListSkeleton rows={6} avatar={false} />
+        ) : (
+          false
+        )
+      }
       stats={
         mandates ? (
           <TenantPageStats
@@ -104,12 +123,32 @@ export default function TraegerLastschriftPage() {
       search={{
         value: search,
         onChange: setSearch,
-        placeholder: "Familie, Kontoinhaber oder Referenz",
+        placeholder: "Familie, Kontoinhaber, Referenz",
       }}
       filters={filters}
+      // Every choice that hides mandates shows as active, the default
+      // „Gültig“ too: on a phone the filters sit behind one button.
+      activeFilters={
+        show === "all"
+          ? []
+          : [
+              {
+                id: "show",
+                label:
+                  SHOW_OPTIONS.find((option) => option.value === show)?.label ??
+                  "",
+                onRemove: () => setShow("all"),
+              },
+            ]
+      }
+      onClearAllFilters={() => setShow("all")}
     >
       {mandates ? (
-        <SepaMandatesCard mandates={shown} onChanged={() => void load()} />
+        <SepaMandatesCard
+          mandates={shown}
+          scopeLabel={SCOPE_LABELS[show]}
+          onChanged={() => void load()}
+        />
       ) : null}
     </TenantPage>
   );

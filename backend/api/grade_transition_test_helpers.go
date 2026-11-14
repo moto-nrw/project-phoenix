@@ -7,13 +7,13 @@ import (
 	"log/slog"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
-	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/workflows/gradetransition"
+	gradetransitioncompose "github.com/moto-ogs/project-phoenix/workflows/gradetransition/compose"
 )
 
 // GradeTransitionTestModule composes the grade transition workflow (#2711)
@@ -51,6 +51,10 @@ func NewGradeTransitionTestModule(db transactionruntime.Database, resync Offerin
 		resync = func(context.Context, timezone.Date) error { return nil }
 	}
 	clock := OptionalClock(clocks)
+	cohorts, err := owners.NewTimetableCohortRosters(tt.Repositories, people, nil, slog.Default())
+	if err != nil {
+		return GradeTransitionTestModule{}, err
+	}
 	recurrenceLock, err := owners.NewTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
@@ -64,6 +68,7 @@ func NewGradeTransitionTestModule(db transactionruntime.Database, resync Offerin
 		Rosters:               tt.RosterMaintenance(slog.Default(), clock),
 		LockRecurrenceWrites:  recurrenceLock.LockRecurrenceWrites,
 		ResyncOfferingRosters: resync,
+		FollowClassChanges:    gradeTransitionClassChanges(cohorts),
 		Audit:                 command, ClassListEntryRecord: GradeTransitionClassListRecord, Clock: clock,
 	})
 	if err != nil {

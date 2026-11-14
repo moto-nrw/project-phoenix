@@ -399,6 +399,8 @@ export function PasskeySettingsSection({
                 items={[
                   {
                     label: "Entfernen",
+                    description:
+                      "moto fragt vorher nach und sperrt dann die Anmeldung mit diesem Passkey.",
                     icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
                     destructive: true,
                     disabled: busy,

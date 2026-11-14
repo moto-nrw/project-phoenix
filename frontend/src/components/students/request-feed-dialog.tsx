@@ -136,6 +136,7 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
             type="button"
             variant="outline"
             size="md"
+            noTooltip="Schließen schließt nur den Dialog, ohne etwas zu ändern."
             onClick={onClose}
             disabled={saving}
           >
@@ -148,6 +149,7 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
               isLoading={saving}
               disabled={checking}
               loadingText="Link wird erstellt…"
+              tooltip="Erstellt Ihren persönlichen Link für neue Elternanfragen."
               onClick={() => void create()}
             >
               <Rss className="mr-2 size-4" aria-hidden />
@@ -160,6 +162,7 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
               size="md"
               variant="outline"
               disabled={saving}
+              tooltip="Erstellt einen neuen Link, moto fragt vorher nach."
               onClick={() => setConfirmRotate(true)}
             >
               <RefreshCw className="mr-2 size-4" aria-hidden />
@@ -172,6 +175,7 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
               size="md"
               isLoading={saving}
               loadingText="Link wird erstellt…"
+              tooltip="Erstellt sofort einen neuen Link, der alte funktioniert dann nicht mehr."
               onClick={() => void rotate()}
             >
               Alten Link ersetzen
@@ -227,6 +231,7 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
                 size="md"
                 variant={copied ? "success" : "outline"}
                 className="min-w-32 shrink-0"
+                tooltip="Kopiert den Link in die Zwischenablage."
                 onClick={() => void copyURL()}
               >
                 {copied ? (

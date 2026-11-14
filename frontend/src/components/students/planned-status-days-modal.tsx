@@ -869,12 +869,44 @@ export function PlannedStatusDaysModal({
     ? existingPartialAbsences
     : partialConflicts;
 
+  const submitHint = isPartialExcusal
+    ? editingPartialAbsenceId
+      ? "Ändert die Entschuldigung ab Uhrzeit für diesen Tag."
+      : "Entschuldigt das Kind am gewählten Tag ab der Uhrzeit."
+    : isSick
+      ? "Trägt das Kind an den gewählten Tagen als krank ein."
+      : isClassTrip
+        ? "Trägt die Klassenfahrt an den gewählten Tagen ein."
+        : "Entschuldigt das Kind an den gewählten Tagen.";
+  // Nur fachliche Sperren; Laden und Speichern sperren ohne Grund (#6766).
+  const submitBlockedReason = (() => {
+    if (selectionKey === "")
+      return isPartialExcusal
+        ? "Wählen Sie zuerst einen Tag aus."
+        : "Wählen Sie zuerst mindestens einen Tag aus.";
+    if (hasInvalidRangeOrder)
+      return "Das Bis-Datum darf nicht vor dem Von-Datum liegen.";
+    if (hasSelectionTooWide)
+      return "Ein Zeitraum darf höchstens 366 Tage umfassen.";
+    if (conflictCheckFailed)
+      return "Wählen Sie die Tage neu, die Prüfung hat nicht geklappt.";
+    if (isCheckingConflicts || !checkedCurrentSelection) return undefined;
+    if (partialConflicts.length > 0 && selectableDateKeys.length === 0)
+      return "An allen gewählten Tagen ist schon etwas eingetragen.";
+    if (isPartialExcusal && selectableDateKeys.length !== 1)
+      return "Wählen Sie genau einen freien Tag aus.";
+    if (isPartialExcusal && !fromTime)
+      return "Tragen Sie zuerst die Uhrzeit ein.";
+    return undefined;
+  })();
+
   const footer = (
     <>
       <Button
         type="button"
         onClick={handleClose}
         disabled={isSubmitting}
+        noTooltip="Abbrechen schließt nur den Dialog, ohne etwas zu ändern."
         variant="outline"
         size="md"
         className="w-full sm:w-auto"
@@ -898,6 +930,8 @@ export function PlannedStatusDaysModal({
               isLoadingCarePlan ||
               !onSubmitPartialAbsence))
         }
+        tooltip={submitHint}
+        disabledReason={submitBlockedReason}
         size="md"
         className="w-full disabled:cursor-not-allowed sm:w-auto"
       >
@@ -1270,6 +1304,8 @@ export function PlannedStatusDaysModal({
                                 icon: (
                                   <Trash2 className="h-4 w-4" aria-hidden />
                                 ),
+                                description:
+                                  "Entfernt den geplanten Tag, moto fragt vorher nach.",
                                 destructive: true,
                                 disabled:
                                   isSubmitting ||
@@ -1340,6 +1376,8 @@ export function PlannedStatusDaysModal({
                                 ? [
                                     {
                                       label: "Bearbeiten",
+                                      description:
+                                        "Lädt die Entschuldigung zum Ändern ins Formular oben.",
                                       icon: (
                                         <Pencil
                                           className="h-4 w-4"
@@ -1365,6 +1403,8 @@ export function PlannedStatusDaysModal({
                                           aria-hidden
                                         />
                                       ),
+                                      description:
+                                        "Entfernt die Entschuldigung ab Uhrzeit, moto fragt vorher nach.",
                                       destructive: true,
                                       disabled: isSubmitting || save.pending,
                                       onClick: () => {

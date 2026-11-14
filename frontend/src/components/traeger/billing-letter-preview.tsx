@@ -83,6 +83,7 @@ export function BillingLetterPreview({
           variant="ghost"
           size="icon"
           aria-label="Schreiben schließen"
+          tooltip="Schließt das Schreiben und hebt die Auswahl in der Liste auf."
           onClick={onClose}
           className="hidden shrink-0 xl:inline-flex"
         >

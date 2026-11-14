@@ -61,6 +61,7 @@ jobs:
       # release pull requests are always full because they revalidate the whole
       # tree, not just what the change touched.
       full-backend-suite: ${{ steps.backend-size.outputs.full == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
+      small-backend-suite: ${{ steps.backend-size.outputs.small == 'true' }}
       full-frontend-suite: ${{ steps.frontend-mode.outputs.mode == 'full' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
       # Pull requests test what changed against the base branch. Protected-branch
       # pushes and release pull requests run the full suites.
@@ -72,11 +73,17 @@ jobs:
       base-ref: ${{ github.base_ref }}
       # The script suites, the env sync and the error-code registry check only
       # files their own filter lists. Docs-only pull requests skip all three.
-      run-ci-scripts: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.tooling == 'true' || steps.filter.outputs.quality-scripts == 'true' || steps.filter.outputs.hooks == 'true' || steps.filter.outputs.toolchain == 'true' || steps.filter.outputs.script-tests == 'true' }}
+      run-ci-scripts: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.tooling == 'true' || steps.filter.outputs.restore-suite == 'true' || steps.filter.outputs.quality-scripts == 'true' || steps.filter.outputs.hooks == 'true' || steps.filter.outputs.toolchain == 'true' || steps.filter.outputs.script-tests == 'true' || steps.filter.outputs.backend-local-test-scripts == 'true' || steps.backend-size.outputs.full == 'true' || steps.filter.outputs.backend-test-infra == 'true' }}
       run-env-check: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.env == 'true' }}
       run-error-codes: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.error-codes == 'true' }}
-      tooling-changed: ${{ steps.filter.outputs.tooling == 'true' }}
-      toolchain-changed: ${{ steps.filter.outputs.toolchain == 'true' }}
+      # The restore suite takes about five minutes (#6962). Pull requests run
+      # it for its own inputs; pushes and release pull requests always do.
+      restore-changed: ${{ steps.filter.outputs.restore-suite == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
+      # The ratchets suite also runs the self-tests of the backend test
+      # scripts: for a change to the local wrappers, and whenever the backend
+      # suite is full. They ran inside "Backend tests" on full runs and took
+      # 44-76 s of the job that sets the wall-clock time (13.11.2026).
+      toolchain-changed: ${{ steps.filter.outputs.toolchain == 'true' || steps.filter.outputs.backend-local-test-scripts == 'true' || steps.backend-size.outputs.full == 'true' || steps.filter.outputs.backend-test-infra == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
     steps:
       # paths-filter reads PR files through the API. Ordinary frontend PRs
       # check out only the shared classifier below; pushes compare commits.
@@ -189,6 +196,7 @@ jobs:
             seed-smoke-infra:
               - '.github/workflows/main.yml'
               - '.github/workflows/test.yml'
+              - 'scripts/seed-smoke-clock.mjs'
             frontend:
               - 'frontend/**'
               - '!frontend/**/*.md'
@@ -210,18 +218,26 @@ jobs:
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'
               - 'scripts/backend-lint-packages.sh'
-              - 'scripts/test-backend.sh'
-              - 'scripts/go-test-link-cache.sh'
-              - 'scripts/go-test-link-key.go'
-              - 'scripts/go-test-link-cache_test.sh'
               - 'scripts/backend-test-matrix.sh'
               - 'scripts/backend-test-matrix_test.sh'
               - 'scripts/backend-package-budgets.mjs'
               - 'scripts/backend-package-budgets.json'
               - 'scripts/backend-package-budgets.test.mjs'
+              - 'scripts/test-run-id.sh'
+            # The local test wrappers and their self-tests. No CI job runs the
+            # backend tests through them, so a change here cannot alter what
+            # test-backend runs: ci-scripts runs their self-tests instead of
+            # the full backend suite (#6784: a frontend pull request ran
+            # 42,000 backend tests for an edit of test-changed_test.sh).
+            backend-local-test-scripts:
+              - 'scripts/test-backend.sh'
+              - 'scripts/go-test-link-cache.sh'
+              - 'scripts/go-test-link-key.go'
+              - 'scripts/go-test-link-cache_test.sh'
+              - 'scripts/go-cache-sweep.sh'
+              - 'scripts/go-cache-sweep_test.sh'
               - 'scripts/test-changed.sh'
               - 'scripts/test-changed_test.sh'
-              - 'scripts/test-run-id.sh'
               - 'scripts/go-package-workers.sh'
               - 'scripts/total-memory-gb.sh'
             frontend-test-infra:
@@ -264,21 +280,9 @@ jobs:
               - '.wtconfig'
             # Release, deploy and demo tooling and the workflow files the
             # script suites read. None of it feeds the test or lint suites.
+            # The unit suite also starts for restore-suite below.
             tooling:
-              - 'docs/operations/daily-restore.compose.yml'
-              - 'scripts/daily-backup*'
-              - 'scripts/*erasure-ledger*'
-              - 'monitoring/grafana/provisioning/alerting/daily-backup.yml'
-              - 'monitoring/grafana/provisioning/alerting/nightly-cleanup.yml'
-              - 'scripts/nightly-cleanup-alerts*'
-              - 'monitoring/grafana/provisioning/alerting/infrastructure.yml'
-              - 'scripts/db-pool-alerts*'
-              - 'scripts/daily_backup.py'
-              - 'scripts/restore-daily-backup.sh'
-              - 'scripts/systemd/moto-*backup*'
-              - 'scripts/systemd/moto-release-retention*'
               - 'scripts/check-release-architecture*'
-              - 'scripts/release-backup*'
               - 'scripts/demo-environment.test.mjs'
               - 'scripts/report-sentry-deploy*'
               - 'scripts/deploy-grafana-provisioning*'
@@ -287,12 +291,36 @@ jobs:
               - 'scripts/create-demo-env.py'
               - 'scripts/test-support/release-docker.mjs'
               - 'scripts/deploy-remote.sh'
-              - 'scripts/rollback-remote.sh'
-              - 'scripts/restore-db.sh'
               - '.github/**'
               - 'environments/**'
               - '.env.example'
               - 'package.json'
+            # Every file the restore suite's steps run or read: the tests, the
+            # scripts they call (and those scripts' callees), Compose files,
+            # alert rules and systemd units; images are pinned in these files.
+            # main.yml defines the steps and the apt tools. Families are listed
+            # by glob so a new sibling fails open. Nothing else is read: Node
+            # loads only node: built-ins, Python only its standard library
+            # (#6962). backend-affected-packages_test.sh checks the inventory.
+            restore-suite:
+              - '.github/workflows/main.yml'
+              - 'scripts/release-backup*'
+              - 'scripts/rollback-remote.sh'
+              - 'scripts/restore-db.sh'
+              - 'scripts/daily-backup*'
+              - 'scripts/daily_backup.py'
+              - 'scripts/restore-daily-backup.sh'
+              - 'docs/operations/daily-restore.compose.yml'
+              - 'scripts/*erasure-ledger*'
+              - 'scripts/*-alerts*'
+              - 'monitoring/grafana/provisioning/alerting/daily-backup.yml'
+              - 'monitoring/grafana/provisioning/alerting/nightly-cleanup.yml'
+              - 'monitoring/grafana/provisioning/alerting/infrastructure.yml'
+              - 'monitoring/grafana/provisioning/alerting/holiday-closure-notifications.yml'
+              - 'monitoring/grafana/provisioning/alerting/email-delivery.yml'
+              - 'monitoring/prometheus-compose.yml'
+              - 'scripts/systemd/moto-*backup*'
+              - 'scripts/systemd/moto-release-retention*'
             # Script suites without another trigger (#4436). Each runs when its
             # script or suite changes; the runner guard reruns when a test
             # file or a Playwright config appears or moves.
@@ -320,6 +348,7 @@ jobs:
               - 'scripts/check-test-runners*'
               - 'scripts/check-pr-body*'
               - 'scripts/check-caddyfile*'
+              - 'scripts/seed-smoke-clock*'
               - 'deploy/caddy/**'
               - '**/*.test.{js,cjs,mjs,ts,cts,mts}'
               - '**/*_test.py'
@@ -423,6 +452,14 @@ jobs:
           full=$(jq 'any(.[]; . == "backend/go.mod" or . == "backend/go.sum") or
             (map(select(endswith(".go")) | split("/")[:-1] | join("/")) | unique | length >= 64)' <<< "$CHANGED_FILES")
           echo "full=$full" >> "$GITHUB_OUTPUT"
+          # The backend test job selects its packages itself and needs its
+          # runner before that. A changed test file selects only its own
+          # package, so test files in at most 15 directories plus ./test stay
+          # within the 16 packages four vCPUs are sized for. Every other
+          # change may reach any number of importers and gets eight.
+          small=$(jq 'length > 0 and all(.[]; endswith("_test.go")) and
+            (map(split("/")[:-1] | join("/")) | unique | length <= 15)' <<< "$CHANGED_FILES")
+          echo "small=$small" >> "$GITHUB_OUTPUT"
 
   ci-scripts:
     name: CI and release script suites (${{ matrix.suite }})
@@ -435,8 +472,8 @@ jobs:
         # Keep the existing path selection without buying unused runners.
         suite: >-
           ${{ fromJSON(
-            needs.detect-changes.outputs.tooling-changed == 'true' && needs.detect-changes.outputs.toolchain-changed == 'true' && '["unit","restore","ratchets"]'
-            || needs.detect-changes.outputs.tooling-changed == 'true' && '["unit","restore"]'
+            needs.detect-changes.outputs.restore-changed == 'true' && needs.detect-changes.outputs.toolchain-changed == 'true' && '["unit","restore","ratchets"]'
+            || needs.detect-changes.outputs.restore-changed == 'true' && '["unit","restore"]'
             || needs.detect-changes.outputs.toolchain-changed == 'true' && '["unit","ratchets"]'
             || '["unit"]'
           ) }}
@@ -461,7 +498,7 @@ jobs:
         if: matrix.suite == 'unit'
         run: |
           node scripts/check-agent-context.mjs
-          node --test scripts/check-migration-versions.test.mjs scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs scripts/test-perf.test.mjs scripts/ci-failures.test.mjs scripts/check-changed.test.mjs scripts/backend-package-budgets.test.mjs scripts/query-budget-scoreboard.test.mjs scripts/capture-query-budget-routes.test.mjs .github/actions/ci-cost/ci-cost.test.mjs .agents/skills/security-audit/validate-coverage-ledger.test.cjs .agents/skills/security-audit/validate-findings.test.cjs
+          node --test scripts/check-migration-versions.test.mjs scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/seed-smoke-clock.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs scripts/test-perf.test.mjs scripts/ci-failures.test.mjs scripts/check-changed.test.mjs scripts/backend-package-budgets.test.mjs scripts/architecture-build-cache.test.mjs scripts/query-budget-scoreboard.test.mjs scripts/capture-query-budget-routes.test.mjs .github/actions/ci-cost/ci-cost.test.mjs .agents/skills/security-audit/validate-coverage-ledger.test.cjs .agents/skills/security-audit/validate-findings.test.cjs
           node scripts/check-caddyfile.mjs deploy/caddy/Caddyfile
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py scripts/check_runtime_env_test.py scripts/normalize_ci_needs_test.py
 
@@ -481,7 +518,7 @@ jobs:
       - name: Verify encrypted daily backup and isolated restore
         if: matrix.suite == 'restore'
         run: |
-          node --test scripts/daily-backup.integration.test.mjs scripts/daily-backup-alerts.integration.test.mjs scripts/nightly-cleanup-alerts.integration.test.mjs scripts/db-pool-alerts.integration.test.mjs scripts/holiday-closure-alerts.integration.test.mjs
+          node --test scripts/daily-backup.integration.test.mjs scripts/daily-backup-alerts.integration.test.mjs scripts/nightly-cleanup-alerts.integration.test.mjs scripts/db-pool-alerts.integration.test.mjs scripts/holiday-closure-alerts.integration.test.mjs scripts/email-delivery-alerts.integration.test.mjs
           sudo install -d /usr/local/lib/moto-backup
           sudo install scripts/daily-backup.sh /usr/local/lib/moto-backup/
           systemd-analyze verify scripts/systemd/moto-daily-backup.service scripts/systemd/moto-daily-backup.timer scripts/systemd/moto-backup-failure@.service
@@ -515,11 +552,21 @@ jobs:
         working-directory: backend
         run: go test -tags=testhooks -count=1 -run Ratchet ./test
 
-      # The selector suite also pins contracts in main.yml and lint.yml. A
-      # lint.yml-only change does not start test-backend, which runs it too.
+      # The selector suite also pins contracts in main.yml and lint.yml.
       - name: Verify workflow selection contracts
         if: matrix.suite == 'ratchets'
         run: scripts/backend-affected-packages_test.sh
+
+      # Not in "Backend tests": that job sets the wall-clock time. This suite
+      # starts whenever the backend suite is full or one of these scripts
+      # changed (toolchain-changed in detect-changes).
+      - name: Verify backend test scripts
+        if: matrix.suite == 'ratchets'
+        run: |
+          scripts/backend-test-matrix_test.sh
+          scripts/test-changed_test.sh
+          scripts/go-test-link-cache_test.sh
+          scripts/go-cache-sweep_test.sh
 
   lint:
     name: Lint
@@ -560,11 +607,32 @@ jobs:
         with:
           # Ratchets need historical source blobs, not unrelated refs/tags.
           fetch-depth: 1
-      - name: Fetch architecture comparison history
+      # A pull request is checked against its event's base commit
+      # (pull_request.base.sha), not against a merge-base: the check reads
+      # only that commit's tree (rev-parse, ls-tree, cat-file, show, grep,
+      # archive, diff against the working tree). That one commit replaces the
+      # full history, which took 30 to 45 s (#6962). Pushes compute the
+      # merge-base with development and the release check proves ancestry, so
+      # both keep the history. A failed fetch fails here, and a base without
+      # its tree fails the check step; neither passes without the comparison.
+      - name: Fetch architecture comparison base
         env:
+          EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
         run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]] \
+            && ! [[ "$BASE_REF" == "main" && "$HEAD_REF" == "development" && "$HEAD_REPO" == "$REPOSITORY" ]]; then
+            if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "Pull request base '$BASE_SHA' is not a full commit SHA."
+              exit 1
+            fi
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+            exit 0
+          fi
           refs=("$(git rev-parse HEAD)" "+refs/heads/development:refs/remotes/origin/development")
           if [ -n "$BASE_REF" ] && [ "$BASE_REF" != development ]; then
             refs+=("+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF")
@@ -573,18 +641,24 @@ jobs:
             refs+=("$BASE_SHA")
           fi
           git fetch --no-tags --unshallow origin "${refs[@]}"
-      - name: Setup Go with cache
+      # The modules come from the architecture cache below. setup-go's own
+      # cache loaded a second build cache of 1.2 GB beside it (#6962).
+      - name: Setup Go
         id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
-          cache: true
-          # The development cache build.yml saves under this key. The
-          # architecture module pins the same golang.org/x versions.
-          cache-dependency-path: backend/go.sum
-      # setup-go's go.sum-only key is immutable. The ratchet loads packages
-      # through go list -export, so keep a source-keyed build layer with the
-      # last source build as a warm fallback, as test.yml does.
+          cache: false
+      # The ratchet loads packages through go list -export, so it restores a
+      # source-keyed build layer with the module cache. go.sum of both modules
+      # is part of the prefix, so a restored module cache never carries old
+      # versions forward.
+      # "Warm architecture build cache" (backend-build-cache.yml) is its only
+      # writer: it checks each development commit, the base of the next pull
+      # requests, and the ratchet's -trimpath lets the extracted base reuse
+      # those compile actions. The key, path, GOFLAGS and runner image must
+      # match that job (scripts/architecture-build-cache.test.mjs). A miss only
+      # makes the check compile cold.
       - name: Compute architecture build cache key
         id: build-cache-key
         env:
@@ -594,36 +668,22 @@ jobs:
           echo "prefix=$ARCH_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
           echo "key=$ARCH_CACHE_PREFIX$ARCH_SOURCE_HASH" >> "$GITHUB_OUTPUT"
       - name: Restore architecture build cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/go-build
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
           key: ${{ steps.build-cache-key.outputs.key }}
           restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
-      - name: Check deterministic architecture ratchet
-        env:
-          BASE_REF: ${{ github.base_ref }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          EVENT_NAME: ${{ github.event_name }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          GH_TOKEN: ${{ github.token }}
-          HEAD_REF: ${{ github.head_ref }}
-          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-          REPOSITORY: ${{ github.repository }}
+      # The projections load the head graph a second time (22 s on four
+      # cores). They run beside the check instead of after it; the step
+      # "Generate and validate current architecture projections" waits for
+      # them, prints their output and fails with their exit status.
+      - name: Start architecture projections in the background
         run: |
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            if [[ "$BASE_REF" == "main" && "$HEAD_REF" == "development" && "$HEAD_REPO" == "$REPOSITORY" ]]; then
-              node scripts/check-release-architecture.mjs
-            elif git cat-file -e "$BASE_SHA:backend/architecture/legacy.jsonl" 2>/dev/null; then
-              scripts/backend-architecture.sh check --base-ref "$BASE_SHA"
-            else
-              echo "Base commit $BASE_SHA has no architecture baseline; rebase onto the cutover."
-              exit 1
-            fi
-          else
-            scripts/backend-architecture.sh check
-          fi
-      - name: Generate and validate current architecture projections
-        run: |
+          cat > "$RUNNER_TEMP/architecture-projections" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -eo pipefail
           output_directory=$(mktemp -d)
           cleanup() {
             rm -rf -- "$output_directory"
@@ -652,6 +712,51 @@ jobs:
                       f"{filename}: root element is {root.tag}, expected {svg_tag}"
                   )
           PY
+          SCRIPT
+          chmod +x "$RUNNER_TEMP/architecture-projections"
+          rm -f "$RUNNER_TEMP/architecture-projections.status"
+          (
+            set +e
+            "$RUNNER_TEMP/architecture-projections" > "$RUNNER_TEMP/architecture-projections.log" 2>&1
+            echo $? > "$RUNNER_TEMP/architecture-projections.status.new"
+            mv "$RUNNER_TEMP/architecture-projections.status.new" "$RUNNER_TEMP/architecture-projections.status"
+          ) > /dev/null 2>&1 < /dev/null &
+      - name: Check deterministic architecture ratchet
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            if [[ "$BASE_REF" == "main" && "$HEAD_REF" == "development" && "$HEAD_REPO" == "$REPOSITORY" ]]; then
+              node scripts/check-release-architecture.mjs
+            elif git cat-file -e "$BASE_SHA:backend/architecture/legacy.jsonl" 2>/dev/null; then
+              scripts/backend-architecture.sh check --base-ref "$BASE_SHA"
+            else
+              echo "Base commit $BASE_SHA has no architecture baseline; rebase onto the cutover."
+              exit 1
+            fi
+          else
+            scripts/backend-architecture.sh check
+          fi
+      - name: Generate and validate current architecture projections
+        run: |
+          status_file="$RUNNER_TEMP/architecture-projections.status"
+          for _ in $(seq 1 3000); do
+            test -s "$status_file" && break
+            sleep 0.2
+          done
+          cat "$RUNNER_TEMP/architecture-projections.log" 2>/dev/null || true
+          if [[ ! -s "$status_file" ]]; then
+            echo "Architecture projections did not finish within 600 s."
+            exit 1
+          fi
+          exit "$(cat "$status_file")"
       - name: Audit open migration issues
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -671,6 +776,7 @@ jobs:
       changed-scope: ${{ needs.detect-changes.outputs.changed-scope == 'true' }}
       base_ref: ${{ needs.detect-changes.outputs.base-ref }}
       full-backend-suite: ${{ needs.detect-changes.outputs.full-backend-suite == 'true' }}
+      backend-small-runner: ${{ needs.detect-changes.outputs.small-backend-suite == 'true' && needs.detect-changes.outputs.full-backend-suite != 'true' }}
       full-frontend-suite: ${{ needs.detect-changes.outputs.full-frontend-suite == 'true' }}
       frontend-guards-only: ${{ needs.detect-changes.outputs.frontend-guards-only == 'true' }}
       run-frontend-runner-tests: ${{ needs.detect-changes.outputs.run-frontend-runner-tests == 'true' }}

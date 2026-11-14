@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/offeringrequests"
 )
 
 type OfferingReviewDiffEntry = offeringrequests.DiffEntry

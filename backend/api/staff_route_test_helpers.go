@@ -6,20 +6,20 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
 
-	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
+	birthdaysAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/birthdays"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	devicefleetCompose "github.com/moto-ogs/project-phoenix/modules/devicefleet/compose"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func newStaffIdentityForTests(db transactionruntime.Database) (*owners.CallerRows, owners.MembershipTestRepositories, error) {
@@ -100,35 +100,37 @@ type ShiftTypeTestModule struct {
 // NewShiftTypeTestModule composes the shift-type administration the way the
 // factory does: the Workforce planning composition over the timetable test
 // repositories, with the Kategorie↔Schichtart linker of the activity service.
-// It returns the administration with the Timetable side it runs over.
-func NewShiftTypeTestModule(db transactionruntime.Database) (workforce.ShiftTypeAdministration, ShiftTypeTestModule, error) {
+// It returns the administration, the Workforce plan references it counts
+// with (#6845) and the Timetable side it runs over.
+func NewShiftTypeTestModule(db transactionruntime.Database) (workforce.ShiftTypeAdministration, workforce.ShiftPlanReferenceQuery, ShiftTypeTestModule, error) {
 	repos := NewShiftTypeTestRepositories(db, owners.MustNewMembershipTestRepositories(db))
 	linker, err := timetableCompose.NewService(repos.Timetable, nil, timetablePorts.RepositoryDirectories{}, nil, nil, nil)
 	if err != nil {
-		return nil, ShiftTypeTestModule{}, err
+		return nil, nil, ShiftTypeTestModule{}, err
 	}
 	timetable, err := NewTimetableTestRepositories(db)
 	if err != nil {
-		return nil, ShiftTypeTestModule{}, err
+		return nil, nil, ShiftTypeTestModule{}, err
 	}
 	rooms, err := owners.NewTimetableRoomRows(db)
 	if err != nil {
-		return nil, ShiftTypeTestModule{}, err
+		return nil, nil, ShiftTypeTestModule{}, err
 	}
 	calendar, err := NewTimetableSchoolCalendar(db)
 	if err != nil {
-		return nil, ShiftTypeTestModule{}, err
+		return nil, nil, ShiftTypeTestModule{}, err
 	}
+	workTime := NewAbsenceTypeTestCapability(db)
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
-		Workforce: NewAbsenceTypeTestCapability(db), Staff: owners.NewPlanStaffDirectory(owners.MustNewMembershipTestRepositories(db).Staff), CalendarPeriods: calendar.SchoolCalendar(),
+		Workforce: workTime, Staff: owners.NewPlanStaffDirectory(owners.MustNewMembershipTestRepositories(db).Staff), CalendarPeriods: calendar.SchoolCalendar(),
 		Instances: timetableCompose.NewTimetableInstanceReads(timetable.ActivityInstance.Reads), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(timetable.InstanceStaff),
 		Rooms: facilitiesCompose.NewRoomNameDirectory(rooms.Room), ActivityGroups: timetableCompose.NewTimetableGroupReads(timetable.Timetable),
 		CategoryLinker: linker.SetCategoryShiftTypeLinks, DB: db.Pool(), Logger: slog.Default(),
 	})
 	if err != nil {
-		return nil, ShiftTypeTestModule{}, err
+		return nil, nil, ShiftTypeTestModule{}, err
 	}
-	return planning.ShiftTypes, ShiftTypeTestModule{Repositories: repos}, nil
+	return planning.ShiftTypes, workTime, ShiftTypeTestModule{Repositories: repos}, nil
 }
 
 type DeviceTestModule struct{ IoT devicefleetCompose.IoTService }

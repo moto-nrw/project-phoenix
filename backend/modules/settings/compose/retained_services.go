@@ -1,9 +1,9 @@
 package compose
 
 import (
-	configSvc "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/settings/internal/application/sideeffects"
-	settingsRecords "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configSvc "github.com/moto-ogs/project-phoenix/modules/settings/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/settings/internal/application/sideeffects"
+	settingsRecords "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // The retained settings service and its helpers, which the legacy

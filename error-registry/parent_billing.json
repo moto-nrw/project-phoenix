@@ -296,6 +296,12 @@
       "legacy": "parent_billing.family_not_found"
     },
     {
+      "code": "parent_billing.child_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.child_not_found"
+    },
+    {
       "code": "parent_billing.letter_mail_delayed",
       "class": "business_rejection",
       "parameters": [],
@@ -746,6 +752,42 @@
         "count"
       ],
       "legacy": "parent_billing.sollstellung_revenue_account_missing"
+    },
+    {
+      "code": "parent_billing.export_recipient_not_ready",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.export_recipient_not_ready"
+    },
+    {
+      "code": "parent_billing.export_already_handed_over",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.export_already_handed_over"
+    },
+    {
+      "code": "parent_billing.export_recipient_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.export_recipient_invalid"
+    },
+    {
+      "code": "parent_billing.export_recipient_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.export_recipient_not_found"
+    },
+    {
+      "code": "parent_billing.export_recipient_name_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.export_recipient_name_taken"
+    },
+    {
+      "code": "parent_billing.export_formats_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.export_formats_invalid"
     }
   ]
 }

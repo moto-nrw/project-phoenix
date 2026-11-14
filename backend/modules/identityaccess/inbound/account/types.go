@@ -11,9 +11,9 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 const errPasswordsNotMatch = "passwords do not match"
@@ -156,6 +156,12 @@ type TenantResolveResponse struct {
 	// staff member's navigation follows it, also without config:read. A lookup
 	// error fails the shell request.
 	ChildSearchOnlyNavigation bool `json:"child_search_only_navigation"`
+	// SimpleStaffNavigation is the tenant's resolved
+	// operations.simple_staff_navigation setting (#6956): staff who do not
+	// lead the school see only the pages of the daily care work. Shell
+	// metadata because every staff member's navigation follows it, also
+	// without config:read. A lookup error fails the shell request.
+	SimpleStaffNavigation bool `json:"simple_staff_navigation"`
 	// CareFacilityTerm is the school's resolved enrollment.care_facility_term
 	// setting (#6042), "OGS" by default. The public enrollment form, its
 	// status page and the embedded parent form fill it into their fixed
@@ -194,6 +200,7 @@ type tenantShellSettings struct {
 	earlyCheckoutTolerance    int
 	weekendFollowsFriday      bool
 	childSearchOnlyNavigation bool
+	simpleStaffNavigation     bool
 	careFacilityTerm          string
 }
 

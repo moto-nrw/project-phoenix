@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 func (r *Store) UpdateChildActivationPlan(ctx context.Context, id int64, mode string, on *enrollment.Date) error {

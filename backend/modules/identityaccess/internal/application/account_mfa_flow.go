@@ -8,9 +8,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // AccountMFAFlows is the account's second factor (#3331): the gate that
@@ -30,11 +31,16 @@ type AccountMFAFlows struct {
 	mail              ports.MFAMail
 	// resetNotice mails the caterer the operator's reset (#4497).
 	resetNotice ports.CatererMFAResetNotice
-	audit       ports.MFAAuditTrail
-	runtime     ports.Runtime
-	secret      []byte
-	logger      *slog.Logger
-	now         func() time.Time
+	// ownership keeps a school administrator's reset to accounts their
+	// school alone holds, and securityNotice mails the holder an
+	// administrator's reset (#6862); nil sends none.
+	ownership      *AccountOwnership
+	securityNotice identityPorts.AccountSecurityNotice
+	audit          ports.MFAAuditTrail
+	runtime        ports.Runtime
+	secret         []byte
+	logger         *slog.Logger
+	now            func() time.Time
 }
 
 // AccountMFAFlowDependencies are the ports the account MFA flows consume.
@@ -48,8 +54,15 @@ type AccountMFAFlowDependencies struct {
 	// ResetNotice mails the caterer the operator's reset (#4497); nil
 	// leaves that reset unavailable.
 	ResetNotice ports.CatererMFAResetNotice
-	Audit       ports.MFAAuditTrail
-	Runtime     ports.Runtime
+	// Traeger reads the Träger memberships: with the account's schools they
+	// decide whether a school alone holds an account, which the school
+	// administrator's account-wide reset requires (#6862).
+	Traeger identityPorts.TraegerMemberships
+	// SecurityNotice mails the holder an administrator's reset; nil sends
+	// none.
+	SecurityNotice identityPorts.AccountSecurityNotice
+	Audit          ports.MFAAuditTrail
+	Runtime        ports.Runtime
 	// Secret is the trusted-device HMAC key derived from the JWT secret.
 	Secret []byte
 	Logger *slog.Logger
@@ -68,7 +81,7 @@ func NewAccountMFAFlows(deps AccountMFAFlowDependencies) (*AccountMFAFlows, erro
 	}
 	return &AccountMFAFlows{
 		permissionGranted: deps.PermissionGranted, records: deps.Records, settings: deps.Settings, codec: deps.Codec, codes: deps.Codes,
-		mail: deps.Mail, resetNotice: deps.ResetNotice, audit: deps.Audit, runtime: deps.Runtime, secret: deps.Secret,
+		mail: deps.Mail, resetNotice: deps.ResetNotice, ownership: NewAccountOwnership(deps.Records, deps.Traeger), securityNotice: deps.SecurityNotice, audit: deps.Audit, runtime: deps.Runtime, secret: deps.Secret,
 		logger: logger.With("component", "account-mfa"), now: time.Now,
 	}, nil
 }
@@ -242,25 +255,36 @@ func (f *AccountMFAFlows) Enroll(ctx context.Context, proof domain.VerifiedMFACh
 // partial failure cannot leave the account half-disabled — a credential gone
 // while devices still verify, say. An operator audit participates through record.
 func (f *AccountMFAFlows) Disable(ctx context.Context, accountID int64, record ...func(context.Context) error) error {
-	err := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+	// Disable runs from authenticated endpoints, so the context already
+	// carries the school; the event is filed there in the cascade's
+	// transaction.
+	disabled := domain.AuthEvent{
+		AccountID: accountID, TenantID: f.runtime.TenantID(ctx), Type: domain.AuthEventMFADisabled, Success: true,
+		IPAddress: domain.MFAAuditFallbackIP,
+	}
+	return f.runtime.WithAdminTx(f.adminUnit(ctx), func(txCtx context.Context) error {
 		if err := f.disableCascade(txCtx, accountID); err != nil {
 			return err
 		}
 		if len(record) > 0 && record[0] != nil {
-			return record[0](txCtx)
+			if err := record[0](txCtx); err != nil {
+				return err
+			}
 		}
-		return nil
+		return f.recordAuthEvent(txCtx, disabled)
 	})
-	if err != nil {
-		return err
+}
+
+// adminUnit is the context an account-wide write opens its administrative
+// transaction from. A school administrator's request arrives inside its
+// school transaction, which an administrative one cannot join: the write
+// leaves it, as the trusted-device writes do. An administrative ambient
+// transaction is joined, and a caller without one opens its own.
+func (f *AccountMFAFlows) adminUnit(ctx context.Context) context.Context {
+	if f.runtime.HasTransaction(ctx) && !f.runtime.IsAdminTx(ctx) {
+		return f.runtime.Detach(ctx)
 	}
-	// Disable runs from authenticated endpoints, so the context already
-	// carries the school.
-	f.recordAuthEvent(ctx, domain.AuthEvent{
-		AccountID: accountID, Type: domain.AuthEventMFADisabled, Success: true,
-		IPAddress: domain.MFAAuditFallbackIP,
-	})
-	return nil
+	return ctx
 }
 
 // disableCascade runs the writes of Disable on the caller's transaction,
@@ -373,12 +397,14 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 	}
 	device := domain.AccountTrustedDevice{
 		AccountID: accountID,
-		// The row carries the school, so a cookie issued at school A can
-		// never bypass MFA at school B.
-		TenantID:  tenantID,
-		TokenHash: domain.HashTrustedDeviceToken(rawToken),
-		IPAddress: ip,
-		ExpiresAt: expiresAt,
+		// The row carries the school or the Träger, so a cookie issued at
+		// school A can never bypass MFA at school B, nor one of Träger A at
+		// Träger B or at the caterer portal.
+		TenantID:       tenantID,
+		OrganizationID: deviceTraeger(ctx, tenantID),
+		TokenHash:      domain.HashTrustedDeviceToken(rawToken),
+		IPAddress:      ip,
+		ExpiresAt:      expiresAt,
 	}
 	if userAgent != "" {
 		label := userAgent
@@ -392,11 +418,13 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 		if err != nil {
 			return fmt.Errorf("persist trusted device: %w", err)
 		}
-		f.recordAuthEvent(txCtx, domain.AuthEvent{
+		if err := f.recordAuthEvent(txCtx, domain.AuthEvent{
 			AccountID: accountID, TenantID: tenantID, Type: domain.AuthEventMFATrustedDeviceAdded,
 			Success: true, IPAddress: domain.MFAAuditIP(ip), MFA: &domain.MFAEvidence{DeviceID: stored.ID},
-		})
-		return f.notifyTrustedDeviceAdded(txCtx, accountID, stored.ID, userAgent, ip, days, tenantID == 0)
+		}); err != nil {
+			return err
+		}
+		return f.notifyTrustedDeviceAdded(txCtx, accountID, stored, userAgent, ip, days)
 	})
 	if err != nil {
 		return "", time.Time{}, err
@@ -416,7 +444,7 @@ func (f *AccountMFAFlows) VerifyTrustedDevice(ctx context.Context, accountID, te
 	if !ok {
 		return false, nil
 	}
-	device, found, err := f.records.FindActiveTrustedDevice(ctx, accountID, tenantID, domain.HashTrustedDeviceToken(rawToken))
+	device, found, err := f.records.FindActiveTrustedDevice(ctx, accountID, tenantID, deviceTraeger(ctx, tenantID), domain.HashTrustedDeviceToken(rawToken))
 	if err != nil || !found {
 		return false, nil
 	}
@@ -425,10 +453,10 @@ func (f *AccountMFAFlows) VerifyTrustedDevice(ctx context.Context, accountID, te
 }
 
 // RevokeTrustedDevice revokes one device after proving it belongs to the
-// calling account at the calling school, so neither an id guess nor a token
-// from another school can revoke it.
+// calling account at the calling school or Träger, so neither an id guess nor
+// a token from another school, Träger or portal can revoke it.
 func (f *AccountMFAFlows) RevokeTrustedDevice(ctx context.Context, accountID, tenantID, deviceID int64) error {
-	devices, err := f.records.ListActiveTrustedDevices(ctx, accountID, tenantID)
+	devices, err := f.records.ListActiveTrustedDevices(ctx, accountID, tenantID, deviceTraeger(ctx, tenantID))
 	if err != nil {
 		return err
 	}
@@ -457,9 +485,10 @@ func (f *AccountMFAFlows) trustedDeviceHint(ctx context.Context, tenantID int64)
 	return days > 0, days
 }
 
-// notifyTrustedDeviceAdded mails the holder. A device without a school is
-// the caterer portal's (#4497), whose holder manages it in its account.
-func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID, deviceID int64, userAgent string, ip net.IP, days int, caterer bool) error {
+// notifyTrustedDeviceAdded mails the holder. A device of the Träger-Portal
+// names its Träger (#6955), one without a school and without a Träger is the
+// caterer portal's (#4497); both holders manage it in their account.
+func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID int64, device domain.AccountTrustedDevice, userAgent string, ip net.IP, days int) error {
 	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
 	if err != nil || !found || account.Email == "" {
 		f.logger.Warn("could not load account for trusted-device-added mail",
@@ -470,24 +499,44 @@ func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountI
 	return f.mail.NotifyTrustedDeviceAdded(ctx, domain.TrustedDeviceMail{
 		Recipient: account.Email, ReferenceID: accountID,
 		DeviceLabel: domain.ShortenUserAgent(userAgent), RequestIP: domain.AuditIPString(ip),
-		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: days, Caterer: caterer,
-	}, deviceID)
+		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: days,
+		Caterer: device.TenantID == 0 && device.OrganizationID == 0, Traeger: device.OrganizationID > 0,
+	}, device.ID)
 }
 
 // ===== Audit =====
 
 func (f *AccountMFAFlows) recordFailure(ctx context.Context, accountID, tenantID int64, reason string) {
-	f.recordAuthEvent(ctx, domain.AuthEvent{
+	f.observeAuthEvent(ctx, domain.AuthEvent{
 		AccountID: accountID, TenantID: tenantID, Type: domain.AuthEventMFAFailed,
 		IPAddress: domain.MFAAuditFallbackIP, ErrorMessage: reason,
 	})
 }
 
-// recordAuthEvent appends to the authentication ledger. It joins the
-// caller's transaction when one is active and otherwise opens the school's
-// own, because the login flow runs outside the tenant middleware and its
-// events would be dropped without an explicit school.
-func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.AuthEvent) {
+// observeAuthEvent files an attempt the flow refused or observed: a wrong
+// code, a lockout, a refused admin action, a verified code. The refusal or
+// the verification stands whether or not the row is written, so a failed
+// append is logged, not returned (#6989). Inside a caller's transaction a
+// statement the database refuses still aborts that transaction. Changes to
+// what protects an account use recordAuthEvent instead.
+func (f *AccountMFAFlows) observeAuthEvent(ctx context.Context, event domain.AuthEvent) {
+	if err := f.recordAuthEvent(ctx, event); err != nil {
+		f.logger.Error("failed to audit mfa event",
+			slog.String("event_type", event.Type),
+			slog.String("error", err.Error()))
+	}
+}
+
+// recordAuthEvent appends to the authentication ledger and reports a failed
+// append. A change to an account's second factor writes it in the
+// transaction of the change and fails with it (#6989): disabling the factor,
+// an administrator's override and a remembered device never commit without
+// their row. The event joins the caller's transaction
+// when one is active and otherwise opens the school's own, because the login
+// flow runs outside the tenant middleware and its events would be dropped
+// without an explicit school. A portal without a school has no ledger to
+// write to (see schoolLedgerKey).
+func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.AuthEvent) error {
 	if event.TenantID == 0 {
 		event.TenantID = f.runtime.TenantID(ctx)
 	}
@@ -495,13 +544,10 @@ func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.Auth
 		f.logger.Info("mfa event without a school ledger",
 			slog.String("event_type", event.Type),
 			slog.Int64("account_id", event.AccountID))
-		return
+		return nil
 	}
 	if event.TenantID == 0 {
-		f.logger.Error("failed to audit mfa event",
-			slog.String("event_type", event.Type),
-			slog.String("error", "tenant is not configured"))
-		return
+		return errors.Join(identityaccess.ErrMFAStatusUnavailable, fmt.Errorf("audit %s: school is required", event.Type))
 	}
 	if event.IPAddress == "" {
 		event.IPAddress = domain.MFAAuditFallbackIP
@@ -514,15 +560,13 @@ func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.Auth
 		// The event belongs to the school it names, which is not always the
 		// school the request runs under: an operator override audits at the
 		// target's school. Naming it on the context first keeps the write
-		// from being refused as a mismatched nesting and silently dropping
-		// the row.
+		// from being refused as a mismatched nesting.
 		err = f.runtime.WithTenantTx(f.runtime.WithTenantID(ctx, event.TenantID), event.TenantID, appendEvent)
 	}
 	if err != nil {
-		f.logger.Error("failed to audit mfa event",
-			slog.String("event_type", event.Type),
-			slog.String("error", err.Error()))
+		return errors.Join(identityaccess.ErrMFAStatusUnavailable, fmt.Errorf("audit %s: %w", event.Type, err))
 	}
+	return nil
 }
 
 // schoolLedgerKey marks a challenge of a portal without a school. The
@@ -543,9 +587,21 @@ func withoutSchoolLedgerContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, schoolLedgerKey{}, true)
 }
 
+// withoutSchoolLedger reports a flow of a portal without a school. A call
+// bound to a Träger's devices is the Träger-Portal's, which has none either.
 func withoutSchoolLedger(ctx context.Context) bool {
 	marked, _ := ctx.Value(schoolLedgerKey{}).(bool)
-	return marked
+	return marked || identityaccess.TraegerDeviceOf(ctx) > 0
+}
+
+// deviceTraeger is the Träger a trusted-device call is bound to: the one
+// identityaccess.WithTraegerDevice names on a call without a school (#6955),
+// zero on a school's call and on the caterer portal's.
+func deviceTraeger(ctx context.Context, tenantID int64) int64 {
+	if tenantID != 0 {
+		return 0
+	}
+	return identityaccess.TraegerDeviceOf(ctx)
 }
 
 func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.AccountMFAChallenge, message domain.MFACodeMail, credentialGeneration *int64) (domain.AccountMFAChallenge, func(context.Context) error, error) {
@@ -579,7 +635,11 @@ func (f *AccountMFAFlows) activateDeliveredChallenge(ctx context.Context, challe
 		if err := f.records.ActivateChallenge(txCtx, challenge.ID); err != nil {
 			return err
 		}
-		f.recordAuthEvent(txCtx, domain.AuthEvent{AccountID: challenge.AccountID, TenantID: challenge.TenantID, Type: domain.AuthEventMFAEmailSent, Success: true, IPAddress: domain.MFAAuditIP(challenge.IPAddress), MFA: &domain.MFAEvidence{ChallengeID: challenge.ID}})
+		// A sent code changes no protection of the account; the session it
+		// leads to is audited when it is minted (#6844). A missing school
+		// only logs here, but an insert the database refuses still aborts
+		// this transaction, as it did before #6989.
+		f.observeAuthEvent(txCtx, domain.AuthEvent{AccountID: challenge.AccountID, TenantID: challenge.TenantID, Type: domain.AuthEventMFAEmailSent, Success: true, IPAddress: domain.MFAAuditIP(challenge.IPAddress), MFA: &domain.MFAEvidence{ChallengeID: challenge.ID}})
 		return nil
 	})
 }
@@ -640,7 +700,7 @@ func (f *AccountMFAFlows) completeChallengeVerification(ctx context.Context, cla
 	if credential, credFound, credErr := f.records.FindCredential(ctx, claims.AccountID); credErr == nil && credFound && credential.ID > 0 {
 		_ = f.records.TouchCredential(ctx, credential.ID, now)
 	}
-	f.recordAuthEvent(ctx, domain.AuthEvent{
+	f.observeAuthEvent(ctx, domain.AuthEvent{
 		AccountID: claims.AccountID, TenantID: claims.TenantID, Type: domain.AuthEventMFAVerified,
 		Success: true, IPAddress: domain.MFAAuditFallbackIP,
 	})

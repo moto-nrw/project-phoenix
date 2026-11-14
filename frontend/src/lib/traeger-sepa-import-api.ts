@@ -73,12 +73,22 @@ export interface ImportRow {
 
 /** What the import does with the debtor number of a row (#4693). */
 type DebtorNumberStatus =
-  "new" | "same" | "siblings_differ" | "differs" | "invalid" | "no_family";
+  | "new"
+  | "same"
+  | "siblings_differ"
+  | "differs"
+  | "invalid"
+  | "no_family"
+  // Only when the Träger keeps the number per child (#7007).
+  | "no_child"
+  | "rows_differ";
 
 type ImportCounts = Readonly<
   Record<ImportRowStatus, number> & {
     debtorNumbers: number;
     debtorConflicts: number;
+    /** Rows without IBAN and reference the import skipped (#7009). */
+    withoutMandate: number;
   }
 >;
 
@@ -153,6 +163,7 @@ interface BackendResult {
   counts: Record<ImportRowStatus, number> & {
     debtor_numbers?: number;
     debtor_conflicts?: number;
+    without_mandate?: number;
   };
   rows: BackendRow[] | null;
 }
@@ -214,6 +225,7 @@ function mapImportResult(result: BackendResult): ImportResult {
       ...result.counts,
       debtorNumbers: result.counts.debtor_numbers ?? 0,
       debtorConflicts: result.counts.debtor_conflicts ?? 0,
+      withoutMandate: result.counts.without_mandate ?? 0,
     },
     rows: (result.rows ?? []).map(mapRow),
   };

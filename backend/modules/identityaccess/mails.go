@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The mails of the Identity & Access flows (#4082): what each one says, which
@@ -222,6 +222,7 @@ func TrustedDeviceAddedMailContent(message TrustedDeviceMail, origin string) Mai
 			"AddedAt":     message.AddedAt,
 			"TrustedDays": message.TrustedDays,
 			"Caterer":     message.Caterer,
+			"Traeger":     message.Traeger,
 		},
 	}
 }
@@ -236,6 +237,45 @@ func CatererMFAResetMailContent(message CatererMFAResetMail, origin string) Mail
 		Content: map[string]any{
 			"LogoURL": trimmedLogoURL(origin),
 			"ResetAt": message.ResetAt,
+		},
+	}
+}
+
+// adminActor names who changed an account holder's sign-in.
+func adminActor(byOperator bool) string {
+	if byOperator {
+		return "Das moto-Team"
+	}
+	return "Die Verwaltung Ihrer Schule"
+}
+
+// MFAResetByAdminMailContent tells an account holder that an administrator
+// reset their second factor (#6862). It carries no link.
+func MFAResetByAdminMailContent(message MFAResetByAdminMail, origin string) Mail {
+	return Mail{
+		Subject:  "Ihre Zwei-Faktor-Anmeldung bei moto wurde zurückgesetzt",
+		Template: "account-mfa-reset.html",
+		Content: map[string]any{
+			"LogoURL":    trimmedLogoURL(origin),
+			"ResetAt":    message.ResetAt,
+			"Actor":      adminActor(message.ByOperator),
+			"ByOperator": message.ByOperator,
+		},
+	}
+}
+
+// LoginAddressChangedMailContent tells the previous address that an
+// administrator moved the login away from it (#6862). It names neither the
+// new address nor a link.
+func LoginAddressChangedMailContent(message LoginAddressChangedMail, origin string) Mail {
+	return Mail{
+		Subject:  "Die E-Mail-Adresse Ihres moto-Kontos wurde geändert",
+		Template: "account-login-address-changed.html",
+		Content: map[string]any{
+			"LogoURL":    trimmedLogoURL(origin),
+			"ChangedAt":  message.ChangedAt,
+			"Actor":      adminActor(message.ByOperator),
+			"ByOperator": message.ByOperator,
 		},
 	}
 }

@@ -16,7 +16,6 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
@@ -323,11 +322,17 @@ function TeachersPageContent() {
       ? [
           {
             label: "Personal einladen",
+            description: "Die Person erhält eine Einladung per E-Mail.",
             onClick: () => setShowInviteModal(true),
             // Ziel der Einrichtungs-Tour (setup-tours.ts, Schritt „team“).
             tourTarget: "invite-create",
           },
-          { label: "Externe Person anlegen", onClick: openExternalCreate },
+          {
+            label: "Externe Person anlegen",
+            description:
+              "Trägt jemanden von außen ein, etwa von der Musikschule.",
+            onClick: openExternalCreate,
+          },
         ]
       : undefined;
 
@@ -336,6 +341,7 @@ function TeachersPageContent() {
       ? [
           {
             label: "Importieren",
+            description: "Legt viel Personal aus einer Datei an.",
             href: tenantPath("/database/personal/import"),
             onClick: () => undefined,
           },
@@ -345,6 +351,7 @@ function TeachersPageContent() {
       ? [
           {
             label: "Eröffnungssalden importieren",
+            description: "Übernimmt Stundensaldo und Urlaub aus einer Datei.",
             href: tenantPath("/database/personal/opening-balances"),
             onClick: () => undefined,
           },
@@ -442,33 +449,29 @@ function TeachersPageContent() {
           </>
         ),
       }}
-      search={
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={{
-            icon: (
-              <MotoDuotoneIcon
-                icon={staffConcept.icon}
-                tone={staffConcept.tone}
-                size={20}
-              />
-            ),
-            count: filteredTeachers.length,
-            label: "Personal",
-          }}
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Personal suchen…",
-          }}
-          filters={[]}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-          }}
-        />
-      }
+      searchRow={{
+        badge: {
+          icon: (
+            <MotoDuotoneIcon
+              icon={staffConcept.icon}
+              tone={staffConcept.tone}
+              size={20}
+            />
+          ),
+          count: filteredTeachers.length,
+          label: "Personal",
+        },
+        search: {
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Personal suchen…",
+        },
+        filters: [],
+        activeFilters,
+        onClearAllFilters: () => {
+          setSearchTerm("");
+        },
+      }}
     >
       {/* Einladungen anlegen, erneut senden und zurückziehen verlangt
           users:manage. Wer es nicht hält, sieht den Block gar nicht: eine

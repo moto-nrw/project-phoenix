@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/http/platformannouncements"
+	"github.com/moto-ogs/project-phoenix/modules/communication/http/platformannouncements"
 )
 
 // TestRouter verifies that the platform router can be constructed.

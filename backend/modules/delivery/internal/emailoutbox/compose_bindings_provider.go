@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
 )
 
 // MailPushProvider sends the claimed e-mail and push intents.
@@ -78,7 +78,7 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent deliveryContrac
 		ID: intent.ID, TenantID: intent.TenantID, Kind: intent.Template, DeliveryToken: intent.DeliveryToken,
 		Security: intent.Security, UseFallback: intent.UseFallback,
 		RelatedEntityType: relatedType, RelatedEntityID: relatedID,
-		Payload: payload, PayloadJSON: intent.EmailPayload, Attempts: intent.Attempts,
+		Payload: payload, PayloadJSON: intent.EmailPayload, Attempts: intent.Attempts, CreatedAt: intent.CreatedAt,
 	}
 	renderer, err := p.Registry.Lookup(intent.Template)
 	if err != nil {
@@ -91,6 +91,9 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent deliveryContrac
 	}
 	if errors.Is(err, ErrRenderDeferred) {
 		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %v", deliveryContract.ErrDeferred, err)
+	}
+	if errors.Is(err, ErrSendThrottled) {
+		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %w: %v", deliveryContract.ErrDeferred, deliveryContract.ErrThrottled, err)
 	}
 	if errors.Is(err, email.ErrFallbackRemoved) {
 		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %v", deliveryContract.ErrPermanent, err)

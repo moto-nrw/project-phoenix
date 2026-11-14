@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // attachApprovalToExistingStudent is the shared approval tail for a child that
@@ -62,10 +62,8 @@ func (d *Decisions) attachApprovalToExistingStudent(
 	// The class-writes and recurrence gates remain held from before the
 	// student write. Changed classes must update all sourced future rosters
 	// in the same transaction (#2147, #2709).
-	if existing.SchoolClass != previousSchoolClass {
-		if err := d.resyncOfferingSourcedTemplates(ctx, d.todayDate()); err != nil {
-			return nil, fmt.Errorf("decision: resync sourced templates after approval class change: %w", err)
-		}
+	if err := d.followRewrittenClass(ctx, studentID, previousSchoolClass, existing.SchoolClass); err != nil {
+		return nil, fmt.Errorf("decision: approval class change: %w", err)
 	}
 	if syncTargetedFields {
 		weeklyPlanOn := d.renewalWeeklyPlanDay(phase, renewal.careRunning)

@@ -1137,6 +1137,19 @@ describe.concurrent("ui-kit/no-raw-z-index", () => {
     expect(result.output).toContain("ui-kit(no-raw-z-index)");
   });
 
+  it("reports a plain Tailwind level inside the kit (#6574)", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <div className="sticky top-0 md:z-20" />;
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-raw-z-index)");
+  });
+
   it("accepts Z_LAYER itself and leaves files outside the kit alone", async () => {
     const [layers, outside] = await Promise.all([
       lintSource(
@@ -2248,7 +2261,7 @@ describe.concurrent("ui-kit/no-hand-rolled-button", () => {
   it("follows aliased link imports", async () => {
     const result = await lintSource(
       `import AppLink from "next/link";
-      import { NavLink as SidebarLink } from "~/components/ui/nav-link";
+      import SidebarLink from "~/components/ui/navigation-link";
       import ProgressLink from "~/components/ui/navigation-link";
       function Probe() {
         return <>
@@ -2568,7 +2581,7 @@ describe("ui-kit/no-grey-button-fill", () => {
 
   it("accepts state tints, tracks, switches and navigation rows", async () => {
     const result = await lint(
-      `import { NavLink as SideLink } from "~/components/ui/nav-link";
+      `import SideLink from "~/components/ui/navigation-link";
       function Probe({ on }: { on: boolean }) {
         return (
           <>
@@ -4136,6 +4149,52 @@ describe.concurrent("ui-kit/no-kit-domain-import", () => {
     expect(outside.output).not.toContain("no-kit-domain-import");
   });
 
+  // #6582: ~/lib holds pure helpers next to domain modules. The kit may load
+  // only the pure ones; a domain module's types may still shape its props.
+  it("reports a value import from a domain module in ~/lib", async () => {
+    const result = await lintSource(
+      `import { usePresenceMode } from "~/lib/tenant-context";
+      import { formatBytes } from "../../../lib/files-api";
+      export { moreConcept } from "@/lib/concepts/more";
+      void usePresenceMode; void formatBytes;
+      void import("~/lib/activity-occupancy");`,
+      "src/components/ui/page-header/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-kit-domain-import\)/g)).toHaveLength(
+      4,
+    );
+    expect(result.output).toContain("~/lib/tenant-context");
+  });
+
+  it("reports a domain value next to a type in one import", async () => {
+    const result = await lintSource(
+      `import { resolvePresence, type PresenceStudent } from "~/lib/presence-status";
+      export const probe = (s: PresenceStudent) => resolvePresence;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.output.match(/ui-kit\(no-kit-domain-import\)/g)).toHaveLength(
+      1,
+    );
+  });
+
+  it("accepts pure ~/lib modules and type-only imports of domain modules", async () => {
+    const result = await lintSource(
+      `import { cn } from "~/lib/utils";
+      import { TINT_CLASSES } from "@/lib/kit-palette";
+      import { useLatest } from "../../../lib/hooks/use-latest";
+      import type { MotoConcept } from "~/lib/moto-concepts";
+      import { type ModuleKey } from "~/lib/modules";
+      export type { SignatureValue } from "~/lib/signature";
+      export const probe = (c: MotoConcept, m: ModuleKey) => [cn, TINT_CLASSES, useLatest, c, m];`,
+      "src/components/ui/page-header/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-kit-domain-import");
+  });
+
   it("leaves kit tests alone", async () => {
     const result = await lintSource(
       `import { Thing } from "~/components/home/thing";
@@ -4537,6 +4596,48 @@ describe.concurrent("ui-kit Eingabe-Bausteine (#5596)", () => {
   });
 });
 
+describe.concurrent("ui-kit action rows (#6571)", () => {
+  const rule = "ui-kit(no-hand-rolled-action-row)";
+
+  async function outputOf(jsx: string, path = "src/components/probe.tsx") {
+    const result = await lintSource(
+      `function Probe() { return ${jsx}; }\nvoid Probe;`,
+      path,
+    );
+    return result.output;
+  }
+
+  it("reports a hand-built subgrid row, also split over several strings", async () => {
+    const [plain, split] = await Promise.all([
+      outputOf(
+        `<li className="flex flex-col gap-2 py-3 sm:col-span-2 sm:grid sm:grid-cols-subgrid" />`,
+      ),
+      outputOf(`<li className={cn("py-3", "sm:grid sm:grid-cols-subgrid")} />`),
+    ]);
+    expect(plain).toContain(rule);
+    expect(split).toContain(rule);
+  });
+
+  it("reports the class chain kept in a constant", async () => {
+    const output = await outputOf(
+      `<li className={ROW} />; const ROW = "sm:col-span-2 sm:grid sm:grid-cols-subgrid"`,
+    );
+    expect(output).toContain(rule);
+  });
+
+  it("allows ResponsiveActionRow and the kit itself", async () => {
+    const [row, kit] = await Promise.all([
+      outputOf(`<ResponsiveActionRow align="start" className="gap-3" />`),
+      outputOf(
+        `<li className="sm:col-span-2 sm:grid sm:grid-cols-subgrid" />`,
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
+    expect(row).not.toContain(rule);
+    expect(kit).not.toContain(rule);
+  });
+});
+
 describe.concurrent("ui-kit sticky bars and slide-over layout (#5602)", () => {
   async function outputOf(jsx: string, path = "src/probe.tsx") {
     const result = await lintSource(
@@ -4814,5 +4915,117 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
     expect(traeger.output).toContain(RULE);
     expect(outside.output).not.toContain(RULE);
     expect(story.output).not.toContain(RULE);
+  });
+});
+
+describe.concurrent("ui-kit/menu-item-needs-description", () => {
+  const RULE = "ui-kit(menu-item-needs-description)";
+  const IN_SCOPE = "src/components/settings/probe.tsx";
+  const probe = (items: string) =>
+    `declare const go: () => void;
+    declare const props: { hint: string };
+    declare const extra: Record<string, unknown>;
+    void props; void extra;
+    export const items = [${items}];`;
+
+  // Alle gültigen Fälle in einem Lauf: jeder Lauf startet oxlint neu.
+  it("accepts a description, a reason, toggles, selected navigation and tooltip buttons", async () => {
+    const { output } = await lintSource(
+      probe(
+        [
+          `{ label: "Entfernen", description: "moto fragt vorher nach.", onClick: go }`,
+          `{ label: "Öffnen", description: props.hint, href: "/x", onClick: go }`,
+          `{ label: "Hilfe", noDescription: "Das Wort sagt schon alles.", onClick: go }`,
+          `{ label: "Schule A", selected: true, href: "/a", onClick: go }`,
+          `{ kind: "radio", label: "Woche", checked: true, onClick: go }`,
+          `{ kind: "checkbox", label: "Klasse", checked: false, onClick: go }`,
+          `{ label: "Mehr", ...extra, onClick: go }`,
+          `{ ...extra, label: "Leeren", description: "Löscht sofort.", onClick: go }`,
+          `{ label: "Nur Text" }`,
+          `{ label: "Weitere laden", onClick: go, tooltip: "Zeigt weitere Einträge." }`,
+          `{ label: "Neu laden", onClick: go, noTooltip: "Das Wort sagt schon alles." }`,
+        ].join(",\n"),
+      ),
+      IN_SCOPE,
+    );
+    expect(output).not.toContain(RULE);
+    expect(output).not.toMatch(/error|Parse/i);
+  });
+
+  // Alle Ablehnungen in einem Lauf; jede Meldung muss genau einmal kommen.
+  it("rejects missing, empty, conflicting and overridable explanations", async () => {
+    const cases: [string, string][] = [
+      [`{ label: "Entfernen", onClick: go }`, "Menüeintrag ohne Erklärung"],
+      [
+        `{ label: "Öffnen", href: "/x", onClick: go }`,
+        "Menüeintrag ohne Erklärung",
+      ],
+      [
+        `{ label: "Löschen", selected: false, onClick: go }`,
+        "Menüeintrag ohne Erklärung",
+      ],
+      [
+        `{ label: "Löschen", selected: undefined, onClick: go }`,
+        "Menüeintrag ohne Erklärung",
+      ],
+      [
+        `{ label: "Löschen", selected: null, onClick: go }`,
+        "Menüeintrag ohne Erklärung",
+      ],
+      [
+        `{ label: "Löschen", selected: void 0, onClick: go }`,
+        "Menüeintrag ohne Erklärung",
+      ],
+      [
+        `{ label: "Entfernen", description: " ", onClick: go }`,
+        "Leere `description`",
+      ],
+      [
+        `{ label: "Entfernen", description: "Löscht sofort.", description: undefined, onClick: go }`,
+        "Leere `description`",
+      ],
+      [
+        `{ label: "Hilfe", noDescription: "", onClick: go }`,
+        "braucht einen Grund",
+      ],
+      [
+        `{ label: "Hilfe", noDescription: undefined, onClick: go }`,
+        "braucht einen Grund",
+      ],
+      [
+        `{ label: "Hilfe", noDescription: "Das Wort sagt schon alles.", noDescription: undefined, onClick: go }`,
+        "braucht einen Grund",
+      ],
+      [
+        `{ label: "Hilfe", description: "Öffnet die Hilfe.", noDescription: "Reicht.", onClick: go }`,
+        "dürfen nicht zusammen",
+      ],
+      [
+        `{ label: "Entfernen", description: "Löscht sofort.", ...extra, onClick: go }`,
+        "Spread vor die Erklärung",
+      ],
+    ];
+    const { output } = await lintSource(
+      probe(cases.map(([item]) => item).join(",\n")),
+      IN_SCOPE,
+    );
+    expect(output.split(RULE).length - 1).toBe(cases.length);
+    for (const message of new Set(cases.map(([, message]) => message))) {
+      expect(output.split(message).length - 1).toBe(
+        cases.filter(([, m]) => m === message).length,
+      );
+    }
+  });
+
+  it("uses the tooltip scope list", async () => {
+    const source = probe(`{ label: "Entfernen", onClick: go }`);
+    const [traeger, outside, test] = await Promise.all([
+      lintSource(source, "src/app/traeger/einstellungen/probe/page.tsx"),
+      lintSource(source, "src/components/students/probe.tsx"),
+      lintSource(source, "src/components/settings/probe.test.tsx"),
+    ]);
+    expect(traeger.output).toContain(RULE);
+    expect(outside.output).not.toContain(RULE);
+    expect(test.output).not.toContain(RULE);
   });
 });

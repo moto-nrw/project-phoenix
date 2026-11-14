@@ -50,8 +50,14 @@ export function AttachmentEditor({
   fieldPath,
   fieldError,
   uploadAdapter = SCHOOL_ATTACHMENT_UPLOAD,
+  sharedHints = false,
 }: Readonly<{
   uploadAdapter?: AttachmentUploadAdapter;
+  /**
+   * The caller states once what parents can do with the PDFs and the size
+   * limit, above several editors; each editor then leaves them out.
+   */
+  sharedHints?: boolean;
   attachments?: FormAttachment[];
   onChange: (attachments: FormAttachment[]) => void;
   disabled: boolean;
@@ -139,10 +145,12 @@ export function AttachmentEditor({
   return (
     <div className="space-y-3">
       <div>
-        <h4 className="text-sm font-semibold text-gray-900">PDF-Anhänge</h4>
-        <p className="mt-1 text-sm text-gray-600">
-          Eltern können alle PDFs öffnen und herunterladen.
-        </p>
+        <h3 className="text-sm font-semibold text-gray-900">PDF-Anhänge</h3>
+        {sharedHints ? null : (
+          <p className="mt-1 text-sm text-gray-600">
+            Eltern können alle PDFs öffnen und herunterladen.
+          </p>
+        )}
       </div>
       {attachments.length > 0 ? (
         <ol className="space-y-3">
@@ -166,6 +174,7 @@ export function AttachmentEditor({
                     className="gap-2"
                     disabled={busy}
                     aria-label={`PDF ${index + 1} ersetzen`}
+                    tooltip="Tauscht die PDF aus, wirksam erst nach dem Speichern."
                     onClick={() => {
                       replacing.current = attachment.document_url;
                       replacementPicker.current?.click();
@@ -180,7 +189,7 @@ export function AttachmentEditor({
                     size="icon"
                     disabled={busy}
                     aria-label={`PDF ${index + 1} entfernen`}
-                    title="PDF entfernen"
+                    tooltip="Nimmt die PDF aus der Liste, wirksam erst nach dem Speichern."
                     onClick={() =>
                       onChange(attachments.filter((_, i) => i !== index))
                     }
@@ -224,6 +233,7 @@ export function AttachmentEditor({
           disabled={busy}
           isLoading={uploading}
           loadingText="PDFs werden hochgeladen…"
+          tooltip="Hängt PDF-Dateien an, wirksam erst nach dem Speichern."
           onClick={() => picker.current?.click()}
         >
           <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -231,10 +241,12 @@ export function AttachmentEditor({
             ? "Weitere PDFs hinzufügen"
             : "PDFs hinzufügen"}
         </Button>
-        <p className="text-xs leading-5 text-gray-500">
-          Sie können mehrere PDFs gleichzeitig auswählen. Höchstens{" "}
-          {MAX_ENROLLMENT_DOCUMENT_SIZE_LABEL} pro Datei.
-        </p>
+        {sharedHints ? null : (
+          <p className="text-sm text-gray-600">
+            Sie können mehrere PDFs gleichzeitig auswählen. Höchstens{" "}
+            {MAX_ENROLLMENT_DOCUMENT_SIZE_LABEL} pro Datei.
+          </p>
+        )}
       </div>
       <input
         ref={picker}

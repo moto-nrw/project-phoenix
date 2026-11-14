@@ -30,5 +30,37 @@
   "moreEvents": "+ {count} weitere",
   "responseRequired": "Antwort erforderlich",
   "errorObjectList": "die Liste der Termine",
-  "errorObjectResponse": "die Antwort"
+  "errorObjectResponse": "die Antwort",
+  "responseRequiredSeries": "Antwort für alle Termine der Reihe",
+  "answerScope": {
+    "legend": "Ihre Antwort gilt für",
+    "occurrence": "Nur am {date}",
+    "series": "Alle Termine",
+    "occurrenceHintOthers": "Die anderen Termine der Reihe behalten ihre Antwort.",
+    "occurrenceHintOpen": "Die anderen Termine der Reihe bleiben offen.",
+    "occurrenceHintKeeps": "Für die anderen Termine gilt weiter: {answer}.",
+    "seriesHint": "Ihre Antwort gilt für alle Termine dieser Reihe.",
+    "seriesHintReplaces": "Ihre Antwort gilt dann für alle Termine, auch für einzeln beantwortete."
+  },
+  "onlyThisDate": "Nur für diesen Termin",
+  "changeAnswer": "Antwort ändern",
+  "acceptedOn": "Für {date} zugesagt.",
+  "declinedOn": "Für {date} abgesagt.",
+  "errorObjectOverview": "die Rückmeldungen",
+  "responses": {
+    "title": "Rückmeldungen",
+    "accepted": "Zugesagt",
+    "declined": "Abgesagt",
+    "pending": "Offen",
+    "privacy": "Namen anderer Eltern sehen Sie nicht."
+  },
+  "openEventTooltip": "Klappt die Einzelheiten zu diesem Termin auf oder zu.",
+  "acceptTooltip": "Sagt sofort zu. Später können Sie die Antwort noch ändern.",
+  "declineTooltip": "Sagt sofort ab. Später können Sie die Antwort noch ändern.",
+  "previousMonthTooltip": "Zeigt die Termine im Monat davor.",
+  "nextMonthTooltip": "Zeigt die Termine im nächsten Monat.",
+  "previousMonthBlocked": "Vergangene Monate zeigt der Kalender nicht.",
+  "nextMonthBlocked": "Spätere Monate zeigt der Kalender noch nicht.",
+  "closeTooltip": "Schließt die Einzelheiten und zeigt wieder den Kalender.",
+  "changeAnswerTooltip": "Zeigt wieder Zusagen und Absagen. Ihre Antwort bleibt, bis Sie neu wählen."
 }

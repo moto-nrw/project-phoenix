@@ -22,5 +22,6 @@
     "showAll": "View all",
     "showAllLabel": "View all holiday registrations",
     "more": "{count, plural, one {# more registration} other {# more registrations}}"
-  }
+  },
+  "toDocumentsTooltip": "Opens your documents with the confirmation and invoice."
 }

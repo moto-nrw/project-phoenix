@@ -48,7 +48,8 @@ const MAIL_OUTCOME_BADGES: Partial<
   delayed: { label: "Verzögert", tone: "warning" },
   overdue: { label: "Überfällig", tone: "warning" },
   undeliverable: { label: "Nicht zustellbar", tone: "red" },
-  complained: { label: "Nicht zustellbar", tone: "red" },
+  // Arrived and reported by the family, not undelivered (#6999).
+  complained: { label: "Als unerwünscht gemeldet", tone: "red" },
   blocked: { label: "Nicht gesendet", tone: "gray" },
   provider_blocked: { label: "Nicht gesendet", tone: "gray" },
   unsubscribed: { label: "Abgemeldet", tone: "gray" },

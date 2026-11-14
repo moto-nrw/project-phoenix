@@ -7,15 +7,15 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	peopleRouteValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleRouteValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 
-	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	schoolMembershipModule "github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 
-	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
-	"github.com/moto-nrw/project-phoenix/observability"
+	classListHTTP "github.com/moto-ogs/project-phoenix/modules/schoolmembership/http/classlistentries"
+	"github.com/moto-ogs/project-phoenix/observability"
 )
 
 // The class-list entries under /api/class-list-entries are served by the

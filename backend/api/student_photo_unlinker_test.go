@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

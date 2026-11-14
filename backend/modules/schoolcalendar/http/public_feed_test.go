@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	calendarSvc "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -67,4 +67,16 @@ func TestPublicFeedReportsFailuresAndAMissingCalendar(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, http.StatusInternalServerError, servePublicFeed(publicFeeds{fail: errors.New("down")}, "p").Code)
 	assert.Equal(t, http.StatusNotFound, servePublicFeed(nil, "p").Code)
+}
+
+// A feed read the calendar app canceled is no server error: 499.
+func TestPublicFeedAnswersAClientCancellationWith499(t *testing.T) {
+	t.Parallel()
+	router := chi.NewRouter()
+	router.Get("/public/calendar/{token}", PublicFeed(publicFeeds{fail: context.Canceled}))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/public/calendar/p", nil).WithContext(ctx))
+	assert.Equal(t, 499, recorder.Code, recorder.Body.String())
 }

@@ -22,5 +22,6 @@
     "showAll": "Tümünü göster",
     "showAllLabel": "Tüm tatil kayıtlarını göster",
     "more": "{count, plural, one {# kayıt daha} other {# kayıt daha}}"
-  }
+  },
+  "toDocumentsTooltip": "Onay ve faturayla birlikte belgelerinizi açar."
 }

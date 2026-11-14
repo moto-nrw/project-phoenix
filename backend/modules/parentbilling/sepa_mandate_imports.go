@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Import of existing SEPA mandates from a CSV file (#6198, ADR 0171 point
@@ -51,6 +51,13 @@ const (
 	DebtorNumberInvalid = "invalid"
 	// DebtorNumberNoFamily is a row whose family moto does not know.
 	DebtorNumberNoFamily = "no_family"
+	// DebtorNumberNoChild is a row whose child moto cannot tell when the
+	// Träger keeps a number per child (#7007): the payer column names a
+	// family with several children under contract, not the contract.
+	DebtorNumberNoChild = "no_child"
+	// DebtorNumberRowsDiffer is a child whose rows carry different
+	// numbers: the import takes over none of them (#7007).
+	DebtorNumberRowsDiffer = "rows_differ"
 )
 
 // How the payer column names the family of a mandate.
@@ -222,7 +229,13 @@ type SEPAMandateImportCounts struct {
 	Conflict  int `json:"conflict"`
 	Invalid   int `json:"invalid"`
 	Imported  int `json:"imported"`
-	// DebtorNumbers counts the families whose debtor number the import
+	// WithoutMandate counts the rows without an IBAN and a reference, which
+	// the import skips: a file with a row per child, such as the master
+	// data of OGS Connect, has them for every child without a mandate
+	// (#7009).
+	WithoutMandate int `json:"without_mandate"`
+	// DebtorNumbers counts the families, or the children when the Träger
+	// keeps a number per child (#7007), whose debtor number the import
 	// takes over; DebtorConflicts the rows whose number it leaves.
 	DebtorNumbers   int `json:"debtor_numbers"`
 	DebtorConflicts int `json:"debtor_conflicts"`

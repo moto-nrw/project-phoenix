@@ -173,6 +173,17 @@ func (e *PersonNotFoundError) Error() string {
 	return fmt.Sprintf("person with ID %d not found", e.PersonID)
 }
 
+// PersonHasActiveProfileError rejects deleting a person that a child or a
+// live staff membership still names: the school removes those through the
+// student deletion or the staff offboarding first (#6840).
+type PersonHasActiveProfileError struct {
+	PersonID int64
+}
+
+func (e *PersonHasActiveProfileError) Error() string {
+	return fmt.Sprintf("person with ID %d still has an active student or staff profile and cannot be deleted", e.PersonID)
+}
+
 // PersonHasActiveSupervisionsError rejects deleting a person whose staff
 // member still supervises an active group.
 type PersonHasActiveSupervisionsError struct {

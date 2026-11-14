@@ -1,7 +1,7 @@
 package domain
 
 import (
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // HolidayClosureSourceSchoolClosingDay names a school closing day as the

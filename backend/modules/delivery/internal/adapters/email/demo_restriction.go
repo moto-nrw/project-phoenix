@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	mailcontract "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 )
 
 const templateMFAEmailCode = "mfa-email-code.html"

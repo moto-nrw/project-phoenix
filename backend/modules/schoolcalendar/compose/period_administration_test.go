@@ -7,9 +7,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -442,6 +442,30 @@ func TestAdministrationRemovesPeriods(t *testing.T) {
 	_, err := module.FindCalendarPeriod(ctx, period.ID)
 	require.ErrorIs(t, err, schoolcalendar.ErrCalendarPeriodNotFound)
 	require.ErrorIs(t, module.RemoveCalendarPeriod(ctx, period.ID), schoolcalendar.ErrCalendarPeriodNotFound)
+}
+
+// TestAdministrationClassifiesTheShiftSeriesFK guards #6845: the Dienstplan
+// series FK has no ON DELETE action, so removing a period a series still uses
+// must answer the public sentinel instead of a raw driver error.
+func TestAdministrationClassifiesTheShiftSeriesFK(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildAdministration(t, db, nil)
+	ctx := testpkg.Ctx(t)
+
+	period := addPeriod(t, ctx, module, schoolYear("Series-held", "2026-08-01", "2027-07-31", true))
+	staff := testpkg.CreateTestStaff(t, db, "Series", "Holder")
+	_, err := db.NewRaw(`
+		INSERT INTO schedule.staff_shift_series (
+			tenant_id, staff_id, weekdays, start_time, end_time, break_minutes,
+			calendar_period_id, week_pattern, valid_from, created_by
+		) VALUES (?, ?, '{1}'::smallint[], '08:00', '12:00', 0, ?, 0, '2026-08-03', ?)
+	`, testpkg.Tenant(t), staff.ID, period.ID, staff.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	err = module.RemoveCalendarPeriod(ctx, period.ID)
+	require.ErrorIs(t, err, schoolcalendar.ErrCalendarPeriodUsedByShiftSeries)
+	assert.Equal(t, "calendar_period_shift_series_conflict", schoolcalendar.ErrorCode(err))
 }
 
 // TestAdministrationCareOfferingGuardLeavesPeriodUnchanged: the guard sees

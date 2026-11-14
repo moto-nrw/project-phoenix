@@ -13,11 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	tenantsettings "github.com/moto-ogs/project-phoenix/modules/settings"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 func init() { testutil.SeedTestJWTConfig() }
@@ -29,10 +30,15 @@ type TrackingSettings interface {
 	SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
 }
 
-// ComposeTrackingSettings composes the root's settings service over db. The
-// root imports this package, so these internal tests cannot import it;
-// root_composition_test.go binds it.
-var ComposeTrackingSettings func(t *testing.T, db *bun.DB) TrackingSettings
+// composeTrackingSettings composes the root's settings service over db. The
+// owner root does not import this package, so the internal test reaches it
+// directly.
+func composeTrackingSettings(t *testing.T, db *bun.DB) TrackingSettings {
+	t.Helper()
+	module, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return module.Settings
+}
 
 // TestTrackingIndicatorsIssuesOneSettingValuesQuery drives the REAL router
 // (ProtectedTenantGroup chain, so the request cache middleware is attached the
@@ -46,7 +52,7 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	settings := ComposeTrackingSettings(t, db)
+	settings := composeTrackingSettings(t, db)
 
 	seedCtx := tenant.WithTenantID(context.Background(), tenantID)
 	require.NoError(t, settings.SetValue(seedCtx, tenantsettings.KeyTrackingIndicatorsEnabled, true, nil, nil))

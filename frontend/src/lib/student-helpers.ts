@@ -248,3 +248,17 @@ export interface CareOfferingOption {
   readonly id: string;
   readonly name: string;
 }
+
+/**
+ * A question of the school's registration form the child list can filter by
+ * (#6954), with the answers given and how many children gave each.
+ */
+export interface EnrollmentAnswerFilter {
+  readonly key: string;
+  readonly label: string;
+  readonly options: ReadonlyArray<{
+    readonly value: string;
+    readonly label: string;
+    readonly count: number;
+  }>;
+}

@@ -7,11 +7,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // confirmedRegistration is Enrollment's side of the port: it confirms the
@@ -83,6 +83,11 @@ func (s settingsDouble) DatevSettings(context.Context, int64) (parentbilling.Dat
 // DebtorNumberFormat is a Träger without a format (#6675).
 func (s settingsDouble) DebtorNumberFormat(context.Context, int64) (parentbilling.DebtorNumberFormat, error) {
 	return parentbilling.DebtorNumberFormat{}, nil
+}
+
+// DebtorNumberScope keeps the number per payer, the default (#7007).
+func (s settingsDouble) DebtorNumberScope(context.Context, int64) (string, error) {
+	return parentbilling.DebtorNumberScopePayer, nil
 }
 
 func (s settingsDouble) HolidayChain(context.Context, int64) (parentbilling.HolidayChainSettings, error) {

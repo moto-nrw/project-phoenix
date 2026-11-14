@@ -10,8 +10,8 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	configSvc "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configSvc "github.com/moto-ogs/project-phoenix/modules/settings/internal/application"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // ExportFields projects setting values for the return export (#3838): a
@@ -50,6 +50,7 @@ const (
 	KeyEnrollmentRejectedRetentionDays       = configModel.KeyEnrollmentRejectedRetentionDays
 	KeyEnrollmentWaitlistEnabled             = configModel.KeyEnrollmentWaitlistEnabled
 	KeyChildSearchOnlyNavigation             = configModel.KeyChildSearchOnlyNavigation
+	KeySimpleStaffNavigation                 = configModel.KeySimpleStaffNavigation
 	KeyFeedbackEnabled                       = configModel.KeyFeedbackEnabled
 	KeyGroupMode                             = configModel.KeyGroupMode
 	KeyOGSDevicePIN                          = configModel.KeyOGSDevicePIN

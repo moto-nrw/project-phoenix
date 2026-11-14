@@ -27,5 +27,8 @@
   "booked": "Twój termin o {time} jest zarezerwowany.",
   "cancelled": "Twój termin został odwołany.",
   "errorObject": "wywiadówkę",
-  "errorObjectBooking": "rezerwację"
+  "errorObjectBooking": "rezerwację",
+  "cancelTooltip": "Odwołuje termin i zwalnia czas. moto najpierw zapyta.",
+  "entryActionTooltip": "Otwiera wolne terminy dnia konsultacji do rezerwacji.",
+  "entryActionBookedTooltip": "Otwiera Twój termin, tam można go przesunąć lub odwołać."
 }

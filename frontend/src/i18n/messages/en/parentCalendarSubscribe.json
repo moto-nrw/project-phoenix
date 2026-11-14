@@ -19,5 +19,9 @@
   "loadObject": "the subscription link",
   "rotateObject": "the subscription link",
   "alreadyActive": "Your subscription link is already active. For security reasons it is not shown again. If you no longer have it, create a new link; the old one then stops working.",
-  "createNew": "Create a new subscription link"
+  "createNew": "Create a new subscription link",
+  "showLinkHint": "Shows the link your calendar uses to subscribe to the appointments.",
+  "subscribeHint": "Opens your calendar app to subscribe to the appointments.",
+  "rotateHint": "Creates a new link right away; the old link stops working.",
+  "copyLinkHint": "Copies the link so you can paste it into your calendar."
 }

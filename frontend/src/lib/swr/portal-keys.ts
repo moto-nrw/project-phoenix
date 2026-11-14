@@ -160,6 +160,12 @@ export const studentKeys = {
     `student-note-activities-${encodeURIComponent(id)}`,
   permanentNotes: (id: string) =>
     `student-permanent-notes-${encodeURIComponent(id)}`,
+  /** The reader's notes the team shared and they have not read (#6854). */
+  teamNotices: (accountId: string) =>
+    `student-note-team-notices:${encodeURIComponent(accountId)}`,
+  /** The reader's unseen changed pickup times (#6855). */
+  pickupChangeNotices: (accountId: string) =>
+    `student-pickup-change-notices:${encodeURIComponent(accountId)}`,
   enrollments: (id: string) => `student-enrollments-${encodeURIComponent(id)}`,
   holidayGuest: (id: string) => `holiday-guest:${encodeURIComponent(id)}`,
   carePlanDay: (id: string, date: string) =>
@@ -219,6 +225,10 @@ export const studentKeys = {
 } as const;
 
 export const timetableKeys = {
+  // Abwesenheiten, die noch nicht im Plan stehen (#7021). Ein Präfix der
+  // Planänderungen (PLAN_CACHE_KEY_PREFIXES), damit jede Schicht- oder
+  // Abwesenheitsänderung im Dienstplan die Liste neu lädt.
+  absencePlanGaps: "absence-plan-gaps",
   offeringGaps: (periodId: string) =>
     `offering-gaps-${encodeURIComponent(periodId)}`,
   // Schulferien (#5345): der Hinweis und die Liste eines Fensters.
@@ -258,6 +268,7 @@ export const payrollKeys = {
   dispatch: () => "payroll-dispatch",
   sftpStatus: () => "payroll-sftp-status",
   rules: () => "payroll-rules",
+  targetCoverage: () => "payroll-target-coverage",
 } as const;
 
 export const databaseKeys = {
@@ -374,8 +385,10 @@ function searchKey(params: {
   companions: boolean;
   years: readonly string[];
   pickupStatus: string;
+  /** The registration answer filter (#6954); only an active one adds a segment. */
+  enrollmentAnswer?: string;
 }): string {
-  return `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(params.groupIds)}-${params.search}-${encodeMultiValueParam([...params.schoolClasses])}-${params.roomId}-${params.dayStatus}-${params.date}-${params.isToday ? "today" : "planning"}-${params.photoState}-${params.bus}-${params.photoConsent}-${params.companions}-${encodeMultiValueParam([...params.years])}-${params.pickupStatus}`;
+  return `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(params.groupIds)}-${params.search}-${encodeMultiValueParam([...params.schoolClasses])}-${params.roomId}-${params.dayStatus}-${params.date}-${params.isToday ? "today" : "planning"}-${params.photoState}-${params.bus}-${params.photoConsent}-${params.companions}-${encodeMultiValueParam([...params.years])}-${params.pickupStatus}${params.enrollmentAnswer ? `-a${params.enrollmentAnswer}` : ""}`;
 }
 
 const catererOrdersFamily = "caterer-orders-";
@@ -427,6 +440,8 @@ export const holidayKeys = {
   /** Zuordnung der eigenen Kinder einer Ferienwoche (#6678). */
   ownChildren: (weekId: string) =>
     `holiday-own-children:${encodeURIComponent(weekId)}`,
+  /** Eigene Kinder in Ferienwochen anderer OGS (#6679). */
+  homeSchoolBookings: () => "holiday-home-school-bookings",
   /** Feriengruppen, deren Woche noch nicht begonnen hat (#6680). */
   guestGroupHints: () => "holiday-guest-group-hints",
   /** Die Feriengruppen der Gruppenverwaltung (ADR 0120, Nachtrag 2026-11-11). */

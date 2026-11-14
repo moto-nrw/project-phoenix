@@ -56,6 +56,9 @@ type TrustedDeviceMail struct {
 	// Caterer marks a device of the caterer portal (#4497): its holder
 	// manages it in the caterer's account, and a moto operator resets it.
 	Caterer bool
+	// Traeger marks a device of the Träger-Portal (#6955): its holder
+	// manages it in the Träger account page, and a moto operator resets it.
+	Traeger bool
 }
 
 // CatererMFAResetMail tells a caterer that a moto operator reset its second

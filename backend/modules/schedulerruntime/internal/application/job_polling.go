@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 )
 
 func (s *Scheduler) startWorkerJob(ctx context.Context, operation string) (context.Context, error) {

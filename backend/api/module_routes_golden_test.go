@@ -17,10 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	settings "github.com/moto-nrw/project-phoenix/modules/settings"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	settings "github.com/moto-ogs/project-phoenix/modules/settings"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // checkModuleRouteMap pins the module of every production route (#4893):
@@ -46,7 +46,7 @@ func checkModuleRouteMap(t *testing.T, api *goldenRuntime) {
 		names := make([]string, 0, len(middlewares))
 		for _, middleware := range middlewares {
 			name := runtime.FuncForPC(reflect.ValueOf(middleware).Pointer()).Name()
-			names = append(names, strings.TrimPrefix(name, "github.com/moto-nrw/project-phoenix/"))
+			names = append(names, strings.TrimPrefix(name, "github.com/moto-ogs/project-phoenix/"))
 		}
 		routes = append(routes, walked{route: method + " " + route, chain: names, module: module})
 		return nil

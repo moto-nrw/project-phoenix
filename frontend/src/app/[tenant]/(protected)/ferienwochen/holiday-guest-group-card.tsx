@@ -139,6 +139,10 @@ export function HolidayGuestGroupCard({
               size="md"
               variant="primary"
               disabled={!groupId || saving}
+              disabledReason={
+                groupId ? undefined : "Wählen Sie zuerst eine Gruppe aus."
+              }
+              tooltip="Setzt die Feriengäste der Woche in diese Gruppe und in den Check-in."
               onClick={() => void assign()}
             >
               {saving ? "Wird übernommen…" : "Feriengäste übernehmen"}

@@ -7,12 +7,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // Constants for permission strings, headers, route patterns, and error messages (S1192 - avoid duplicate string literals)
@@ -294,7 +294,7 @@ func (rs *Resource) mountAuthenticatedRoutes(r chi.Router, configureSession func
 	// service so this stays a plain authenticated route.
 	r.Route("/mfa", func(r chi.Router) {
 		r.Get("/trusted-devices", rs.mfaListTrustedDevices)
-		r.Delete("/trusted-devices/{deviceId}", rs.mfaRevokeTrustedDevice)
+		r.Delete("/trusted-devices/{"+portalauth.TrustedDeviceIDParam+"}", rs.mfaRevokeTrustedDevice)
 	})
 	r.Route("/passkeys", func(r chi.Router) {
 		r.Get("/", rs.passkeyList)

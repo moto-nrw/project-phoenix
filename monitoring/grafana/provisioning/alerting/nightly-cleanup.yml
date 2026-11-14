@@ -70,7 +70,7 @@ groups:
         annotations:
           summary: Nächtliche Löschung {{ $labels.job_id }} schlägt bei Mandant {{ $labels.tenant_id }} wiederholt fehl.
           description: '{{ $values.B.Value }} Läufe in Folge fehlgeschlagen. Betroffene Schritte und nächster Versuch stehen in der Logzeile "nightly cleanup failing repeatedly".'
-          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/nightly-cleanup.md
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/nightly-cleanup.md
         labels:
           env: prod
           issue: "6327"

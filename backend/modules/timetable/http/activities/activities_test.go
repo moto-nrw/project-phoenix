@@ -14,19 +14,19 @@ import (
 	"testing"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
+	activitiesAPI "github.com/moto-ogs/project-phoenix/modules/timetable/http/activities"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // init seeds JWT viper defaults before any test constructs a Resource via

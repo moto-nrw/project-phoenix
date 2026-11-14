@@ -6,6 +6,7 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { StatCard } from "~/components/ui/stat-card";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -35,7 +36,8 @@ import {
   getWeekRange,
   getWeekdays,
 } from "~/lib/timetable-helpers";
-import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
@@ -51,6 +53,14 @@ import {
 } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { ListGroupHeader } from "~/components/ui/list-group-header";
+import { AnswerScopeChoice } from "~/components/calendar/answer-scope-choice";
+import {
+  answerDiffersFromSeries,
+  defaultAnswerScope,
+  formatOccurrenceShortDay,
+  seriesAnswerReplacesDates,
+  type AnswerScope,
+} from "~/lib/calendar-answers";
 
 export type CalendarViewMode = "day" | "week" | "month";
 
@@ -65,10 +75,16 @@ interface PersonalCalendarProps {
   readonly weekStart?: Date;
   readonly viewMode?: CalendarViewMode;
   readonly loading?: boolean;
-  readonly onShowOverview?: (appointmentId: string) => void;
+  /** Mit `occurrenceDate` zählt die Übersicht einen Termin einer Reihe. */
+  readonly onShowOverview?: (
+    appointmentId: string,
+    occurrenceDate?: string,
+  ) => void;
+  /** Mit `occurrenceDate` gilt die Antwort nur für diesen Termin (#6987). */
   readonly onRespond?: (
     recipientId: string,
     status: "accepted" | "declined",
+    occurrenceDate?: string,
   ) => void;
   readonly respondingRecipientId?: string | null;
   // Organizer-only management actions. Passed by the staff calendar page and
@@ -88,10 +104,16 @@ interface CalendarEventActions {
   // rendering inline actions — Apple-Calendar style: tap the event, act in the
   // detail. Set internally by PersonalCalendar.
   readonly onSelect?: (event: CalendarEvent) => void;
-  readonly onShowOverview?: (appointmentId: string) => void;
+  /** Mit `occurrenceDate` zählt die Übersicht einen Termin einer Reihe. */
+  readonly onShowOverview?: (
+    appointmentId: string,
+    occurrenceDate?: string,
+  ) => void;
+  /** Mit `occurrenceDate` gilt die Antwort nur für diesen Termin (#6987). */
   readonly onRespond?: (
     recipientId: string,
     status: "accepted" | "declined",
+    occurrenceDate?: string,
   ) => void;
   readonly respondingRecipientId?: string | null;
   readonly onEdit?: (event: CalendarEvent) => void;
@@ -247,6 +269,17 @@ const responseTone: Record<CalendarResponseStatus, StatusBadgeTone> = {
   declined: "red",
   info: "blue",
 };
+
+/** Was eine Antwort nur für diesen Termin mit den anderen Terminen macht. */
+function occurrenceScopeHint(event: CalendarEvent): string {
+  const series = event.series_response_status;
+  if (seriesAnswerReplacesDates(event) || series === undefined) {
+    return "Die anderen Termine der Reihe behalten ihre Antwort.";
+  }
+  if (series === "pending")
+    return "Die anderen Termine der Reihe bleiben offen.";
+  return `Für die anderen Termine gilt weiter: ${responseLabel[series] ?? series}.`;
+}
 
 function eventTime(event: CalendarEvent): string {
   if (event.all_day) return "Ganztägig";
@@ -731,6 +764,7 @@ export function PersonalCalendar({
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {selectedEvent ? (
               <CalendarEventDetail
+                key={selectedEvent.id}
                 event={selectedEvent}
                 actions={actions}
                 onClose={() => setClicked(null)}
@@ -1268,6 +1302,22 @@ function CalendarEventDetail({
   const showRespond = Boolean(
     !cancelled && event.can_respond && recipientId && onRespond,
   );
+  const occurrenceDate = event.occurrence_date;
+  const recurringAnswer = showRespond && event.recurring && occurrenceDate;
+  const [answerScope, setAnswerScope] = useState<AnswerScope>(() =>
+    defaultAnswerScope(event),
+  );
+  const answer = (status: "accepted" | "declined") => {
+    onRespond!(
+      recipientId!,
+      status,
+      recurringAnswer && answerScope === "occurrence"
+        ? occurrenceDate
+        : undefined,
+    );
+    onClose();
+  };
+  const ownDateAnswer = answerDiffersFromSeries(event);
   const showIcs = Boolean(
     !cancelled &&
     event.source === "appointment" &&
@@ -1314,6 +1364,9 @@ function CalendarEventDetail({
             tone={responseTone[event.response_status]}
             compact
           />
+        ) : null}
+        {!cancelled && ownDateAnswer ? (
+          <StatusBadge label="Nur für diesen Termin" tone="gray" compact />
         ) : null}
       </div>
 
@@ -1374,6 +1427,21 @@ function CalendarEventDetail({
 
       {hasActions ? (
         <div className="flex flex-col gap-2 border-t border-gray-200 pt-4">
+          {recurringAnswer ? (
+            <AnswerScopeChoice
+              value={answerScope}
+              onChange={setAnswerScope}
+              legend="Ihre Antwort gilt für"
+              occurrenceLabel={`Nur am ${formatOccurrenceShortDay(occurrenceDate)}`}
+              seriesLabel="Alle Termine"
+              occurrenceHint={occurrenceScopeHint(event)}
+              seriesHint={
+                seriesAnswerReplacesDates(event)
+                  ? "Ihre Antwort gilt dann für alle Termine, auch für einzeln beantwortete."
+                  : "Ihre Antwort gilt für alle Termine dieser Reihe."
+              }
+            />
+          ) : null}
           {showRespond ? (
             <div className="grid grid-cols-2 gap-2">
               <Button
@@ -1382,10 +1450,8 @@ function CalendarEventDetail({
                 size="md"
                 className="gap-2"
                 disabled={responding}
-                onClick={() => {
-                  onRespond!(recipientId!, "accepted");
-                  onClose();
-                }}
+                onClick={() => answer("accepted")}
+                tooltip="Speichert sofort Ihre Zusage zu diesem Termin."
               >
                 <Check className="h-4 w-4" aria-hidden />
                 Zusagen
@@ -1396,10 +1462,8 @@ function CalendarEventDetail({
                 size="md"
                 className="gap-2"
                 disabled={responding}
-                onClick={() => {
-                  onRespond!(recipientId!, "declined");
-                  onClose();
-                }}
+                onClick={() => answer("declined")}
+                tooltip="Speichert sofort Ihre Absage zu diesem Termin."
               >
                 <X className="h-4 w-4" aria-hidden />
                 Absagen
@@ -1407,20 +1471,22 @@ function CalendarEventDetail({
             </div>
           ) : null}
           {showIcs ? (
-            <a
-              href={`${icsHrefBase}/${encodeURIComponent(
-                event.appointment_id!,
-              )}/ics`}
-              download
-              className={buttonClassName({
-                variant: "outline",
-                size: "md",
-                className: "w-full gap-1.5",
-              })}
-            >
-              <MotoConceptIcon concept={calendarPeriodsConcept} size={16} />
-              Zum Kalender hinzufügen
-            </a>
+            <ActionHint text="Speichert den Termin als Datei für Ihren Kalender.">
+              <a
+                href={`${icsHrefBase}/${encodeURIComponent(
+                  event.appointment_id!,
+                )}/ics`}
+                download
+                className={buttonClassName({
+                  variant: "outline",
+                  size: "md",
+                  className: "w-full gap-1.5",
+                })}
+              >
+                <MotoConceptIcon concept={calendarPeriodsConcept} size={16} />
+                Zum Kalender hinzufügen
+              </a>
+            </ActionHint>
           ) : null}
           {showOverview ? (
             <Button
@@ -1429,9 +1495,13 @@ function CalendarEventDetail({
               size="md"
               className="gap-2"
               onClick={() => {
-                onShowOverview!(event.appointment_id!);
+                onShowOverview!(
+                  event.appointment_id!,
+                  event.recurring ? occurrenceDate : undefined,
+                );
                 onClose();
               }}
+              tooltip="Zeigt, wer eingeladen ist und wer zu- oder abgesagt hat."
             >
               <MotoConceptIcon concept={peopleConcept} size={16} />
               Teilnehmer
@@ -1450,6 +1520,11 @@ function CalendarEventDetail({
                     onEdit(event);
                     onClose();
                   }}
+                  tooltip={
+                    event.recurring
+                      ? "Öffnet die ganze Reihe zum Ändern."
+                      : "Öffnet den Termin zum Ändern."
+                  }
                 >
                   <Pencil className="h-4 w-4" aria-hidden />
                   Bearbeiten
@@ -1466,6 +1541,11 @@ function CalendarEventDetail({
                     onCancel(event);
                     onClose();
                   }}
+                  tooltip={
+                    event.recurring
+                      ? "moto fragt, ob nur dieser Termin oder die ganze Reihe ausfällt."
+                      : "moto fragt vorher nach und sagt den Termin für alle Empfänger ab."
+                  }
                 >
                   <MotoConceptIcon concept={closingDaysConcept} size={16} />
                   Absagen
@@ -1482,6 +1562,11 @@ function CalendarEventDetail({
                     onDelete(event);
                     onClose();
                   }}
+                  tooltip={
+                    event.recurring
+                      ? "moto fragt, ob nur dieser Termin oder die ganze Reihe gelöscht wird."
+                      : "moto fragt vorher nach und löscht den Termin für alle Empfänger."
+                  }
                 >
                   <Trash2 className="h-4 w-4" aria-hidden />
                   Löschen
@@ -1498,23 +1583,27 @@ function CalendarEventDetail({
 export function CalendarOverviewList({
   overview,
 }: Readonly<{ overview: CalendarAppointmentOverview }>) {
-  const accepted = overview.attendees.filter(
-    (attendee) => attendee.status === "accepted",
-  ).length;
-  const declined = overview.attendees.filter(
-    (attendee) => attendee.status === "declined",
-  ).length;
-  const pending = overview.attendees.filter(
-    (attendee) => attendee.status === "pending",
-  ).length;
+  const { accepted, declined, pending } = overview.counts;
 
   return (
     <div className="space-y-4">
       {overview.delivery_mode === "rsvp_required" ? (
         <div className="grid grid-cols-3 gap-2">
-          <StatCard label="Zugesagt" value={accepted} tone="green" />
-          <StatCard label="Abgesagt" value={declined} tone="red" />
-          <StatCard label="Offen" value={pending} tone="neutral" />
+          {/* Dieselben Kacheln wie die Rückmeldungen im Elternportal; die
+              großen Versalien-Kacheln brachen am Handy mitten im Wort um. */}
+          <StatCard
+            variant="tile"
+            label="Zugesagt"
+            value={accepted}
+            tone="green"
+          />
+          <StatCard
+            variant="tile"
+            label="Abgesagt"
+            value={declined}
+            tone="red"
+          />
+          <StatCard variant="tile" label="Offen" value={pending} />
         </div>
       ) : null}
       <FramedList>
@@ -1635,6 +1724,7 @@ export function PersonalCalendarChrome({
             size="md"
             className="gap-1.5"
             onClick={onCreate}
+            tooltip={NEW_APPOINTMENT_HINT}
           >
             <Plus className="h-4 w-4" aria-hidden />
             Neuer Termin
@@ -1649,6 +1739,11 @@ export function PersonalCalendarChrome({
           size="compact"
           aria-pressed={showWeekend}
           onClick={() => onShowWeekendChange(!showWeekend)}
+          tooltip={
+            showWeekend
+              ? "Blendet Samstag und Sonntag im Kalender aus."
+              : "Zeigt auch Samstag und Sonntag mit ihren Terminen."
+          }
         >
           {hiddenWeekendCount > 0 ? `Sa/So (${hiddenWeekendCount})` : "Sa/So"}
         </Button>
@@ -1659,3 +1754,7 @@ export function PersonalCalendarChrome({
     </PlanningContextBar>
   );
 }
+
+/** Erklärung von „Neuer Termin“, gleich im Kopf der Seite und in der Leiste. */
+export const NEW_APPOINTMENT_HINT =
+  "Öffnet ein leeres Formular für einen neuen Termin.";

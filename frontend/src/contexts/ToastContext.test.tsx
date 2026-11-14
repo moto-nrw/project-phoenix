@@ -249,50 +249,73 @@ describe("ToastContext", () => {
       expect(screen.getByLabelText("Close")).toBeInTheDocument();
     });
 
-    it("uses the document language for copy feedback", async () => {
-      const originalClipboard = Object.getOwnPropertyDescriptor(
-        navigator,
-        "clipboard",
-      );
-      Object.defineProperty(navigator, "clipboard", {
-        configurable: true,
-        value: { writeText: vi.fn().mockResolvedValue(undefined) },
-      });
-      document.documentElement.lang = "en";
-      function TestComponent() {
-        const toast = useToast();
-        return (
-          <button
-            onClick={() =>
-              toast.error("Not available", {
-                requestId: "req-20",
-                requestIdLabel: "Request ID: {requestId}",
-              })
-            }
-          >
-            Show
-          </button>
+    it.each([
+      [
+        "de",
+        "Vorgangskennung kopieren",
+        "Kopiert.",
+        "Kopiert die Kennung, damit Sie sie dem Support nennen können.",
+      ],
+      ["en", "Copy request ID", "Copied.", "Copy request ID"],
+      [
+        "tr",
+        "İstek kimliğini kopyala",
+        "Kopyalandı.",
+        "İstek kimliğini kopyala",
+      ],
+    ])(
+      "uses the document language %s for copy feedback and tooltips",
+      async (locale, copyLabel, copiedLabel, tooltip) => {
+        const originalClipboard = Object.getOwnPropertyDescriptor(
+          navigator,
+          "clipboard",
         );
-      }
-      try {
-        render(
-          <ToastProvider>
-            <TestComponent />
-          </ToastProvider>,
-        );
-        fireEvent.click(screen.getByRole("button", { name: "Show" }));
-        fireEvent.click(
-          screen.getByRole("button", { name: "Copy request ID" }),
-        );
-        expect(await screen.findByRole("status")).toHaveTextContent("Copied.");
-      } finally {
-        if (originalClipboard) {
-          Object.defineProperty(navigator, "clipboard", originalClipboard);
-        } else {
-          Reflect.deleteProperty(navigator, "clipboard");
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: { writeText: vi.fn().mockResolvedValue(undefined) },
+        });
+        document.documentElement.lang = locale;
+        function TestComponent() {
+          const toast = useToast();
+          return (
+            <button
+              onClick={() =>
+                toast.error("Not available", {
+                  requestId: "req-20",
+                  requestIdLabel: "Request ID: {requestId}",
+                })
+              }
+            >
+              Show
+            </button>
+          );
         }
-      }
-    });
+        try {
+          render(
+            <ToastProvider>
+              <TestComponent />
+            </ToastProvider>,
+          );
+          fireEvent.click(screen.getByRole("button", { name: "Show" }));
+          const copyButton = screen.getByRole("button", { name: copyLabel });
+          fireEvent.keyDown(document, { key: "Tab" });
+          fireEvent.focus(copyButton);
+          expect(
+            document.querySelector("[data-action-hint]")?.textContent,
+          ).toBe(tooltip);
+          fireEvent.click(copyButton);
+          expect(await screen.findByRole("status")).toHaveTextContent(
+            copiedLabel,
+          );
+        } finally {
+          if (originalClipboard) {
+            Object.defineProperty(navigator, "clipboard", originalClipboard);
+          } else {
+            Reflect.deleteProperty(navigator, "clipboard");
+          }
+        }
+      },
+    );
 
     it.each([
       {

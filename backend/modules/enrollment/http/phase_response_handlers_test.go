@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"testing"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"

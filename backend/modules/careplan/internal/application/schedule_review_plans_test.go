@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/require"
 )
 
@@ -106,13 +106,16 @@ func (r *weeklyPlanReads) ListCareOfferings(_ context.Context, f careplan.CareOf
 	return rows, nil
 }
 
+// rawFingerprint keeps the impact content readable in assertions.
+func rawFingerprint(content []byte) string { return string(content) }
+
 func weeklyPlanService(reads *weeklyPlanReads) *ScheduleReviews {
 	return &ScheduleReviews{deps: ScheduleReviewDependencies{
 		Requests: reads, Schedules: reads, People: reads, Classes: reads, Bookings: reads,
 		Scope: func(context.Context) (careplan.ReviewScope, error) {
 			return careplan.ReviewScope{SchoolWide: true}, nil
 		},
-		Today: func() careplan.Date { return "2026-11-05" }, Logger: slog.Default(),
+		Today: func() careplan.Date { return "2026-11-05" }, Logger: slog.Default(), Fingerprint: rawFingerprint,
 		BookingsAuthoritative: func(context.Context) (bool, error) {
 			if reads.batchFailure == "policy" && len(reads.reads) == 4 {
 				return false, errors.New("policy read unavailable")

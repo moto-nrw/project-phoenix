@@ -82,11 +82,11 @@ func TestRuleIssueValidation(t *testing.T) {
 		valid       bool
 	}{
 		{"ordinary", "", true},
-		{"temporary", "https://github.com/moto-nrw/project-phoenix/issues/2736", true},
-		{"query", "https://github.com/moto-nrw/project-phoenix/issues/2736?x=1", false},
-		{"fragment", "https://github.com/moto-nrw/project-phoenix/issues/2736#x", false},
-		{"userinfo", "https://user@github.com/moto-nrw/project-phoenix/issues/2736", false},
-		{"pull request", "https://github.com/moto-nrw/project-phoenix/pull/2736", false},
+		{"temporary", "https://github.com/moto-ogs/project-phoenix/issues/2736", true},
+		{"query", "https://github.com/moto-ogs/project-phoenix/issues/2736?x=1", false},
+		{"fragment", "https://github.com/moto-ogs/project-phoenix/issues/2736#x", false},
+		{"userinfo", "https://user@github.com/moto-ogs/project-phoenix/issues/2736", false},
+		{"pull request", "https://github.com/moto-ogs/project-phoenix/pull/2736", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -120,8 +120,8 @@ func TestRuleIssueDoesNotChangePermission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	base.Rules[0].Issue = "https://github.com/moto-nrw/project-phoenix/issues/2725"
-	candidate.Rules[0].Issue = "https://github.com/moto-nrw/project-phoenix/issues/2736"
+	base.Rules[0].Issue = "https://github.com/moto-ogs/project-phoenix/issues/2725"
+	candidate.Rules[0].Issue = "https://github.com/moto-ogs/project-phoenix/issues/2736"
 	if err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestCheckOlderPolicySchemaBaseTransition(t *testing.T) {
 
 func TestStaleRulesCannotBecomeDebt(t *testing.T) {
 	t.Parallel()
-	entry := LegacyEntry{Violation: Violation{Scope: ScopeProduction, Rule: "rules.stale", Source: "example.test/source", Target: "example.test/target"}, Issue: "https://github.com/moto-nrw/project-phoenix/issues/2736"}
+	entry := LegacyEntry{Violation: Violation{Scope: ScopeProduction, Rule: "rules.stale", Source: "example.test/source", Target: "example.test/target"}, Issue: "https://github.com/moto-ogs/project-phoenix/issues/2736"}
 	if err := entry.Validate(); err == nil || !strings.Contains(err.Error(), "cannot be legacy debt") {
 		t.Fatalf("stale debt accepted: %v", err)
 	}

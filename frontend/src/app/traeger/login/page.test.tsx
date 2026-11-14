@@ -86,6 +86,8 @@ describe("TraegerLoginPage", () => {
       challengeToken: "challenge",
       maskedEmail: "b***@traeger.example",
       organizationId: "7",
+      trustedDeviceEnabled: true,
+      trustedDeviceDays: 90,
     });
     fetchMock.mockResolvedValue(jsonResponse({ status: "authenticated" }));
     mockSignIn.mockResolvedValue({ error: undefined });
@@ -97,10 +99,18 @@ describe("TraegerLoginPage", () => {
       await screen.findByRole("heading", { name: "Code-Eingabe" }),
     ).toBeInTheDocument();
     expect(screen.getByText("b***@traeger.example")).toBeInTheDocument();
+    // Since #6955 the Träger-Portal remembers a device like the other
+    // portals, and only on the button that says so.
     expect(
-      screen.queryByRole("checkbox", { name: /Tage merken/ }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", {
+        name: /^Bestätigen und dieses Gerät 90 Tage merken/,
+      }),
+    ).toBeInTheDocument();
     await enterCode("123456");
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Nur dieses Mal bestätigen/ }),
+    );
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const [url, init] = fetchMock.mock.calls[0]!;
@@ -252,6 +262,45 @@ describe("TraegerLoginPage", () => {
         body: JSON.stringify({ email: "buero@traeger.example" }),
       }),
     );
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
+
+  it("opens the reset dialog when a reset link without token leads here", async () => {
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "passwort-vergessen" ? "1" : null,
+    );
+    render(<TraegerLoginPage />);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.querySelector("#reset-email")).not.toBeNull();
+  });
+
+  // An empty field is named before anything is sent.
+  it("names the empty fields without sending the login", async () => {
+    render(<TraegerLoginPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+
+    expect(
+      await screen.findByText(
+        "Bitte geben Sie E-Mail-Adresse und Passwort ein.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte geben Sie Ihre E-Mail-Adresse ein."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte geben Sie Ihr Passwort ein."),
+    ).toBeInTheDocument();
+    expect(mockLogin).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByTestId("input-email"), {
+      target: { value: "buero@traeger.example" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+    expect(
+      (await screen.findAllByText("Bitte geben Sie Ihr Passwort ein."))[0],
+    ).toBeInTheDocument();
     expect(mockLogin).not.toHaveBeenCalled();
   });
 

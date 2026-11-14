@@ -1,5 +1,6 @@
 import type { HelpTopic, HelpPresenceMode } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
+import { SIMPLE_NAV_DIFFERENCE } from "../help-article-shared";
 
 export function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
   return {
@@ -27,6 +28,7 @@ export function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     differences: [
       // Live geprueft: die Kopfzeile des Reiters traegt das Kennzeichen.
       "Steht oben rechts `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     notes: [
       // #4766: Filter Gruppe und Person, auch in der Leseansicht.

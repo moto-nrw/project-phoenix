@@ -5,7 +5,7 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // CareStudentLock supplies care-day test graphs (#2662) with the student row

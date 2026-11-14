@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -17,6 +17,7 @@ import { FormModal } from "~/components/ui/form-modal";
 import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Loading } from "~/components/ui/loading";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { traegerPath } from "~/lib/traeger-url";
 import { createLogger } from "~/lib/logger";
 import type {
   CareRun,
@@ -91,7 +92,7 @@ export function CareRunStartModal({
           error: err instanceof Error ? err.message : String(err),
         });
         setSchools([]);
-        void showFormError(err, { object: "die Schulen" });
+        void showFormError(err, { object: "die Liste der Schulen" });
       }
     },
     [showFormError],
@@ -107,7 +108,25 @@ export function CareRunStartModal({
   }, [isOpen, month, loadSchools]);
 
   const free = schools ? freeSchools(schools) : [];
+  // The open runs that already bill this month's schools, for the way there.
+  const openRunIds = [
+    ...new Set(
+      (schools ?? [])
+        .map((school) => school.openRunId)
+        .filter((id): id is string => id !== null),
+    ),
+  ];
   const allSelected = free.length > 0 && selected.length === free.length;
+  const noneFree = schools !== null && schools.length > 0 && free.length === 0;
+  // Every school of the month is in one open run: the dialog leads there
+  // instead of offering a start that cannot run.
+  const blockedRunId =
+    schools !== null &&
+    schools.length > 0 &&
+    free.length === 0 &&
+    openRunIds.length === 1
+      ? openRunIds[0]
+      : null;
   const bounds = invoiceDateBounds(month);
 
   const toggle = (schoolId: string, checked: boolean) =>
@@ -159,16 +178,41 @@ export function CareRunStartModal({
       pending={save}
       isBackdropDismissDisabled
       title="Monatslauf starten"
+      titleLevel={2}
       size="md"
       error={formErrors.error}
       footer={
-        <EditActions
-          onCancel={onClose}
-          onSave={() => formRef.current?.requestSubmit()}
-          saving={saving}
-          disabled={schools === null || free.length === 0}
-          saveLabel="Vorschau öffnen"
-        />
+        blockedRunId ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              noTooltip="Abbrechen schließt nur das Fenster, ohne etwas zu starten."
+              onClick={onClose}
+            >
+              Abbrechen
+            </Button>
+            <ButtonLink
+              href={traegerPath(
+                `/traeger/abrechnung/monatsbeitraege/${blockedRunId}`,
+              )}
+              variant="primary"
+              size="md"
+              tooltip="Schließt das Fenster und öffnet den offenen Lauf dieses Monats."
+            >
+              Lauf öffnen
+            </ButtonLink>
+          </div>
+        ) : (
+          <EditActions
+            onCancel={onClose}
+            onSave={() => formRef.current?.requestSubmit()}
+            saving={saving}
+            disabled={schools === null || free.length === 0}
+            saveLabel="Vorschau öffnen"
+          />
+        )
       }
     >
       <form
@@ -189,67 +233,84 @@ export function CareRunStartModal({
           options={months}
           onChange={setMonth}
         />
-        <FormFieldset
-          legend="Schulen"
-          required
-          error={formErrors.fieldError("school_ids")}
-          hint="Jede Schule ist in einem Monat nur in einem offenen Lauf."
-        >
-          {schools === null ? (
-            <Loading />
-          ) : free.length === 0 && schools.length > 0 ? (
-            <Alert
-              type="info"
-              message={`Für ${formatMonth(month)} ist jede Schule schon in einem offenen Lauf. Öffnen Sie diesen Lauf in der Liste oder wählen Sie einen anderen Monat.`}
-            />
-          ) : (
-            <div className="space-y-2">
-              {free.length > 1 ? (
-                <Button
-                  type="button"
-                  variant="link"
-                  size="md"
-                  onClick={() => setSelected(allSelected ? [] : free)}
-                >
-                  {allSelected ? "Keine wählen" : "Alle wählen"}
-                </Button>
-              ) : null}
-              <div className="grid gap-2 sm:grid-cols-2">
-                {schools.map((school) => (
-                  <CheckboxCard
-                    key={school.id}
-                    checked={selected.includes(school.id)}
-                    disabled={school.openRunId !== null}
-                    onChange={(checked) => toggle(school.id, checked)}
-                    label={school.name}
-                    hint={
-                      school.openRunId !== null
-                        ? `Schon in einem offenen Lauf für ${formatMonth(month)}`
-                        : undefined
+        {noneFree ? (
+          // Nothing to choose or date: the dialog says where the month's
+          // run is and leads there.
+          <Alert
+            type="info"
+            message={
+              blockedRunId
+                ? `Für ${formatMonth(month)} gibt es schon einen offenen Lauf mit allen Schulen. Öffnen Sie ihn oder wählen Sie einen anderen Monat.`
+                : `Für ${formatMonth(month)} ist jede Schule schon in einem offenen Lauf. Wählen Sie einen anderen Monat.`
+            }
+          />
+        ) : (
+          <FormFieldset
+            legend="Schulen"
+            required
+            error={formErrors.fieldError("school_ids")}
+            hint="Jede Schule ist in einem Monat nur in einem offenen Lauf."
+          >
+            {schools === null ? (
+              <Loading />
+            ) : (
+              <div className="space-y-2">
+                {free.length > 1 ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="md"
+                    tooltip={
+                      allSelected
+                        ? "Nimmt bei allen Schulen den Haken weg."
+                        : "Setzt den Haken bei allen Schulen ohne offenen Lauf."
                     }
-                  />
-                ))}
+                    onClick={() => setSelected(allSelected ? [] : free)}
+                  >
+                    {allSelected ? "Keine wählen" : "Alle wählen"}
+                  </Button>
+                ) : null}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {schools.map((school) => (
+                    <CheckboxCard
+                      key={school.id}
+                      checked={selected.includes(school.id)}
+                      disabled={school.openRunId !== null}
+                      onChange={(checked) => toggle(school.id, checked)}
+                      label={school.name}
+                      hint={
+                        school.openRunId !== null
+                          ? `Schon in einem offenen Lauf für ${formatMonth(month)}`
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </FormFieldset>
-        <ISODatePicker
-          id="care-run-invoice-date"
-          name="invoice_date"
-          label="Rechnungsdatum"
-          value={invoiceDate}
-          min={bounds.min}
-          max={bounds.max}
-          defaultMonth={month}
-          placeholder="Tag der Freigabe"
-          error={formErrors.fieldError("invoice_date")}
-          onChange={setInvoiceDate}
-        />
-        <p className="text-sm text-gray-600">
-          Der Lauf rechnet jedes Kind mit gültigem Vertrag nach den gebuchten
-          Tagen ab. Sie prüfen zuerst die Vorschau. Die Rechnungen bekommen ihre
-          Nummer erst bei der Freigabe.
-        </p>
+            )}
+          </FormFieldset>
+        )}
+        {noneFree ? null : (
+          <>
+            <ISODatePicker
+              id="care-run-invoice-date"
+              name="invoice_date"
+              label="Rechnungsdatum"
+              value={invoiceDate}
+              min={bounds.min}
+              max={bounds.max}
+              defaultMonth={month}
+              placeholder="Tag der Freigabe"
+              error={formErrors.fieldError("invoice_date")}
+              onChange={setInvoiceDate}
+            />
+            <p className="text-sm text-gray-600">
+              Der Lauf rechnet jedes Kind mit gültigem Vertrag nach den
+              gebuchten Tagen ab. Sie prüfen zuerst die Vorschau. Die Rechnungen
+              bekommen ihre Nummer erst bei der Freigabe.
+            </p>
+          </>
+        )}
       </form>
     </FormModal>
   );

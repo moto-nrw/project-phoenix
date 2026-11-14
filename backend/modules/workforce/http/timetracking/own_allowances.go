@@ -3,7 +3,7 @@ package timetracking
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // getOwnAbsenceAllowances handles GET /api/time-tracking/absence-allowances

@@ -57,6 +57,8 @@ type armedFault struct {
 	prefix string
 	err    error
 	fired  bool
+	// held keeps the statement until its context ends before it fails.
+	held bool
 }
 
 // Arm replaces the armed failures with one: the next step at site fails
@@ -73,6 +75,16 @@ func (f *StatementFaults) AlsoFailStatement(prefix string, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.armed = append(f.armed, &armedFault{site: faultStatementPrefix, prefix: prefix, err: err})
+}
+
+// AlsoFailStatementWhenCancelled arms one more failure: the next statement
+// starting with prefix is held until its caller cancels its context, then
+// fails with err instead of the cancellation, once. It is a statement that
+// broke while its caller was stopping it.
+func (f *StatementFaults) AlsoFailStatementWhenCancelled(prefix string, err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.armed = append(f.armed, &armedFault{site: faultStatementPrefix, prefix: prefix, err: err, held: true})
 }
 
 // AlsoFail arms one more failure at site.
@@ -96,9 +108,21 @@ func (f *StatementFaults) Fired() bool {
 
 const faultStatementPrefix FaultSite = "statement"
 
-func (f *StatementFaults) take(site FaultSite) error { return f.takeStatement(site, "") }
+func (f *StatementFaults) take(site FaultSite) error {
+	_, err := f.takeStatement(site, "")
+	return err
+}
 
-func (f *StatementFaults) takeStatement(site FaultSite, query string) error {
+// statementFault is the failure armed for query, after its hold.
+func (f *StatementFaults) statementFault(ctx context.Context, query string) error {
+	held, err := f.takeStatement(faultStatementPrefix, strings.TrimSpace(query))
+	if held {
+		<-ctx.Done()
+	}
+	return err
+}
+
+func (f *StatementFaults) takeStatement(site FaultSite, query string) (held bool, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for _, fault := range f.armed {
@@ -109,9 +133,9 @@ func (f *StatementFaults) takeStatement(site FaultSite, query string) error {
 			continue
 		}
 		fault.fired = true
-		return fault.err
+		return fault.held, fault.err
 	}
-	return nil
+	return false, nil
 }
 
 // NewStatementFaultPool opens a private pool on the isolated test database of
@@ -125,6 +149,31 @@ func NewStatementFaultPool(tb testing.TB) (*bun.DB, *StatementFaults) {
 	})))
 	tb.Cleanup(func() { _ = pool.Close() })
 	return pool, faults
+}
+
+// StatementFaultCells is one statement-fault pool on the isolated test
+// database of tb for many cells, each with its own StatementFaults
+// (NewStatementFaultCell): a pool and fresh connections per cell cost a
+// PostgreSQL session start each.
+type StatementFaultCells struct {
+	cells *CellPool
+}
+
+// NewStatementFaultCells opens the shared pool on tb's isolated test database.
+func NewStatementFaultCells(tb testing.TB) *StatementFaultCells {
+	tb.Helper()
+	return &StatementFaultCells{cells: NewCellPool(tb, faultingConnector{
+		Connector: pgdriver.NewConnector(pgdriver.WithDSN(IsolatedTestDSN(tb))),
+	})}
+}
+
+// NewStatementFaultCell returns the handle of one cell of cells and its
+// faults: the steps the handle issues fail as armed on these faults, as on a
+// NewStatementFaultPool pool. Its tenant runtime is TenantRuntime(tb, pool).
+func NewStatementFaultCell(tb testing.TB, cells *StatementFaultCells) (*bun.DB, *StatementFaults) {
+	tb.Helper()
+	faults := &StatementFaults{}
+	return cells.cells.Cell(tb, faults), faults
 }
 
 // InjectedFailure is a failure of kind: "" has no SQLSTATE, "bad_conn" is
@@ -150,6 +199,8 @@ func RaiseSQLState(ctx context.Context, tx bun.Tx, kind string) error {
 	return err
 }
 
+// faultingConnector fails the armed steps of faults, or, without faults (a
+// StatementFaultCells pool), of the cell whose handle issued each step.
 type faultingConnector struct {
 	driver.Connector
 	faults *StatementFaults
@@ -166,23 +217,39 @@ func (c faultingConnector) Connect(ctx context.Context) (driver.Conn, error) {
 
 type faultingConn struct {
 	driver.Conn
-	faults *StatementFaults
+	faults *StatementFaults // nil on a StatementFaultCells pool
+}
+
+// faultsOf are the faults that apply to the step of ctx: the pool's own, or
+// the plan of the cell that issued it.
+func (c *faultingConn) faultsOf(ctx context.Context) (*StatementFaults, error) {
+	if c.faults != nil {
+		return c.faults, nil
+	}
+	if faults, ok := CellPlan(ctx).(*StatementFaults); ok {
+		return faults, nil
+	}
+	return nil, ErrStatementOutsideCell
 }
 
 func (c *faultingConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	faults, err := c.faultsOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if strings.HasPrefix(strings.TrimSpace(query), ProbeStatement) {
-		if fault := c.faults.take(FaultProbeStatement); fault != nil {
+		if fault := faults.take(FaultProbeStatement); fault != nil {
 			return nil, fault
 		}
 	}
-	if fault := c.faults.takeStatement(faultStatementPrefix, strings.TrimSpace(query)); fault != nil {
+	if fault := faults.statementFault(ctx, query); fault != nil {
 		return nil, fault
 	}
 	result, err := c.Conn.(driver.ExecerContext).ExecContext(ctx, query, args)
 	query = strings.TrimSpace(query)
 	for _, site := range []FaultSite{FaultSavepointRestore, FaultSavepointRelease} {
 		if strings.HasPrefix(query, string(site)) {
-			if fault := c.faults.take(site); fault != nil {
+			if fault := faults.take(site); fault != nil {
 				return nil, fault
 			}
 		}
@@ -191,15 +258,21 @@ func (c *faultingConn) ExecContext(ctx context.Context, query string, args []dri
 }
 
 func (c *faultingConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
-	faults := c.faults
-	if fault := faults.takeStatement(faultStatementPrefix, strings.TrimSpace(query)); fault != nil {
+	faults, err := c.faultsOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if fault := faults.statementFault(ctx, query); fault != nil {
 		return nil, fault
 	}
 	return c.Conn.(driver.QueryerContext).QueryContext(ctx, query, args)
 }
 
 func (c *faultingConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
-	faults := c.faults
+	faults, err := c.faultsOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if fault := faults.take(FaultBegin); fault != nil {
 		return nil, fault
 	}

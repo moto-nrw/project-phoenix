@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // weekdayOrder sorts the booked weekdays from Monday to Sunday.
@@ -44,7 +44,9 @@ type careMonth struct {
 	// deviations are the family deviations the invoices took (#4689).
 	deviations []parentbilling.FamilyBilling
 	// mandates are the SEPA mandates the invoices took (#4695).
-	mandates       []parentbilling.SEPAMandate
+	mandates []parentbilling.SEPAMandate
+	// childNumbers are the numbers of children the invoices took (#7007).
+	childNumbers   []parentbilling.ChildDebtorNumber
 	invoices       []parentbilling.CareInvoice
 	unpriced       []parentbilling.CareUnpriced
 	duplicates     []parentbilling.CareDuplicate

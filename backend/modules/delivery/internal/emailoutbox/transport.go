@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 )
 
 // IntentTransactions binds a render or delivery record to the intent's scope.
@@ -43,6 +43,9 @@ func (p Transport) Send(ctx context.Context, intent *Intent, renderer Renderer, 
 		message.UseFallback = intent.UseFallback
 	}
 	receipt, sendErr := sendRenderedEmail(ctx, p.Mailer, recipient, message)
+	if errors.Is(sendErr, email.ErrThrottled) && time.Since(intent.CreatedAt) < ThrottleWindow {
+		sendErr = fmt.Errorf("%w: %w", ErrSendThrottled, sendErr)
+	}
 	if reporter, ok := renderer.(interface {
 		RecordDelivery(context.Context, *Intent, error) error
 	}); ok {

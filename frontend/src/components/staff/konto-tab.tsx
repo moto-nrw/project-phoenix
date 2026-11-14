@@ -270,11 +270,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
         />
       ) : (
         <div className="space-y-4">
-          <InfoSection
-            title="Rolle und Zugang"
-            icon={staffIcon}
-            accentColor="orange"
-          >
+          <InfoSection title="Rolle und Zugang" icon={staffIcon}>
             <DataGrid>
               <DataField label="Rolle">
                 {displayRole ?? "Keine Rolle hinterlegt"}
@@ -308,7 +304,6 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
                   size={18}
                 />
               }
-              accentColor="blue"
             >
               <EmailActions
                 email={email}
@@ -321,11 +316,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
           ) : null}
 
           {trimmedQualifications ? (
-            <InfoSection
-              title="Berufliche Informationen"
-              icon={staffIcon}
-              accentColor="orange"
-            >
+            <InfoSection title="Berufliche Informationen" icon={staffIcon}>
               <DataGrid>
                 <DataField label="Qualifikationen" fullWidth>
                   <span className="whitespace-pre-wrap">
@@ -349,7 +340,6 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
                   size={18}
                 />
               }
-              accentColor="green"
             >
               {trimmedNotes ? (
                 <p className="text-sm break-words whitespace-pre-wrap text-gray-700">
@@ -373,7 +363,6 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
                   size={18}
                 />
               }
-              accentColor="gray"
             >
               <DataGrid>
                 {teacher.created_at ? (
@@ -451,7 +440,7 @@ function KontoEditForm({
     >
       <FormErrorAlert message={error} />
 
-      <InfoSection title="Person" icon={staffIcon} accentColor="orange">
+      <InfoSection title="Person" icon={staffIcon}>
         {editing.canEditPersonFields ? (
           <div className="grid gap-3 md:grid-cols-2">
             <Input
@@ -492,11 +481,7 @@ function KontoEditForm({
         )}
       </InfoSection>
 
-      <InfoSection
-        title="Rolle und Zugang"
-        icon={staffIcon}
-        accentColor="orange"
-      >
+      <InfoSection title="Rolle und Zugang" icon={staffIcon}>
         <div className="space-y-3">
           {editing.canEditRole ? (
             <RoleField
@@ -555,7 +540,6 @@ function KontoEditForm({
               size={18}
             />
           }
-          accentColor="green"
         >
           <Textarea
             id="konto-notes"

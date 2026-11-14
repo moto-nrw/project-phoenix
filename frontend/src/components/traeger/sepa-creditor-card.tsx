@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { Radio } from "~/components/ui/radio";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
@@ -137,7 +138,7 @@ function SepaCreditorModal({
         }}
       >
         <Input
-          controlSize="compact"
+          controlSize="touch"
           id="sepa-creditor-id"
           name="creditor_id"
           label="Gläubiger-ID"
@@ -158,7 +159,7 @@ function SepaCreditorModal({
           />
         ) : null}
         <Input
-          controlSize="compact"
+          controlSize="touch"
           id="sepa-prenotification-days"
           name="prenotification_days"
           label="Vorabankündigung in Tagen"
@@ -171,27 +172,35 @@ function SepaCreditorModal({
           onChange={(event) => setDays(event.target.value)}
         />
         <div className="space-y-2">
-          <FieldLabel>Wenn eine Familie kein gültiges Mandat hat</FieldLabel>
+          <FieldLabel id="sepa-creditor-missing-label">
+            Wenn eine Familie kein gültiges Mandat hat
+          </FieldLabel>
           <div
-            role="group"
-            aria-label="Wenn eine Familie kein gültiges Mandat hat"
+            role="radiogroup"
+            aria-labelledby="sepa-creditor-missing-label"
             className="grid gap-2"
           >
             {MISSING_CHOICES.map((value) => (
               <ChoiceTile
                 key={value}
-                as="button"
                 selected={missing === value}
-                aria-pressed={missing === value}
-                onClick={() => setMissing(value)}
-                className="flex flex-col items-start gap-1 px-4 py-3 text-left"
+                className="items-start gap-3 px-4 py-3"
               >
-                <span className="font-medium text-gray-900">
-                  {MISSING_MANDATE_LABELS[value]}
-                  {value === "transfer" ? " (empfohlen)" : ""}
-                </span>
-                <span className="text-sm text-gray-600">
-                  {MISSING_MANDATE_HINTS[value]}
+                <Radio
+                  name="sepa-creditor-missing"
+                  value={value}
+                  checked={missing === value}
+                  onChange={() => setMissing(value)}
+                  className="mt-0.5"
+                />
+                <span className="flex min-w-0 flex-col gap-1">
+                  <span className="font-medium text-gray-900">
+                    {MISSING_MANDATE_LABELS[value]}
+                    {value === "transfer" ? " (empfohlen)" : ""}
+                  </span>
+                  <span className="text-sm font-normal text-gray-600">
+                    {MISSING_MANDATE_HINTS[value]}
+                  </span>
                 </span>
               </ChoiceTile>
             ))}
@@ -237,6 +246,7 @@ export function SepaCreditorCard({
           type="button"
           variant="outline"
           size="md"
+          tooltip="Öffnet Gläubiger-ID, Vorabankündigung und Regel ohne Mandat zum Bearbeiten."
           onClick={() => setEditing(true)}
         >
           Ändern
@@ -272,6 +282,7 @@ export function SepaCreditorCard({
                 href={traegerPath(ONLINE_MANDATE_SETTINGS_PATH)}
                 variant="link"
                 size="md"
+                tooltip="Öffnet die Einstellung, ob Eltern das Mandat in der App erteilen."
               >
                 In den Einstellungen ändern
               </ButtonLink>

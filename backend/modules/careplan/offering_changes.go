@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/offeringrequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Post-enrollment offering changes (#1665, #3561): a guardian requests a

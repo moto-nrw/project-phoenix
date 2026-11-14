@@ -60,6 +60,7 @@ export function LettersCreateCard<T = BillingLetters>({
           type="button"
           variant="primary"
           size="md"
+          tooltip="Öffnet ein Fenster, in dem Sie die Schreiben an alle Familien erstellen."
           onClick={() => setCreating(true)}
         >
           Schreiben erstellen
@@ -74,7 +75,7 @@ export function LettersCreateCard<T = BillingLetters>({
           isOpen
           source={source as LetterSource<unknown> | undefined}
           onClose={() => setCreating(false)}
-          onCreated={(created) => {
+          onCreated={(created: unknown) => {
             setCreating(false);
             onCreated(created as T);
           }}

@@ -171,7 +171,7 @@ describe("VacationRequestModal questioned absences", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Antrag senden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(mocks.requestVacation).not.toHaveBeenCalled();
   });
 
@@ -230,7 +230,7 @@ describe("VacationRequestModal questioned absences", () => {
       ),
     ).toBeInTheDocument();
     const send = screen.getByRole("button", { name: "Antrag senden" });
-    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(send);
     expect(mocks.requestVacation).not.toHaveBeenCalled();
   });

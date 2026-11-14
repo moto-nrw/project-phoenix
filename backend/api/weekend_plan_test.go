@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	configSvc "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	configSvc "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type weekendSettingsStub struct {

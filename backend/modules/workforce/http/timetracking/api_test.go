@@ -12,9 +12,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -171,6 +171,12 @@ func (m *mockStaffAbsenceService) DeleteOwnAbsence(ctx context.Context, staffID 
 }
 func (m *mockStaffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectStaffID, _ int64, _ *int64, absenceID int64) error {
 	return m.deleteAbsence(ctx, subjectStaffID, absenceID)
+}
+func (m *mockStaffAbsenceService) AbsencePlanGaps(context.Context) ([]workforce.AbsencePlanGap, error) {
+	return nil, nil
+}
+func (m *mockStaffAbsenceService) SyncAbsencePlan(context.Context, int64, int64, *int64) (bool, error) {
+	return false, nil
 }
 func (m *mockStaffAbsenceService) PreviewCompTimeBalance(_ context.Context, _ int64, _, _ string, _ bool) (*workforce.CompTimeBalancePreview, error) {
 	return &workforce.CompTimeBalancePreview{}, nil

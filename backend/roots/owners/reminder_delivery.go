@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
+	calendarService "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/compose"
+	"github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/ports"
 )
 
 type CalendarReminderSource interface {

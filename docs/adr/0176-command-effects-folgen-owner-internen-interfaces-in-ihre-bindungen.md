@@ -5,7 +5,7 @@ status: accepted
 # Command Effects folgen owner-internen Interfaces in ihre Bindungen
 
 Entscheidung vom 08.11.2026 für
-[#6125](https://github.com/moto-nrw/project-phoenix/issues/6125). Sie ergänzt
+[#6125](https://github.com/moto-ogs/project-phoenix/issues/6125). Sie ergänzt
 [ADR 0098](0098-command-effect-binding-flow-and-platform-protocols.md)
 Abschnitt 2 („Own interfaces remain separate ports“). Kein Runtime-Owner,
 Befehl, keine Transaktion, Berechtigung, Policy-Regel und kein Budget ändert

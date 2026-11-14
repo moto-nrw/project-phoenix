@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	seedapi "github.com/moto-nrw/project-phoenix/internal/devtools/seedapi"
-	"github.com/moto-nrw/project-phoenix/internal/devtools/simulate"
+	seedapi "github.com/moto-ogs/project-phoenix/internal/devtools/seedapi"
+	"github.com/moto-ogs/project-phoenix/internal/devtools/simulate"
 )
 
 type seedCommandAdapter struct{ inner *Adapter }

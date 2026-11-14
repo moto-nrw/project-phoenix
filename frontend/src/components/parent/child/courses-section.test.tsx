@@ -209,13 +209,14 @@ describe("CoursesSection", () => {
     const request = screen.getByRole("button", { name: "Anfragen" });
 
     expect(reason).toBeRequired();
-    expect(request).toBeDisabled();
+    expect(request).toHaveAttribute("aria-disabled", "true");
     expect(mockedRequest).not.toHaveBeenCalled();
 
     const user = userEvent.setup();
     await user.type(reason, "Ich möchte mein Kind anmelden.");
 
     expect(request).toBeEnabled();
+    expect(request).not.toHaveAttribute("aria-disabled");
     await user.click(request);
     await waitFor(() =>
       expect(mockedRequest).toHaveBeenCalledWith(

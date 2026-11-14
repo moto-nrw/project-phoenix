@@ -995,60 +995,6 @@ describe("FormModal", () => {
     });
   });
 
-  it("should dispatch mobile-modal-open event when opened", async () => {
-    const eventSpy = vi.fn();
-    globalThis.addEventListener("mobile-modal-open", eventSpy);
-
-    render(
-      <TestWrapper>
-        <FormModal isOpen={true} onClose={vi.fn()} title="Test">
-          <p>Content</p>
-        </FormModal>
-      </TestWrapper>,
-    );
-
-    await act(async () => {
-      vi.advanceTimersByTime(20);
-    });
-
-    expect(eventSpy).toHaveBeenCalled();
-
-    globalThis.removeEventListener("mobile-modal-open", eventSpy);
-  });
-
-  it("should dispatch mobile-modal-close event when closed", async () => {
-    const eventSpy = vi.fn();
-    globalThis.addEventListener("mobile-modal-close", eventSpy);
-
-    const { rerender } = render(
-      <TestWrapper>
-        <FormModal isOpen={true} onClose={vi.fn()} title="Test">
-          <p>Content</p>
-        </FormModal>
-      </TestWrapper>,
-    );
-
-    await act(async () => {
-      vi.advanceTimersByTime(20);
-    });
-
-    rerender(
-      <TestWrapper>
-        <FormModal isOpen={false} onClose={vi.fn()} title="Test">
-          <p>Content</p>
-        </FormModal>
-      </TestWrapper>,
-    );
-
-    await act(async () => {
-      vi.advanceTimersByTime(20);
-    });
-
-    expect(eventSpy).toHaveBeenCalled();
-
-    globalThis.removeEventListener("mobile-modal-close", eventSpy);
-  });
-
   it("renders the error slot as an alert above the content", async () => {
     render(
       <TestWrapper>

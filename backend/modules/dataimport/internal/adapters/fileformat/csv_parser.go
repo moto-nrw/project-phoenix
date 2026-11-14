@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // CSVParser parses CSV files into import rows

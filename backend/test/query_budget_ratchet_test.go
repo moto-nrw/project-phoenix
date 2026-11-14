@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // TestQueryBudgetRatchet is the source-level half of the query-budget gate

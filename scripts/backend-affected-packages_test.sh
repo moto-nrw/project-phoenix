@@ -222,6 +222,29 @@ assert_workflow_filter() {
   fi
 }
 
+# As in paths-filter: * stays inside one path segment, ** crosses them,
+# and **/ also matches no directory at all.
+glob_matches() {
+  regex=$(printf '%s' "$1" | sed -e 's/[.%]/\\&/g' -e 's|\*\*/|(.@/)?|g' \
+    -e 's|\*\*|.@|g' -e 's|\*|[^/]*|g' -e 's|@|*|g')
+  [[ "$2" =~ ^${regex}$ ]]
+}
+
+workflow_filter_patterns() {
+  awk -v filter="$1:" '
+    $0 == "            " filter { active = 1; next }
+    active && /^            [a-z-]+:$/ { exit }
+    active && match($0, /\047[^\047]+\047/) { print substr($0, RSTART + 1, RLENGTH - 2) }
+  ' "$repo_root/.github/workflows/main.yml"
+}
+
+workflow_filter_matches() {
+  while IFS= read -r pattern; do
+    [ -n "$pattern" ] && glob_matches "$pattern" "$2" && return 0
+  done < <(workflow_filter_patterns "$1")
+  return 1
+}
+
 assert_workflow_output_contains() {
   output=$1
   fragment=$2
@@ -428,11 +451,84 @@ assert_workflow_filter backend-test-infra 'scripts/test-run-id.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix_test.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-source-ratchets.mjs' present
+# Local wrappers start their self-tests in ci-scripts, not the full backend suite.
+for path in 'scripts/test-changed.sh' 'scripts/test-changed_test.sh' 'scripts/test-backend.sh' 'scripts/go-test-link-cache.sh'; do
+  assert_workflow_filter backend-test-infra "$path" absent
+  assert_workflow_filter backend-local-test-scripts "$path" present
+done
+assert_workflow_output_contains run-ci-scripts "steps.filter.outputs.backend-local-test-scripts == 'true'"
+assert_workflow_output_contains toolchain-changed "steps.filter.outputs.backend-local-test-scripts == 'true'"
+# The script self-tests left the backend test job: the ratchets suite must
+# start wherever that job ran them, on every full backend suite.
+for output in run-ci-scripts toolchain-changed; do
+  assert_workflow_output_contains "$output" "steps.backend-size.outputs.full == 'true'"
+  assert_workflow_output_contains "$output" "steps.filter.outputs.backend-test-infra == 'true'"
+  assert_workflow_output_contains "$output" "github.event_name == 'push'"
+  assert_workflow_output_contains "$output" "steps.scope.outputs.release == 'true'"
+done
+grep -qF 'scripts/backend-test-matrix_test.sh' <(sed -n '/- name: Verify backend test scripts/,/^  [a-z-]*:$/p' "$repo_root/.github/workflows/main.yml") ||
+  { echo 'the ratchets suite must run the test matrix self-test' >&2; exit 1; }
 for path in 'scripts/backend-source-ratchets.mjs' 'backend/test/*_test.go'; do
   assert_workflow_filter script-tests "$path" present
   # Do not buy the release-restore or extra toolchain-ratchet jobs for these.
   assert_workflow_filter tooling "$path" absent
+  assert_workflow_filter restore-suite "$path" absent
   assert_workflow_filter hooks "$path" absent
+done
+# The restore suite takes about five minutes (#6962). Pull requests start it
+# only through the restore-suite filter; pushes and release pull requests
+# always start it.
+assert_workflow_output_contains run-ci-scripts "steps.filter.outputs.restore-suite == 'true'"
+for fragment in "steps.filter.outputs.restore-suite == 'true'" "github.event_name == 'push'" \
+  "steps.scope.outputs.release == 'true'"; do
+  assert_workflow_output_contains restore-changed "$fragment"
+done
+restore_rows=$(sed -n '/^        suite: >-$/,/^    [a-z-]*:$/p' "$repo_root/.github/workflows/main.yml" | grep -F '"restore"' || true)
+if [ -z "$restore_rows" ] ||
+   grep -vqF "needs.detect-changes.outputs.restore-changed == 'true' &&" <<<"$restore_rows"; then
+  echo 'only restore-changed may add the restore suite to the matrix' >&2
+  exit 1
+fi
+if workflow_filter_matches restore-suite scripts/posthog-dashboards.mjs; then
+  echo 'a PostHog dashboard change must not start the restore suite' >&2
+  exit 1
+fi
+for path in .github/workflows/main.yml scripts/daily-backup.sh scripts/release-backup.sh; do
+  workflow_filter_matches restore-suite "$path" ||
+    { echo "a change to $path must start the restore suite" >&2; exit 1; }
+done
+# Inventory: every file the restore steps name, and every file those files
+# reach by relative path, import or script directory, is in the filter.
+restore_queue=$(awk '
+  $0 == "  ci-scripts:" { job = 1; next }
+  !job { next }
+  /^      - / { if (keep) printf "%s", block; block = ""; keep = 0 }
+  /^  [a-z-]+:$/ { if (keep) printf "%s", block; exit }
+  { block = block $0 "\n" }
+  /if: matrix\.suite == .restore.$/ { keep = 1 }
+' "$repo_root/.github/workflows/main.yml" | { grep -oE '(scripts|docs|monitoring)/[A-Za-z0-9_.@/-]+' || true; } | sort -u)
+[ -n "$restore_queue" ] || { echo 'restore suite steps missing from main.yml' >&2; exit 1; }
+restore_seen=' '
+while [ -n "$restore_queue" ]; do
+  path=${restore_queue%%$'\n'*}
+  [ "$path" = "$restore_queue" ] && restore_queue='' || restore_queue=${restore_queue#*$'\n'}
+  case "$restore_seen" in *" $path "*) continue ;; esac
+  restore_seen="$restore_seen$path "
+  [ -f "$repo_root/$path" ] || { echo "restore suite input does not exist: $path" >&2; exit 1; }
+  workflow_filter_matches restore-suite "$path" ||
+    { echo "restore suite input missing from the restore-suite filter: $path" >&2; exit 1; }
+  while IFS= read -r reference; do
+    [ -n "$reference" ] || continue
+    reference=$(printf '%s/%s\n' "${path%/*}" "$reference" |
+      sed -E -e 's#/\./#/#g' -e ':a' -e 's#[^/]+/\.\./##' -e 'ta')
+    restore_queue=$(printf '%s\n%s' "$restore_queue" "$reference")
+    restore_queue=${restore_queue#$'\n'}
+  done < <(
+    { grep -oE "(new URL\(|join\(scripts, |with_name\()'[^']+'|from '\.\.?/[^']+'" "$repo_root/$path" |
+        grep -oE "'[^']+'" | tr -d "'"
+      grep -oE '(\$script_dir|dirname -- "\$0"\))/[A-Za-z0-9_.-]+' "$repo_root/$path" | sed 's|.*/||'
+    } || true
+  )
 done
 for filter in backend-tests backend-lint backend-architecture; do
   assert_workflow_filter "$filter" 'scripts/backend-architecture.sh' present
@@ -473,11 +569,6 @@ done
 # Inventory: a JSON file under backend/ is either listed in the backend-tests
 # filter or a new input nobody classified. Add it to the filter and to the
 # selector in backend-affected-packages.sh.
-backend_test_patterns=$(awk '
-  $0 == "            backend-tests:" { active = 1; next }
-  active && /^            [a-z-]+:$/ { exit }
-  active && match($0, /\047[^\047]+\047/) { print substr($0, RSTART + 1, RLENGTH - 2) }
-' "$repo_root/.github/workflows/main.yml")
 while IFS= read -r path; do
   case "$path" in
     # Read only by the architecture ratchet job (backend-architecture filter);
@@ -485,18 +576,8 @@ while IFS= read -r path; do
     backend/architecture/query-budget-non-http.json | \
       backend/architecture/query-budget-retirements.json) continue ;;
   esac
-  covered=false
-  while IFS= read -r pattern; do
-    # As in the filter: * stays inside one path segment, ** crosses them,
-    # and **/ also matches no directory at all.
-    regex=$(printf '%s' "$pattern" | sed -e 's/[.%]/\\&/g' -e 's|\*\*/|(.@/)?|g' \
-      -e 's|\*\*|.@|g' -e 's|\*|[^/]*|g' -e 's|@|*|g')
-    if [[ "$path" =~ ^${regex}$ ]]; then
-      covered=true
-      break
-    fi
-  done <<< "$backend_test_patterns"
-  [ "$covered" = true ] || { echo "backend JSON input missing from the backend-tests filter: $path" >&2; exit 1; }
+  workflow_filter_matches backend-tests "$path" ||
+    { echo "backend JSON input missing from the backend-tests filter: $path" >&2; exit 1; }
 done < <(git -C "$repo_root" ls-files 'backend/*.json')
 # Every literal path the selector maps must still exist in the repository.
 for path in \
@@ -547,6 +628,25 @@ for manifest in go.mod go.sum; do
   grep -qx 'full=true' "$fixture/scope-size"
   rm "$fixture/scope-size"
 done
+# The runner is sized before the import graph is known: only test files in at
+# most 15 directories prove a selection of at most 16 packages (with ./test).
+assert_small_runner() {
+  expected=$1
+  files=$2
+  CHANGED_COUNT=$(jq length <<<"$files") CHANGED_FILES="$files" GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
+  grep -qx "small=$expected" "$fixture/scope-size" ||
+    { echo "backend runner size: expected small=$expected for $files" >&2; exit 1; }
+  rm "$fixture/scope-size"
+}
+assert_small_runner false '[]'
+assert_small_runner true '["backend/api/a_test.go","backend/api/b_test.go"]'
+assert_small_runner true "$(jq -cn '[range(0; 15) | "backend/package\(.)/source_test.go"]')"
+assert_small_runner false "$(jq -cn '[range(0; 16) | "backend/package\(.)/source_test.go"]')"
+assert_small_runner false '["backend/api/a_test.go","backend/api/a.go"]'
+assert_small_runner false '["backend/api/a_test.go","backend/api/testdata/a.json"]'
+assert_small_runner false '["backend/go.sum"]'
+grep -qF "backend-small-runner: \${{ needs.detect-changes.outputs.small-backend-suite == 'true' && needs.detect-changes.outputs.full-backend-suite != 'true' }}" "$repo_root/.github/workflows/main.yml" ||
+  { echo 'a full backend suite must not run on the small runner' >&2; exit 1; }
 # A release-sized list never reaches the environment (128 KiB per value), so
 # the guard decides from the count alone and must not read the empty list.
 for count in 499 500; do

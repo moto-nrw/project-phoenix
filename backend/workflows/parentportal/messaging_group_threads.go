@@ -3,7 +3,7 @@ package parentportal
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
 // Group thread values and port (#4784). The root binds the port to

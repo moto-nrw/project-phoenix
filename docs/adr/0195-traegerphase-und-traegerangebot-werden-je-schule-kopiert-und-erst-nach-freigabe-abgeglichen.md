@@ -5,12 +5,12 @@ status: accepted
 # Trägerphase und Trägerangebot werden je Schule kopiert und erst nach Freigabe abgeglichen
 
 **Status: Akzeptiert.** Freigegeben von Yannick Wenger am 11.11.2026
-([Antworten auf die offenen Fragen](https://github.com/moto-nrw/project-phoenix/issues/4704#issuecomment-6799155255)).
+([Antworten auf die offenen Fragen](https://github.com/moto-ogs/project-phoenix/issues/4704#issuecomment-6799155255)).
 
-Vorgeschlagen am 10.11.2026 zu [#4704](https://github.com/moto-nrw/project-phoenix/issues/4704),
-Etappe 3 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Vorgeschlagen am 10.11.2026 zu [#4704](https://github.com/moto-ogs/project-phoenix/issues/4704),
+Etappe 3 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 21 und 22 (Kunde Iserlohn). Sie setzt die
-[Entscheidung vom 09.11.2026](https://github.com/moto-nrw/project-phoenix/issues/4704#issuecomment-6741872522)
+[Entscheidung vom 09.11.2026](https://github.com/moto-ogs/project-phoenix/issues/4704#issuecomment-6741872522)
 für Option A um, baut auf
 [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md)
 Abschnitt 2 und
@@ -31,7 +31,7 @@ behält ihre Änderungen.
 
 ## Kontext
 
-Stand `origin/development` @ [`81a974e`](https://github.com/moto-nrw/project-phoenix/tree/81a974e04cf582a7a3d8f9dc177030cc681a792d).
+Stand `origin/development` @ [`81a974e`](https://github.com/moto-ogs/project-phoenix/tree/81a974e04cf582a7a3d8f9dc177030cc681a792d).
 
 - `enrollment.phases` (Enrollment) und `enrollment.care_offerings` (Care Plan)
   tragen `tenant_id` und eine Tenant-Policy. Jedes Angebot hängt an einer

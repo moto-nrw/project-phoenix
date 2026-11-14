@@ -1,7 +1,7 @@
 package peopledirectory
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/contact"
 )
 
 func (sg *GuardianRelationshipSnapshot) Validate() error {

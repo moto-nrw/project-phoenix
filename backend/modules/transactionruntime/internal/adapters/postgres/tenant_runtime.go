@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/protocol"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/protocol"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
@@ -257,13 +257,21 @@ func (r *PostgresUnitOfWork) runInTx(ctx context.Context, fn func(context.Contex
 
 	commitErr := tx.Commit()
 	finished = true
+	return commitOutcome(ctx, commitErr)
+}
+
+// commitOutcome classifies the error of a finished Commit. Only a COMMIT that
+// may have reached the server without an answer has an unknown outcome.
+func commitOutcome(ctx context.Context, commitErr error) error {
 	// database/sql may finish its automatic rollback before Commit observes
-	// cancellation. Preserve the context error in either ordering; other commit
-	// failures can still have an unknown durable outcome after cancellation.
+	// cancellation. Preserve the context error in either ordering.
 	if errors.Is(commitErr, sql.ErrTxDone) && ctx.Err() != nil {
 		commitErr = ctx.Err()
 	}
-	if commitErr == nil || IsRetryableTransactionError(commitErr) {
+	// A context error is never an unknown outcome: database/sql returns it
+	// from Commit only without sending COMMIT, and the driver sends COMMIT
+	// without the context, so the transaction rolled back (Sentry BACKEND-1C).
+	if commitErr == nil || IsRetryableTransactionError(commitErr) || isContextError(commitErr) {
 		return commitErr
 	}
 	return &protocol.CommitOutcomeUnknownError{Err: commitErr}
@@ -357,4 +365,8 @@ func savepointTx(ctx context.Context) (*bun.Tx, error) {
 		return nil, fmt.Errorf("tenant runtime: transaction is required")
 	}
 	return tx, nil
+}
+
+func isContextError(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }

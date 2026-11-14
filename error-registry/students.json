@@ -434,6 +434,12 @@
       "legacy": "pickup_change_impact_changed"
     },
     {
+      "code": "students.care_request_plan_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_request_plan_changed"
+    },
+    {
       "code": "students.pickup_reset_requires_offering",
       "class": "business_rejection",
       "parameters": [],
@@ -503,6 +509,12 @@
       "legacy": "students.status_day_conflict"
     },
     {
+      "code": "students.status_day_occupied",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.status_day_occupied"
+    },
+    {
       "code": "students.accident_report_forbidden",
       "class": "permission",
       "parameters": [],
@@ -561,6 +573,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "students.guardian_email_block_stays"
+    },
+    {
+      "code": "students.person_has_active_profile",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.person_has_active_profile"
     }
   ]
 }

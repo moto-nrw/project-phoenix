@@ -4,8 +4,8 @@ status: accepted
 
 # Bestätigungsschreiben ist die Rechnung im Layout des Trägers
 
-Entscheidung vom 26.10.2026 zu [#4669](https://github.com/moto-nrw/project-phoenix/issues/4669),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 26.10.2026 zu [#4669](https://github.com/moto-ogs/project-phoenix/issues/4669),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 73, 91 und 92. Sie ist der dritte Bau-Schnitt des Owners
 Elternabrechnung aus
 [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)

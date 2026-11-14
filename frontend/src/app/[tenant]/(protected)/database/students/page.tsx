@@ -16,7 +16,6 @@ import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { ChildQuotaStatus } from "~/components/database/child-quota-status";
 import { fetchChildQuota } from "~/lib/child-quota-api";
 import { formatCount } from "~/lib/format-utils";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type {
   ActiveFilter,
@@ -376,6 +375,7 @@ function StudentsPageContent() {
           `„${displayName}“ ist angelegt. Die Angaben unter Datenschutz wurden aber nicht gespeichert. Bitte öffnen Sie das Kind und tragen Sie sie dort nach.`,
           {
             duration: 0,
+            // oxlint-disable-next-line ui-kit/menu-item-needs-description -- Knopf in einer Hinweismeldung, kein Menüeintrag; die Meldung selbst erklärt ihn.
             action: {
               label: "Öffnen",
               onClick: () => router.push(objectHref(newStudent)),
@@ -517,107 +517,103 @@ function StudentsPageContent() {
               onClick={() => setShowCreateModal(true)}
             />
             {/* Die Tour zeigt vom Menü aus den Import; den gibt es nur auf
-                breiten Bildschirmen. `data-icon-only`: das Gerüst lässt das
-                Symbol unter sm in der Zeile der Statuszeile. */}
-            <div
-              data-icon-only=""
-              data-setup-tour={isMobile ? undefined : "student-menu"}
-            >
-              <OverflowMenu
-                ariaLabel="Weitere Aktionen"
-                items={[
-                  ...(!isMobile
-                    ? [
-                        {
-                          label: "Importieren",
-                          icon: <Upload className="h-4 w-4" aria-hidden />,
-                          href: tenantPath("/database/students/import"),
-                          tourTarget: "student-import",
-                          // Navigation only: OverflowMenu verlangt onClick auch bei href.
-                          onClick: () => undefined,
+                breiten Bildschirmen. */}
+            <OverflowMenu
+              tourTarget={isMobile ? undefined : "student-menu"}
+              ariaLabel="Weitere Aktionen"
+              items={[
+                ...(!isMobile
+                  ? [
+                      {
+                        label: "Importieren",
+                        description: "Legt viele Kinder aus einer Datei an.",
+                        icon: <Upload className="h-4 w-4" aria-hidden />,
+                        href: tenantPath("/database/students/import"),
+                        tourTarget: "student-import",
+                        // Navigation only: OverflowMenu verlangt onClick auch bei href.
+                        onClick: () => undefined,
+                      },
+                    ]
+                  : []),
+                ...(canUpdateStudents
+                  ? [
+                      {
+                        label: selectionMode ? "Auswahl beenden" : "Auswählen",
+                        description: selectionMode
+                          ? "Blendet die Kästchen zum Auswählen wieder aus."
+                          : "Blendet Kästchen ein, um mehrere Kinder gemeinsam zu ändern.",
+                        icon: <ListChecks className="h-4 w-4" aria-hidden />,
+                        onClick: () => {
+                          if (selectionMode) {
+                            finishSelection();
+                            return;
+                          }
+                          setSelectionMode(true);
                         },
-                      ]
-                    : []),
-                  ...(canUpdateStudents
-                    ? [
-                        {
-                          label: selectionMode
-                            ? "Auswahl beenden"
-                            : "Auswählen",
-                          icon: <ListChecks className="h-4 w-4" aria-hidden />,
-                          onClick: () => {
-                            if (selectionMode) {
-                              finishSelection();
-                              return;
-                            }
-                            setSelectionMode(true);
-                          },
-                        },
-                      ]
-                    : []),
-                  ...(hasPermission(session, "grade_transitions:read")
-                    ? [
-                        {
-                          label: "Schuljahreswechsel",
-                          icon: (
-                            <GraduationCap className="h-4 w-4" aria-hidden />
-                          ),
-                          href: tenantPath("/database/grade-transitions"),
-                          // Navigation only: OverflowMenu verlangt onClick auch bei href.
-                          onClick: () => undefined,
-                        },
-                      ]
-                    : []),
-                  {
-                    label: "Klassenliste",
-                    icon: <ClipboardList className="h-4 w-4" aria-hidden />,
-                    href: tenantPath("/database/students/class-list"),
-                    onClick: () => undefined,
-                  },
-                  ...(canDeleteStudents
-                    ? [
-                        {
-                          label: "Beendete Betreuungen",
-                          icon: <UserMinus className="h-4 w-4" aria-hidden />,
-                          href: tenantPath("/database/students/ended-care"),
-                          onClick: () => undefined,
-                        },
-                      ]
-                    : []),
-                ]}
-              />
-            </div>
+                      },
+                    ]
+                  : []),
+                ...(hasPermission(session, "grade_transitions:read")
+                  ? [
+                      {
+                        label: "Schuljahreswechsel",
+                        description:
+                          "Öffnet die Planung für das nächste Schuljahr.",
+                        icon: <GraduationCap className="h-4 w-4" aria-hidden />,
+                        href: tenantPath("/database/grade-transitions"),
+                        // Navigation only: OverflowMenu verlangt onClick auch bei href.
+                        onClick: () => undefined,
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Klassenliste",
+                  description: "Zeigt alle Kinder je Klasse, auch ohne OGS.",
+                  icon: <ClipboardList className="h-4 w-4" aria-hidden />,
+                  href: tenantPath("/database/students/class-list"),
+                  onClick: () => undefined,
+                },
+                ...(canDeleteStudents
+                  ? [
+                      {
+                        label: "Beendete Betreuungen",
+                        description:
+                          "Zeigt Kinder, deren Betreuung beendet ist.",
+                        icon: <UserMinus className="h-4 w-4" aria-hidden />,
+                        href: tenantPath("/database/students/ended-care"),
+                        onClick: () => undefined,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           </>
         ),
       }}
-      search={
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={{
-            icon: (
-              <MotoDuotoneIcon
-                icon={childrenConcept.icon}
-                tone={childrenConcept.tone}
-                size={20}
-              />
-            ),
-            count: filteredStudents.length,
-            label: "Kinder",
-          }}
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Kinder suchen…",
-          }}
-          filters={filters}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setGroupFilter("all");
-          }}
-        />
-      }
+      searchRow={{
+        badge: {
+          icon: (
+            <MotoDuotoneIcon
+              icon={childrenConcept.icon}
+              tone={childrenConcept.tone}
+              size={20}
+            />
+          ),
+          count: filteredStudents.length,
+          label: "Kinder",
+        },
+        search: {
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Kinder suchen…",
+        },
+        filters,
+        activeFilters,
+        onClearAllFilters: () => {
+          setSearchTerm("");
+          setGroupFilter("all");
+        },
+      }}
     >
       {canShowList ? (
         <div className="min-h-0 flex-1 pb-4">

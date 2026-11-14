@@ -8,10 +8,11 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
+	calendarSvc "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type fakeParentCalendarService struct {
@@ -25,6 +26,8 @@ type fakeParentCalendarService struct {
 	gotRespondAccount int64
 	gotRespondID      int64
 	gotRespondStatus  string
+	gotRespondDate    calendarSvc.Date
+	gotOverviewDate   calendarSvc.Date
 
 	icsFilename       string
 	icsContent        string
@@ -114,22 +117,24 @@ func (f *fakeParentCalendarService) CalendarFeedByToken(context.Context, string)
 	return "", "", nil
 }
 
-func (f *fakeParentCalendarService) GetStaffAppointmentOverview(context.Context, int64) (*calendarSvc.AppointmentOverview, error) {
+func (f *fakeParentCalendarService) GetStaffAppointmentOverview(context.Context, int64, calendarSvc.Date) (*calendarSvc.AppointmentOverview, error) {
 	return nil, nil
 }
 
-func (f *fakeParentCalendarService) GetParentAppointmentOverview(context.Context, int64, int64) (*calendarSvc.AppointmentOverview, error) {
-	return nil, nil
+func (f *fakeParentCalendarService) GetParentAppointmentOverview(_ context.Context, _, _ int64, occurrenceDate calendarSvc.Date) (*calendarSvc.AppointmentOverview, error) {
+	f.gotOverviewDate = occurrenceDate
+	return &calendarSvc.AppointmentOverview{OccurrenceDate: occurrenceDate}, nil
 }
 
-func (f *fakeParentCalendarService) RespondToStaffInvitation(context.Context, int64, string) error {
+func (f *fakeParentCalendarService) RespondToStaffInvitation(context.Context, int64, calendarSvc.InvitationAnswer) error {
 	return nil
 }
 
-func (f *fakeParentCalendarService) RespondToParentInvitation(_ context.Context, accountID, recipientID int64, status string) error {
+func (f *fakeParentCalendarService) RespondToParentInvitation(_ context.Context, accountID, recipientID int64, answer calendarSvc.InvitationAnswer) error {
 	f.gotRespondAccount = accountID
 	f.gotRespondID = recipientID
-	f.gotRespondStatus = status
+	f.gotRespondStatus = answer.Status
+	f.gotRespondDate = answer.OccurrenceDate
 	return f.respondErr
 }
 
@@ -292,6 +297,52 @@ func TestRespondToCalendarInvitationPassesAccountRecipientAndStatus(t *testing.T
 	assert.Equal(t, int64(77), service.gotRespondAccount)
 	assert.Equal(t, int64(42), service.gotRespondID)
 	assert.Equal(t, appointments.ResponseStatusDeclined, service.gotRespondStatus)
+	assert.True(t, service.gotRespondDate.IsZero(), "an answer without a date holds for the whole series")
+}
+
+// A parent answers one date of a series and reads the answers for it (#6987).
+func TestParentCalendarPassesTheOccurrenceDate(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentCalendarService{}
+	rs := &Resource{CalendarService: service}
+	req := withClaims(
+		parentRequestWithURLParam(
+			httptest.NewRequest(http.MethodPost, "/me/calendar/recipients/42/response", strings.NewReader(`{"status":"declined","occurrence_date":"2026-11-25"}`)),
+			"recipientId",
+			"42",
+		),
+		77,
+	)
+	w := httptest.NewRecorder()
+	rs.respondToCalendarInvitation(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, calendarSvc.Date("2026-11-25"), service.gotRespondDate)
+
+	overview := withClaims(
+		parentRequestWithURLParam(
+			httptest.NewRequest(http.MethodGet, "/me/calendar/appointments/7/overview?occurrence_date=2026-11-25", nil),
+			"appointmentId",
+			"7",
+		),
+		77,
+	)
+	w = httptest.NewRecorder()
+	rs.calendarAppointmentOverview(w, overview)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, calendarSvc.Date("2026-11-25"), service.gotOverviewDate)
+
+	invalid := withClaims(
+		parentRequestWithURLParam(
+			httptest.NewRequest(http.MethodGet, "/me/calendar/appointments/7/overview?occurrence_date=morgen", nil),
+			"appointmentId",
+			"7",
+		),
+		77,
+	)
+	w = httptest.NewRecorder()
+	rs.calendarAppointmentOverview(w, invalid)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestRespondToCalendarInvitationRejectsInvalidRecipient(t *testing.T) {
