@@ -1,0 +1,23 @@
+{
+  "api/traeger/staff-records": [
+    "GET traeger /traeger/staff-records/",
+    "POST traeger /traeger/staff-records/"
+  ],
+  "api/traeger/staff-records/[id]": [
+    "DELETE traeger /traeger/staff-records/id%2F1",
+    "GET traeger /traeger/staff-records/id%2F1"
+  ],
+  "api/traeger/staff-records/[id]/financial": [
+    "GET traeger /traeger/staff-records/id%2F1/financial",
+    "PUT traeger /traeger/staff-records/id%2F1/financial"
+  ],
+  "api/traeger/staff-records/[id]/financial/reveal": [
+    "POST traeger /traeger/staff-records/id%2F1/financial/reveal"
+  ],
+  "api/traeger/staff-records/[id]/personnel-number": [
+    "PUT traeger /traeger/staff-records/id%2F1/personnel-number"
+  ],
+  "api/traeger/staff-records/link-preview": [
+    "POST traeger /traeger/staff-records/link-preview"
+  ]
+}
