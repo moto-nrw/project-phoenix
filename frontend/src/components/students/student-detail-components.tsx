@@ -760,6 +760,7 @@ function SupervisorItem({
               size="md"
               className="mt-3"
               onClick={handleEmailClick}
+              tooltip="Öffnet Ihr Mailprogramm mit einer neuen Mail an diese Person."
             >
               <EmailIcon />
               Kontakt aufnehmen
@@ -910,6 +911,7 @@ export function PersonalInfoReadOnly({
             variant="outline"
             size="md"
             onClick={onEditClick}
+            tooltip="Öffnet die persönlichen Angaben des Kindes zum Ändern."
           >
             Bearbeiten
           </Button>

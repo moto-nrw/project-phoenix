@@ -430,6 +430,7 @@ export function DeclarationSection({
           closeLabel={t("cancel")}
           backdropLabel={t("cancel")}
           confirmVariant={pending.action === "revoked" ? "danger" : "primary"}
+          confirmTooltip={t(`confirmTooltip.${pending.action}`)}
           isConfirmLoading={saving}
           loadingText={t("saving")}
           isDismissDisabled={saving}
@@ -646,6 +647,9 @@ function DeclarationChildCard({
                 className="sm:flex-1"
                 disabled={busy}
                 onClick={() => onAction(action)}
+                tooltip={t(`actionTooltip.${action}`, {
+                  name: child.first_name,
+                })}
               >
                 {t(`action.${action}`)}
               </Button>
@@ -671,6 +675,7 @@ function DeclarationChildCard({
             className="mt-2 w-full sm:w-auto"
             disabled={busy}
             onClick={() => onAction("revoked")}
+            tooltip={t("actionTooltip.revoked", { name: child.first_name })}
           >
             {t("action.revoked")}
           </Button>
@@ -697,6 +702,9 @@ function DeclarationChildCard({
             className="w-full sm:w-auto"
             disabled={busy}
             onClick={() => onAction("revoked", earlier.version)}
+            tooltip={t("actionTooltip.revokeEarlier", {
+              version: earlier.version.version_no,
+            })}
           >
             {t("action.revoked")}
           </Button>

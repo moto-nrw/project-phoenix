@@ -562,7 +562,12 @@ function GuardedTenant({
       <div className="mx-auto flex min-h-[200px] max-w-3xl items-center p-4">
         <div className="w-full space-y-3">
           <LoadErrorAlert error="moto kann gerade nicht prüfen, bei welcher Schule Sie angemeldet sind. Bitte versuchen Sie es gleich noch einmal." />
-          <Button type="button" size="md" onClick={checkSessionSchool}>
+          <Button
+            type="button"
+            size="md"
+            onClick={checkSessionSchool}
+            tooltip="Prüft noch einmal, bei welcher Schule Sie angemeldet sind."
+          >
             Erneut versuchen
           </Button>
         </div>
@@ -646,6 +651,7 @@ function GuardedTenant({
                 <Button
                   type="button"
                   size="md"
+                  tooltip={`Meldet Sie ab und öffnet die Anmeldung von ${tenant.name}.`}
                   onClick={() => {
                     void import("./tenant-relogin")
                       .then(({ reloginAtTenant }) =>
@@ -663,6 +669,7 @@ function GuardedTenant({
                   <Button
                     type="button"
                     size="md"
+                    tooltip={`Versucht noch einmal, zu ${tenant.name} zu wechseln.`}
                     onClick={() => {
                       switchAttempts.current = {
                         targetTenantId: urlTenantId,
@@ -679,6 +686,7 @@ function GuardedTenant({
                     type="button"
                     size="md"
                     variant="outline"
+                    tooltip="Meldet Sie ab und öffnet die Anmeldung."
                     onClick={() => {
                       void signOut({ callbackUrl: "/" }).catch(
                         (err: unknown) => {

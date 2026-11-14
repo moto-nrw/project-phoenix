@@ -53,5 +53,10 @@
   "newsLetterBindingHint": "Bu e-posta yalnızca bilgilendirme amaçlıdır. Geçerli olan, buradaki veli portalındaki onaydır. Her çocuk için bir veli yeterlidir.",
   "newsErrorObjectAnswer": "yanıt",
   "newsErrorObjectConfirmation": "okundu onayı",
-  "newsErrorObjectAttachments": "dosya listesi"
+  "newsErrorObjectAttachments": "dosya listesi",
+  "newsPollClearTooltip": "Seçimi kaldırır; yalnızca \"Yanıtı kaydet\" ile gönderilir.",
+  "newsPollSaveTooltip": "Yanıtınızı hemen okula gönderir.",
+  "newsPollSaveDisabledReason": "Önce bir yanıt seçin veya seçiminizi değiştirin.",
+  "newsReadAndConfirmTooltip": "Mektubu okuduğunuzu hemen okula bildirir.",
+  "newsCloseUnsavedTooltip": "Anketi kapatır; yeni seçiminiz kaybolur."
 }

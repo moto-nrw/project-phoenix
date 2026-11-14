@@ -44,6 +44,9 @@ function loadSchoolSearchDialog(): Promise<SchoolSearchDialogComponent> {
 
 const PRELOAD_DELAY_MS = 2000;
 
+const SEARCH_BUTTON_TOOLTIP =
+  "Öffnet die Suche nach Kindern, Familien, Team, Räumen und Seiten.";
+
 const subscribeNothing = () => () => undefined;
 
 /** "⌘ K" on a Mac, "Strg K" elsewhere; empty during server rendering. */
@@ -88,6 +91,7 @@ function SchoolSearchButton({
         size="md"
         onClick={onOpen}
         aria-haspopup="dialog"
+        tooltip={SEARCH_BUTTON_TOOLTIP}
         className="w-full justify-start gap-3"
       >
         <Search aria-hidden="true" className="h-4 w-4 text-gray-500" />
@@ -105,6 +109,7 @@ function SchoolSearchButton({
           onClick={onOpen}
           aria-keyshortcuts="Control+K Meta+K"
           aria-haspopup="dialog"
+          tooltip={SEARCH_BUTTON_TOOLTIP}
           className="hidden gap-2 xl:inline-flex"
         >
           <Search aria-hidden="true" className="h-4 w-4 text-gray-500" />
@@ -122,6 +127,7 @@ function SchoolSearchButton({
         aria-label="Überall suchen"
         aria-keyshortcuts="Control+K Meta+K"
         aria-haspopup="dialog"
+        tooltip={SEARCH_BUTTON_TOOLTIP}
         // Below sm the phone's "Mehr" sheet carries the search: the page
         // head keeps its width for the title and the page's own actions.
         className={

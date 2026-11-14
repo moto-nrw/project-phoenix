@@ -370,6 +370,11 @@ function VertretungDayListRow({
           type="button"
           variant={canManage ? "outline" : "ghost"}
           size="compact"
+          tooltip={
+            canManage
+              ? "Öffnet Abwesenheit und Ersatz für diesen Termin."
+              : "Zeigt Besetzung und Verlauf dieses Termins."
+          }
           onClick={() => onEdit(instance.id)}
         >
           {canManage ? "Bearbeiten" : "Details"}

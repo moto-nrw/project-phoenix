@@ -199,7 +199,10 @@ describe("KontoTab", () => {
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "  " },
     });
-    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Speichern" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(editing.onSave).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Nachname")).toBeInTheDocument();
   });

@@ -68,6 +68,7 @@ export function FormTemplateDetail({
                 <Button
                   type="button"
                   onClick={onEdit}
+                  tooltip="Öffnet die Vorlage im Editor."
                   variant="primary"
                   size="md"
                   className="inline-flex items-center justify-center gap-2 whitespace-nowrap"
@@ -143,6 +144,11 @@ export function FormTemplateDetail({
                 }
                 size="md"
                 className="w-full gap-2"
+                tooltip={
+                  assignedPhases.length > 0
+                    ? "Öffnet die Liste der Anmeldephasen."
+                    : "Öffnet die Anmeldephasen, um diese Vorlage einer Phase zuzuordnen."
+                }
               >
                 <MotoConceptIcon
                   concept={calendarPeriodsConcept}

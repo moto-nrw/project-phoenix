@@ -44,5 +44,14 @@
   "withdrawn": "Widerrufen",
   "showConfirmation": "Bestätigung ansehen",
   "terminationInReview": "Gekündigt, Ende wird geprüft",
-  "familyChildren": "Kinder in der Familie angeben"
+  "familyChildren": "Kinder in der Familie angeben",
+  "downloadTooltip": "Lädt das Dokument als PDF auf Ihr Gerät.",
+  "downloadFileTooltip": "Lädt die Datei auf Ihr Gerät.",
+  "signNowTooltip": "Öffnet den Vertrag zum Lesen und Unterschreiben.",
+  "familyChildrenTooltip": "Öffnet die Seite, auf der Sie die Zahl Ihrer Kinder angeben.",
+  "familyChildrenViewTooltip": "Zeigt, wie viele Kinder Ihrer Familie der Träger zählt.",
+  "cancelContractTooltip": "Öffnet die Kündigung, abgeschickt wird erst auf der nächsten Seite.",
+  "withdrawContractTooltip": "Öffnet den Widerruf, abgeschickt wird erst auf der nächsten Seite.",
+  "showConfirmationTooltip": "Zeigt die Kündigung mit Vertragsende und Bestätigung.",
+  "showWithdrawalTooltip": "Zeigt den Widerruf mit seiner Bestätigung."
 }

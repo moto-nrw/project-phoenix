@@ -170,6 +170,7 @@ export function TeamChatInbox({
           type="button"
           variant="outline"
           size="md"
+          tooltip="Öffnet ein Fenster für einen Gruppenchat mit mehreren Mitarbeitenden."
           onClick={() => setGroupOpen(true)}
         >
           Neuer Gruppenchat
@@ -179,6 +180,7 @@ export function TeamChatInbox({
         type="button"
         variant="primary"
         size="md"
+        tooltip="Öffnet ein Fenster, um einer Person im Team zu schreiben."
         onClick={() => setComposeOpen(true)}
       >
         Neue Nachricht

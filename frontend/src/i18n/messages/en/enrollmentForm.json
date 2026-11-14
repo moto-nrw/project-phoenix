@@ -272,5 +272,23 @@
     "title": "Signature",
     "description": "Please sign the enrollment. Without a signature it does not reach the {careTerm}.",
     "required": "Please sign the enrollment."
+  },
+  "buttonHints": {
+    "addGuardian": "Adds fields for another legal guardian.",
+    "removeGuardian": "Removes this person's details from the form immediately.",
+    "addChild": "Adds fields for another child.",
+    "removeChild": "Removes this child's details from the form immediately.",
+    "adopt": "Adds this child with the saved details to the enrollment.",
+    "adopted": "This child is already in the enrollment.",
+    "submit": "Sends the enrollment to the {careTerm} immediately and a confirmation to you.",
+    "previewSubmit": "You cannot send the enrollment in the preview.",
+    "captchaPending": "Please complete the security check first.",
+    "captchaUnavailable": "Sending is not possible right now; please contact the {careTerm}.",
+    "addPhone": "Adds a line for another phone number.",
+    "removePhone": "Removes this number from the form immediately.",
+    "addContact": "Adds fields for another contact.",
+    "removeContact": "Removes this contact from the form immediately.",
+    "chooseFile": "Opens the file selection on your device.",
+    "details": "Opens the full text to read."
   }
 }

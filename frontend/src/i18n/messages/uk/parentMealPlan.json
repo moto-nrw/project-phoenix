@@ -76,5 +76,22 @@
   "registerWeekDone": "Записано на весь тиждень.",
   "registerWeekLocked": "Строк запису на ці дні минув, вони залишаються без запису: {days}.",
   "errorObjectWeekCancel": "скасування на тиждень",
-  "errorObjectWeekRegister": "запис на тиждень"
+  "errorObjectWeekRegister": "запис на тиждень",
+  "previousWeekTooltip": "Показує попередній тиждень.",
+  "nextWeekTooltip": "Показує наступний тиждень.",
+  "previousWeekDisabledReason": "Ця сторінка не показує минулі тижні.",
+  "lastParticipationWeekReason": "Далі наперед тут поки що планувати не можна.",
+  "lastMealPlanWeekReason": "На пізніші тижні меню ще немає.",
+  "editRegularDaysTooltip": "Відкриває вибір днів, коли ваша дитина завжди обідає.",
+  "saveRegularDaysTooltip": "Зберігає нові постійні дні для вашої дитини.",
+  "saveDayTooltip": "Зберігає запис на цей день.",
+  "registerWeekTooltip": "Одразу записує дитину на всі ще змінювані дні цього тижня.",
+  "cancelWeekTooltip": "Скасовує запис дитини на цей тиждень. moto спершу запитає.",
+  "cancelWeekConfirmTooltip": "Одразу скасовує запис на всі ще змінювані дні.",
+  "cancelWeekCloseTooltip": "Закриває вікно; запис залишається без змін.",
+  "editDayTooltip": "Відкриває запис на цей день для зміни.",
+  "registerDayTooltip": "Позначає запис; він діє лише після збереження.",
+  "unregisterDayTooltip": "Позначає скасування; воно діє лише після збереження.",
+  "useRegularTooltip": "Повертає на цей день постійний запис після збереження.",
+  "weekEditingReason": "Спочатку збережіть або скасуйте зміну."
 }

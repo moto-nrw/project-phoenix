@@ -50,7 +50,8 @@
     "offeredByTraeger": "Organizator: {traeger}",
     "careLine": "Opieka {from} do {to}",
     "registrationLine": "Zgłoszenia do {date}",
-    "registrationRangeLine": "Zgłoszenia {from} do {to}"
+    "registrationRangeLine": "Zgłoszenia {from} do {to}",
+    "registerTooltip": "Otwiera zapis na tę ofertę wakacyjną."
   },
   "childrenLoading": "Wczytywanie dzieci",
   "noChildren": "Z Państwa kontem nie jest jeszcze powiązane żadne dziecko. {careTerm} Państwa szkoły może to ustawić.",

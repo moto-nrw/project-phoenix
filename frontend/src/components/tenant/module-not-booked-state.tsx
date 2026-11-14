@@ -75,6 +75,7 @@ function ModuleNotBookedState({ module }: { readonly module: ModuleKey }) {
             href={tenantPath("/settings?tab=modules")}
             variant="outline"
             size="md"
+            tooltip="Öffnet die Einstellungen mit den Modulen Ihrer Schule."
           >
             Gebuchte Module ansehen
           </ButtonLink>

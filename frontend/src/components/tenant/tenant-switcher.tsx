@@ -271,6 +271,7 @@ export function BrandTenantSwitcher({
     for (const t of orgTenants) {
       menuItems.push({
         label: t.name,
+        description: "Wechselt zu dieser Einrichtung",
         onClick: () => void handleSwitch(t),
       });
     }
@@ -283,6 +284,7 @@ export function BrandTenantSwitcher({
         ariaLabel="Einrichtung wechseln"
         items={menuItems}
         disabled={isSwitching}
+        triggerTooltip="Zeigt Ihre Einrichtungen, ein Eintrag wechselt dorthin."
         onOpen={() => setSchoolPortalHint(null)}
         wrapperClassName="min-w-0 block"
         triggerClassName="-mx-1.5 max-w-[200px] min-w-0 gap-2.5 rounded-lg px-1.5 py-1 hover:bg-gray-100 disabled:opacity-50 sm:max-w-[260px] lg:max-w-[300px]"

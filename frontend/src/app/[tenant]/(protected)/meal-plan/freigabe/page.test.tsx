@@ -339,7 +339,7 @@ describe("MealBillingReleasePage", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Erneut freigeben" }));
     const confirm = await screen.findByRole("button", { name: "Freigeben" });
-    expect(confirm).toBeDisabled();
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
     fireEvent.change(screen.getByLabelText(/Grund/), {
       target: { value: "Anwesenheit nachgetragen" },
     });

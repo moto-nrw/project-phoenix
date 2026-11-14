@@ -60,7 +60,7 @@ export function RefreshButton({
       onClick={handleRefresh}
       disabled={state === "spinning"}
       aria-label={t("refresh")}
-      title={t("refresh")}
+      tooltip={t("refreshTooltip")}
       variant="ghost"
       size={drawer ? "md" : "icon"}
       className={drawer ? "w-full justify-start gap-3" : ""}

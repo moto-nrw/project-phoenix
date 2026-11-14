@@ -95,5 +95,16 @@
     "title": "Pëlqimi për versionin {version}: {date}.",
     "note": "Më pas shkolla e ndryshoi tekstin. Pëlqimi juaj për këtë tekst vlen derisa ta tërhiqni.",
     "endsToo": "Kështu përfundon edhe pëlqimi juaj për versionin {version}."
+  },
+  "actionTooltip": {
+    "agreed": "Jep pëlqimin për {name}, moto pyet më parë.",
+    "declined": "Refuzon për {name}, moto pyet më parë.",
+    "revoked": "Tërheq pëlqimin tuaj për {name}, moto pyet më parë.",
+    "revokeEarlier": "Tërheq pëlqimin tuaj për versionin {version}, moto pyet më parë."
+  },
+  "confirmTooltip": {
+    "agreed": "Ruan menjëherë pëlqimin tuaj, shkolla e sheh.",
+    "declined": "Ruan menjëherë refuzimin tuaj, shkolla e sheh.",
+    "revoked": "Tërheq menjëherë pëlqimin tuaj, shkolla e sheh këtë."
   }
 }

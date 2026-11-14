@@ -131,6 +131,15 @@ function retainAvailableValues(
   return retained.length === selected.length ? selected : retained;
 }
 
+// Was der Export je Bereich enthält, für die Zeile unter dem Menüeintrag.
+const EXPORT_CONTENT: Record<StatisticsExportSection, string> = {
+  attendance: "die Kinder- und Gruppenzahlen",
+  rooms: "die Auslastung der Räume",
+  courses: "die Teilnahme je Kurs",
+  "course-students": "die Kurse je Kind",
+  occupancy: "die Zahlen nach Uhrzeit",
+};
+
 export default function StatisticsPage() {
   const tenantPath = useTenantAwarePath();
   const todayISO = berlinTodayISO();
@@ -778,16 +787,23 @@ export default function StatisticsPage() {
     { kind: "header", label: "Exportieren" },
     ...(
       [
-        { format: "pdf", label: "PDF", Icon: Download },
-        { format: "xlsx", label: "Excel", Icon: FileSpreadsheet },
-        { format: "docx", label: "Word", Icon: FileText },
+        { format: "pdf", label: "PDF", file: "PDF", Icon: Download },
+        {
+          format: "xlsx",
+          label: "Excel",
+          file: "Excel-Datei",
+          Icon: FileSpreadsheet,
+        },
+        { format: "docx", label: "Word", file: "Word-Datei", Icon: FileText },
       ] as {
         format: StatisticsExportFormat;
         label: string;
+        file: string;
         Icon: typeof Download;
       }[]
-    ).map(({ format, label, Icon }) => ({
+    ).map(({ format, label, file, Icon }) => ({
       label: exporting === `${section}-${format}` ? "Wird exportiert…" : label,
+      description: `Lädt ${EXPORT_CONTENT[section]} des Zeitraums als ${file} herunter.`,
       icon: <Icon className="h-4 w-4" aria-hidden />,
       onClick: () => void downloadExport(format, section),
       disabled: !data || exporting !== null,

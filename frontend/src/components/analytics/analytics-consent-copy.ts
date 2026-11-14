@@ -13,6 +13,9 @@ export interface AnalyticsConsentCopy {
   readonly promptChangeLater: string;
   readonly allow: string;
   readonly refuse: string;
+  /** What each answer does, shown on its button (#6643). */
+  readonly allowTooltip: string;
+  readonly refuseTooltip: string;
   readonly saving: string;
   readonly closeLabel: string;
   readonly sectionDescription: string;
@@ -43,6 +46,11 @@ function germanCopy(
     promptChangeLater: `Ihre Wahl gilt für Ihr Konto. Sie können sie jederzeit unter „${place}“ ändern.`,
     allow: "Erlauben",
     refuse: "Ablehnen",
+    allowTooltip: recordings
+      ? "Erlaubt Nutzungsanalyse und mögliche Aufzeichnungen für Ihr Konto, ändern geht jederzeit."
+      : "Erlaubt die Nutzungsanalyse für Ihr Konto, ändern geht jederzeit.",
+    refuseTooltip:
+      "Lehnt die Nutzungsanalyse für Ihr Konto ab, moto zählt dann nichts.",
     saving: "Wird gespeichert…",
     closeLabel: "Später entscheiden",
     sectionDescription:

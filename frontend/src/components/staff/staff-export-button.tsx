@@ -103,6 +103,8 @@ export function StaffExportButton({
         items={[
           {
             label: "Exportieren",
+            description:
+              "Öffnet die Auswahl von Zeitraum und Format für den Zeitnachweis.",
             icon: <Download className="h-4 w-4" />,
             onClick: () => setOpen(true),
           },

@@ -56,5 +56,8 @@
   "decisionLabel": "Decyzja organizatora",
   "decisionSet": "Powód uznany",
   "decisionReinterpreted": "Powód nieuznany. Traktowane jako zwykłe wypowiedzenie.",
-  "endNoticeTitle": "Wiadomość organizatora o zakończeniu umowy"
+  "endNoticeTitle": "Wiadomość organizatora o zakończeniu umowy",
+  "submitTerminationTooltip": "Od razu wysyła wypowiedzenie do organu prowadzącego.",
+  "submitWithdrawalTooltip": "Od razu wysyła odstąpienie do organu prowadzącego.",
+  "submitDisabledReason": "Najpierw wybierz jedną z możliwości powyżej."
 }

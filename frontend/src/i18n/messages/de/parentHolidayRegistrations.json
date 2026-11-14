@@ -21,7 +21,8 @@
     "title": "Ihre Ferienanmeldungen",
     "showAll": "Alle ansehen",
     "showAllLabel": "Alle Ferienanmeldungen ansehen",
-    "more": "{count, plural, one {# weitere Anmeldung} other {# weitere Anmeldungen}}"
+    "more": "{count, plural, one {# weitere Anmeldung} other {# weitere Anmeldungen}}",
+    "showAllTooltip": "Öffnet die Liste aller Ferienanmeldungen Ihrer Kinder."
   },
   "toDocumentsTooltip": "Öffnet Ihre Dokumente mit Bestätigung und Rechnung."
 }

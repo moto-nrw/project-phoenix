@@ -53,5 +53,10 @@
   "newsLetterBindingHint": "Ten e-mail ma tylko charakter informacyjny. Liczy się potwierdzenie tutaj, w portalu dla rodziców. Wystarczy potwierdzenie jednego opiekuna dla każdego dziecka.",
   "newsErrorObjectAnswer": "odpowiedź",
   "newsErrorObjectConfirmation": "potwierdzenie przeczytania",
-  "newsErrorObjectAttachments": "lista plików"
+  "newsErrorObjectAttachments": "lista plików",
+  "newsPollClearTooltip": "Usuwa wybór, wysyłka nastąpi dopiero po „Zapisz odpowiedź”.",
+  "newsPollSaveTooltip": "Od razu wysyła odpowiedź do szkoły.",
+  "newsPollSaveDisabledReason": "Najpierw proszę wybrać odpowiedź lub zmienić wybór.",
+  "newsReadAndConfirmTooltip": "Od razu potwierdza szkole, że list został przeczytany.",
+  "newsCloseUnsavedTooltip": "Zamyka ankietę, nowy wybór zostanie utracony."
 }

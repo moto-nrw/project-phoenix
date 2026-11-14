@@ -135,6 +135,7 @@ export function DeclarationProofPage({
                 isLoading={downloading}
                 loadingText={t("downloading")}
                 disabled={downloading}
+                tooltip={t("downloadTooltip")}
               >
                 <Download className="h-4 w-4" aria-hidden="true" />
                 {t("download")}

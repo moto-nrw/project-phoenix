@@ -12,5 +12,8 @@
   "close": "Fenster schließen",
   "errorObjectRecipients": "die Liste der Empfänger",
   "errorObjectSelection": "die Auswahl",
-  "optionsHint": "Sie können die Anfrage trotzdem senden und später teilen."
+  "optionsHint": "Sie können die Anfrage trotzdem senden und später teilen.",
+  "buttonTooltip": "Öffnet ein Fenster, in dem Sie wählen, wer die Anfrage sieht.",
+  "saveTooltip": "Speichert, wer die Anfrage und die Antwort sehen darf.",
+  "closeTooltip": "Schließt das Fenster, die Auswahl bleibt unverändert."
 }

@@ -439,6 +439,7 @@ export function MFAAdminOverrideModal({
                   variant="danger"
                   size="md"
                   disabled={isWorking}
+                  tooltip="Entfernt die bisherige 2FA und alle vertrauenswürdigen Geräte sofort."
                 >
                   {isWorking
                     ? "Wird ausgeführt…"
@@ -565,6 +566,7 @@ export function MFAAdminOverrideModal({
                   size="md"
                   disabled={overrideWorking || selectedOverride === override}
                   onClick={() => void handleOverrideSubmit()}
+                  tooltip="Speichert sofort, ob diese Person den zusätzlichen Code braucht."
                 >
                   {overrideWorking ? "Wird gespeichert…" : "Änderung speichern"}
                 </Button>
@@ -675,6 +677,7 @@ export function MFAAdminOverrideModal({
                       globalWorking || selectedGlobalOverride === globalOverride
                     }
                     onClick={() => void handleGlobalOverrideSubmit()}
+                    tooltip="Gilt sofort in allen Schulen, in denen der Account aktiv ist."
                   >
                     {globalWorking
                       ? "Wird gespeichert…"
@@ -700,7 +703,13 @@ export function MFAAdminOverrideModal({
                 : "Beim nächsten Login kann sich der Account ohne 2FA-Code anmelden — oder wird, wenn 2FA für die Schule Pflicht ist, durch die 2FA-Einrichtung geführt."}
           </p>
           <div className="flex justify-end">
-            <Button type="button" variant="primary" size="md" onClick={onClose}>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={onClose}
+              noTooltip="Schließen schließt nur den Dialog, die 2FA ist schon zurückgesetzt."
+            >
               Schließen
             </Button>
           </div>

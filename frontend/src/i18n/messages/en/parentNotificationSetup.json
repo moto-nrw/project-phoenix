@@ -16,5 +16,9 @@
   "closeGuide": "Close guide",
   "close": "Close dialog",
   "introStaff": "Turn on notifications. moto will then tell you about important events, even when the app is closed.",
-  "enabling": "Turning on …"
+  "enabling": "Turning on …",
+  "remindLaterTooltip": "Closes this window; moto reminds you again in one week.",
+  "enableTooltip": "Turns on notifications for all topics on this device.",
+  "installAppTooltip": "Installs moto as an app on this device.",
+  "closeGuideTooltip": "Closes the guide; moto reminds you again after one day."
 }

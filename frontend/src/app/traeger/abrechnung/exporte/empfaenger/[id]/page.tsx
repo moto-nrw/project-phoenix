@@ -44,6 +44,7 @@ function RecipientStateNotice({
       href={traegerPath(EXPORT_RECIPIENT_PATH)}
       variant="ghost_tone"
       size="compact"
+      tooltip="Öffnet die Empfänger, dort ordnen Sie die Dateien zu."
     >
       Dateien zuordnen
     </ButtonLink>

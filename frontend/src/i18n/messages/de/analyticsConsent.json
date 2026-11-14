@@ -7,6 +7,8 @@
   "promptChangeLater": "Ihre Wahl gilt für Ihr Konto. Sie können sie jederzeit unter „Einstellungen“ ändern.",
   "allow": "Erlauben",
   "refuse": "Ablehnen",
+  "allowTooltip": "Erlaubt die Nutzungsanalyse für Ihr Konto, ändern geht jederzeit.",
+  "refuseTooltip": "Lehnt die Nutzungsanalyse für Ihr Konto ab, moto zählt dann nichts.",
   "saving": "Wird gespeichert…",
   "closeLabel": "Später entscheiden",
   "sectionDescription": "Darf moto zählen, welche Seiten und Schaltflächen Sie nutzen? Namen und Eingaben sieht moto dabei nicht. Das entscheiden nur Sie.",

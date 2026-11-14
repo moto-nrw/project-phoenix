@@ -201,6 +201,7 @@ function RegisterLink({ offer }: Readonly<{ offer: HolidayOffer }>) {
       size="md"
       className="shrink-0 gap-2 max-sm:w-full"
       aria-label={t("holiday.registerLabel", { name: offer.name })}
+      tooltip={t("holiday.registerTooltip")}
     >
       {t("holiday.register")}
       <ArrowRight className="size-4" aria-hidden="true" />

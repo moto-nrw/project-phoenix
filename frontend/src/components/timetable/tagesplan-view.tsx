@@ -320,6 +320,7 @@ function TagesplanRow({
       variant="success"
       className="shrink-0"
       disabled={startBusy}
+      tooltip="Startet die Aufsicht für diesen Termin und öffnet sie."
       onClick={() => onStart(instance)}
     >
       {startBusy ? "Startet..." : "Starten"}
@@ -625,6 +626,7 @@ export function TagesplanView() {
               variant="ghost"
               size="icon"
               aria-label="Vorheriger Tag"
+              tooltip="Zeigt den Plan des vorherigen Betreuungstags."
               onClick={() =>
                 goToDay(previousCareDayISO(day, weekendOpen, today))
               }
@@ -636,6 +638,7 @@ export function TagesplanView() {
                 type="button"
                 variant="ghost"
                 size="compact"
+                tooltip="Zeigt den Plan von heute."
                 onClick={() => goToDay(today)}
               >
                 Heute
@@ -646,6 +649,7 @@ export function TagesplanView() {
               variant="ghost"
               size="icon"
               aria-label="Nächster Tag"
+              tooltip="Zeigt den Plan des nächsten Betreuungstags."
               onClick={() => goToDay(nextCareDayISO(day, weekendOpen, today))}
             >
               <ChevronRight className="h-4 w-4" aria-hidden="true" />

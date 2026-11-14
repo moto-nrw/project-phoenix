@@ -238,6 +238,8 @@ export function CaregiverBlockerResolutionPanel({
       ? [
           {
             label: "Übertragen",
+            description:
+              "Übergibt die Leitung sofort an die gewählte Ersatzkraft.",
             icon: <ArrowRightLeft className="h-4 w-4" aria-hidden />,
             disabled: busy,
             onClick: resolve,
@@ -246,6 +248,8 @@ export function CaregiverBlockerResolutionPanel({
       : [
           {
             label: "Entfernen",
+            description:
+              "Entfernt die Leitung ohne Ersatz, moto fragt vorher nach.",
             icon: <Trash2 className="h-4 w-4" aria-hidden />,
             destructive: true,
             disabled: busy,
@@ -484,6 +488,7 @@ export function CaregiverBlockerResolutionPanel({
                     onClick={() =>
                       openConfirmation({ kind: "supervision", item })
                     }
+                    tooltip="Beendet die Aufsicht über diese Gruppe, moto fragt vorher nach."
                     isLoading={processing[key]}
                     loadingText="Wird beendet…"
                   >
@@ -533,6 +538,7 @@ export function CaregiverBlockerResolutionPanel({
                     onClick={() =>
                       openConfirmation({ kind: "substitution", item })
                     }
+                    tooltip="Gibt die Gruppe an ihre Leitung zurück, moto fragt vorher nach."
                     isLoading={processing[key]}
                     loadingText="Wird beendet…"
                   >

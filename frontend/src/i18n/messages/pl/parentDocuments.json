@@ -44,5 +44,14 @@
   "withdrawn": "Odstąpiono",
   "showConfirmation": "Zobacz potwierdzenie",
   "terminationInReview": "Wypowiedziano, data końca w sprawdzeniu",
-  "familyChildren": "Podaj liczbę dzieci w rodzinie"
+  "familyChildren": "Podaj liczbę dzieci w rodzinie",
+  "downloadTooltip": "Pobiera dokument jako PDF na Twoje urządzenie.",
+  "downloadFileTooltip": "Pobiera plik na Twoje urządzenie.",
+  "signNowTooltip": "Otwiera umowę do przeczytania i podpisania.",
+  "familyChildrenTooltip": "Otwiera stronę, na której podajesz liczbę swoich dzieci.",
+  "familyChildrenViewTooltip": "Pokazuje, ile dzieci w Twojej rodzinie liczy organ prowadzący.",
+  "cancelContractTooltip": "Otwiera wypowiedzenie; wysyłasz je dopiero na następnej stronie.",
+  "withdrawContractTooltip": "Otwiera odstąpienie; wysyłasz je dopiero na następnej stronie.",
+  "showConfirmationTooltip": "Pokazuje wypowiedzenie z datą końca umowy i potwierdzeniem.",
+  "showWithdrawalTooltip": "Pokazuje odstąpienie wraz z potwierdzeniem."
 }

@@ -204,5 +204,17 @@
     "guardian": "Kujdestar ligjor",
     "relative": "I afërm"
   },
-  "accountHintLoginTooltip": "Hap hyrjen, pastaj ktheheni këtu."
+  "accountHintLoginTooltip": "Hap hyrjen, pastaj ktheheni këtu.",
+  "addChildHint": "Shton një fëmijë tjetër në këtë regjistrim.",
+  "removeChildHint": "Heq këtë fëmijë nga regjistrimi, të dhënat e tij humbasin.",
+  "addPickupHint": "Shton një person tjetër për emergjenca ose marrjen e fëmijës.",
+  "removeContactHint": "Heq këtë person nga regjistrimi.",
+  "toSummaryHint": "Tregon të gjitha të dhënat për kontroll, ende pa i dërguar.",
+  "contributionRetryHint": "Llogarit përsëri kontributin.",
+  "submitHint": "Dërgon regjistrimin te organizatori, i cili vendos për vendin.",
+  "submitBindingHint": "Regjistron fëmijën në mënyrë të detyrueshme, vendi nuk është ende i sigurt.",
+  "submitCaptchaPending": "Ju lutemi përfundoni fillimisht kontrollin e sigurisë.",
+  "submitUploadsPending": "Ju lutemi prisni derisa të ngarkohen të gjitha skedarët.",
+  "doneToRegistrationsHint": "Hap listën e regjistrimeve tuaja për pushimet.",
+  "doneToStatusHint": "Tregon se ku është organizatori me regjistrimin tuaj."
 }

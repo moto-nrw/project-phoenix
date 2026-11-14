@@ -13,6 +13,7 @@
   "contactData": "Të dhënat e kontaktit",
   "soon": "Së shpejti",
   "refresh": "Rifresko të dhënat",
+  "refreshTooltip": "Merr gjendjen më të fundit të të gjitha të dhënave në këtë faqe.",
   "closeMenu": "Mbyll menynë",
   "profileMenu": "Menyja e profilit për {name}",
   "profile": "Profili",

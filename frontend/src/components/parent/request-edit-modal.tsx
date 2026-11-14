@@ -248,6 +248,7 @@ export function RequestEditModal({
       onClose={onClose}
       title={t("title")}
       closeLabel={t("close")}
+      closeTooltip={t("closeTooltip")}
       backdropLabel={t("close")}
       isDismissDisabled={saving}
       mobileSheet
@@ -259,6 +260,7 @@ export function RequestEditModal({
             size="md"
             className="hidden sm:inline-flex"
             disabled={saving}
+            noTooltip="Abbrechen schließt das Fenster und ändert nichts."
             onClick={onClose}
           >
             {t("cancel")}
@@ -269,6 +271,7 @@ export function RequestEditModal({
             className="w-full sm:w-auto"
             isLoading={saving}
             loadingText={t("saving")}
+            tooltip={t("submitTooltip")}
             onClick={() => void submit()}
           >
             {t("submit")}
