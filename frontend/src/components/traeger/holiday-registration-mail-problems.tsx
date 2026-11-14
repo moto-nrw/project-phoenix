@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { StatusBadge } from "~/components/ui/status-badge";
+import type { MailOutcome } from "~/lib/email-delivery-status";
 import { createLogger } from "~/lib/logger";
 import {
   fetchHolidayRegistrationMailProblems,
@@ -73,12 +74,34 @@ export const HOLIDAY_MAIL_LABELS: Readonly<
 
 /** The name of a mail in a list, as „Eingangsbestätigung“ (#6976). */
 function holidayMailLabel(kind: HolidayRegistrationMailKind): string {
-  return HOLIDAY_MAIL_LABELS[kind] ?? "E-Mail";
+  return HOLIDAY_MAIL_LABELS[kind] ?? "Mail";
 }
 
-/** What the office does when a mail did not reach the parents. */
-export const HOLIDAY_MAIL_NEXT_STEP =
-  "Informieren Sie die Familie am besten per Telefon. Prüfen Sie die E-Mail-Adresse unter „Eltern“ und ändern Sie sie, wenn sie falsch ist.";
+// Only these outcomes can come from a wrong address: the mail came back, or
+// the address was held because of an earlier mail (#6999). A complaint or an
+// unsubscription came from the parents themselves, a school's stop holds
+// the person and not the address, and a failed send says nothing about it.
+const ADDRESS_OUTCOMES: ReadonlySet<MailOutcome> = new Set([
+  "undeliverable",
+  "blocked",
+  "provider_blocked",
+]);
+
+/**
+ * What the office does next (#6999). The phone always helps. Changing the
+ * address helps only when it may be wrong, and only while the registration
+ * can still be changed: a cancelled one cannot.
+ */
+function holidayMailNextStep(
+  outcomes: readonly MailOutcome[],
+  cancelled: boolean,
+): string {
+  const call = "Informieren Sie die Familie am besten per Telefon.";
+  if (cancelled || !outcomes.some((outcome) => ADDRESS_OUTCOMES.has(outcome))) {
+    return call;
+  }
+  return `${call} Prüfen Sie die E-Mail-Adresse unter „Eltern“ und ändern Sie sie, wenn sie falsch ist.`;
+}
 
 /** One sentence per mail: which mail and what became of it. */
 function holidayMailProblemText(
@@ -101,15 +124,30 @@ function holidayMailProblemText(
   }
 }
 
-/** The notice in the registration: every mail with a problem and what to do. */
+/**
+ * The notice in the registration: every mail with a problem and what to do.
+ * It is the one place for the next step; the list of mails below only shows
+ * each mail's status (#6999).
+ */
 export function HolidayRegistrationMailProblemsAlert({
   problems,
-}: Readonly<{ problems: readonly HolidayRegistrationMailProblem[] }>) {
+  outcomes,
+  cancelled,
+}: Readonly<{
+  problems: readonly HolidayRegistrationMailProblem[];
+  /** What became of each mail; it decides whether the address may be wrong. */
+  outcomes: readonly MailOutcome[];
+  cancelled: boolean;
+}>) {
   if (problems.length === 0) return null;
   return (
     <Alert
       type="warning"
-      title="E-Mail an die Eltern prüfen"
+      title={
+        problems.length === 1
+          ? "Mail an die Eltern prüfen"
+          : "Mails an die Eltern prüfen"
+      }
       message={
         <>
           {problems.map((problem, index) => (
@@ -117,7 +155,9 @@ export function HolidayRegistrationMailProblemsAlert({
               {holidayMailProblemText(problem)}
             </span>
           ))}
-          <span className="block">{HOLIDAY_MAIL_NEXT_STEP}</span>
+          <span className="mt-1 block">
+            {holidayMailNextStep(outcomes, cancelled)}
+          </span>
         </>
       }
     />
@@ -129,5 +169,5 @@ export function HolidayRegistrationMailProblemBadge({
   problems,
 }: Readonly<{ problems: readonly HolidayRegistrationMailProblem[] }>) {
   if (problems.length === 0) return null;
-  return <StatusBadge tone="warning" label="E-Mail prüfen" />;
+  return <StatusBadge tone="warning" label="Mail prüfen" />;
 }

@@ -53,6 +53,7 @@ import { messagesConcept } from "~/lib/concepts/messages";
 import { parentMessagesConcept } from "~/lib/concepts/parentMessages";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 import { newsConcept } from "~/lib/concepts/news";
+import { mailsConcept } from "~/lib/concepts/mails";
 import { announcementsConcept } from "~/lib/concepts/announcements";
 import { pollsConcept } from "~/lib/concepts/polls";
 import { confirmationsConcept } from "~/lib/concepts/confirmations";
@@ -142,6 +143,7 @@ const registry = {
   parentMessages: parentMessagesConcept,
   parentConversations: parentConversationsConcept,
   news: newsConcept,
+  mails: mailsConcept,
   announcements: announcementsConcept,
   polls: pollsConcept,
   confirmations: confirmationsConcept,
