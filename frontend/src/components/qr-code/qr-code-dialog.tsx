@@ -159,7 +159,13 @@ export function QrCodeDialog({
       mobileSheet
       footer={
         <>
-          <Button type="button" variant="outline" size="md" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            noTooltip="Schließt das Fenster, es ändert nichts."
+          >
             Schließen
           </Button>
           <Button
@@ -170,6 +176,7 @@ export function QrCodeDialog({
             isLoading={saving === "svg"}
             loadingText="Wird gespeichert…"
             onClick={() => void save("svg")}
+            tooltip="Speichert den QR-Code als Druckdatei, die auch groß scharf bleibt."
           >
             Druckdatei (SVG)
           </Button>
@@ -181,6 +188,7 @@ export function QrCodeDialog({
             isLoading={saving === "png"}
             loadingText="Wird gespeichert…"
             onClick={() => void save("png")}
+            tooltip="Speichert den QR-Code als Bild auf Ihrem Gerät."
           >
             <Download className="mr-2 h-4 w-4" aria-hidden="true" />
             Bild speichern

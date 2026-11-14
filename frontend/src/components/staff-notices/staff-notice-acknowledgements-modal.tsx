@@ -73,7 +73,13 @@ export function StaffNoticeAcknowledgementsModal({
       title="Bestätigungen"
       footer={
         <div className="flex justify-end">
-          <Button type="button" variant="outline" size="md" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            noTooltip="Schließen schließt nur das Fenster und ändert nichts."
+            onClick={onClose}
+          >
             Schließen
           </Button>
         </div>

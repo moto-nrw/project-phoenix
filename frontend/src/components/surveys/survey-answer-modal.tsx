@@ -45,6 +45,7 @@ export function SurveyAnswerModal({
           size="md"
           onClick={onClose}
           disabled={busy}
+          tooltip="Schließt die Umfrage, nicht abgesendete Antworten gehen verloren."
         >
           Schließen
         </Button>

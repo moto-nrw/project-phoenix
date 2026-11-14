@@ -165,6 +165,7 @@ export function MealOrderWeek({
         deliveryBusy === format
           ? t("downloadLoading")
           : EXPORT_FORMAT_LABELS[format],
+      description: t("deliveryDownloadDescription"),
       icon:
         format === "pdf" ? (
           <FileText className="h-4 w-4" aria-hidden />
@@ -180,6 +181,7 @@ export function MealOrderWeek({
           { kind: "header", label: t("monthHeader") },
           {
             label: t("monthExport"),
+            description: t("monthExportDescription"),
             icon: <CalendarRange className="h-4 w-4" aria-hidden />,
             onClick: () => setMonthExportOpen(true),
           },
@@ -194,6 +196,7 @@ export function MealOrderWeek({
               monthBusy === format
                 ? t("downloadLoading")
                 : EXPORT_FORMAT_LABELS[format],
+            description: t("monthDownloadDescription"),
             icon:
               format === "pdf" ? (
                 <FileText className="h-4 w-4" aria-hidden />

@@ -1462,8 +1462,8 @@ const FORM_CONTEXT_EXCEPTIONS = new Map(
   Object.entries({
     // Übergabe einer Gruppe: Erklärung und die Gruppe, um die es geht.
     "src/components/groups/group-transfer-modal.tsx": [
-      "InfoSection@228",
-      "DataGrid@242",
+      "InfoSection@245",
+      "DataGrid@259",
     ],
   }),
 );
@@ -1610,7 +1610,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@1033",
     ],
     "src/components/files/folder-modal.tsx": [
-      "Ordner bearbeiten Neuer Ordner@149",
+      "Ordner bearbeiten Neuer Ordner@156",
     ],
     "src/components/planning/closing-day-modal.tsx": [
       "Schließtag bearbeiten Schließtag anlegen@154",

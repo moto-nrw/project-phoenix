@@ -27,5 +27,8 @@
   "changesAdded": "{count, plural, one {# child more} other {# children more}}",
   "changesRemoved": "{count, plural, one {# child fewer} other {# children fewer}}",
   "deliveryHeader": "This week's delivery list",
-  "errorObjectDelivery": "the delivery list"
+  "errorObjectDelivery": "the delivery list",
+  "deliveryDownloadDescription": "Downloads this week's delivery list",
+  "monthExportDescription": "Opens a window to choose the month and format",
+  "monthDownloadDescription": "Downloads the meals ordered per child for this month"
 }
