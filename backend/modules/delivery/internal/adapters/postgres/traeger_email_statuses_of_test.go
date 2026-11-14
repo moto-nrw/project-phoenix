@@ -14,7 +14,10 @@ import (
 
 // #6976: a Träger reads its mails of the related entities and with the keys
 // in one statement. Another Träger's mail with the same related ID or the
-// same key stays out, also through the Träger's own transaction.
+// same key stays out, first through the Träger's own transaction (RLS), then
+// without the request role (#6999): RLS alone would hide the other Träger's
+// rows, so only then does the test see the statement's own organization
+// filter.
 func TestTraegerEmailStatusesOfStaysWithTheTraeger(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -40,7 +43,7 @@ func TestTraegerEmailStatusesOfStaysWithTheTraeger(t *testing.T) {
 	mail(other, "holiday_closure_notice", "holiday_registration", 99, "closure:family")
 
 	raw := postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase)
-	require.NoError(t, testpkg.WithinTraeger(ctx, own, func(ctx context.Context) error {
+	read := func(ctx context.Context, layer string) {
 		rows, err := raw.TraegerEmailStatusesOf(ctx, own, "holiday_registration", []int64{41}, []string{"closure:family"})
 		require.NoError(t, err)
 		keys := make([]string, 0, len(rows))
@@ -50,7 +53,12 @@ func TestTraegerEmailStatusesOfStaysWithTheTraeger(t *testing.T) {
 			keys = append(keys, *row.IdempotencyKey)
 		}
 		assert.ElementsMatch(t, []string{"received:41", "closure:family"}, keys,
-			"the related mail and the keyed mail, without another entity type, another registration or another Träger")
+			"%s: the related mail and the keyed mail, without another entity type, another registration or another Träger", layer)
+	}
+	require.NoError(t, testpkg.WithinTraeger(ctx, own, func(ctx context.Context) error {
+		read(ctx, "with RLS")
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		read(ctx, "without RLS, by the statement's own filter")
 		return nil
 	}))
 }

@@ -8,9 +8,6 @@ import { parentsPortalUrl } from "~/lib/parent-url";
 /** Demo page of the website; the way back for an unknown or expired link. */
 export const DEMO_WEBSITE_URL = "https://moto-ogs.de/demo";
 
-/** Get-to-know page of the website behind „Kostenlos starten" (#3467). */
-export const DEMO_START_URL = "https://moto-ogs.de/start/?src=demo";
-
 /** Privacy policy of the website; it describes the demo recording (#3603). */
 export const DEMO_PRIVACY_URL = "https://moto-ogs.de/datenschutz";
 
@@ -22,7 +19,7 @@ export const DEMO_RECORDING_PRIVACY_LINK = "Mehr zum Datenschutz";
 
 // Kept in its own light module so screens outside the demo flow can ask
 // without loading the sign-in code below.
-export { isDemoBuild } from "~/lib/demo-build";
+export { DEMO_BOOKING_URL, isDemoBuild } from "~/lib/demo-build";
 
 /**
  * What the visitor sees the demo school as (#3467). The visitor has one

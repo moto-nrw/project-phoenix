@@ -142,6 +142,15 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   `initdb --set scram_iterations=1` (pgbench -C). The setting covers the
   superuser and every role created later. Full suite, same branch: 1153-1280
   busy CPU s against 1292-1440 (#7038).
+- A fault matrix with a private pool per cell pays new sessions per cell.
+  One shared pool per matrix with a handle per cell (`testpkg.CellPool`),
+  local, CI flags, three alternating runs (14.11.): `database/migrations`
+  3660 against 1115 sessions, Postgres 94 against 71 CPU s, binary 13.7
+  against 9.3 CPU s, wall 26 against 23 s; `dataimport/importtest` 1230
+  against 611 sessions, Postgres and wall within noise. The meal-write matrix
+  in `api` has nothing to gain: 1517 of its 1534 connections replace ones
+  its `bad_conn` and 57014 cells break on purpose. Count connections before
+  sharing a pool.
 - A typical feature pull request compiles more than it tests: `api` 21 times
   and `roots/owners` 7 times, 60 % of its compile CPU (#6914). `GOGC=400`
   for the toolchain alone saved 13 % of the build CPU locally; `-exec "env -u

@@ -18,7 +18,7 @@ import {
   DEMO_RESTART_TEXT,
   DEMO_RESTART_TITLE,
   DEMO_ROLES,
-  DEMO_START_URL,
+  DEMO_BOOKING_URL,
   type DemoRole,
   type DemoVisit,
   demoHandoffPath,
@@ -35,6 +35,7 @@ import { createLogger } from "~/lib/logger";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantSafe } from "~/lib/tenant-context";
+import { DemoBookingDialog } from "./demo-booking-dialog";
 import { DemoEveningRow } from "./demo-evening-notice";
 import { DemoWeekendNotice } from "./demo-weekend-notice";
 
@@ -49,7 +50,7 @@ const OPEN_MAILED_LINK =
 /**
  * Schmaler Streifen über jeder Seite der öffentlichen Demo (#3467): links
  * „Demo" und der Schulname, dann das Menü der Demo-Rolle, rechts als einziger
- * Knopf „Kostenlos starten". Es gibt ihn nur im Demo-Build, in der OGS-App
+ * Knopf „Termin buchen", der den Terminkalender als Dialog öffnet. Es gibt ihn nur im Demo-Build, in der OGS-App
  * und in der Eltern-App (#3468). Eine Rolle der jeweils anderen App öffnet
  * diese auf ihrem eigenen Host.
  *
@@ -102,6 +103,7 @@ function ActiveDemoBanner() {
   // open until the waiting room takes over.
   const [restartAsked, setRestartAsked] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const [bookingOpen, setBookingOpen] = useState(false);
 
   useEffect(() => {
     setVisit(readDemoVisit());
@@ -256,17 +258,35 @@ function ActiveDemoBanner() {
         <p className="text-sm text-gray-700">{DEMO_RESTART_TEXT}</p>
       </ConfirmationModal>
       <ButtonLink
-        href={DEMO_START_URL}
+        href={DEMO_BOOKING_URL}
         target="_blank"
         rel="noopener noreferrer"
         variant="success"
         // `compact`: Höhe des schmalen Streifens (#4346), dichte Leiste (#5529).
         size="compact"
         className="ml-auto shrink-0"
-        onClick={() => trackDemoEvent("demo_start_clicked", visit ?? null)}
+        onClick={(event) => {
+          trackDemoEvent("demo_start_clicked", visit ?? null);
+          // A modified click still opens the calendar in a new tab.
+          if (
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          ) {
+            return;
+          }
+          event.preventDefault();
+          setBookingOpen(true);
+        }}
       >
-        Kostenlos starten
+        Termin buchen
       </ButtonLink>
+      <DemoBookingDialog
+        isOpen={bookingOpen}
+        onClose={() => setBookingOpen(false)}
+      />
     </div>
   );
 }
