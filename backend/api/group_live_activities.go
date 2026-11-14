@@ -9,8 +9,8 @@ import (
 	"context"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/grouplive"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // groupLiveTimetable is the Timetable read of the planned participants and
