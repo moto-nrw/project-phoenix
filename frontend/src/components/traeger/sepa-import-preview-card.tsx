@@ -85,8 +85,11 @@ function SequenceCell({
 function NotesCell({ row }: Readonly<{ row: ImportRow }>) {
   const lines = [
     ...row.problems.map(importProblemText),
-    // A hint matters only for a row the import can take over.
-    ...(row.problems.length === 0 ? row.hints.map(importHintText) : []),
+    // A hint matters only for a row the import can take over; a sibling's
+    // row of the same mandate is not one (#7009).
+    ...(row.problems.length === 0 && row.status !== "same_mandate"
+      ? row.hints.map(importHintText)
+      : []),
   ];
   if (row.status === "duplicate") lines.unshift("Dieses Mandat gibt es schon.");
   if (row.status === "same_mandate" && row.sameMandateLine !== null) {

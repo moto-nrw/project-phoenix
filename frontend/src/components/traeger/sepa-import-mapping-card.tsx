@@ -100,6 +100,7 @@ export function SepaImportMappingCard({
             onChange={(payerKey) => onChange({ ...mapping, payerKey })}
             fullWidth
             wrap
+            minSegmentWidth={150}
           />
           <p className="mt-2 text-xs text-gray-500">
             {PAYER_KEY_HINTS[mapping.payerKey]}

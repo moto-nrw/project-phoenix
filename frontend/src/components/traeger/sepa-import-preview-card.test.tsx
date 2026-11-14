@@ -150,7 +150,11 @@ describe("SepaImportPreviewCard", () => {
           counts: { ...result.counts, same_mandate: 1 },
           rows: [
             row(2, {}),
-            row(3, { status: "same_mandate", sameMandateLine: 2 }),
+            row(3, {
+              status: "same_mandate",
+              sameMandateLine: 2,
+              hints: ["last_collection_unknown"],
+            }),
           ],
         }}
         answers={{}}
@@ -165,6 +169,9 @@ describe("SepaImportPreviewCard", () => {
       ).length,
     ).toBeGreaterThan(0);
     expect(screen.getAllByText("Gleiches Mandat").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByText(/Offen: Die letzte Abbuchung fehlt/),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Vorhanden 1" }),
     ).toBeInTheDocument();
