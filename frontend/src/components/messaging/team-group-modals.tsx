@@ -219,6 +219,7 @@ export function NewTeamGroupModal({
           onSave={() => formRef.current?.requestSubmit()}
           saving={saving}
           saveLabel="Gruppenchat anlegen"
+          saveTooltip="Legt den Gruppenchat an, die Mitglieder sehen ihn sofort."
           savingLabel="Wird angelegt..."
         />
       }
@@ -321,6 +322,7 @@ export function AddGroupMembersModal({
           onSave={() => formRef.current?.requestSubmit()}
           saving={saving}
           saveLabel="Hinzufügen"
+          saveTooltip="Nimmt die Personen auf, ältere Nachrichten sehen sie nicht."
           savingLabel="Wird hinzugefügt..."
         />
       }

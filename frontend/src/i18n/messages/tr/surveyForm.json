@@ -25,5 +25,7 @@
   "submitObject": "yanıtınız",
   "participated": "Yanıtlandı",
   "needsAnswer": "Yanıt gerekli",
-  "questionLabel": "Soru {number} / {total}"
+  "questionLabel": "Soru {number} / {total}",
+  "submitTooltip": "Yanıtınızı adınızla birlikte hemen okula gönderir.",
+  "submitTooltipAnonymous": "Yanıtınızı adınız olmadan hemen okula gönderir."
 }

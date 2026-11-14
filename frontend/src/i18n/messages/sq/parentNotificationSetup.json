@@ -16,5 +16,9 @@
   "closeGuide": "Mbyll udhëzuesin",
   "close": "Mbyll dialogun",
   "introStaff": "Aktivizoni njoftimet. Atëherë moto ju njofton për ngjarje të rëndësishme, edhe kur aplikacioni është i mbyllur.",
-  "enabling": "Po aktivizohet …"
+  "enabling": "Po aktivizohet …",
+  "remindLaterTooltip": "Mbyll dritaren, moto ju kujton përsëri pas një jave.",
+  "enableTooltip": "Aktivizon njoftimet për të gjitha temat në këtë pajisje.",
+  "installAppTooltip": "Shfletuesi instalon moto si aplikacion në këtë pajisje.",
+  "closeGuideTooltip": "Mbyll udhëzimin, moto ju kujton përsëri pas një dite."
 }
