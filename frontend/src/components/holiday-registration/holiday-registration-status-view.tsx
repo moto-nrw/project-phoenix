@@ -362,6 +362,7 @@ function WeekRow({
   const details = [
     care,
     week.hostSchoolName ? t("hostSchool", { school: week.hostSchoolName }) : "",
+    week.lunch ? tr("summaryLunch") : "",
   ].filter(Boolean);
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">

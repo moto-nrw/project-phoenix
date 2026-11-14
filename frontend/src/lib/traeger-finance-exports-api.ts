@@ -704,7 +704,13 @@ export async function fetchInvoiceHistory(
 }
 
 /** Where a Leistung or an Angebot books (#4821). */
-export type RevenueScope = "care" | "meals" | "holiday" | "offering";
+export type RevenueScope =
+  | "care"
+  | "meals"
+  | "holiday"
+  /** The lunch of the holiday care (#5631). */
+  | "holiday_meals"
+  | "offering";
 /** Whose cost center: a school (KOST1), the holiday care (KOST1), an Angebot (KOST2). */
 export type CostCenterScope = "school" | "holiday" | "offering";
 

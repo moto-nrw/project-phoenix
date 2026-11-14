@@ -123,6 +123,13 @@ type HolidayRegistrationBooking struct {
 	// Days are the booked days of a week by days, empty for a whole week
 	// (#4701).
 	Days []calendar.Date `json:"days,omitempty"`
+	// Lunch says the child eats lunch on the care days of the booking
+	// (#5631). LunchDays is the number of lunches and LunchPriceCents their
+	// price now: the price of one lunch of the week times LunchDays. Both
+	// are zero without lunch.
+	Lunch           bool  `json:"lunch"`
+	LunchDays       int   `json:"lunch_days"`
+	LunchPriceCents int64 `json:"lunch_price_cents"`
 	// Placement is HolidayPlacementPlaced, HolidayPlacementWaitlisted
 	// (#4699) or HolidayPlacementPending (#4700); WaitlistPosition is the place in the waiting list of the
 	// week, from 1, for a waitlisted booking of a registration that counts.
@@ -297,6 +304,8 @@ type HolidayBookingChange struct {
 	// Days are the booked days of a week by days (#4701); the host school's
 	// care windows of the trail keep to them.
 	Days []calendar.Date `json:"days,omitempty"`
+	// Lunch is the lunch of the booking (#5631).
+	Lunch bool `json:"lunch,omitempty"`
 }
 
 // HolidayDebtorNumberChange is the debtor number before and after a

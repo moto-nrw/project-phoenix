@@ -69,14 +69,14 @@ func (h *HolidayRegistrationReview) enqueueAcceptance(ctx context.Context, organ
 // holidayAcceptanceChildren lists each child with its weeks: those with a
 // place apart from those on the waiting list and those the Büro still
 // decides on.
-func holidayAcceptanceChildren(registration enrollment.HolidayRegistrationDetail, line func(weekID, timeModelID int64, days []calendar.Date) string) []enrollment.HolidayRegistrationMailChild {
+func holidayAcceptanceChildren(registration enrollment.HolidayRegistrationDetail, line func(weekID, timeModelID int64, days []calendar.Date, lunch bool) string) []enrollment.HolidayRegistrationMailChild {
 	children := make([]enrollment.HolidayRegistrationMailChild, 0, len(registration.Children))
 	for _, child := range registration.Children {
 		mailChild := enrollment.HolidayRegistrationMailChild{
 			Name: child.FirstName + " " + child.LastName, Guest: child.HomeSchoolID == nil, Weeks: []string{},
 		}
 		for _, booking := range child.Bookings {
-			week := line(booking.WeekID, booking.TimeModelID, booking.Days)
+			week := line(booking.WeekID, booking.TimeModelID, booking.Days, booking.Lunch)
 			switch booking.Placement {
 			case enrollment.HolidayPlacementWaitlisted:
 				mailChild.WaitlistWeeks = append(mailChild.WaitlistWeeks, week)

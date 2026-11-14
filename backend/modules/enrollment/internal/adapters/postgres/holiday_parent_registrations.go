@@ -45,7 +45,8 @@ const (
 	// registrations with its booked weeks; a child without a booking keeps
 	// one row without a week.
 	holidayParentRegistrationWeeksQuery = `SELECT child.holiday_registration_id AS registration_id, child.position, child.first_name,
-			week.starts_on, week.ends_on, model.name AS time_model_name, booking.placement
+			week.starts_on, week.ends_on, model.name AS time_model_name, booking.placement,
+			COALESCE(booking.lunch AND week.lunch_price_cents IS NOT NULL, FALSE) AS lunch
 		FROM enrollment.holiday_registration_children AS child
 		JOIN enrollment.holiday_registrations AS registration
 			ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
@@ -120,6 +121,7 @@ type holidayParentRegistrationWeekRow struct {
 	EndsOn         *calendar.Date `bun:"ends_on"`
 	TimeModelName  *string        `bun:"time_model_name"`
 	Placement      *string        `bun:"placement"`
+	Lunch          bool           `bun:"lunch"`
 }
 
 // HolidayParentRegistrations reads the account's registrations, newest
@@ -181,7 +183,7 @@ func addHolidayParentRegistrationWeeks(registrations []enrollment.HolidayParentR
 			continue
 		}
 		child := &registration.Children[len(registration.Children)-1]
-		week := enrollment.HolidayParentRegistrationWeek{FirstDay: *row.StartsOn, LastDay: *row.EndsOn}
+		week := enrollment.HolidayParentRegistrationWeek{FirstDay: *row.StartsOn, LastDay: *row.EndsOn, Lunch: row.Lunch}
 		if row.TimeModelName != nil {
 			week.TimeModelName = *row.TimeModelName
 		}

@@ -12,7 +12,11 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
-import { holidayDayList } from "~/lib/holiday-days";
+import {
+  holidayDayDate,
+  holidayDayList,
+  holidayWeekdayLong,
+} from "~/lib/holiday-days";
 import { formatDate } from "~/lib/date-helpers";
 import {
   downloadHolidayParticipants,
@@ -71,6 +75,10 @@ const HOME_SCHOOL_TAB = "andere-ogs";
 // bestätigt hat, stehen im Reiter „Kinder bei anderen OGS“ (#6679): Die
 // Heimatschule plant damit und informiert die Familien. Richtet die OGS
 // selbst keine Woche aus, zeigt die Seite nur diese Kinder.
+//
+// Bietet der Träger in der Woche Mittagessen an (#5631), steht bei jedem
+// Kind, ob es isst, und eine Karte nennt die Essen je Tag für die Bestellung.
+// Einen Preis sieht die OGS nicht: Das Essen rechnet der Träger ab.
 //
 // Bauart 3 (Werkzeug): eine Liste zum Vorbereiten und Ausdrucken, kein
 // Objekt, das hier bearbeitet wird.
@@ -172,6 +180,18 @@ const participantColumns = (
           },
         ]
       : []),
+    ...(list.week.lunchOffered
+      ? [
+          {
+            key: "lunch",
+            header: "Mittagessen",
+            render: (child: HolidayParticipant) =>
+              child.lunch ? "Ja" : "Nein",
+            sortValue: (child: HolidayParticipant) =>
+              child.lunch ? "Ja" : "Nein",
+          },
+        ]
+      : []),
     ...(withSecondGuardian
       ? [
           {
@@ -249,6 +269,38 @@ const homeSchoolColumns: DataTableColumn<HolidayHomeSchoolCount>[] = [
     render: (school) => school.count,
   },
 ];
+
+type LunchDay = NonNullable<HostedHolidayWeek["lunches"]>[number];
+
+const lunchColumns: DataTableColumn<LunchDay>[] = [
+  {
+    key: "day",
+    header: "Tag",
+    stacked: "title",
+    render: (day) =>
+      `${holidayWeekdayLong(day.date)}, ${holidayDayDate(day.date)}`,
+  },
+  {
+    key: "count",
+    header: "Essen",
+    align: "right",
+    stacked: "meta",
+    render: (day) => day.count,
+  },
+];
+
+/**
+ * "20 Essen sind für diese Woche gebucht. …": the list names only the days
+ * with care; a public holiday or a closing day of the school has no lunch.
+ */
+function lunchTotalText(lunches: readonly LunchDay[]): string {
+  const total = lunches.reduce((sum, day) => sum + day.count, 0);
+  const booked =
+    total === 1
+      ? "1 Essen ist für diese Woche gebucht."
+      : `${total} Essen sind für diese Woche gebucht.`;
+  return `${booked} Tage ohne Betreuung stehen nicht in der Liste, zum Beispiel ein Schließtag.`;
+}
 
 export default function FerienwochenPage() {
   const { isReady, isLoading: permissionLoading } = useRequirePermission([
@@ -466,7 +518,13 @@ function ParticipantList({
   );
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div
+        className={
+          list.week.lunchOffered
+            ? "grid grid-cols-1 gap-6 lg:grid-cols-3"
+            : "grid grid-cols-1 gap-6 lg:grid-cols-2"
+        }
+      >
         <SectionCard title="Je Zeitmodell">
           <DataTable
             columns={timeModelColumns}
@@ -484,6 +542,18 @@ function ParticipantList({
             }
           />
         </SectionCard>
+        {list.week.lunchOffered ? (
+          <SectionCard
+            title="Mittagessen je Tag"
+            description={lunchTotalText(list.week.lunches ?? [])}
+          >
+            <DataTable
+              columns={lunchColumns}
+              rows={[...(list.week.lunches ?? [])]}
+              getRowKey={(day) => day.date}
+            />
+          </SectionCard>
+        ) : null}
       </div>
       <SectionCard
         title="Kinder"

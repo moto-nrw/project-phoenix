@@ -3488,6 +3488,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Öffnen Sie `Ferienwochen`.",
       "Richtet Ihre OGS mehrere Wochen aus, wählen Sie oben die Woche.",
       "Lesen Sie unter `Je Zeitmodell` und `Je Heimatschule` die Zahlen.",
+      "Gibt es in der Woche Mittagessen, steht unter `Mittagessen je Tag`, wie viele Essen für jeden Tag gebucht sind. Tage ohne Betreuung stehen nicht in der Liste, zum Beispiel ein Schließtag.",
       "Kommen Kinder Ihrer OGS? Dann steht unter `Kinder Ihrer OGS`, ob sie eingeplant sind.",
       "Unter `Kinder` steht jedes Kind mit Geburtsdatum, Heimatschule und Zeitmodell.",
       "Bei einem Kind Ihrer OGS öffnen Sie mit `Akte öffnen` seine Kinderakte.",
@@ -3501,6 +3502,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Die Woche steht auch im `Betreuungsplan` und im `Dienstplan`: im Kopf jedes Tages mit `Ferienbetreuung`, der Zahl der Kinder und der Betreuungszeit. Ein Klick darauf öffnet diese Seite.",
       "Über das Menü mit den drei Punkten laden Sie die Liste `Als Excel herunterladen` oder `Als CSV herunterladen`.",
       "Bei Tagesbuchung nennt die Spalte `Tage` die gebuchten Tage. Das gilt auch für Excel und CSV.",
+      "Bietet der Träger Mittagessen an, steht in der Spalte `Mittagessen` bei jedem Kind `Ja` oder `Nein`. Ein Kind mit `Ja` isst an jedem seiner gebuchten Tage. Die Spalte steht auch in Excel und CSV. Das Essen rechnet der Träger mit den Eltern ab.",
       "Ein `Feriengast` geht auf keine Schule Ihres Trägers. In Klammern steht die Schule, die die Eltern genannt haben.",
       "Steht in einer Spalte `–`, haben die Eltern die Frage nicht beantwortet.",
       "Gesundheitsangaben sehen Sie nur, wenn die Eltern zugestimmt haben. Sie stehen nur in der Liste, nicht in der Excel- oder CSV-Datei.",
@@ -6632,6 +6634,7 @@ export const parentHolidayRegistrationTopic =
         "Wählen Sie die `Schule` Ihres Kindes. Steht sie nicht in der Liste? Wählen Sie `Eine andere Schule`.",
         "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt. Bei jeder Zeit steht der Preis pro Woche. Gibt es eine Woche an mehreren Schulen, wählen Sie auch die Schule.",
         "Steht bei der Zeit „je Tag“? Dann wählen Sie darunter die Tage, an denen Ihr Kind kommt. Der Preis gilt je Tag.",
+        "Steht unter der Woche `Mit Mittagessen`? Setzen Sie den Haken, wenn Ihr Kind dort essen soll. Darunter steht, was das Essen kostet.",
         "Weitere Kinder fügen Sie mit `Geschwisterkind hinzufügen` hinzu.",
         "Tragen Sie `Ihre Angaben` ein.",
         "Fragt der Träger die `Anschrift` ab, tragen Sie Straße, PLZ und Ort ein. Die Anschrift steht auf der Rechnung.",
@@ -6666,6 +6669,7 @@ export const parentHolidayRegistrationTopic =
         "Manche Ferien haben eine Grenze, zum Beispiel höchstens 5 Tage je Kind. Dann steht sie über den Wochen. Eine ganze Woche zählt mit allen Tagen von Montag bis Freitag. Melden Sie Ihr Kind ein zweites Mal an, zählen die Tage beider Anmeldungen zusammen.",
         "Ein Feiertag oder Schließtag ist bei den Tagen durchgestrichen. An diesem Tag ist keine Betreuung, Sie können ihn nicht wählen.",
         "Steht unter den Tagen `Schon voll`? An diesen Tagen sind alle Plätze vergeben. Wählen Sie einen davon, kommt Ihr Kind für diese Woche auf die Warteliste.",
+        "Mit `Mit Mittagessen` isst Ihr Kind an jedem gebuchten Tag der Woche. Einzelne Essen abwählen geht nicht. Das Essen steht unter `Beitrag` als eigener Betrag. Ermäßigung und Befreiung gelten nur für die Betreuung, nicht für das Essen.",
         "Der Preis bei den Wochen gilt ohne Ermäßigung oder Befreiung. Geschwister und Leistungsbezug rechnet moto erst unter `Beitrag` ein.",
         "Der Beitrag gilt erst, wenn der Träger die Anmeldung bestätigt. Bei Leistungsbezug braucht der Träger einen Nachweis.",
         "Der Nachweis ist freiwillig. Sie können ihn auch später beim Träger abgeben.",
@@ -12002,7 +12006,8 @@ export const traegerDatevExportTopic =
           steps: [
             "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
             "Wählen Sie oben rechts `Konten und Kostenstellen`.",
-            "Unter `Erlöskonten` wählen Sie bei `Monatsbeiträge`, `Mensa` oder `Ferienbetreuung` `Ändern`. Tragen Sie das Konto ein und wählen Sie `Speichern`. Ein Angebot kann ein eigenes Konto haben.",
+            "Unter `Erlöskonten` wählen Sie bei `Monatsbeiträge`, `Mensa`, `Ferienbetreuung` oder `Mittagessen in den Ferien` `Ändern`. Tragen Sie das Konto ein und wählen Sie `Speichern`. Ein Angebot kann ein eigenes Konto haben.",
+            "Ohne eigenes Konto bucht `Mittagessen in den Ferien` auf das Konto der `Ferienbetreuung`. Daneben steht dann `wie Ferienbetreuung`.",
             "Unter `Kostenstellen (KOST1)` wählen Sie bei der Schule `Neue Kostenstelle`. Wählen Sie den Tag bei `Gilt ab` und tragen Sie die `Kostenstelle` ein.",
             "Eine Ferienwoche bucht auf die Kostenstelle der Schule, an der sie stattfindet. Die Kostenstelle bei `Ferienbetreuung` ist der Ersatz, wenn diese Schule keine hat.",
             "Eine `Zweite Kostenstelle (KOST2)` je Angebot tragen Sie nur ein, wenn Ihr Steuerbüro sie braucht.",
@@ -12529,6 +12534,7 @@ export const traegerHolidayContributionTopic =
         "Haben zwei Kinder denselben Rang, zählt die früher eingegangene Anmeldung. Danach zählt die Reihenfolge im Formular.",
         "Eine geänderte Einstellung gilt nur für Anmeldungen, die danach bestätigt werden. Ist von Geschwistern schon eine Anmeldung bestätigt, rechnen alle diese Geschwister weiter wie bisher.",
         "Es gelten die Regeln vom ersten gebuchten Tag der Anmeldung.",
+        "Hat ein Kind Mittagessen gebucht, steht es als eigene Zeile `Mittagessen` im Beitrag. Die Zeile nennt die Zahl der Essen und den Preis für ein Essen. Geschwisterermäßigung, Befreiung und Kostenübernahme gelten nur für die Betreuung. Das Essen zahlt die Familie voll.",
         "Eine Regel gilt nur für Anmeldungen, die nach der Änderung bestätigt werden. Bestätigte Anmeldungen behalten ihren Beitrag.",
         "Ob eine Familie befreit ist oder ein Kostenträger bezahlt, entscheidet das Träger-Büro beim Bestätigen. Für die Befreiung wählt es dort `Von der Zahlung befreien (Leistungsbezug)`. Diese Wahl gibt es nur, wenn eine Befreiungsregel gilt. Es zählt der erste gebuchte Tag.",
         "Befreiung heißt: Niemand bezahlt. Bei einem Kostenträger bezahlt die Familie nichts, aber der Kostenträger bezahlt den Betrag. Am Anfang ist das der Betrag nach der Geschwisterermäßigung. Sie können auch den vollen Preis wählen.",
@@ -12667,7 +12673,10 @@ export const traegerHolidayFormTopic =
     };
   } satisfies typeof authored_traegerHolidayFormTopic;
 
-/** `/traeger/ferien` (#4659): Ferienzeitraum mit Wochen und Zeitmodellen. */
+/**
+ * `/traeger/ferien` (#4659): Ferienzeitraum mit Wochen und Zeitmodellen.
+ * Mittagessen je Woche mit Preis für ein Essen (#5631).
+ */
 export const traegerHolidayPeriodTopic =
   function traegerHolidayPeriodTopic(): HelpTopic {
     return {
@@ -12692,7 +12701,7 @@ export const traegerHolidayPeriodTopic =
             "Tragen Sie den `Name des Ferienzeitraums` ein, zum Beispiel Osterferien 2027.",
             "Tragen Sie `Anmeldebeginn` und `Anmeldeschluss` ein.",
             "Ist die Anmeldung verbindlich? Dann lassen Sie den Haken bei `Die Anmeldung ist verbindlich.`.",
-            "Schreiben Sie unter `Hinweise für Eltern`, was Eltern wissen müssen. Zum Beispiel, ob es Mittagessen gibt oder ein Lunchpaket nötig ist.",
+            "Schreiben Sie unter `Hinweise für Eltern`, was Eltern wissen müssen. Zum Beispiel, ob ein Lunchpaket nötig ist.",
             "Soll ein Kind nur eine bestimmte Zahl an Tagen kommen? Tragen Sie die Zahl bei `Höchstens Tage je Kind` ein, zum Beispiel 5. Ohne Grenze lassen Sie das Feld leer.",
             "Wählen Sie bei `Wie werden die Plätze vergeben?` die Karte `Nach Eingang` oder `Nach Kriterien`. Nach Eingang bekommt zuerst einen Platz, wer sich zuerst anmeldet. Nach Kriterien entscheidet Ihr Büro.",
           ],
@@ -12705,6 +12714,7 @@ export const traegerHolidayPeriodTopic =
             "Liegt ein Feiertag oder Schließtag der Schule in der Woche, zeigt moto einen Hinweis. Bei `Ganze Woche` wählen Sie dann andere Tage oder `Einzelne Tage`.",
             "Wählen Sie bei `Buchung`, wie Eltern die Woche buchen: `Ganze Woche` oder `Einzelne Tage`. Bei einzelnen Tagen wählen Eltern Tage von Montag bis Freitag. Unter `Buchbare Tage` sehen Sie, welche Tage Eltern buchen können. Ein Tag ohne Betreuung zeigt „–“ und den Grund.",
             "Tragen Sie die Zeitmodelle ein, zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“. Jedes Zeitmodell hat `Beginn`, `Ende` und einen Preis. Bei `Ganze Woche` ist es der `Preis in Euro` für die Woche, bei `Einzelne Tage` der `Preis je Tag in Euro`.",
+            "Gibt es in der Woche Mittagessen? Schalten Sie `Mittagessen anbieten` ein. Tragen Sie den `Preis für ein Essen in Euro` ein, zum Beispiel 4,30.",
             "Weitere Wochen fügen Sie mit `Woche hinzufügen` hinzu.",
             "Dieselben Tage an mehreren Schulen? Legen Sie je Schule eine Woche mit denselben Tagen an. Eltern wählen dann für ihr Kind eine Schule. An derselben Schule dürfen sich Wochen nicht überschneiden.",
             "Wählen Sie `Speichern`.",
@@ -12742,11 +12752,15 @@ export const traegerHolidayPeriodTopic =
         "Ein Zeitmodell mit Anmeldungen lässt sich nicht entfernen. Wählen Sie dann `Archivieren`. Neu buchen kann es danach niemand mehr. Gebuchte Tage behalten es. Zurückholen lässt es sich nicht.",
         "`Höchstens Tage je Kind` gilt für alle Wochen zusammen. Es gilt auch, wenn Eltern dasselbe Kind ein zweites Mal anmelden. moto erkennt das Kind an der E-Mail-Adresse der Eltern, am Namen und am Geburtsdatum. Eine ganze Woche zählt mit allen Tagen von Montag bis Freitag. Eltern dürfen die Tage auf mehrere Wochen verteilen. Senken Sie die Zahl später, behalten Kinder ihre gebuchten Tage.",
         "Bei `Einzelne Tage` zahlt die Familie den Preis je Tag mal die gebuchten Tage.",
+        "Mit `Mittagessen anbieten` wählen Eltern das Essen für jedes Kind und jede Woche dazu. Das Kind isst an jedem gebuchten Tag. Bei einer ganzen Woche sind das die Tage von Montag bis Freitag. Unter dem Preis steht, was das zusammen kostet.",
+        "Das Mittagessen steht als eigener Betrag im Beitrag und auf der Rechnung. Geschwisterermäßigung, Befreiung und Kostenübernahme gelten nur für die Betreuung, nicht für das Essen.",
+        "Ändern Sie den Preis für ein Essen, gilt er für neue Anmeldungen. Bestätigte Anmeldungen behalten ihren Preis.",
         "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Abrechnungsvorgaben` fest.",
       ],
       differences: [
         "`Nach Eingang` und `Nach Kriterien` lassen sich nicht wählen? Es gibt schon Anmeldungen. Die Platzvergabe bleibt dann so.",
         "`Ganze Woche` und `Einzelne Tage` lassen sich nicht wählen? Für die Woche gibt es schon Anmeldungen. Die Buchungsart bleibt dann so. Bei einzelnen Tagen bleiben auch die Tage der Woche.",
+        "`Mittagessen anbieten` lässt sich nicht ausschalten? Für die Woche ist schon Mittagessen gebucht. Das Angebot bleibt dann. Den Preis können Sie ändern.",
         "Sie sehen in der Navigation kein `Ferienbetreuung`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
       ],
       troubleshootingDetails: [
@@ -12955,6 +12969,7 @@ export const traegerHolidayRegistrationReviewTopic =
             "Wählen Sie beim Kind `Umbuchen`.",
             "Wählen Sie je Woche ein Zeitmodell oder `Nicht angemeldet`. Gibt es eine Woche an mehreren Schulen, wählen Sie auch die Schule.",
             "Wird die Woche tageweise gebucht, wählen Sie darunter die Tage. Mehr Tage als `Höchstens Tage je Kind` nimmt moto nicht an.",
+            "Bietet die Woche Mittagessen an, steht darunter `Mit Mittagessen`. Setzen oder entfernen Sie den Haken.",
             "Wählen Sie `Speichern`.",
             "Eine Woche, die das Kind nicht mehr bucht, gibt ihren Platz frei. Das nächste Kind der Warteliste rückt sofort nach. Eine neue Woche bekommt einen Platz, wenn einer frei ist. Sonst kommt das Kind dort auf die Warteliste.",
             "Kommt bei einer Woche mit einzelnen Tagen ein Tag dazu, braucht das Kind an jedem Tag einen Platz. Fehlt einer, wartet die ganze Woche wieder. Fallen nur Tage weg, behält das Kind seinen Platz.",
@@ -12996,6 +13011,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Vergibt der Ferienzeitraum die Plätze nach Kriterien? Dann steht bei einer Woche zuerst `Platz offen`. Bestätigen geht erst, wenn Ihr Büro im Reiter `Vergabe` entschieden hat. Unter `Angaben für die Vergabe` sehen Sie die Antworten der Eltern und prüfen sie mit `Prüfen`.",
         "Bei jeder Woche eines Kindes steht `Platz` oder `Warteliste`. Auf der Warteliste steht der Rang dabei, zum Beispiel `Warteliste, Platz 2`. Stornieren Sie eine Anmeldung, rückt das nächste Kind der Warteliste sofort nach.",
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
+        "Ändern Sie das Mittagessen einer bestätigten Anmeldung, berechnet moto den Beitrag neu. Ist die Rechnung schon verschickt, berechnen Sie den Unterschied als Korrektur in der Abrechnung.",
         "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
         "Gesundheitsangaben sieht in der Einzelansicht nur die Rolle Verwaltung. Jedes Öffnen steht im `Zugriffsprotokoll` des Trägers.",
         "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",

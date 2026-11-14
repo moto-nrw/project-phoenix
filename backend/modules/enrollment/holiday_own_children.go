@@ -46,7 +46,9 @@ type HolidayOwnChildSource struct {
 	TimeModelStarts string
 	TimeModelEnds   string
 	// Days names the booked dates; empty books the whole week.
-	Days      []calendar.Date
+	Days []calendar.Date
+	// Lunch says the child eats lunch on its care days (#5631).
+	Lunch     bool
 	Emergency []HolidayGuestContact
 	Pickup    []HolidayGuestContact
 }
@@ -99,12 +101,14 @@ type HolidayStudentRegistration struct {
 	StartsOn   calendar.Date `json:"starts_on"`
 	EndsOn     calendar.Date `json:"ends_on"`
 	// Days are the booked days of a week by days, empty for the whole week.
-	Days            []calendar.Date       `json:"days"`
-	TimeModelName   string                `json:"time_model_name"`
-	TimeModelStarts string                `json:"time_model_starts_at"`
-	TimeModelEnds   string                `json:"time_model_ends_at"`
-	Emergency       []HolidayGuestContact `json:"emergency_contacts"`
-	Pickup          []HolidayGuestContact `json:"pickup_contacts"`
+	Days            []calendar.Date `json:"days"`
+	TimeModelName   string          `json:"time_model_name"`
+	TimeModelStarts string          `json:"time_model_starts_at"`
+	TimeModelEnds   string          `json:"time_model_ends_at"`
+	// Lunch says the child eats lunch on its care days (#5631).
+	Lunch     bool                  `json:"lunch"`
+	Emergency []HolidayGuestContact `json:"emergency_contacts"`
+	Pickup    []HolidayGuestContact `json:"pickup_contacts"`
 }
 
 // HolidayOwnChildAssignment says, for one confirmed child of a hosted week
@@ -162,7 +166,9 @@ type HolidayHomeSchoolBooking struct {
 	TimeModelStarts string        `json:"time_model_starts_at"`
 	TimeModelEnds   string        `json:"time_model_ends_at"`
 	// Days are the booked days of a week by days, empty for the whole week.
-	Days       []calendar.Date `json:"days"`
-	Assignment string          `json:"assignment"`
-	StudentID  *int64          `json:"student_id"`
+	Days []calendar.Date `json:"days"`
+	// Lunch says the child eats lunch at the hosting school (#5631).
+	Lunch      bool   `json:"lunch"`
+	Assignment string `json:"assignment"`
+	StudentID  *int64 `json:"student_id"`
 }

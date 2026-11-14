@@ -378,7 +378,10 @@ FROM (
 	WHERE meal.organization_id = ?0 AND invoice.organization_id = ?0 AND invoice.run_id = ?1
 ) AS part
 ORDER BY part.document_id, part.part_order, part.position`
-	holidayBookingPartsQuery = `SELECT position.document_id, 'holiday' AS kind, 0 AS school_id, 0 AS care_offering_id,
+	// A meal position is a part of its own kind (#5631): the reductions of
+	// the child's care are not netted with its lunch.
+	holidayBookingPartsQuery = `SELECT position.document_id,
+	CASE WHEN position.kind = 'meal' THEN 'holiday_meal' ELSE 'holiday' END AS kind, 0 AS school_id, 0 AS care_offering_id,
 	document.service_from AS day, position.amount_cents, position.revenue_account, position.cost_center,
 	position.cost_center_2, position.accounts_frozen, position.cost_center_fallback, position.week_starts_on, position.week_ends_on,
 	position.holiday_registration_child_id AS child_id

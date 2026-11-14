@@ -503,6 +503,8 @@ export const ERROR_CATALOG = {
         "Die Angaben zu diesem Feriengast sind nicht mehr da. Sie bleiben nur bis 7 Tage nach der Ferienwoche.",
       "enrollment.holiday_host_school_outside_traeger":
         "Diese Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie eine Schule aus der Liste.",
+      "enrollment.holiday_lunch_booked":
+        "Für diese Woche ist schon Mittagessen gebucht. Darum bleibt das Angebot bestehen. Den Preis können Sie ändern.",
       "enrollment.holiday_period_incomplete":
         "Der Ferienzeitraum braucht mindestens eine Woche. Jede Woche braucht mindestens ein Zeitmodell.",
       "enrollment.holiday_period_invalid":
@@ -2337,6 +2339,8 @@ export const ERROR_CATALOG = {
         "The details of this holiday guest are no longer available. They are kept only until 7 days after the holiday week.",
       "enrollment.holiday_host_school_outside_traeger":
         "This school does not belong to your Träger. Please choose a school from the list.",
+      "enrollment.holiday_lunch_booked":
+        "Lunch is already booked for this week. That is why the offer stays. You can change the price.",
       "enrollment.holiday_period_incomplete":
         "The holiday period needs at least one week. Every week needs at least one time model.",
       "enrollment.holiday_period_invalid": "Please check the marked fields.",
@@ -3038,6 +3042,8 @@ export const ERROR_CATALOG = {
         "В эти каникулы ребёнок может прийти не больше {limit} дней. Всего будет дней: {days}. Из них в других заявках: {elsewhere}. Выберите меньше дней.",
       "enrollment.holiday_child_day_limit_public":
         "В эти каникулы ребёнка можно записать не более чем на {limit} дней. Лимит действует для всех заявок ребёнка вместе. Выберите меньше дней или обратитесь в офис организатора.",
+      "enrollment.holiday_lunch_booked":
+        "На эту неделю уже заказан обед. Поэтому предложение остаётся. Цену можно изменить.",
       "enrollment.holiday_registration_closed":
         "Запись на эти каникулы не открыта. Пожалуйста, проверьте начало и конец записи.",
       "enrollment.holiday_registration_form_changed":
@@ -3650,6 +3656,8 @@ export const ERROR_CATALOG = {
         "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. Gjithsej do të ishin {days} ditë. Ditë në regjistrime të tjera: {elsewhere}. Ju lutemi zgjidhni më pak ditë.",
       "enrollment.holiday_child_day_limit_public":
         "Një fëmijë mund të regjistrohet për më së shumti {limit} ditë gjatë këtyre pushimeve. Kufiri vlen për të gjitha regjistrimet e fëmijës së bashku. Ju lutemi zgjidhni më pak ditë ose kontaktoni zyrën e ofruesit.",
+      "enrollment.holiday_lunch_booked":
+        "Për këtë javë është rezervuar tashmë dreka. Prandaj oferta mbetet. Çmimin mund ta ndryshoni.",
       "enrollment.holiday_registration_closed":
         "Regjistrimi për këto pushime nuk është i hapur. Ju lutemi kontrolloni fillimin dhe mbarimin e regjistrimit.",
       "enrollment.holiday_registration_form_changed":
@@ -4256,6 +4264,8 @@ export const ERROR_CATALOG = {
         "W te ferie dziecko może przyjść najwyżej {limit} dni. Łącznie byłoby to {days} dni. Dni w innych zgłoszeniach: {elsewhere}. Wybierz mniej dni.",
       "enrollment.holiday_child_day_limit_public":
         "Dziecko może być zapisane na najwyżej {limit} dni w te ferie. Limit dotyczy łącznie wszystkich zgłoszeń dziecka. Proszę wybrać mniej dni lub skontaktować się z biurem organizatora.",
+      "enrollment.holiday_lunch_booked":
+        "Na ten tydzień zarezerwowano już obiad. Dlatego oferta pozostaje. Cenę można zmienić.",
       "enrollment.holiday_registration_closed":
         "Zgłoszenia na te ferie nie są otwarte. Sprawdź początek i koniec zgłoszeń.",
       "enrollment.holiday_registration_form_changed":
@@ -4864,6 +4874,8 @@ export const ERROR_CATALOG = {
         "Bu tatilde bir çocuk en fazla {limit} gün gelebilir. Toplam {days} gün olurdu. Diğer kayıtlardaki gün sayısı: {elsewhere}. Lütfen daha az gün seçin.",
       "enrollment.holiday_child_day_limit_public":
         "Bir çocuk bu tatilde en fazla {limit} gün için kaydedilebilir. Bu sınır çocuğun tüm kayıtları için birlikte geçerlidir. Lütfen daha az gün seçin veya hizmet sağlayıcının ofisine başvurun.",
+      "enrollment.holiday_lunch_booked":
+        "Bu hafta için öğle yemeği zaten rezerve edildi. Bu nedenle teklif kalır. Fiyatı değiştirebilirsiniz.",
       "enrollment.holiday_registration_closed":
         "Bu tatil için kayıt açık değil. Lütfen kaydın başlangıç ve bitiş tarihlerini kontrol edin.",
       "enrollment.holiday_registration_form_changed":
@@ -5465,6 +5477,8 @@ export const ERROR_CATALOG = {
         "У ці канікули дитина може прийти не більше {limit} днів. Загалом буде днів: {days}. З них в інших заявках: {elsewhere}. Оберіть менше днів.",
       "enrollment.holiday_child_day_limit_public":
         "На ці канікули дитину можна записати щонайбільше на {limit} днів. Обмеження діє для всіх заявок дитини разом. Виберіть менше днів або зверніться до офісу організатора.",
+      "enrollment.holiday_lunch_booked":
+        "На цей тиждень уже замовлено обід. Тому пропозиція залишається. Ціну можна змінити.",
       "enrollment.holiday_registration_closed":
         "Запис на ці канікули не відкритий. Будь ласка, перевірте початок і кінець запису.",
       "enrollment.holiday_registration_form_changed":

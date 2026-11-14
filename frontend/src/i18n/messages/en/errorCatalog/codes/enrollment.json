@@ -154,6 +154,7 @@
   "holiday_registration_status_not_found": "This link to a holiday registration does not exist. Please use the link from your email.",
   "holiday_week_booked": "This week already has registrations. That is why the week and its booked time models cannot be removed. You can archive a booked time model instead. Then nobody can book it any more.",
   "holiday_booking_unit_booked": "There are already registrations for this week. That is why the way it is booked and, for single days, its dates stay as they are.",
+  "holiday_lunch_booked": "Lunch is already booked for this week. That is why the offer stays. You can change the price.",
   "holiday_child_day_limit": "In these holidays a child can come on at most {limit} days. The total would be {days} days. Days in other registrations: {elsewhere}. Please choose fewer days.",
   "holiday_child_day_limit_public": "A child can book at most {limit} days during these holidays. This limit applies across all registrations for the child. Please select fewer days or contact the provider’s office.",
   "holiday_weeks_booked_together": "A child is already registered for both weeks. That is why the weeks cannot fall on the same days.",

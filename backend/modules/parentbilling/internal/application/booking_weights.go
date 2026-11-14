@@ -11,7 +11,9 @@ import (
 // not funding. Both-scope shares take care first, just as the rule chain
 // did; their stored remainder belongs to meals. Review removals apply after
 // funding, in the same order as the invoice calculation. Holiday reductions
-// are netted within each child before its weeks are grouped by accounts.
+// are netted within each child before its weeks are grouped by accounts;
+// the lunch of a holiday week (BookingPartHolidayMeal) stands outside the
+// chain and keeps its amount (#5631).
 func bookingPartsAfterFunding(invoice parentbilling.ExportInvoice) []parentbilling.ExportBookingPart {
 	parts := slices.Clone(invoice.Parts)
 	applyHolidayReductions(invoice.TotalCents, parts)

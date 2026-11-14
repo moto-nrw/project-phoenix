@@ -183,6 +183,13 @@
   "dayLimitOver": "Выбрано дней: {count}. Это слишком много. Выберите меньше дней.",
   "summaryDays": "Дни: {days}",
   "contributionDays": "дней: {count}",
+  "weeksLunchText": "К каждой неделе можно добавить обед. Он оплачивается отдельно.",
+  "lunchLabel": "С обедом",
+  "lunchHint": "{count, plural, one {# обед за {price}} few {# обеда по {price}, всего {total}} many {# обедов по {price}, всего {total}} other {# обеда по {price}, всего {total}}}",
+  "lunchHintDays": "{price} за обед. Ребёнок обедает в каждый выбранный день.",
+  "summaryLunch": "С обедом",
+  "contributionLunch": "Обед",
+  "contributionLunchCount": "Обед · {count, plural, one {# обед за {price}} few {# обеда по {price}} many {# обедов по {price}} other {# обеда по {price}}}",
   "dayWithoutCare": "{date} присмотра нет ({name}).",
   "noCareDayAria": "{day}, присмотра нет",
   "account": {

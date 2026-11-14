@@ -311,10 +311,31 @@ func invoiceLine(position parentbilling.BillingPosition) templates.InvoiceLine {
 		return templates.InvoiceLine{Text: "Korrektur: " + strings.TrimSpace(position.Note)}
 	}
 	line := templates.InvoiceLine{TimeModel: strings.TrimSpace(position.TimeModelName)}
+	if position.Kind == parentbilling.LineMeal {
+		line.TimeModel = mealLabel(position)
+	}
 	if position.WeekStartsOn != nil && position.WeekEndsOn != nil {
 		line.Week = fmt.Sprintf("Woche %s bis %s", position.WeekStartsOn.Format("02.01."), germanDate(*position.WeekEndsOn))
 	}
 	return line
+}
+
+// mealLabel names the lunch of a week with its number of lunches and the
+// price of one (#5631): "Mittagessen, 5 Essen zu je 4,30 €". A position
+// without the number names the lunch only.
+func mealLabel(position parentbilling.BillingPosition) string {
+	if position.BookedDays == nil || *position.BookedDays <= 0 {
+		return "Mittagessen"
+	}
+	lunches := int64(*position.BookedDays)
+	price := position.AmountCents / lunches
+	if price < 0 {
+		price = -price
+	}
+	if lunches == 1 {
+		return "Mittagessen, 1 Essen zu " + formatEuro(price)
+	}
+	return fmt.Sprintf("Mittagessen, %d Essen zu je %s", lunches, formatEuro(price))
 }
 
 // positionLabel names a position in one line, as the letters of a

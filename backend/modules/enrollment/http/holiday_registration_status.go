@@ -22,6 +22,7 @@ type HolidayRegistrationStatusWeek struct {
 	EndsAt         string        `json:"ends_at"`
 	HostSchoolName string        `json:"host_school_name"`
 	Placement      string        `json:"placement"`
+	Lunch          bool          `json:"lunch"`
 }
 
 // HolidayRegistrationStatusChild is a child of the registration by its

@@ -176,6 +176,37 @@ describe("HolidayRegistrationChildCard", () => {
     ]);
   });
 
+  it("toggles lunch only for the labelled child when two editors share a week", () => {
+    const period = {
+      ...HOLIDAY_PERIOD,
+      weeks: [{ ...HOLIDAY_PERIOD.weeks[0]!, lunchPriceCents: 430 }],
+    };
+    const registration = {
+      ...HOLIDAY_REGISTRATION,
+      children: HOLIDAY_REGISTRATION.children.map((child) => ({
+        ...child,
+        bookings: [{ ...HOLIDAY_REGISTRATION.children[0]!.bookings[0]! }],
+      })),
+    };
+    renderCard(registration, 0, vi.fn(), false, period);
+    renderCard(registration, 1, vi.fn(), false, period);
+    for (const button of screen.getAllByRole("button", { name: "Umbuchen" })) {
+      fireEvent.click(button);
+    }
+
+    const [first, second] = screen.getAllByRole("checkbox", {
+      name: /Mit Mittagessen/,
+    });
+    const labels = screen.getAllByText("Mit Mittagessen");
+    fireEvent.click(labels[1]!);
+
+    expect(second).toBeChecked();
+    expect(first).not.toBeChecked();
+    const saves = screen.getAllByRole("button", { name: "Speichern" });
+    expect(saves[0]).toBeDisabled();
+    expect(saves[1]).toBeEnabled();
+  });
+
   it("keeps a child in at least one week", async () => {
     renderCard(HOLIDAY_REGISTRATION, 1);
 

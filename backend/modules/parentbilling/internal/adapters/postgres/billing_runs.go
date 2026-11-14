@@ -171,6 +171,7 @@ type documentPositionRow struct {
 	Note                       string         `bun:"note"`
 	CostBearerID               *int64         `bun:"cost_bearer_id"`
 	CostBearerName             string         `bun:"cost_bearer_name"`
+	BookedDays                 *int           `bun:"booked_days"`
 	positionAccountsColumns
 	// CostCenterFallback is why the position books on the KOST1 of the
 	// holiday care (#6624), nil for its host school's.
@@ -545,7 +546,7 @@ func (s *Store) insertDocuments(ctx context.Context, organizationID int64, run p
 					WeekStartsOn: position.WeekStartsOn, WeekEndsOn: position.WeekEndsOn, TimeModelName: position.TimeModelName,
 					ChildRank: position.ChildRank, DiscountBasisPoints: position.DiscountBasisPoints,
 					DiscountCents: position.DiscountCents, Note: position.Note,
-					CostBearerID: position.CostBearerID, CostBearerName: position.CostBearerName,
+					CostBearerID: position.CostBearerID, CostBearerName: position.CostBearerName, BookedDays: position.BookedDays,
 					positionAccountsColumns: positionAccountsOf(position.Accounts), CostCenterFallback: textRef(position.CostCenterFallback),
 				})
 			}
@@ -730,7 +731,7 @@ func issuedChildren(positions []documentPositionRow) []parentbilling.BillingChil
 			Kind: position.Kind, AmountCents: position.AmountCents, WeekStartsOn: position.WeekStartsOn, WeekEndsOn: position.WeekEndsOn,
 			TimeModelName: position.TimeModelName, ChildRank: position.ChildRank, DiscountBasisPoints: position.DiscountBasisPoints,
 			DiscountCents: position.DiscountCents, Note: position.Note,
-			CostBearerID: position.CostBearerID, CostBearerName: position.CostBearerName,
+			CostBearerID: position.CostBearerID, CostBearerName: position.CostBearerName, BookedDays: position.BookedDays,
 			Accounts: position.accounts(), CostCenterFallback: textOf(position.CostCenterFallback),
 		})
 		children[at].TotalCents += position.AmountCents

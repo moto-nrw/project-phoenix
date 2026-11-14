@@ -371,9 +371,9 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	for i, booking := range child.Bookings {
 		before[i] = enrollment.HolidayBookingChange{
 			WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Waitlisted: booking.Placement != enrollment.HolidayPlacementPlaced,
-			PromotedAt: booking.PromotedAt, Days: booking.Days,
+			PromotedAt: booking.PromotedAt, Days: booking.Days, Lunch: booking.Lunch,
 		}
-		kept[i] = enrollment.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}
+		kept[i] = enrollment.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days, Lunch: booking.Lunch}
 	}
 	bookings = normalizeHolidayBookings(bookings)
 	if err := validateHolidayBookings(bookings, period, kept); err != nil {
@@ -397,7 +397,7 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	}
 	after := make([]enrollment.HolidayBookingChange, len(bookings))
 	for i, booking := range bookings {
-		after[i] = enrollment.HolidayBookingChange{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}
+		after[i] = enrollment.HolidayBookingChange{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days, Lunch: booking.Lunch}
 	}
 	changed, err := h.store.ReplaceHolidayChildBookings(ctx, organizationID, period.ID, childID, bookings, holidayWaitingPlacement(period, current.Status))
 	if err != nil {
@@ -505,8 +505,34 @@ func (h *HolidayRegistrationReview) readPeriod(ctx context.Context, reviewer enr
 	if err != nil {
 		return enrollment.HolidayPeriod{}, nil, fmt.Errorf("enrollment: read holiday registrations: %w", err)
 	}
-	h.complete(period, read, overrides)
+	if err := h.completeWithLunch(ctx, period, read, overrides); err != nil {
+		return enrollment.HolidayPeriod{}, nil, err
+	}
 	return period, read, nil
+}
+
+// completeWithLunch is complete with the days without care of the host
+// schools marked on the weeks, so a booked lunch counts no day without care
+// (#5631). It reads the schools' calendar only when a booking has lunch; a
+// review composed without the calendar counts every care day.
+func (h *HolidayRegistrationReview) completeWithLunch(ctx context.Context, period enrollment.HolidayPeriod, read []enrollment.HolidayRegistrationDetail, overrides map[int64]string) error {
+	if holidayReviewHasLunch(read) {
+		marked, err := withHolidayNoCareDays(ctx, h.calendar, period)
+		if err != nil {
+			return err
+		}
+		period = marked
+	}
+	h.complete(period, read, overrides)
+	return nil
+}
+
+func holidayReviewHasLunch(read []enrollment.HolidayRegistrationDetail) bool {
+	return slices.ContainsFunc(read, func(registration enrollment.HolidayRegistrationDetail) bool {
+		return slices.ContainsFunc(registration.Children, func(child enrollment.HolidayRegistrationChild) bool {
+			return slices.ContainsFunc(child.Bookings, func(booking enrollment.HolidayRegistrationBooking) bool { return booking.Lunch })
+		})
+	})
 }
 
 func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollment.HolidayReviewer, period enrollment.HolidayPeriod, registrationID int64) (enrollment.HolidayRegistrationDetail, error) {
@@ -517,7 +543,9 @@ func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollm
 	if len(read) == 0 {
 		return enrollment.HolidayRegistrationDetail{}, enrollment.ErrHolidayRegistrationEntryNotFound
 	}
-	h.complete(period, read, overrides)
+	if err := h.completeWithLunch(ctx, period, read, overrides); err != nil {
+		return enrollment.HolidayRegistrationDetail{}, err
+	}
 	detail := read[0]
 	if texts, ok := enrollment.HolidayConsentTextsOf(detail.ConsentVersion, detail.RetentionDays); ok {
 		detail.ConsentTexts = &texts
@@ -621,6 +649,8 @@ func completeHolidayChild(child *enrollment.HolidayRegistrationChild, models map
 			// A time model of a week by days prices one day (#4701).
 			booking.PriceCents = known.model.PriceCents * int64(len(booking.Days))
 		}
+		booking.Lunch = booking.Lunch && known.week.LunchPriceCents != nil
+		booking.LunchDays, booking.LunchPriceCents = enrollment.HolidayLunch(known.week, booking.Days, booking.Lunch)
 	}
 	slices.SortFunc(child.Bookings, func(a, b enrollment.HolidayRegistrationBooking) int {
 		return models[a.TimeModelID].order - models[b.TimeModelID].order

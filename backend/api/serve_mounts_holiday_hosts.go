@@ -23,9 +23,9 @@ type HolidayHostSchools = owners.HolidayHostSchools
 // choice for the week's holiday guests behind users:create, and the sheet of
 // a holiday guest (#4666, ADR 0120) at /api/holiday-guests behind users:read
 // with the hints „Gast aus …“ of its lists behind students:read (#5630).
-func mountHolidayHostRoutes(tenant chi.Router, schools HolidayHostSchools, people owners.HolidayGuestDirectory, students owners.HolidayOwnChildStudents, care owners.HolidayGuestCarePlan, accessLog owners.DataAccessAppender, healthData enrollmentOwner.HolidayHealthCipher) {
+func mountHolidayHostRoutes(tenant chi.Router, schools HolidayHostSchools, people owners.HolidayGuestDirectory, students owners.HolidayOwnChildStudents, care owners.HolidayGuestCarePlan, accessLog owners.DataAccessAppender, healthData enrollmentOwner.HolidayHealthCipher, noCare enrollmentOwner.HolidayHostCalendar) {
 	guests := owners.NewHolidayGuests(people, students, schools, care, accessLog, healthData, nil)
-	tenant.Mount("/holiday-weeks", NewHolidayHostGuestHTTP(NewHolidayHostHTTP(schools, people, accessLog, healthData, nil), guests).Router(ProtectedTenantRoutes))
+	tenant.Mount("/holiday-weeks", NewHolidayHostGuestHTTP(NewHolidayHostHTTP(schools, people, accessLog, healthData, noCare, nil), guests).Router(ProtectedTenantRoutes))
 	tenant.Mount("/holiday-guests", NewHolidayGuestHTTP(guests).Router(ProtectedTenantRoutes))
 }
 
@@ -43,11 +43,13 @@ func NewHolidayGuestHTTP(guests enrollmentOwner.HolidayGuests) *enrollmentAPI.Ho
 // names to Organisation & Tenancy, the school's own children to the People
 // Directory and every read to the school's access log at the Audit Platform.
 // The health information of a child of the school needs users:read, like its
-// own health field (#4722). A nil today uses the Berlin calendar day.
-func NewHolidayHostHTTP(schools HolidayHostSchools, people owners.HolidayGuestDirectory, accessLog owners.DataAccessAppender, healthData enrollmentOwner.HolidayHealthCipher, today func() calendar.Date) *enrollmentAPI.HolidayHostResource {
+// own health field (#4722). The days the school gives no care come from
+// School Calendar and have no lunch (#5631). A nil today uses the Berlin
+// calendar day.
+func NewHolidayHostHTTP(schools HolidayHostSchools, people owners.HolidayGuestDirectory, accessLog owners.DataAccessAppender, healthData enrollmentOwner.HolidayHealthCipher, noCare enrollmentOwner.HolidayHostCalendar, today func() calendar.Date) *enrollmentAPI.HolidayHostResource {
 	return enrollmentAPI.NewHolidayHostResource(
 		enrollmentCompose.NewHolidayHostParticipants(owners.NewHolidayParticipantAccessLog(accessLog), healthData,
-			owners.NewHolidayStudentIdentities(people), today),
+			owners.NewHolidayStudentIdentities(people), noCare, today),
 		owners.NewHolidayHostSchoolNames(schools), holidayHostWeeksPermission(), common.RequiresPermission(permissions.ConfigRead),
 		common.RequiresPermission(permissions.UsersRead))
 }

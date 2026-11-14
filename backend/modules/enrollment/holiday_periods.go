@@ -128,6 +128,15 @@ type HolidayWeek struct {
 	// CareDays are the bookable days of a week by days, Monday to Friday;
 	// only the public offer fills them (#4701).
 	CareDays []calendar.Date `json:"-"`
+	// LunchPriceCents is the price of one lunch in the week, nil when the
+	// week offers no lunch (#5631). LunchBooked reports a booking with
+	// lunch in the week: the offer then stays, only its price changes.
+	LunchPriceCents *int64 `json:"lunch_price_cents"`
+	LunchBooked     bool   `json:"lunch_booked"`
+	// LunchDays is the number of lunches a booking of the whole week takes:
+	// its care days without the days without care. Only the public offer
+	// fills it (#5631).
+	LunchDays int `json:"-"`
 }
 
 // HolidayPeriod is a holiday period of a Träger with its weeks.
@@ -192,6 +201,9 @@ type HolidayWeekInput struct {
 	// BookingUnit is HolidayBookingUnitWeek or HolidayBookingUnitDay; empty
 	// is a week (#4701). It changes only while no booking names the week.
 	BookingUnit string
+	// LunchPriceCents is the price of one lunch, nil for a week without
+	// lunch (#5631). The offer goes only while no booking has lunch.
+	LunchPriceCents *int64
 }
 
 // HolidayPeriodInput is the whole period as the Träger-Büro writes it.

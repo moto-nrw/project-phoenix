@@ -88,6 +88,20 @@ func TestHolidaySchoolCalendarNamesEachHostSchoolsDaysWithoutCare(t *testing.T) 
 		{Date: calendar.NewDate(2026, 6, 4), Kind: enrollment.HolidayNoCareHoliday, Name: "Fronleichnam"},
 		{Date: calendar.NewDate(2026, 6, 5), Kind: enrollment.HolidayNoCareClosingDay, Name: "Pädagogische Tage"},
 	}, days[iserlohn], "the school's own closing days, not the bridge day of the other school; a holiday names a day that is both")
+	// The hosting school reads the same days in its own school transaction,
+	// for the lunches it orders (#5631).
+	host := owners.NewHolidayHostCalendar(settings.Settings, records)
+	pforzheimID, err := tenant.NewTenantID(pforzheim)
+	require.NoError(t, err)
+	var own []enrollment.HolidayNoCareDay
+	require.NoError(t, tenant.WithinTenant(ctx, pforzheimID, func(schoolCtx context.Context) error {
+		own, err = host.HostedHolidayNoCareDays(schoolCtx, pforzheim, calendar.NewDate(2026, 5, 11), calendar.NewDate(2026, 6, 5))
+		return err
+	}))
+	for i := range own {
+		own[i].ClosingDays = nil
+	}
+	assert.Equal(t, days[pforzheim], own, "the hosting school sees its holidays and the Träger's bridge day")
 	foreignOrg := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{Name: "Fremde Ferientage", Slug: fmt.Sprintf("fremde-ferientage-%d", suffix), Active: true}).ID
 	foreign := testpkg.CreateTestSchoolInOrganization(t, db, foreignOrg, "Fremde OGS")
 	_, err = records.CreateClosingDay(tenant.WithTenantID(ctx, foreign), schoolcalendar.CreateClosingDay{ClosingDayFields: schoolcalendar.ClosingDayFields{

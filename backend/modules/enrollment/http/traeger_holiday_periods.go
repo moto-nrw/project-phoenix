@@ -126,6 +126,9 @@ type holidayWeekRequest struct {
 	TimeModels   []holidayTimeModelRequest `json:"time_models"`
 	// BookingUnit is "week" or "day"; empty is a week (#4701).
 	BookingUnit string `json:"booking_unit"`
+	// LunchPriceCents is the price of one lunch; null offers no lunch
+	// (#5631).
+	LunchPriceCents *int64 `json:"lunch_price_cents"`
 }
 
 // HolidayPeriodRequest is the body of POST /traeger/holiday-periods and PUT
@@ -160,7 +163,7 @@ func (req *HolidayPeriodRequest) input() capability.HolidayPeriodInput {
 		}
 		weeks[i] = capability.HolidayWeekInput{
 			ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolID: week.HostSchoolID, TimeModels: models,
-			BookingUnit: week.BookingUnit,
+			BookingUnit: week.BookingUnit, LunchPriceCents: week.LunchPriceCents,
 		}
 	}
 	return capability.HolidayPeriodInput{
@@ -300,6 +303,8 @@ func renderHolidayPeriodError(w http.ResponseWriter, r *http.Request, err error)
 			field = fmt.Sprintf("weeks.%d.starts_on", refusedDays.Week)
 		}
 		common.RenderError(w, r, common.ErrorConflictOnField(err, common.CodeEnrollmentHolidayWeekDayLimit, field))
+	case errors.Is(err, capability.ErrHolidayLunchBooked):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayLunchBooked))
 	case errors.Is(err, capability.ErrHolidayBookingUnitBooked):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayBookingUnitBooked))
 	case errors.Is(err, capability.ErrHolidayWeekBooked):

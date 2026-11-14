@@ -48,6 +48,7 @@ type BillingPositionKind =
   | "sibling"
   | "benefits_exemption"
   | "cost_takeover"
+  | "meal"
   | "correction"
   | "credit";
 
@@ -83,6 +84,8 @@ export interface BillingPosition {
   /** Cost takeover (#5627): the cost bearer and the name the invoice copied. */
   readonly costBearerId?: string | null;
   readonly costBearerName?: string;
+  /** The lunches a meal position prices (#5631); null otherwise. */
+  readonly bookedDays?: number | null;
 }
 
 interface BillingCorrection {
@@ -259,6 +262,7 @@ interface BackendPosition {
   note: string;
   cost_bearer_id?: number | null;
   cost_bearer_name?: string;
+  booked_days?: number | null;
 }
 
 interface BackendDocumentLink {
@@ -392,6 +396,7 @@ function positionFromBackend(position: BackendPosition): BillingPosition {
       ? String(position.cost_bearer_id)
       : null,
     costBearerName: position.cost_bearer_name ?? "",
+    bookedDays: position.booked_days ?? null,
   };
 }
 

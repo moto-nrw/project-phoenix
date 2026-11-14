@@ -42,7 +42,7 @@ type holidayAllocationPlaces struct {
 func (c parentBillingPlaceChanges) RebookHolidayChild(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID, childID int64, bookings []parentbilling.HolidayBookingChoice) (parentbilling.HolidayPlaceChange, error) {
 	choices := make([]enrollmentOwner.HolidayBookingInput, len(bookings))
 	for i, booking := range bookings {
-		choices[i] = enrollmentOwner.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}
+		choices[i] = enrollmentOwner.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days, Lunch: booking.Lunch}
 	}
 	detail, err := c.workflow.RebookHolidayChild(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, childID, choices)
 	if err != nil {

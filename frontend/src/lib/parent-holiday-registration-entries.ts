@@ -16,6 +16,8 @@ interface HolidayRegistrationEntryWeek {
   readonly lastDay: string;
   readonly timeModelName: string;
   readonly placement: HolidayPlacement;
+  /** The child eats lunch in the week (#5631). */
+  readonly lunch?: boolean;
 }
 
 interface HolidayRegistrationEntryChild {
@@ -53,6 +55,7 @@ interface BackendHolidayRegistrationEntry {
               last_day: string;
               time_model_name: string;
               placement: string;
+              lunch?: boolean;
             }[]
           | null;
       }[]
@@ -89,6 +92,7 @@ function holidayRegistrationEntryFromBackend(
         lastDay: week.last_day,
         timeModelName: week.time_model_name,
         placement: weekPlacement(week.placement),
+        ...(week.lunch ? { lunch: true } : {}),
       })),
     })),
   };

@@ -570,7 +570,7 @@ func sameGuestChild(a, b enrollment.HolidayGuestChild) bool {
 
 func guestRecord(guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek) enrollment.HolidayGuest {
 	guest.StartsOn, guest.EndsOn = week.StartsOn, week.EndsOn
-	guest.Days = source.Days
+	guest.Days, guest.Lunch = source.Days, source.Lunch
 	guest.HomeSchoolID, guest.HomeSchoolName, guest.GuestSchoolName = source.HomeSchoolID, source.HomeSchoolName, source.GuestSchoolName
 	guest.TimeModelName, guest.TimeModelStarts, guest.TimeModelEnds = source.TimeModelName, source.TimeModelStarts, source.TimeModelEnds
 	guest.Emergency, guest.Pickup, guest.Answers = source.Emergency, source.Pickup, source.Answers
@@ -614,7 +614,7 @@ func (h *HolidayGuests) HolidayGuestSheet(ctx context.Context, host enrollment.H
 func holidayGuestSheet(guest enrollment.HolidayGuest, today calendar.Date) enrollment.HolidayGuestSheet {
 	sheet := enrollment.HolidayGuestSheet{
 		StudentID: guest.StudentID, WeekID: guest.WeekID, StartsOn: guest.StartsOn, EndsOn: guest.EndsOn,
-		TimeModelName: guest.TimeModelName, TimeModelStarts: guest.TimeModelStarts, TimeModelEnds: guest.TimeModelEnds,
+		TimeModelName: guest.TimeModelName, TimeModelStarts: guest.TimeModelStarts, TimeModelEnds: guest.TimeModelEnds, Lunch: guest.Lunch,
 		HomeSchoolID: guest.HomeSchoolID, GuestSchoolName: guest.GuestSchoolName,
 		SchoolName: enrollment.HolidayGuestSchoolName(guest.HomeSchoolID, guest.HomeSchoolName, guest.GuestSchoolName),
 		Emergency:  guest.Emergency, Pickup: guest.Pickup, Answers: guest.Answers, ReadOnly: guest.EndsOn.Before(today),

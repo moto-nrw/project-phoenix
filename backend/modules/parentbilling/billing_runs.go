@@ -120,6 +120,9 @@ type BillingPosition struct {
 	Note                string         `json:"note"`
 	CostBearerID        *int64         `json:"cost_bearer_id"`
 	CostBearerName      string         `json:"cost_bearer_name"`
+	// BookedDays is the number of lunches a meal position prices (#5631),
+	// nil for every other position.
+	BookedDays *int `json:"booked_days"`
 	// WeekID names the week a base line prices (HolidayContributionLine),
 	// zero for another line or one matched by its days.
 	WeekID int64 `json:"-"`

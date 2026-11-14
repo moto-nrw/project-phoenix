@@ -30,10 +30,15 @@ export const REVENUE_SERVICES: readonly {
     label: "Ferienbetreuung",
     hint: "Rechnungen der Ferienläufe",
   },
+  {
+    scope: "holiday_meals",
+    label: "Mittagessen in den Ferien",
+    hint: "Essen auf den Rechnungen der Ferienläufe",
+  },
 ];
 
 /** Where a revenue account comes from. */
-type RevenueSource = "own" | "service" | "standard" | "missing";
+type RevenueSource = "own" | "service" | "holiday" | "standard" | "missing";
 
 export interface EffectiveRevenue {
   readonly account: string;
@@ -55,7 +60,8 @@ export function ownRevenueAccount(
 
 /**
  * The account a scope books on: its own, for an Angebot that of the
- * monthly contributions, then the standard of the DATEV values.
+ * monthly contributions, for the holiday lunch that of the holiday care
+ * (#5631), then the standard of the DATEV values.
  */
 export function effectiveRevenue(
   page: BookingAccounts,
@@ -67,6 +73,10 @@ export function effectiveRevenue(
   if (scope === "offering") {
     const care = ownRevenueAccount(page, "care");
     if (care) return { account: care, source: "service" };
+  }
+  if (scope === "holiday_meals") {
+    const holiday = ownRevenueAccount(page, "holiday");
+    if (holiday) return { account: holiday, source: "holiday" };
   }
   if (page.standardAccount) {
     return { account: page.standardAccount, source: "standard" };

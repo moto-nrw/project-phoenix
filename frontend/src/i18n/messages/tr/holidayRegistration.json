@@ -183,6 +183,13 @@
   "dayLimitOver": "Seçilen: {count} gün. Bu çok fazla. Lütfen daha az gün seçin.",
   "summaryDays": "Günler: {days}",
   "contributionDays": "{count} gün",
+  "weeksLunchText": "Her hafta için öğle yemeği ekleyebilirsiniz. Ayrıca ücretlidir.",
+  "lunchLabel": "Öğle yemeği ile",
+  "lunchHint": "{count, plural, one {# öğle yemeği, {price}} other {# öğle yemeği, tanesi {price}, toplam {total}}}",
+  "lunchHintDays": "Öğle yemeği başına {price}. Çocuğunuz seçtiğiniz her gün yemek yer.",
+  "summaryLunch": "Öğle yemeği ile",
+  "contributionLunch": "Öğle yemeği",
+  "contributionLunchCount": "Öğle yemeği · {count, plural, one {# öğle yemeği, {price}} other {# öğle yemeği, tanesi {price}}}",
   "dayWithoutCare": "{date} tarihinde bakım yok ({name}).",
   "noCareDayAria": "{day}, bakım yok",
   "account": {

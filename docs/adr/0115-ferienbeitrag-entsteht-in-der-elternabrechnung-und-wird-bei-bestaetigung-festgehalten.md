@@ -310,3 +310,9 @@ Kette von vorher.
 
 Offen bleibt die Entscheidung der Gemeinde vom 11.11.2026. Sie ändert nur, was
 Bissendorf einstellt, nicht diesen Code.
+
+## Nachtrag 2026-11-14: Mittagessen der Ferienbetreuung (#5631)
+
+Das Mittagessen der Ferienbetreuung ist eine eigene Zeilenart `meal` nach der
+Regelkette und außerhalb von ihr. Die Entscheidung steht in
+[ADR 0232](0232-ferien-mittagessen-ist-eine-eigene-position-ausserhalb-der-regelkette.md).

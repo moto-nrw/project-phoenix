@@ -43,6 +43,8 @@ type HolidayRegistrationStatusWeek struct {
 	EndsAt         string
 	HostSchoolName string
 	Placement      string
+	// Lunch says the child eats lunch in the week (#5631).
+	Lunch bool
 }
 
 // HolidayRegistrationStatusChild is a child of the registration by its first

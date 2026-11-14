@@ -6,7 +6,7 @@
  */
 
 type ContributionLineKind =
-  "base" | "sibling" | "benefits_exemption" | "cost_takeover";
+  "base" | "sibling" | "benefits_exemption" | "cost_takeover" | "meal";
 
 export interface ContributionLine {
   readonly kind: ContributionLineKind;
@@ -21,8 +21,24 @@ export interface ContributionLine {
   readonly note: string;
   /** Cost takeover (#5627): the copied name of the cost bearer. */
   readonly costBearerName?: string;
-  /** Days a base line of a week by days prices (#4701); null for a week. */
+  /**
+   * Days a base line of a week by days prices (#4701), null for a week; on
+   * a meal line the number of lunches it prices (#5631).
+   */
   readonly bookedDays?: number | null;
+}
+
+/**
+ * The price of one lunch of a meal line in cent (#5631): its amount is the
+ * price of one lunch times its lunches. Null without the number of lunches.
+ */
+export function lunchPriceOf(line: {
+  readonly amountCents: number;
+  readonly bookedDays?: number | null;
+}): number | null {
+  if (!line.bookedDays || line.bookedDays <= 0) return null;
+  // Whole cent, like the invoice text (integer division in mealLabel).
+  return Math.trunc(Math.abs(line.amountCents) / line.bookedDays);
 }
 
 interface ChildContribution {

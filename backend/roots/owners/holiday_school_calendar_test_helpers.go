@@ -25,3 +25,10 @@ func (c HolidayTestSchoolCalendar) HolidayNoCareDays(_ context.Context, schoolID
 	}
 	return result, nil
 }
+
+// HostedHolidayNoCareDays answers the same days for the hosting school in
+// context (#5631).
+func (c HolidayTestSchoolCalendar) HostedHolidayNoCareDays(ctx context.Context, schoolID int64, from, to calendar.Date) ([]enrollment.HolidayNoCareDay, error) {
+	days, err := c.HolidayNoCareDays(ctx, []int64{schoolID}, from, to)
+	return days[schoolID], err
+}

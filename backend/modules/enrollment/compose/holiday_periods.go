@@ -62,8 +62,8 @@ func NewHolidayHealthExportFields(health enrollment.HolidayHealthCipher) enrollm
 }
 
 // NewHolidayHostParticipants builds the hosting school's participant lists (ADR 0116).
-func NewHolidayHostParticipants(log enrollment.HolidayParticipantAccessLog, health enrollment.HolidayHealthCipher, students enrollment.HolidayStudentIdentities, today func() calendar.Date) enrollment.HolidayHostParticipants {
-	return applicationNative.NewHolidayHostParticipants(postgres.NewHolidayHostStore(), log, health, students, today)
+func NewHolidayHostParticipants(log enrollment.HolidayParticipantAccessLog, health enrollment.HolidayHealthCipher, students enrollment.HolidayStudentIdentities, noCare enrollment.HolidayHostCalendar, today func() calendar.Date) enrollment.HolidayHostParticipants {
+	return applicationNative.NewHolidayHostParticipants(postgres.NewHolidayHostStore(), log, health, students, noCare, today)
 }
 
 // NewHolidayGuests builds the hosting school's holiday guests (ADR 0120, #4722, #5630) and the planned days of its own children (#6678).

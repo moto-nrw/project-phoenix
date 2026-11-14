@@ -170,8 +170,11 @@ func holidayRecordChild(record capability.HolidayRegistrationRecord, index int, 
 	fields = append(fields, holidayRecordChildCriteria(detail, child.ID)...)
 	weeks := make([]lists.Field, len(child.Bookings))
 	for i, booking := range child.Bookings {
-		weeks[i] = field(holidayExportWeek(booking)+", "+names.school(booking.HostSchoolID),
-			booking.TimeModelName+" ("+holidayPlacementLabels[booking.Placement]+")")
+		booked := booking.TimeModelName + " (" + holidayPlacementLabels[booking.Placement] + ")"
+		if booking.Lunch {
+			booked += ", mit Mittagessen"
+		}
+		weeks[i] = field(holidayExportWeek(booking)+", "+names.school(booking.HostSchoolID), booked)
 	}
 	out := lists.Record{
 		Title: lists.SanitizeUserText("Kind: " + child.FirstName + " " + child.LastName), Fields: fields,

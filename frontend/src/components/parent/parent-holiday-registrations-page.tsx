@@ -122,6 +122,7 @@ function HolidayRegistrationCard({
                             ends: formatDate(week.lastDay, false, locale),
                           }),
                           week.timeModelName,
+                          week.lunch ? tr("summaryLunch") : "",
                         ]
                           .filter(Boolean)
                           .join(" · ")}

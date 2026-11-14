@@ -141,6 +141,12 @@ func (r bookingResolver) holiday(day calendar.Date) parentbilling.PositionAccoun
 	}
 }
 
+// holidayMealAccount is the revenue account of the lunch of the holiday
+// care (#5631): its own, else the holiday care's, else the standard.
+func (r bookingResolver) holidayMealAccount() string {
+	return r.account(bookingScope{parentbilling.BookingScopeHolidayMeals, 0}, bookingScope{parentbilling.BookingScopeHoliday, 0})
+}
+
 // holidayWeek is where a position of a holiday week books (invariant 5):
 // on the KOST1 of its host school on the first day of the week, else on
 // the holiday care's with the reason. hostSchoolID is zero without a host
@@ -222,6 +228,13 @@ func freezeHolidayChild(resolver bookingResolver, hosts holidayHosts, serviceFro
 			continue
 		}
 		position.Accounts, position.CostCenterFallback = resolver.holidayWeek(hosts.school(*position), *position.WeekStartsOn)
+		if position.Kind == parentbilling.LineMeal {
+			// The lunch books on the cost centers of its week and on a
+			// revenue account of its own (#5631); the lines without a week
+			// follow the care of the first week, not its lunch.
+			position.Accounts.RevenueAccount = resolver.holidayMealAccount()
+			continue
+		}
 		if first {
 			other, reason, first = position.Accounts, position.CostCenterFallback, false
 		}
@@ -339,7 +352,8 @@ func (b *BookingAccounts) BookingAccounts(ctx context.Context, reviewer parentbi
 func (b *BookingAccounts) ownScope(ctx context.Context, organizationID int64, scope string, scopeID int64, costCenter bool) error {
 	switch {
 	case scope == parentbilling.BookingScopeHoliday && scopeID == 0,
-		!costCenter && scopeID == 0 && (scope == parentbilling.BookingScopeCare || scope == parentbilling.BookingScopeMeals):
+		!costCenter && scopeID == 0 && (scope == parentbilling.BookingScopeCare || scope == parentbilling.BookingScopeMeals ||
+			scope == parentbilling.BookingScopeHolidayMeals):
 		return nil
 	case scopeID <= 0:
 		return parentbilling.ErrBookingScopeNotFound

@@ -24,7 +24,8 @@ const (
 	ownChildrenQuery = `SELECT week.id AS week_id, week.organization_id, week.starts_on, week.ends_on, period.name AS period_name,
 			participant.child_id, participant.first_name, participant.last_name, participant.birth_date,
 			model.name AS time_model_name, to_char(model.starts_at, 'HH24:MI') AS time_model_starts,
-			to_char(model.ends_at, 'HH24:MI') AS time_model_ends, booking.days::text AS days
+			to_char(model.ends_at, 'HH24:MI') AS time_model_ends, booking.days::text AS days,
+			booking.lunch AND week.lunch_price_cents IS NOT NULL AS lunch
 		FROM enrollment.holiday_period_weeks AS week
 		JOIN enrollment.holiday_periods AS period
 			ON period.organization_id = week.organization_id AND period.id = week.holiday_period_id
@@ -63,6 +64,7 @@ type ownChildRow struct {
 	TimeModelStarts string        `bun:"time_model_starts"`
 	TimeModelEnds   string        `bun:"time_model_ends"`
 	Days            *string       `bun:"days"`
+	Lunch           bool          `bun:"lunch"`
 }
 
 // ListOwnChildren reads the confirmed children of the school itself in
@@ -104,6 +106,7 @@ func (s *HolidayGuestStore) ListOwnChildren(ctx context.Context, schoolID int64,
 				ChildID:       row.ChildID,
 				Identity:      enrollment.HolidayStudentIdentity{FirstName: row.FirstName, LastName: row.LastName, BirthDate: row.BirthDate},
 				TimeModelName: row.TimeModelName, TimeModelStarts: row.TimeModelStarts, TimeModelEnds: row.TimeModelEnds, Days: days,
+				Lunch: row.Lunch,
 			},
 		}
 		byBooking[weekChild{row.WeekID, row.ChildID}] = &bookings[i]
@@ -123,7 +126,7 @@ func (s *HolidayGuestStore) ListOwnChildren(ctx context.Context, schoolID int64,
 // Träger and the end of the week by the Berlin day itself; the statement
 // names the end by the service's calendar day once more.
 const homeSchoolBookingsQuery = `SELECT child_id, first_name, last_name, birth_date, week_id, period_name, starts_on, ends_on,
-		host_school_id, time_model_name, starts_at AS time_model_starts, ends_at AS time_model_ends, days::text AS days
+		host_school_id, time_model_name, starts_at AS time_model_starts, ends_at AS time_model_ends, days::text AS days, lunch
 	FROM enrollment.holiday_home_school_bookings()
 	WHERE ends_on >= ?
 	ORDER BY starts_on, week_id, lower(last_name), lower(first_name), child_id`
@@ -142,6 +145,7 @@ type homeSchoolBookingRow struct {
 	TimeModelStarts string        `bun:"time_model_starts"`
 	TimeModelEnds   string        `bun:"time_model_ends"`
 	Days            *string       `bun:"days"`
+	Lunch           bool          `bun:"lunch"`
 }
 
 // ListHomeSchoolBookings reads the confirmed bookings of the school's own
@@ -169,7 +173,7 @@ func (s *HolidayGuestStore) ListHomeSchoolBookings(ctx context.Context, schoolID
 			ChildID: row.ChildID, FirstName: row.FirstName, LastName: row.LastName, BirthDate: row.BirthDate,
 			WeekID: row.WeekID, PeriodName: row.PeriodName, StartsOn: row.StartsOn, EndsOn: row.EndsOn,
 			HostSchoolID: row.HostSchoolID, TimeModelName: row.TimeModelName,
-			TimeModelStarts: row.TimeModelStarts, TimeModelEnds: row.TimeModelEnds, Days: days,
+			TimeModelStarts: row.TimeModelStarts, TimeModelEnds: row.TimeModelEnds, Days: days, Lunch: row.Lunch,
 		}
 	}
 	return bookings, nil

@@ -30,6 +30,13 @@ const (
 	LineSibling           = RuleSibling
 	LineBenefitsExemption = RuleBenefitsExemption
 	// LineCostTakeover (cost_bearers.go) is what a cost bearer pays.
+
+	// LineMeal is the lunch of one booked week (#5631, ADR 0115 addendum):
+	// the price of one lunch times the lunches of the booking. It stands
+	// after the rule chain and outside it: no sibling discount, no
+	// exemption and no cost takeover reaches it, as with the Mensa of the
+	// monthly contributions (ADR 0168 point 6). The family pays it.
+	LineMeal = "meal"
 )
 
 // How a Träger ranks siblings and when a cost bearer takes over (#5664). The
@@ -138,7 +145,8 @@ type HolidayContributionLine struct {
 	CostBearerID        *int64         `json:"cost_bearer_id"`
 	CostBearerName      string         `json:"cost_bearer_name"`
 	// BookedDays is the number of days a base line of a week by days prices,
-	// nil for a whole week (#4701).
+	// nil for a whole week (#4701); on a meal line the number of lunches it
+	// prices (#5631).
 	BookedDays *int `json:"booked_days"`
 	// WeekID names the week a base line prices (#4699), so a booking is
 	// priced at most once even after its week moved; zero for a line frozen
@@ -250,6 +258,12 @@ type HolidayBooking struct {
 	Promoted bool
 	// ReplacedWeeks preserves the lineage of replacements admitted later.
 	ReplacedWeeks []HolidayBookingReplacement
+	// Lunch records the explicit selection, even when no care days remain.
+	Lunch bool
+	// LunchDays is the number of lunches the booking takes and LunchCents
+	// their price, both zero without lunch (#5631).
+	LunchDays  int
+	LunchCents int64
 }
 
 // HolidayChild is a child of a registration with its bookings. Position is
@@ -302,6 +316,8 @@ type HolidayBookingChoice struct {
 	TimeModelID int64 `json:"time_model_id"`
 	// Days are the days of a week by days (#4701).
 	Days []calendar.Date `json:"days"`
+	// Lunch books lunch on the care days of the booking (#5631).
+	Lunch bool `json:"lunch"`
 }
 
 // HolidayPlaceChange is what a rebooking or a new capacity changed in the
@@ -332,6 +348,11 @@ type HolidayWeek struct {
 	// CareDays are the bookable days of a week by days, whose time models
 	// price one day; empty for a week booked as a whole (#4701).
 	CareDays []calendar.Date
+	// LunchDayCents is the price of one lunch, nil when the week offers no
+	// lunch; WeekLunchDays is the number of lunches of a booking of the
+	// whole week (#5631). A booking of days takes one lunch per day.
+	LunchDayCents *int64
+	WeekLunchDays int
 }
 
 // HolidayLink is the Träger and the period a public link names.
@@ -438,6 +459,8 @@ type HolidayQuoteBooking struct {
 	TimeModelID int64
 	// Days are the chosen days of a week by days (#4701).
 	Days []calendar.Date
+	// Lunch books lunch on the care days of the booking (#5631).
+	Lunch bool
 }
 
 // HolidayQuoteChild is a child of the public form by its bookings and its

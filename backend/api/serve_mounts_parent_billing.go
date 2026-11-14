@@ -466,7 +466,7 @@ func (b parentBillingLetterheads) DocumentTemplate(ctx context.Context, organiza
 func NewParentBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, holidayCalendar enrollmentOwner.HolidaySchoolCalendar, logger *slog.Logger) (*parentBillingHTTP.RuleResource, *parentBillingHTTP.HolidayResource) {
 	review, places, allocation, _ := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayTraegerMail{delivery: delivery}, newHolidayOfficeTraeger(organizations), holidayCalendar, nil)
 	registrations := parentBillingHolidayRegistrations{
-		links:  newHolidayRegistrations(organizations, delivery, healthData, nil, settings, logger.With("service", "parent-billing-holiday-registrations")),
+		links:  newHolidayRegistrations(organizations, delivery, healthData, holidayCalendar, settings, logger.With("service", "parent-billing-holiday-registrations")),
 		review: review,
 	}
 	rules := parentBillingHTTP.NewRuleResource(parentBillingCompose.NewContributionRules(),
@@ -508,6 +508,8 @@ func (b parentBillingHolidayRegistrations) HolidayWeeks(ctx context.Context, lin
 		}
 		weeks[i] = parentbilling.HolidayWeek{ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, TimeModels: models}
 		weeks[i].CareDays = week.CareDays
+		weeks[i].LunchDayCents = week.LunchPriceCents
+		weeks[i].WeekLunchDays = week.LunchDays
 	}
 	return weeks, nil
 }
@@ -688,6 +690,9 @@ func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail)
 				Waitlisted:    booking.Placement != enrollmentOwner.HolidayPlacementPlaced,
 				Promoted:      booking.PromotedAt != nil,
 				ReplacedWeeks: replacements,
+				Lunch:         booking.Lunch,
+				LunchDays:     booking.LunchDays,
+				LunchCents:    booking.LunchPriceCents,
 			}
 		}
 		registration.Children[i] = parentbilling.HolidayChild{

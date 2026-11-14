@@ -110,6 +110,13 @@ interface HolidayRegistrationBooking {
   readonly promotedAt: string | null;
   /** The booked days of a week by days (#4701); empty for a whole week. */
   readonly days?: readonly string[];
+  /**
+   * The child eats lunch on the care days of the booking (#5631), with the
+   * number of lunches and their price now in cent.
+   */
+  readonly lunch?: boolean;
+  readonly lunchDays?: number;
+  readonly lunchPriceCents?: number;
 }
 
 export interface HolidayRegistrationChild {
@@ -248,6 +255,8 @@ export interface HolidayBookingChange {
   readonly timeModelId: string;
   /** The days of a week by days (#4701). */
   readonly days?: readonly string[];
+  /** The lunch of the booking (#5631). */
+  readonly lunch?: boolean;
 }
 
 export interface HolidayRegistrationEvent {
@@ -387,6 +396,9 @@ interface BackendBooking {
   waitlist_position?: number | null;
   promoted_at?: string | null;
   days?: string[] | null;
+  lunch?: boolean;
+  lunch_days?: number;
+  lunch_price_cents?: number;
 }
 
 interface BackendChild {
@@ -430,6 +442,7 @@ interface BackendBookingChange {
   week_id: number;
   time_model_id: number;
   days?: string[] | null;
+  lunch?: boolean;
 }
 
 interface BackendDetail extends BackendSummary {
@@ -561,6 +574,9 @@ function summaryFromBackend(
         waitlistPosition: booking.waitlist_position ?? null,
         promotedAt: booking.promoted_at ?? null,
         ...(booking.days?.length ? { days: booking.days } : {}),
+        lunch: booking.lunch ?? false,
+        lunchDays: booking.lunch_days ?? 0,
+        lunchPriceCents: booking.lunch_price_cents ?? 0,
       })),
       duplicateRegistrationIds: (child.duplicate_registration_ids ?? []).map(
         String,
@@ -579,6 +595,7 @@ function changesFromBackend(
     weekId: String(change.week_id),
     timeModelId: String(change.time_model_id),
     ...(change.days?.length ? { days: change.days } : {}),
+    ...(change.lunch ? { lunch: true } : {}),
   }));
 }
 
@@ -949,6 +966,7 @@ export async function rebookHolidayChild(
             ...(booking.days && booking.days.length > 0
               ? { days: booking.days }
               : {}),
+            ...(booking.lunch ? { lunch: true } : {}),
           })),
         },
       },

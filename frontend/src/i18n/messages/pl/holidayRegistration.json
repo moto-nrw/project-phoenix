@@ -183,6 +183,13 @@
   "dayLimitOver": "Wybrano: {count, plural, one {# dzień} other {# dni}}. To za dużo. Wybierz mniej dni.",
   "summaryDays": "Dni: {days}",
   "contributionDays": "{count, plural, one {# dzień} other {# dni}}",
+  "weeksLunchText": "Do każdego tygodnia można dokupić obiad. Jest dodatkowo płatny.",
+  "lunchLabel": "Z obiadem",
+  "lunchHint": "{count, plural, one {# obiad za {price}} few {# obiady po {price}, razem {total}} many {# obiadów po {price}, razem {total}} other {# obiadu po {price}, razem {total}}}",
+  "lunchHintDays": "{price} za obiad. Dziecko je obiad w każdym wybranym dniu.",
+  "summaryLunch": "Z obiadem",
+  "contributionLunch": "Obiad",
+  "contributionLunchCount": "Obiad · {count, plural, one {# obiad za {price}} few {# obiady po {price}} many {# obiadów po {price}} other {# obiadu po {price}}}",
   "dayWithoutCare": "{date} nie ma opieki ({name}).",
   "noCareDayAria": "{day}, brak opieki",
   "account": {

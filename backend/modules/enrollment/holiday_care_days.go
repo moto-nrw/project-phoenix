@@ -54,6 +54,15 @@ type HolidaySchoolCalendar interface {
 	HolidayNoCareDays(ctx context.Context, schoolIDs []int64, from, to calendar.Date) (map[int64][]HolidayNoCareDay, error)
 }
 
+// HolidayHostCalendar is Enrollment's port onto the days the hosting school
+// in context gives no care (#5631): the statutory holidays of its federal
+// state and its closing days, those of its Träger included, ordered by date
+// in [from, to]. The root binds it to School Calendar; it reads in the
+// tenant transaction of the hosting school.
+type HolidayHostCalendar interface {
+	HostedHolidayNoCareDays(ctx context.Context, schoolID int64, from, to calendar.Date) ([]HolidayNoCareDay, error)
+}
+
 // HolidayWeekNoCareDayRefusal names the week, by its position in the written
 // period or booking, and its first day without care. It unwraps to
 // ErrHolidayWeekNoCareDay.

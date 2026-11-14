@@ -9,7 +9,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (w *Workflow) RebookHolidayChild(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID, childID int64, bookings []enrollment.HolidayBookingInput) (enrollment.HolidayRegistrationDetail, error) {\n\tvar detail enrollment.HolidayRegistrationDetail\n\terr := w.run(ctx, reviewer, periodID, func(ctx context.Context) ([]int64, error) {\n\t\tvar err error\n\t\tdetail, err = w.ports.Places.RebookHolidayChild(ctx, reviewer, periodID, registrationID, childID, bookings)\n\t\treturn promoted(detail.Promotions), err\n\t})\n\tif err != nil {\n\t\treturn enrollment.HolidayRegistrationDetail{}, err\n\t}\n\treturn detail, nil\n}",
+      "evidence": "func (w *Workflow) RebookHolidayChild(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID, childID int64, bookings []enrollment.HolidayBookingInput) (enrollment.HolidayRegistrationDetail, error) {\n\tvar detail enrollment.HolidayRegistrationDetail\n\terr := w.run(ctx, reviewer, periodID, func(ctx context.Context) ([]int64, error) {\n\t\tvar err error\n\t\tdetail, err = w.ports.Places.RebookHolidayChild(ctx, reviewer, periodID, registrationID, childID, bookings)\n\t\treturn append(promoted(detail.Promotions), registrationID), err\n\t})\n\tif err != nil {\n\t\treturn enrollment.HolidayRegistrationDetail{}, err\n\t}\n\treturn detail, nil\n}",
       "form": "unclassified-evidence",
       "id": "workflows/holidayallocation/Workflow.RebookHolidayChild",
       "owner": "workflows/holidayallocation"

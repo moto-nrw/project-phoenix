@@ -3,7 +3,8 @@
 // Eine buchbare Woche eines Ferienzeitraums (#4659): Tage, ausrichtende OGS
 // und die Zeitmodelle mit ihrem Preis. Ein gebuchtes Zeitmodell lässt sich
 // nicht entfernen, nur archivieren (#5994). Eine Woche wird ganz oder
-// tageweise gebucht; tageweise ist der Preis ein Tagespreis (#4701).
+// tageweise gebucht; tageweise ist der Preis ein Tagespreis (#4701). Eine
+// Woche kann Mittagessen anbieten, mit dem Preis für ein Essen (#5631).
 
 import { Archive, Plus, X } from "lucide-react";
 import { useCallback } from "react";
@@ -16,6 +17,7 @@ import { Input } from "~/components/ui/input";
 import { SectionLabel } from "~/components/ui/section-label";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { SwitchRow } from "~/components/ui/switch";
 import { TimeField } from "~/components/ui/time-field";
 import { formatDate } from "~/lib/date-helpers";
 import { bookableHolidayDays, holidayCareDays } from "~/lib/holiday-days";
@@ -23,11 +25,13 @@ import type { HolidayBookingUnit, TraegerSchool } from "~/lib/traeger-api";
 import { formatDayWithWeekday } from "./closing-day-format";
 import type { WeekNoCareDays } from "./use-week-no-care-days";
 import { HolidayDayPlacesGrid } from "./holiday-week-places";
+import { formatEuro } from "./contribution-format";
 import {
   emptyTimeModel,
   MAX_TIME_MODELS_PER_WEEK,
   type TimeModelDraft,
   weekBooked,
+  weekLunchTotal,
   type WeekDraft,
 } from "./holiday-period-model";
 import { InsetPanel } from "~/components/ui/inset-panel";
@@ -236,6 +240,87 @@ function TimeModelRow({
   );
 }
 
+/**
+ * What the lunch costs parents, in one line under the price (#5631): the
+ * sum of a whole week, or that the price counts per booked day. A day
+ * without care has no lunch; the line says so when the week has one.
+ */
+function lunchPriceHint(
+  week: WeekDraft,
+  careDays: number,
+  daysWithoutCare: number,
+): string {
+  const closed =
+    daysWithoutCare > 0 ? " An Tagen ohne Betreuung gibt es kein Essen." : "";
+  if (week.bookingUnit === "day") {
+    return `Eltern zahlen ein Essen für jeden gebuchten Tag.${closed}`;
+  }
+  const total = weekLunchTotal(week, careDays);
+  if (!total)
+    return `Eltern zahlen ein Essen für jeden Tag der Woche.${closed}`;
+  return `Eltern zahlen ${total.lunches} Essen für die Woche: ${formatEuro(total.cents)}.${closed}`;
+}
+
+/**
+ * Das Mittagessen einer Woche (#5631): ein Schalter für das Angebot und der
+ * Preis für ein Essen. Ist schon ein Essen gebucht, bleibt das Angebot; der
+ * Preis lässt sich weiter ändern.
+ */
+function WeekLunchFields({
+  week,
+  prefix,
+  careDays,
+  daysWithoutCare,
+  fieldError,
+  onChange,
+}: Readonly<{
+  week: WeekDraft;
+  prefix: string;
+  /** The days a child of the whole week eats on. */
+  careDays: number;
+  /** The weekdays of the week without care at the host school. */
+  daysWithoutCare: number;
+  fieldError: FieldError;
+  onChange: (week: WeekDraft) => void;
+}>) {
+  const offered = week.lunchOffered ?? false;
+  const booked = week.lunchBooked ?? false;
+  return (
+    <div className="space-y-3">
+      <h5 className="text-sm font-semibold text-gray-900">Mittagessen</h5>
+      <SwitchRow
+        label="Mittagessen anbieten"
+        description={
+          booked
+            ? "Für diese Woche ist schon Mittagessen gebucht. Das Angebot bleibt deshalb. Den Preis können Sie ändern."
+            : "Eltern wählen das Essen je Kind dazu. Es steht als eigener Betrag auf der Rechnung."
+        }
+        checked={offered}
+        disabled={booked}
+        onCheckedChange={(lunchOffered) => onChange({ ...week, lunchOffered })}
+      />
+      {offered ? (
+        <div className="sm:max-w-xs">
+          <Input
+            name={`${prefix}.lunch_price_cents`}
+            label="Preis für ein Essen in Euro"
+            required
+            controlSize="touch"
+            inputMode="decimal"
+            placeholder="z. B. 4,30"
+            value={week.lunchPrice ?? ""}
+            hint={lunchPriceHint(week, careDays, daysWithoutCare)}
+            error={fieldError(`${prefix}.lunch_price_cents`) ?? undefined}
+            onChange={(event) =>
+              onChange({ ...week, lunchPrice: event.target.value })
+            }
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function HolidayWeekEditor({
   index,
   week,
@@ -289,6 +374,12 @@ export function HolidayWeekEditor({
     noCareDays && noCareDays.days.length > 0
       ? noCareDaysNotice(noCareDays, week, booked)
       : null;
+  // A child with lunch eats on every care day of the week (#5631).
+  const lunchDays = bookableHolidayDays(
+    week.startsOn,
+    week.endsOn,
+    noCareDays?.days ?? [],
+  ).length;
   return (
     // Eine Zeile der Formularkarte, keine eigene Karte (#5146): die Wochen
     // trennt eine Linie wie die Zeitmodelle darunter.
@@ -437,6 +528,17 @@ export function HolidayWeekEditor({
             </p>
           )}
         </div>
+
+        <WeekLunchFields
+          week={week}
+          prefix={prefix}
+          careDays={lunchDays}
+          daysWithoutCare={
+            holidayCareDays(week.startsOn, week.endsOn).length - lunchDays
+          }
+          fieldError={fieldError}
+          onChange={onChange}
+        />
       </div>
     </section>
   );

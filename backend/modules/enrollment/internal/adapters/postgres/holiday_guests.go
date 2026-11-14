@@ -62,6 +62,7 @@ type holidayGuestRow struct {
 	Answers         json.RawMessage `bun:"answers,type:jsonb"`
 	HealthData      []byte          `bun:"health_data"`
 	Days            []calendar.Date `bun:"days,array"`
+	Lunch           bool            `bun:"lunch"`
 }
 
 func (r *holidayGuestRow) guest() (enrollment.HolidayGuest, error) {
@@ -73,7 +74,7 @@ func (r *holidayGuestRow) guest() (enrollment.HolidayGuest, error) {
 		ID: r.ID, OrganizationID: r.OrganizationID, WeekID: r.WeekID, ChildID: r.ChildID, StudentID: r.StudentID,
 		StartsOn: r.StartsOn, EndsOn: r.EndsOn, EndedOn: r.EndedOn, HomeSchoolID: r.HomeSchoolID,
 		HomeSchoolName: r.HomeSchoolName, GuestSchoolName: r.GuestSchoolName, TimeModelName: r.TimeModelName, TimeModelStarts: r.TimeModelStarts,
-		TimeModelEnds: r.TimeModelEnds, Days: r.Days, Answers: answers, HealthSealed: r.HealthData,
+		TimeModelEnds: r.TimeModelEnds, Days: r.Days, Lunch: r.Lunch, Answers: answers, HealthSealed: r.HealthData,
 	}, nil
 }
 
@@ -114,7 +115,7 @@ type holidayGuestContactRow struct {
 const (
 	holidayGuestColumns = `id, organization_id, holiday_period_week_id, holiday_registration_child_id, student_id,
 		starts_on, ends_on, ended_on, home_school_id, home_school_name, guest_school_name, time_model_name, time_model_starts_at, time_model_ends_at,
-		enrollment.holiday_guest_shared_answers(id) AS answers, health_data, days`
+		enrollment.holiday_guest_shared_answers(id) AS answers, health_data, days, lunch`
 	guestWeekQuery = `SELECT week.id, week.organization_id, week.starts_on, week.ends_on
 		FROM enrollment.holiday_period_weeks AS week
 		JOIN enrollment.holiday_periods AS period
@@ -127,7 +128,7 @@ const (
 			participant.home_school_id, participant.guest_school_name, model.name AS time_model_name,
 			to_char(model.starts_at, 'HH24:MI') AS time_model_starts, to_char(model.ends_at, 'HH24:MI') AS time_model_ends,
 			participant.answers, participant.registration_id, participant.child_position, participant.health_data,
-			participant.family_health_data, participant.health_fields, booking.days::text AS days
+			participant.family_health_data, participant.health_fields, booking.days::text AS days, booking.lunch
 		FROM enrollment.holiday_host_participants(?, ?) AS participant
 		JOIN enrollment.holiday_week_time_models AS model
 			ON model.organization_id = ? AND model.holiday_period_week_id = ? AND model.id = participant.time_model_id
@@ -156,6 +157,7 @@ type guestSourceRow struct {
 	TimeModelStarts string          `bun:"time_model_starts"`
 	TimeModelEnds   string          `bun:"time_model_ends"`
 	Days            *string         `bun:"days"`
+	Lunch           bool            `bun:"lunch"`
 	Answers         json.RawMessage `bun:"answers,type:jsonb"`
 	hostedHealthColumns
 }
@@ -275,7 +277,7 @@ func (s *HolidayGuestStore) ListGuestSources(ctx context.Context, schoolID int64
 			ChildID: row.ChildID, FirstName: row.FirstName, LastName: row.LastName, BirthDate: row.BirthDate,
 			HomeSchoolID: row.HomeSchoolID, GuestSchoolName: row.GuestSchoolName,
 			TimeModelName: row.TimeModelName, TimeModelStarts: row.TimeModelStarts, TimeModelEnds: row.TimeModelEnds,
-			Days: days, Answers: answers, Sealed: sealed,
+			Days: days, Lunch: row.Lunch, Answers: answers, Sealed: sealed,
 		}
 		byChild[row.ChildID] = &sources[i]
 	}
@@ -359,11 +361,11 @@ func (s *HolidayGuestStore) InsertGuest(ctx context.Context, schoolID int64, gue
 	var id int64
 	if err := db.NewRaw(`INSERT INTO enrollment.holiday_guests (tenant_id, organization_id, holiday_period_week_id,
 			holiday_registration_child_id, student_id, starts_on, ends_on, home_school_id, home_school_name, guest_school_name,
-			time_model_name, time_model_starts_at, time_model_ends_at, answers, health_data, days)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, NULLIF(?, '')::date[]) RETURNING id`,
+			time_model_name, time_model_starts_at, time_model_ends_at, answers, health_data, days, lunch)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, NULLIF(?, '')::date[], ?) RETURNING id`,
 		schoolID, guest.OrganizationID, guest.WeekID, guest.ChildID, guest.StudentID, guest.StartsOn, guest.EndsOn,
 		guest.HomeSchoolID, guest.HomeSchoolName, guest.GuestSchoolName, guest.TimeModelName, guest.TimeModelStarts, guest.TimeModelEnds, answers,
-		guest.HealthSealed, holidayDaysLiteral(guest.Days),
+		guest.HealthSealed, holidayDaysLiteral(guest.Days), guest.Lunch,
 	).Scan(ctx, &id); err != nil {
 		return fmt.Errorf("enrollment postgres: insert holiday guest: %w", err)
 	}
@@ -383,10 +385,10 @@ func (s *HolidayGuestStore) UpdateGuest(ctx context.Context, schoolID int64, gue
 	}
 	if _, err := db.NewRaw(`UPDATE enrollment.holiday_guests
 		SET starts_on = ?, ends_on = ?, home_school_id = ?, home_school_name = ?, guest_school_name = ?, time_model_name = ?,
-			time_model_starts_at = ?, time_model_ends_at = ?, answers = ?::jsonb, health_data = ?, days = NULLIF(?, '')::date[], updated_at = CURRENT_TIMESTAMP
+			time_model_starts_at = ?, time_model_ends_at = ?, answers = ?::jsonb, health_data = ?, days = NULLIF(?, '')::date[], lunch = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE tenant_id = ? AND organization_id = ? AND id = ?`,
 		guest.StartsOn, guest.EndsOn, guest.HomeSchoolID, guest.HomeSchoolName, guest.GuestSchoolName, guest.TimeModelName,
-		guest.TimeModelStarts, guest.TimeModelEnds, answers, guest.HealthSealed, holidayDaysLiteral(guest.Days), schoolID, guest.OrganizationID, guest.ID).Exec(ctx); err != nil {
+		guest.TimeModelStarts, guest.TimeModelEnds, answers, guest.HealthSealed, holidayDaysLiteral(guest.Days), guest.Lunch, schoolID, guest.OrganizationID, guest.ID).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: update holiday guest: %w", err)
 	}
 	if _, err := db.NewRaw(`DELETE FROM enrollment.holiday_guest_contacts WHERE tenant_id = ? AND holiday_guest_id = ?`,

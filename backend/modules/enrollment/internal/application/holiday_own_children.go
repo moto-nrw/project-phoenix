@@ -225,6 +225,7 @@ func ownChildRegistration(match ownChildMatch) enrollment.HolidayStudentRegistra
 	entry := enrollment.HolidayStudentRegistration{
 		WeekID: match.Week.ID, PeriodName: match.Week.PeriodName, StartsOn: match.Week.StartsOn, EndsOn: match.Week.EndsOn,
 		Days: match.Days, TimeModelName: match.TimeModelName, TimeModelStarts: match.TimeModelStarts, TimeModelEnds: match.TimeModelEnds,
+		Lunch:     match.Lunch,
 		Emergency: match.Emergency, Pickup: match.Pickup,
 	}
 	if entry.Days == nil {

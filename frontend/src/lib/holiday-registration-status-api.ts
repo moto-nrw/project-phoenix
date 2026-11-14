@@ -28,6 +28,8 @@ export interface HolidayRegistrationStatusWeek {
   readonly endsAt: string;
   readonly hostSchoolName: string;
   readonly placement: HolidayPlacement;
+  /** The child eats lunch in the week (#5631). */
+  readonly lunch?: boolean;
 }
 
 export interface HolidayRegistrationStatusChild {
@@ -60,6 +62,7 @@ interface BackendStatusWeek {
   ends_at?: string | null;
   host_school_name?: string | null;
   placement?: string | null;
+  lunch?: boolean;
 }
 
 interface BackendHolidayRegistrationStatus {
@@ -108,6 +111,7 @@ function holidayRegistrationStatusFromBackend(
         endsAt: week.ends_at ?? "",
         hostSchoolName: week.host_school_name ?? "",
         placement: placementOf(week.placement),
+        ...(week.lunch ? { lunch: true } : {}),
       })),
     })),
   };

@@ -34,6 +34,16 @@ export interface HostedHolidayWeek {
   readonly guestGroupId: string | null;
   /** Feriengäste in dieser Gruppe, deren Zugriff nicht vorzeitig endete. */
   readonly guests: number;
+  /** Die Woche bietet Mittagessen an (#5631). */
+  readonly lunchOffered?: boolean;
+  /**
+   * Essen der bestätigten Kinder je Betreuungstag der Woche, in
+   * Kalenderreihenfolge. Nur die Teilnehmerliste füllt sie.
+   */
+  readonly lunches?: readonly {
+    readonly date: string;
+    readonly count: number;
+  }[];
 }
 
 export interface HolidayTimeModelCount {
@@ -119,6 +129,8 @@ export interface HolidayParticipant {
   readonly timeModelId: string;
   /** Gebuchte Tage einer tageweise gebuchten Woche (#4701); leer: ganze Woche. */
   readonly days?: readonly string[];
+  /** Das Kind isst an seinen Betreuungstagen zu Mittag (#5631). */
+  readonly lunch?: boolean;
   /** `null` ohne zweite sorgeberechtigte Person. */
   readonly secondGuardian: HolidayHostGuardian | null;
   readonly answers: HolidayHostAnswer[];
@@ -157,6 +169,8 @@ interface BackendWeek {
   day_participants?: { date: string; participants: number }[] | null;
   guest_group_id?: number | string | null;
   guests?: number;
+  lunch_offered?: boolean;
+  lunches?: { date: string; participants: number }[] | null;
 }
 
 interface BackendParticipantList {
@@ -183,6 +197,7 @@ interface BackendParticipantList {
     home_school_name: string;
     time_model_id: number | string;
     days?: string[] | null;
+    lunch?: boolean;
     second_guardian?: HolidayHostGuardian | null;
     answers?: HolidayHostAnswer[] | null;
     health?: BackendHostHealth | null;
@@ -210,6 +225,16 @@ function mapWeek(week: BackendWeek): HostedHolidayWeek {
     ),
     guestGroupId: optionalId(week.guest_group_id ?? null),
     guests: week.guests ?? 0,
+    // Only a week with lunch carries the fields (#5631).
+    ...(week.lunch_offered
+      ? {
+          lunchOffered: true,
+          lunches: (week.lunches ?? []).map((day) => ({
+            date: day.date,
+            count: day.participants,
+          })),
+        }
+      : {}),
   };
 }
 
@@ -241,6 +266,7 @@ function mapHolidayParticipantList(
       homeSchoolName: participant.home_school_name,
       timeModelId: String(participant.time_model_id),
       ...(participant.days?.length ? { days: participant.days } : {}),
+      ...(participant.lunch ? { lunch: true } : {}),
       secondGuardian: participant.second_guardian ?? null,
       answers: participant.answers ?? [],
       health: mapHealth(participant.health),
@@ -327,6 +353,8 @@ export interface HolidayGuestSheet {
   readonly timeModelName: string;
   readonly timeModelStartsAt: string;
   readonly timeModelEndsAt: string;
+  /** Der Gast isst an seinen Betreuungstagen zu Mittag (#5631). */
+  readonly lunch?: boolean;
   /** `null` bei einem Kind ohne Schule des Trägers. */
   readonly homeSchoolId: string | null;
   readonly guestSchoolName: string;
@@ -348,6 +376,7 @@ interface BackendGuestSheet {
   time_model_name: string;
   time_model_starts_at: string;
   time_model_ends_at: string;
+  lunch?: boolean;
   home_school_id: number | string | null;
   guest_school_name: string;
   school_name?: string;
@@ -549,6 +578,7 @@ export async function fetchHolidayGuestSheet(
     timeModelName: sheet.time_model_name,
     timeModelStartsAt: sheet.time_model_starts_at,
     timeModelEndsAt: sheet.time_model_ends_at,
+    ...(sheet.lunch ? { lunch: true } : {}),
     homeSchoolId: optionalId(sheet.home_school_id),
     guestSchoolName: sheet.guest_school_name,
     schoolName: sheet.school_name ?? "",
@@ -676,6 +706,8 @@ export interface HolidayHomeSchoolBooking {
   readonly timeModelEndsAt: string;
   /** Gebuchte Tage einer tageweise gebuchten Woche; leer: ganze Woche. */
   readonly days: readonly string[];
+  /** Das Kind isst dort zu Mittag (#5631). */
+  readonly lunch?: boolean;
   readonly assignment: HolidayOwnChildAssignmentState;
   /** Die Kinderakte, wenn genau ein Kind der OGS passt. */
   readonly studentId: string | null;
@@ -704,6 +736,7 @@ export async function fetchHolidayHomeSchoolBookings(): Promise<
         time_model_starts_at: string;
         time_model_ends_at: string;
         days?: string[] | null;
+        lunch?: boolean;
         assignment: HolidayOwnChildAssignmentState;
         student_id?: number | string | null;
       }[]
@@ -727,6 +760,7 @@ export async function fetchHolidayHomeSchoolBookings(): Promise<
     timeModelStartsAt: entry.time_model_starts_at,
     timeModelEndsAt: entry.time_model_ends_at,
     days: entry.days ?? [],
+    ...(entry.lunch ? { lunch: true } : {}),
     assignment: entry.assignment,
     studentId: optionalId(entry.student_id ?? null),
   }));
@@ -748,6 +782,8 @@ export interface HolidayStudentRegistration {
   readonly timeModelName: string;
   readonly timeModelStartsAt: string;
   readonly timeModelEndsAt: string;
+  /** Das Kind isst an seinen Betreuungstagen zu Mittag (#5631). */
+  readonly lunch?: boolean;
   readonly emergencyContacts: HolidayGuestContact[];
   readonly pickupContacts: HolidayGuestContact[];
 }
@@ -769,6 +805,7 @@ export async function fetchHolidayStudentRegistrations(
         time_model_name: string;
         time_model_starts_at: string;
         time_model_ends_at: string;
+        lunch?: boolean;
         emergency_contacts?: HolidayGuestContact[] | null;
         pickup_contacts?: HolidayGuestContact[] | null;
       }[]
@@ -786,6 +823,7 @@ export async function fetchHolidayStudentRegistrations(
     timeModelName: entry.time_model_name,
     timeModelStartsAt: entry.time_model_starts_at,
     timeModelEndsAt: entry.time_model_ends_at,
+    ...(entry.lunch ? { lunch: true } : {}),
     emergencyContacts: entry.emergency_contacts ?? [],
     pickupContacts: entry.pickup_contacts ?? [],
   }));

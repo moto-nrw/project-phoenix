@@ -334,6 +334,12 @@ func overviewPositionLabel(position parentbilling.BillingPosition) string {
 				", " + position.TimeModelName
 		}
 		return position.TimeModelName
+	case parentbilling.LineMeal:
+		label := mealLabel(position)
+		if position.WeekStartsOn != nil && position.WeekEndsOn != nil {
+			label = "Woche " + position.WeekStartsOn.Format("02.01.2006") + " bis " + position.WeekEndsOn.Format("02.01.2006") + ", " + label
+		}
+		return label
 	case parentbilling.LineSibling:
 		label := "Geschwister"
 		if position.ChildRank != nil {

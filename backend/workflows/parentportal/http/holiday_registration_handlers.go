@@ -257,6 +257,7 @@ type HolidayRegistrationEntryWeekResponse struct {
 	LastDay       timezone.Date `json:"last_day"`
 	TimeModelName string        `json:"time_model_name"`
 	Placement     string        `json:"placement"`
+	Lunch         bool          `json:"lunch"`
 }
 
 // HolidayRegistrationEntryChildResponse is a child of a registration by its

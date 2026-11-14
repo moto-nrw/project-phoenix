@@ -101,6 +101,11 @@ type HolidayRegistrationWeek struct {
 	// NoCareDays are the days the host school gives no care (#4702); such
 	// a week takes no booking.
 	NoCareDays []capability.HolidayNoCareDay `json:"no_care_days"`
+	// LunchPriceCents is the price of one lunch, null when the week offers
+	// no lunch; LunchDays is the number of lunches of a booking of the
+	// whole week (#5631). A booking of days takes one lunch per booked day.
+	LunchPriceCents *int64 `json:"lunch_price_cents"`
+	LunchDays       int    `json:"lunch_days"`
 }
 
 // HolidayRegistrationOfferResponse is the body of GET
@@ -162,6 +167,8 @@ type holidayBookingRequest struct {
 	WeekID      int64           `json:"week_id"`
 	TimeModelID int64           `json:"time_model_id"`
 	Days        []calendar.Date `json:"days"`
+	// Lunch books lunch on the care days of the booking (#5631).
+	Lunch bool `json:"lunch"`
 }
 
 type holidayChildRequest struct {
@@ -378,7 +385,8 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 		weeks = append(weeks, HolidayRegistrationWeek{
 			ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolName: names[week.HostSchoolID], TimeModels: models,
 			BookingUnit: week.BookingUnit, CareDays: careDays, FullDays: fullDays,
-			NoCareDays: noCareDaysOrEmpty(week.NoCareDays),
+			NoCareDays:      noCareDaysOrEmpty(week.NoCareDays),
+			LunchPriceCents: week.LunchPriceCents, LunchDays: week.LunchDays,
 		})
 	}
 	return HolidayRegistrationOfferResponse{

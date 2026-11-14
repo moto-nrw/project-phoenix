@@ -84,6 +84,7 @@ export function traegerHolidayContributionTopic(): HelpTopic {
       "Haben zwei Kinder denselben Rang, zählt die früher eingegangene Anmeldung. Danach zählt die Reihenfolge im Formular.",
       "Eine geänderte Einstellung gilt nur für Anmeldungen, die danach bestätigt werden. Ist von Geschwistern schon eine Anmeldung bestätigt, rechnen alle diese Geschwister weiter wie bisher.",
       "Es gelten die Regeln vom ersten gebuchten Tag der Anmeldung.",
+      "Hat ein Kind Mittagessen gebucht, steht es als eigene Zeile `Mittagessen` im Beitrag. Die Zeile nennt die Zahl der Essen und den Preis für ein Essen. Geschwisterermäßigung, Befreiung und Kostenübernahme gelten nur für die Betreuung. Das Essen zahlt die Familie voll.",
       "Eine Regel gilt nur für Anmeldungen, die nach der Änderung bestätigt werden. Bestätigte Anmeldungen behalten ihren Beitrag.",
       "Ob eine Familie befreit ist oder ein Kostenträger bezahlt, entscheidet das Träger-Büro beim Bestätigen. Für die Befreiung wählt es dort `Von der Zahlung befreien (Leistungsbezug)`. Diese Wahl gibt es nur, wenn eine Befreiungsregel gilt. Es zählt der erste gebuchte Tag.",
       "Befreiung heißt: Niemand bezahlt. Bei einem Kostenträger bezahlt die Familie nichts, aber der Kostenträger bezahlt den Betrag. Am Anfang ist das der Betrag nach der Geschwisterermäßigung. Sie können auch den vollen Preis wählen.",

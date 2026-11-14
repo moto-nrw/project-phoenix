@@ -596,7 +596,8 @@ const seedHolidayRegistrationsSkippedKey = "traeger.holiday_registrations_skippe
 
 // seedHolidayRegistration builds the public registration of two siblings for
 // the published period: a child of homeSchool for the first week and a
-// holiday guest for both weeks, with answers to the questions of the
+// holiday guest for both weeks, each with lunch in the first week (#5631),
+// with answers to the questions of the
 // period's standard template (#5198) and the postal address the form asks
 // for (#5625), under the consent texts that share the health information
 // with the hosting OGS (#4722). All names and addresses are invented.
@@ -622,18 +623,22 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 	booking := func(week, model int) map[string]any {
 		return map[string]any{"week_id": period.Weeks[week].ID, "time_model_id": period.Weeks[week].TimeModels[model].ID}
 	}
+	withLunch := func(booking map[string]any) map[string]any {
+		booking["lunch"] = true
+		return booking
+	}
 	return period.PublicToken, map[string]any{
 		"second_guardian":  map[string]any{"first_name": "Thomas", "last_name": "Ferienkind", "email": "thomas.ferienkind@example.org", "phone": "0151 0000002"},
 		"guardian":         map[string]any{"first_name": "Sabine", "last_name": "Ferienkind", "email": "sabine.ferienkind@example.org", "phone": "0151 0000001"},
 		"guardian_address": map[string]any{"street": "Sonnenweg 7", "postal_code": "49143", "city": "Bissendorf"},
 		"children": []map[string]any{
 			{"first_name": "Lotta", "last_name": "Ferienkind", "birth_date": "2018-04-12", "home_school_id": homeSchool,
-				"allergies": "Erdnüsse", "bookings": []map[string]any{booking(0, 1)},
+				"allergies": "Erdnüsse", "bookings": []map[string]any{withLunch(booking(0, 1))},
 				"custom_data": map[string]any{"lebensmittelunvertraeglichkeiten": "Laktose", "tetanus_impfschutz": "ja",
 					"darf_allein_nach_hause": false, "darf_an_ausfluegen_teilnehmen": true}},
 			{"first_name": "Jonas", "last_name": "Ferienkind", "birth_date": "2016-09-03", "home_school_id": 0,
 				"guest_school_name": "Grundschule am See", "medication": "Asthmaspray bei Bedarf",
-				"bookings": []map[string]any{booking(0, 0), booking(1, 0)},
+				"bookings": []map[string]any{withLunch(booking(0, 0)), booking(1, 0)},
 				"custom_data": map[string]any{"tetanus_impfschutz": "weiss_nicht", "darf_allein_nach_hause": true,
 					"darf_an_ausfluegen_teilnehmen": true}},
 		},
@@ -718,7 +723,8 @@ func seedTraegerSchoolIDs(client *Client, auth AuthRef) ([]int64, error) {
 
 // seedHolidayPeriodShifted is the seeded holiday period with two weeks from
 // the autumn holidays on, Monday to Friday, hosted by host, with prices in
-// whole cent; both weeks shifted by shift weeks.
+// whole cent; both weeks shifted by shift weeks. Both weeks offer lunch at
+// 4,30 € a lunch (#5631).
 func seedHolidayPeriodShifted(today calendar.Date, host int64, shift int) map[string]any {
 	ferienStart, _ := seedHerbstferien(seedDate{Time: today.UTCMidnight()})
 	firstMonday := calendar.NewDate(ferienStart.Year(), ferienStart.Month(), ferienStart.Day()).AddDays(7 * shift)
@@ -727,6 +733,7 @@ func seedHolidayPeriodShifted(today calendar.Date, host int64, shift int) map[st
 		monday := firstMonday.AddDays(7 * i)
 		weeks = append(weeks, map[string]any{
 			"starts_on": monday.String(), "ends_on": monday.AddDays(4).String(), "host_school_id": host,
+			"lunch_price_cents": 430,
 			"time_models": []map[string]any{
 				{"name": "bis 13 Uhr", "starts_at": "08:00", "ends_at": "13:00", "price_cents": 4500},
 				{"name": "bis 16 Uhr", "starts_at": "08:00", "ends_at": "16:00", "price_cents": 6500},
@@ -737,7 +744,7 @@ func seedHolidayPeriodShifted(today calendar.Date, host int64, shift int) map[st
 		"name":                   fmt.Sprintf("Ferienbetreuung Herbstferien %d", firstMonday.Year()),
 		"registration_opens_on":  today.String(),
 		"registration_closes_on": firstMonday.AddDays(-7).String(), "binding": true,
-		"notes": "Mittagessen gibt es vor Ort. Bitte geben Sie Ihrem Kind ein Frühstück und etwas zu trinken mit.",
+		"notes": "Mittagessen können Sie je Woche dazu buchen. Bitte geben Sie Ihrem Kind ein Frühstück und etwas zu trinken mit.",
 		// The text of the acceptance mail a confirmation sends (#6672).
 		"acceptance_mail_text": seedHolidayAcceptanceMailText,
 		"weeks":                weeks,
@@ -746,7 +753,7 @@ func seedHolidayPeriodShifted(today calendar.Date, host int64, shift int) map[st
 
 // seedHolidayAcceptanceMailText is what the demo Träger tells the parents
 // when it confirms a holiday registration (#6672).
-const seedHolidayAcceptanceMailText = "Bei Betreuung bis 16 Uhr geben Sie Ihrem Kind bitte ein Mittagessen mit.\n" +
+const seedHolidayAcceptanceMailText = "Ohne gebuchtes Mittagessen geben Sie Ihrem Kind bitte ein Lunchpaket mit.\n" +
 	"Bitte packen Sie Wechselkleidung, Sportsachen und regenfeste Kleidung ein.\n" +
 	"Wir freuen uns auf die Ferien mit Ihrem Kind!"
 

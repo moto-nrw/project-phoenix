@@ -378,8 +378,8 @@ func quotedChildren(weeks []parentbilling.HolidayWeek, children []parentbilling.
 		booked := map[int64]bool{}
 		for _, booking := range child.Bookings {
 			known, found := models[booking.TimeModelID]
-			quoted, daysOffered := quotedBooking(known.week, known.model, booking.Days)
-			if !found || known.week.ID != booking.WeekID || booked[booking.WeekID] || !daysOffered {
+			quoted, offered := quotedBooking(known.week, known.model, booking.Days, booking.Lunch)
+			if !found || known.week.ID != booking.WeekID || booked[booking.WeekID] || !offered {
 				return nil, fmt.Errorf("%w: child %d books a time model the period does not offer", parentbilling.ErrInvalidHolidayQuote, i+1)
 			}
 			booked[booking.WeekID] = true
@@ -390,17 +390,37 @@ func quotedChildren(weeks []parentbilling.HolidayWeek, children []parentbilling.
 }
 
 // quotedBooking prices a quoted booking: a time model of a week by days
-// prices one day (#4701).
-func quotedBooking(week parentbilling.HolidayWeek, model parentbilling.HolidayTimeModel, chosen []calendar.Date) (parentbilling.HolidayBooking, bool) {
+// prices one day (#4701), and a booking with lunch takes its lunches at the
+// week's price (#5631). It reports false for days the week does not offer
+// and for lunch in a week without lunch.
+func quotedBooking(week parentbilling.HolidayWeek, model parentbilling.HolidayTimeModel, chosen []calendar.Date, lunch bool) (parentbilling.HolidayBooking, bool) {
 	days, ok := quotedDays(week, chosen)
 	price := model.PriceCents
 	if days > 0 {
 		price *= int64(days)
 	}
-	return parentbilling.HolidayBooking{
+	quoted := parentbilling.HolidayBooking{
 		WeekID: week.ID, WeekStartsOn: week.StartsOn, WeekEndsOn: week.EndsOn,
-		TimeModelID: model.ID, TimeModelName: model.Name, PriceCents: price, BookedDays: days, Days: chosen,
-	}, ok
+		TimeModelID: model.ID, TimeModelName: model.Name, PriceCents: price, BookedDays: days, Days: chosen, Lunch: lunch,
+	}
+	if !lunch {
+		return quoted, ok
+	}
+	if week.LunchDayCents == nil {
+		return quoted, false
+	}
+	quoted.LunchDays, quoted.LunchCents = quotedLunch(week, days)
+	return quoted, ok
+}
+
+// quotedLunch is the lunch of a quoted booking in a week that offers lunch
+// (#5631): one lunch per booked day, or the lunches of the whole week.
+func quotedLunch(week parentbilling.HolidayWeek, bookedDays int) (int, int64) {
+	lunches := week.WeekLunchDays
+	if bookedDays > 0 {
+		lunches = bookedDays
+	}
+	return lunches, *week.LunchDayCents * int64(lunches)
 }
 
 // quotedDays counts the distinct chosen days of a quoted booking (#4701):

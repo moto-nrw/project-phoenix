@@ -130,6 +130,10 @@ func (r bookingResolver) partAccounts(part parentbilling.ExportBookingPart) (par
 		return r.care(part.SchoolID, part.CareOfferingID, part.Day), true
 	case parentbilling.BookingPartMeal:
 		return r.meal(part.SchoolID, part.Day), true
+	case parentbilling.BookingPartHolidayMeal:
+		accounts := r.holiday(part.Day)
+		accounts.RevenueAccount = r.holidayMealAccount()
+		return accounts, true
 	}
 	return r.holiday(part.Day), true
 }

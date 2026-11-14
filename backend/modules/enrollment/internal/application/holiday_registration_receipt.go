@@ -67,7 +67,7 @@ func holidayMailDeclaration(period enrollment.HolidayPeriod, form enrollment.Hol
 // holidayReceiptChild lists the booked weeks of a child in the order of the
 // period, those with a place apart from those on the waiting list and those
 // the Büro still decides on (#4700).
-func holidayReceiptChild(child enrollment.HolidayChildInput, period enrollment.HolidayPeriod, line func(weekID, timeModelID int64, days []calendar.Date) string,
+func holidayReceiptChild(child enrollment.HolidayChildInput, period enrollment.HolidayPeriod, line func(weekID, timeModelID int64, days []calendar.Date, lunch bool) string,
 	placement func(weekID int64) string) enrollment.HolidayRegistrationMailChild {
 	mailChild := enrollment.HolidayRegistrationMailChild{
 		Name: child.FirstName + " " + child.LastName, Guest: child.HomeSchoolID == 0, Weeks: []string{},
@@ -81,11 +81,11 @@ func holidayReceiptChild(child enrollment.HolidayChildInput, period enrollment.H
 		switch {
 		case !ok:
 		case placement(week.ID) == enrollment.HolidayPlacementWaitlisted:
-			mailChild.WaitlistWeeks = append(mailChild.WaitlistWeeks, line(week.ID, booking.TimeModelID, booking.Days))
+			mailChild.WaitlistWeeks = append(mailChild.WaitlistWeeks, line(week.ID, booking.TimeModelID, booking.Days, booking.Lunch))
 		case placement(week.ID) == enrollment.HolidayPlacementPending:
-			mailChild.PendingWeeks = append(mailChild.PendingWeeks, line(week.ID, booking.TimeModelID, booking.Days))
+			mailChild.PendingWeeks = append(mailChild.PendingWeeks, line(week.ID, booking.TimeModelID, booking.Days, booking.Lunch))
 		default:
-			mailChild.Weeks = append(mailChild.Weeks, line(week.ID, booking.TimeModelID, booking.Days))
+			mailChild.Weeks = append(mailChild.Weeks, line(week.ID, booking.TimeModelID, booking.Days, booking.Lunch))
 		}
 	}
 	return mailChild

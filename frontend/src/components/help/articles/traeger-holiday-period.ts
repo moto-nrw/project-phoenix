@@ -1,7 +1,10 @@
 import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
-/** `/traeger/ferien` (#4659): Ferienzeitraum mit Wochen und Zeitmodellen. */
+/**
+ * `/traeger/ferien` (#4659): Ferienzeitraum mit Wochen und Zeitmodellen.
+ * Mittagessen je Woche mit Preis für ein Essen (#5631).
+ */
 export function traegerHolidayPeriodTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.traegerHolidayPeriod,
@@ -25,7 +28,7 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
           "Tragen Sie den `Name des Ferienzeitraums` ein, zum Beispiel Osterferien 2027.",
           "Tragen Sie `Anmeldebeginn` und `Anmeldeschluss` ein.",
           "Ist die Anmeldung verbindlich? Dann lassen Sie den Haken bei `Die Anmeldung ist verbindlich.`.",
-          "Schreiben Sie unter `Hinweise für Eltern`, was Eltern wissen müssen. Zum Beispiel, ob es Mittagessen gibt oder ein Lunchpaket nötig ist.",
+          "Schreiben Sie unter `Hinweise für Eltern`, was Eltern wissen müssen. Zum Beispiel, ob ein Lunchpaket nötig ist.",
           "Soll ein Kind nur eine bestimmte Zahl an Tagen kommen? Tragen Sie die Zahl bei `Höchstens Tage je Kind` ein, zum Beispiel 5. Ohne Grenze lassen Sie das Feld leer.",
           "Wählen Sie bei `Wie werden die Plätze vergeben?` die Karte `Nach Eingang` oder `Nach Kriterien`. Nach Eingang bekommt zuerst einen Platz, wer sich zuerst anmeldet. Nach Kriterien entscheidet Ihr Büro.",
         ],
@@ -38,6 +41,7 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
           "Liegt ein Feiertag oder Schließtag der Schule in der Woche, zeigt moto einen Hinweis. Bei `Ganze Woche` wählen Sie dann andere Tage oder `Einzelne Tage`.",
           "Wählen Sie bei `Buchung`, wie Eltern die Woche buchen: `Ganze Woche` oder `Einzelne Tage`. Bei einzelnen Tagen wählen Eltern Tage von Montag bis Freitag. Unter `Buchbare Tage` sehen Sie, welche Tage Eltern buchen können. Ein Tag ohne Betreuung zeigt „–“ und den Grund.",
           "Tragen Sie die Zeitmodelle ein, zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“. Jedes Zeitmodell hat `Beginn`, `Ende` und einen Preis. Bei `Ganze Woche` ist es der `Preis in Euro` für die Woche, bei `Einzelne Tage` der `Preis je Tag in Euro`.",
+          "Gibt es in der Woche Mittagessen? Schalten Sie `Mittagessen anbieten` ein. Tragen Sie den `Preis für ein Essen in Euro` ein, zum Beispiel 4,30.",
           "Weitere Wochen fügen Sie mit `Woche hinzufügen` hinzu.",
           "Dieselben Tage an mehreren Schulen? Legen Sie je Schule eine Woche mit denselben Tagen an. Eltern wählen dann für ihr Kind eine Schule. An derselben Schule dürfen sich Wochen nicht überschneiden.",
           "Wählen Sie `Speichern`.",
@@ -75,11 +79,15 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
       "Ein Zeitmodell mit Anmeldungen lässt sich nicht entfernen. Wählen Sie dann `Archivieren`. Neu buchen kann es danach niemand mehr. Gebuchte Tage behalten es. Zurückholen lässt es sich nicht.",
       "`Höchstens Tage je Kind` gilt für alle Wochen zusammen. Es gilt auch, wenn Eltern dasselbe Kind ein zweites Mal anmelden. moto erkennt das Kind an der E-Mail-Adresse der Eltern, am Namen und am Geburtsdatum. Eine ganze Woche zählt mit allen Tagen von Montag bis Freitag. Eltern dürfen die Tage auf mehrere Wochen verteilen. Senken Sie die Zahl später, behalten Kinder ihre gebuchten Tage.",
       "Bei `Einzelne Tage` zahlt die Familie den Preis je Tag mal die gebuchten Tage.",
+      "Mit `Mittagessen anbieten` wählen Eltern das Essen für jedes Kind und jede Woche dazu. Das Kind isst an jedem gebuchten Tag. Bei einer ganzen Woche sind das die Tage von Montag bis Freitag. Unter dem Preis steht, was das zusammen kostet.",
+      "Das Mittagessen steht als eigener Betrag im Beitrag und auf der Rechnung. Geschwisterermäßigung, Befreiung und Kostenübernahme gelten nur für die Betreuung, nicht für das Essen.",
+      "Ändern Sie den Preis für ein Essen, gilt er für neue Anmeldungen. Bestätigte Anmeldungen behalten ihren Preis.",
       "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Abrechnungsvorgaben` fest.",
     ],
     differences: [
       "`Nach Eingang` und `Nach Kriterien` lassen sich nicht wählen? Es gibt schon Anmeldungen. Die Platzvergabe bleibt dann so.",
       "`Ganze Woche` und `Einzelne Tage` lassen sich nicht wählen? Für die Woche gibt es schon Anmeldungen. Die Buchungsart bleibt dann so. Bei einzelnen Tagen bleiben auch die Tage der Woche.",
+      "`Mittagessen anbieten` lässt sich nicht ausschalten? Für die Woche ist schon Mittagessen gebucht. Das Angebot bleibt dann. Den Preis können Sie ändern.",
       "Sie sehen in der Navigation kein `Ferienbetreuung`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
     ],
     troubleshootingDetails: [

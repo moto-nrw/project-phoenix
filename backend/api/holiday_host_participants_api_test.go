@@ -123,12 +123,12 @@ func newHolidayHostFixture(t *testing.T, name string) holidayHostFixture {
 
 // newHolidayHostRouter mounts the routes of the hosting school at
 // /api/holiday-weeks with the service clock today.
-func newHolidayHostRouter(t *testing.T, f holidayRegistrationFixture, today *atomic.Value) http.Handler {
+func newHolidayHostRouter(t *testing.T, f holidayRegistrationFixture, today *atomic.Value, noCare ...owners.HolidayTestSchoolCalendar) http.Handler {
 	t.Helper()
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, f.db))
 	require.NoError(t, err)
 	resource := NewHolidayHostHTTP(organizations, owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, f.db)),
-		owners.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog, testHealthCipher(),
+		owners.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog, testHealthCipher(), holidayTestNoCare(noCare),
 		func() calendar.Date { return today.Load().(calendar.Date) })
 	unit := testpkg.TenantRuntime(t, f.db)
 	router := chi.NewRouter()
@@ -389,4 +389,13 @@ func TestHolidayHostParticipantListQueryBudgetIsFlat(t *testing.T) {
 	assert.Len(t, read(participants).Statements, len(oneList.Statements), "the list reads the same statements for any number of children")
 	querybudgets.AssertQueryBudget(t, "api.holiday_weeks.list", oneWeek)
 	querybudgets.AssertQueryBudget(t, "api.holiday_weeks.participants", oneList)
+}
+
+// holidayTestNoCare is the calendar of the hosting school in a test: the
+// days of the first calendar named, none without one.
+func holidayTestNoCare(calendars []owners.HolidayTestSchoolCalendar) owners.HolidayTestSchoolCalendar {
+	if len(calendars) == 0 {
+		return nil
+	}
+	return calendars[0]
 }

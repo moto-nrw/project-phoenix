@@ -487,6 +487,13 @@ export interface HolidayWeek {
   readonly bookingUnit?: HolidayBookingUnit;
   /** Days without care of the stored week; such a week takes no new booking. Read only. */
   readonly noCareDays?: readonly HolidayNoCareDay[];
+  /**
+   * Price of one lunch in cent; null or absent offers no lunch (#5631). A
+   * booking with lunch takes one lunch on each of its care days.
+   */
+  readonly lunchPriceCents?: number | null;
+  /** A booking of the week has lunch, so the offer stays. Read only. */
+  readonly lunchBooked?: boolean;
 }
 
 /** How a holiday week is booked (#4701). */
@@ -555,6 +562,8 @@ interface BackendWeek {
   time_models?: BackendTimeModel[] | null;
   booking_unit?: HolidayBookingUnit;
   no_care_days?: HolidayNoCareDay[] | null;
+  lunch_price_cents?: number | null;
+  lunch_booked?: boolean;
 }
 
 interface BackendHolidayPeriod {
@@ -600,6 +609,13 @@ function holidayPeriodFromBackend(period: BackendHolidayPeriod): HolidayPeriod {
       hostSchoolId: String(week.host_school_id),
       bookingUnit: week.booking_unit ?? "week",
       noCareDays: week.no_care_days ?? [],
+      // Only a week with lunch carries the fields (#5631).
+      ...(week.lunch_price_cents == null
+        ? {}
+        : {
+            lunchPriceCents: week.lunch_price_cents,
+            lunchBooked: week.lunch_booked ?? false,
+          }),
       timeModels: (week.time_models ?? []).map((model) => ({
         id: String(model.id),
         name: model.name,
@@ -630,6 +646,10 @@ function holidayPeriodToBackend(input: HolidayPeriodInput) {
       ends_on: week.endsOn,
       host_school_id: Number(week.hostSchoolId),
       booking_unit: week.bookingUnit ?? "week",
+      // Left out, the week offers no lunch (#5631).
+      ...(week.lunchPriceCents == null
+        ? {}
+        : { lunch_price_cents: week.lunchPriceCents }),
       time_models: week.timeModels.map((model) => ({
         ...(model.id ? { id: Number(model.id) } : {}),
         name: model.name,

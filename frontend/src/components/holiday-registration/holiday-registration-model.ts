@@ -122,6 +122,11 @@ export interface ChildDraft {
    * the days of a booked week count.
    */
   readonly days?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * Week ID → the child eats lunch (#5631). Only a booked week that offers
+   * lunch counts.
+   */
+  readonly lunch?: Readonly<Record<string, boolean>>;
   /** The child of the parent's account this draft started from (#4662). */
   readonly knownStudentId?: string;
   /**
@@ -597,12 +602,18 @@ function requireAnswers(
 
 /**
  * The bookings of a child in the order of the period's weeks; a week by days
- * carries its chosen care days in order (#4701).
+ * carries its chosen care days in order (#4701). `lunch` is true only in a
+ * week that offers lunch (#5631).
  */
 export function bookedWeeks(
   child: ChildDraft,
   offer: HolidayRegistrationOffer,
-): { weekId: string; timeModelId: string; days: readonly string[] }[] {
+): {
+  weekId: string;
+  timeModelId: string;
+  days: readonly string[];
+  lunch: boolean;
+}[] {
   return offer.weeks.flatMap((week) => {
     const timeModelId = child.bookings[week.id];
     if (!timeModelId) return [];
@@ -611,8 +622,27 @@ export function bookedWeeks(
       week.bookingUnit === "day"
         ? (week.careDays ?? []).filter((day) => chosen.includes(day))
         : [];
-    return [{ weekId: week.id, timeModelId, days }];
+    const lunch =
+      week.lunchPriceCents != null && (child.lunch?.[week.id] ?? false);
+    return [{ weekId: week.id, timeModelId, days, lunch }];
   });
+}
+
+/**
+ * The lunches of a booking with lunch and what they cost (#5631): one lunch
+ * per chosen day of a week by days, the lunches of the week otherwise. Null
+ * for a week without lunch.
+ */
+export function weekLunch(
+  week: HolidayRegistrationOffer["weeks"][number],
+  chosenDays: readonly string[],
+): { readonly lunches: number; readonly cents: number } | null {
+  if (week.lunchPriceCents == null) return null;
+  const lunches =
+    week.bookingUnit === "day"
+      ? (week.careDays ?? []).filter((day) => chosenDays.includes(day)).length
+      : (week.lunchDays ?? 0);
+  return { lunches, cents: lunches * week.lunchPriceCents };
 }
 
 /**
@@ -884,6 +914,7 @@ export function quoteBookings(
     week_id: Number(booking.weekId),
     time_model_id: Number(booking.timeModelId),
     ...(booking.days.length > 0 ? { days: booking.days } : {}),
+    ...(booking.lunch ? { lunch: true } : {}),
   }));
 }
 

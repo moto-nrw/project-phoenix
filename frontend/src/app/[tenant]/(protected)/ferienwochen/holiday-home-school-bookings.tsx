@@ -88,6 +88,9 @@ function columns(
           <span className="text-gray-500">
             {child.days.length > 0 ? holidayDayList(child.days) : "ganze Woche"}
           </span>
+          {child.lunch ? (
+            <span className="text-gray-500">mit Mittagessen</span>
+          ) : null}
         </span>
       ),
     },

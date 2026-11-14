@@ -79,6 +79,9 @@ function CareFields({
             ? holidayDayList(registration.days)
             : "ganze Woche"}
         </DataField>
+        {registration.lunch ? (
+          <DataField label="Mittagessen">Ja, an den gebuchten Tagen</DataField>
+        ) : null}
         <DataField label="Im Check-in" fullWidth>
           Der Check-in erwartet das Kind an den gebuchten Tagen.
         </DataField>

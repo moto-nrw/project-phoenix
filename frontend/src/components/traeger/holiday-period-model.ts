@@ -38,6 +38,12 @@ export interface WeekDraft {
   readonly timeModels: readonly TimeModelDraft[];
   /** Whole week or single days (#4701); the price is per week or per day. */
   readonly bookingUnit?: HolidayBookingUnit;
+  /** The week offers lunch (#5631). */
+  readonly lunchOffered?: boolean;
+  /** Price of one lunch as typed, in euro; kept while the offer is off. */
+  readonly lunchPrice?: string;
+  /** A booking has lunch: the offer stays, only its price changes. */
+  readonly lunchBooked?: boolean;
 }
 
 export interface HolidayPeriodDraft {
@@ -151,6 +157,12 @@ function weekDraft(week: HolidayWeek): WeekDraft {
     hostSchoolId: week.hostSchoolId,
     timeModels: week.timeModels.map(timeModelDraft),
     bookingUnit: week.bookingUnit ?? "week",
+    lunchOffered: week.lunchPriceCents != null,
+    lunchPrice:
+      week.lunchPriceCents == null
+        ? ""
+        : centsToEuroInput(week.lunchPriceCents),
+    lunchBooked: week.lunchBooked ?? false,
   };
 }
 
@@ -190,6 +202,9 @@ export function inputFromDraft(draft: HolidayPeriodDraft): HolidayPeriodInput {
       endsOn: week.endsOn,
       hostSchoolId: week.hostSchoolId,
       bookingUnit: week.bookingUnit,
+      lunchPriceCents: week.lunchOffered
+        ? (euroInputToCents(week.lunchPrice ?? "") ?? 0)
+        : null,
       timeModels: week.timeModels.map((model) => ({
         id: model.id,
         name: model.name.trim(),
@@ -293,6 +308,19 @@ function checkTimeModels(
 }
 
 /**
+ * The lunches of a booking of the whole week and what they cost together,
+ * or null without a valid price or without care days (#5631).
+ */
+export function weekLunchTotal(
+  week: WeekDraft,
+  careDays: number,
+): { readonly lunches: number; readonly cents: number } | null {
+  const cents = euroInputToCents(week.lunchPrice ?? "");
+  if (!week.lunchOffered || cents === null || careDays <= 0) return null;
+  return { lunches: careDays, cents: cents * careDays };
+}
+
+/**
  * The checks of the form, keyed by field name. Empty means the draft can be
  * sent. A draft may have weeks without time models; publishing needs them.
  */
@@ -339,6 +367,13 @@ export function validateHolidayPeriod(
         `Diese Woche überschneidet sich mit Woche ${overlap + 1} an derselben Schule.`;
     }
     checkTimeModels(week, prefix, errors);
+    if (week.lunchOffered) {
+      const cents = euroInputToCents(week.lunchPrice ?? "");
+      if (cents === null || cents > MAX_PRICE_CENTS) {
+        errors[`${prefix}.lunch_price_cents`] =
+          "Bitte geben Sie den Preis für ein Essen in Euro ein, zum Beispiel 4,30.";
+      }
+    }
   });
   return errors;
 }

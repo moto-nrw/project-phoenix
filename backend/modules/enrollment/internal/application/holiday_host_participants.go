@@ -38,6 +38,7 @@ type HolidayHostParticipants struct {
 	log      enrollment.HolidayParticipantAccessLog
 	health   enrollment.HolidayHealthCipher
 	students enrollment.HolidayStudentIdentities
+	calendar enrollment.HolidayHostCalendar
 	today    func() calendar.Date
 }
 
@@ -45,10 +46,11 @@ var _ enrollment.HolidayHostParticipants = (*HolidayHostParticipants)(nil)
 
 // NewHolidayHostParticipants builds the participant lists; health opens the
 // health information of the children and students names the school's own
-// children (#4722). A nil today uses the Berlin calendar day.
-func NewHolidayHostParticipants(store HolidayHostStore, log enrollment.HolidayParticipantAccessLog, health enrollment.HolidayHealthCipher, students enrollment.HolidayStudentIdentities, today func() calendar.Date) *HolidayHostParticipants {
-	if store == nil || log == nil || students == nil {
-		panic("enrollment: the holiday host store, the access log and the student identities are required")
+// children (#4722); noCare names the days the school gives no care, which
+// have no lunch (#5631). A nil today uses the Berlin calendar day.
+func NewHolidayHostParticipants(store HolidayHostStore, log enrollment.HolidayParticipantAccessLog, health enrollment.HolidayHealthCipher, students enrollment.HolidayStudentIdentities, noCare enrollment.HolidayHostCalendar, today func() calendar.Date) *HolidayHostParticipants {
+	if store == nil || log == nil || students == nil || noCare == nil {
+		panic("enrollment: the holiday host store, the access log, the student identities and the school calendar are required")
 	}
 	if health == nil {
 		panic(errHolidayHealthCipherRequired)
@@ -56,7 +58,7 @@ func NewHolidayHostParticipants(store HolidayHostStore, log enrollment.HolidayPa
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayHostParticipants{store: store, log: log, health: health, students: students, today: today}
+	return &HolidayHostParticipants{store: store, log: log, health: health, students: students, calendar: noCare, today: today}
 }
 
 // HostedHolidayWeeks lists the hosted weeks that have not ended.
@@ -102,19 +104,12 @@ func (h *HolidayHostParticipants) read(ctx context.Context, host enrollment.Holi
 	if !found {
 		return enrollment.HolidayParticipantList{}, enrollment.ErrHostedHolidayWeekNotFound
 	}
-	healthParticipants := 0
-	for i := range participants {
-		// An export carries no health column, and an account without the
-		// right to read health information gets none (#4722).
-		if format == "" && host.ReadsHealth {
-			if participants[i].Health, err = openHolidayHostHealth(h.health, participants[i].Sealed); err != nil {
-				return enrollment.HolidayParticipantList{}, err
-			}
-		}
-		participants[i].Sealed = nil
-		if participants[i].Health != nil {
-			healthParticipants++
-		}
+	if week, err = h.withCareDayLunches(ctx, host.SchoolID, week); err != nil {
+		return enrollment.HolidayParticipantList{}, err
+	}
+	healthParticipants, err := h.openHealth(participants, format == "" && host.ReadsHealth)
+	if err != nil {
+		return enrollment.HolidayParticipantList{}, err
 	}
 	list := holidayParticipantList(week, models, participants)
 	// The read is recorded once the week is known to be hosted and open;
@@ -126,6 +121,43 @@ func (h *HolidayHostParticipants) read(ctx context.Context, host enrollment.Holi
 		return enrollment.HolidayParticipantList{}, fmt.Errorf("record holiday participant access: %w", err)
 	}
 	return list, nil
+}
+
+// openHealth opens the health information of the participants for a reader
+// who may see it and drops the sealed form; it counts the children with
+// health information. An export carries no health column, and an account
+// without the right to read health information gets none (#4722).
+func (h *HolidayHostParticipants) openHealth(participants []enrollment.HolidayParticipant, reads bool) (int, error) {
+	opened := 0
+	for i := range participants {
+		if reads {
+			health, err := openHolidayHostHealth(h.health, participants[i].Sealed)
+			if err != nil {
+				return 0, err
+			}
+			participants[i].Health = health
+		}
+		participants[i].Sealed = nil
+		if participants[i].Health != nil {
+			opened++
+		}
+	}
+	return opened, nil
+}
+
+// withCareDayLunches leaves the days the school gives no care out of the
+// lunches of a week with lunch (#5631), so the school orders none for a
+// public holiday or a closing day. A week without lunch reads no calendar.
+func (h *HolidayHostParticipants) withCareDayLunches(ctx context.Context, schoolID int64, week enrollment.HostedHolidayWeek) (enrollment.HostedHolidayWeek, error) {
+	if !week.LunchOffered {
+		return week, nil
+	}
+	noCare, err := h.calendar.HostedHolidayNoCareDays(ctx, schoolID, week.StartsOn, week.EndsOn)
+	if err != nil {
+		return week, fmt.Errorf("read the days without care of the hosted week: %w", err)
+	}
+	week.Lunches = enrollment.HolidayCareDayLunches(week.Lunches, noCare)
+	return week, nil
 }
 
 // holidayParticipantList counts the children per time model, in the order

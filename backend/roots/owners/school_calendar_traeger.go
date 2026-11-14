@@ -177,6 +177,44 @@ func (c holidaySchoolCalendar) schoolClosingDays(ctx context.Context, schoolID i
 	if err != nil {
 		return nil, err
 	}
+	return closingNoCareDays(ranges, from, to)
+}
+
+// NewHolidayHostCalendar binds the days the hosting school gives no care
+// (#5631) to School Calendar: the statutory holidays of the school's federal
+// state and its closing days, read in the tenant transaction of the school
+// in context, which the caller already holds.
+func NewHolidayHostCalendar(settings CareContractHolidaySettings, days HolidayCalendarDays) enrollment.HolidayHostCalendar {
+	if settings == nil || days == nil {
+		panic("holiday host calendar: settings and School Calendar are required")
+	}
+	return holidayHostCalendar{holidaySchoolCalendar{settings: settings, days: days}}
+}
+
+type holidayHostCalendar struct{ holidaySchoolCalendar }
+
+func (c holidayHostCalendar) HostedHolidayNoCareDays(ctx context.Context, schoolID int64, from, to calendar.Date) ([]enrollment.HolidayNoCareDay, error) {
+	states, err := schoolFederalStates(ctx, c.settings, []int64{schoolID})
+	if err != nil {
+		return nil, err
+	}
+	holidays, err := c.regionHolidays(ctx, states[schoolID], from, to)
+	if err != nil {
+		return nil, err
+	}
+	ranges, err := c.days.ListClosingDays(ctx, schoolcalendar.ClosingDayFilter{OverlappingFrom: from.String(), OverlappingTo: to.String()})
+	if err != nil {
+		return nil, err
+	}
+	closing, err := closingNoCareDays(ranges, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return mergeNoCareDays(holidays, closing), nil
+}
+
+// closingNoCareDays expands closing days into the days of [from, to].
+func closingNoCareDays(ranges []schoolcalendar.ClosingDay, from, to calendar.Date) ([]enrollment.HolidayNoCareDay, error) {
 	var result []enrollment.HolidayNoCareDay
 	for _, closing := range ranges {
 		start, err := calendar.ParseDate(closing.StartDate)

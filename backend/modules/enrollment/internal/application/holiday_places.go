@@ -247,7 +247,7 @@ func (p holidayPlacement) announceRegistration(ctx context.Context, organization
 		mailChild := enrollment.HolidayRegistrationMailChild{Name: child.FirstName + " " + child.LastName, Guest: child.HomeSchoolID == nil}
 		for _, booking := range child.Bookings {
 			if slices.Contains(moved, booking.WeekID) {
-				mailChild.Weeks = append(mailChild.Weeks, lines(booking.WeekID, booking.TimeModelID, booking.Days))
+				mailChild.Weeks = append(mailChild.Weeks, lines(booking.WeekID, booking.TimeModelID, booking.Days, booking.Lunch))
 			}
 		}
 		children = append(children, mailChild)
@@ -272,8 +272,9 @@ func (p holidayPlacement) announceRegistration(ctx context.Context, organization
 }
 
 // holidayWeekLines names a booked week of the period in a mail: dates, host
-// school and time model, and the booked days of a booking of days (#4701).
-func holidayWeekLines(traeger enrollment.HolidayTraeger, period enrollment.HolidayPeriod) func(weekID, timeModelID int64, days []calendar.Date) string {
+// school and time model, the booked days of a booking of days (#4701) and
+// the lunch of a booking with lunch (#5631).
+func holidayWeekLines(traeger enrollment.HolidayTraeger, period enrollment.HolidayPeriod) func(weekID, timeModelID int64, days []calendar.Date, lunch bool) string {
 	schools := map[int64]string{}
 	for _, school := range traeger.Schools {
 		schools[school.ID] = school.Name
@@ -286,7 +287,7 @@ func holidayWeekLines(traeger enrollment.HolidayTraeger, period enrollment.Holid
 			models[model.ID] = model
 		}
 	}
-	return func(weekID, timeModelID int64, days []calendar.Date) string {
+	return func(weekID, timeModelID int64, days []calendar.Date, lunch bool) string {
 		week, model := weeks[weekID], models[timeModelID]
 		place := model.Name
 		if school := schools[week.HostSchoolID]; school != "" {
@@ -296,6 +297,9 @@ func holidayWeekLines(traeger enrollment.HolidayTraeger, period enrollment.Holid
 			week.EndsOn.Format("02.01.2006"), place, model.StartsAt, model.EndsAt)
 		if len(days) > 0 {
 			line += ", Tage: " + enrollment.HolidayDayNames(days)
+		}
+		if lunch && week.LunchPriceCents != nil {
+			line += ", mit Mittagessen"
 		}
 		return line
 	}

@@ -184,6 +184,7 @@ type holidayQuoteBookingRequest struct {
 	WeekID      int64           `json:"week_id"`
 	TimeModelID int64           `json:"time_model_id"`
 	Days        []calendar.Date `json:"days"`
+	Lunch       bool            `json:"lunch"`
 }
 
 type holidayQuoteChildRequest struct {

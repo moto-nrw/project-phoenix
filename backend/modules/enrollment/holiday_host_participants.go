@@ -60,6 +60,12 @@ type HostedHolidayWeek struct {
 	// it whose access has not ended.
 	GuestGroupID *int64 `json:"guest_group_id"`
 	Guests       int    `json:"guests"`
+	// LunchOffered says the week offers lunch (#5631). Lunches then counts
+	// the lunches of the confirmed children per care day of the week, in
+	// calendar order, so the school can order them; only the participant
+	// list fills it. The school sees no price.
+	LunchOffered bool              `json:"lunch_offered"`
+	Lunches      []HolidayDayCount `json:"lunches"`
 }
 
 // HolidayDayCount is the number of confirmed children booked on one day of
@@ -86,7 +92,9 @@ type HolidayParticipant struct {
 	TimeModelID     int64         `json:"time_model_id"`
 	// Days are the booked days in a week by days, empty for the whole week
 	// (#4701).
-	Days           []calendar.Date      `json:"days,omitempty"`
+	Days []calendar.Date `json:"days,omitempty"`
+	// Lunch says the child eats lunch on its care days (#5631).
+	Lunch          bool                 `json:"lunch"`
 	SecondGuardian *HolidayHostGuardian `json:"second_guardian"`
 	Answers        []HolidayHostAnswer  `json:"answers"`
 	// Health is the health information the hosting school sees (#4722):
