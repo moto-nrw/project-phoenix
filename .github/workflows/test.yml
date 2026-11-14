@@ -694,6 +694,23 @@ jobs:
       SESSION_END_SCHEDULER_ENABLED: "false"
 
     steps:
+      # TEMP-DIAG #6962: remove before ready.
+      - name: TEMP-DIAG machine
+        run: |
+          lscpu | grep -E 'Model name|^CPU\(s\)|MHz|L3|Hypervisor|Flags' | cut -c1-300
+          free -m | sed -n 2p
+          cat /sys/devices/system/clocksource/clocksource0/current_clocksource
+          grep -v '^#' /etc/resolv.conf
+          df -h / /mnt 2>/dev/null
+          findmnt -no SOURCE,FSTYPE,OPTIONS /
+          s=$(date +%s.%N); python3 -c "import hashlib;h=hashlib.sha256();b=b'x'*65536
+          for i in range(20000): h.update(b)"; e=$(date +%s.%N); echo "cpu sha256 1.3GB: $(echo "$e - $s" | bc) s"
+          s=$(date +%s.%N); python3 -c "b=bytearray(256*1024*1024)
+          for r in range(3):
+            for i in range(0,len(b),4096): b[i]=r"; e=$(date +%s.%N); echo "mem touch 256MB x3: $(echo "$e - $s" | bc) s"
+          s=$(date +%s.%N); dd if=/dev/zero of="${RUNNER_TEMP}/dsync" bs=8k count=1000 oflag=dsync 2>&1 | tail -1; rm -f "${RUNNER_TEMP}/dsync"
+          s=$(date +%s.%N); python3 -c "import time
+          for i in range(2000000): time.time()"; e=$(date +%s.%N); echo "2M time(): $(echo "$e - $s" | bc) s"
       # bg-start runs a command in the background, bg-wait waits for it,
       # prints its output and fails with its exit status. A background job
       # therefore fails the step that waits for it, never silently.
@@ -907,7 +924,7 @@ jobs:
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 \
             -c "ALTER SYSTEM SET synchronous_commit = off" \
             -c "ALTER SYSTEM SET log_lock_waits = on" \
-            -c "ALTER SYSTEM SET log_min_duration_statement = '1s'" \
+            -c "ALTER SYSTEM SET log_min_duration_statement = '150ms'" \
             -c "ALTER SYSTEM SET log_autovacuum_min_duration = '1s'" \
             -c "ALTER SYSTEM SET log_connections = on" \
             -c "ALTER SYSTEM SET log_disconnections = on" \
@@ -1230,7 +1247,7 @@ jobs:
       # profiles also compiled the coverage ratchet, so its build cache is the
       # fullest of the three scenarios.
       - name: Save seed smoke build cache
-        if: ${{ github.event_name != 'pull_request' && matrix.scenario == 'profiles' && steps.build-cache.outputs.cache-hit != 'true' }}
+        if: ${{ github.event_name == 'schedule' && github.event_name != 'pull_request' && matrix.scenario == 'profiles' && steps.build-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -1248,6 +1265,22 @@ jobs:
       - name: Server log
         if: always()
         run: tail -n 200 "${RUNNER_TEMP}/server.log" || true
+
+      # TEMP-DIAG #6962: remove before ready.
+      - name: TEMP-DIAG collect logs
+        if: always()
+        run: |
+          mkdir -p "${RUNNER_TEMP}/diag"
+          cp "${RUNNER_TEMP}/server.log" "${RUNNER_TEMP}/activity.log" "${RUNNER_TEMP}/sockets.log" "${RUNNER_TEMP}/diag/" || true
+          docker logs seed-postgres > "${RUNNER_TEMP}/diag/postgres.log" 2>&1 || true
+          cat "${RUNNER_TEMP}/clock-shift" > "${RUNNER_TEMP}/diag/clock-shift" || true
+      - name: TEMP-DIAG upload logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: seed-diag-${{ matrix.scenario }}-${{ github.run_id }}-${{ github.job }}-${{ strategy.job-index }}-${{ runner.name }}
+          path: ${{ runner.temp }}/diag
+          retention-days: 2
 
       - name: Stop server
         if: always()
