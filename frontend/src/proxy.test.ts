@@ -201,6 +201,26 @@ describe("CSP security boundaries", () => {
     },
   );
 
+  it("frames the booking calendar only in the demo build", async () => {
+    const previousAppEnv = process.env.NEXT_PUBLIC_APP_ENV;
+    vi.stubEnv("NEXT_PUBLIC_APP_ENV", "demo");
+    vi.resetModules();
+    try {
+      const { proxy: demoProxy } = await import("./proxy");
+      const host = "school-a.localhost:3000";
+      const res = demoProxy(makeRequest(`http://${host}/dashboard`, host));
+      const directives = res.headers
+        .get("Content-Security-Policy")
+        ?.split("; ");
+      expect(
+        directives?.filter((value) => value.startsWith("frame-src ")),
+      ).toEqual(["frame-src 'self' blob: https://meetings-eu1.hubspot.com"]);
+    } finally {
+      vi.stubEnv("NEXT_PUBLIC_APP_ENV", previousAppEnv);
+      vi.resetModules();
+    }
+  });
+
   it.each(["production", "development"])(
     "keeps the expected script sources in %s",
     async (environment) => {
