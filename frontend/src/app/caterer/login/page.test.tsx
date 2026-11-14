@@ -103,7 +103,7 @@ describe("CatererLoginPage (#4497)", () => {
     });
     fireEvent.click(
       screen.getByRole("button", {
-        name: /^Bestätigen und dieses Gerät 90 Tage merken/,
+        name: /^Ja, merken und anmelden/,
       }),
     );
 

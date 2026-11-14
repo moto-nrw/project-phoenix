@@ -3,10 +3,13 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
+import { DevicesIcon, SignInIcon } from "@phosphor-icons/react";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -19,6 +22,10 @@ import {
 } from "~/lib/mfa-api";
 import { OTPInputGrid, type OTPInputGridHandle } from "./otp-input-grid";
 import { Button } from "~/components/ui/button";
+import { IconTile } from "~/components/ui/icon-tile";
+import { SpinnerIcon } from "~/components/ui/icons";
+import { ListRowLink } from "~/components/ui/list-row-link";
+import { SectionLabel } from "~/components/ui/section-label";
 
 const logger = createLogger({ component: "MFAChallengeForm" });
 
@@ -27,7 +34,7 @@ const DEFAULT_RESEND_COOLDOWN_SECONDS = 60;
 
 /**
  * Where each portal lists the remembered devices, as the sentence under the
- * two buttons names it. The words are the portal's own navigation labels.
+ * two answers names it. The words are the portal's own navigation labels.
  */
 const DEVICE_LIST_PLACE: Record<LoginScope, string> = {
   tenant: "in Ihrem Profil",
@@ -37,65 +44,48 @@ const DEVICE_LIST_PLACE: Record<LoginScope, string> = {
   operator: "in Ihrem Profil",
 };
 
-/** Which of the two confirm buttons is waiting for the answer. */
+/** Which of the two answers is waiting for the check. */
 type PendingChoice = "remember" | "once";
 
 interface ConfirmChoiceProps {
-  readonly variant: "primary" | "outline";
-  readonly label: string;
-  /** For whom the choice is meant, visible also where no tooltip shows. */
-  readonly description: string;
-  readonly tooltip: string;
-  readonly codeComplete: boolean;
-  /** A check is running, started by this or the other button. */
-  readonly busy: boolean;
-  /** This button started the running check. */
+  readonly icon: ReactNode;
+  readonly tone: "green" | "neutral";
+  readonly title: string;
+  /** For whom the answer is meant. */
+  readonly subtitle: string;
+  readonly disabled: boolean;
+  /** This answer started the running check. */
   readonly pending: boolean;
   readonly onClick: () => void;
 }
 
 /**
- * One of the two ways to confirm the code. While its check runs the label
- * says so and the description stays, so the button keeps its height.
+ * One of the two answers to "Soll moto dieses Gerät merken?". A row of the
+ * kit that leads on into the app: symbol, answer, for whom it is meant. While
+ * its check runs, a spinner stands where the arrow was.
  */
 function ConfirmChoice({
-  variant,
-  label,
-  description,
-  tooltip,
-  codeComplete,
-  busy,
+  icon,
+  tone,
+  title,
+  subtitle,
+  disabled,
   pending,
   onClick,
 }: ConfirmChoiceProps) {
-  const primary = variant === "primary";
   return (
-    <Button
-      type="button"
-      variant={variant}
-      size="md"
-      className="w-full"
-      onClick={onClick}
-      disabled={!codeComplete || busy}
-      disabledReason={
-        codeComplete ? undefined : "Geben Sie zuerst den Code ein."
-      }
-      tooltip={tooltip}
-    >
-      <span className="flex w-full min-w-0 flex-col items-start gap-0.5 text-left wrap-anywhere">
-        <span
-          className={`text-sm font-semibold ${primary ? "text-white" : "text-gray-900"}`}
-          aria-live="polite"
-        >
-          {pending ? "Code wird geprüft…" : label}
-        </span>
-        <span
-          className={`text-xs font-normal text-pretty ${primary ? "text-white/80" : "text-gray-500"}`}
-        >
-          {description}
-        </span>
-      </span>
-    </Button>
+    <li>
+      <ListRowLink
+        framed
+        icon={<IconTile size="sm" tone={tone} icon={icon} />}
+        title={title}
+        subtitle={subtitle}
+        onClick={onClick}
+        disabled={disabled}
+        chevron={!pending}
+        badge={pending ? <SpinnerIcon className="h-4 w-4" /> : undefined}
+      />
+    </li>
   );
 }
 
@@ -113,7 +103,7 @@ interface MFAChallengeFormProps {
   readonly onCancel?: () => void;
   /**
    * Mirrors security.mfa_trusted_device_enabled for the tenant. When true,
-   * the person confirms with one of two buttons and so decides each time
+   * the person confirms with one of two answers and so decides each time
    * whether this device is remembered (#6955). When false, nothing can be
    * remembered and the code is checked as soon as it is complete. Undefined
    * defaults to `true` for backwards compatibility with older backends that
@@ -121,7 +111,7 @@ interface MFAChallengeFormProps {
    */
   readonly trustedDeviceEnabled?: boolean;
   /**
-   * Day count rendered into "Bestätigen und dieses Gerät N Tage merken".
+   * Day count rendered into "N Tage kein Code auf diesem Gerät".
    * Mirrors security.mfa_trusted_device_days so the label always matches
    * the actual cookie lifetime. Defaults to 90 — the registry default —
    * if an older backend doesn't surface the field.
@@ -258,8 +248,15 @@ export function MFAChallengeForm({
   }
 
   const codeComplete = code.length === CODE_LENGTH;
+  const questionId = useId();
+  const hintId = useId();
+  let hintText: string;
+  if (isVerifying) hintText = "Code wird geprüft…";
+  else if (codeComplete)
+    hintText = `Gemerkte Geräte entfernen Sie ${DEVICE_LIST_PLACE[scope]}.`;
+  else hintText = "Geben Sie zuerst den Code ein.";
 
-  // With the two buttons below, a complete code waits for the person's
+  // With the two answers below, a complete code waits for the person's
   // choice. Leaving the field closes the on-screen keyboard of a tablet or
   // phone, which would otherwise cover the buttons.
   useEffect(() => {
@@ -343,38 +340,44 @@ export function MFAChallengeForm({
       </div>
 
       {trustedDeviceEnabled && (
-        <div className="space-y-3">
-          {/* The kit's choice shape (ChoiceModal): full-width buttons that
-              each name their consequence. The texts wrap on a phone, so the
-              buttons keep the kit's `md` padding instead of a fixed height. */}
-          <div
-            role="group"
-            aria-label="Anmeldung bestätigen"
+        <div className="space-y-2">
+          <SectionLabel id={questionId}>
+            Soll moto dieses Gerät merken?
+          </SectionLabel>
+          {/* Two answers of equal weight: nothing is preselected and
+              neither looks like the default. */}
+          <ul
+            aria-labelledby={questionId}
+            aria-describedby={hintId}
             className="flex flex-col gap-2"
           >
             <ConfirmChoice
-              variant="primary"
-              label={`Bestätigen und dieses Gerät ${trustedDeviceDays} Tage merken`}
-              description="Nur auf Ihrem eigenen Gerät. Dort entfällt der Code so lange."
-              tooltip={`Meldet Sie an. Hier fragt moto ${trustedDeviceDays} Tage lang keinen Code ab.`}
-              codeComplete={codeComplete}
-              busy={isVerifying}
+              icon={<DevicesIcon aria-hidden="true" />}
+              tone="green"
+              title="Ja, merken und anmelden"
+              subtitle={`${trustedDeviceDays} Tage kein Code auf diesem Gerät. Nur für Ihr eigenes Gerät.`}
+              disabled={!codeComplete || isVerifying}
               pending={pendingChoice === "remember"}
               onClick={() => confirm("remember")}
             />
             <ConfirmChoice
-              variant="outline"
-              label="Nur dieses Mal bestätigen"
-              description="Für Geräte, die mehrere Personen nutzen."
-              tooltip="Meldet Sie an. Beim nächsten Anmelden fragt moto wieder nach einem Code."
-              codeComplete={codeComplete}
-              busy={isVerifying}
+              icon={<SignInIcon aria-hidden="true" />}
+              tone="neutral"
+              title="Nein, nur anmelden"
+              subtitle="Für Geräte, die mehrere Personen nutzen."
+              disabled={!codeComplete || isVerifying}
               pending={pendingChoice === "once"}
               onClick={() => confirm("once")}
             />
-          </div>
-          <p className="text-center text-xs leading-relaxed text-gray-500">
-            Gemerkte Geräte entfernen Sie {DEVICE_LIST_PLACE[scope]}.
+          </ul>
+          {/* One line, so nothing jumps: first what is missing, then where a
+              remembered device can be removed again. */}
+          <p
+            id={hintId}
+            className="text-xs leading-relaxed text-gray-500"
+            aria-live="polite"
+          >
+            {hintText}
           </p>
         </div>
       )}

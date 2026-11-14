@@ -364,8 +364,8 @@ Entscheidung:
    Ausstellen und Erneuern prüfen wie bisher. Ohne gemerktes Gerät gibt es
    keine Träger-Sitzung ohne Code.
 2. **Nur auf ausdrückliche Wahl.** Der Code-Schritt hat in allen Portalen
-   zwei Knöpfe, „Bestätigen und dieses Gerät N Tage merken“ und „Nur dieses
-   Mal bestätigen“. Nichts ist vorbelegt: Ein geteiltes Tablet wird nie durch
+   zwei Antworten auf „Soll moto dieses Gerät merken?“: „Ja, merken und anmelden“
+   und „Nein, nur anmelden“. Nichts ist vorbelegt: Ein geteiltes Tablet wird nie durch
    eine Voreinstellung zum gemerkten Gerät.
 3. **Gebunden an Konto, Portal und Träger.** Die Zeile in
    `auth.mfa_trusted_devices` nennt den Träger (`organization_id`) und keine
