@@ -129,6 +129,18 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   about 920,000 SELECT and 313,000 INSERT statements. The local server's
   `fsync=off`, `full_page_writes=off` and `wal_level=minimal` changed nothing
   on the job's tmpfs.
+- A test that runs `go list -export` or `packages.Load` in a child process
+  with its own environment (`internal/architecture`: `CGO_ENABLED=0`, policy
+  tags) compiles actions the warm job's `go test -exec true ./...` never
+  touches. Only running that test in the warm job, before the sweep, puts them
+  in the cache: locally 225 CPU s cold against 81 one commit later; in the
+  full suite the package took 21-28 s warm against 44-74 s (#7038). With
+  `-trimpath`, temporary directories do not change the action IDs.
+- Postgres stores SCRAM verifiers with 4096 iterations, paid by server and
+  client on every login: 11.3 ms CPU per connection against 3.1 ms with
+  `initdb --set scram_iterations=1` (pgbench -C). The setting covers the
+  superuser and every role created later. Full suite, same branch: 1153-1280
+  busy CPU s against 1292-1440 (#7038).
 - A typical feature pull request compiles more than it tests: `api` 21 times
   and `roots/owners` 7 times, 60 % of its compile CPU (#6914). `GOGC=400`
   for the toolchain alone saved 13 % of the build CPU locally; `-exec "env -u
