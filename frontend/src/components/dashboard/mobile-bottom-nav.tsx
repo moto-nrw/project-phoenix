@@ -1,7 +1,9 @@
 // components/dashboard/mobile-bottom-nav.tsx
 // Ultra-minimalist mobile navigation following Instagram/Twitter/Uber patterns
 "use client";
+/* oxlint-disable ui-kit/menu-item-needs-description -- Die Objekte mit `label` und `href` sind Navigationsziele der unteren Leiste und des „Mehr“-Blatts, keine Kebab-Einträge; die Datei rendert kein OverflowMenu (#6777). */
 
+import { REMINDERS_LINK_TOOLTIP } from "~/components/home/home-link-tooltips";
 import { Alert } from "~/components/ui/alert";
 import { SectionLabel } from "~/components/ui/section-label";
 import React, { useRef, useCallback, useState, useMemo } from "react";
@@ -1074,6 +1076,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     variant="surface"
                     size="md"
                     className="w-full justify-start gap-3"
+                    tooltip="Wechselt zurück in die Träger-App."
                   >
                     <MobileNavIcon
                       item={{
@@ -1176,6 +1179,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       variant="ghost"
                       size="md"
                       className="w-full justify-start gap-3"
+                      tooltip={REMINDERS_LINK_TOOLTIP}
                     >
                       <Bell
                         className="h-5 w-5 text-gray-600"
@@ -1196,6 +1200,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       variant="ghost"
                       size="md"
                       className="w-full justify-start gap-3"
+                      tooltip="Öffnet ein Fenster, um moto aus Sicht einer Person zu sehen."
                     >
                       <Eye
                         className="h-5 w-5 text-gray-600"
@@ -1221,6 +1226,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     variant={isActiveRoute(profileUrl) ? "surface" : "ghost"}
                     size="md"
                     className="w-full justify-start gap-3"
+                    tooltip="Öffnet Ihr Profil mit Name, Bild und Passwort."
                   >
                     <MobileNavIcon
                       item={{ iconKey: "profile" }}
@@ -1239,6 +1245,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   variant="ghost"
                   size="md"
                   className="w-full justify-start gap-3"
+                  tooltip="Meldet Sie auf diesem Gerät ab, moto fragt vorher nach."
                 >
                   <MobileNavIcon
                     item={{ iconKey: "profile", concept: logoutConcept }}
