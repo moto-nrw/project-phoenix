@@ -89,8 +89,11 @@ Personalstamm, Schule und Freigabe technisch zusammenhängen.
    an jedem Einsatzort, auch wenn die Beschäftigung dort beendet ist. Ein
    gescheiterter Eintrag verhindert die Antwort.
 9. **Demo.** Die Akten gehören dem Träger-Büro. Kein Besucher eines Demo-Trägers
-   erreicht das Träger-Büro (seedTraegerBueroStep). Die Löschung von
-   Demo-Besuchern nimmt sie deshalb nicht mit; sie gehen mit dem Träger.
+   erreicht das Träger-Büro (seedTraegerBueroStep), und der Seed einer
+   Demo-Bestellung verknüpft keine Akten: Nur der volle Seed legt sie an,
+   bevor es Besucher gibt. Die Beschäftigung eines Besuchers landet so nie in
+   einer Akte. Die Löschung von Demo-Besuchern nimmt die Akten deshalb nicht
+   mit; sie gehen mit dem Träger.
 
 ## Verworfene Optionen
 

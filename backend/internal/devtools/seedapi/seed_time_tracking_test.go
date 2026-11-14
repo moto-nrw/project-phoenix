@@ -168,7 +168,15 @@ func TestFullDemoWorkflowDeferHistoryLeavesOutDeferredSteps(t *testing.T) {
 		assert.True(t, contains(full, step), "%T runs in a full seed", step)
 		assert.False(t, contains(deferred, step), "%T waits for Deferred", step)
 	}
-	assert.Len(t, deferred, len(full)-len(deferredDemoSteps(&Seeder{})))
+	// Only a full seed links staff records of the Träger: a demo order's
+	// school employs the visitor (ADR 0232 point 9).
+	fullOnly := []Step{seedTraegerStaffStep{}}
+	for _, step := range fullOnly {
+		assert.True(t, contains(full, step), "%T runs in a full seed", step)
+		assert.False(t, contains(deferred, step), "%T never runs in a demo order", step)
+		assert.False(t, contains(deferredDemoSteps(&Seeder{}), step), "%T never runs in a demo order", step)
+	}
+	assert.Len(t, deferred, len(full)-len(deferredDemoSteps(&Seeder{}))-len(fullOnly))
 	assert.True(t, contains(deferred, parentEnrollmentSeedStep{}), "the visitor's parent account exists when the school opens")
 	assert.True(t, contains(deferred, seedWorkSessionBreakStep{}), "the live break block precedes the simulation")
 	stepIndex := func(steps []Step, want Step) int {
