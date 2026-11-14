@@ -221,7 +221,9 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
     {
       key: "email",
       header: "E-Mail-Adresse",
-      stacked: "meta",
+      // A long address with its status does not fit beside the name on a
+      // phone; as a labelled line it keeps both readable.
+      stacked: "field",
       render: (invitation) => {
         const mailCopy = mailStatusCopy(
           invitation.mailOutcome,
