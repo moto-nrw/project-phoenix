@@ -248,9 +248,12 @@ func newProvisioningConfig(provisioning organizationtenancy.OperatorProvisioning
 		return provisioningOperatorAPI.ProvisioningConfig{}, err
 	}
 	// The release „Personal beim Träger“ (#4705) records on the same audit.
-	staffRelease, err := organizationCompose.TraegerStaffReleaseAudit(provisioning.Provisioning)
+	staffRelease, ok := audit.(organizationtenancy.TraegerStaffReleaseChangeAudit)
+	if !ok {
+		return provisioningOperatorAPI.ProvisioningConfig{}, fmt.Errorf("operator provisioning: %T records no staff release", audit)
+	}
 	return provisioningOperatorAPI.ProvisioningConfig{
 		Service: provisioning, CaregiverCapability: caregivers, AppEnv: viper.GetString("app_env"), BelegRetentionAudit: audit,
 		TraegerStaffReleaseAudit: staffRelease, ErasureOrderRecords: provisioning.ErasureOrderRecords,
-	}, err
+	}, nil
 }

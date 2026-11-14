@@ -13,8 +13,40 @@ func (p *Provisioning) RecordOperatorRead(ctx context.Context, access organizati
 	if access.OperatorID <= 0 {
 		return invalidData("operator is required")
 	}
+	resource, err := operatorReadResource(access.View)
+	if err != nil {
+		return err
+	}
+	changes := map[string]any{"view": access.View}
+	if access.SchoolID > 0 {
+		changes["school_id"] = access.SchoolID
+	}
+	if access.OrganizationID > 0 {
+		changes["organization_id"] = access.OrganizationID
+	}
+	var resourceID *int64
+	if access.AccountID > 0 {
+		resourceID = &access.AccountID
+	}
+	if access.AnnouncementID > 0 {
+		resourceID = &access.AnnouncementID
+	}
+	if resource == domain.AuditResourceSchool && access.SchoolID > 0 {
+		resourceID = &access.SchoolID
+	}
+	if (resource == domain.AuditResourceTraegerSetting || resource == domain.AuditResourceBelegRetention || resource == domain.AuditResourceTraegerStaffRelease) && access.OrganizationID > 0 {
+		resourceID = &access.OrganizationID
+	}
+	_, err = adminValue(ctx, p, func(adminCtx context.Context) (struct{}, error) {
+		return struct{}{}, p.recordAction(adminCtx, access.OperatorID, domain.AuditActionView, resource, resourceID, access.ClientIP, changes)
+	})
+	return err
+}
+
+// operatorReadResource names the audit resource of an operator read view.
+func operatorReadResource(view organizationtenancy.OperatorReadView) (string, error) {
 	resource := domain.AuditResourceAccount
-	switch access.View {
+	switch view {
 	case organizationtenancy.ReadSchoolBookingAuthorityImpact, organizationtenancy.ReadSchools,
 		organizationtenancy.ReadSchool, organizationtenancy.ReadSchoolSummaries, organizationtenancy.ReadOrganizationSchools,
 		organizationtenancy.ReadSchoolSettingsSchema, organizationtenancy.ReadSchoolSettingReveal,
@@ -43,30 +75,7 @@ func (p *Provisioning) RecordOperatorRead(ctx context.Context, access organizati
 		organizationtenancy.ReadSchoolAccountMFA, organizationtenancy.ReadAccountMFA, organizationtenancy.ReadAccountTenants,
 		organizationtenancy.ReadSchoolAccountCreation, organizationtenancy.ReadCaterers:
 	default:
-		return invalidData("unknown operator read view")
+		return "", invalidData("unknown operator read view")
 	}
-	changes := map[string]any{"view": access.View}
-	if access.SchoolID > 0 {
-		changes["school_id"] = access.SchoolID
-	}
-	if access.OrganizationID > 0 {
-		changes["organization_id"] = access.OrganizationID
-	}
-	var resourceID *int64
-	if access.AccountID > 0 {
-		resourceID = &access.AccountID
-	}
-	if access.AnnouncementID > 0 {
-		resourceID = &access.AnnouncementID
-	}
-	if resource == domain.AuditResourceSchool && access.SchoolID > 0 {
-		resourceID = &access.SchoolID
-	}
-	if (resource == domain.AuditResourceTraegerSetting || resource == domain.AuditResourceBelegRetention) && access.OrganizationID > 0 {
-		resourceID = &access.OrganizationID
-	}
-	_, err := adminValue(ctx, p, func(adminCtx context.Context) (struct{}, error) {
-		return struct{}{}, p.recordAction(adminCtx, access.OperatorID, domain.AuditActionView, resource, resourceID, access.ClientIP, changes)
-	})
-	return err
+	return resource, nil
 }

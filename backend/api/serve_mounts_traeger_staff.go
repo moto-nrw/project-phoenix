@@ -25,16 +25,17 @@ import (
 func mountTraegerStaffRoutes(root chi.Router, db transactionruntime.Database, env owners.RootEnvironment, organizations HolidayOrganizations,
 	persons peopledirectory.Capability, membership schoolmembership.Capability, people owners.PeopleRows, audit owners.AuditOwner,
 ) error {
-	records, err := owners.BuildWorkforceTraegerStaff(db, env, persons, membership, people, audit, workforce.TraegerStaffPorts{
+	staffAdmin, err := owners.BuildWorkforceStaffAdmin(db, env, persons, membership, people, audit)
+	if err != nil {
+		return fmt.Errorf("traeger staff records: %w", err)
+	}
+	records := staffAdmin.TraegerStaffRecords(workforce.TraegerStaffPorts{
 		Schools:     traegerStaffSchools{organizations: organizations},
 		Employments: traegerSchoolEmployments{staff: membership},
 		Persons:     traegerSchoolPersons{persons: persons},
 		Access:      traegerStaffAccessLog{log: audit.Persistence.DataAccessLog},
 		Runtime:     traegerDocumentRuntime{},
 	})
-	if err != nil {
-		return fmt.Errorf("traeger staff records: %w", err)
-	}
 	resource := traegerstaff.NewRecordsResource(records, common.RequiresPermission(identityaccess.TraegerRightStaffManage))
 	root.Mount("/traeger/staff-records", resource.TraegerRouter(ProtectedTraegerRoutes))
 	return nil

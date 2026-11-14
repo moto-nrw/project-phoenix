@@ -261,8 +261,12 @@ type adminFixture struct {
 	now      time.Time
 }
 
-// fakeTraegerKeep answers which employments a record of the Träger holds.
-type fakeTraegerKeep struct{ staffIDs []int64 }
+// fakeTraegerKeep answers which employments a record of the Träger holds;
+// the personnel record calls nothing else of the Träger store.
+type fakeTraegerKeep struct {
+	ports.TraegerStaffStore
+	staffIDs []int64
+}
 
 func (k *fakeTraegerKeep) KeptStaffIDs(_ context.Context, staffIDs []int64) ([]int64, error) {
 	var kept []int64

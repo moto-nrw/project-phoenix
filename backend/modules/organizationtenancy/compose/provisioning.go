@@ -105,17 +105,6 @@ func BelegRetentionAudit(provisioning organizationtenancy.Provisioning) (organiz
 	return nil, fmt.Errorf("organization tenancy: the Beleg retention audit needs the composed provisioning, got %T", provisioning)
 }
 
-// TraegerStaffReleaseAudit answers the operator audit of the release
-// „Personal beim Träger“ (#4705, ADR 0089 section 2) of the provisioning
-// NewProvisioning composed; it records on the same audit and transaction as
-// every provisioning write.
-func TraegerStaffReleaseAudit(provisioning organizationtenancy.Provisioning) (organizationtenancy.TraegerStaffReleaseChangeAudit, error) {
-	if audit, ok := provisioning.(*application.Provisioning); ok {
-		return audit, nil
-	}
-	return nil, fmt.Errorf("organization tenancy: the staff release audit needs the composed provisioning, got %T", provisioning)
-}
-
 func OperatorDatabase() func(context.Context) (bun.IDB, error) {
 	return postgresNative.OperatorDatabase()
 }

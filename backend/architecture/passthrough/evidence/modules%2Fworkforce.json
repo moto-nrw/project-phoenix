@@ -135,9 +135,23 @@
     },
     {
       "build": "production",
+      "evidence": "func (a *StaffAdmin) StaffKeptByTraeger(ctx context.Context, staffID int64) (bool, error) {\n\treturn a.traeger.StaffKeptByTraeger(ctx, staffID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.StaffKeptByTraeger",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
       "evidence": "func (a *StaffAdmin) StaffStammdaten(ctx context.Context, staffID int64) (*StaffStammdaten, error) {\n\treturn a.engine.StaffStammdaten(ctx, staffID)\n}",
       "form": "unchanged-forward-evidence",
       "id": "modules/workforce/StaffAdmin.StaffStammdaten",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) TraegerStaffRecords(collaborators TraegerStaffPorts) TraegerStaffRecords {\n\treturn a.traeger.TraegerStaffRecords(collaborators)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.TraegerStaffRecords",
       "owner": "modules/workforce"
     },
     {
@@ -201,6 +215,13 @@
       "evidence": "func (rs *StaffAdminResource) CleanupOrphanedStaffDocumentFiles(ctx context.Context) (int, error) {\n\treturn rs.documentFiles.CleanupOrphanedStaffDocumentFiles(ctx)\n}",
       "form": "unchanged-forward-evidence",
       "id": "modules/workforce/http/timetracking/StaffAdminResource.CleanupOrphanedStaffDocumentFiles",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ReleaseResource) Withdraw(w http.ResponseWriter, r *http.Request) {\n\torganizationID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid organization ID\")\n\tif !ok {\n\t\treturn\n\t}\n\trs.write(w, r, ReleaseWithdrawn, \"\", func(ctx context.Context, _ int64) error {\n\t\treturn rs.releases.WithdrawRelease(ctx, organizationID)\n\t}, func() {\n\t\tcommon.Respond(w, r, http.StatusOK, map[string]int64{\"organization_id\": organizationID}, \"Staff release withdrawn successfully\")\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/http/traegerstaff/ReleaseResource.Withdraw",
       "owner": "modules/workforce"
     },
     {
@@ -1111,6 +1132,13 @@
       "evidence": "func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {\n\tpresenceMap, err := s.repo.WorkPresenceMap(ctx)\n\terr = rowReadError(\"get today presence map\", err, nil)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"failed to get today's presence map: %w\", err)\n\t}\n\treturn presenceMap, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/workforce/internal/application/timetracking/workSessionService.GetTodayPresenceMap",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *StaffChoiceError) Error() string {\n\treturn e.Field + \": \" + e.Err.Error()\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/domain/StaffChoiceError.Error",
       "owner": "modules/workforce"
     },
     {

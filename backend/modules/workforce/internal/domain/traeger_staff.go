@@ -153,39 +153,52 @@ type ResolvedStaffFields struct {
 func ResolveStaffFields(sources []StaffSource, choices map[string]string) (ResolvedStaffFields, error) {
 	resolved := ResolvedStaffFields{Values: make(map[string]string, len(StaffRecordFields))}
 	for _, preview := range PreviewStaffFields(sources) {
-		switch len(preview.Options) {
-		case 0:
-			continue
-		case 1:
-			resolved.Values[preview.Field] = preview.Options[0].Value
+		if len(preview.Options) == 0 {
 			continue
 		}
-		key := strings.TrimSpace(choices[preview.Field])
-		if key == "" {
-			return ResolvedStaffFields{}, &StaffChoiceError{Field: preview.Field, Err: ErrStaffChoiceMissing}
-		}
-		chosen := -1
-		for i, option := range preview.Options {
-			if slices.ContainsFunc(option.Sources, func(source StaffSource) bool { return source.Key == key }) {
-				chosen = i
-			}
-		}
-		if chosen < 0 {
-			return ResolvedStaffFields{}, &StaffChoiceError{Field: preview.Field, Err: ErrStaffChoiceUnknown}
+		chosen, err := chosenOption(preview, choices[preview.Field])
+		if err != nil {
+			return ResolvedStaffFields{}, err
 		}
 		resolved.Values[preview.Field] = preview.Options[chosen].Value
-		for i, option := range preview.Options {
-			if i == chosen {
-				continue
-			}
-			for _, source := range option.Sources {
-				if source.Key != StaffSourceRecord {
-					resolved.NotChosen = append(resolved.NotChosen, StaffNotChosen{Field: preview.Field, Value: option.Value, Source: source})
-				}
+		resolved.NotChosen = append(resolved.NotChosen, notChosenValues(preview, chosen)...)
+	}
+	return resolved, nil
+}
+
+// chosenOption returns the only option of a field or the one whose sources
+// include the chosen key.
+func chosenOption(preview StaffFieldPreview, choice string) (int, error) {
+	if !preview.Conflict() {
+		return 0, nil
+	}
+	key := strings.TrimSpace(choice)
+	if key == "" {
+		return 0, &StaffChoiceError{Field: preview.Field, Err: ErrStaffChoiceMissing}
+	}
+	for i, option := range preview.Options {
+		if slices.ContainsFunc(option.Sources, func(source StaffSource) bool { return source.Key == key }) {
+			return i, nil
+		}
+	}
+	return 0, &StaffChoiceError{Field: preview.Field, Err: ErrStaffChoiceUnknown}
+}
+
+// notChosenValues lists the values of the other options with their schools;
+// the record's own values are changes, not values of a school.
+func notChosenValues(preview StaffFieldPreview, chosen int) []StaffNotChosen {
+	var values []StaffNotChosen
+	for i, option := range preview.Options {
+		if i == chosen {
+			continue
+		}
+		for _, source := range option.Sources {
+			if source.Key != StaffSourceRecord {
+				values = append(values, StaffNotChosen{Field: preview.Field, Value: option.Value, Source: source})
 			}
 		}
 	}
-	return resolved, nil
+	return values
 }
 
 // SchoolSourceKey is the source key of a school's employment.

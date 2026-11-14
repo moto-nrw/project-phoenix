@@ -1276,6 +1276,11 @@
       "reason": "ADR 0214 (#6683): Consumer-port adapter of the Träger projection's registered children port; it translates Enrollment's registered holiday children into the projection's RegisteredChild vocabulary."
     },
     {
+      "decision": "0232",
+      "id": "api/traegerSchoolEmployments.SchoolEmployments",
+      "reason": "ADR 0232 (#4705): Consumer-port adapter that reads the live employments of one school from School Membership for the staff records of the Träger; external caregivers stay out (ADR 0089 section 1)."
+    },
+    {
       "decision": "0090",
       "id": "api/traegerSchoolIDs.ListAccountTraeger",
       "reason": "#4658: root translation of the Organisation \u0026 Tenancy Träger memberships of an account into the Träger projection's vocabulary, the frame of the Träger-Portal with its test mark."
@@ -1284,6 +1289,16 @@
       "decision": "0090",
       "id": "api/traegerSchoolIDs.ListTraegerSchoolIDs",
       "reason": "#4657: root translation of a deactivated, deleted or unknown Träger at Organisation \u0026 Tenancy onto the Träger projection's ErrTraegerUnavailable, which ends the Träger session with 401."
+    },
+    {
+      "decision": "0232",
+      "id": "api/traegerSchoolPersons.SchoolPersons",
+      "reason": "ADR 0232 (#4705): Consumer-port adapter that reads the persons behind those employments from the People Directory and translates them into Workforce's TraegerSchoolPerson."
+    },
+    {
+      "decision": "0232",
+      "id": "api/traegerStaffAccessLog.RecordTraegerStaffAccess",
+      "reason": "ADR 0232 (#4705): Consumer-port adapter that writes a read of the Personalverwaltung into the access log of a school as audit.data_access_log entry of the Träger portal (ADR 0084 section 7)."
     },
     {
       "decision": "0090",

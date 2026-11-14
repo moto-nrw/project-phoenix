@@ -94,22 +94,28 @@ func (s *TraegerStaffStore) InsertSchoolFinancialRow(ctx context.Context, data d
 	return nil
 }
 
-// ReleaseOfTraeger returns the release of a Träger, nil without one, and
-// how many records it keeps, in the administrative transaction.
-func (s *TraegerStaffStore) ReleaseOfTraeger(ctx context.Context, organizationID int64) (*domain.TraegerStaffRelease, int, error) {
+// ReleaseOfTraeger returns the release of a Träger, nil without one, in the
+// administrative transaction.
+func (s *TraegerStaffStore) ReleaseOfTraeger(ctx context.Context, organizationID int64) (*domain.TraegerStaffRelease, error) {
 	db, err := adminStaffDB(ctx)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-	release, err := findStaffRelease(ctx, db, organizationID)
+	return findStaffRelease(ctx, db, organizationID)
+}
+
+// CountStaffRecords counts the records a Träger keeps, in the
+// administrative transaction.
+func (s *TraegerStaffStore) CountStaffRecords(ctx context.Context, organizationID int64) (int, error) {
+	db, err := adminStaffDB(ctx)
 	if err != nil {
-		return nil, 0, err
+		return 0, err
 	}
 	var records int
 	if err := db.NewRaw(`SELECT COUNT(*) FROM workforce.staff_records WHERE organization_id = ?`, organizationID).Scan(ctx, &records); err != nil {
-		return nil, 0, fmt.Errorf("workforce postgres: count staff records: %w", err)
+		return 0, fmt.Errorf("workforce postgres: count staff records: %w", err)
 	}
-	return release, records, nil
+	return records, nil
 }
 
 // InsertRelease records the release of a Träger in the administrative

@@ -520,6 +520,10 @@ var tableRetentions = map[string]tableRetention{
 	"users.survey_responses":                                parent("users.surveys"),
 	"users.surveys":                                         own("nightly retention steps parent_survey_retention and staff_survey_retention, SurveyRetention.DeleteExpiredParentSurveys / DeleteExpiredStaffSurveys (school window gdpr.parent_message_retention_days or gdpr.staff_message_retention_days after the survey closed, a draft after its last change, #4781)"),
 	"users.teachers":                                        staffRetention("School Membership EraseNextRetiredStaff"),
+	"workforce.staff_record_changes":                        parent("workforce.staff_records"),
+	"workforce.staff_record_links":                          parent("workforce.staff_records"),
+	"workforce.staff_records":                               own("the Personalverwaltung dissolves a staff record in the Träger-Portal (DELETE /traeger/staff-records/{id}, #4705), which gives each live Einsatzort its bank and tax values back; the deletion after the end of the last Arbeitsvertrag comes with the contracts (ADR 0089 section 12, #4706); rows go with platform.organizations when the Träger is erased (#4657)"),
+	"workforce.staff_releases":                              notPersonal("the release of a Träger names the statement it confirmed and the operator's id; it goes with platform.organizations (#4705)"),
 }
 
 func TestEveryTableHasARetentionPath(t *testing.T) {

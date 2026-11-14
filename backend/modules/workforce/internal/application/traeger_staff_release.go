@@ -30,7 +30,11 @@ var _ workforce.TraegerStaffReleases = (*TraegerStaffReleases)(nil)
 // ReleaseState returns the release of the Träger and how many records it
 // keeps.
 func (r *TraegerStaffReleases) ReleaseState(ctx context.Context, organizationID int64) (workforce.TraegerStaffReleaseState, error) {
-	release, records, err := r.store.ReleaseOfTraeger(ctx, organizationID)
+	release, err := r.store.ReleaseOfTraeger(ctx, organizationID)
+	if err != nil {
+		return workforce.TraegerStaffReleaseState{}, err
+	}
+	records, err := r.store.CountStaffRecords(ctx, organizationID)
 	if err != nil {
 		return workforce.TraegerStaffReleaseState{}, err
 	}
@@ -59,8 +63,16 @@ func (r *TraegerStaffReleases) GrantRelease(ctx context.Context, organizationID,
 }
 
 // WithdrawRelease removes the release; while the Träger keeps records it
-// refuses with workforce.ErrTraegerStaffReleaseInUse.
+// refuses with workforce.ErrTraegerStaffReleaseInUse. The count answers the
+// usual case; the records' foreign key refuses a record linked meanwhile.
 func (r *TraegerStaffReleases) WithdrawRelease(ctx context.Context, organizationID int64) error {
+	records, err := r.store.CountStaffRecords(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	if records > 0 {
+		return workforce.ErrTraegerStaffReleaseInUse
+	}
 	removed, err := r.store.DeleteRelease(ctx, organizationID)
 	if err != nil {
 		return publicTraegerStaffError(err)

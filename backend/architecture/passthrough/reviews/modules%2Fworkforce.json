@@ -96,9 +96,19 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0232",
+      "id": "modules/workforce/StaffAdmin.StaffKeptByTraeger",
+      "reason": "ADR 0232 (#4705): the public facade of the personnel record answers the school's question whether its Träger keeps an employment through the Träger side the composition binds."
+    },
+    {
       "decision": "0090",
       "id": "modules/workforce/StaffAdmin.StaffStammdaten",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0232",
+      "id": "modules/workforce/StaffAdmin.TraegerStaffRecords",
+      "reason": "ADR 0232 (#4705): the public facade composes the Personalstamm of the Träger-Portal over the same personnel record; the root binds only the collaborators."
     },
     {
       "decision": "0090",
@@ -144,6 +154,11 @@
       "decision": "0090",
       "id": "modules/workforce/http/timetracking/StaffAdminResource.CleanupOrphanedStaffDocumentFiles",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0232",
+      "id": "modules/workforce/http/traegerstaff/ReleaseResource.Withdraw",
+      "reason": "ADR 0232 (#4705): HTTP handler of the operator's withdrawal of the release; parsing, the administrative transaction with the operator audit entry and the response live in its write step."
     },
     {
       "decision": "0090",
@@ -794,6 +809,11 @@
       "decision": "0090",
       "id": "modules/workforce/internal/application/timetracking/workSessionService.GetTodayPresenceMap",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0232",
+      "id": "modules/workforce/internal/domain/StaffChoiceError.Error",
+      "reason": "ADR 0232 (#4705): error text of a link whose field needs a choice; it joins the field and its cause."
     },
     {
       "decision": "0090",

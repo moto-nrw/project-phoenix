@@ -11,7 +11,6 @@ import (
 	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // TraegerStaffStore persists the Personalstamm of ADR 0089 (#4705) in the
@@ -25,7 +24,11 @@ type TraegerStaffStore struct{}
 // NewTraegerStaffStore builds the store.
 func NewTraegerStaffStore() *TraegerStaffStore { return &TraegerStaffStore{} }
 
-const staffRecordPersonnelNumberIndex = "uq_workforce_staff_records_personnel_number"
+const (
+	staffRecordPersonnelNumberIndex = "uq_workforce_staff_records_personnel_number"
+	staffRecordLinkMembershipIndex  = "uq_workforce_staff_record_links_membership"
+	staffRecordLinkSchoolIndex      = "uq_workforce_staff_record_links_school"
+)
 
 // traegerStaffDB returns the Träger transaction of organizationID.
 func traegerStaffDB(ctx context.Context, organizationID int64) (bun.IDB, error) {
@@ -47,6 +50,7 @@ func (r staffReleaseRow) toDomain() domain.TraegerStaffRelease {
 }
 
 type staffRecordRow struct {
+	bun.BaseModel              `bun:"table:workforce.staff_records,alias:staff_record"`
 	ID                         int64          `bun:"id"`
 	OrganizationID             int64          `bun:"organization_id"`
 	FirstName                  string         `bun:"first_name"`
@@ -133,6 +137,9 @@ func (s *TraegerStaffStore) FindStaffRecord(ctx context.Context, organizationID,
 	}
 	query := findStaffRecordQuery
 	if forUpdate {
+		if err := tenant.OrderLock(ctx, tenant.LockLeaf, "workforce.staff_records"); err != nil {
+			return domain.TraegerStaffRecord{}, err
+		}
 		query = lockStaffRecordQuery
 	}
 	var rows []staffRecordRow
@@ -267,7 +274,7 @@ func (s *TraegerStaffStore) InsertStaffLinks(ctx context.Context, organizationID
 	_, err = db.ExecContext(ctx, `INSERT INTO workforce.staff_record_links (organization_id, staff_record_id, school_id, membership_id, linked_by_account_id)
 		SELECT ?, ?, link.school_id, link.membership_id, ? FROM unnest(?::bigint[], ?::bigint[]) AS link (school_id, membership_id)`,
 		organizationID, recordID, accountID, pgdialect.Array(schools), pgdialect.Array(staff))
-	if pgErr, ok := errors.AsType[pgdriver.Error](err); ok && pgErr.Field('C') == "23505" {
+	if isUniqueViolationOn(err, staffRecordLinkMembershipIndex) || isUniqueViolationOn(err, staffRecordLinkSchoolIndex) {
 		return domain.ErrTraegerStaffEmploymentLinked
 	}
 	if err != nil {

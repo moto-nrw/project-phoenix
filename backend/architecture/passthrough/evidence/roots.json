@@ -1787,6 +1787,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s traegerSchoolEmployments) SchoolEmployments(ctx context.Context, staffIDs []int64) ([]workforce.TraegerSchoolEmployment, error) {\n\tmembers, err := s.staff.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]workforce.TraegerSchoolEmployment, 0, len(members))\n\tfor _, member := range members {\n\t\tif member.IsDeleted() || member.HasExternalCaregiverRecord {\n\t\t\tcontinue\n\t\t}\n\t\tresult = append(result, workforce.TraegerSchoolEmployment{StaffID: member.ID, PersonID: member.PersonID, PersonnelNumber: member.PersonnelNumber})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/traegerSchoolEmployments.SchoolEmployments",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (s traegerSchoolIDs) ListAccountTraeger(ctx context.Context, accountID int64) ([]traegerview.Traeger, error) {\n\torganizations, err := s.organizations.ListAccountTraegerOrganizations(ctx, accountID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]traegerview.Traeger, 0, len(organizations))\n\tfor _, organization := range organizations {\n\t\tresult = append(result, traegerview.Traeger(organization))\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/traegerSchoolIDs.ListAccountTraeger",
@@ -1797,6 +1804,20 @@
       "evidence": "func (s traegerSchoolIDs) ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {\n\tids, err := s.organizations.ListTraegerSchoolIDs(ctx, organizationID)\n\tif errors.Is(err, organizationtenancy.ErrOrganizationInactive) || errors.Is(err, organizationtenancy.ErrOrganizationNotFound) {\n\t\treturn nil, traegerview.ErrTraegerUnavailable\n\t}\n\treturn ids, err\n}",
       "form": "unclassified-evidence",
       "id": "api/traegerSchoolIDs.ListTraegerSchoolIDs",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p traegerSchoolPersons) SchoolPersons(ctx context.Context, personIDs []int64) ([]workforce.TraegerSchoolPerson, error) {\n\tpersons, err := p.persons.ListPersonsByID(ctx, personIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]workforce.TraegerSchoolPerson, 0, len(persons))\n\tfor _, person := range persons {\n\t\tresult = append(result, workforce.TraegerSchoolPerson{PersonID: person.ID, AccountID: person.AccountID, FirstName: person.FirstName, LastName: person.LastName, Birthday: person.Birthday})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/traegerSchoolPersons.SchoolPersons",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (l traegerStaffAccessLog) RecordTraegerStaffAccess(ctx context.Context, access workforce.TraegerStaffAccess) error {\n\tresource := auditModels.ResourceTypeTraegerStaffRecords\n\tif access.View == workforce.TraegerStaffViewFinancial || access.View == workforce.TraegerStaffViewFinancialReveal {\n\t\tresource = auditModels.ResourceTypeTraegerStaffFinancial\n\t}\n\tnow := time.Now()\n\treturn l.log.Create(ctx, \u0026auditModels.DataAccessLog{ActorAccountID: access.AccountID, ActorRole: traegerAccessActorRole, ResourceType: resource, RangeStart: now, RangeEnd: now, Metadata: map[string]any{\"channel\": \"traeger_portal\", \"organization_id\": access.OrganizationID, \"view\": access.View, \"rows\": access.Rows}})\n}",
+      "form": "unclassified-evidence",
+      "id": "api/traegerStaffAccessLog.RecordTraegerStaffAccess",
       "owner": "roots"
     },
     {

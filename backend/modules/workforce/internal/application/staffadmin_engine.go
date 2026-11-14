@@ -274,10 +274,3 @@ func MapStaffAdminError(err error) error {
 	}
 	return mapStaffRecordError(err)
 }
-
-// StaffKeptByTraeger reports whether the Träger keeps the employment in its
-// staff record (#4705).
-func (e StaffAdminEngine) StaffKeptByTraeger(ctx context.Context, staffID int64) (bool, error) {
-	kept, err := e.admin.StaffKeptByTraeger(ctx, staffID)
-	return kept, MapStaffAdminError(err)
-}

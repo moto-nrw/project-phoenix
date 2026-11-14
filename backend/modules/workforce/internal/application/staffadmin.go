@@ -31,8 +31,9 @@ type StaffAdmin struct {
 	// bank seals and opens IBAN, tax ID and social security number with the
 	// bank ring (#6332, ADR 0183).
 	bank workforce.BankDataCipher
-	// kept tells which employments a record of the Träger holds (#4705).
-	kept ports.TraegerStaffKeep
+	// traeger is the Personalstamm of the Träger (#4705): which employments
+	// it keeps, and the store the Träger-Portal composes it over.
+	traeger ports.TraegerStaffStore
 }
 
 // NewStaffAdmin composes the administration over the Workforce-owned record
@@ -46,13 +47,13 @@ func NewStaffAdmin(
 	clock ports.Clock,
 	warn func(message string, args ...any),
 	bank workforce.BankDataCipher,
-	kept ports.TraegerStaffKeep,
+	traeger ports.TraegerStaffStore,
 ) *StaffAdmin {
-	if records == nil || transaction == nil || subjects == nil || audit == nil || clock == nil || warn == nil || bank == nil || kept == nil ||
+	if records == nil || transaction == nil || subjects == nil || audit == nil || clock == nil || warn == nil || bank == nil || traeger == nil ||
 		authority.Allows == nil || authority.Health == "" || authority.Financial == "" || authority.General == "" {
 		panic("workforce staff admin: all dependencies are required")
 	}
-	return &StaffAdmin{records: records, transaction: transaction, subjects: subjects, audit: audit, authority: authority, clock: clock, warn: warn, bank: bank, kept: kept}
+	return &StaffAdmin{records: records, transaction: transaction, subjects: subjects, audit: audit, authority: authority, clock: clock, warn: warn, bank: bank, traeger: traeger}
 }
 
 // --- personnel number -------------------------------------------------------
@@ -274,36 +275,42 @@ func (a *StaffAdmin) UpdateStaffFinancial(ctx context.Context, staffID int64, in
 		return err
 	}
 	return a.writeSection(ctx, staffID, changedByAccountID, domain.AuditSectionBankSteuer, note, func(ctx context.Context, _ domain.StaffSubject) ([]domain.FieldChange, func() error, error) {
-		if err := a.refuseKeptByTraeger(ctx, staffID); err != nil {
-			return nil, nil, err
-		}
-		data, err := a.financial(ctx, staffID)
-		if err != nil {
-			return nil, nil, err
-		}
-		// The diff compares plaintext; opening also proves the stored values
-		// belong to this staff member before they are replaced.
-		if err := openStaffFinancial(a.bank, data); err != nil {
-			return nil, nil, err
-		}
-		apply := func() error {
-			if data == nil {
-				fresh := domain.StaffFinancialData{StaffID: staffID}
-				if err := sealStaffFinancial(a.bank, &fresh, tenant.FromContext(ctx), section); err != nil {
-					return err
-				}
-				_, err := a.records.CreateStaffFinancialData(ctx, financialToPublic(fresh))
+		return a.financialSectionChanges(ctx, staffID, section)
+	})
+}
+
+// financialSectionChanges compares the stored bank and tax section with the
+// new one and returns the write. A section the Träger keeps is refused.
+func (a *StaffAdmin) financialSectionChanges(ctx context.Context, staffID int64, section domain.FinancialSection) ([]domain.FieldChange, func() error, error) {
+	if err := a.refuseKeptByTraeger(ctx, staffID); err != nil {
+		return nil, nil, err
+	}
+	data, err := a.financial(ctx, staffID)
+	if err != nil {
+		return nil, nil, err
+	}
+	// The diff compares plaintext; opening also proves the stored values
+	// belong to this staff member before they are replaced.
+	if err := openStaffFinancial(a.bank, data); err != nil {
+		return nil, nil, err
+	}
+	apply := func() error {
+		if data == nil {
+			fresh := domain.StaffFinancialData{StaffID: staffID}
+			if err := sealStaffFinancial(a.bank, &fresh, tenant.FromContext(ctx), section); err != nil {
 				return err
 			}
-			row := *data
-			if err := sealStaffFinancial(a.bank, &row, row.TenantID, section); err != nil {
-				return err
-			}
-			_, err := a.records.UpdateStaffFinancialData(ctx, financialToPublic(row))
+			_, err := a.records.CreateStaffFinancialData(ctx, financialToPublic(fresh))
 			return err
 		}
-		return domain.FinancialChanges(data, section), apply, nil
-	})
+		row := *data
+		if err := sealStaffFinancial(a.bank, &row, row.TenantID, section); err != nil {
+			return err
+		}
+		_, err := a.records.UpdateStaffFinancialData(ctx, financialToPublic(row))
+		return err
+	}
+	return domain.FinancialChanges(data, section), apply, nil
 }
 
 // writeSection is the shared write shape: lock the staff row, let the section
@@ -446,11 +453,19 @@ func (a *StaffAdmin) StaffKeptByTraeger(ctx context.Context, staffID int64) (boo
 		kept, err = a.keptByTraeger(ctx, staffID)
 		return err
 	})
-	return kept, err
+	return kept, MapStaffAdminError(err)
+}
+
+// TraegerStaffRecords composes the Personalstamm of the Träger-Portal over
+// the same staff subjects, audit trail and bank ring as the personnel
+// record: a link writes the school's number and bank hand-over into the
+// school's own trail.
+func (a *StaffAdmin) TraegerStaffRecords(collaborators workforce.TraegerStaffPorts) workforce.TraegerStaffRecords {
+	return NewTraegerStaff(a.traeger, collaborators, a.subjects, a.audit, a.bank)
 }
 
 func (a *StaffAdmin) keptByTraeger(ctx context.Context, staffID int64) (bool, error) {
-	kept, err := a.kept.KeptStaffIDs(ctx, []int64{staffID})
+	kept, err := a.traeger.KeptStaffIDs(ctx, []int64{staffID})
 	return len(kept) > 0, err
 }
 

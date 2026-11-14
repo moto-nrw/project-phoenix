@@ -394,7 +394,8 @@ type TraegerStaffStore interface {
 	DeleteSchoolFinancialRow(ctx context.Context, staffID int64) error
 	InsertSchoolFinancialRow(ctx context.Context, data domain.StaffFinancialData) error
 
-	ReleaseOfTraeger(ctx context.Context, organizationID int64) (*domain.TraegerStaffRelease, int, error)
+	ReleaseOfTraeger(ctx context.Context, organizationID int64) (*domain.TraegerStaffRelease, error)
+	CountStaffRecords(ctx context.Context, organizationID int64) (int, error)
 	InsertRelease(ctx context.Context, release domain.TraegerStaffRelease) (domain.TraegerStaffRelease, error)
 	DeleteRelease(ctx context.Context, organizationID int64) (bool, error)
 }

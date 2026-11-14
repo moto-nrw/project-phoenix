@@ -97,7 +97,12 @@ type StaffAdminAudit interface {
 type staffAdminEngine interface {
 	StaffRecordAdmin
 	StaffDocuments
+}
+
+// staffAdminTraeger is the Träger side of the personnel record (#4705).
+type staffAdminTraeger interface {
 	StaffTraegerKeep
+	TraegerStaffRecords(collaborators TraegerStaffPorts) TraegerStaffRecords
 }
 
 // StaffTraegerKeep tells the school whether its Träger keeps an employment
@@ -109,15 +114,19 @@ type StaffTraegerKeep interface {
 
 // StaffAdmin is the public facade of the personnel-record administration: the
 // Stammdaten sections, the payroll number, the audited financial reads and
-// the Dokumente tab. It serves StaffRecordAdmin and StaffDocuments.
-type StaffAdmin struct{ engine staffAdminEngine }
+// the Dokumente tab. It serves StaffRecordAdmin, StaffDocuments and
+// StaffTraegerKeep.
+type StaffAdmin struct {
+	engine  staffAdminEngine
+	traeger staffAdminTraeger
+}
 
-// NewStaffAdmin wraps the composed engine.
-func NewStaffAdmin(engine staffAdminEngine) *StaffAdmin {
-	if engine == nil {
-		panic("workforce: staff admin engine is required")
+// NewStaffAdmin wraps the composed engine and its Träger side.
+func NewStaffAdmin(engine staffAdminEngine, traeger staffAdminTraeger) *StaffAdmin {
+	if engine == nil || traeger == nil {
+		panic("workforce: staff admin engine and its Träger side are required")
 	}
-	return &StaffAdmin{engine: engine}
+	return &StaffAdmin{engine: engine, traeger: traeger}
 }
 
 func (a *StaffAdmin) UpdatePersonnelNumber(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*StaffProfile, error) {
@@ -221,5 +230,11 @@ func (a *StaffAdmin) ActivateQueuedStaffDocumentFileCleanup(ctx context.Context,
 }
 
 func (a *StaffAdmin) StaffKeptByTraeger(ctx context.Context, staffID int64) (bool, error) {
-	return a.engine.StaffKeptByTraeger(ctx, staffID)
+	return a.traeger.StaffKeptByTraeger(ctx, staffID)
+}
+
+// TraegerStaffRecords is the Personalstamm of the Träger-Portal (#4705, ADR
+// 0089) over this personnel record; the root binds the collaborators.
+func (a *StaffAdmin) TraegerStaffRecords(collaborators TraegerStaffPorts) TraegerStaffRecords {
+	return a.traeger.TraegerStaffRecords(collaborators)
 }

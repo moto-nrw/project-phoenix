@@ -58,45 +58,15 @@ func ComposeStaffAdmin(
 	masterDataAudit auditModels.StaffMasterDataChangeCreator, personnelNumber auditModels.PersonnelNumberChangeCreator,
 	dataAccessLog staffDataAccessTrail,
 ) (*workforceModule.StaffAdmin, error) {
-	admin, err := bindStaffAdmin(admin, staff, personRows, personDetails, membership, masterDataAudit, personnelNumber, dataAccessLog)
-	if err != nil {
-		return nil, err
-	}
-	return workforceCompose.NewStaffAdmin(admin)
-}
-
-// ComposeTraegerStaffRecords composes the Personalstamm of the Träger-Portal
-// (#4705) over the same staff subjects and audit trail as the personnel
-// record: a link writes the school's personnel number and its bank hand-over
-// into the school's own trail.
-func ComposeTraegerStaffRecords(
-	admin workforceCompose.StaffAdminDependencies, staff staffAdminStaffRows, personRows staffAdminPersonRows,
-	personDetails staffAdminPersonDetails, membership schoolmembership.Capability,
-	masterDataAudit auditModels.StaffMasterDataChangeCreator, personnelNumber auditModels.PersonnelNumberChangeCreator,
-	dataAccessLog staffDataAccessTrail, collaborators workforceModule.TraegerStaffPorts,
-) (workforceModule.TraegerStaffRecords, error) {
-	admin, err := bindStaffAdmin(admin, staff, personRows, personDetails, membership, masterDataAudit, personnelNumber, dataAccessLog)
-	if err != nil {
-		return nil, err
-	}
-	return workforceCompose.NewTraegerStaffRecords(admin, collaborators)
-}
-
-func bindStaffAdmin(
-	admin workforceCompose.StaffAdminDependencies, staff staffAdminStaffRows, personRows staffAdminPersonRows,
-	personDetails staffAdminPersonDetails, membership schoolmembership.Capability,
-	masterDataAudit auditModels.StaffMasterDataChangeCreator, personnelNumber auditModels.PersonnelNumberChangeCreator,
-	dataAccessLog staffDataAccessTrail,
-) (workforceCompose.StaffAdminDependencies, error) {
 	if staff == nil || personRows == nil || personDetails == nil || membership == nil ||
 		masterDataAudit == nil || personnelNumber == nil || dataAccessLog == nil {
-		return admin, errors.New("staff admin: staff, person, membership and audit repositories are required")
+		return nil, errors.New("staff admin: staff, person, membership and audit repositories are required")
 	}
 	persons := staffAdminPersons{rows: personRows, details: personDetails}
 	admin.Subjects = staffAdminSubjects{staff: staff, persons: persons, membership: membership}
 	admin.Audit = staffAdminAudit{masterData: masterDataAudit, personnelNumber: personnelNumber, accessLog: dataAccessLog}
 	admin.Allows = securityruntime.HasPermission
-	return admin, nil
+	return workforceCompose.NewStaffAdmin(admin)
 }
 
 type staffAdminSubjects struct {

@@ -141,21 +141,6 @@ func BuildWorkforceStaffAdmin(db transactionruntime.Database, env RootEnvironmen
 	return admin, nil
 }
 
-// BuildWorkforceTraegerStaff builds Workforce's Personalstamm of the
-// Träger-Portal (#4705, ADR 0089) over the same staff and person rows and
-// trail as the personnel record; the caller binds the Träger's schools, the
-// school staff, the access log and the runtime.
-func BuildWorkforceTraegerStaff(db transactionruntime.Database, env RootEnvironment, persons peopledirectory.Capability, membership schoolmembership.Capability, people PeopleRows, audit AuditOwner, collaborators workforceModule.TraegerStaffPorts) (workforceModule.TraegerStaffRecords, error) {
-	records, err := ComposeTraegerStaffRecords(workforceCompose.StaffAdminDependencies{
-		DB: db.Pool(), Logger: env.Logger.With("service", "traeger_staff"), Now: env.Now, BankData: env.BankData,
-	}, people.Staff, people.Persons, persons, membership,
-		audit.Persistence.StaffMasterDataChange, audit.Persistence.PersonnelNumberChange, audit.Persistence.DataAccessLog, collaborators)
-	if err != nil {
-		return nil, fmt.Errorf("traeger staff: %w", err)
-	}
-	return records, nil
-}
-
 // BuildStudentPhotoRuntime binds the five surfaces the People Directory photo
 // lifecycle needs beyond its own rows (#3349): the tenant feature flag, the
 // acting account, the stored-file cleanup with the live refresh and the
