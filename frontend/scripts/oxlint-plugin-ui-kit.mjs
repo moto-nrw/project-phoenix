@@ -6345,6 +6345,23 @@ const TOOLTIP_SCOPE = [
   "src/components/enrollment/form-preview.tsx",
   "src/components/enrollment/form-template-builder-sections.tsx",
   "src/components/enrollment/form-template-detail.tsx",
+  // Mitarbeitende: Dienste, Dokumente, Externe, Konto, Krankmeldung (#6770).
+  "src/components/staff/dienstplan-halbjahr-grid.tsx",
+  "src/components/staff/dienstplan-person-week-grid.tsx",
+  "src/components/staff/dienstplan-resource-grid.tsx",
+  "src/components/staff/dienstplan-view.tsx",
+  "src/components/staff/dokumente-tab.tsx",
+  "src/components/staff/external-caregiver-dialogs.tsx",
+  "src/components/staff/external-caregiver-entry.tsx",
+  "src/components/staff/former-employment-details.tsx",
+  "src/components/staff/klassen-tab.tsx",
+  "src/components/staff/konto-tab.tsx",
+  "src/components/staff/month-close-modal.tsx",
+  "src/components/staff/planned-exit-modal.tsx",
+  "src/components/staff/shift-edit-modal.tsx",
+  "src/components/staff/shift-move-dialog.tsx",
+  "src/components/staff/sick-report-modal.tsx",
+  "src/components/staff/sonderarbeitszeiten-section.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

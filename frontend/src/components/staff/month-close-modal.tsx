@@ -20,6 +20,7 @@ export function MonthCloseReasonModal({
   title,
   description,
   submitLabel,
+  submitTooltip,
   successMessage,
   destructive = false,
   errorObject = "das Abschließen des Monats",
@@ -30,6 +31,8 @@ export function MonthCloseReasonModal({
   /** Erklärt, was die Aktion tut und wann sie der richtige Weg ist. */
   readonly description: ReactNode;
   readonly submitLabel: string;
+  /** Ein Satz zur Folge des Absendens (#6643): wen es trifft. */
+  readonly submitTooltip?: string;
   /** Optional: Erfolgs-Toast; weglassen, wenn der Aufrufer selbst meldet. */
   readonly successMessage?: string;
   /** Reopen ist die Ausnahme-Aktion und bekommt die rote Variante. */
@@ -84,6 +87,7 @@ export function MonthCloseReasonModal({
             size="md"
             onClick={onClose}
             disabled={submitting}
+            noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
           >
             Abbrechen
           </Button>
@@ -93,6 +97,8 @@ export function MonthCloseReasonModal({
             size="md"
             onClick={handleSubmit}
             disabled={submitting || !canSubmit}
+            disabledReason="Geben Sie zuerst eine Begründung ein."
+            tooltip={submitTooltip}
             isLoading={submitting}
             loadingText="Bitte warten…"
           >

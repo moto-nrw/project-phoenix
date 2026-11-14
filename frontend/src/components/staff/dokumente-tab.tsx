@@ -256,6 +256,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
         const items: readonly OverflowMenuEntry[] = [
           {
             label: "Herunterladen",
+            description: "Speichert die Datei auf Ihrem Gerät.",
             href: staffDocumentsService.downloadUrl(staffId, doc.id),
             external: true,
             onClick: () => undefined,
@@ -264,6 +265,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
           {
             label: "Löschen",
             destructive: true,
+            description: "Löscht das Dokument, moto fragt vorher nach.",
             onClick: () => {
               deleteErrors.clear();
               setDeleteTarget(doc);
