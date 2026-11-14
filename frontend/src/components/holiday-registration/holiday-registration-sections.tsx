@@ -233,14 +233,17 @@ function WeekChoice({
       ) : null}
       {booked && booked.lunchPriceCents != null ? (
         // The lunch of the booked week (#5631): one tick per child and
-        // week, with what it costs right where the parent decides.
-        <CheckboxCard
-          className="sm:ml-auto sm:w-1/2"
-          checked={lunch}
-          onChange={(next) => onLunchChange(booked.id, next)}
-          label={t("lunchLabel")}
-          hint={labels.lunch(booked, days)}
-        />
+        // week, with what it costs right where the parent decides. The same
+        // two columns as the choice above keep it under the time model.
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <CheckboxCard
+            className="sm:col-start-2"
+            checked={lunch}
+            onChange={(next) => onLunchChange(booked.id, next)}
+            label={t("lunchLabel")}
+            hint={labels.lunch(booked, days)}
+          />
+        </div>
       ) : null}
     </div>
   );

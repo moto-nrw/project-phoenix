@@ -509,7 +509,7 @@ func (b parentBillingHolidayRegistrations) HolidayWeeks(ctx context.Context, lin
 		weeks[i] = parentbilling.HolidayWeek{ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, TimeModels: models}
 		weeks[i].CareDays = week.CareDays
 		weeks[i].LunchDayCents = week.LunchPriceCents
-		weeks[i].WeekLunchDays = len(enrollmentOwner.HolidayLunchDays(week, nil))
+		weeks[i].WeekLunchDays = week.LunchDays
 	}
 	return weeks, nil
 }

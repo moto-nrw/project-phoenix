@@ -242,15 +242,23 @@ function TimeModelRow({
 
 /**
  * What the lunch costs parents, in one line under the price (#5631): the
- * sum of a whole week, or that the price counts per booked day.
+ * sum of a whole week, or that the price counts per booked day. A day
+ * without care has no lunch; the line says so when the week has one.
  */
-function lunchPriceHint(week: WeekDraft, careDays: number): string {
+function lunchPriceHint(
+  week: WeekDraft,
+  careDays: number,
+  daysWithoutCare: number,
+): string {
+  const closed =
+    daysWithoutCare > 0 ? " An Tagen ohne Betreuung gibt es kein Essen." : "";
   if (week.bookingUnit === "day") {
-    return "Eltern zahlen ein Essen für jeden gebuchten Tag.";
+    return `Eltern zahlen ein Essen für jeden gebuchten Tag.${closed}`;
   }
   const total = weekLunchTotal(week, careDays);
-  if (!total) return "Eltern zahlen ein Essen für jeden Tag der Woche.";
-  return `Eltern zahlen ${total.lunches} Essen für die Woche: ${formatEuro(total.cents)}.`;
+  if (!total)
+    return `Eltern zahlen ein Essen für jeden Tag der Woche.${closed}`;
+  return `Eltern zahlen ${total.lunches} Essen für die Woche: ${formatEuro(total.cents)}.${closed}`;
 }
 
 /**
@@ -262,12 +270,16 @@ function WeekLunchFields({
   week,
   prefix,
   careDays,
+  daysWithoutCare,
   fieldError,
   onChange,
 }: Readonly<{
   week: WeekDraft;
   prefix: string;
+  /** The days a child of the whole week eats on. */
   careDays: number;
+  /** The weekdays of the week without care at the host school. */
+  daysWithoutCare: number;
   fieldError: FieldError;
   onChange: (week: WeekDraft) => void;
 }>) {
@@ -297,7 +309,7 @@ function WeekLunchFields({
             inputMode="decimal"
             placeholder="z. B. 4,30"
             value={week.lunchPrice ?? ""}
-            hint={lunchPriceHint(week, careDays)}
+            hint={lunchPriceHint(week, careDays, daysWithoutCare)}
             error={fieldError(`${prefix}.lunch_price_cents`) ?? undefined}
             onChange={(event) =>
               onChange({ ...week, lunchPrice: event.target.value })
@@ -362,6 +374,12 @@ export function HolidayWeekEditor({
     noCareDays && noCareDays.days.length > 0
       ? noCareDaysNotice(noCareDays, week, booked)
       : null;
+  // A child with lunch eats on every care day of the week (#5631).
+  const lunchDays = bookableHolidayDays(
+    week.startsOn,
+    week.endsOn,
+    noCareDays?.days ?? [],
+  ).length;
   return (
     // Eine Zeile der Formularkarte, keine eigene Karte (#5146): die Wochen
     // trennt eine Linie wie die Zeitmodelle darunter.
@@ -514,12 +532,9 @@ export function HolidayWeekEditor({
         <WeekLunchFields
           week={week}
           prefix={prefix}
-          careDays={
-            bookableHolidayDays(
-              week.startsOn,
-              week.endsOn,
-              noCareDays?.days ?? [],
-            ).length
+          careDays={lunchDays}
+          daysWithoutCare={
+            holidayCareDays(week.startsOn, week.endsOn).length - lunchDays
           }
           fieldError={fieldError}
           onChange={onChange}

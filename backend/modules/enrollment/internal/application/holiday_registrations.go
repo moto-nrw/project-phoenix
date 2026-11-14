@@ -209,6 +209,7 @@ func offeredHolidayWeeks(weeks []enrollment.HolidayWeek) []enrollment.HolidayWee
 		if week.BookingUnit == enrollment.HolidayBookingUnitDay {
 			week.CareDays = holidayBookableCareDays(week)
 		}
+		week.LunchDays = len(enrollment.HolidayLunchDays(week, nil))
 		offered[i] = week
 	}
 	return offered

@@ -133,6 +133,10 @@ type HolidayWeek struct {
 	// lunch in the week: the offer then stays, only its price changes.
 	LunchPriceCents *int64 `json:"lunch_price_cents"`
 	LunchBooked     bool   `json:"lunch_booked"`
+	// LunchDays is the number of lunches a booking of the whole week takes:
+	// its care days without the days without care. Only the public offer
+	// fills it (#5631).
+	LunchDays int `json:"-"`
 }
 
 // HolidayPeriod is a holiday period of a Träger with its weeks.

@@ -386,7 +386,7 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 			ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolName: names[week.HostSchoolID], TimeModels: models,
 			BookingUnit: week.BookingUnit, CareDays: careDays, FullDays: fullDays,
 			NoCareDays:      noCareDaysOrEmpty(week.NoCareDays),
-			LunchPriceCents: week.LunchPriceCents, LunchDays: len(capability.HolidayLunchDays(week, nil)),
+			LunchPriceCents: week.LunchPriceCents, LunchDays: week.LunchDays,
 		})
 	}
 	return HolidayRegistrationOfferResponse{
