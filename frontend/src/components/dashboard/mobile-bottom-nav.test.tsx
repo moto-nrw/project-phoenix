@@ -157,6 +157,7 @@ import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
+  useSimpleStaffNavigationSetting,
   useStaffMessagingEnabled,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
@@ -197,6 +198,9 @@ const mockUseChildSearchOnlyNavigation = vi.mocked(
   useChildSearchOnlyNavigation,
 );
 const mockUseStaffMessagingEnabled = vi.mocked(useStaffMessagingEnabled);
+const mockUseSimpleStaffNavigationSetting = vi.mocked(
+  useSimpleStaffNavigationSetting,
+);
 const mockUseSWRDefault = vi.mocked(useSWR);
 
 // Helper to create mock search params - use unknown cast for test flexibility
@@ -1218,6 +1222,67 @@ describe("MobileBottomNav", () => {
       // Die Bezeichnung erscheint nur am aktiven Reiter.
       expect(screen.getByText("Suchen")).toBeInTheDocument();
       expect(screen.queryByText("Gruppen")).not.toBeInTheDocument();
+    });
+  });
+
+  // Einfache Seitenleiste (#6956): das Mehr-Menü zeigt nur die Seiten des
+  // Betreuungsalltags, die Reiter bleiben.
+  describe("einfache Seitenleiste (#6956)", () => {
+    beforeEach(() => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSimpleStaffNavigationSetting.mockReturnValue(true);
+    });
+
+    afterEach(() => {
+      mockUseSimpleStaffNavigationSetting.mockReturnValue(false);
+    });
+
+    it("keeps the tabs and lists only the daily care pages under Mehr", () => {
+      render(<MobileBottomNav />);
+
+      const tabHrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(tabHrefs).toContain("/ogs-groups/overview");
+      expect(tabHrefs).toContain("/students/search");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+      expect(screen.getByText("Räume")).toBeInTheDocument();
+      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
+      expect(screen.getByText("Tagesinformationen")).toBeInTheDocument();
+      expect(screen.getByText("Hilfe")).toBeInTheDocument();
+      expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+      expect(screen.queryByText("Team-Chat")).not.toBeInTheDocument();
+      expect(screen.queryByText("Tagesbetrieb")).not.toBeInTheDocument();
+    });
+
+    it("lets the person show every page and switch back", () => {
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Alle Seiten anzeigen" }),
+      );
+      expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
+      expect(screen.getByText("Tagesbetrieb")).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Weniger Seiten anzeigen" }),
+      );
+      expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+    });
+
+    it("keeps the full menu for the school lead", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Tagesbetrieb")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Alle Seiten anzeigen" }),
+      ).not.toBeInTheDocument();
     });
   });
 

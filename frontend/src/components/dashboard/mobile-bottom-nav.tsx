@@ -12,6 +12,7 @@ import {
   usePortalBottomNavIndicator,
 } from "~/components/ui/portal-bottom-nav";
 import { PortalMoreBottomNav } from "~/components/ui/portal-more-bottom-nav";
+import { SchoolSearchSlot } from "~/components/search/school-search-slot";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
@@ -94,16 +95,19 @@ import {
   STAFF_NAV_BOTTOM,
   STAFF_NAV_CONCEPTS,
   STAFF_NAV_GROUPS,
+  STAFF_NAV_SIMPLE_ENTRIES,
   STAFF_NAV_TOP,
   type StaffNavEntry,
   type StaffNavGroupKey,
   type StaffNavSectionKey,
 } from "~/lib/staff-navigation";
+import { useSimpleStaffNav } from "~/lib/hooks/use-simple-staff-nav";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { LogoutModal } from "~/components/auth/logout-modal";
 import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
 import { RefreshButton } from "./header/refresh-button";
 import { Bell, Eye } from "lucide-react";
+import { ListBulletsIcon } from "@phosphor-icons/react/ssr";
 import { accountsConcept } from "~/lib/concepts/accounts";
 import { mealPlanConcept } from "~/lib/concepts/mealPlan";
 import { activitiesConcept } from "~/lib/concepts/activities";
@@ -756,6 +760,10 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Kinder nur über „Alle Kinder“ (#1321): Gruppe und Aufsicht verlassen die
   // Leiste wie in der Seitenleiste; „Suchen“ steht dann auch für ihre Seiten.
   const childSearchOnlyNavigation = useChildSearchOnlyNavigation();
+  // Einfache Seitenleiste (#6956): das Mehr-Menü zeigt dann nur die Seiten
+  // des Betreuungsalltags, ohne Gruppen. Die Reiter unten stehen ohnehin in
+  // dieser Liste.
+  const simpleNav = useSimpleStaffNav(session ?? null);
   const staffMessagingEnabled = useStaffMessagingEnabled();
   // Betreuungsplan-Flag für den Tagesplan-Eintrag (#2383): vom Tenant-Resolve,
   // damit es auch ohne config:read aufgelöst ist.
@@ -986,11 +994,21 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
         ]
       : [
           { key: "top", group: null, items: entriesToItems(STAFF_NAV_TOP) },
-          ...STAFF_NAV_GROUPS.map((group) => ({
-            key: group.key,
-            group: { key: group.key, label: group.label },
-            items: entriesToItems(group.entries),
-          })),
+          // Die einfache Ansicht (#6956) bleibt eine flache Liste ohne
+          // Gruppen; nur die vollen Gruppen klappen (#7048).
+          ...(simpleNav.active
+            ? [
+                {
+                  key: "simple",
+                  group: null,
+                  items: entriesToItems(STAFF_NAV_SIMPLE_ENTRIES),
+                },
+              ]
+            : STAFF_NAV_GROUPS.map((group) => ({
+                key: group.key,
+                group: { key: group.key, label: group.label },
+                items: entriesToItems(group.entries),
+              }))),
           {
             key: "bottom",
             group: null,
@@ -1082,6 +1100,14 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
           <div className="min-h-0 w-full flex-1 overflow-y-auto">
             <div className="px-4 pt-6 pb-4">
               <div className="space-y-5">
+                {/* Die Suche über die Schule (#6954) steht auf dem Handy hier
+                    oben statt im Seitenkopf. Das Personalportal füllt den
+                    Platz; andere Portale lassen ihn leer. */}
+                <SchoolSearchSlot
+                  placement="moreSheet"
+                  onOpen={() => setIsOverflowMenuOpen(false)}
+                  returnFocus={() => moreButtonRef.current}
+                />
                 {/* Rückweg ins Träger-Portal (#5687): ganz oben, unter 1024 px
                     gibt es weder Seitenleiste noch Kopfzeile. */}
                 {traegerReturnHref ? (
@@ -1207,6 +1233,26 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     </div>
                   );
                 })}
+                {/* Ausgeblendet heißt nicht gesperrt (#6956): jede Person
+                    wechselt selbst zwischen beiden Ansichten, wie unten in
+                    der Seitenleiste. */}
+                {mode === "teacher" && simpleNav.available ? (
+                  <Button
+                    type="button"
+                    onClick={simpleNav.toggle}
+                    variant="ghost"
+                    size="md"
+                    className="w-full justify-start gap-3"
+                  >
+                    <ListBulletsIcon
+                      className="h-5 w-5 text-gray-600"
+                      aria-hidden="true"
+                    />
+                    <span className="text-base font-medium">
+                      {simpleNav.toggleLabel}
+                    </span>
+                  </Button>
+                ) : null}
               </div>
               {(mode === "teacher" ||
                 mode === "operator" ||

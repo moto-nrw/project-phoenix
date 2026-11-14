@@ -182,6 +182,7 @@ import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
+  useSimpleStaffNavigationSetting,
   useStaffMessagingEnabled,
   useMealPlanEnabled,
   useTenantRoutingModeSafe,
@@ -236,6 +237,9 @@ const mockUseChildSearchOnlyNavigation = vi.mocked(
   useChildSearchOnlyNavigation,
 );
 const mockUseStaffMessagingEnabled = vi.mocked(useStaffMessagingEnabled);
+const mockUseSimpleStaffNavigationSetting = vi.mocked(
+  useSimpleStaffNavigationSetting,
+);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
 const mockUseSWRDefault = vi.mocked(useSWR);
 
@@ -3608,6 +3612,84 @@ describe("Sidebar", () => {
         );
       },
     );
+  });
+
+  describe("einfache Seitenleiste (#6956)", () => {
+    afterEach(() => {
+      mockUseSimpleStaffNavigationSetting.mockReturnValue(false);
+    });
+
+    it("shows a caregiver only the pages of the daily care work, without groups", () => {
+      mockUseSimpleStaffNavigationSetting.mockReturnValue(true);
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Startseite")).toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
+      expect(screen.getByText("Räume")).toBeInTheDocument();
+      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
+      expect(screen.getByText("Tagesinformationen")).toBeInTheDocument();
+      expect(screen.getByText("Hilfe")).toBeInTheDocument();
+      expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+      expect(screen.queryByText("Mitarbeiter")).not.toBeInTheDocument();
+      expect(screen.queryByText("Team-Chat")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Tagesbetrieb/ }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Alle Seiten anzeigen" }),
+      ).toBeInTheDocument();
+    });
+
+    it("lets the person show every page and switch back", () => {
+      mockUseSimpleStaffNavigationSetting.mockReturnValue(true);
+
+      render(<Sidebar />);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Alle Seiten anzeigen" }),
+      );
+
+      expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Tagesbetrieb/ }),
+      ).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Weniger Seiten anzeigen" }),
+      );
+
+      expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Alle Seiten anzeigen" }),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the full sidebar for the school lead", () => {
+      mockUseSimpleStaffNavigationSetting.mockReturnValue(true);
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
+      render(<Sidebar />);
+
+      expect(
+        screen.getByRole("button", { name: /Tagesbetrieb/ }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Alle Seiten anzeigen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("offers no switch while the school keeps the full sidebar", () => {
+      render(<Sidebar />);
+
+      expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Alle Seiten anzeigen" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Weniger Seiten anzeigen" }),
+      ).not.toBeInTheDocument();
+    });
   });
 
   describe("collapsible sidebar (#2825)", () => {

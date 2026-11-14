@@ -142,3 +142,11 @@ export function parentAnnouncementSteps(
     "Wählen Sie in `Schritt 2 von 2` unter `Wer soll diese Mitteilung erhalten?` die Empfänger.",
   ];
 }
+
+/**
+ * Für Artikel der Betreuung, deren Weg über eine Überschrift der
+ * Seitenleiste führt (`Team`, `Tagesbetrieb`): In der einfachen
+ * Seitenleiste (#6956) gibt es diese Überschriften nicht.
+ */
+export const SIMPLE_NAV_DIFFERENCE =
+  "Sie sehen in der Seitenleiste keine Überschriften wie `Team` oder `Tagesbetrieb`? Dann nutzt Ihre OGS die einfache Seitenleiste. Die Seite steht dort direkt. Fehlt sie, wählen Sie ganz unten `Alle Seiten anzeigen`.";

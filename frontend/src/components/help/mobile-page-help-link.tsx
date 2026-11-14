@@ -13,6 +13,7 @@ import {
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
 import { normalizeTenantPathname } from "~/lib/tenant-path";
+import { SchoolSearchSlot } from "~/components/search/school-search-slot";
 
 /** Mobile counterpart of the desktop header's help action. */
 export function MobilePageHelpLink() {
@@ -20,7 +21,17 @@ export function MobilePageHelpLink() {
   // Shared page primitives also render outside an authenticated portal.
   // moto schule already keeps its shell header visible on every width.
   if (auth?.mode !== "teacher" && auth?.mode !== "parent") return null;
-  return <ResolvedMobilePageHelpLink mode={auth.mode} />;
+  if (auth.mode === "parent")
+    return <ResolvedMobilePageHelpLink mode="parent" />;
+  // Below lg the staff portal has no header: its search sits here, beside the
+  // help (#6954). The page head keeps one slot for this target, so both share
+  // one container.
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 lg:hidden">
+      <SchoolSearchSlot placement="pageHead" />
+      <ResolvedMobilePageHelpLink mode="teacher" />
+    </span>
+  );
 }
 
 function ResolvedMobilePageHelpLink({

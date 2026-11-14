@@ -170,6 +170,9 @@ const tenantProviderMock = vi.hoisted(() => ({
   // The separate child entries stay like the registry default (#1321); tests
   // of the child-search-only navigation override this locally.
   useChildSearchOnlyNavigation: vi.fn(() => false),
+  // The simple staff navigation stays off like the registry default
+  // (#6956); its tests override this locally.
+  useSimpleStaffNavigationSetting: vi.fn(() => false),
   // Tagesauswertung / Anwesenheitsprotokoll (#1456) is opt-in and defaults
   // off; same reasoning as useDisplayEnabled above.
   useAttendanceLogEnabled: vi.fn(() => false),

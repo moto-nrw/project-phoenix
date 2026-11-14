@@ -185,6 +185,7 @@ describe("tenant-api", () => {
         earlyCheckoutNoteToleranceMinutes: null,
         weekendFollowsFriday: false,
         childSearchOnlyNavigation: false,
+        simpleStaffNavigation: false,
       });
     });
 
@@ -511,6 +512,37 @@ describe("tenant-api", () => {
         );
         const result = await resolveTenant("demo");
         expect(result?.childSearchOnlyNavigation).toBe(expected);
+      },
+    );
+
+    it.each([
+      [true, true],
+      ["true", false],
+      [undefined, false],
+    ])(
+      "maps simple_staff_navigation=%s to simpleStaffNavigation=%s (#6956)",
+      async (raw, expected) => {
+        const backendData = {
+          status: "success",
+          data: {
+            tenant_id: 3,
+            slug: "demo",
+            name: "Demo",
+            subdomain: "demo",
+            organization_id: 12,
+            organization_name: "Org C",
+            settings: {},
+            simple_staff_navigation: raw,
+          },
+        };
+        vi.mocked(global.fetch).mockResolvedValueOnce(
+          new Response(JSON.stringify(backendData), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+        const result = await resolveTenant("demo");
+        expect(result?.simpleStaffNavigation).toBe(expected);
       },
     );
 
