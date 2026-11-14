@@ -22,6 +22,13 @@ func (seedTraegerStaffStep) Name() string { return "Seeding the staff records of
 // overview keeps open proposals to review.
 const seedTraegerStaffLinks = 6
 
+// The codes the routes answer when another school's run got there first.
+const (
+	seedCodeStaffReleaseExists = "workforce.traeger_staff_release_exists"
+	seedCodeStaffAlreadyLinked = "workforce.traeger_staff_already_linked"
+	seedCodeStaffNumberTaken   = "workforce.personnel_number_taken"
+)
+
 // seedTraegerStaffIBAN is an invented IBAN with a valid checksum.
 const seedTraegerStaffIBAN = "DE02120300000000202051"
 
@@ -82,7 +89,7 @@ func seedTraegerStaffRelease(rt *Runtime) error {
 	path := fmt.Sprintf("/operator/organizations/%d/staff-release", rt.Bootstrap.OrganizationID)
 	_, err := rt.Client.PostWithAuth(rt.OperatorAuth, path, map[string]any{"representation": "agreement"})
 	var refused *APIError
-	if errors.As(err, &refused) && refused.Code == "workforce.traeger_staff_release_exists" {
+	if errors.As(err, &refused) && refused.Code == seedCodeStaffReleaseExists {
 		return nil
 	}
 	if err != nil {
@@ -177,5 +184,5 @@ func seedTraegerStaffLink(client *Client, auth AuthRef, suggestion seedTraegerSt
 // confirmed meanwhile, or a number another record holds.
 func seedTraegerStaffAlreadyLinked(err error) bool {
 	var refused *APIError
-	return errors.As(err, &refused) && (refused.Code == "workforce.traeger_staff_already_linked" || refused.Code == "workforce.personnel_number_taken")
+	return errors.As(err, &refused) && (refused.Code == seedCodeStaffAlreadyLinked || refused.Code == seedCodeStaffNumberTaken)
 }
