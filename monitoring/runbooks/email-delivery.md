@@ -200,6 +200,18 @@ Adresse bei Lettermint eine `manual`- oder `unsubscribe`-Sperre, löscht moto
 nichts und meldet das. Ohne `EMAIL_PROVIDER=lettermint` leert das Aufheben nur die
 Liste der Schule.
 
+Eine Sperre auf der globalen Liste von Lettermint (`scope: global`) oder eine
+Sperre einer ganzen Domain (`suppression_type: domain`) steht nicht auf der Liste
+des Teams, die moto abfragt. moto wertet eine so zurückgehaltene Mail deshalb wie
+einen Hard Bounce: Status `failed`, die Adresse kommt auf die Liste der Schule
+(„Adresse prüfen“), und eine Sicherheitsmail geht nicht über den Fallback (#6998).
+Der häufige Fall ist eine vertippte Domain mit eigenem Mailserver, etwa `gmai.com`.
+Webhook und Abgleich lesen diese Angaben beide, die `diagnostic` des Ereignisses
+nennt sie (zum Beispiel `manual global domain gmai.com`). Hebt die Schule die
+Sperre auf, hält Lettermint die nächste Mail wieder zurück, und die Adresse steht
+erneut auf der Liste. Eine Sperre einer einzelnen Adresse auf der Liste des Teams
+bleibt `suppressed`; ob sie noch gilt, fragt moto bei Lettermint ab.
+
 ### Grenze: Anbieter-Abfrage in Transaktionen
 
 Den aktuellen Stand der Sperre fragt moto bei Lettermint innerhalb offener
