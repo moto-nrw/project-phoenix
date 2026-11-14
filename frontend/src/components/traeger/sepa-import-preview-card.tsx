@@ -89,6 +89,12 @@ function NotesCell({ row }: Readonly<{ row: ImportRow }>) {
     ...(row.problems.length === 0 ? row.hints.map(importHintText) : []),
   ];
   if (row.status === "duplicate") lines.unshift("Dieses Mandat gibt es schon.");
+  if (row.status === "same_mandate" && row.sameMandateLine !== null) {
+    // Siblings of one family share its mandate (#7009).
+    lines.unshift(
+      `Gleiches Mandat wie Zeile ${row.sameMandateLine}. moto legt es einmal an.`,
+    );
+  }
   const debtor = importDebtorNumberText(row);
   if (debtor) lines.push(debtor);
   if (lines.length === 0) return <span className="text-gray-400">–</span>;
@@ -166,7 +172,10 @@ export function SepaImportPreviewCard({
     { value: "ready", label: `Bereit ${counts.ready + counts.imported}` },
     { value: "clarify", label: `Klären ${counts.clarify}` },
     { value: "problems", label: `Fehler ${counts.conflict + counts.invalid}` },
-    { value: "duplicate", label: `Vorhanden ${counts.duplicate}` },
+    {
+      value: "duplicate",
+      label: `Vorhanden ${counts.duplicate + counts.same_mandate}`,
+    },
   ];
 
   const columns: DataTableColumn<ImportRow>[] = [

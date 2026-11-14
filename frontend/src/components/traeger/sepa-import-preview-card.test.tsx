@@ -25,6 +25,7 @@ function row(line: number, overrides: Partial<ImportRow>): ImportRow {
     hints: [],
     debtorNumber: "",
     debtorNumberStatus: "",
+    sameMandateLine: null,
     ...overrides,
   };
 }
@@ -58,6 +59,7 @@ const result: ImportResult = {
     ready: 1,
     clarify: 1,
     duplicate: 0,
+    same_mandate: 0,
     conflict: 0,
     invalid: 1,
     imported: 0,
@@ -137,6 +139,34 @@ describe("SepaImportPreviewCard", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Fehler 1" }),
+    ).toBeInTheDocument();
+  });
+
+  it("names the row whose mandate a sibling repeats (#7009)", () => {
+    render(
+      <SepaImportPreviewCard
+        result={{
+          ...result,
+          counts: { ...result.counts, same_mandate: 1 },
+          rows: [
+            row(2, {}),
+            row(3, { status: "same_mandate", sameMandateLine: 2 }),
+          ],
+        }}
+        answers={{}}
+        applying={false}
+        onAnswer={vi.fn()}
+        onApply={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getAllByText(
+        "Gleiches Mandat wie Zeile 2. moto legt es einmal an.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("Gleiches Mandat").length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "Vorhanden 1" }),
     ).toBeInTheDocument();
   });
 
