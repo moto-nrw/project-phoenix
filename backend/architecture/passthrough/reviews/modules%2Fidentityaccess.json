@@ -138,7 +138,7 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveTrustedDevice",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "Re-reviewed for #6955: the remembered device is found, listed and revoked in one scope (portal, school, Träger) instead of one school; no new forwarding debt."
     },
     {
       "decision": "0090",
@@ -168,7 +168,7 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ListActiveTrustedDevices",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "Re-reviewed for #6955: the remembered device is found, listed and revoked in one scope (portal, school, Träger) instead of one school; no new forwarding debt."
     },
     {
       "decision": "0090",
@@ -188,7 +188,7 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.RevokeTenantTrustedDevices",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "Re-reviewed for #6955: the remembered device is found, listed and revoked in one scope (portal, school, Träger) instead of one school; no new forwarding debt."
     },
     {
       "decision": "0090",
@@ -272,8 +272,18 @@
     },
     {
       "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountMFAFlows.ListTrustedDevices",
+      "reason": "Exact evidence for #6955: the scope check of the remembered-device list and revoke, before the adapter reads or writes; owner-internal, no new forwarding debt."
+    },
+    {
+      "decision": "0090",
       "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallengeForScope",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountMFAFlows.RevokeTrustedDevice",
+      "reason": "Exact evidence for #6955: the scope check of the remembered-device list and revoke, before the adapter reads or writes; owner-internal, no new forwarding debt."
     },
     {
       "decision": "0090",
@@ -468,7 +478,7 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/CapabilityGate.VerifyTrustedDevice",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "Re-reviewed for #6955: the remembered device is found, listed and revoked in one scope (portal, school, Träger) instead of one school; no new forwarding debt."
     },
     {
       "decision": "0077",
@@ -533,7 +543,7 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ListTrustedDevices",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "Re-reviewed for #6955: the remembered device is found, listed and revoked in one scope (portal, school, Träger) instead of one school; no new forwarding debt."
     },
     {
       "decision": "0090",
@@ -553,7 +563,7 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.PrepareTrustedDevice",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "Re-reviewed for #6955: the remembered device is found, listed and revoked in one scope (portal, school, Träger) instead of one school; no new forwarding debt."
     },
     {
       "decision": "0090",
@@ -573,7 +583,7 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.RevokeTrustedDevice",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "Re-reviewed for #6955: the remembered device is found, listed and revoked in one scope (portal, school, Träger) instead of one school; no new forwarding debt."
     },
     {
       "decision": "0090",
@@ -608,7 +618,7 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.VerifyTrustedDevice",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "Re-reviewed for #6955: the remembered device is found, listed and revoked in one scope (portal, school, Träger) instead of one school; no new forwarding debt."
     },
     {
       "decision": "0090",

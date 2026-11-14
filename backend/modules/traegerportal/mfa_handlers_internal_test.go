@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-ogs/project-phoenix/api/common"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
@@ -81,9 +80,12 @@ func (f *exchangeFixture) verify(t *testing.T, remember bool) *httptest.Response
 	return rec
 }
 
+// trustedDeviceCookie is the remember-device cookie every portal sets.
+const trustedDeviceCookie = "mfa_trust_device"
+
 func deviceCookie(rec *httptest.ResponseRecorder) *http.Cookie {
 	for _, cookie := range rec.Result().Cookies() {
-		if cookie.Name == common.TrustedDeviceCookie {
+		if cookie.Name == trustedDeviceCookie {
 			return cookie
 		}
 	}

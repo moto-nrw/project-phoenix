@@ -602,7 +602,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/api.operatorIdentityCapabilities.IssueTrustedDevice",
-      "binding_digest": "7fad14af217d8693a2c14c6fdb115249",
+      "binding_digest": "e2708891546b07996c5332c63f7c9dae",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.AccountMFA.IssueTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
@@ -610,7 +610,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/api.operatorIdentityCapabilities.IssueTrustedDevice",
-      "binding_digest": "28c2b4648fabd68c09601ec98743c498",
+      "binding_digest": "427d39f870ece5c6ee9c3959ebe9dcbf",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.AccountMFA.IssueTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -618,7 +618,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.IssueTrustedDevice",
-      "binding_digest": "7fad14af217d8693a2c14c6fdb115249",
+      "binding_digest": "e2708891546b07996c5332c63f7c9dae",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.AccountMFA.IssueTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
@@ -626,7 +626,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.IssueTrustedDevice",
-      "binding_digest": "28c2b4648fabd68c09601ec98743c498",
+      "binding_digest": "427d39f870ece5c6ee9c3959ebe9dcbf",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.AccountMFA.IssueTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -634,7 +634,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.ComposedAccountMFA.IssueTrustedDevice",
-      "binding_digest": "7fad14af217d8693a2c14c6fdb115249",
+      "binding_digest": "e2708891546b07996c5332c63f7c9dae",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.AccountMFA.IssueTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
@@ -642,7 +642,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.ComposedAccountMFA.IssueTrustedDevice",
-      "binding_digest": "28c2b4648fabd68c09601ec98743c498",
+      "binding_digest": "427d39f870ece5c6ee9c3959ebe9dcbf",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.AccountMFA.IssueTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -754,7 +754,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/api.operatorIdentityCapabilities.PrepareTrustedDevice",
-      "binding_digest": "9093e5d3370ef0f622aadf01d650b0a3",
+      "binding_digest": "fe27eba2f31daf4f8580670897ec7cb0",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.AccountMFA.PrepareTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
@@ -762,7 +762,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/api.operatorIdentityCapabilities.PrepareTrustedDevice",
-      "binding_digest": "15dd706b4421cd599c12c476e4c7ee8e",
+      "binding_digest": "e5a056b9bc2f1a7142d8afaa9e80ce09",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.AccountMFA.PrepareTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -770,7 +770,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.PrepareTrustedDevice",
-      "binding_digest": "9093e5d3370ef0f622aadf01d650b0a3",
+      "binding_digest": "fe27eba2f31daf4f8580670897ec7cb0",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.AccountMFA.PrepareTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
@@ -778,7 +778,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.PrepareTrustedDevice",
-      "binding_digest": "15dd706b4421cd599c12c476e4c7ee8e",
+      "binding_digest": "e5a056b9bc2f1a7142d8afaa9e80ce09",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.AccountMFA.PrepareTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -786,7 +786,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.ComposedAccountMFA.PrepareTrustedDevice",
-      "binding_digest": "9093e5d3370ef0f622aadf01d650b0a3",
+      "binding_digest": "fe27eba2f31daf4f8580670897ec7cb0",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.AccountMFA.PrepareTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
@@ -794,7 +794,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.ComposedAccountMFA.PrepareTrustedDevice",
-      "binding_digest": "15dd706b4421cd599c12c476e4c7ee8e",
+      "binding_digest": "e5a056b9bc2f1a7142d8afaa9e80ce09",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.AccountMFA.PrepareTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -2634,7 +2634,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.CatererAccess.VerifyCatererMFA",
-      "binding_digest": "337cb28f322a118cecba23a71669b27e",
+      "binding_digest": "148af30e205fc2f725c90c5aa0131c4a",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.CatererSignIn.VerifyCatererMFA",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
@@ -2642,7 +2642,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.CatererAccess.VerifyCatererMFA",
-      "binding_digest": "ce3870edf80709e973de90b7760aa699",
+      "binding_digest": "4ccd00738f4cdbf92e20a5719626fc1b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.CatererSignIn.VerifyCatererMFA",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -6930,7 +6930,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.IssueTrustedDevice",
-      "binding_digest": "7fad14af217d8693a2c14c6fdb115249",
+      "binding_digest": "e2708891546b07996c5332c63f7c9dae",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.IssueTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
@@ -6938,7 +6938,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.IssueTrustedDevice",
-      "binding_digest": "28c2b4648fabd68c09601ec98743c498",
+      "binding_digest": "427d39f870ece5c6ee9c3959ebe9dcbf",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.IssueTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -7786,7 +7786,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.PrepareTrustedDevice",
-      "binding_digest": "9093e5d3370ef0f622aadf01d650b0a3",
+      "binding_digest": "fe27eba2f31daf4f8580670897ec7cb0",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.PrepareTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
@@ -7794,7 +7794,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.PrepareTrustedDevice",
-      "binding_digest": "15dd706b4421cd599c12c476e4c7ee8e",
+      "binding_digest": "e5a056b9bc2f1a7142d8afaa9e80ce09",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.PrepareTrustedDevice",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
