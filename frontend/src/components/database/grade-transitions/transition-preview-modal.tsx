@@ -260,7 +260,7 @@ export function TransitionPreviewModal({
                 variant="outline"
                 size="md"
                 onClick={onBackToEditor}
-                tooltip="Öffnet den Entwurf wieder zum Bearbeiten."
+                tooltip="Öffnet den Entwurf wieder zum Ändern."
               >
                 Zurück zum Entwurf
               </Button>

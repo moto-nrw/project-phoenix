@@ -238,7 +238,7 @@ export default function QualificationsPage() {
         <>
           <ButtonLink
             href={tenantPath("/database/qualification-types")}
-            tooltip="Öffnet die Liste der Nachweisarten zum Bearbeiten."
+            tooltip="Öffnet die Liste der Nachweisarten zum Ändern."
             variant="outline"
             size="md"
           >

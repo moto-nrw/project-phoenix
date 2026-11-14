@@ -278,7 +278,7 @@ export function BillingTermsCard({
             {
               label: "Ändern",
               description:
-                "Öffnet Zahlung und Rechnung dieser Leistung zum Bearbeiten.",
+                "Öffnet Zahlung und Rechnung dieser Leistung zum Ändern.",
               onClick: () => setEditing(row),
             },
           ]}

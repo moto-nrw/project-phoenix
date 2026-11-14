@@ -129,7 +129,7 @@
     "errorObjectContact": "die Änderung am Kontakt",
     "errorObjectPickup": "die Abholregelung",
     "addContactTooltip": "Öffnet ein Formular für eine Kontakt- oder Abholperson ohne Konto.",
-    "editContactTooltip": "Öffnet die Kontaktdaten dieser Person zum Bearbeiten.",
+    "editContactTooltip": "Öffnet die Kontaktdaten dieser Person zum Ändern.",
     "managePickupTooltip": "Öffnet die Abholregelung und den Notfallkontakt für diese Person.",
     "pickupNotesTooltip": "Öffnet den Hinweis zur Abholung für diese Person.",
     "removePhoneTooltip": "Entfernt diese Nummer aus dem Formular.",

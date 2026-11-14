@@ -188,8 +188,8 @@ function RoleDetailContent({
             onClick={() => setEditing(true)}
             tooltip={
               activeTab === "permissions"
-                ? "Öffnet die Berechtigungen dieser Rolle zum Bearbeiten."
-                : "Öffnet Name und Beschreibung der Rolle zum Bearbeiten."
+                ? "Öffnet die Berechtigungen dieser Rolle zum Ändern."
+                : "Öffnet Name und Beschreibung der Rolle zum Ändern."
             }
           >
             <Pencil className="h-3.5 w-3.5" aria-hidden />

@@ -293,6 +293,7 @@ function HandoverNoticeAlert({
             href={traegerPath(EXPORT_RECIPIENT_PATH)}
             variant="ghost_tone"
             size="compact"
+            tooltip="Öffnet die Empfänger, dort ordnen Sie die Datei zu."
           >
             Empfänger zuordnen
           </ButtonLink>
@@ -335,6 +336,7 @@ function HandoverNoticeAlert({
             href={traegerPath(EXPORT_RECIPIENT_PATH)}
             variant="ghost_tone"
             size="compact"
+            tooltip="Öffnet die Empfänger der Exporte zum Prüfen."
           >
             Empfänger prüfen
           </ButtonLink>

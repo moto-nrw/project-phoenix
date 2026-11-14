@@ -117,6 +117,7 @@ export function HolidayOwnChildrenCard({
                         variant="surface"
                         size="compact"
                         aria-label={`Kind suchen: ${name}`}
+                        tooltip="Öffnet die Kindersuche mit dem Nachnamen dieses Kindes."
                       >
                         Kind suchen
                       </ButtonLink>

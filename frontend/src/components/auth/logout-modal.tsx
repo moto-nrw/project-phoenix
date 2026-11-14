@@ -79,6 +79,7 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
             size="md"
             onClick={handleConfirmLogout}
             disabled={isLoggingOut}
+            tooltip="Meldet Sie auf diesem Gerät von moto ab."
           >
             {isLoggingOut ? "Abmeldung läuft..." : "Abmelden"}
           </Button>

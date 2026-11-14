@@ -1,7 +1,6 @@
 // components/dashboard/mobile-bottom-nav.tsx
 // Ultra-minimalist mobile navigation following Instagram/Twitter/Uber patterns
 "use client";
-/* oxlint-disable ui-kit/menu-item-needs-description -- Die Objekte mit `label` und `href` sind Navigationsziele der unteren Leiste und des „Mehr“-Blatts, keine Kebab-Einträge; die Datei rendert kein OverflowMenu (#6777). */
 
 import { REMINDERS_LINK_TOOLTIP } from "~/components/home/home-link-tooltips";
 import { Alert } from "~/components/ui/alert";

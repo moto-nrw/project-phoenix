@@ -235,11 +235,14 @@ export function CatalogOfferingsCard({
             items={[
               {
                 label: "Bearbeiten",
+                description: "Öffnet das Angebot zum Ändern",
                 href: traegerPath(`${base}/${offering.id}`),
                 onClick: () => undefined,
               },
               {
                 label: "Zurückziehen",
+                description:
+                  "Nimmt das Angebot aus der Anmeldephase. moto fragt vorher nach.",
                 destructive: true,
                 onClick: () => setTarget(offering),
               },
@@ -259,6 +262,7 @@ export function CatalogOfferingsCard({
             href={traegerPath(`${base}/neu`)}
             variant="outline"
             size="md"
+            tooltip="Öffnet ein neues Betreuungsangebot für diese Anmeldephase."
           >
             Angebot anlegen
           </ButtonLink>

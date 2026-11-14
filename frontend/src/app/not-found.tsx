@@ -21,7 +21,13 @@ export default function NotFound() {
         <p className="mt-3 max-w-md text-sm leading-6 text-gray-600 sm:text-base">
           Diese Seite gibt es nicht. Vielleicht ist die Adresse falsch.
         </p>
-        <ButtonLink href="/" variant="primary" size="base" className="mt-9">
+        <ButtonLink
+          href="/"
+          variant="primary"
+          size="base"
+          className="mt-9"
+          tooltip="Öffnet die Startseite von moto."
+        >
           Zur Startseite
         </ButtonLink>
       </div>

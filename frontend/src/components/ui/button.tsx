@@ -26,7 +26,7 @@ export function buttonClassName({
 
 /**
  * What a click does (#6643). Either `tooltip` or `noTooltip`, never both;
- * `ui-kit/button-needs-tooltip` requires one of them in its paths.
+ * `ui-kit/button-needs-tooltip` requires one of them outside its exemptions.
  */
 type ButtonExplanation =
   | {
@@ -166,8 +166,8 @@ const ACTIVATION_HANDLERS = [
 // Aktivierungsereignisse in der Bubbling-Phase selbst abgebrochen: Der Grund
 // bleibt erreichbar, aber weder der Aufrufer noch ein klickbarer Vorfahr
 // erhält in dieser Phase die Aktion. Capture-Handler des Aufrufers werden
-// oben entfernt.
-const BLOCKED_ACTIVATION_PROPS = Object.fromEntries(
+// oben entfernt. Der Auslöser von `OverflowMenu` nutzt dieselbe Sperre.
+export const BLOCKED_ACTIVATION_PROPS = Object.fromEntries(
   ACTIVATION_HANDLERS.filter((name) => !name.endsWith("Capture")).map(
     (name) => [name, blockActivation],
   ),

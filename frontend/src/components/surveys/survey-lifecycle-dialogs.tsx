@@ -331,7 +331,7 @@ export function buildSurveyMenuItems(
     items.push({
       label: "Bearbeiten",
       icon: <Pencil className="size-4" aria-hidden />,
-      description: "Öffnet den Entwurf zum Bearbeiten",
+      description: "Öffnet den Entwurf zum Ändern",
       onClick: handlers.onEdit,
     });
   }

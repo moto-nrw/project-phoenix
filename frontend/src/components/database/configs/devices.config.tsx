@@ -80,7 +80,7 @@ function ApiKeyField({ device }: Readonly<{ device: Device }>) {
               }
             });
           }}
-          tooltip="Kopiert den Schlüssel, um ihn am Gerät einzutragen."
+          tooltip="Kopiert den Schlüssel, damit Sie ihn am Gerät einfügen."
         >
           {copied ? "Kopiert" : "Kopieren"}
         </Button>
