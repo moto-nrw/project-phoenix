@@ -94,6 +94,8 @@ describe("routes that forward a password or a code", () => {
         "caterer/account/password",
         "caterer/account/mfa/disable",
         "caterer/account/mfa/confirm",
+        "parent/me/mfa/disable",
+        "parent/me/mfa/confirm",
       ]),
     );
   });

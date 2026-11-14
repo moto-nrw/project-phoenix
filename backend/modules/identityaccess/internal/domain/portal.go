@@ -42,9 +42,10 @@ const (
 	// no school's mode (ADR 0084, #4651).
 	MFAAlways
 	// MFAAccountChoice follows the account's own enrollment: the caterer's
-	// factor is voluntary and no school's mode reaches it (ADR 0077 point 7).
+	// and the parents' factor is voluntary and no school's mode reaches it
+	// (ADR 0077 point 7, ADR 0216 addendum #7051).
 	MFAAccountChoice
-	// MFANone: parent sessions carry no staff authority.
+	// MFANone: the portal's sessions need no second factor.
 	MFANone
 	// MFAOperator: operators run their own pipeline.
 	MFAOperator
@@ -79,8 +80,9 @@ type Portal struct {
 	Challenge  bool
 	Enrollment bool
 	// TrustedDevice: a redeemed challenge may remember the browser. A
-	// portal without a school remembers it without one: the caterer portal
-	// at the account (#4497), the Träger-Portal at its Träger (#6955).
+	// portal without a school remembers it without one: the caterer and the
+	// parents portal at the account (#4497, #7051), the Träger-Portal at its
+	// Träger (#6955).
 	TrustedDevice bool
 	MFA           MFARule
 	// Push is empty for a portal without push messages.
@@ -94,7 +96,7 @@ var (
 	PortalSchool = Portal{Name: "school", Claim: "school", Tenant: ShapeRequired, Org: ShapeOptional,
 		Persisted: true, Challenge: true, Enrollment: true, TrustedDevice: true, MFA: MFASchoolPolicy, Push: PushPortalSchool}
 	PortalParent = Portal{Name: "parent", Claim: "parent",
-		Persisted: true, MFA: MFANone, Push: PushPortalParent}
+		Persisted: true, Challenge: true, TrustedDevice: true, MFA: MFAAccountChoice, Push: PushPortalParent}
 	PortalCaterer = Portal{Name: "caterer", Claim: "caterer",
 		Persisted: true, Challenge: true, TrustedDevice: true, MFA: MFAAccountChoice}
 	PortalOrg = Portal{Name: "org", Claim: "org", Tenant: ShapeForbidden, Org: ShapeRequired,

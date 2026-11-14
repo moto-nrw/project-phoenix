@@ -16,6 +16,7 @@ export const {
   del: createParentDeleteHandler,
   put: createParentPutHandler,
   patch: createParentPatchHandler,
+  jsonProxy: createParentJsonProxy,
 } = parent;
 
 export const parentApiDelete = async <T>(endpoint: string, token: string) =>

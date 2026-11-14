@@ -42,7 +42,69 @@ const DEVICE_LIST_PLACE: Record<LoginScope, string> = {
   traeger: "unter „Konto“",
   caterer: "unter „Konto“",
   operator: "in Ihrem Profil",
+  parent: "unter „Einstellungen → Anmeldung“",
 };
+
+/**
+ * Every text of the code step. The German default fits every portal; the
+ * parents portal passes its own in the parent's language (#7051).
+ */
+export interface MFAChallengeCopy {
+  readonly back: string;
+  readonly backLabel: string;
+  readonly title: string;
+  readonly sentTo: (maskedEmail: ReactNode) => ReactNode;
+  readonly codeLabel: string;
+  readonly digitLabel: (position: number) => string;
+  readonly checking: string;
+  readonly autoCheck: string;
+  readonly question: string;
+  readonly remember: string;
+  readonly rememberHint: (days: number) => string;
+  readonly once: string;
+  readonly onceHint: string;
+  readonly enterCodeFirst: string;
+  readonly removeDevicesHint: string;
+  readonly resend: string;
+  readonly resendIn: (seconds: number) => string;
+  readonly resending: string;
+  readonly verifyObject: string;
+  readonly resendObject: string;
+}
+
+/** The German copy of a portal's code step. */
+function germanMFAChallengeCopy(scope: LoginScope): MFAChallengeCopy {
+  return {
+    back: "Zurück",
+    backLabel: "Zurück zum Login",
+    title: "Code-Eingabe",
+    sentTo: (maskedEmail) => (
+      <>
+        Wir haben einen 6-stelligen Code an{" "}
+        <span className="font-medium text-gray-800">{maskedEmail}</span>{" "}
+        gesendet. Der Code ist 10 Minuten gültig.
+      </>
+    ),
+    codeLabel: "6-stelliger Bestätigungscode",
+    digitLabel: (position) => `Stelle ${position}`,
+    checking: "Code wird geprüft…",
+    autoCheck:
+      "Der Code wird automatisch geprüft, sobald Sie alle 6 Stellen eingegeben haben.",
+    question: "Soll moto dieses Gerät merken?",
+    remember: "Ja, merken und anmelden",
+    rememberHint: (days) =>
+      `${days} Tage kein Code auf diesem Gerät. Nur für Ihr eigenes Gerät.`,
+    once: "Nein, nur anmelden",
+    onceHint: "Für Geräte, die mehrere Personen nutzen.",
+    enterCodeFirst: "Geben Sie zuerst den Code ein.",
+    removeDevicesHint: `Gemerkte Geräte entfernen Sie ${DEVICE_LIST_PLACE[scope]}.`,
+    resend: "Neuen Code anfordern",
+    resendIn: (seconds) => `Neuen Code anfordern (${seconds}s)`,
+    resending: "Code wird gesendet…",
+    verifyObject: "die Prüfung des Codes",
+    resendObject: "das Senden eines neuen Codes",
+  };
+}
 
 /** Which of the two answers is waiting for the check. */
 type PendingChoice = "remember" | "once";
@@ -119,6 +181,8 @@ interface MFAChallengeFormProps {
   readonly trustedDeviceDays?: number;
   /** The Träger the Träger-Portal login resolved (#4651). */
   readonly organizationId?: string;
+  /** The texts; the German default fits every portal. */
+  readonly copy?: MFAChallengeCopy;
 }
 
 export function MFAChallengeForm({
@@ -132,7 +196,9 @@ export function MFAChallengeForm({
   trustedDeviceEnabled = true,
   trustedDeviceDays = 90,
   organizationId,
+  copy: givenCopy,
 }: MFAChallengeFormProps) {
+  const copy = givenCopy ?? germanMFAChallengeCopy(scope);
   // Nothing is preselected: the device is remembered only when the person
   // presses the button that says so (#6955). A shared tablet in a room must
   // never become a remembered device by a default.
@@ -189,7 +255,7 @@ export function MFAChallengeForm({
         // Kein Wiederholen: der Code steht nicht mehr im Feld, man tippt
         // ihn neu ein.
         void showError(credentialError(err, MFA_STEP_REFUSALS), {
-          object: "die Prüfung des Codes",
+          object: copy.verifyObject,
         });
       } finally {
         setIsVerifying(false);
@@ -204,6 +270,7 @@ export function MFAChallengeForm({
       onError,
       clearError,
       showError,
+      copy.verifyObject,
     ],
   );
 
@@ -226,7 +293,7 @@ export function MFAChallengeForm({
         error: err instanceof Error ? err.message : String(err),
       });
       void showError(credentialError(err, MFA_STEP_REFUSALS), {
-        object: "das Senden eines neuen Codes",
+        object: copy.resendObject,
         retry: () => latestResendRef.current(),
       });
     } finally {
@@ -240,21 +307,20 @@ export function MFAChallengeForm({
 
   let resendLabel: string;
   if (resendIn > 0) {
-    resendLabel = `Neuen Code anfordern (${resendIn}s)`;
+    resendLabel = copy.resendIn(resendIn);
   } else if (isResending) {
-    resendLabel = "Code wird gesendet…";
+    resendLabel = copy.resending;
   } else {
-    resendLabel = "Neuen Code anfordern";
+    resendLabel = copy.resend;
   }
 
   const codeComplete = code.length === CODE_LENGTH;
   const questionId = useId();
   const hintId = useId();
   let hintText: string;
-  if (isVerifying) hintText = "Code wird geprüft…";
-  else if (codeComplete)
-    hintText = `Gemerkte Geräte entfernen Sie ${DEVICE_LIST_PLACE[scope]}.`;
-  else hintText = "Geben Sie zuerst den Code ein.";
+  if (isVerifying) hintText = copy.checking;
+  else if (codeComplete) hintText = copy.removeDevicesHint;
+  else hintText = copy.enterCodeFirst;
 
   // With the two answers below, a complete code waits for the person's
   // choice. Leaving the field closes the on-screen keyboard of a tablet or
@@ -284,7 +350,7 @@ export function MFAChallengeForm({
             onClick={handleBack}
             disabled={isVerifying}
             className="-ml-1 flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-300"
-            aria-label="Zurück zum Login"
+            aria-label={copy.backLabel}
           >
             <svg
               className="h-4 w-4"
@@ -300,17 +366,15 @@ export function MFAChallengeForm({
                 d="M15 19l-7-7 7-7"
               />
             </svg>
-            Zurück
+            {copy.back}
           </button>
         </div>
       )}
 
       <div className="space-y-1.5">
-        <h2 className="text-xl font-semibold text-gray-900">Code-Eingabe</h2>
+        <h2 className="text-xl font-semibold text-gray-900">{copy.title}</h2>
         <p className="text-sm leading-relaxed text-gray-600">
-          Wir haben einen 6-stelligen Code an{" "}
-          <span className="font-medium text-gray-800">{maskedEmail}</span>{" "}
-          gesendet. Der Code ist 10 Minuten gültig.
+          {copy.sentTo(maskedEmail)}
         </p>
       </div>
 
@@ -328,22 +392,19 @@ export function MFAChallengeForm({
             // state, not the caller.
             if (!trustedDeviceEnabled) void performVerify(completeCode, false);
           }}
-          ariaLabel="6-stelliger Bestätigungscode"
+          ariaLabel={copy.codeLabel}
+          digitLabel={copy.digitLabel}
         />
         {!trustedDeviceEnabled && (
           <p className="text-center text-xs text-gray-500">
-            {isVerifying
-              ? "Code wird geprüft…"
-              : "Der Code wird automatisch geprüft, sobald Sie alle 6 Stellen eingegeben haben."}
+            {isVerifying ? copy.checking : copy.autoCheck}
           </p>
         )}
       </div>
 
       {trustedDeviceEnabled && (
         <div className="space-y-2">
-          <SectionLabel id={questionId}>
-            Soll moto dieses Gerät merken?
-          </SectionLabel>
+          <SectionLabel id={questionId}>{copy.question}</SectionLabel>
           {/* Two answers of equal weight: nothing is preselected and
               neither looks like the default. */}
           <ul
@@ -354,8 +415,8 @@ export function MFAChallengeForm({
             <ConfirmChoice
               icon={<DevicesIcon aria-hidden="true" />}
               tone="green"
-              title="Ja, merken und anmelden"
-              subtitle={`${trustedDeviceDays} Tage kein Code auf diesem Gerät. Nur für Ihr eigenes Gerät.`}
+              title={copy.remember}
+              subtitle={copy.rememberHint(trustedDeviceDays)}
               disabled={!codeComplete || isVerifying}
               pending={pendingChoice === "remember"}
               onClick={() => confirm("remember")}
@@ -363,8 +424,8 @@ export function MFAChallengeForm({
             <ConfirmChoice
               icon={<SignInIcon aria-hidden="true" />}
               tone="neutral"
-              title="Nein, nur anmelden"
-              subtitle="Für Geräte, die mehrere Personen nutzen."
+              title={copy.once}
+              subtitle={copy.onceHint}
               disabled={!codeComplete || isVerifying}
               pending={pendingChoice === "once"}
               onClick={() => confirm("once")}

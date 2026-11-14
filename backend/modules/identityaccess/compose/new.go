@@ -112,7 +112,7 @@ func New(dependencies Dependencies) (identityaccess.Owner, error) {
 		PasswordReset: resets, SchoolInvitation: invitations, AccountProvisioning: provisioning, AccountAdministration: administration, OperatorProvisioning: operatorProvisioning,
 		OperatorMFAFlows: flows.Operator, OperatorPasskeyFlows: flows.OperatorPasskey, AccountPasskeyFlows: flows.AccountPasskey, AccountMFACapability: application.NewAccountMFACapability(flows.Capability),
 		SignInDataRetention: application.NewSignInDataRetention(store, application.InvitationLogger(dependencies.Invitations), runAdmin), AccountRetention: application.NewAccountRetention(store, attach, runAdmin, dependencies.RemoveErasedAvatarFile, application.InvitationLogger(dependencies.Invitations)),
-		SchoolInvitationMaintenance: application.NewSchoolInvitationMaintenance(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform), TraegerAccounts: traegerAccounts, Demo: demoAccess, CatererFlows: caterers,
+		SchoolInvitationMaintenance: application.NewSchoolInvitationMaintenance(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform), TraegerAccounts: traegerAccounts, Demo: demoAccess, CatererFlows: caterers, ParentFlows: application.ComposeParentAccess(auth, dependencies.Sessions, flows.Account, runtime),
 	}, nil
 }
 
