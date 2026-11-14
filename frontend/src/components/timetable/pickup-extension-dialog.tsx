@@ -224,7 +224,11 @@ function PickupExtensionStep({
                 ? "Wählen Sie zuerst mindestens einen Termin aus."
                 : undefined)
             }
-            tooltip="Trägt das Kind für die längere Zeit in die gewählten Termine ein."
+            tooltip={
+              task.kind === "weekday"
+                ? "Trägt das Kind jede Woche an diesem Tag in die gewählten Termine ein."
+                : "Trägt das Kind an diesem Tag in die gewählten Termine ein."
+            }
           >
             Eintragen
           </Button>

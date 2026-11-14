@@ -48,6 +48,7 @@ import {
 } from "~/components/ui/slide-over";
 import {
   GuardianNoticeFields,
+  guardianNoticeBlockedReason,
   guardianNoticeIncomplete,
   guardianNoticePayload,
   type GuardianNoticeDraft,
@@ -133,12 +134,16 @@ const CONFIRM_DIALOGS: Record<
     title: string;
     body: string;
     confirmText: string;
+    /** Was der letzte Knopf tut; beim Absagen hängt er an der Nachricht. */
+    confirmTooltip?: string;
   }
 > = {
   complete: {
     title: "Termin beenden?",
     body: "Der laufende Termin wird beendet. Bis zum geplanten Ende, mindestens fünf Minuten lang, können Sie ihn wieder öffnen.",
     confirmText: "Beenden",
+    confirmTooltip:
+      "Beendet den Termin, bis zum geplanten Ende lässt er sich wieder öffnen.",
   },
   cancel: {
     title: "Termin absagen?",
@@ -149,32 +154,17 @@ const CONFIRM_DIALOGS: Record<
     title: "Termin wieder öffnen?",
     body: "Die Aufsicht sowie die Anwesenheiten zum Zeitpunkt des Abschlusses werden wiederhergestellt.",
     confirmText: "Wieder öffnen",
+    confirmTooltip:
+      "Öffnet den Termin wieder, Aufsicht und Anwesenheiten kommen zurück.",
   },
 };
 
-// Was der letzte Knopf der Rückfrage tut (#6643). Beim Absagen hängt es an
-// der Nachricht, die nur mit Haken, Betreff und Text verschickt wird.
-function confirmTooltip(
-  action: PendingConfirmAction,
-  sendsGuardianNotice: boolean,
-): string {
-  if (action === "complete")
-    return "Beendet den Termin, bis zum geplanten Ende lässt er sich wieder öffnen.";
-  if (action === "reopen")
-    return "Öffnet den Termin wieder, Aufsicht und Anwesenheiten kommen zurück.";
+// Beim Absagen hängt der letzte Knopf an der Nachricht, die nur mit Haken,
+// Betreff und Text verschickt wird (#6643).
+function cancelConfirmTooltip(sendsGuardianNotice: boolean): string {
   return sendsGuardianNotice
     ? "Sagt den Termin ab und schickt den Eltern sofort die Nachricht."
     : "Sagt den Termin ab, die Eltern bekommen keine Nachricht.";
-}
-
-// Grund, solange `guardianNoticeIncomplete` das Absagen sperrt.
-function guardianNoticeBlockedReason(
-  draft: GuardianNoticeDraft | null,
-  reach: GuardianNoticeReach | null,
-): string {
-  return draft === null && reach === null
-    ? "moto prüft noch, welche Familien die Nachricht erreicht."
-    : "Geben Sie zuerst Betreff und Text an die Eltern ein.";
 }
 
 interface InstanceDetailModalProps {
@@ -980,7 +970,7 @@ export function InstanceDetailModal({
               isLoading={pendingAction === "cancel"}
               loadingText="Sage ab …"
               disabled={pendingAction !== null}
-              tooltip="Sagt den Termin ab, moto fragt vorher nach und informiert auf Wunsch Eltern."
+              tooltip="Sagt nur diesen Termin ab, moto fragt vorher, ob Eltern Bescheid bekommen."
             >
               <span className="inline-flex items-center gap-2">
                 <CircleX className="h-4 w-4" />
@@ -1290,10 +1280,13 @@ export function InstanceDetailModal({
           title={CONFIRM_DIALOGS[pendingConfirm].title}
           confirmText={CONFIRM_DIALOGS[pendingConfirm].confirmText}
           cancelText="Abbrechen"
-          confirmTooltip={confirmTooltip(
-            pendingConfirm,
-            guardianNoticePayload(noticeDraft, noticeReach) !== undefined,
-          )}
+          confirmTooltip={
+            pendingConfirm === "cancel"
+              ? cancelConfirmTooltip(
+                  guardianNoticePayload(noticeDraft, noticeReach) !== undefined,
+                )
+              : CONFIRM_DIALOGS[pendingConfirm].confirmTooltip
+          }
           confirmDisabledReason={
             pendingConfirm === "cancel"
               ? guardianNoticeBlockedReason(noticeDraft, noticeReach)

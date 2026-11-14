@@ -8,8 +8,8 @@ import { offeringNamesFor, offeringSetNames } from "~/lib/roster-deviation";
 // Übernehmen ändert nur das Formular; gespeichert wird mit dem Termin.
 function applyTooltip(offeringCount: number): string {
   return offeringCount > 1
-    ? "Verbindet den Termin mit diesen Angeboten und nimmt deren Kinder."
-    : "Verbindet den Termin mit dem Angebot und nimmt dessen Kinder.";
+    ? "Verbindet den Termin mit diesen Angeboten und übernimmt deren Kinder."
+    : "Verbindet den Termin mit dem Angebot und übernimmt dessen Kinder.";
 }
 
 /**

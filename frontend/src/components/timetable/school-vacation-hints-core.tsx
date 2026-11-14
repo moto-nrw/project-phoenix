@@ -175,7 +175,7 @@ function SchoolVacationHintList({
             aria-label={`Termine absagen: ${hint.name}`}
             onClick={() => onCancel(hint)}
             disabled={busy === hint.startDate}
-            tooltip="Öffnet die Sammelabsage für die Termine in diesen Ferien."
+            tooltip="Öffnet ein Fenster, um die Termine in diesen Ferien abzusagen."
           >
             Termine absagen
           </Button>
@@ -185,7 +185,7 @@ function SchoolVacationHintList({
             variant="surface"
             size={size}
             aria-label={`Termine absagen: ${hint.name}`}
-            tooltip="Öffnet den Betreuungsplan mit der Sammelabsage für diese Ferien."
+            tooltip="Öffnet den Betreuungsplan, um die Termine in diesen Ferien abzusagen."
           >
             Termine absagen
           </ButtonLink>
