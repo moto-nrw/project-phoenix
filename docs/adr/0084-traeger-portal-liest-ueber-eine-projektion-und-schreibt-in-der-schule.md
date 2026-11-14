@@ -379,6 +379,21 @@ Entscheidung:
 5. **Einsehen und entfernen** kann jede Person unter „Konto“. Das
    Zurücksetzen des Faktors durch das moto-Team und jede Passwortänderung
    beenden auch die gemerkten Geräte.
+6. **Beim Absprung gewinnt das „Aus“ der Schule.** Eine Sitzung hält fest,
+   ob nur ein gemerktes Gerät den zweiten Faktor bewiesen hat
+   (`auth.tokens.mfa_by_device`); Erneuern, Absprung (Abschnitt 5) und
+   Schulwechsel tragen das Merkmal weiter. Hat eine Schule
+   `security.mfa_trusted_device_enabled` aus, oder ist die Einstellung nicht
+   lesbar, lehnt der Absprung eine solche Sitzung mit 403
+   `traeger.school_requires_code` ab. Das Träger-Portal bietet dann „Mit
+   Code neu anmelden“: Abmelden, und die nächste Anmeldung lässt das gemerkte
+   Gerät einmal außer Acht, sodass der Code kommt. Eine mit Code bewiesene
+   Träger-Sitzung öffnet jede Schule. Die Gültigkeitsdauer der Schule
+   (`mfa_trusted_device_days`) gilt beim Absprung nicht: Das Gerät des
+   Trägers behält seine eigene. Derselbe Schritt gilt für den Wechsel einer
+   Sitzung in eine andere Schule; dort antwortet die Ablehnung wie bisher 401
+   `identity.mfa_session_required`. Ein Code-Schritt in der laufenden
+   Träger-Sitzung statt der neuen Anmeldung ist #7068.
 
 Nicht entschieden: ein Gerät für alle Schulen eines Kontos. Es bleibt bei
 einem Merken pro Schule und pro Portal.

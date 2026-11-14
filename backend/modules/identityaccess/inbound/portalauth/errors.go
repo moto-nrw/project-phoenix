@@ -165,6 +165,9 @@ func mfaCodeInvalid(err error) render.Renderer {
 var SwitchRules = []common.ErrorRule{
 	notBooked,
 	rule(identityaccess.ErrInvalidToken, coded(common.ErrorUnauthorizedWithCode, errMFASessionRequired, common.CodeIdentityMfaSessionRequired)),
+	// The target school accepts no factor proven only by a remembered
+	// device (#6955): a direct sign-in there asks for the code.
+	rule(identityaccess.ErrSchoolRequiresCodeProof, coded(common.ErrorUnauthorizedWithCode, errMFASessionRequired, common.CodeIdentityMfaSessionRequired)),
 	unavailable,
 	rule(identityaccess.ErrAccountNotFound, coded(common.ErrorUnauthorizedWithCode, identityaccess.ErrAccountNotFound, common.CodeIdentityAccountNotFound)),
 	rule(identityaccess.ErrAccountInactive, coded(common.ErrorUnauthorizedWithCode, identityaccess.ErrAccountInactive, common.CodeIdentitySessionAccountInactive)),

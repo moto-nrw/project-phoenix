@@ -33,6 +33,7 @@ import { hasSessionAccess } from "~/lib/session-access";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
+import { takeTraegerSignInWithCode } from "~/lib/traeger-sign-in-with-code";
 import { traegerLogin, type TraegerChoice } from "~/lib/traeger-api";
 import { TRAEGER_FORGOT_PASSWORD_PARAM } from "~/lib/traeger-login-params";
 import { traegerPath } from "~/lib/traeger-url";
@@ -74,6 +75,9 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [sessionExpired, setSessionExpired] = useState(false);
+  // A school without remembered devices asked for the code (#6955): this
+  // sign-in ignores the remembered device once.
+  const [withCode] = useState(takeTraegerSignInWithCode);
   const [isLoading, setIsLoading] = useState(false);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [choices, setChoices] = useState<readonly TraegerChoice[] | null>(null);
@@ -184,6 +188,7 @@ function LoginForm() {
         email,
         password,
         organizationId: choices ? (selectedId ?? undefined) : undefined,
+        ...(withCode && { ignoreTrustedDevice: true }),
       });
       if (result.status === "organization_selection_required") {
         setChoices(result.organizations);
@@ -296,6 +301,11 @@ function LoginForm() {
             <Alert
               type="info"
               message="Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
+            />
+          ) : withCode ? (
+            <Alert
+              type="info"
+              message="Die Schule erlaubt keine gemerkten Geräte. Bestätigen Sie diese Anmeldung deshalb mit dem Code aus Ihrer E-Mail."
             />
           ) : null}
 

@@ -25,6 +25,7 @@
   "member_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "no_membership": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
   "school_not_found": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "school_requires_code": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
   "second_factor_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
   "shared_document_not_found": "Kurum bu belgeyi artık paylaşmıyor. Lütfen sayfayı yenileyin."
 }

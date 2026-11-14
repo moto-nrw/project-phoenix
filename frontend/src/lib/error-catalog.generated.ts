@@ -1823,6 +1823,8 @@ export const ERROR_CATALOG = {
         "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team.",
       "traeger.school_not_found":
         "Diese Schule gehört nicht zu Ihrem Träger. Bitte laden Sie die Seite neu.",
+      "traeger.school_requires_code":
+        "Diese Schule erlaubt keine gemerkten Geräte. Bitte melden Sie sich im Träger-Portal mit einem Code neu an.",
       "traeger.second_factor_required":
         "Zum Öffnen einer Schule brauchen Sie einen zweiten Anmeldenachweis. Bitte melden Sie sich im Träger-Portal neu an.",
       "traeger.shared_document_not_found":
@@ -2701,6 +2703,8 @@ export const ERROR_CATALOG = {
         "Your account has no access to the Träger portal. Please contact the moto team.",
       "traeger.school_not_found":
         "This school does not belong to your Träger. Please reload the page.",
+      "traeger.school_requires_code":
+        "This school does not allow remembered devices. Please sign in to the Träger portal again with a code.",
       "traeger.second_factor_required":
         "To open a school you need a second sign-in factor. Please sign in to the Träger portal again.",
       "traeger.shared_document_not_found":

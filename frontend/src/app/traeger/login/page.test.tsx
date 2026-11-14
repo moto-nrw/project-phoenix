@@ -124,6 +124,31 @@ describe("TraegerLoginPage", () => {
     await waitFor(() => expect(navigate).toHaveBeenCalledWith("/traeger"));
   });
 
+  it("asks for the code once when a school refused the remembered device (#6955)", async () => {
+    sessionStorage.setItem("moto.traeger.sign-in-with-code", "1");
+    mockLogin.mockResolvedValue({
+      status: "mfa_required",
+      challengeToken: "challenge",
+      maskedEmail: "b***@traeger.example",
+      organizationId: "7",
+      trustedDeviceEnabled: true,
+      trustedDeviceDays: 90,
+    });
+    render(<TraegerLoginPage />);
+
+    expect(
+      screen.getByText(
+        "Die Schule erlaubt keine gemerkten Geräte. Bestätigen Sie diese Anmeldung deshalb mit dem Code aus Ihrer E-Mail.",
+      ),
+    ).toBeInTheDocument();
+    submitCredentials();
+    await screen.findByRole("heading", { name: "Code-Eingabe" });
+    expect(mockLogin).toHaveBeenCalledWith(
+      expect.objectContaining({ ignoreTrustedDevice: true }),
+    );
+    expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBeNull();
+  });
+
   it("sets up the second factor before the first Träger session", async () => {
     mockLogin.mockResolvedValue({
       status: "mfa_enrollment_required",

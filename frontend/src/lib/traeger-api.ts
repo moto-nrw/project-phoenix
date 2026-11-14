@@ -247,11 +247,14 @@ export async function traegerLogin(input: {
   readonly email: string;
   readonly password: string;
   readonly organizationId?: string;
+  /** Asks for the code even on a remembered device (#6955). */
+  readonly ignoreTrustedDevice?: boolean;
 }): Promise<TraegerLoginResult> {
   const body: Record<string, unknown> = {
     email: input.email,
     password: input.password,
   };
+  if (input.ignoreTrustedDevice) body.ignore_trusted_device = true;
   if (input.organizationId !== undefined) {
     body.organization_id = Number(input.organizationId);
   }

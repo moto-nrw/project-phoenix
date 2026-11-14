@@ -27,6 +27,10 @@ var (
 	// ErrTraegerSchoolNotFound reports a school that is unknown, inactive or
 	// deleted, or that belongs to another Träger.
 	ErrTraegerSchoolNotFound = errors.New("the school does not belong to the Träger")
+	// ErrSchoolRequiresCodeProof reports a session whose second factor only
+	// a remembered device proved, refused by a school that switched
+	// remembered devices off (#6955): the person signs in with a code.
+	ErrSchoolRequiresCodeProof = errors.New("the school accepts no second factor proven only by a remembered device")
 )
 
 // The Träger roles of ADR 0084 section 4. In version 1 each is a fixed bundle

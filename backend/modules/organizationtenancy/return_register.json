@@ -7534,7 +7534,8 @@
         }
       ],
       "packages": [
-        "school"
+        "school",
+        "organization"
       ],
       "excludedColumns": {
         "token_hash": "Authentication or operational secret/credential material; not customer export content."
@@ -8027,6 +8028,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": true
+        },
+        {
+          "name": "mfa_by_device",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
         }
       ],
       "relationships": [

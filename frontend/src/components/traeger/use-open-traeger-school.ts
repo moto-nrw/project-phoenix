@@ -1,10 +1,14 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useCallback, useState } from "react";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
+import { portalLoginPath } from "~/lib/portal-paths";
+import { useShellAuthSafe } from "~/lib/shell-auth-context";
+import { requestTraegerSignInWithCode } from "~/lib/traeger-sign-in-with-code";
 import {
   startTraegerSchoolSession,
   type TraegerSchool,
@@ -49,11 +53,30 @@ async function openSchool(
   }
 }
 
+/**
+ * A school that switched remembered devices off asks for the code (#6955):
+ * the person signs out and in again, this time with the code.
+ */
+function needsSignInWithCode(err: unknown): boolean {
+  return err instanceof ApiError && err.code === "traeger.school_requires_code";
+}
+
 /** The action „Schul-App öffnen" of the school list and the school view. */
 export function useOpenTraegerSchool() {
   const { data: session } = useSession();
   const [opening, setOpening] = useState<string | null>(null);
   const openErrors = useApiErrorDisplay();
+  const shellAuth = useShellAuthSafe();
+
+  const signInWithCode = useCallback(async () => {
+    requestTraegerSignInWithCode();
+    if (shellAuth) {
+      await shellAuth.logout();
+      return;
+    }
+    await signOut({ redirect: false });
+    globalThis.location.assign(portalLoginPath("traeger"));
+  }, [shellAuth]);
 
   const open = useCallback(
     async (school: Pick<TraegerSchool, "id" | "subdomain">) => {
@@ -61,15 +84,40 @@ export function useOpenTraegerSchool() {
       try {
         await openSchool(school);
       } catch (err) {
-        logger.error("traeger_school_open_failed", {
-          error: err instanceof Error ? err.message : String(err),
+        const askForCode = needsSignInWithCode(err);
+        // The school's „Aus“ for remembered devices is an expected answer,
+        // not a failure of the app.
+        if (askForCode) {
+          logger.info("traeger_school_requires_code");
+        } else {
+          logger.error("traeger_school_open_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        void openErrors.show(err, {
+          object: "die Schule",
+          ...(askForCode && {
+            action: {
+              label: "Mit Code neu anmelden",
+              // A failed sign-out leaves the person signed in; opening the
+              // school again offers the action again.
+              onClick: () =>
+                void signInWithCode().catch((signOutError: unknown) => {
+                  logger.warn("traeger_sign_in_with_code_failed", {
+                    error:
+                      signOutError instanceof Error
+                        ? signOutError.message
+                        : String(signOutError),
+                  });
+                }),
+            },
+          }),
         });
-        void openErrors.show(err, { object: "die Schule" });
       } finally {
         setOpening(null);
       }
     },
-    [openErrors],
+    [openErrors, signInWithCode],
   );
 
   return {
