@@ -258,8 +258,8 @@ export function ChildDebtorNumbersField({
       </DataGrid>
       <p>
         {invoiced
-          ? "Ausgestellte Rechnungen behalten ihre Nummer. Eine geänderte Nummer gilt für neue Einzelrechnungen."
-          : "Einzelrechnungen nutzen die Nummer des Kindes als Verwendungszweck."}
+          ? "Ausgestellte Rechnungen behalten ihre Nummer. Eine geänderte Nummer gilt für neue Rechnungen je Kind."
+          : "Jedes Kind bekommt eine eigene Rechnung. Sie nennt seine Nummer als Verwendungszweck."}
       </p>
     </div>
   );

@@ -942,7 +942,7 @@ export function HolidayRegistrationStatusCard({
         {showsDebtorNumber && perChild && showsRegistrationNumber ? (
           <p>
             Die Nummer der Anmeldung gilt für eine gemeinsame Rechnung.
-            Einzelrechnungen nutzen die Nummer des Kindes.
+            Rechnungen je Kind nennen die Nummer des Kindes.
           </p>
         ) : null}
         {choosesPayer ? (
