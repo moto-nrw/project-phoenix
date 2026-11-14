@@ -796,7 +796,11 @@ export function StammdatenTab({
         <SectionCard
           collapsible
           title="Bank & Steuer"
-          description="Jeder Abruf der gespeicherten Werte wird im Audit-Log protokolliert."
+          description={
+            financialKept
+              ? undefined
+              : "Jeder Abruf der gespeicherten Werte wird im Audit-Log protokolliert."
+          }
           action={
             !editing && !financialError && !financialKept ? (
               <Button
