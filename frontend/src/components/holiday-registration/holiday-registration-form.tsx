@@ -251,6 +251,7 @@ export function HolidayRegistrationForm({
                   }
                   size="md"
                   className="max-sm:w-full"
+                  tooltip={t("doneToStatusHint")}
                 >
                   {t("doneToStatus")}
                 </ButtonLink>
@@ -261,6 +262,7 @@ export function HolidayRegistrationForm({
                   variant="primary"
                   size="md"
                   className="max-sm:w-full"
+                  tooltip={t("doneToRegistrationsHint")}
                 >
                   {t("doneToRegistrations")}
                 </ButtonLink>
@@ -430,6 +432,7 @@ export function HolidayRegistrationForm({
                   children: [...draft.children, emptyChild()],
                 })
               }
+              tooltip={t("addChildHint")}
             >
               {t("addChild")}
             </Button>
@@ -567,7 +570,13 @@ export function HolidayRegistrationForm({
         onChange={(patch) => setDraft({ ...draft, ...patch })}
       />
 
-      <Button type="submit" variant="primary" size="md" className="w-full">
+      <Button
+        type="submit"
+        variant="primary"
+        size="md"
+        className="w-full"
+        tooltip={t("toSummaryHint")}
+      >
         {t("toSummary")}
       </Button>
     </form>

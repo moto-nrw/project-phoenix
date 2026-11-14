@@ -697,9 +697,13 @@ describe("HolidayRegistrationForm", () => {
     expect(screen.getByText("Feriengast")).toBeInTheDocument();
     // The security check sits next to the send button and is solved there,
     // so its token is fresh when the registration leaves (quorum round 1).
-    expect(
-      screen.getByRole("button", { name: "Verbindlich anmelden" }),
-    ).toBeDisabled();
+    const blockedSubmit = screen.getByRole("button", {
+      name: "Verbindlich anmelden",
+    });
+    expect(blockedSubmit).toHaveAttribute("aria-disabled", "true");
+    expect(blockedSubmit).toHaveAccessibleDescription(
+      "Schließen Sie zuerst die Sicherheitsprüfung ab.",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Verbindlich anmelden" }),
@@ -826,9 +830,13 @@ describe("HolidayRegistrationForm", () => {
     expect(
       screen.getByText("Bitte warten Sie, bis alle Dateien hochgeladen sind."),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Verbindlich anmelden" }),
-    ).toBeDisabled();
+    const waitingSubmit = screen.getByRole("button", {
+      name: "Verbindlich anmelden",
+    });
+    expect(waitingSubmit).toHaveAttribute("aria-disabled", "true");
+    expect(waitingSubmit).toHaveAccessibleDescription(
+      "Warten Sie, bis alle Dateien hochgeladen sind.",
+    );
     finishUpload({
       token: "proof-token",
       filename: "bescheid.pdf",

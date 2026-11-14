@@ -194,6 +194,7 @@ export function PhaseResponseOverview({
             size="md"
             onClick={handleRemind}
             className="inline-flex items-center gap-2"
+            tooltip="Öffnet eine Mitteilung an die Eltern dieser Kinder, noch ohne Versand."
           >
             <Send className="h-4 w-4" aria-hidden="true" />
             {reachable.length} {reachable.length === 1 ? "Kind" : "Kinder"}{" "}
