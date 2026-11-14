@@ -43,7 +43,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
           "Wählen Sie unter `Wer bezahlt den Beitrag?`: `Die Familie bezahlt`, `Von der Zahlung befreien (Leistungsbezug)` oder `Kosten übernimmt ein Kostenträger`. Beim Kostenträger wählen Sie darunter, welcher bezahlt. Der `Ferienbeitrag` zeigt sofort, was festgehalten wird.",
           "Fragt Ihr Träger die Debitorennummer ab, steht über `Bestätigen` das Feld `Debitorennummer`. Tragen Sie dort die Nummer der Familie bei der Kasse der Gemeinde ein. Ohne Nummer geht `Bestätigen` nicht. Hat Ihr Träger ein Format festgelegt, steht es unter dem Feld, zum Beispiel `Die Nummer hat 5 Ziffern`.",
           "Kennt moto die Nummer der Familie schon, steht unter dem Feld `Bekannte Nummer dieser Familie`. Prüfen Sie die Nummer und wählen Sie `Übernehmen`. Das Feld füllt sich, bestätigt ist aber noch nichts.",
-          "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten. moto merkt sich die Debitorennummer bei der Familie.",
+          "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten. moto merkt sich die Debitorennummer bei der Familie. Führt Ihr Träger die Nummer je Kind, merkt moto sie beim Kind, wenn die Anmeldung nur ein Kind hat und das Kind noch keine Nummer hat. Vorgeschlagen wird dann die Nummer des ersten Kindes.",
           "Weicht die Nummer von der gemerkten ab, fragt moto `Welche Debitorennummer gilt?`. Wählen Sie `Neue Nummer für die Familie merken` oder `Gemerkte Nummer behalten`. Mit Ihrer Auswahl bestätigen Sie die Anmeldung. Bei mehreren Familien nennt moto jede Familie und ihre bisherige Nummer. Ihre Auswahl gilt für alle genannten Familien.",
           "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
         ],

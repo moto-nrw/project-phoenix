@@ -29,11 +29,20 @@ type importPayer struct {
 	family              string
 	firstName, lastName string
 	until               calendar.Date
+	// child is the child of the contract, for its own debtor number
+	// (#7007).
+	child parentbilling.FamilyChild
 }
 
 type importPayers struct {
 	byContract map[int64]importPayer
 	byFamily   map[string]importPayer
+	// children counts the children under contract of each family, by
+	// ChildKey: a family of one child names its child by its address too.
+	children map[string]map[string]bool
+	// childUntil is the last day of the latest contract of each child, by
+	// ChildDebtorNumberKey, over every contract the import can name.
+	childUntil map[string]calendar.Date
 }
 
 // importCandidate is a checked row with what the answer leaves out: the
@@ -43,6 +52,14 @@ type importCandidate struct {
 	iban       string
 	family     string
 	creditorID string
+	// child is the child the row names when the Träger keeps a number per
+	// child (#7007), empty when the row names no single child.
+	child parentbilling.FamilyChild
+	// perChild marks a row whose number goes to the child, not the family.
+	perChild bool
+	// until is the last day of the contract of the child, which the
+	// retention of its number counts from.
+	until calendar.Date
 }
 
 // Problems that make a row a conflict or a row to clarify; every other
@@ -236,6 +253,12 @@ func (c *importCheck) readPayer(candidate *importCandidate, cells []string) {
 		addProblem(row, parentbilling.ImportFieldPayer, parentbilling.ImportProblemFamilyUnknown)
 	}
 	candidate.family = payer.family
+	// The contract names its child; the address only a family of one child.
+	if c.columns.payerKey == parentbilling.PayerByContract || len(c.payers.children[payer.family]) == 1 {
+		candidate.child = payer.child
+		candidate.until = c.payers.childUntil[parentbilling.ChildDebtorNumberKey(payer.family,
+			parentbilling.ChildKey(payer.child.FirstName, payer.child.LastName, payer.child.BirthDate))]
+	}
 }
 
 // readCreditor reads the creditor identifier a mandate was given to: the

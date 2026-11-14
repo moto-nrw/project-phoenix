@@ -53,24 +53,31 @@ export const IMPORT_FIELD_HINTS: Partial<Record<ImportField, string>> = {
   sequence: "Zum Beispiel FRST und RCUR oder Erst- und Folgelastschrift.",
   last_collected_on: "Belegt, dass schon abgebucht wurde.",
   debtor_number:
-    "Gilt für die ganze Familie. moto überschreibt keine Nummer, die schon eingetragen ist.",
+    "Gilt für den Zahler oder für das Kind, wie unter „Debitorennummer gilt je“ eingestellt. moto überschreibt keine Nummer, die schon eingetragen ist.",
 };
 
-/** Was der Import mit der Debitorennummer einer Zeile macht (#4693). */
+/**
+ * Was der Import mit der Debitorennummer einer Zeile macht (#4693): beim
+ * Zahler oder, wenn der Träger sie je Kind führt, beim Kind (#7007).
+ */
 export function importDebtorNumberText(row: ImportRow): string | null {
   switch (row.debtorNumberStatus) {
     case "new":
-      return `Debitorennummer ${row.debtorNumber} wird bei der Familie eingetragen.`;
+      return `Debitorennummer ${row.debtorNumber} wird eingetragen.`;
     case "same":
       return `Debitorennummer ${row.debtorNumber} ist schon eingetragen.`;
     case "siblings_differ":
       return "Debitorennummer: Geschwister haben verschiedene Nummern. moto übernimmt keine. Tragen Sie die richtige Nummer bei der Familie ein.";
     case "differs":
-      return "Debitorennummer: Die Familie hat schon eine andere Nummer. moto ändert sie nicht.";
+      return "Debitorennummer: In moto steht schon eine andere Nummer. moto ändert sie nicht.";
     case "invalid":
       return "Debitorennummer ist zu lang oder enthält eine IBAN.";
     case "no_family":
       return "Debitorennummer: moto kennt die Familie nicht.";
+    case "no_child":
+      return "Debitorennummer: Die Familie hat mehrere Kinder mit Vertrag. Wählen Sie als Zahler die Vertragsnummer, dann erkennt moto das Kind.";
+    case "rows_differ":
+      return "Debitorennummer: Für dieses Kind stehen verschiedene Nummern in der Datei. moto übernimmt keine.";
     default:
       return null;
   }

@@ -43,8 +43,8 @@ func NewParentDocuments() *application.ParentDocuments {
 }
 
 // NewBillingFamilies builds the invoices and amounts per family (#4691), checking a debtor number in the format of the Träger (#6675), and the finance exports with their protocol (#4693), which names the people of the Träger-Büro through names, whose DATEV booking batch (#4694) reads the DATEV settings of the Träger.
-func NewBillingFamilies(post parentbilling.InvoiceHistoryPost, names parentbilling.ExportActorNames, datev parentbilling.DatevBillingSettings, schools parentbilling.CareSchools, formats parentbilling.DebtorNumberFormats, contracts parentbilling.FamilyContracts) (parentbilling.BillingFamilies, parentbilling.FinanceExports, parentbilling.BookingAccountService) {
-	return application.NewBillingFamilies(postgres.NewStore(), contracts, formats, calendar.TodayDate), application.NewFinanceExports(postgres.NewStore(), post, names, datev, calendar.TodayDate, calendar.Now), application.NewBookingAccounts(postgres.NewStore(), datev, schools)
+func NewBillingFamilies(post parentbilling.InvoiceHistoryPost, names parentbilling.ExportActorNames, datev parentbilling.DatevBillingSettings, schools parentbilling.CareSchools, formats parentbilling.DebtorNumberFormats, contracts parentbilling.FamilyContracts, careContracts parentbilling.CareContracts) (parentbilling.BillingFamilies, parentbilling.FinanceExports, parentbilling.BookingAccountService) {
+	return application.NewBillingFamilies(postgres.NewStore(), contracts, careContracts, formats, calendar.TodayDate), application.NewFinanceExports(postgres.NewStore(), post, names, datev, calendar.TodayDate, calendar.Now), application.NewBookingAccounts(postgres.NewStore(), datev, schools)
 }
 
 // MonthlyBilling is the monthly run with its Mensa prices (#4684, #4686) and the discard of an empty open run (#6626).

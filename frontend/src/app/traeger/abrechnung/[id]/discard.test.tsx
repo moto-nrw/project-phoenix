@@ -51,6 +51,7 @@ function run(overrides: Partial<BillingRunDetail> = {}): BillingRunDetail {
     unbilled: 0,
     missingDebtorNumbers: 0,
     paymentTextMissingDebtorNumbers: 0,
+    sharedChildDebtorNumbers: 0,
     numberPattern: "FE-{NNNN}",
     numberRangeSet: true,
     fingerprint: "c0ffee",

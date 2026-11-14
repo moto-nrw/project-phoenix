@@ -102,10 +102,11 @@ func TestReadImportTableReadsTheOGSConnectMasterData(t *testing.T) {
 	for i, cells := range table.rows {
 		candidates[i] = check.candidate(cells, table.lines[i])
 	}
-	kept, without := dropRowsWithoutMandate(candidates)
+	kept, without := importPreviewRows(candidates)
 	assert.Equal(t, 1, without, "the child whose family pays without a mandate is no mistake")
 	require.Len(t, kept, 1)
 	assert.Equal(t, 2, kept[0].row.Line)
+	assert.Len(t, candidates, 2, "its row still gives its debtor number")
 	assert.Len(t, table.rows, 2, "the file itself stays as read")
 }
 
@@ -415,4 +416,47 @@ func TestContainsIBANFindsAnIBANInsideText(t *testing.T) {
 	for _, value := range []string{"SJR-2026-0001", "Eva Beispiel", "DE89370400440532013001", "OGS-2024-0001"} {
 		assert.False(t, containsIBAN(value), value)
 	}
+}
+
+// Rows of one child through several contracts give its number once, kept
+// until the end of the latest contract (#7007).
+func TestChildNumbersToSetKeepTheLatestContractEnd(t *testing.T) {
+	t.Parallel()
+	child := parentbilling.FamilyChild{FirstName: "Mia", LastName: "Beispiel"}
+	row := func(until calendar.Date) importCandidate {
+		return importCandidate{family: "eva@example.org", child: child, perChild: true, until: until,
+			row: parentbilling.SEPAMandateImportRow{DebtorNumber: "1", DebtorNumberStatus: parentbilling.DebtorNumberNew}}
+	}
+	set := childNumbersToSet([]importCandidate{row(calendar.NewDate(2027, 7, 31)), row(calendar.NewDate(2030, 7, 31))})
+	require.Len(t, set, 1)
+	assert.Equal(t, calendar.NewDate(2030, 7, 31), set[0].LastUsedOn)
+}
+
+// The import keeps a child's number until the end of its latest contract,
+// also one the file does not name (#7007).
+func TestImportPayersKeepTheLatestContractOfAChild(t *testing.T) {
+	t.Parallel()
+	payers := importPayers{byContract: map[int64]importPayer{}, byFamily: map[string]importPayer{}, children: map[string]map[string]bool{},
+		childUntil: map[string]calendar.Date{}}
+	child := parentbilling.FamilyChild{FirstName: "Mia", LastName: "Beispiel"}
+	payers.countChild(importPayer{contractID: 1, family: "eva@example.org", child: child, until: calendar.NewDate(2026, 7, 31)})
+	payers.countChild(importPayer{contractID: 2, family: "eva@example.org", child: child, until: calendar.NewDate(2030, 7, 31)})
+	key := parentbilling.ChildDebtorNumberKey("eva@example.org", parentbilling.ChildKey("Mia", "Beispiel", nil))
+	assert.Equal(t, calendar.NewDate(2030, 7, 31), payers.childUntil[key])
+	assert.Len(t, payers.children["eva@example.org"], 1, "one child with two contracts")
+}
+
+// Every row naming a child keeps its stored number until the latest end of
+// its contracts, also rows whose numbers conflict (#7007).
+func TestChildNumbersToExtendCoverEveryRowOfAChild(t *testing.T) {
+	t.Parallel()
+	child := parentbilling.FamilyChild{FirstName: "Mia", LastName: "Beispiel"}
+	row := func(status string) importCandidate {
+		return importCandidate{family: "eva@example.org", child: child, perChild: true, until: calendar.NewDate(2032, 7, 31),
+			row: parentbilling.SEPAMandateImportRow{DebtorNumberStatus: status}}
+	}
+	extend := childNumbersToExtend([]importCandidate{row(parentbilling.DebtorNumberRowsDiffer), row(parentbilling.DebtorNumberRowsDiffer)})
+	require.Len(t, extend, 1)
+	assert.Equal(t, calendar.NewDate(2032, 7, 31), extend[0].LastUsedOn)
+	assert.Empty(t, extend[0].DebtorNumber, "the number stays as stored")
 }

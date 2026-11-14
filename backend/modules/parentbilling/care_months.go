@@ -477,6 +477,9 @@ type CareBillingSettings interface {
 	// DatevBillingSettings names the standard revenue account the release
 	// copies onto a position without an account of its own (#4821).
 	DatevBillingSettings
+	// DebtorNumberScopes says whether an invoice copies the number of the
+	// payer or of the child (#7007).
+	DebtorNumberScopes
 }
 
 // CareRunDiscard discards an open monthly run that has nothing to issue
