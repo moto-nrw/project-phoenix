@@ -432,6 +432,11 @@ export function SurveyAnswerPanel({
                 isLoading={submitting}
                 loadingText={t("submitting")}
                 disabled={submitting}
+                tooltip={
+                  form.survey.anonymous
+                    ? t("submitTooltipAnonymous")
+                    : t("submitTooltip")
+                }
               >
                 {t("submit")}
               </Button>
