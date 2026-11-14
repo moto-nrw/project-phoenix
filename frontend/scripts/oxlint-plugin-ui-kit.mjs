@@ -6305,6 +6305,17 @@ const TOOLTIP_SCOPE = [
   "src/components/students/school-checkin-selection-bar.tsx",
   "src/components/students/selection-bulk-invite-modal.tsx",
   "src/components/students/selection-bulk-pickup-modal.tsx",
+  // Kinder: Kinderakte und Kinderliste (#6767).
+  "src/components/students/student-checkout-section.tsx",
+  "src/components/students/student-create-modal.tsx",
+  "src/components/students/student-detail-components.tsx",
+  "src/components/students/student-enrollments-tab.tsx",
+  "src/components/students/student-notizen-tab.tsx",
+  "src/components/students/student-photo-section.tsx",
+  "src/components/students/student-record-actions.tsx",
+  "src/components/students/student-selection-bar.tsx",
+  "src/components/students/students-list.tsx",
+  "src/components/students/use-bulk-checkin-actions.tsx",
   // Anmeldung: Phasen, Rechtstexte, Wiederanmeldung, Ferienangebote (#6769).
   "src/components/enrollment/legal-blocks-section.tsx",
   "src/components/enrollment/phase-enrollment-actions.tsx",
