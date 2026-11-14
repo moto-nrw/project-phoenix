@@ -26,12 +26,10 @@ func (c *CatererAccess) tenantless(ctx context.Context) context.Context {
 	return withoutSchoolLedgerContext(c.attach(ctx))
 }
 
-// flow binds the composed unit and translates the caterer's refusals.
 func (c *CatererAccess) flow() flowUnit {
 	return flowUnit{attach: c.attach, translate: catererMFAError}
 }
 
-// voluntary is the caterer's voluntary second factor.
 func (c *CatererAccess) voluntary() voluntaryFactor { return c.factor }
 
 // LoginCaterer signs a caterer account in to the caterer portal. A caterer

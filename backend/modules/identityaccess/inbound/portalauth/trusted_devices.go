@@ -2,8 +2,6 @@ package portalauth
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -17,12 +15,6 @@ import (
 // are bound to from the session and hands the handlers the bound call and
 // its refusals; ownership is proven again in the owner, so a foreign or
 // another portal's device answers 403 like an unknown one.
-
-// Refusal answers a refused call of a signed-in account.
-type Refusal func(w http.ResponseWriter, r *http.Request, err error)
-
-// RefuseMFA answers by the code-step table every account portal shares.
-func RefuseMFA(w http.ResponseWriter, r *http.Request, err error) { Render(w, r, err, MFARules) }
 
 // TrustedDeviceIDParam is the path parameter of the revoke route.
 const TrustedDeviceIDParam = "deviceId"
@@ -55,31 +47,4 @@ func RevokeTrustedDevice(w http.ResponseWriter, r *http.Request, revoke func(con
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-var (
-	errPasswordRequired     = errors.New("current_password is required")
-	errCurrentPasswordWrong = errors.New("current password is incorrect")
-)
-
-// SwitchOffFactor switches a voluntary second factor off once the owner
-// checked the current password. A wrong password answers on its field, like
-// the password change.
-func SwitchOffFactor(w http.ResponseWriter, r *http.Request, disable func(ctx context.Context, currentPassword string, client Client) error, refuse Refusal) {
-	var request struct {
-		CurrentPassword string `json:"current_password"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.CurrentPassword == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errPasswordRequired))
-		return
-	}
-	err := disable(r.Context(), request.CurrentPassword, ClientOf(r))
-	switch {
-	case err == nil:
-		common.RespondNoContent(w, r)
-	case errors.Is(err, identityaccess.ErrInvalidCredentials):
-		common.RenderError(w, r, common.ErrorUnauthorizedOnField(errCurrentPasswordWrong, common.CodeIdentityCurrentPasswordWrong, "current_password"))
-	default:
-		refuse(w, r, err)
-	}
 }

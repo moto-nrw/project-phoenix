@@ -43,10 +43,11 @@ func (f voluntaryFactor) bind(ctx context.Context) context.Context {
 	return portalDeviceContext(ctx, f.portal, 0)
 }
 
-// answer finishes a password sign-in the portal admitted. An account
-// without the factor mints with the password; a remembered device of this
-// portal proves the factor; otherwise the code is mailed.
-func (f voluntaryFactor) answer(ctx context.Context, account domain.LoginAccount, request identityaccess.VoluntaryLoginRequest, mint func(context.Context, mintProof) (mintedSession, error)) (identityaccess.VoluntaryLoginResult, error) {
+// answer finishes a password sign-in the portal admitted; admitted mints
+// the session the portal resolved for it. An account without the factor
+// mints with the password; a remembered device of this portal proves the
+// factor; otherwise the code is mailed.
+func (f voluntaryFactor) answer(ctx context.Context, account domain.LoginAccount, request identityaccess.VoluntaryLoginRequest, admitted func(context.Context, mintProof) (mintedSession, error)) (identityaccess.VoluntaryLoginResult, error) {
 	proof, challenge, err := f.gate(ctx, account, request.TrustedDeviceCookie, request.IPAddress)
 	if err != nil {
 		return identityaccess.VoluntaryLoginResult{}, err
@@ -57,7 +58,7 @@ func (f voluntaryFactor) answer(ctx context.Context, account domain.LoginAccount
 			MaskedEmail: challenge.MaskedEmail, TrustedDeviceDays: challenge.TrustedDeviceDays,
 		}, nil
 	}
-	minted, err := mint(ctx, proof)
+	minted, err := admitted(ctx, proof)
 	if err != nil {
 		return identityaccess.VoluntaryLoginResult{}, err
 	}

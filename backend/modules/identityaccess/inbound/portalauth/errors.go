@@ -47,6 +47,12 @@ func Render(w http.ResponseWriter, r *http.Request, err error, tables ...[]commo
 	common.RenderError(w, r, Renderer(err, tables...))
 }
 
+// Refusal answers a refused call of a signed-in account.
+type Refusal func(w http.ResponseWriter, r *http.Request, err error)
+
+// RefuseMFA answers by the code-step table every account portal shares.
+func RefuseMFA(w http.ResponseWriter, r *http.Request, err error) { Render(w, r, err, MFARules) }
+
 func coded(status func(error, string) render.Renderer, body error, code string) func(error) render.Renderer {
 	return common.FixedCodedRenderer(status, body, code)
 }

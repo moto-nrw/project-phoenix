@@ -22,13 +22,12 @@ type ParentAccess struct {
 	factor voluntaryFactor
 }
 
-// voluntary is the parents' voluntary second factor.
 func (p *ParentAccess) voluntary() voluntaryFactor { return p.factor }
 
 // ComposeParentAccess composes the parents portal's sign-in with its second
 // factor (#7051); without the sessions there is none.
 func ComposeParentAccess(auth *AccountAuthentication, sessions *identityPorts.SessionDependencies, mfa *AccountMFAFlows, runtime ports.Runtime) *identityaccess.ParentAccess {
-	if auth == nil || sessions == nil || sessions.Passwords == nil {
+	if auth == nil || runtime == nil || sessions == nil || sessions.Passwords == nil {
 		return nil
 	}
 	logger := sessions.Logger

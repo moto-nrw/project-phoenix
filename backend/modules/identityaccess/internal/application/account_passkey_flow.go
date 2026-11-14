@@ -551,7 +551,6 @@ func publicPasskeySummaries(values []domain.PasskeyCredentialSummary) []identity
 // same table, and a gated registration reaches through it.
 func passkeyError(err error) error { return MFAError(err) }
 
-// catererHost is the host of the caterer portal's URL, or empty.
 func catererHost(frontendURL string) string {
 	if strings.TrimSpace(frontendURL) == "" {
 		return ""

@@ -73,7 +73,10 @@ session it mints (`mint`) and its refusal for a factor that is not on.
   adapters in `caterer_mfa.go` and `parent_mfa.go`. One neutral interface
   would remove them, but it re-keys 16 ports of the command-effects register
   and turns three factor methods into registered pass-throughs (ADR 0075
-  budget is at its floor). That needs its own decision.
+  budget is at its floor). That needs its own decision. Until then each
+  adapter reaches its factor through `voluntary()`, as the parents' did
+  before: the pass-through scan counts a call through a receiver field, and
+  spelling the adapters that way would register sixteen of them.
 
 ## Fix C: a portal's refusals live with the portal (done, PR 1)
 
@@ -84,10 +87,14 @@ session it mints (`mint`) and its refusal for a factor that is not on.
   caterer's copies of all three handlers and the parents' copy of the
   switch-off are gone.
 - C3 done, bug fix. The parents' device routes answered through `MFARules`
-  alone: `ErrAccountMFAUnavailable` and an ended account answered 500 there
-  and 503 or 401 on the other settings routes. They now use the parents'
-  table. Test: `TestParentTrustedDevicesAnswerLikeTheSecondFactorSettings`
-  (fails on the old table).
+  alone, so every refusal of the session tables answered 500 there: a
+  module without the factor (now 503), an ended or deleted account (401),
+  an invalid token (401), an unknown school (404), the wrong-portal and
+  no-role refusals (403). They now use the parents' table like the other
+  settings routes, and an unclassified error answers the fixed text
+  "parent second factor failed" instead of the error's own. Test:
+  `TestParentTrustedDevicesAnswerLikeTheSecondFactorSettings` (fails on the
+  old table).
 - Open: the caterer's password change sits in
   `workflows/catererportal/http/account.go`, its switch-off in
   `inbound/catererauth` (third copy of the wrong-password field refusal).

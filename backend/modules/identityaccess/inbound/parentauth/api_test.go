@@ -214,8 +214,7 @@ func (d refusingDevices) ListParentTrustedDevices(context.Context, int64) ([]ide
 func (d refusingDevices) RevokeParentTrustedDevice(context.Context, int64, int64) error { return d.err }
 
 // The remembered devices answer a refusal like the other settings routes of
-// the second factor: before the routes shared their table, an account that
-// ended or a module without the factor answered 500 here.
+// the second factor.
 func TestParentTrustedDevicesAnswerLikeTheSecondFactorSettings(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {

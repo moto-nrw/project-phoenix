@@ -67,8 +67,6 @@ func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, acces
 // transaction and returns the booking read to run after it, if any.
 type sessionFacts func(txCtx context.Context) (booked func(context.Context) error, err error)
 
-// operatorSessionCheck prepares the validation of an operator hand-off:
-// operators run their own pipeline.
 func (s *AccountAuthentication) operatorSessionCheck(ctx context.Context, claims domain.SessionClaims, refreshClaims *domain.RefreshClaims) (sessionFacts, error) {
 	if refreshClaims == nil {
 		if err := s.verifyOperatorFamily(ctx, claims); err != nil {
@@ -80,8 +78,6 @@ func (s *AccountAuthentication) operatorSessionCheck(ctx context.Context, claims
 	}, nil
 }
 
-// accountSessionCheck prepares the validation of an account hand-off of any
-// portal.
 func (s *AccountAuthentication) accountSessionCheck(_ context.Context, claims domain.SessionClaims, refreshClaims *domain.RefreshClaims) (sessionFacts, error) {
 	handOff, err := accountHandOffOf(claims)
 	if err != nil {
