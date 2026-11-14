@@ -79,16 +79,16 @@ func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, re
 	// A sibling group pays with one number (#5628): the other confirmed
 	// registrations of the group that no issued invoice bills take it, or
 	// lose it with this one.
-	sharers, err := h.shareGroupDebtorNumber(ctx, reviewer, periodID, registration, groups, issued)
+	others, err := h.shareGroupDebtorNumber(ctx, reviewer, periodID, registration, groups, issued)
 	if err != nil {
 		return parentbilling.HolidayDebtorNumber{}, err
 	}
-	holders := slices.Concat([]parentbilling.HolidayRegistration{registration}, sharers)
+	holders := slices.Concat([]parentbilling.HolidayRegistration{registration}, confirmedSharers(others, issued))
 	// A new number is the family's too (#6692); removing the number of a
 	// registration leaves the family's.
 	if registration.DebtorNumber != "" {
 		number := registration.DebtorNumber
-		if err := h.rememberFamilies(ctx, reviewer, holders, &number, familyChoice, registration.ID); err != nil {
+		if err := h.rememberFamilies(ctx, reviewer, holders, &number, familyChoice, registration.ID, others); err != nil {
 			return parentbilling.HolidayDebtorNumber{}, err
 		}
 	}
@@ -121,10 +121,11 @@ func (h *HolidayContributions) asksDebtorNumber(ctx context.Context, organizatio
 
 // shareGroupDebtorNumber gives the number of the registration to the other
 // confirmed registrations of its sibling group that no issued invoice bills
-// (#5628) and answers them; a registration without a group has none.
+// (#5628) and answers all other members, including unconfirmed siblings,
+// for the child-number ambiguity check. A registration without a group has none.
 func (h *HolidayContributions) shareGroupDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64,
 	registration parentbilling.HolidayRegistration, groups []parentbilling.HolidaySiblingGroup, issued map[int64]bool,
-) ([]parentbilling.HolidayRegistration, error) {
+) ([]siblingMember, error) {
 	group, grouped := groupOf(groups, registration.ID)
 	if !grouped {
 		return nil, nil
@@ -137,5 +138,5 @@ func (h *HolidayContributions) shareGroupDebtorNumber(ctx context.Context, revie
 	if err := h.shareDebtorNumber(ctx, reviewer, periodID, others, registration.DebtorNumber, issued); err != nil {
 		return nil, err
 	}
-	return confirmedSharers(others, issued), nil
+	return others, nil
 }

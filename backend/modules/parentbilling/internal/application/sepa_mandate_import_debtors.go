@@ -102,18 +102,23 @@ func debtorNumbersToSet(candidates []importCandidate) []parentbilling.FamilyDebt
 	return set
 }
 
-// countDebtorNumbers counts the numbers the import takes over, also from
-// rows without a mandate, and the conflicts among the rows the preview
-// shows.
-func countDebtorNumbers(counts *parentbilling.SEPAMandateImportCounts, candidates, shown []importCandidate) {
+// countDebtorNumbers includes numbers and conflicts from mandate-free rows.
+func countDebtorNumbers(counts *parentbilling.SEPAMandateImportCounts, candidates []importCandidate) {
 	counts.DebtorNumbers = len(debtorNumbersToSet(candidates)) + len(childNumbersToSet(candidates))
-	for _, candidate := range shown {
-		switch candidate.row.DebtorNumberStatus {
-		case parentbilling.DebtorNumberSiblingsDiffer, parentbilling.DebtorNumberDiffers, parentbilling.DebtorNumberRowsDiffer,
-			parentbilling.DebtorNumberNoChild:
+	for _, candidate := range candidates {
+		if debtorNumberConflict(candidate.row.DebtorNumberStatus) {
 			counts.DebtorConflicts++
 		}
 	}
+}
+
+func debtorNumberConflict(status string) bool {
+	switch status {
+	case parentbilling.DebtorNumberSiblingsDiffer, parentbilling.DebtorNumberDiffers, parentbilling.DebtorNumberRowsDiffer,
+		parentbilling.DebtorNumberNoChild:
+		return true
+	}
+	return false
 }
 
 // The debtor numbers of a mandate import when the Träger keeps one per

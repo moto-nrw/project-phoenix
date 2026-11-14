@@ -4,6 +4,7 @@ import type { ImportResult, ImportRow } from "~/lib/traeger-sepa-import-api";
 import { SepaImportPreviewCard } from "./sepa-import-preview-card";
 
 import { importableCount } from "./sepa-import-format";
+import { usePhoneViewport } from "~/test/helpers/viewport";
 
 function row(line: number, overrides: Partial<ImportRow>): ImportRow {
   return {
@@ -130,7 +131,9 @@ describe("SepaImportPreviewCard", () => {
       />,
     );
     expect(
-      screen.getByText(/^517 Zeilen ohne Mandat: .* Das ist kein Fehler\.$/),
+      screen.getByText(
+        /^517 Zeilen ohne Mandat: .* Konflikte sehen Sie mit Zeilennummer unten\.$/,
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Fehler 1" }),
@@ -144,6 +147,9 @@ describe("SepaImportPreviewCard", () => {
           ...result,
           rows: [
             row(2, {
+              status: "conflict",
+              reference: "",
+              ibanMasked: "",
               debtorNumber: "20 0001",
               debtorNumberStatus: "siblings_differ",
             }),
@@ -224,5 +230,36 @@ describe("SepaImportPreviewCard", () => {
     expect(screen.getAllByText("Fehlerhaft").length).toBeGreaterThan(0);
     expect(screen.queryAllByText("Beispiel 2")).toHaveLength(0);
     expect(screen.getAllByText("Eva Beispiel").length).toBeGreaterThan(0);
+  });
+});
+
+describe("SepaImportPreviewCard on a phone", () => {
+  usePhoneViewport();
+
+  it("shows the file line of a debtor-number conflict without a mandate", () => {
+    render(
+      <SepaImportPreviewCard
+        result={{
+          ...result,
+          rows: [
+            row(23, {
+              status: "conflict",
+              reference: "",
+              ibanMasked: "",
+              debtorNumberStatus: "differs",
+            }),
+          ],
+        }}
+        answers={{}}
+        applying={false}
+        onAnswer={vi.fn()}
+        onApply={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Zeile")).toBeInTheDocument();
+    expect(screen.getByText("23")).toBeInTheDocument();
+    expect(
+      screen.getByText(/In moto steht schon eine andere Nummer/),
+    ).toBeInTheDocument();
   });
 });

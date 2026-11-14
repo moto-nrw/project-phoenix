@@ -121,13 +121,30 @@ function leftForChild(
   return left;
 }
 
-function invoicesDescription(released: boolean, canPreview: boolean) {
+/**
+ * Whom a draft invoice bills: the family, or each child when the Träger
+ * keeps the debtor number per child (#7007). A registration billed as a
+ * whole before the switch keeps its one invoice.
+ */
+function draftShapeText(documents: readonly BillingDocument[]): string {
+  const perChild = documents.filter((document) => document.registrationChildId);
+  if (perChild.length === 0) return "Je Familie eine Rechnung.";
+  return perChild.length === documents.length
+    ? "Je Kind eine Rechnung, auch für Geschwister."
+    : "Je Kind eine Rechnung, auch für Geschwister. Eine Anmeldung mit einer Rechnung von vor der Umstellung behält ihre eine Rechnung.";
+}
+
+function invoicesDescription(
+  released: boolean,
+  canPreview: boolean,
+  documents: readonly BillingDocument[],
+) {
   if (!released) {
     // From md on the card's „Aufschlüsselung zeigen“ opens it for every row;
     // a phone row keeps it in its menu, so the phone names that place.
     return (
       <>
-        Je Familie eine Rechnung.
+        {draftShapeText(documents)}
         <span className="md:hidden">
           {" "}
           Die Aufschlüsselung je Kind steht im Menü der Zeile.
@@ -578,7 +595,7 @@ export function BillingRunOverviewCard({
     <SectionCard
       title="Rechnungen"
       overflow="visible"
-      description={invoicesDescription(released, canPreview)}
+      description={invoicesDescription(released, canPreview, run.documents)}
       actions={
         released && run.documents.length > 0 ? (
           <OverflowMenu

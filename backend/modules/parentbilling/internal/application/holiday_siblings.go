@@ -178,7 +178,7 @@ func (h *HolidayContributions) MergeHolidaySiblings(ctx context.Context, reviewe
 		return parentbilling.HolidaySiblingGroup{}, err
 	}
 	// A merge adopts missing family numbers without replacing remembered ones.
-	if err := h.rememberFamilies(ctx, reviewer, confirmedSharers(members, issued), &number, parentbilling.FamilyDebtorNumberKeep, 0); err != nil {
+	if err := h.rememberFamilies(ctx, reviewer, confirmedSharers(members, issued), &number, parentbilling.FamilyDebtorNumberKeep, 0, members); err != nil {
 		return parentbilling.HolidaySiblingGroup{}, err
 	}
 	if err := h.recordSiblings(ctx, reviewer, periodID, members, parentbilling.HolidaySiblingsMerged); err != nil {

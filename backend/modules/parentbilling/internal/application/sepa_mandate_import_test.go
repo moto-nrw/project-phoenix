@@ -102,7 +102,7 @@ func TestReadImportTableReadsTheOGSConnectMasterData(t *testing.T) {
 	for i, cells := range table.rows {
 		candidates[i] = check.candidate(cells, table.lines[i])
 	}
-	kept, without := rowsWithMandate(candidates)
+	kept, without := importPreviewRows(candidates)
 	assert.Equal(t, 1, without, "the child whose family pays without a mandate is no mistake")
 	require.Len(t, kept, 1)
 	assert.Equal(t, 2, kept[0].row.Line)

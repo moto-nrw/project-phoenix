@@ -152,7 +152,8 @@ func (h *HolidayContributions) keepChildNumbers(ctx context.Context, reviewer pa
 		}
 		birth := child.BirthDate
 		save = append(save, parentbilling.ChildDebtorNumber{FamilyEmail: registration.GuardianEmail, ChildFirstName: truncateName(child.FirstName),
-			ChildLastName: truncateName(child.LastName), ChildBirthDate: &birth, DebtorNumber: number})
+			ChildLastName: truncateName(child.LastName), ChildBirthDate: &birth, DebtorNumber: number,
+			LastUsedOn: lastBookedDay(registration, h.today())})
 	}
 	if len(save) == 0 {
 		return result, nil

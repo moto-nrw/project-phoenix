@@ -132,16 +132,32 @@ func (h *HolidayContributions) HolidayFamilyDebtorNumber(ctx context.Context, re
 // When the Träger keeps a number per child (#7007), the children learn it
 // instead (rememberChildren).
 func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer parentbilling.HolidayReviewer, registrations []parentbilling.HolidayRegistration,
-	number *string, choice string, correctingID int64,
+	number *string, choice string, correctingID int64, siblings []siblingMember,
 ) error {
 	perChild, err := h.perChild(ctx, reviewer.OrganizationID)
 	if err != nil {
 		return err
 	}
 	if perChild {
+		// Received siblings also make the shared number ambiguous, even
+		// though only confirmed registrations are remembered below.
+		group := slices.Clone(registrations)
+		for _, sibling := range siblings {
+			if !sibling.cancelled() {
+				group = append(group, sibling.registration)
+			}
+		}
+		if len(holidayChildNumbers(group, nil, h.today())) > 1 {
+			number = nil
+		}
 		return h.rememberChildren(ctx, reviewer, registrations, number)
 	}
-	return h.rememberPayers(ctx, reviewer, registrations, number, choice, correctingID)
+	if err := h.rememberPayers(ctx, reviewer, registrations, number, choice, correctingID); err != nil {
+		return err
+	}
+	// Keep identities across scope changes, never the shared payer number.
+	// Family locks precede child locks in either scope.
+	return h.rememberChildNumbers(ctx, reviewer, registrations, nil)
 }
 
 // rememberPayers tells the families of the registrations the number, as
@@ -325,9 +341,9 @@ func validFamilyChoice(choice string) error {
 // The debtor number of a child at a holiday registration (#7007). When the
 // Träger keeps a number per child, the confirmation proposes the number of
 // the first child of the registration, the number its invoice falls back
-// to, and a confirmation or change with a number gives it to the only child
-// of a registration that has none yet. A registration of several children
-// teaches no child a number: one number cannot name several children. A
+// to. A confirmation or change gives it to the only distinct child of a
+// registration or sibling group that has none yet. Several children
+// learn no shared number: one number cannot name several children. A
 // child that has a number keeps it; the office changes it in the list of
 // families.
 
@@ -337,35 +353,31 @@ func (h *HolidayContributions) perChild(ctx context.Context, organizationID int6
 	return scope == parentbilling.DebtorNumberScopeChild, err
 }
 
-// rememberChildren gives the number to the only child of each registration
-// that has none yet, and records it in the trail of the number.
+// rememberChildren keeps every child available for number entry. Only a
+// group naming one distinct child can give that child its shared number.
+// Existing individual numbers are never replaced.
 func (h *HolidayContributions) rememberChildren(ctx context.Context, reviewer parentbilling.HolidayReviewer,
 	registrations []parentbilling.HolidayRegistration, number *string,
 ) error {
-	if number == nil || *number == "" {
-		return nil
-	}
-	// The family is known to the list of families from the confirmation on,
-	// as with a number per payer (#6692), but keeps no number of its own.
 	if err := h.knowFamilies(ctx, reviewer, registrations); err != nil {
 		return err
 	}
-	var numbers []parentbilling.ChildDebtorNumber
-	for _, registration := range registrations {
-		if len(registration.Children) != 1 || parentbilling.FamilyKey(registration.GuardianEmail) == "" {
-			continue
-		}
-		child := registration.Children[0]
-		birth := child.BirthDate
-		if parentbilling.ChildKey(child.FirstName, child.LastName, &birth) == "" {
-			continue
-		}
-		numbers = append(numbers, parentbilling.ChildDebtorNumber{FamilyEmail: registration.GuardianEmail,
-			ChildFirstName: truncateName(child.FirstName), ChildLastName: truncateName(child.LastName), ChildBirthDate: &birth,
-			DebtorNumber: *number})
-	}
+	return h.rememberChildNumbers(ctx, reviewer, registrations, number)
+}
+
+// rememberChildNumbers also keeps identities without a number in payer
+// scope, so switching scope needs no registration to be confirmed again.
+func (h *HolidayContributions) rememberChildNumbers(ctx context.Context, reviewer parentbilling.HolidayReviewer,
+	registrations []parentbilling.HolidayRegistration, number *string,
+) error {
+	numbers := holidayChildNumbers(registrations, number, h.today())
 	if len(numbers) == 0 {
 		return nil
+	}
+	// A preserved number still serves the later booking, just as in the
+	// mandate import. Extending its use does not record a number change.
+	if err := h.store.ExtendChildDebtorNumbers(ctx, reviewer.OrganizationID, numbers); err != nil {
+		return fmt.Errorf("parent billing: keep the children's numbers through their bookings: %w", err)
 	}
 	saved, err := h.store.SaveChildDebtorNumbers(ctx, reviewer.OrganizationID, reviewer.AccountID, numbers, h.today(), true)
 	if err != nil {
@@ -375,6 +387,41 @@ func (h *HolidayContributions) rememberChildren(ctx context.Context, reviewer pa
 		return fmt.Errorf("parent billing: record the child's number: %w", err)
 	}
 	return nil
+}
+
+// holidayChildNumbers deduplicates normalized family/child keys before the
+// bulk upsert. Several registrations of one child are unambiguous; several
+// distinct children keep empty numbers rather than learning a shared one.
+func holidayChildNumbers(registrations []parentbilling.HolidayRegistration, number *string, today calendar.Date) []parentbilling.ChildDebtorNumber {
+	var numbers []parentbilling.ChildDebtorNumber
+	at := map[string]int{}
+	for _, registration := range registrations {
+		family := parentbilling.FamilyKey(registration.GuardianEmail)
+		if family == "" {
+			continue
+		}
+		until := lastBookedDay(registration, today)
+		for _, child := range registration.Children {
+			birth := child.BirthDate
+			first, last := truncateName(child.FirstName), truncateName(child.LastName)
+			childKey := parentbilling.ChildKey(first, last, &birth)
+			if childKey == "" {
+				continue
+			}
+			key := parentbilling.ChildDebtorNumberKey(family, childKey)
+			if i, seen := at[key]; seen {
+				numbers[i].LastUsedOn = max(numbers[i].LastUsedOn, until)
+				continue
+			}
+			at[key] = len(numbers)
+			numbers = append(numbers, parentbilling.ChildDebtorNumber{FamilyEmail: family,
+				ChildFirstName: first, ChildLastName: last, ChildBirthDate: &birth, LastUsedOn: until})
+		}
+	}
+	if len(numbers) == 1 && number != nil {
+		numbers[0].DebtorNumber = *number
+	}
+	return numbers
 }
 
 // knowFamilies adds a row without a contract and without a number for each

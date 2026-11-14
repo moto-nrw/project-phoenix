@@ -291,7 +291,7 @@ func TestImportDebtorNumbersPerFamily(t *testing.T) {
 	assert.Equal(t, []parentbilling.FamilyDebtorNumber{{FamilyEmail: "neu@example.org", ContractID: 103, DebtorNumber: "30 1"}},
 		debtorNumbersToSet(candidates), "one number per family, from its first row")
 	var counts parentbilling.SEPAMandateImportCounts
-	countDebtorNumbers(&counts, candidates, candidates)
+	countDebtorNumbers(&counts, candidates)
 	assert.Equal(t, 1, counts.DebtorNumbers)
 	assert.Equal(t, 3, counts.DebtorConflicts)
 }
