@@ -42,24 +42,34 @@ func (m *SEPAMandates) indexPayerNumbers(ctx context.Context, organizationID int
 		if err != nil {
 			return err
 		}
-		for i := range children {
-			if payer, ok := payers.byChild[children[i].Key()]; ok && children[i].DebtorNumber != "" {
-				payer.ofChild = true
-				payers.addNumber(children[i].DebtorNumber, numberPayer{payer: payer, child: &children[i]})
-			}
-		}
+		payers.indexChildNumbers(children)
 		return nil
 	}
 	families, err := m.store.FamilyBillings(ctx, organizationID)
 	if err != nil {
 		return fmt.Errorf("parent billing: read the debtor numbers of the families: %w", err)
 	}
-	for i := range families {
-		if payer, ok := payers.byFamily[families[i].FamilyEmail]; ok && families[i].DebtorNumber != "" {
-			payers.addNumber(families[i].DebtorNumber, numberPayer{payer: payer, family: &families[i]})
+	payers.indexFamilyNumbers(families)
+	return nil
+}
+
+// indexChildNumbers names the contract of each child by its number.
+func (p importPayers) indexChildNumbers(children []parentbilling.ChildDebtorNumber) {
+	for i := range children {
+		if payer, ok := p.byChild[children[i].Key()]; ok && children[i].DebtorNumber != "" {
+			payer.ofChild = true
+			p.addNumber(children[i].DebtorNumber, numberPayer{payer: payer, child: &children[i]})
 		}
 	}
-	return nil
+}
+
+// indexFamilyNumbers names the contract of each family by its number.
+func (p importPayers) indexFamilyNumbers(families []parentbilling.FamilyBilling) {
+	for i := range families {
+		if payer, ok := p.byFamily[families[i].FamilyEmail]; ok && families[i].DebtorNumber != "" {
+			p.addNumber(families[i].DebtorNumber, numberPayer{payer: payer, family: &families[i]})
+		}
+	}
 }
 
 // addNumber names the payer of a number; a second payer makes it ambiguous.

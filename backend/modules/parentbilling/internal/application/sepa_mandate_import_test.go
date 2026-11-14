@@ -450,11 +450,12 @@ func TestImportPayersKeepTheLatestContractOfAChild(t *testing.T) {
 		childUntil: map[string]calendar.Date{}, byChild: map[string]importPayer{}}
 	child := parentbilling.FamilyChild{FirstName: "Mia", LastName: "Beispiel"}
 	payers.countChild(importPayer{contractID: 1, family: "eva@example.org", child: child, until: calendar.NewDate(2026, 7, 31)})
-	payers.countChild(importPayer{contractID: 2, family: "eva@example.org", child: child, until: calendar.NewDate(2030, 7, 31)})
+	later := importPayer{contractID: 2, family: "eva@example.org", child: child, until: calendar.NewDate(2030, 7, 31)}
+	payers.countChild(later)
 	key := parentbilling.ChildDebtorNumberKey("eva@example.org", parentbilling.ChildKey("Mia", "Beispiel", nil))
 	assert.Equal(t, calendar.NewDate(2030, 7, 31), payers.childUntil[key])
 	assert.Len(t, payers.children["eva@example.org"], 1, "one child with two contracts")
-	assert.Equal(t, int64(2), payers.byChild[key].contractID, "the child's number names its contract in force longest (#7009)")
+	assert.Equal(t, later.contractID, payers.byChild[key].contractID, "the child's number names its contract in force longest (#7009)")
 }
 
 // Every row naming a child keeps its stored number until the latest end of
@@ -470,4 +471,29 @@ func TestChildNumbersToExtendCoverEveryRowOfAChild(t *testing.T) {
 	require.Len(t, extend, 1)
 	assert.Equal(t, calendar.NewDate(2032, 7, 31), extend[0].LastUsedOn)
 	assert.Empty(t, extend[0].DebtorNumber, "the number stays as stored")
+}
+
+// A debtor number names its payer only when moto keeps it for one payer
+// (#7009): a number of two families names none, an unknown one neither.
+func TestPayerOfNumberNamesOnlyAnUnambiguousPayer(t *testing.T) {
+	t.Parallel()
+	eva := importPayer{contractID: 3, family: "eva@example.org"}
+	jan := importPayer{contractID: 4, family: "jan@example.org"}
+	payers := importPayers{byFamily: map[string]importPayer{eva.family: eva, jan.family: jan}}
+	payers.byNumber, payers.ambiguous = map[string]numberPayer{}, map[string]bool{}
+	payers.indexFamilyNumbers([]parentbilling.FamilyBilling{
+		{FamilyEmail: eva.family, DebtorNumber: "10 0001"}, {FamilyEmail: jan.family, DebtorNumber: "10 0002"},
+		{FamilyEmail: "ohne@example.org", DebtorNumber: "10 0003"},
+	})
+	candidate := importCandidate{}
+	payer, problem := payers.payerOfNumber(&candidate, " 10 0001 ")
+	assert.Empty(t, problem)
+	assert.Equal(t, eva.contractID, payer.contractID)
+	assert.Equal(t, "10 0001", candidate.payerNumber, "the read number goes to its trail")
+	_, problem = payers.payerOfNumber(&importCandidate{}, "10 0003")
+	assert.Equal(t, parentbilling.ImportProblemPayerUnknown, problem, "a number without a contract names no payer")
+
+	payers.addNumber("10 0002", numberPayer{payer: eva})
+	_, problem = payers.payerOfNumber(&importCandidate{}, "10 0002")
+	assert.Equal(t, parentbilling.ImportProblemPayerAmbiguous, problem)
 }
