@@ -13,7 +13,11 @@ import { clientEnv } from "~/env.client";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { useTenant } from "~/lib/tenant-context";
 import { isDemoEntryPath } from "~/lib/demo-access";
-import { isTraegerHandoffPath } from "~/lib/traeger-handoff";
+import {
+  TRAEGER_SIGN_IN_WITH_CODE_LABEL,
+  isTraegerHandoffPath,
+  traegerSignInWithCodeUrl,
+} from "~/lib/traeger-handoff";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
@@ -127,6 +131,11 @@ function GuardedTenant({
   const switchInFlight = useRef(false);
   const [failedTenantId, setFailedTenantId] = useState<number | null>(null);
   const [mfaRequiredTenantId, setMfaRequiredTenantId] = useState<number | null>(
+    null,
+  );
+  // A session from the Träger-Portal that the target school refused for
+  // its remembered device (#6955): the way back leads to the Träger-Portal.
+  const [traegerCodeTenantId, setTraegerCodeTenantId] = useState<number | null>(
     null,
   );
   const [recheck, setRecheck] = useState(0);
@@ -407,6 +416,7 @@ function GuardedTenant({
       switchAttempts.current = { targetTenantId: null, count: 0 };
       setFailedTenantId(null);
       setMfaRequiredTenantId(null);
+      setTraegerCodeTenantId(null);
       clearSwitchError();
       return;
     }
@@ -417,6 +427,7 @@ function GuardedTenant({
       switchAttempts.current = { targetTenantId: urlTenantId, count: 0 };
       setFailedTenantId(null);
       setMfaRequiredTenantId(null);
+      setTraegerCodeTenantId(null);
       clearSwitchError();
     }
 
@@ -504,8 +515,14 @@ function GuardedTenant({
           const needsMFA =
             err instanceof ApiError &&
             err.code === "identity.mfa_session_required";
+          const needsTraegerCode =
+            err instanceof ApiError &&
+            err.code === "traeger.school_requires_code";
           setFailedTenantId(switchTargetTenantId);
           setMfaRequiredTenantId(needsMFA ? switchTargetTenantId : null);
+          setTraegerCodeTenantId(
+            needsTraegerCode ? switchTargetTenantId : null,
+          );
           // The reason shows next to "Erneut versuchen" below; that button
           // is the retry, so the alert carries none of its own.
           void showSwitchError(credentialError(err, NO_ACCESS), {
@@ -614,7 +631,18 @@ function GuardedTenant({
               }
             />
             <span className="flex flex-wrap gap-2">
-              {mfaRequiredTenantId === urlTenantId ? (
+              {traegerCodeTenantId === urlTenantId ? (
+                <Button
+                  type="button"
+                  size="md"
+                  tooltip="Öffnet die Anmeldung im Träger-Portal. Dort fragt moto nach dem Code."
+                  onClick={() => {
+                    globalThis.location.assign(traegerSignInWithCodeUrl());
+                  }}
+                >
+                  {TRAEGER_SIGN_IN_WITH_CODE_LABEL}
+                </Button>
+              ) : mfaRequiredTenantId === urlTenantId ? (
                 <Button
                   type="button"
                   size="md"

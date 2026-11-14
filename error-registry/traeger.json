@@ -161,6 +161,12 @@
       "legacy": "traeger.school_not_found"
     },
     {
+      "code": "traeger.school_requires_code",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "traeger.school_requires_code"
+    },
+    {
       "code": "traeger.second_factor_required",
       "class": "permission",
       "parameters": [],

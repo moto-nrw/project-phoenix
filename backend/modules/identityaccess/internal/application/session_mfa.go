@@ -111,6 +111,8 @@ func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID
 	// that runs after this switch commits finds the new family through it
 	// (#5422); one that ran before left no source family to switch from.
 	session.SwitchedFromFamilyID = domain.SwitchLineage(source)
+	// How the source proved its factor travels with it (#6955).
+	session.MFAByDevice = source.MFAByDevice
 	// A family issued before #5422 cannot escape its transition deadline
 	// by switching on: the new family keeps it (capLegacyLineage).
 	if deadline := legacyDeadline(source); deadline != nil {

@@ -100,6 +100,11 @@ export const KEPT_STORAGE_KEYS: readonly string[] = [
   // Steuerwerte ohne Konto. deliberateLogout muss den Logout überleben: die
   // Login-Seite liest daraus, dass er gewollt war.
   "deliberateLogout",
+  // „Mit Code neu anmelden“ (#6955) muss den Logout ebenso überleben: Die
+  // nächste Träger-Anmeldung in diesem Tab fragt einmal nach dem Code. Nur
+  // ein Merker ohne Konto; trifft er die nächste Person, fragt moto auch sie
+  // einmal nach dem Code.
+  "moto.traeger.sign-in-with-code",
   "lastSuccessfulRefresh",
   "tagesplan-scroll",
   // Sperrzeit für die nächste Anfrage „Passwort vergessen“; entsteht vor der

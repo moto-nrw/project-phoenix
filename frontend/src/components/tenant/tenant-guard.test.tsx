@@ -336,6 +336,41 @@ describe("TenantGuard", () => {
     expect(window.location.assign).not.toHaveBeenCalled();
   });
 
+  it("leads a Träger session the target school refused for its remembered device back to the Träger sign-in with code (#6955)", async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { tenantId: 1, token: "access-token" } },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    mockUseTenant.mockReturnValue({ tenantSlug: "school-b", tenant: tenantB });
+    mockPerformTenantSwitch.mockRejectedValue(
+      new ApiError("remembered device refused", 403, {
+        code: "traeger.school_requires_code",
+      }),
+    );
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    const back = await screen.findByRole("button", {
+      name: "Mit Code neu anmelden",
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Diese Schule verlangt jetzt eine Anmeldung mit Code.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Zur Schulanmeldung" }),
+    ).not.toBeInTheDocument();
+    expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(1);
+    fireEvent.click(back);
+    expect(window.location.assign).toHaveBeenCalledWith(
+      expect.stringMatching(/\/login\?mit-code=1$/),
+    );
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
   it("signs out when switchTenant reports access denied", async () => {
     mockUseSession.mockReturnValue({
       data: { user: { tenantId: 1, token: "access-token" } },

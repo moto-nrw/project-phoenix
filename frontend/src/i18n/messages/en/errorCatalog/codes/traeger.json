@@ -25,6 +25,7 @@
   "member_not_found": "This person no longer belongs to the Träger office. Please reload the page.",
   "no_membership": "Your account has no access to the Träger portal. Please contact the moto team.",
   "school_not_found": "This school does not belong to your Träger. Please reload the page.",
+  "school_requires_code": "This school currently requires signing in with a code. Please sign in to the Träger portal again.",
   "second_factor_required": "To open a school you need a second sign-in factor. Please sign in to the Träger portal again.",
   "shared_document_not_found": "The provider no longer shares this document. Please reload the page."
 }
