@@ -1011,7 +1011,7 @@ export function ClassDayClass({
                   variant="outline"
                   size="md"
                   disabled={savingMorning}
-                  tooltip="Setzt alle offenen Kinder auf „Da“, gespeichert wird danach."
+                  tooltip="Setzt alle offenen Kinder auf „Da“; Sie speichern danach."
                   onClick={() =>
                     setDraftState({
                       key: reportKey,
@@ -1052,7 +1052,7 @@ export function ClassDayClass({
                   setTripModalOpen(true);
                 }}
                 disabled={tripStudents.length === 0}
-                disabledReason="An diesem Tag steht kein Kind dieser Klasse in der Liste."
+                disabledReason="Zuerst müssen Kinder dieser Klasse in moto angelegt sein."
                 tooltip="Öffnet ein Fenster, um Kinder als unterwegs zu melden."
               >
                 Ausflug oder Klassenfahrt melden
@@ -1151,7 +1151,7 @@ export function ClassDayClass({
                     variant="outline"
                     size="md"
                     onClick={homeworkForm.openNew}
-                    tooltip="Öffnet ein Fenster für Hausaufgaben, die OGS sieht sie."
+                    tooltip="Öffnet ein Fenster, um Hausaufgaben für die OGS einzutragen."
                   >
                     Hausaufgaben eintragen
                   </Button>
@@ -1328,7 +1328,7 @@ export function ClassDayClass({
                 onSave={() => void saveMorning()}
                 saving={savingMorning}
                 saveLabel="Anwesenheit speichern"
-                saveTooltip="Speichert die Anwesenheit; Fehlen ohne Meldung erfährt die Schulverwaltung."
+                saveTooltip="Speichert die Anwesenheit; die Schulverwaltung erfährt, wer ohne Meldung fehlt."
                 cancelLabel="Verwerfen"
               />
             </div>

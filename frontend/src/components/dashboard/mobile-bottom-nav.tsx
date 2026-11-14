@@ -12,6 +12,7 @@ import {
   usePortalBottomNavIndicator,
 } from "~/components/ui/portal-bottom-nav";
 import { PortalMoreBottomNav } from "~/components/ui/portal-more-bottom-nav";
+import { REMINDERS_LINK_TOOLTIP } from "~/components/home/home-card-rows";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
@@ -1178,7 +1179,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       variant="ghost"
                       size="md"
                       className="w-full justify-start gap-3"
-                      tooltip="Öffnet die Liste aller Ihrer Erinnerungen."
+                      tooltip={REMINDERS_LINK_TOOLTIP}
                     >
                       <Bell
                         className="h-5 w-5 text-gray-600"

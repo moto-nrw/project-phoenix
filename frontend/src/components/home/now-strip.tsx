@@ -7,7 +7,10 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { useBerlinClock } from "~/components/home/home-card-rows";
+import {
+  STUDENT_SEARCH_LINK_TOOLTIP,
+  useBerlinClock,
+} from "~/components/home/home-card-rows";
 import {
   START_OWN_BLOCK_TOOLTIP,
   useStartOwnBlock,
@@ -227,7 +230,7 @@ export function NowStrip({
                   tooltip={
                     action.href === tenantPath("/active-supervisions")
                       ? "Öffnet Ihre laufende Aufsicht."
-                      : "Öffnet die Suche über alle Kinder der Schule."
+                      : STUDENT_SEARCH_LINK_TOOLTIP
                   }
                 >
                   {action.label}

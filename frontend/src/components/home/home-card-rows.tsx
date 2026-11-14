@@ -39,6 +39,14 @@ export function HomeCardLink({
   );
 }
 
+/** Erklärung am Weg in die Kindersuche, gleich in Karte und Jetzt-Zone (#6777). */
+export const STUDENT_SEARCH_LINK_TOOLTIP =
+  "Öffnet die Suche über alle Kinder der Schule.";
+
+/** Erklärung am Weg zu allen Erinnerungen, gleich in Karte und „Mehr“ (#6777). */
+export const REMINDERS_LINK_TOOLTIP =
+  "Öffnet die Liste aller Ihrer Erinnerungen.";
+
 /**
  * Erklärung am Weiterlink „Zum Betreuungsplan“ / „Heute öffnen“ (#6777):
  * `useDayPlanHref` führt reine Adminkonten in den Betreuungsplan, alle

@@ -16,6 +16,7 @@ import {
 } from "~/lib/reminders-display";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
+  REMINDERS_LINK_TOOLTIP,
   HomeCardLink,
   HomeMoreRow,
   useHomeCardRows,
@@ -50,7 +51,7 @@ export function RemindersBlock() {
         <HomeCardLink
           href={tenantPath("/reminders")}
           label="Erinnerungen: alle ansehen"
-          tooltip="Öffnet die Liste aller Ihrer Erinnerungen."
+          tooltip={REMINDERS_LINK_TOOLTIP}
         >
           Alle ansehen
         </HomeCardLink>

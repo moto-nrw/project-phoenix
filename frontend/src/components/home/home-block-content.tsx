@@ -18,6 +18,7 @@ import { ListRow } from "~/components/ui/list-row";
 import { SkeletonRows } from "~/components/ui/skeleton";
 import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import {
+  STUDENT_SEARCH_LINK_TOOLTIP,
   HomeCardLink,
   HomeMoreRow,
   useHomeCardRows,
@@ -126,7 +127,7 @@ function ListCard({
           <HomeCardLink
             href={href}
             label={`${title}: ${linkText}`}
-            tooltip={linkTooltip ?? ""}
+            tooltip={linkTooltip}
           >
             {linkText}
           </HomeCardLink>
@@ -385,7 +386,7 @@ function StudentsCard({ data }: { readonly data: HomeBlockData }) {
       concept={childrenConcept}
       href={data.tenantPath("/students/search")}
       linkText="Alle Kinder"
-      linkTooltip="Öffnet die Suche über alle Kinder der Schule."
+      linkTooltip={STUDENT_SEARCH_LINK_TOOLTIP}
     >
       <div className="space-y-2">
         {STUDENT_STATUS_ROWS.map((row) => {
