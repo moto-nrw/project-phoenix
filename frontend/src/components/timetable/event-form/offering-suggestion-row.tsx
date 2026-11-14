@@ -5,6 +5,13 @@ import { InsetPanel } from "~/components/ui/inset-panel";
 import type { OfferingSuggestion } from "~/lib/offering-suggestion";
 import { offeringNamesFor, offeringSetNames } from "~/lib/roster-deviation";
 
+// Übernehmen ändert nur das Formular; gespeichert wird mit dem Termin.
+function applyTooltip(offeringCount: number): string {
+  return offeringCount > 1
+    ? "Verbindet den Termin mit diesen Angeboten und nimmt deren Kinder."
+    : "Verbindet den Termin mit dem Angebot und nimmt dessen Kinder.";
+}
+
 /**
  * Offers to take the children from the offerings whose bookings match the
  * planned list (#5104). A Klasse brings every child of the class; this line
@@ -47,6 +54,7 @@ export function OfferingSuggestionRow({
               size="md"
               className="max-w-full text-left break-words whitespace-normal"
               onClick={() => onApply(choice.map((offering) => offering.id))}
+              tooltip={applyTooltip(choice.length)}
             >
               {`${offeringSetNames(choice)} übernehmen`}
             </Button>
@@ -61,6 +69,7 @@ export function OfferingSuggestionRow({
           onClick={() =>
             onApply(suggestion.offerings.map((offering) => offering.id))
           }
+          tooltip={applyTooltip(suggestion.offerings.length)}
         >
           {suggestion.offerings.length > 1
             ? "Angebote übernehmen"

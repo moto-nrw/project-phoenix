@@ -152,6 +152,31 @@ const CONFIRM_DIALOGS: Record<
   },
 };
 
+// Was der letzte Knopf der Rückfrage tut (#6643). Beim Absagen hängt es an
+// der Nachricht, die nur mit Haken, Betreff und Text verschickt wird.
+function confirmTooltip(
+  action: PendingConfirmAction,
+  sendsGuardianNotice: boolean,
+): string {
+  if (action === "complete")
+    return "Beendet den Termin, bis zum geplanten Ende lässt er sich wieder öffnen.";
+  if (action === "reopen")
+    return "Öffnet den Termin wieder, Aufsicht und Anwesenheiten kommen zurück.";
+  return sendsGuardianNotice
+    ? "Sagt den Termin ab und schickt den Eltern sofort die Nachricht."
+    : "Sagt den Termin ab, die Eltern bekommen keine Nachricht.";
+}
+
+// Grund, solange `guardianNoticeIncomplete` das Absagen sperrt.
+function guardianNoticeBlockedReason(
+  draft: GuardianNoticeDraft | null,
+  reach: GuardianNoticeReach | null,
+): string {
+  return draft === null && reach === null
+    ? "moto prüft noch, welche Familien die Nachricht erreicht."
+    : "Geben Sie zuerst Betreff und Text an die Eltern ein.";
+}
+
 interface InstanceDetailModalProps {
   instance: EnrichedInstance | null;
   onClose: () => void;
@@ -450,6 +475,11 @@ function AssignedStaffSection({
           variant="surface"
           size="compact"
           onClick={() => onOpenPool(instance)}
+          tooltip={
+            canManageStaffPool
+              ? "Öffnet den Personalpool, um jemanden für den Termin hinzuzuziehen."
+              : "Zeigt, welches Personal für diesen Termin bereitsteht."
+          }
         >
           <span className="inline-flex items-center gap-1.5">
             {canManageStaffPool ? (
@@ -877,6 +907,7 @@ export function InstanceDetailModal({
               variant="outline"
               size="md"
               className="gap-2"
+              tooltip="Öffnet den Vertretungsplan an diesem Tag mit diesem Termin."
             >
               <MotoConceptIcon concept={substitutionConcept} size={18} />
               Vertretung eintragen
@@ -889,6 +920,7 @@ export function InstanceDetailModal({
             type="button"
             onClick={() => onEdit(instance)}
             disabled={pendingAction !== null}
+            tooltip="Öffnet nur diesen einen Termin zum Ändern."
           >
             <span className="inline-flex items-center gap-2">
               <Pencil className="h-4 w-4" />
@@ -905,6 +937,7 @@ export function InstanceDetailModal({
               type="button"
               onClick={() => onRepeat(instance)}
               disabled={pendingAction !== null}
+              tooltip="Öffnet ein Fenster, um aus dem Termin eine Wochenserie zu machen."
             >
               <span className="inline-flex items-center gap-2">
                 <Repeat className="h-4 w-4" />
@@ -921,6 +954,12 @@ export function InstanceDetailModal({
             isLoading={pendingAction === "complete"}
             loadingText="Beende …"
             disabled={pendingAction !== null || !completeEnabled}
+            disabledReason={
+              pendingAction === null && !completeEnabled
+                ? `Beenden geht erst ab ${completeAvailableClock(instance.completeAvailableAt, instance.endTime)} Uhr.`
+                : undefined
+            }
+            tooltip="Beendet die laufende Betreuung, moto fragt vorher nach."
           >
             <span className="inline-flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4" />
@@ -941,6 +980,7 @@ export function InstanceDetailModal({
               isLoading={pendingAction === "cancel"}
               loadingText="Sage ab …"
               disabled={pendingAction !== null}
+              tooltip="Sagt den Termin ab, moto fragt vorher nach und informiert auf Wunsch Eltern."
             >
               <span className="inline-flex items-center gap-2">
                 <CircleX className="h-4 w-4" />
@@ -957,6 +997,11 @@ export function InstanceDetailModal({
             isLoading={pendingDelete}
             loadingText="Lösche …"
             disabled={pendingAction !== null || pendingDelete}
+            tooltip={
+              seriesEndAvailable
+                ? "Löscht diese Woche oder die Serie ab hier, moto fragt vorher nach."
+                : "Löscht den Termin, moto fragt vorher nach."
+            }
           >
             <span className="inline-flex items-center gap-2">
               <Trash2 className="h-4 w-4" />
@@ -979,6 +1024,7 @@ export function InstanceDetailModal({
                 isLoading={pendingAction === "reopen"}
                 loadingText="Öffne wieder …"
                 disabled={pendingAction !== null}
+                tooltip="Öffnet den Termin mit Aufsicht und Anwesenheiten wieder, moto fragt vorher nach."
               >
                 Wieder öffnen
               </Button>
@@ -1000,6 +1046,7 @@ export function InstanceDetailModal({
                 isLoading={pendingDelete}
                 loadingText="Lösche …"
                 disabled={pendingAction !== null || pendingDelete}
+                tooltip="Löscht den abgesagten Termin, moto fragt vorher nach."
               >
                 <span className="inline-flex items-center gap-2">
                   <Trash2 className="h-4 w-4" />
@@ -1243,6 +1290,15 @@ export function InstanceDetailModal({
           title={CONFIRM_DIALOGS[pendingConfirm].title}
           confirmText={CONFIRM_DIALOGS[pendingConfirm].confirmText}
           cancelText="Abbrechen"
+          confirmTooltip={confirmTooltip(
+            pendingConfirm,
+            guardianNoticePayload(noticeDraft, noticeReach) !== undefined,
+          )}
+          confirmDisabledReason={
+            pendingConfirm === "cancel"
+              ? guardianNoticeBlockedReason(noticeDraft, noticeReach)
+              : undefined
+          }
           isConfirmDisabled={
             pendingConfirm === "cancel" &&
             guardianNoticeIncomplete(
@@ -1323,6 +1379,11 @@ export function InstanceDetailModal({
         }
         gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
         confirmLabel={deleteScopeAvailable ? "Löschen" : "Endgültig löschen"}
+        confirmTooltip={
+          deleteScope === "following"
+            ? "Beendet den Regeltermin sofort ab diesem Datum, frühere bleiben."
+            : "Löscht nur diesen Termin sofort und endgültig."
+        }
         onConfirm={handleConfirmDelete}
         onClose={() => setDeleteOpen(false)}
         loading={pendingDelete}
@@ -1428,6 +1489,7 @@ function StudentGroup({
                     icon={<Check className="h-3.5 w-3.5" />}
                     label={`${studentName} als anwesend markieren`}
                     tone="green"
+                    tooltip="Trägt das Kind sofort als anwesend in diesem Termin ein."
                     isLoading={pendingStudentId === student.studentId}
                     disabled={pending}
                     onClick={() =>
@@ -1447,6 +1509,11 @@ function StudentGroup({
                         : `${studentName} als fehlend markieren`
                     }
                     tone="red"
+                    tooltip={
+                      isPlanned
+                        ? "Meldet das Kind sofort entschuldigt von diesem Termin ab."
+                        : "Trägt das Kind sofort als fehlend in diesem Termin ein."
+                    }
                     isLoading={pendingStudentId === student.studentId}
                     disabled={pending}
                     onClick={() =>
@@ -1462,6 +1529,7 @@ function StudentGroup({
                     icon={<RotateCcw className="h-3.5 w-3.5" />}
                     label={`Status von ${studentName} zurücksetzen`}
                     tone="slate"
+                    tooltip="Nimmt Status und Notiz sofort zurück, das Kind gilt wieder als erwartet."
                     isLoading={pendingStudentId === student.studentId}
                     disabled={pending}
                     onClick={() =>
@@ -1492,6 +1560,7 @@ interface IconActionButtonProps {
   icon: React.ReactNode;
   label: string;
   tone: IconActionTone;
+  tooltip: string;
   onClick: () => void;
   isLoading?: boolean;
   disabled?: boolean;
@@ -1508,6 +1577,7 @@ function IconActionButton({
   icon,
   label,
   tone,
+  tooltip,
   onClick,
   isLoading,
   disabled,
@@ -1519,7 +1589,7 @@ function IconActionButton({
       size="icon"
       onClick={onClick}
       disabled={disabled || isLoading}
-      title={label}
+      tooltip={tooltip}
       aria-label={label}
     >
       {isLoading ? (

@@ -180,6 +180,11 @@ function PickupExtensionStep({
   });
 
   const firstName = task.studentName.split(" ")[0] ?? task.studentName;
+  // Während eines Speicherns bleiben beide Knöpfe ohne Grund gesperrt.
+  const staleReason =
+    busy === null && stale
+      ? "Die Termine haben sich geändert, moto lädt die Auswahl neu."
+      : undefined;
   const title = position
     ? `Längere Betreuung eintragen (${position})`
     : "Längere Betreuung eintragen";
@@ -200,6 +205,8 @@ function PickupExtensionStep({
             isLoading={busy === "none"}
             loadingText="Wird gespeichert …"
             onClick={() => void decide([])}
+            disabledReason={staleReason}
+            tooltip="Erledigt die Frage, ohne das Kind einem Termin zuzuordnen."
           >
             Keinem Termin zuordnen
           </Button>
@@ -211,6 +218,13 @@ function PickupExtensionStep({
             isLoading={busy === "assign"}
             loadingText="Wird eingetragen …"
             onClick={() => void decide([...selected])}
+            disabledReason={
+              staleReason ??
+              (busy === null && selected.size === 0
+                ? "Wählen Sie zuerst mindestens einen Termin aus."
+                : undefined)
+            }
+            tooltip="Trägt das Kind für die längere Zeit in die gewählten Termine ein."
           >
             Eintragen
           </Button>
