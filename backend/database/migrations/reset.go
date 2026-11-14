@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/uptrace/bun"
 )
@@ -107,24 +108,10 @@ func resetDatabase(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 		logger.WarnContext(ctx, "failed to drop bun migration tables", "error", err)
 	}
 
-	// 2. Drop the custom types left in the public schema. Collect the names
-	// first so no rows stay open while the DROP statements run.
-	typeNames, err := droppablePublicTypes(ctx, db)
-	if err != nil {
-		return fmt.Errorf("failed to query custom types: %w", err)
-	}
-	for _, typeName := range typeNames {
-		logger.DebugContext(ctx, "dropping custom type", "type", typeName)
-		// Qualify the name. The query only ever returns types in public, while
-		// an unqualified DROP TYPE resolves through search_path, so under a
-		// non-default search_path the two could disagree: the drop would target
-		// another schema's type or, with IF EXISTS, quietly do nothing and
-		// leave the public type behind for the next CREATE TYPE to collide with.
-		_, err := db.ExecContext(ctx, "DROP TYPE IF EXISTS ?.? CASCADE",
-			bun.Ident(publicSchema), bun.Ident(typeName))
-		if err != nil {
-			return fmt.Errorf("failed to drop type %s.%s: %w", publicSchema, typeName, err)
-		}
+	// 2. Drop what migrations left in the public schema: functions and
+	// custom types (dropPublicLeftovers).
+	if err := dropPublicLeftovers(ctx, db, logger); err != nil {
+		return err
 	}
 
 	// 3. Drop the extensions. The named types this step used to drop as well
@@ -150,6 +137,107 @@ func resetDatabase(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 
 	logger.InfoContext(ctx, "schemas dropped and recreated", "count", len(resetSchemas))
 	return nil
+}
+
+// droppablePublicRoutinesQuery lists the functions and procedures in the
+// public schema a reset may drop: every one an extension does not own
+// (pg_depend.deptype = 'e'), with its identity arguments.
+const droppablePublicRoutinesQuery = `
+	SELECT p.proname, pg_get_function_identity_arguments(p.oid)
+	FROM pg_proc p
+	JOIN pg_namespace n ON n.oid = p.pronamespace
+	WHERE n.nspname = 'public'
+	  AND p.prokind IN ('f', 'p')
+	  AND NOT EXISTS (
+	    SELECT 1 FROM pg_depend d
+	    WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e'
+	  )
+	ORDER BY p.proname, 2
+`
+
+// publicRoutine is a function or procedure in public with its identity
+// arguments.
+type publicRoutine struct {
+	name, arguments string
+}
+
+// dropPublicLeftovers drops what migrations left in the public schema,
+// which step 1 keeps.
+//
+// Functions first (#7009): a plain CREATE FUNCTION there, such as
+// f_phone_search_key, fails on the next migration of a reset database
+// otherwise. Functions of extensions stay.
+//
+// Then the custom types. Collect the names first so no rows stay open while
+// the DROP statements run.
+func dropPublicLeftovers(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
+	if err := dropPublicRoutines(ctx, db, logger); err != nil {
+		return err
+	}
+	typeNames, err := droppablePublicTypes(ctx, db)
+	if err != nil {
+		return fmt.Errorf("failed to query custom types: %w", err)
+	}
+	for _, typeName := range typeNames {
+		logger.DebugContext(ctx, "dropping custom type", "type", typeName)
+		// Qualify the name. The query only ever returns types in public, while
+		// an unqualified DROP TYPE resolves through search_path, so under a
+		// non-default search_path the two could disagree: the drop would target
+		// another schema's type or, with IF EXISTS, quietly do nothing and
+		// leave the public type behind for the next CREATE TYPE to collide with.
+		if _, err := db.ExecContext(ctx, "DROP TYPE IF EXISTS ?.? CASCADE",
+			bun.Ident(publicSchema), bun.Ident(typeName)); err != nil {
+			return fmt.Errorf("failed to drop type %s.%s: %w", publicSchema, typeName, err)
+		}
+	}
+	return nil
+}
+
+// dropPublicRoutines drops every function and procedure in public that no
+// extension owns.
+func dropPublicRoutines(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
+	routines, err := droppablePublicRoutines(ctx, db)
+	if err != nil {
+		return fmt.Errorf("failed to query public functions: %w", err)
+	}
+	for _, routine := range routines {
+		logger.DebugContext(ctx, "dropping public function", "function", routine.name)
+		if _, err := db.ExecContext(ctx, routine.dropStatement()); err != nil {
+			return fmt.Errorf("failed to drop function %s.%s: %w", publicSchema, routine.name, err)
+		}
+	}
+	return nil
+}
+
+// dropStatement drops the routine. The name is quoted; the arguments come
+// from the catalog (pg_get_function_identity_arguments). It carries no bind
+// placeholder, which bun would read in "?(".
+func (r publicRoutine) dropStatement() string {
+	return fmt.Sprintf("DROP ROUTINE IF EXISTS %s.%s(%s) CASCADE", quoteIdent(publicSchema), quoteIdent(r.name), r.arguments)
+}
+
+// quoteIdent quotes a PostgreSQL identifier.
+func quoteIdent(name string) string {
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+}
+
+// droppablePublicRoutines returns the functions and procedures in public a
+// reset may drop.
+func droppablePublicRoutines(ctx context.Context, db *bun.DB) ([]publicRoutine, error) {
+	rows, err := db.QueryContext(ctx, droppablePublicRoutinesQuery)
+	if err != nil {
+		return nil, fmt.Errorf("query droppable public functions: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var routines []publicRoutine
+	for rows.Next() {
+		var routine publicRoutine
+		if err := rows.Scan(&routine.name, &routine.arguments); err != nil {
+			return nil, fmt.Errorf("scan public function: %w", err)
+		}
+		routines = append(routines, routine)
+	}
+	return routines, rows.Err()
 }
 
 // droppablePublicTypes returns the names of the types in the public schema that

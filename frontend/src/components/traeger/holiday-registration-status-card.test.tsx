@@ -26,7 +26,11 @@ const {
   mockConfirmDebtorNumber,
   mockChangeDebtorNumber,
   mockFamilyChoice,
+  mockChildNumbers,
+  mockSetChildNumbers,
 } = vi.hoisted(() => ({
+  mockChildNumbers: vi.fn(),
+  mockSetChildNumbers: vi.fn(),
   mockChange: vi.fn(),
   mockCancel: vi.fn(),
   mockConfirm: vi.fn(),
@@ -54,13 +58,20 @@ vi.mock("~/lib/traeger-contributions-api", async (importOriginal) => ({
     debtorNumber?: string,
     costBearerId?: string,
     familyChoice?: string,
+    childNumbers?: unknown,
   ) => {
     mockConfirmDebtorNumber(debtorNumber);
     mockFamilyChoice(familyChoice);
+    mockChildNumbers(childNumbers);
     return costBearerId === undefined
       ? mockConfirm(periodId, id, benefitsExemption)
       : mockConfirm(periodId, id, benefitsExemption, costBearerId);
   },
+  setHolidayChildDebtorNumbers: (
+    periodId: string,
+    id: string,
+    numbers: unknown,
+  ) => mockSetChildNumbers(periodId, id, numbers),
   changeHolidayDebtorNumber: (
     periodId: string,
     id: string,
@@ -115,6 +126,145 @@ describe("HolidayRegistrationStatusCard", () => {
     mockConfirmDebtorNumber.mockReset();
     mockChangeDebtorNumber.mockReset();
     mockFamilyChoice.mockReset();
+    mockChildNumbers.mockReset();
+    mockSetChildNumbers.mockReset();
+  });
+
+  describe("with a debtor number per child (#7007)", () => {
+    const children = [
+      {
+        childId: "71",
+        firstName: "Mia",
+        lastName: "Muster",
+        debtorNumber: "60101",
+      },
+      {
+        childId: "72",
+        firstName: "Noah",
+        lastName: "Muster",
+        debtorNumber: "",
+      },
+    ];
+    const renderPerChild = (
+      registration: HolidayRegistrationDetail,
+      legacy = false,
+    ) =>
+      render(
+        <ToastProvider>
+          <HolidayRegistrationStatusCard
+            periodId="5"
+            registration={registration}
+            contribution={HOLIDAY_CONTRIBUTION}
+            debtorNumberRequired
+            debtorNumberFormat={
+              legacy
+                ? { digitsOnly: true, minDigits: 6, maxDigits: 6 }
+                : undefined
+            }
+            childDebtorNumbers={children}
+            exemption={false}
+            onExemptionChange={vi.fn()}
+            onChanged={vi.fn()}
+            onReload={vi.fn(() => Promise.resolve())}
+            onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
+          />
+        </ToastProvider>,
+      );
+
+    it("asks for the number of each child and confirms with them", async () => {
+      mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
+      renderPerChild(HOLIDAY_REGISTRATION);
+
+      expect(screen.getByLabelText(/^Mia Muster/)).toHaveValue("60101");
+      expect(
+        screen.queryByRole("textbox", { name: /^Debitorennummer/ }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+      expect(
+        await screen.findByText("Bitte geben Sie die Debitorennummer ein."),
+      ).toBeInTheDocument();
+      expect(mockConfirm).not.toHaveBeenCalled();
+
+      fireEvent.change(screen.getByLabelText(/^Noah Muster/), {
+        target: { value: " 60102 " },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+      await waitFor(() => expect(mockConfirm).toHaveBeenCalledTimes(1));
+      expect(mockConfirmDebtorNumber).toHaveBeenCalledWith("");
+      expect(mockChildNumbers).toHaveBeenCalledWith([
+        { childId: "71", debtorNumber: "60101" },
+        { childId: "72", debtorNumber: "60102" },
+      ]);
+    });
+
+    it("keeps the registration number editable alongside the child numbers", async () => {
+      mockChangeDebtorNumber.mockResolvedValue({
+        registrationId: "7",
+        debtorNumber: "60104",
+      });
+      renderPerChild({
+        ...HOLIDAY_REGISTRATION,
+        status: "confirmed",
+        debtorNumber: "OLD",
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Debitorennummer ändern" }),
+      );
+      fireEvent.change(
+        screen.getByRole("textbox", { name: /^Debitorennummer/ }),
+        { target: { value: "60104" } },
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      await waitFor(() =>
+        expect(mockChangeDebtorNumber).toHaveBeenCalledWith("5", "7", "60104"),
+      );
+    });
+
+    it.each(["received", "confirmed"] as const)(
+      "preserves untouched legacy numbers when %s",
+      async (status) => {
+        mockConfirm.mockResolvedValue(HOLIDAY_CONTRIBUTION);
+        mockSetChildNumbers.mockResolvedValue([]);
+        renderPerChild({ ...HOLIDAY_REGISTRATION, status }, true);
+        if (status === "confirmed")
+          fireEvent.click(
+            screen.getByRole("button", { name: "Nummern der Kinder ändern" }),
+          );
+        fireEvent.change(screen.getByLabelText(/^Noah Muster/), {
+          target: { value: "601032" },
+        });
+        fireEvent.click(
+          screen.getByRole("button", {
+            name: status === "received" ? "Bestätigen" : "Speichern",
+          }),
+        );
+        await waitFor(() =>
+          expect(
+            status === "received" ? mockConfirm : mockSetChildNumbers,
+          ).toHaveBeenCalledTimes(1),
+        );
+      },
+    );
+
+    it("changes the numbers of the children of a confirmed registration", async () => {
+      mockSetChildNumbers.mockResolvedValue([]);
+      renderPerChild({ ...HOLIDAY_REGISTRATION, status: "confirmed" });
+
+      expect(screen.getByText("60101")).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Nummern der Kinder ändern" }),
+      );
+      fireEvent.change(screen.getByLabelText(/^Noah Muster/), {
+        target: { value: "60103" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      await waitFor(() =>
+        expect(mockSetChildNumbers).toHaveBeenCalledWith("5", "7", [
+          { childId: "71", debtorNumber: "60101" },
+          { childId: "72", debtorNumber: "60103" },
+        ]),
+      );
+    });
   });
 
   it("names a possible double registration and where the other one opens", () => {
