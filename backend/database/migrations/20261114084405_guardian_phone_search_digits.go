@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const guardianPhoneSearchDigitsVersion = "20261114065713"
+const guardianPhoneSearchDigitsVersion = "20261114084405"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

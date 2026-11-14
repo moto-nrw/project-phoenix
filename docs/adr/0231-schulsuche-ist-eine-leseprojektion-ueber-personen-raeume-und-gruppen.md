@@ -96,7 +96,7 @@ Drei Fragen waren offen:
    - **Der Schlüssel steht in der Zeile der Nummer:**
      `users.guardian_phone_numbers.search_digits` ist eine generierte Spalte
      über `public.f_phone_search_key(phone_number)` (Migration
-     `20261114065713`). Die Datenbank füllt sie bei jedem Schreiben, kein
+     `20261114084405`). Die Datenbank füllt sie bei jedem Schreiben, kein
      Schreiber kann sie veralten lassen, und sie geht mit ihrer Zeile.
      Beim Lesen berechnet, kostete der Schlüssel drei reguläre Ausdrücke je
      Vergleich und war die teuerste Anweisung einer Suche. Die Tabelle
