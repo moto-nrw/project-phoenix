@@ -23,20 +23,29 @@ export type TraegerLoginResult =
       readonly status: "organization_selection_required";
       readonly organizations: readonly TraegerChoice[];
     }
-  | {
+  | ({
       /** The account has a second factor: a code was mailed (#4651). */
       readonly status: "mfa_required";
       readonly challengeToken: string;
       readonly maskedEmail: string;
       readonly organizationId: string;
-    }
-  | {
+    } & TrustedDeviceOffer)
+  | ({
       /** The account sets up its second factor first. */
       readonly status: "mfa_enrollment_required";
       readonly enrollmentToken: string;
       readonly maskedEmail: string;
       readonly organizationId: string;
-    };
+    } & TrustedDeviceOffer);
+
+/**
+ * Whether the code step may remember the device at this Träger, and for how
+ * long (#6955).
+ */
+export interface TrustedDeviceOffer {
+  readonly trustedDeviceEnabled: boolean;
+  readonly trustedDeviceDays: number;
+}
 
 interface BackendLoginResponse {
   status?: string;
@@ -45,6 +54,15 @@ interface BackendLoginResponse {
   masked_email?: string;
   organization_id?: number;
   organizations?: { id: number; name: string }[];
+  trusted_device_enabled?: boolean;
+  trusted_device_days?: number;
+}
+
+function trustedDeviceOffer(result: BackendLoginResponse): TrustedDeviceOffer {
+  return {
+    trustedDeviceEnabled: result.trusted_device_enabled === true,
+    trustedDeviceDays: result.trusted_device_days ?? 0,
+  };
 }
 
 export interface TraegerSchool {
@@ -278,6 +296,7 @@ export async function traegerLogin(input: {
       challengeToken: result.challenge_token,
       maskedEmail: result.masked_email ?? "",
       organizationId: String(result.organization_id ?? ""),
+      ...trustedDeviceOffer(result),
     };
   }
   if (result.status === "mfa_enrollment_required" && result.access_token) {
@@ -286,6 +305,7 @@ export async function traegerLogin(input: {
       enrollmentToken: result.access_token,
       maskedEmail: result.masked_email ?? "",
       organizationId: String(result.organization_id ?? ""),
+      ...trustedDeviceOffer(result),
     };
   }
   if (result.status !== "authenticated")

@@ -53,9 +53,11 @@ type TrustedDeviceMail struct {
 	// AddedAt is the German-formatted moment the device was trusted.
 	AddedAt     string
 	TrustedDays int
-	// Caterer marks a device of the caterer portal (#4497): its holder
-	// manages it in the caterer's account, and a moto operator resets it.
-	Caterer bool
+	// Portal names the portal that remembered the device (#4497, #6955):
+	// the holder manages it there. The caterer and the Träger-Büro turn to
+	// the moto team for a reset, everybody else to their school. Empty for
+	// an operator.
+	Portal string
 }
 
 // CatererMFAResetMail tells a caterer that a moto operator reset its second

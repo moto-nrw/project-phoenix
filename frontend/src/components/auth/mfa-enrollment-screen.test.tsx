@@ -106,7 +106,7 @@ describe("MFAEnrollmentScreen", () => {
     });
   });
 
-  it("auto-submits enroll/confirm when 6 digits are entered and shows the success screen", async () => {
+  it("confirms enroll/confirm with the button and shows the success screen", async () => {
     const startMock = mockResponse(200, START);
     const confirmMock = mockResponse(200, {
       status: "authenticated",
@@ -136,6 +136,9 @@ describe("MFAEnrollmentScreen", () => {
     const inputs = screen.getAllByRole("textbox").slice(0, 6);
     await act(async () => {
       fireEvent.change(inputs[0]!, { target: { value: "987654" } });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
     });
 
     await waitFor(() => {
@@ -167,6 +170,42 @@ describe("MFAEnrollmentScreen", () => {
     });
   });
 
+  it("remembers the device at setup only through the second button (#6955)", async () => {
+    global.fetch = vi.fn(async (url) =>
+      String(url).endsWith("/start")
+        ? Response.json(START)
+        : Response.json({ status: "authenticated" }),
+    );
+    render(
+      <MFAEnrollmentScreen
+        {...props}
+        trustedDeviceEnabled
+        trustedDeviceDays={90}
+        onComplete={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Code an meine E-Mail senden" }),
+    );
+    fireEvent.change(await screen.findByLabelText("Stelle 1"), {
+      target: { value: "123456" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Bestätigen und dieses Gerät 90 Tage merken",
+      }),
+    );
+    await screen.findByRole("heading", { name: "2FA erfolgreich aktiviert" });
+    const confirm = vi
+      .mocked(global.fetch)
+      .mock.calls.find(([url]) => String(url).endsWith("/enroll/confirm"));
+    const init = confirm?.[1];
+    expect(JSON.parse(String(init?.body))).toMatchObject({
+      code: "123456",
+      remember_device: true,
+    });
+  });
+
   it("keeps a failed final session read visible and allows Continue to retry", async () => {
     global.fetch = vi.fn(async (url) =>
       String(url).endsWith("/start")
@@ -184,6 +223,7 @@ describe("MFAEnrollmentScreen", () => {
     fireEvent.change(await screen.findByLabelText("Stelle 1"), {
       target: { value: "123456" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
     await screen.findByRole("heading", { name: "2FA erfolgreich aktiviert" });
     fireEvent.click(
       screen.getByRole("button", { name: "Weiter zum Dashboard" }),
@@ -227,6 +267,9 @@ describe("MFAEnrollmentScreen", () => {
     const inputs = screen.getAllByRole("textbox").slice(0, 6);
     await act(async () => {
       fireEvent.change(inputs[0]!, { target: { value: "111111" } });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
     });
 
     await waitFor(() => {
@@ -278,6 +321,7 @@ describe("MFAEnrollmentScreen", () => {
     fireEvent.change(await screen.findByLabelText("Stelle 1"), {
       target: { value: "123456" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
 
     expect(
       await screen.findByText(

@@ -116,8 +116,8 @@ func (c ComposedAccountMFA) ResetMFAInTransaction(ctx context.Context, accountID
 	return MFAError(c.Flows.disableCascade(ctx, accountID))
 }
 
-func (c ComposedAccountMFA) PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
-	issue, err := c.Flows.PrepareTrustedDevice(c.ctx(ctx), accountID, tenantID, userAgent, ip)
+func (c ComposedAccountMFA) PrepareTrustedDevice(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+	issue, err := c.Flows.PrepareTrustedDevice(c.ctx(ctx), accountID, domain.TrustedDeviceScope(scope), userAgent, ip)
 	if err != nil || issue == nil {
 		return nil, MFAError(err)
 	}
@@ -127,21 +127,21 @@ func (c ComposedAccountMFA) PrepareTrustedDevice(ctx context.Context, accountID,
 	}, nil
 }
 
-func (c ComposedAccountMFA) IssueTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {
-	issue, err := c.PrepareTrustedDevice(ctx, accountID, tenantID, userAgent, ip)
+func (c ComposedAccountMFA) IssueTrustedDevice(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope, userAgent string, ip net.IP) (string, time.Time, error) {
+	issue, err := c.PrepareTrustedDevice(ctx, accountID, scope, userAgent, ip)
 	if err != nil || issue == nil {
 		return "", time.Time{}, err
 	}
 	return issue(ctx)
 }
 
-func (c ComposedAccountMFA) VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error) {
-	verified, err := c.Flows.VerifyTrustedDevice(c.ctx(ctx), accountID, tenantID, signedCookie)
+func (c ComposedAccountMFA) VerifyTrustedDevice(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope, signedCookie string) (bool, error) {
+	verified, err := c.Flows.VerifyTrustedDevice(c.ctx(ctx), accountID, domain.TrustedDeviceScope(scope), signedCookie)
 	return verified, MFAError(err)
 }
 
-func (c ComposedAccountMFA) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error) {
-	devices, err := c.Flows.records.ListActiveTrustedDevices(c.ctx(ctx), accountID, tenantID)
+func (c ComposedAccountMFA) ListTrustedDevices(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope) ([]identityaccess.AccountTrustedDevice, error) {
+	devices, err := c.Flows.ListTrustedDevices(c.ctx(ctx), accountID, domain.TrustedDeviceScope(scope))
 	if err != nil {
 		return nil, MFAError(err)
 	}
@@ -152,8 +152,8 @@ func (c ComposedAccountMFA) ListTrustedDevices(ctx context.Context, accountID, t
 	return result, nil
 }
 
-func (c ComposedAccountMFA) RevokeTrustedDevice(ctx context.Context, accountID, tenantID, deviceID int64) error {
-	return MFAError(c.Flows.RevokeTrustedDevice(c.ctx(ctx), accountID, tenantID, deviceID))
+func (c ComposedAccountMFA) RevokeTrustedDevice(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope, deviceID int64) error {
+	return MFAError(c.Flows.RevokeTrustedDevice(c.ctx(ctx), accountID, domain.TrustedDeviceScope(scope), deviceID))
 }
 
 func (c ComposedAccountMFA) AdminDisableMFA(ctx context.Context, actorID, actorTenantID, targetAccountID int64, reason string, actorPermissions []string) error {
@@ -227,11 +227,11 @@ func (g CapabilityGate) HasEnrollment(ctx context.Context, accountID int64) (boo
 	return g.Capability.HasMFAEnrollment(ctx, accountID)
 }
 
-func (g CapabilityGate) VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, cookie string) (bool, error) {
+func (g CapabilityGate) VerifyTrustedDevice(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope, cookie string) (bool, error) {
 	if g.Capability == nil {
 		return false, nil
 	}
-	return g.Capability.VerifyTrustedDevice(ctx, accountID, tenantID, cookie)
+	return g.Capability.VerifyTrustedDevice(ctx, accountID, identityaccess.TrustedDeviceScope(scope), cookie)
 }
 
 func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string, credentialGeneration int64) (string, error) {

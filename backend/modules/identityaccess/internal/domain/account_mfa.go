@@ -43,20 +43,24 @@ type AccountMFAChallenge struct {
 }
 
 // AccountTrustedDevice is the server-side record of a remember-device
-// cookie. TenantID pins the trust to one school: a cookie issued for school
-// A never bypasses MFA at school B.
+// cookie. Portal, TenantID and OrganizationID pin the trust to the scope
+// that remembered it (#6955): a cookie issued for school A never bypasses
+// MFA at school B, nor one of the tenant portal in moto schule, nor one of
+// a Träger at another Träger.
 type AccountTrustedDevice struct {
-	ID         int64
-	AccountID  int64
-	TenantID   int64
-	TokenHash  string
-	UserAgent  *string
-	IPAddress  net.IP
-	ExpiresAt  time.Time
-	LastUsedAt *time.Time
-	RevokedAt  *time.Time
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID             int64
+	AccountID      int64
+	Portal         string
+	TenantID       int64
+	OrganizationID int64
+	TokenHash      string
+	UserAgent      *string
+	IPAddress      net.IP
+	ExpiresAt      time.Time
+	LastUsedAt     *time.Time
+	RevokedAt      *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // AccountMFAOverride is an admin's verdict on one account. TenantID is nil
@@ -106,3 +110,43 @@ type MFAChallengeClaims struct {
 	// under (#6289).
 	CredentialGeneration int64
 }
+
+// TrustedDeviceScope is where a remembered device counts (#6955): one portal
+// and, for a portal of a school, that school; for the Träger-Portal, its
+// Träger. The caterer's devices name neither (ADR 0077 addendum).
+type TrustedDeviceScope struct {
+	Portal         string
+	TenantID       int64
+	OrganizationID int64
+}
+
+// DeviceScopeOf is the device scope of a portal's sign-in. A portal without
+// a school names none, and only the Träger-Portal names its Träger, so a
+// stray ID never widens or narrows a scope.
+func DeviceScopeOf(portal Portal, tenantID, organizationID int64) TrustedDeviceScope {
+	scope := TrustedDeviceScope{Portal: portal.Name}
+	if !portal.Schoolless() {
+		scope.TenantID = tenantID
+	}
+	if portal.Org == ShapeRequired {
+		scope.OrganizationID = organizationID
+	}
+	return scope
+}
+
+// Valid reports a scope a device may be remembered or found under: a portal
+// that remembers devices, with the school or the Träger its shape demands.
+func (s TrustedDeviceScope) Valid() bool {
+	portal, ok := PortalNamed(s.Portal)
+	if !ok || !portal.TrustedDevice || portal.Name == PortalPlatform.Name {
+		return false
+	}
+	if s != DeviceScopeOf(portal, s.TenantID, s.OrganizationID) {
+		return false
+	}
+	return (portal.Schoolless() || s.TenantID > 0) && (portal.Org != ShapeRequired || s.OrganizationID > 0)
+}
+
+// SettingsSchool is the school whose trusted-device settings apply: the
+// device's school, or none, whose registry defaults then apply.
+func (s TrustedDeviceScope) SettingsSchool() int64 { return s.TenantID }

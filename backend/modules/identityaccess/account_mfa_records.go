@@ -49,20 +49,22 @@ type AccountMFAChallenge struct {
 }
 
 // AccountTrustedDevice is the server-side record of a remember-device
-// cookie; TokenHash is the hash of the cookie's raw token. TenantID pins the
-// trust to one school.
+// cookie; TokenHash is the hash of the cookie's raw token. Portal, TenantID
+// and OrganizationID pin the trust to the scope that remembered it (#6955).
 type AccountTrustedDevice struct {
-	ID         int64
-	AccountID  int64
-	TenantID   int64
-	TokenHash  string
-	UserAgent  *string
-	IPAddress  net.IP
-	ExpiresAt  time.Time
-	LastUsedAt *time.Time
-	RevokedAt  *time.Time
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID             int64
+	AccountID      int64
+	Portal         string
+	TenantID       int64
+	OrganizationID int64
+	TokenHash      string
+	UserAgent      *string
+	IPAddress      net.IP
+	ExpiresAt      time.Time
+	LastUsedAt     *time.Time
+	RevokedAt      *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // AccountMFAOverride is an admin's verdict on one account. TenantID is nil
@@ -124,8 +126,9 @@ type TrustedDeviceMail struct {
 	RequestIP     string
 	AddedAt       string
 	TrustedDays   int
-	// Caterer marks a device of the caterer portal (#4497).
-	Caterer bool
+	// Portal names the portal that remembered the device (#4497, #6955):
+	// the mail says where its holder manages it. Empty for an operator.
+	Portal string
 }
 
 // CatererMFAResetMail tells a caterer that a moto operator reset its second

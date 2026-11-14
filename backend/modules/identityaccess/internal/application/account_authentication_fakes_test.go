@@ -968,7 +968,7 @@ func (m *fakeMFA) ResolvePolicyInTx(ctx context.Context, _, _ int64) (ports.MFAP
 func (m *fakeMFA) HasEnrollment(context.Context, int64) (bool, error) {
 	return m.enrolled, m.enrolledErr
 }
-func (m *fakeMFA) VerifyTrustedDevice(context.Context, int64, int64, string) (bool, error) {
+func (m *fakeMFA) VerifyTrustedDevice(context.Context, int64, domain.TrustedDeviceScope, string) (bool, error) {
 	return m.trusted, nil
 }
 func (m *fakeMFA) StartChallenge(_ context.Context, _, _ int64, scope, _ string, _ int64) (string, error) {

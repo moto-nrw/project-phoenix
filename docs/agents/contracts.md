@@ -859,7 +859,9 @@ Backend paths in this section are relative to `backend/`:
   school's `mfa_mode` and of overrides: login answers `mfa_required` or `mfa_enrollment_required`
   with the resolved `organization_id`, `/traeger/auth/mfa/*` redeems only
   `org`-scope challenges, and mint and refresh refuse a session without
-  `mfa_verified`. No trusted device. The operator reset
+  `mfa_verified`. A device remembered at the chosen Träger replaces the code
+  (ADR 0084 addendum 2026-11-14, #6955); its lifetime is the registry
+  default. The operator reset
   (`DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa`)
   revokes the proof, so the Träger session ends at its next refresh or
   validation.
@@ -920,6 +922,24 @@ Backend paths in this section are relative to `backend/`:
   portal's enrollment token with the school its shape demands. An exchange
   prepares the trusted device (policy and MFA reset generation), mints, then
   stores the device and sets `common.TrustedDeviceCookie`.
+- A remembered device (`auth.mfa_trusted_devices`, cookie
+  `common.TrustedDeviceCookie`) counts only in its scope (#6955): the portal
+  that remembered it (`portal`: `tenant`, `school`, `caterer`, `org`) and, for
+  the tenant portal and moto schule, its school; for the Träger-Portal, its
+  Träger (`organization_id`); the caterer's names neither. The tenant portal
+  and moto schule of one school, the caterer and the Träger-Portal, and two
+  Träger never share a device, for the sign-in, the mint re-check, the list
+  or a revoke (`identityaccess.TrustedDeviceScope`). Every code step offers
+  „Nur dieses Mal bestätigen“ (the submit, also on Enter) and „Bestätigen und
+  dieses Gerät N Tage merken“; only the second sends `remember_device: true`,
+  and only when the login answered `trusted_device_enabled`. The enrollment
+  answer carries the same `trusted_device_*` fields. Each portal lists and
+  revokes its own devices: `/auth/mfa/trusted-devices`,
+  `/school/auth/mfa/trusted-devices`, `/caterer/auth/mfa/trusted-devices`,
+  `/traeger/auth/mfa/trusted-devices`; operators keep their own table. A
+  school's force-off override revokes the devices of both portals of that
+  school. Migration 20261114065038 marked existing school devices `tenant`:
+  a Lehrkraft confirms the next moto schule sign-in with a code once more.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/portalauth`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
   the token wire schema in `modules/identityaccess/tokenprimitives/session_wire.go`, and trusted-device settings

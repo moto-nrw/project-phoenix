@@ -166,14 +166,20 @@ type TraegerLoginResult struct {
 	MaskedEmail    string
 	OrganizationID int64
 	Organizations  []TraegerOrganization
+	// TrustedDeviceEnabled and TrustedDeviceDays tell the code step whether
+	// and for how long it may remember the device (#6955). The Träger-Portal
+	// names no school, so the registry defaults apply.
+	TrustedDeviceEnabled bool
+	TrustedDeviceDays    int
 }
 
 // TraegerAccountLogin signs an account in to the Träger-Portal. A zero
-// organizationID picks the only Träger of the account or asks for a choice.
+// organizationID picks the only Träger of the account or asks for a choice;
+// a remembered device of that Träger skips the code (#6955).
 // IssueTraegerTokensForVerifiedMFA mints the Träger session after a proven
 // second factor of the org scope.
 type TraegerAccountLogin interface {
-	LoginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (*TraegerLoginResult, error)
+	LoginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64, trustedDeviceCookie string) (*TraegerLoginResult, error)
 	IssueTraegerTokensForVerifiedMFA(ctx context.Context, proof VerifiedMFAChallenge, organizationID int64, ipAddress, userAgent string) (*TraegerLoginResult, error)
 }
 

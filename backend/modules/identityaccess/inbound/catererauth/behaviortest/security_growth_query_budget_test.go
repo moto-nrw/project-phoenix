@@ -62,7 +62,7 @@ func TestIdentityCatererSecurityPositiveGrowthQueryBudget(t *testing.T) {
 	keys := []map[string]any{}
 	addDevice := func(owner int64, school any, name string) int64 {
 		var id int64
-		require.NoError(t, db.NewRaw("INSERT INTO auth.mfa_trusted_devices (account_id,tenant_id,token_hash,user_agent,ip_address,created_at,expires_at) VALUES (?,?,?,?, '127.0.0.1',?,?) RETURNING id", owner, school, fmt.Sprintf("example-device-%d-%s", owner, name), name, created, expires).Scan(context.Background(), &id))
+		require.NoError(t, db.NewRaw("INSERT INTO auth.mfa_trusted_devices (account_id,portal,tenant_id,token_hash,user_agent,ip_address,created_at,expires_at) VALUES (?,CASE WHEN ?::bigint IS NULL THEN 'caterer' ELSE 'tenant' END,?,?,?, '127.0.0.1',?,?) RETURNING id", owner, school, school, fmt.Sprintf("example-device-%d-%s", owner, name), name, created, expires).Scan(context.Background(), &id))
 		return id
 	}
 	addKey := func(owner int64, name string) int64 {

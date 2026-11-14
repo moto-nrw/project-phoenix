@@ -94,7 +94,7 @@ func (s *AccountAuthentication) mintSchoolLogin(ctx context.Context, account dom
 		// Nothing was written; send the login down the branch it would have
 		// taken had the requirement been there from the start.
 		if !enrolled {
-			return s.mfaEnrollmentResult(account, portalTenantID, domain.PortalSchool)
+			return s.mfaEnrollmentResult(ctx, account, portalTenantID, domain.PortalSchool)
 		}
 		return s.mfaChallengeResult(ctx, account, portalTenantID, domain.PortalSchool, ipAddress)
 	}

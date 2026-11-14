@@ -23,7 +23,9 @@ interface OTPInputGridProps {
   readonly length: number;
   readonly disabled?: boolean;
   /** Fires exactly once per fill — guarded internally to prevent double-submit. */
-  readonly onComplete: (code: string) => void;
+  readonly onComplete?: (code: string) => void;
+  /** Fires on every change with the digits typed so far (#6955). */
+  readonly onChange?: (code: string) => void;
   readonly ariaLabel?: string;
   readonly autoFocus?: boolean;
 }
@@ -44,6 +46,7 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
       length,
       disabled = false,
       onComplete,
+      onChange,
       ariaLabel = "Bestätigungscode",
       autoFocus = true,
     },
@@ -82,11 +85,10 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
       (index: number, value: string) => {
         const sanitized = value.replace(/\D/g, "");
         if (sanitized.length === 0) {
-          setDigits((prev) => {
-            const next = [...prev];
-            next[index] = "";
-            return next;
-          });
+          const cleared = [...digits];
+          cleared[index] = "";
+          setDigits(cleared);
+          onChange?.(cleared.join(""));
           return;
         }
         const next = [...digits];
@@ -95,37 +97,35 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
           next[index + i] = chars[i] ?? "";
         }
         setDigits(next);
+        onChange?.(next.join(""));
 
         const focusTarget = Math.min(index + chars.length, length - 1);
         requestAnimationFrame(() => inputRefs.current[focusTarget]?.focus());
-        if (next.every((digit) => digit !== "") && !submittedRef.current) {
+        if (
+          onComplete &&
+          next.every((digit) => digit !== "") &&
+          !submittedRef.current
+        ) {
           submittedRef.current = true;
           onComplete(next.join(""));
         }
       },
-      [digits, length, onComplete],
+      [digits, length, onComplete, onChange],
     );
 
     const handleKeyDown = useCallback(
       (index: number, e: KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Backspace") {
-          if (digits[index]) {
-            setDigits((prev) => {
-              const next = [...prev];
-              next[index] = "";
-              return next;
-            });
-            return;
-          }
-          if (index > 0) {
+          const cleared = digits[index] ? index : index - 1;
+          if (cleared < 0) return;
+          if (cleared < index) {
             e.preventDefault();
-            inputRefs.current[index - 1]?.focus();
-            setDigits((prev) => {
-              const next = [...prev];
-              next[index - 1] = "";
-              return next;
-            });
+            inputRefs.current[cleared]?.focus();
           }
+          const next = [...digits];
+          next[cleared] = "";
+          setDigits(next);
+          onChange?.(next.join(""));
         } else if (e.key === "ArrowLeft" && index > 0) {
           e.preventDefault();
           inputRefs.current[index - 1]?.focus();
@@ -134,7 +134,7 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
           inputRefs.current[index + 1]?.focus();
         }
       },
-      [digits, length],
+      [digits, length, onChange],
     );
 
     const handlePaste = useCallback(

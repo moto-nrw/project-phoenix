@@ -168,18 +168,18 @@ func TestNativeMFAChallengeAndDeviceScope(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 	device, err := records.CreateTrustedDevice(ctx, domain.AccountTrustedDevice{
-		AccountID: account.ID, TenantID: home, TokenHash: "opaque-token-hash", ExpiresAt: time.Now().Add(time.Hour),
+		AccountID: account.ID, Portal: "tenant", TenantID: home, TokenHash: "opaque-token-hash", ExpiresAt: time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
-	_, found, _ = records.FindActiveTrustedDevice(ctx, account.ID, other, device.TokenHash)
+	_, found, _ = records.FindActiveTrustedDevice(ctx, account.ID, domain.TrustedDeviceScope{Portal: "tenant", TenantID: other}, device.TokenHash)
 	require.False(t, found)
 	require.NoError(t, records.RevokeTenantTrustedDevices(ctx, account.ID, other, time.Now()))
-	_, found, err = records.FindActiveTrustedDevice(ctx, account.ID, home, device.TokenHash)
+	_, found, err = records.FindActiveTrustedDevice(ctx, account.ID, domain.TrustedDeviceScope{Portal: "tenant", TenantID: home}, device.TokenHash)
 	require.NoError(t, err)
 	require.True(t, found)
 	require.NoError(t, records.RevokeTrustedDevice(ctx, device.ID, time.Now()))
 	require.Error(t, records.RevokeTrustedDevice(ctx, device.ID, time.Now()))
-	devices, err := records.ListActiveTrustedDevices(ctx, account.ID, home)
+	devices, err := records.ListActiveTrustedDevices(ctx, account.ID, domain.TrustedDeviceScope{Portal: "tenant", TenantID: home})
 	require.NoError(t, err)
 	require.Empty(t, devices)
 }

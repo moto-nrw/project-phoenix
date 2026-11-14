@@ -63,7 +63,7 @@ func TestMFAChangeAuditFailureRollsBackTheChange(t *testing.T) {
 	accept()
 
 	accept = rejectEvent("mfa_trusted_device_added")
-	_, _, err = svc.IssueTrustedDevice(ctx, target.ID, tenantID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
+	_, _, err = svc.IssueTrustedDevice(ctx, target.ID, identityaccess.TenantPortalDevice(tenantID), "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable, "a device whose row cannot be written is not remembered")
 	devices, err := db.NewSelect().TableExpr("auth.mfa_trusted_devices").Where("account_id = ?", target.ID).Count(ctx)
 	require.NoError(t, err)

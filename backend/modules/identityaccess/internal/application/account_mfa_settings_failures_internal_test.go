@@ -65,7 +65,7 @@ func TestAccountMFARejectsUnreadableSecuritySettings(t *testing.T) {
 			flows, err := NewAccountMFAFlows(AccountMFAFlowDependencies{PermissionGranted: func(string, []string) bool { return false }, Records: records, Settings: failingSecuritySettings{key: key}, Codec: codec, Codes: fakeShortCodes{}, Mail: &fakeMFAMail{}, Audit: &fakeMFAAudit{}, Runtime: &fakeRuntime{}, Secret: []byte("test-only-secret")})
 			require.NoError(t, err)
 			if key == "days" || key == "enabled" {
-				token, expires, err := flows.IssueTrustedDevice(context.Background(), 1, 10, "ua", nil)
+				token, expires, err := flows.IssueTrustedDevice(context.Background(), 1, domain.DeviceScopeOf(domain.PortalTenant, 10, 0), "ua", nil)
 				require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 				assert.Empty(t, token)
 				assert.True(t, expires.IsZero())
@@ -109,7 +109,7 @@ func TestAccountMFAPrepareTrustedDeviceDefersWritesAndFreezesPolicy(t *testing.T
 	now := time.Now()
 	flows.now = func() time.Time { return now }
 	capability := ComposedAccountMFA{Flows: flows}
-	issue, err := capability.PrepareTrustedDevice(context.Background(), 1, 10, "ua", nil)
+	issue, err := capability.PrepareTrustedDevice(context.Background(), 1, identityaccess.TenantPortalDevice(10), "ua", nil)
 	require.NoError(t, err)
 	require.NotNil(t, issue)
 	assert.Empty(t, records.trusted)

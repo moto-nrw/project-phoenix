@@ -83,12 +83,12 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOnKeepsExistingDevice(t *t
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
-	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantID, "UA-test", net.ParseIP("203.0.113.10"))
+	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, identityaccess.TenantPortalDevice(tenantID), "UA-test", net.ParseIP("203.0.113.10"))
 	require.NoError(t, err)
 
 	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, operator.ID, acc.ID, identityaccess.MFAAdminOverrideForceOn, "hardening"))
 
-	devices, err := svc.ListTrustedDevices(ctx, acc.ID, tenantID)
+	devices, err := svc.ListTrustedDevices(ctx, acc.ID, identityaccess.TenantPortalDevice(tenantID))
 	require.NoError(t, err)
 	assert.Len(t, devices, 1, "force_on must not revoke trusted devices — that's force_off's job")
 }
@@ -112,15 +112,15 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOffRevokesAcrossAllTenants
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
 	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
-	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantA, "UA-A", net.ParseIP("203.0.113.21"))
+	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, identityaccess.TenantPortalDevice(tenantA), "UA-A", net.ParseIP("203.0.113.21"))
 	require.NoError(t, err)
-	_, _, err = svc.IssueTrustedDevice(ctx, acc.ID, tenantB, "UA-B", net.ParseIP("203.0.113.22"))
+	_, _, err = svc.IssueTrustedDevice(ctx, acc.ID, identityaccess.TenantPortalDevice(tenantB), "UA-B", net.ParseIP("203.0.113.22"))
 	require.NoError(t, err)
 
 	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, operator.ID, acc.ID, identityaccess.MFAAdminOverrideForceOff, "mailbox lockout"))
 
 	for _, tid := range []int64{tenantA, tenantB} {
-		devices, err := svc.ListTrustedDevices(ctx, acc.ID, tid)
+		devices, err := svc.ListTrustedDevices(ctx, acc.ID, identityaccess.TenantPortalDevice(tid))
 		require.NoError(t, err)
 		assert.Empty(t, devices, "global force_off must clear trust in every tenant (tenant=%d)", tid)
 	}
@@ -176,13 +176,13 @@ func TestMFAService_SetMFAOverride_ForceOnKeepsTrustedDevices(t *testing.T) {
 	acc, tenantID := tenantMappedAccount(t, db, "tenant-force-on-keeps-device")
 
 	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
-	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantID, "UA-keep", net.ParseIP("203.0.113.30"))
+	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, identityaccess.TenantPortalDevice(tenantID), "UA-keep", net.ParseIP("203.0.113.30"))
 	require.NoError(t, err)
 
 	perms := []string{"users:manage"}
 	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantID, acc.ID, identityaccess.MFAAdminOverrideForceOn, "harden", perms))
 
-	devices, err := svc.ListTrustedDevices(ctx, acc.ID, tenantID)
+	devices, err := svc.ListTrustedDevices(ctx, acc.ID, identityaccess.TenantPortalDevice(tenantID))
 	require.NoError(t, err)
 	assert.Len(t, devices, 1)
 }
@@ -201,20 +201,20 @@ func TestMFAService_SetMFAOverride_ForceOffOnlyAffectsTargetTenant(t *testing.T)
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantB)
 
 	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
-	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantA, "UA-A", net.ParseIP("203.0.113.41"))
+	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, identityaccess.TenantPortalDevice(tenantA), "UA-A", net.ParseIP("203.0.113.41"))
 	require.NoError(t, err)
-	_, _, err = svc.IssueTrustedDevice(ctx, acc.ID, tenantB, "UA-B", net.ParseIP("203.0.113.42"))
+	_, _, err = svc.IssueTrustedDevice(ctx, acc.ID, identityaccess.TenantPortalDevice(tenantB), "UA-B", net.ParseIP("203.0.113.42"))
 	require.NoError(t, err)
 
 	// Tenant-A admin disables MFA on tenant A only.
 	perms := []string{"users:manage"}
 	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantA, acc.ID, identityaccess.MFAAdminOverrideForceOff, "tenant-A lockout", perms))
 
-	devicesA, err := svc.ListTrustedDevices(ctx, acc.ID, tenantA)
+	devicesA, err := svc.ListTrustedDevices(ctx, acc.ID, identityaccess.TenantPortalDevice(tenantA))
 	require.NoError(t, err)
 	assert.Empty(t, devicesA, "tenant-A force_off must clear tenant-A devices")
 
-	devicesB, err := svc.ListTrustedDevices(ctx, acc.ID, tenantB)
+	devicesB, err := svc.ListTrustedDevices(ctx, acc.ID, identityaccess.TenantPortalDevice(tenantB))
 	require.NoError(t, err)
 	assert.Len(t, devicesB, 1, "tenant-A override must not touch tenant-B devices")
 }

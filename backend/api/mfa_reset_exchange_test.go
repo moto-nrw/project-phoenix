@@ -142,7 +142,7 @@ func TestMFAResetBetweenVerificationAndExchangeRefusesBothPortals(t *testing.T) 
 				} else {
 					require.Empty(t, stored)
 				}
-				devices, err := module.MFA.ListTrustedDevices(t.Context(), account.ID, tenantID)
+				devices, err := module.MFA.ListTrustedDevices(t.Context(), account.ID, identityaccess.TenantPortalDevice(tenantID))
 				require.NoError(t, err)
 				require.Zero(t, len(devices))
 			})

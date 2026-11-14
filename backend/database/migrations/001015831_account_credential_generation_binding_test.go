@@ -144,8 +144,8 @@ func TestCredentialBindingRollbackKeepsStaleArtifactsEnded(t *testing.T) {
 		require.NoError(t, db.NewRaw(`INSERT INTO auth.password_reset_tokens (account_id, token, expiry, credential_generation)
 			VALUES (?, encode(sha256(convert_to(?, 'UTF8')), 'hex'), NOW() + interval '1 hour',
 				(SELECT mfa_reset_generation FROM auth.accounts WHERE id = ?)) RETURNING id`, id, label, id).Scan(ctx, &link))
-		require.NoError(t, db.NewRaw(`INSERT INTO auth.mfa_trusted_devices (account_id, tenant_id, token_hash, expires_at, credential_generation)
-			VALUES (?, ?, encode(sha256(convert_to(?, 'UTF8')), 'hex'), NOW() + interval '30 days',
+		require.NoError(t, db.NewRaw(`INSERT INTO auth.mfa_trusted_devices (account_id, portal, tenant_id, token_hash, expires_at, credential_generation)
+			VALUES (?, 'tenant', ?, encode(sha256(convert_to(?, 'UTF8')), 'hex'), NOW() + interval '30 days',
 				(SELECT mfa_reset_generation FROM auth.accounts WHERE id = ?)) RETURNING id`, id, tenantID, label, id).Scan(ctx, &device))
 		return link, device
 	}

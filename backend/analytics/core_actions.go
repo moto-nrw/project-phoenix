@@ -627,6 +627,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/school/auth/mfa/enroll/confirm"}:                                               session("login_success"),
 	{http.MethodPost, "/school/auth/mfa/enroll/start"}:                                                 notCaptured,
 	{http.MethodPost, "/school/auth/mfa/resend"}:                                                       notCaptured,
+	{http.MethodDelete, "/school/auth/mfa/trusted-devices/{deviceId}"}:                                 notCaptured,
 	{http.MethodPost, "/school/auth/mfa/verify"}:                                                       session("login_success"),
 	{http.MethodPost, "/school/auth/password-reset"}:                                                   notCaptured,
 	{http.MethodPost, "/school/auth/password-reset/confirm"}:                                           notCaptured,

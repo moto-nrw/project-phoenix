@@ -2,7 +2,8 @@
 
 // Einstellungen im Schul-Portal ("moto schule", #2208): welche Hinweise eine
 // Lehrkraft bekommen möchte und auf welchem Gerät (Team-Chat, seit #4792
-// auch Krankmeldungen der eigenen Klassen). Dieselben Karten wie im
+// auch Krankmeldungen der eigenen Klassen), und welche Geräte moto schule
+// nach dem Code gemerkt hat (#6955). Dieselben Karten wie im
 // OGS- und im Elternportal, gebunden an die school-Session. Die Bereiche stehen
 // in der Seitenleiste; offen ist, was die Adresse nennt (#5750).
 
@@ -11,6 +12,7 @@ import { Suspense } from "react";
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
 import { PushNotificationSection } from "~/components/settings/push-notification-section";
 import { SchoolAnalyticsConsentSection } from "~/components/settings/analytics-consent-section";
+import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { activeSchoolSettingsSection } from "~/components/school/shell/school-nav-items";
 
@@ -26,6 +28,8 @@ function SchoolSettingsContent() {
           />
           <PushNotificationSection portal="school" />
         </>
+      ) : section.key === "devices" ? (
+        <TrustedDevicesSection scope="school" />
       ) : (
         <SchoolAnalyticsConsentSection />
       )}

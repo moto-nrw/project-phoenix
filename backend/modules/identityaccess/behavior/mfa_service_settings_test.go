@@ -186,7 +186,7 @@ func TestMFAService_IssueTrustedDevice_DisabledBySetting_NoCookieIssued(t *testi
 	// Need a real account so the account FK is satisfied for any downstream call.
 	// (IssueTrustedDevice never reaches persistence in the disabled branch.)
 	_ = fix.repos.Person // any repo's db is fine; just confirm fixture wired
-	cookie, expiresAt, err := fix.svc.IssueTrustedDevice(ctx, 99999, fix.tenantID, "ua", net.ParseIP("203.0.113.99"))
+	cookie, expiresAt, err := fix.svc.IssueTrustedDevice(ctx, 99999, identityaccess.TenantPortalDevice(fix.tenantID), "ua", net.ParseIP("203.0.113.99"))
 	require.NoError(t, err)
 	assert.Empty(t, cookie, "disabled setting must skip cookie issuance")
 	assert.True(t, expiresAt.IsZero(), "no expiry when no cookie is issued")
@@ -199,7 +199,7 @@ func TestMFAService_VerifyTrustedDevice_DisabledBySetting_ReturnsFalse(t *testin
 	fix := newWiredMFAFixture(t)
 
 	fix.setOverride(t, settingKeyMFATrustedDeviceEnabled, false)
-	ok, err := fix.svc.VerifyTrustedDevice(ctx, 99999, fix.tenantID, "any-cookie-value")
+	ok, err := fix.svc.VerifyTrustedDevice(ctx, 99999, identityaccess.TenantPortalDevice(fix.tenantID), "any-cookie-value")
 	require.NoError(t, err)
 	assert.False(t, ok, "disabled setting must reject the cookie before signature check")
 }
@@ -237,7 +237,7 @@ func TestMFAService_IssueTrustedDevice_DispatchesAddedEmail(t *testing.T) {
 	acc := testpkg.CreateTestAccount(t, db, "mfa-dispatch-trusted-added")
 	require.NoError(t, enrollMFA(ctx, t, fix.db, fix.svc, acc.ID))
 
-	cookie, _, err := fix.svc.IssueTrustedDevice(ctx, acc.ID, fix.tenantID,
+	cookie, _, err := fix.svc.IssueTrustedDevice(ctx, acc.ID, identityaccess.TenantPortalDevice(fix.tenantID),
 		"Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/120.0",
 		net.ParseIP("203.0.113.50"))
 	require.NoError(t, err)

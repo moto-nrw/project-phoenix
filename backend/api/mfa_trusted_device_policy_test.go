@@ -96,7 +96,7 @@ func TestMFASecurityPolicyFailuresBothPortals(t *testing.T) {
 				} else {
 					assert.Empty(t, response.Result().Cookies())
 				}
-				devices, err := module.MFA.ListTrustedDevices(context.Background(), account.ID, tenantID)
+				devices, err := module.MFA.ListTrustedDevices(context.Background(), account.ID, identityaccess.TenantPortalDevice(tenantID))
 				require.NoError(t, err)
 				if lockoutFailure {
 					assert.Len(t, devices, 1)

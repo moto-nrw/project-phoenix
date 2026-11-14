@@ -347,7 +347,14 @@ func (f *AccountMFAFlows) resolveTrustedDeviceDays(ctx context.Context, tenantID
 
 // PrepareTrustedDevice freezes this exchange's policy without creating a
 // device or notification before the session has been authorized and issued.
-func (f *AccountMFAFlows) PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+// A scope no portal remembers a device in prepares nothing. A portal without
+// a school reads the registry defaults (#6955).
+func (f *AccountMFAFlows) PrepareTrustedDevice(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+	if !scope.Valid() {
+		return nil, fmt.Errorf("remember a device: %w", identityaccess.ErrInvalidToken)
+	}
+	ctx = schoollessMFAContext(ctx, scope.Portal)
+	tenantID := scope.SettingsSchool()
 	enabled, err := f.settings.TrustedDeviceEnabled(ctx, tenantID)
 	if err != nil {
 		return nil, f.securitySettingsFailure("trusted device availability", err)
@@ -364,14 +371,19 @@ func (f *AccountMFAFlows) PrepareTrustedDevice(ctx context.Context, accountID, t
 		return nil, identityaccess.ErrMFAStatusUnavailable
 	}
 	return func(issueCtx context.Context) (string, time.Time, error) {
-		preparedCtx := context.WithValue(issueCtx, trustedDevicePolicyKey{accountID, tenantID}, trustedDevicePolicy{days: days, generation: account.MFAResetGeneration})
-		return f.IssueTrustedDevice(preparedCtx, accountID, tenantID, userAgent, ip)
+		// A device of a portal without a school files its event without a
+		// school ledger, like the portal's other second-factor events.
+		preparedCtx := context.WithValue(schoollessMFAContext(issueCtx, scope.Portal), trustedDevicePolicyKey{accountID, scope}, trustedDevicePolicy{days: days, generation: account.MFAResetGeneration})
+		return f.IssueTrustedDevice(preparedCtx, accountID, scope, userAgent, ip)
 	}, nil
 }
 
-// trustedDevicePolicyKey binds the prepared lifetime to its account and school.
-// Only PrepareTrustedDevice populates it, for this one exchange.
-type trustedDevicePolicyKey struct{ accountID, tenantID int64 }
+// trustedDevicePolicyKey binds the prepared lifetime to its account and
+// device scope. Only PrepareTrustedDevice populates it, for this one exchange.
+type trustedDevicePolicyKey struct {
+	accountID int64
+	scope     domain.TrustedDeviceScope
+}
 
 type trustedDevicePolicy struct {
 	days       int
@@ -380,10 +392,10 @@ type trustedDevicePolicy struct {
 
 // IssueTrustedDevice mints a remember-device cookie using a prepared policy,
 // or resolves one first for callers that do not split preparation and issuance.
-func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {
-	policy, prepared := ctx.Value(trustedDevicePolicyKey{accountID, tenantID}).(trustedDevicePolicy)
+func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope, userAgent string, ip net.IP) (string, time.Time, error) {
+	policy, prepared := ctx.Value(trustedDevicePolicyKey{accountID, scope}).(trustedDevicePolicy)
 	if !prepared {
-		issue, err := f.PrepareTrustedDevice(ctx, accountID, tenantID, userAgent, ip)
+		issue, err := f.PrepareTrustedDevice(ctx, accountID, scope, userAgent, ip)
 		if err != nil || issue == nil {
 			return "", time.Time{}, err
 		}
@@ -397,12 +409,15 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 	}
 	device := domain.AccountTrustedDevice{
 		AccountID: accountID,
-		// The row carries the school, so a cookie issued at school A can
-		// never bypass MFA at school B.
-		TenantID:  tenantID,
-		TokenHash: domain.HashTrustedDeviceToken(rawToken),
-		IPAddress: ip,
-		ExpiresAt: expiresAt,
+		// The row carries the portal, the school and the Träger, so a
+		// cookie issued at school A can never bypass MFA at school B, nor
+		// one of the tenant portal in moto schule (#6955).
+		Portal:         scope.Portal,
+		TenantID:       scope.TenantID,
+		OrganizationID: scope.OrganizationID,
+		TokenHash:      domain.HashTrustedDeviceToken(rawToken),
+		IPAddress:      ip,
+		ExpiresAt:      expiresAt,
 	}
 	if userAgent != "" {
 		label := userAgent
@@ -417,12 +432,12 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 			return fmt.Errorf("persist trusted device: %w", err)
 		}
 		if err := f.recordAuthEvent(txCtx, domain.AuthEvent{
-			AccountID: accountID, TenantID: tenantID, Type: domain.AuthEventMFATrustedDeviceAdded,
+			AccountID: accountID, TenantID: scope.TenantID, Type: domain.AuthEventMFATrustedDeviceAdded,
 			Success: true, IPAddress: domain.MFAAuditIP(ip), MFA: &domain.MFAEvidence{DeviceID: stored.ID},
 		}); err != nil {
 			return err
 		}
-		return f.notifyTrustedDeviceAdded(txCtx, accountID, stored.ID, userAgent, ip, days, tenantID == 0)
+		return f.notifyTrustedDeviceAdded(txCtx, accountID, stored.ID, userAgent, ip, days, scope.Portal)
 	})
 	if err != nil {
 		return "", time.Time{}, err
@@ -432,17 +447,18 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 }
 
 // VerifyTrustedDevice reports whether the cookie names an active device of
-// this account at this school. A school that turned the feature off after a
-// cookie was issued rejects it immediately rather than waiting for expiry.
-func (f *AccountMFAFlows) VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error) {
-	if !f.IsTrustedDeviceEnabled(ctx, tenantID) {
+// this account in this scope: its portal, its school, its Träger. A school
+// that turned the feature off after a cookie was issued rejects it
+// immediately rather than waiting for expiry.
+func (f *AccountMFAFlows) VerifyTrustedDevice(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope, signedCookie string) (bool, error) {
+	if !scope.Valid() || !f.IsTrustedDeviceEnabled(ctx, scope.SettingsSchool()) {
 		return false, nil
 	}
 	rawToken, ok := domain.VerifyTrustedDeviceToken(signedCookie, f.secret)
 	if !ok {
 		return false, nil
 	}
-	device, found, err := f.records.FindActiveTrustedDevice(ctx, accountID, tenantID, domain.HashTrustedDeviceToken(rawToken))
+	device, found, err := f.records.FindActiveTrustedDevice(ctx, accountID, scope, domain.HashTrustedDeviceToken(rawToken))
 	if err != nil || !found {
 		return false, nil
 	}
@@ -450,11 +466,19 @@ func (f *AccountMFAFlows) VerifyTrustedDevice(ctx context.Context, accountID, te
 	return true, nil
 }
 
+// ListTrustedDevices lists the account's active devices of one scope.
+func (f *AccountMFAFlows) ListTrustedDevices(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope) ([]domain.AccountTrustedDevice, error) {
+	if !scope.Valid() {
+		return nil, identityaccess.ErrMFAPermissionDenied
+	}
+	return f.records.ListActiveTrustedDevices(ctx, accountID, scope)
+}
+
 // RevokeTrustedDevice revokes one device after proving it belongs to the
-// calling account at the calling school, so neither an id guess nor a token
-// from another school can revoke it.
-func (f *AccountMFAFlows) RevokeTrustedDevice(ctx context.Context, accountID, tenantID, deviceID int64) error {
-	devices, err := f.records.ListActiveTrustedDevices(ctx, accountID, tenantID)
+// calling account in the calling scope, so neither an id guess nor a token
+// from another school or portal can revoke it.
+func (f *AccountMFAFlows) RevokeTrustedDevice(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope, deviceID int64) error {
+	devices, err := f.ListTrustedDevices(ctx, accountID, scope)
 	if err != nil {
 		return err
 	}
@@ -483,9 +507,9 @@ func (f *AccountMFAFlows) trustedDeviceHint(ctx context.Context, tenantID int64)
 	return days > 0, days
 }
 
-// notifyTrustedDeviceAdded mails the holder. A device without a school is
-// the caterer portal's (#4497), whose holder manages it in its account.
-func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID, deviceID int64, userAgent string, ip net.IP, days int, caterer bool) error {
+// notifyTrustedDeviceAdded mails the holder. The mail names where the
+// holder manages the device: the portal that remembered it.
+func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID, deviceID int64, userAgent string, ip net.IP, days int, portal string) error {
 	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
 	if err != nil || !found || account.Email == "" {
 		f.logger.Warn("could not load account for trusted-device-added mail",
@@ -496,7 +520,7 @@ func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountI
 	return f.mail.NotifyTrustedDeviceAdded(ctx, domain.TrustedDeviceMail{
 		Recipient: account.Email, ReferenceID: accountID,
 		DeviceLabel: domain.ShortenUserAgent(userAgent), RequestIP: domain.AuditIPString(ip),
-		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: days, Caterer: caterer,
+		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: days, Portal: portal,
 	}, deviceID)
 }
 

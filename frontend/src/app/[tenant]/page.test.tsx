@@ -713,6 +713,7 @@ describe("HomePage (Login)", () => {
       await act(async () => {
         fireEvent.change(firstCodeInput, { target: { value: "123456" } });
       });
+      fireEvent.click(screen.getByRole("button", { name: /bestätigen$/i }));
 
       expect(
         await screen.findByText(/Dieses Konto gehört zu moto schule/),
@@ -837,6 +838,7 @@ describe("HomePage (Login)", () => {
     fireEvent.change(await screen.findByLabelText("Stelle 1"), {
       target: { value: "123456" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
     await screen.findByRole("heading", { name: "2FA erfolgreich aktiviert" });
     vi.mocked(useSession).mockReturnValue({
       data: browserSession,

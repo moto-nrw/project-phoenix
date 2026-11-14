@@ -95,7 +95,7 @@ func (c *CatererAccess) signInGate(ctx context.Context, account domain.LoginAcco
 	if !enrolled {
 		return catererSignInGate{}, nil
 	}
-	if c.auth.trustedDeviceVerified(schoolless, account.ID, 0, request.TrustedDeviceCookie) {
+	if c.auth.trustedDeviceVerified(schoolless, account.ID, domain.DeviceScopeOf(domain.PortalCaterer, 0, 0), request.TrustedDeviceCookie) {
 		return catererSignInGate{proof: mintProof{kind: proofTrustedDevice, trustedDeviceCookie: request.TrustedDeviceCookie}}, nil
 	}
 	result, err := c.auth.mfaChallengeResult(schoolless, account, 0, domain.PortalCaterer, request.IPAddress)
@@ -163,7 +163,7 @@ func (c *CatererAccess) verifyMFA(ctx context.Context, verification identityacce
 	}
 	var issue identityaccess.TrustedDeviceIssue
 	if verification.RememberDevice {
-		issue, err = c.mfa.PrepareTrustedDevice(ctx, proof.AccountID, 0, verification.UserAgent, parseGateIP(verification.IPAddress))
+		issue, err = c.mfa.PrepareTrustedDevice(ctx, proof.AccountID, domain.DeviceScopeOf(domain.PortalCaterer, 0, 0), verification.UserAgent, parseGateIP(verification.IPAddress))
 		if err != nil {
 			c.logger.Warn("caterer trusted-device policy unavailable; skipping cookie",
 				slog.Int64("account_id", proof.AccountID),
@@ -370,7 +370,7 @@ func (c *CatererAccess) listTrustedDevices(ctx context.Context, accountID int64)
 	if err := c.secondFactorOf(ctx, accountID); err != nil {
 		return nil, err
 	}
-	return c.mfa.records.ListActiveTrustedDevices(ctx, accountID, 0)
+	return c.mfa.ListTrustedDevices(ctx, accountID, domain.DeviceScopeOf(domain.PortalCaterer, 0, 0))
 }
 
 // RevokeCatererTrustedDevice forgets one remembered device of the caterer.
@@ -382,7 +382,7 @@ func (c *CatererAccess) revokeTrustedDevice(ctx context.Context, accountID, devi
 	if err := c.secondFactorOf(ctx, accountID); err != nil {
 		return err
 	}
-	return c.mfa.RevokeTrustedDevice(ctx, accountID, 0, deviceID)
+	return c.mfa.RevokeTrustedDevice(ctx, accountID, domain.DeviceScopeOf(domain.PortalCaterer, 0, 0), deviceID)
 }
 
 // secondFactorOf proves the signed-in account is a caterer's before one of

@@ -14,6 +14,7 @@ import type { MotoConcept } from "~/lib/moto-concepts";
 import { announcementsConcept } from "~/lib/concepts/announcements";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { classDayConcept } from "~/lib/concepts/classDay";
+import { devicesConcept } from "~/lib/concepts/devices";
 import { excusedConcept } from "~/lib/concepts/excused";
 import { helpConcept } from "~/lib/concepts/help";
 import { messagesConcept } from "~/lib/concepts/messages";
@@ -149,7 +150,7 @@ export const SCHOOL_SETTINGS_ENTRY: SchoolNavItem = {
 
 export interface SchoolSettingsSection {
   /** Der Wert von `?tab=` in der Adresse. */
-  readonly key: "notifications" | "privacy";
+  readonly key: "notifications" | "devices" | "privacy";
   readonly label: string;
   readonly concept: MotoConcept;
 }
@@ -161,6 +162,8 @@ export const SCHOOL_SETTINGS_SECTIONS: readonly SchoolSettingsSection[] = [
     label: "Benachrichtigungen",
     concept: notificationsConcept,
   },
+  // Die Geräte, die moto schule nach dem Code gemerkt hat (#6955).
+  { key: "devices", label: "Vertraute Geräte", concept: devicesConcept },
   { key: "privacy", label: "Datenschutz", concept: privacyConcept },
 ];
 

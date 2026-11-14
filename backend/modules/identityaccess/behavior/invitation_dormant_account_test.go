@@ -156,7 +156,7 @@ func TestInvitationRestoreEndsTheOldCredentialsArtifacts(t *testing.T) {
 	})
 	mfa, _, _ := newTestMFAService(t)
 	require.NoError(t, enrollMFA(ctx, t, db, mfa, account.ID))
-	device, _, err := mfa.IssueTrustedDevice(ctx, account.ID, tenantID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
+	device, _, err := mfa.IssueTrustedDevice(ctx, account.ID, identityaccess.TenantPortalDevice(tenantID), "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
 	require.NotEmpty(t, device)
 
@@ -180,10 +180,10 @@ func TestInvitationRestoreEndsTheOldCredentialsArtifacts(t *testing.T) {
 		"a reset link mailed before the restore overwrites nothing")
 	_, _, err = tenantPasswordLogin(service, email, testNewPassword, "", "", "")
 	require.NoError(t, err, "the restored password still signs in")
-	trusted, err := mfa.VerifyTrustedDevice(ctx, account.ID, tenantID, device)
+	trusted, err := mfa.VerifyTrustedDevice(ctx, account.ID, identityaccess.TenantPortalDevice(tenantID), device)
 	require.NoError(t, err)
 	require.False(t, trusted, "a device remembered before the restore no longer skips the second factor")
-	listed, err := mfa.ListTrustedDevices(ctx, account.ID, tenantID)
+	listed, err := mfa.ListTrustedDevices(ctx, account.ID, identityaccess.TenantPortalDevice(tenantID))
 	require.NoError(t, err)
 	require.Empty(t, listed, "nor does it appear among the remembered devices")
 }

@@ -24,13 +24,13 @@ var errTraegerMembershipsUnavailable = errors.New("identity access: Träger memb
 // factor is not composed. A member of several Träger without a choice gets
 // the list to choose from; a choice outside the memberships is refused like a
 // missing membership.
-func (s *AccountAuthentication) LoginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (*identityaccess.TraegerLoginResult, error) {
+func (s *AccountAuthentication) LoginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64, trustedDeviceCookie string) (*identityaccess.TraegerLoginResult, error) {
 	return runFlow(ctx, s.flow(), func(ctx context.Context) (*identityaccess.TraegerLoginResult, error) {
-		return s.loginTraeger(ctx, email, password, ipAddress, userAgent, organizationID)
+		return s.loginTraeger(ctx, email, password, ipAddress, userAgent, organizationID, trustedDeviceCookie)
 	})
 }
 
-func (s *AccountAuthentication) loginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (*identityaccess.TraegerLoginResult, error) {
+func (s *AccountAuthentication) loginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64, trustedDeviceCookie string) (*identityaccess.TraegerLoginResult, error) {
 	if s.traeger == nil {
 		return nil, failed("Träger login", errTraegerMembershipsUnavailable)
 	}
@@ -53,7 +53,7 @@ func (s *AccountAuthentication) loginTraeger(ctx context.Context, email, passwor
 		return nil, failed("Träger login", identityaccess.ErrNoTraegerMembership)
 	}
 	if s.mfa.Configured() {
-		return s.traegerSecondFactor(ctx, account, organizationID, ipAddress)
+		return s.traegerSecondFactor(ctx, account, organizationID, ipAddress, userAgent, trustedDeviceCookie)
 	}
 	return s.mintTraegerSession(ctx, account, organizationID, nil, ipAddress, userAgent)
 }
@@ -63,21 +63,26 @@ func (s *AccountAuthentication) loginTraeger(ctx context.Context, email, passwor
 // independent of the mfa_mode of any school. An account without an enrolled
 // factor sets it up first. The Träger the person chose travels back to the
 // client, which names it again when it redeems the code; the mint checks the
-// membership again.
-func (s *AccountAuthentication) traegerSecondFactor(ctx context.Context, account domain.LoginAccount, organizationID int64, ipAddress string) (*identityaccess.TraegerLoginResult, error) {
+// membership again. A device the account remembered at this Träger stands in
+// for the code (#6955); the mint checks it again under the account lock.
+func (s *AccountAuthentication) traegerSecondFactor(ctx context.Context, account domain.LoginAccount, organizationID int64, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.TraegerLoginResult, error) {
 	enrolled, err := s.mfa.HasEnrollment(ctx, account.ID)
 	if err != nil {
 		return nil, failed("check mfa enrollment", identityaccess.ErrMFAStatusUnavailable)
 	}
 	if !enrolled {
-		result, err := s.mfaEnrollmentResult(account, 0, domain.PortalOrg)
+		result, err := s.mfaEnrollmentResult(ctx, account, 0, domain.PortalOrg)
 		if err != nil {
 			return nil, err
 		}
 		return &identityaccess.TraegerLoginResult{
 			Status: identityaccess.TraegerLoginMFAEnrollmentRequired, AccessToken: result.AccessToken,
 			MaskedEmail: result.MaskedEmail, OrganizationID: organizationID,
+			TrustedDeviceEnabled: result.TrustedDeviceEnabled, TrustedDeviceDays: result.TrustedDeviceDays,
 		}, nil
+	}
+	if s.trustedDeviceVerified(withoutSchoolLedgerContext(ctx), account.ID, domain.DeviceScopeOf(domain.PortalOrg, 0, organizationID), trustedDeviceCookie) {
+		return s.mintTraegerSessionWith(ctx, account, organizationID, mintProof{kind: proofTrustedDevice, trustedDeviceCookie: trustedDeviceCookie}, ipAddress, userAgent)
 	}
 	result, err := s.mfaChallengeResult(ctx, account, 0, domain.PortalOrg, ipAddress)
 	if err != nil {
@@ -86,6 +91,7 @@ func (s *AccountAuthentication) traegerSecondFactor(ctx context.Context, account
 	return &identityaccess.TraegerLoginResult{
 		Status: identityaccess.TraegerLoginMFARequired, ChallengeToken: result.ChallengeToken,
 		MaskedEmail: result.MaskedEmail, OrganizationID: organizationID,
+		TrustedDeviceEnabled: result.TrustedDeviceEnabled, TrustedDeviceDays: result.TrustedDeviceDays,
 	}, nil
 }
 
@@ -125,14 +131,24 @@ func (s *AccountAuthentication) IssueTraegerTokensForVerifiedMFA(ctx context.Con
 // proof marks the session as verified by a second factor; the mint refuses
 // an unverified Träger session wherever the second factor is composed.
 func (s *AccountAuthentication) mintTraegerSession(ctx context.Context, account domain.LoginAccount, organizationID int64, proof *identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (*identityaccess.TraegerLoginResult, error) {
+	return s.mintTraegerSessionWith(ctx, account, organizationID, challengeProof(proof), ipAddress, userAgent)
+}
+
+// mintTraegerSessionWith mints the Träger session on any proof: a redeemed
+// code or a device remembered at this Träger. The result names the Träger,
+// whose devices the exchange may then remember.
+func (s *AccountAuthentication) mintTraegerSessionWith(ctx context.Context, account domain.LoginAccount, organizationID int64, proof mintProof, ipAddress, userAgent string) (*identityaccess.TraegerLoginResult, error) {
 	minted, err := s.mintAccountSession(ctx, mintRequest{
-		portal: domain.PortalOrg, account: account, orgID: organizationID, proof: challengeProof(proof),
+		portal: domain.PortalOrg, account: account, orgID: organizationID, proof: proof,
 		audit: s.traegerLoginAudit(ctx, account.ID, ipAddress, userAgent),
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &identityaccess.TraegerLoginResult{Status: identityaccess.TraegerLoginAuthenticated, AccessToken: minted.accessToken, RefreshToken: minted.refreshToken}, nil
+	return &identityaccess.TraegerLoginResult{
+		Status: identityaccess.TraegerLoginAuthenticated, AccessToken: minted.accessToken, RefreshToken: minted.refreshToken,
+		OrganizationID: organizationID,
+	}, nil
 }
 
 // CheckPasswordLogin checks an account's password like the login does, with

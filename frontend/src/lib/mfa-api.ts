@@ -13,16 +13,13 @@ interface MFARequiredLoginResponse {
   challenge_token: string;
   masked_email: string;
   /**
-   * Mirrors security.mfa_trusted_device_enabled for the tenant. Omitted by
-   * older backends — treat undefined as `true` so the checkbox keeps
-   * appearing for clients that haven't shipped this field yet.
+   * Whether the code step may remember the device (#6955): the portal's and
+   * the school's security.mfa_trusted_device_enabled. Older backends omit it.
    */
   trusted_device_enabled?: boolean;
   /**
-   * Mirrors security.mfa_trusted_device_days for the tenant. The frontend
-   * uses it to render "Auf diesem Gerät N Tage merken" with the exact day
-   * count the backend will issue the cookie for. Omitted by older
-   * backends — treat undefined as the registry default.
+   * The day count of the „… merken“ button, security.mfa_trusted_device_days
+   * of the school, or the registry default where the portal names none.
    */
   trusted_device_days?: number;
 }
@@ -41,6 +38,9 @@ interface MFAEnrollmentRequiredLoginResponse {
   access_token: string;
   masked_email: string;
   mfa_enrollment_required: true;
+  /** Whether the enrollment's code step may remember the device (#6955). */
+  trusted_device_enabled?: boolean;
+  trusted_device_days?: number;
 }
 
 export interface MFAResult {
@@ -244,11 +244,12 @@ export async function enrollConfirm(
   code: string,
   challengeToken: string | null,
   organizationId?: string,
+  rememberDevice = false,
 ): Promise<MFAResult> {
   const payload = {
     ...(challengeToken === null ? {} : { challenge_token: challengeToken }),
     code,
-    remember_device: false,
+    remember_device: rememberDevice,
     ...organizationField(organizationId),
   };
   return postStep<MFAResult>(scope, "mfa/enroll/confirm", payload, {
@@ -256,7 +257,7 @@ export async function enrollConfirm(
   });
 }
 
-// ----- Self-service trusted devices (tenant, operator and caterer) -----
+// ----- Self-service trusted devices (every portal with a second factor) -----
 //
 // These and the admin calls below act for the signed-in account: their BFF
 // routes read the session cookie, so no bearer token leaves the browser

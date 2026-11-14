@@ -222,6 +222,8 @@ describe("traeger-api", () => {
         challenge_token: "challenge",
         masked_email: "a***@b.de",
         organization_id: 7,
+        trusted_device_enabled: true,
+        trusted_device_days: 90,
       }),
     );
     await expect(
@@ -231,6 +233,8 @@ describe("traeger-api", () => {
       challengeToken: "challenge",
       maskedEmail: "a***@b.de",
       organizationId: "7",
+      trustedDeviceEnabled: true,
+      trustedDeviceDays: 90,
     });
 
     fetchMock.mockResolvedValueOnce(
@@ -249,6 +253,9 @@ describe("traeger-api", () => {
       enrollmentToken: "enrollment",
       maskedEmail: "a***@b.de",
       organizationId: "7",
+      // Without the backend's offer the code step remembers nothing (#6955).
+      trustedDeviceEnabled: false,
+      trustedDeviceDays: 0,
     });
   });
 

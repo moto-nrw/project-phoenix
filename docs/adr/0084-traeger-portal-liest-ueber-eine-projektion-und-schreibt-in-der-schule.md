@@ -347,3 +347,35 @@ Die übrigen Zeilen bleiben wie im Nachtrag vom 02.11.2026. Regeln:
   verleihen, als die Person hatte.
 - Laufende Sitzungen bekommen das neue Recht beim nächsten Refresh, der die
   Rollen neu liest.
+
+## Nachtrag 2026-11-14: gemerktes Gerät im Träger-Portal (#6955)
+
+Status: Akzeptiert. Abschnitt 3 macht den zweiten Faktor zur Pflicht; ein
+Verbot, das Gerät zu merken, steht hier nicht. #4651 ließ das Merken weg,
+weil das Träger-Portal keine Schule hat, deren Einstellungen gelten könnten.
+Das Caterer-Portal löst dieselbe Lage mit den Registry-Standards (ADR 0077,
+Nachtrag vom 27.10.2026). Das Träger-Portal folgt ihm:
+
+- **Bewusste Wahl.** Der Code-Schritt bietet „Nur dieses Mal bestätigen“ und
+  „Bestätigen und dieses Gerät N Tage merken“, wie jedes Portal mit zweitem
+  Faktor. Nichts ist vorbelegt; Enter bestätigt nur dieses Mal.
+- **Gilt nur beim Träger.** Das Gerät nennt den Träger der Anmeldung
+  (`auth.mfa_trusted_devices.organization_id`, Portal `org`, keine Schule).
+  Es öffnet weder einen anderen Träger desselben Kontos noch das
+  Caterer-Portal oder eine Schule. Ohne genannten Träger merkt der
+  Code-Schritt nichts.
+- **Gültigkeit.** Der Registry-Standard von
+  `security.mfa_trusted_device_enabled` und `security.mfa_trusted_device_days`
+  (an, 90 Tage), ohne Träger-Wert und ohne Umgebungsvariable. Kann moto die
+  Werte nicht lesen, merkt der Code-Schritt das Gerät nicht; die Anmeldung
+  läuft weiter (#4641).
+- **Prüfung.** Ein gemerktes Gerät ersetzt den Code bei der Anmeldung; der
+  Mint prüft es unter der Kontosperre erneut, zusammen mit Mitgliedschaft und
+  Zugangsgeneration. Die Sitzung trägt `mfa_verified`.
+- **Liste und Widerruf.** `GET /traeger/auth/mfa/trusted-devices` und
+  `DELETE /traeger/auth/mfa/trusted-devices/{deviceId}` mit der
+  Träger-Sitzung, ohne Träger-Recht und ohne Träger-Transaktion: die eigenen
+  Geräte bei diesem Träger. Im Portal unter `Konto`.
+- **Benachrichtigung und Ende.** Ein neues Gerät schickt die Mail wie in den
+  anderen Portalen. Der Reset des moto-Teams, eine Passwortänderung und das
+  Ausschalten des Faktors beenden die Geräte wie bisher.

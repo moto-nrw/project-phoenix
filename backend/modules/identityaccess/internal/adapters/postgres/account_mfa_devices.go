@@ -8,17 +8,27 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-const accountTrustedDeviceColumns = "id, account_id, tenant_id, token_hash, user_agent, ip_address, expires_at, last_used_at, revoked_at, created_at, updated_at"
+const accountTrustedDeviceColumns = "id, account_id, portal, tenant_id, organization_id, token_hash, user_agent, ip_address, expires_at, last_used_at, revoked_at, created_at, updated_at"
 
-// deviceSchool binds the school of a trusted device. The caterer portal
-// remembers its devices without a school (#4497): its zero school is NULL,
-// and every lookup compares the school with NULL read as zero, so a device
-// without a school never answers for a school and the other way round.
-func deviceSchool(tenantID int64) *int64 {
-	if tenantID == 0 {
+// deviceID binds the school or the Träger of a trusted device. The caterer
+// portal remembers its devices without a school (#4497), the Träger-Portal
+// without a school but at its Träger (#6955): a zero ID is NULL.
+func deviceID(id int64) *int64 {
+	if id == 0 {
 		return nil
 	}
-	return &tenantID
+	return &id
+}
+
+// trustedDeviceInScope matches a device of one account in exactly one scope:
+// its portal, its school and its Träger, with NULL read as zero (#6955). A
+// device of the tenant portal never answers for moto schule, a device without
+// a school never for a school, and a Träger's never for the caterer or
+// another Träger. The arguments are the account and trustedDeviceScopeArgs.
+const trustedDeviceInScope = `account_id = ? AND portal = ? AND COALESCE(tenant_id, 0) = ? AND COALESCE(organization_id, 0) = ?`
+
+func trustedDeviceScopeArgs(accountID int64, scope domain.TrustedDeviceScope) []any {
+	return []any{accountID, scope.Portal, scope.TenantID, scope.OrganizationID}
 }
 
 // trustedDeviceCurrentCredential admits a remembered device only while the
@@ -27,8 +37,8 @@ func deviceSchool(tenantID int64) *int64 {
 const trustedDeviceCurrentCredential = `credential_generation = (SELECT credential_account.mfa_reset_generation FROM auth.accounts AS credential_account WHERE credential_account.id = account_id)`
 
 func (r *AccountMFARecords) CreateTrustedDevice(ctx context.Context, device domain.AccountTrustedDevice) (domain.AccountTrustedDevice, error) {
-	if device.AccountID == 0 || device.TokenHash == "" || device.ExpiresAt.IsZero() {
-		return domain.AccountTrustedDevice{}, fmt.Errorf("trusted device requires account, hash and expiry")
+	if device.AccountID == 0 || device.Portal == "" || device.TokenHash == "" || device.ExpiresAt.IsZero() {
+		return domain.AccountTrustedDevice{}, fmt.Errorf("trusted device requires account, portal, hash and expiry")
 	}
 	db, err := r.store.database(ctx)
 	if err != nil {
@@ -36,35 +46,36 @@ func (r *AccountMFARecords) CreateTrustedDevice(ctx context.Context, device doma
 	}
 	var row domain.AccountTrustedDevice
 	err = db.NewRaw(`INSERT INTO auth.mfa_trusted_devices
- (account_id, tenant_id, token_hash, user_agent, ip_address, expires_at, last_used_at, revoked_at, credential_generation)
- VALUES (?, ?, ?, ?, ?, ?, ?, ?, (SELECT mfa_reset_generation FROM auth.accounts WHERE id = ?)) RETURNING `+accountTrustedDeviceColumns,
-		device.AccountID, deviceSchool(device.TenantID), device.TokenHash, device.UserAgent, nullableMFAIPAddress(device.IPAddress), device.ExpiresAt, device.LastUsedAt, device.RevokedAt, device.AccountID).Scan(ctx, &row)
+ (account_id, portal, tenant_id, organization_id, token_hash, user_agent, ip_address, expires_at, last_used_at, revoked_at, credential_generation)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT mfa_reset_generation FROM auth.accounts WHERE id = ?)) RETURNING `+accountTrustedDeviceColumns,
+		device.AccountID, device.Portal, deviceID(device.TenantID), deviceID(device.OrganizationID), device.TokenHash, device.UserAgent, nullableMFAIPAddress(device.IPAddress), device.ExpiresAt, device.LastUsedAt, device.RevokedAt, device.AccountID).Scan(ctx, &row)
 	return row, err
 }
 
-func (r *AccountMFARecords) FindActiveTrustedDevice(ctx context.Context, accountID, tenantID int64, tokenHash string) (domain.AccountTrustedDevice, bool, error) {
+func (r *AccountMFARecords) FindActiveTrustedDevice(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope, tokenHash string) (domain.AccountTrustedDevice, bool, error) {
 	db, err := r.store.database(ctx)
 	if err != nil {
 		return domain.AccountTrustedDevice{}, false, err
 	}
 	var row domain.AccountTrustedDevice
+	args := append(trustedDeviceScopeArgs(accountID, scope), tokenHash, time.Now())
 	err = db.NewRaw("SELECT "+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices
- WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND token_hash = ? AND revoked_at IS NULL AND expires_at > ?
- AND `+trustedDeviceCurrentCredential+` LIMIT 1`,
-		accountID, tenantID, tokenHash, time.Now()).Scan(ctx, &row)
+ WHERE `+trustedDeviceInScope+` AND token_hash = ? AND revoked_at IS NULL AND expires_at > ?
+ AND `+trustedDeviceCurrentCredential+` LIMIT 1`, args...).Scan(ctx, &row)
 	return row, err == nil, err
 }
 
-func (r *AccountMFARecords) ListActiveTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]domain.AccountTrustedDevice, error) {
+func (r *AccountMFARecords) ListActiveTrustedDevices(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope) ([]domain.AccountTrustedDevice, error) {
 	db, err := r.store.database(ctx)
 	if err != nil {
 		return nil, err
 	}
 	rows := make([]domain.AccountTrustedDevice, 0)
+	args := append(trustedDeviceScopeArgs(accountID, scope), time.Now())
 	err = db.NewRaw("SELECT "+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices
- WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND revoked_at IS NULL AND expires_at > ?
+ WHERE `+trustedDeviceInScope+` AND revoked_at IS NULL AND expires_at > ?
  AND `+trustedDeviceCurrentCredential+`
- ORDER BY last_used_at DESC NULLS LAST, created_at DESC`, accountID, tenantID, time.Now()).Scan(ctx, &rows)
+ ORDER BY last_used_at DESC NULLS LAST, created_at DESC`, args...).Scan(ctx, &rows)
 	return rows, err
 }
 
@@ -99,6 +110,8 @@ func (r *AccountMFARecords) RevokeTenantTrustedDevices(ctx context.Context, acco
 	if err != nil {
 		return err
 	}
-	_, err = db.NewRaw("UPDATE auth.mfa_trusted_devices SET revoked_at = ? WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND revoked_at IS NULL", revokedAt, accountID, tenantID).Exec(ctx)
+	// Every portal of the school: the tenant portal's devices and those of
+	// moto schule. A device without a school never matches.
+	_, err = db.NewRaw("UPDATE auth.mfa_trusted_devices SET revoked_at = ? WHERE account_id = ? AND tenant_id = ? AND revoked_at IS NULL", revokedAt, accountID, tenantID).Exec(ctx)
 	return err
 }

@@ -226,3 +226,45 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
 	return common.RequireDependency(w, r, rs.MFAService.complete(), errMFAServiceUnavailable)
 }
+
+// mfaTrustedDevices lists the devices the signed-in Lehrkraft remembered in
+// moto schule at the session's school.
+func (rs *Resource) mfaTrustedDevices(w http.ResponseWriter, r *http.Request) {
+	if !common.RequireDependency(w, r, rs.MFAService.devicesComplete(), errDevicesUnavailable) {
+		return
+	}
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 || claims.TenantID <= 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
+	devices, err := rs.MFAService.ListTrustedDevices(r.Context(), int64(claims.ID), claims.TenantID)
+	if err != nil {
+		portalauth.Render(w, r, err, portalauth.MFARules)
+		return
+	}
+	render.JSON(w, r, common.MapTrustedDevices(devices, portalauth.TrustedDeviceRowOf))
+}
+
+// mfaRevokeTrustedDevice forgets one of those devices; a device of another
+// account, school or portal answers 403.
+func (rs *Resource) mfaRevokeTrustedDevice(w http.ResponseWriter, r *http.Request) {
+	if !common.RequireDependency(w, r, rs.MFAService.devicesComplete(), errDevicesUnavailable) {
+		return
+	}
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 || claims.TenantID <= 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
+	deviceID, err := common.ParseIDParam(r, "deviceId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if err := rs.MFAService.RevokeTrustedDevice(r.Context(), int64(claims.ID), claims.TenantID, deviceID); err != nil {
+		portalauth.Render(w, r, err, portalauth.MFARules)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

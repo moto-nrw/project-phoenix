@@ -189,11 +189,14 @@ var tenantIdentityTables = map[string]string{
 
 // mappedTenantTables reach their tenant through a join table.
 var mappedTenantTables = map[string]struct{ mappingTable, foreignKey, ownerColumn string }{
-	"audit.auth_events":          {"auth.account_tenants", "account_id", "account_id"},
-	"auth.accounts":              {"auth.account_tenants", "account_id", "id"},
-	"auth.mfa_credentials":       {"auth.account_tenants", "account_id", "account_id"},
-	"auth.mfa_email_challenges":  {"auth.account_tenants", "account_id", "account_id"},
-	"auth.mfa_overrides":         {"auth.account_tenants", "account_id", "account_id"},
+	"audit.auth_events":         {"auth.account_tenants", "account_id", "account_id"},
+	"auth.accounts":             {"auth.account_tenants", "account_id", "id"},
+	"auth.mfa_credentials":      {"auth.account_tenants", "account_id", "account_id"},
+	"auth.mfa_email_challenges": {"auth.account_tenants", "account_id", "account_id"},
+	"auth.mfa_overrides":        {"auth.account_tenants", "account_id", "account_id"},
+	// A remembered device of the caterer or the Träger-Portal names no
+	// school (#4497, #6955); it belongs to its account like the factor.
+	"auth.mfa_trusted_devices":   {"auth.account_tenants", "account_id", "account_id"},
 	"auth.passkey_credentials":   {"auth.account_tenants", "account_id", "account_id"},
 	"auth.password_reset_tokens": {"auth.account_tenants", "account_id", "account_id"},
 	"auth.role_permissions":      {"auth.roles", "id", "role_id"},

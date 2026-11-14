@@ -221,7 +221,11 @@ func TrustedDeviceAddedMailContent(message TrustedDeviceMail, origin string) Mai
 			"IPAddress":   message.RequestIP,
 			"AddedAt":     message.AddedAt,
 			"TrustedDays": message.TrustedDays,
-			"Caterer":     message.Caterer,
+			// Where the holder manages the device: the portal that
+			// remembered it (#6955).
+			"Caterer": message.Portal == MFAChallengeScopeCaterer,
+			"Traeger": message.Portal == MFAChallengeScopeOrg,
+			"School":  message.Portal == MFAChallengeScopeSchool,
 		},
 	}
 }

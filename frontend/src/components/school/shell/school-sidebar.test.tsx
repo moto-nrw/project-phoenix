@@ -49,6 +49,10 @@ describe("SchoolSidebar", () => {
     expect(
       screen.getByRole("link", { name: "Benachrichtigungen" }),
     ).toHaveAttribute("href", "/einstellungen?tab=notifications");
+    // The devices moto schule remembered after the code (#6955).
+    expect(
+      screen.getByRole("link", { name: "Vertraute Geräte" }),
+    ).toHaveAttribute("href", "/einstellungen?tab=devices");
     expect(screen.getByRole("link", { name: "Datenschutz" })).toHaveAttribute(
       "aria-current",
       "page",

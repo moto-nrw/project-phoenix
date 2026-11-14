@@ -61,7 +61,15 @@ func SchoolPortalMFA(mfa identityaccess.AccountMFA) schoolPortal.MFARuntime {
 		Enroll: func(ctx context.Context, proof schoolPortal.VerifiedChallenge) error {
 			return mfa.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: proof.AccountID, TenantID: proof.TenantID, Scope: identityaccess.MFAChallengeScopeSchool, MFAResetGeneration: proof.MFAResetGeneration})
 		},
-		PrepareTrustedDevice: mfa.PrepareTrustedDevice,
+		PrepareTrustedDevice: func(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+			return mfa.PrepareTrustedDevice(ctx, accountID, identityaccess.SchoolPortalDevice(tenantID), userAgent, ip)
+		},
+		ListTrustedDevices: func(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error) {
+			return mfa.ListTrustedDevices(ctx, accountID, identityaccess.SchoolPortalDevice(tenantID))
+		},
+		RevokeTrustedDevice: func(ctx context.Context, accountID, tenantID, deviceID int64) error {
+			return mfa.RevokeTrustedDevice(ctx, accountID, identityaccess.SchoolPortalDevice(tenantID), deviceID)
+		},
 	}
 }
 

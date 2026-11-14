@@ -18,14 +18,18 @@ export function teacherLoginTopic(): HelpTopic {
       "Wählen Sie `Anmelden`.",
       "Fragt moto nach einem Code? Öffnen Sie die E-Mail von moto.",
       "Geben Sie den sechsstelligen Code ein.",
+      "Ist das Ihr eigenes Gerät? Wählen Sie `Bestätigen und dieses Gerät 90 Tage merken`. Auf einem geteilten Gerät wählen Sie `Nur dieses Mal bestätigen`.",
     ],
     result: "moto öffnet die `Klassenansicht` mit dem heutigen Tag.",
     notes: [
+      "Gemerkte Geräte sehen Sie unter `Einstellungen` bei `Vertraute Geräte`. Dort können Sie ein Gerät wieder entfernen.",
       "Legen Sie sich die Adresse als Lesezeichen an.",
       "Passwort vergessen? Wählen Sie `Passwort vergessen?` auf der Anmeldeseite.",
     ],
     differences: [
       "Oben steht `Willkommen im Schulportal`. So erkennen Sie, dass Sie richtig sind.",
+      "Wie lange moto ein Gerät merkt, legt Ihre Schule fest. Die Zahl steht auf dem Knopf. Hat Ihre Schule das Merken ausgeschaltet, sehen Sie nur `Bestätigen`.",
+      "Ein gemerktes Gerät gilt nur für moto schule an dieser Schule. Auf der OGS-Seite fragt moto wieder nach einem Code.",
       "Für Verwaltung ist ein zweiter Nachweis immer Pflicht. Ebenso für Personalstammdaten, Personaldokumente und Personalfinanzen. Das gilt auch für Einkommensnachweise der Eltern. Ebenso für Gesundheitsdokumente und das Verwalten fremder Arbeitszeiten. Ebenso, wenn Sie Urlaub genehmigen dürfen. Gesundheitshinweise der Kinder allein lösen diese Pflicht nicht aus.",
     ],
     troubleshootingDetails: [

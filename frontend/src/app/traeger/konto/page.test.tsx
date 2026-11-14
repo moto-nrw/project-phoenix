@@ -9,6 +9,12 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/traeger-api", () => api);
+// The device list has its own tests; here only its place on the page counts.
+vi.mock("~/components/settings/trusted-devices-section", () => ({
+  TrustedDevicesSection: ({ scope }: { scope: string }) => (
+    <div data-testid="trusted-devices" data-scope={scope} />
+  ),
+}));
 
 import TraegerAccountPage from "./page";
 
@@ -42,6 +48,11 @@ describe("TraegerAccountPage", () => {
     expect(
       await screen.findByText("kasse@traeger.example"),
     ).toBeInTheDocument();
+    // The person sees and removes the devices remembered here (#6955).
+    expect(screen.getByTestId("trusted-devices")).toHaveAttribute(
+      "data-scope",
+      "traeger",
+    );
     const field = screen.getByRole("textbox", { name: /Ihr Name/ });
     // Anker: das Feld ist da; gespeichert wird erst nach einer Änderung.
     expect(field).toHaveValue("");

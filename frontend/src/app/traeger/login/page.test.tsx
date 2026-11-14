@@ -53,11 +53,12 @@ function jsonResponse(body: unknown): Response {
   });
 }
 
-async function enterCode(code: string) {
+async function enterCode(code: string, button = "Nur dieses Mal bestätigen") {
   const inputs = (await screen.findAllByRole("textbox")).slice(0, 6);
   await act(async () => {
     fireEvent.change(inputs[0]!, { target: { value: code } });
   });
+  fireEvent.click(screen.getByRole("button", { name: button }));
 }
 
 describe("TraegerLoginPage", () => {
@@ -86,6 +87,8 @@ describe("TraegerLoginPage", () => {
       challengeToken: "challenge",
       maskedEmail: "b***@traeger.example",
       organizationId: "7",
+      trustedDeviceEnabled: true,
+      trustedDeviceDays: 90,
     });
     fetchMock.mockResolvedValue(jsonResponse({ status: "authenticated" }));
     mockSignIn.mockResolvedValue({ error: undefined });
@@ -97,9 +100,12 @@ describe("TraegerLoginPage", () => {
       await screen.findByRole("heading", { name: "Code-Eingabe" }),
     ).toBeInTheDocument();
     expect(screen.getByText("b***@traeger.example")).toBeInTheDocument();
+    // The Träger-Portal offers the same choice as every portal (#6955).
     expect(
-      screen.queryByRole("checkbox", { name: /Tage merken/ }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", {
+        name: "Bestätigen und dieses Gerät 90 Tage merken",
+      }),
+    ).toBeInTheDocument();
     await enterCode("123456");
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -114,12 +120,43 @@ describe("TraegerLoginPage", () => {
     await waitFor(() => expect(navigate).toHaveBeenCalledWith("/traeger"));
   });
 
+  it("remembers the device at the resolved Träger only when chosen (#6955)", async () => {
+    mockLogin.mockResolvedValue({
+      status: "mfa_required",
+      challengeToken: "challenge",
+      maskedEmail: "b***@traeger.example",
+      organizationId: "7",
+      trustedDeviceEnabled: true,
+      trustedDeviceDays: 90,
+    });
+    fetchMock.mockResolvedValue(jsonResponse({ status: "authenticated" }));
+    mockSignIn.mockResolvedValue({ error: undefined });
+    render(<TraegerLoginPage />);
+
+    submitCredentials();
+    await screen.findByRole("heading", { name: "Code-Eingabe" });
+    expect(
+      screen.getByText(/Unter „Konto“ können Sie gemerkte Geräte/),
+    ).toBeInTheDocument();
+    await enterCode("123456", "Bestätigen und dieses Gerät 90 Tage merken");
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetchMock.mock.calls[0]![1]?.body as string)).toEqual({
+      challenge_token: "challenge",
+      code: "123456",
+      remember_device: true,
+      organization_id: 7,
+    });
+  });
+
   it("sets up the second factor before the first Träger session", async () => {
     mockLogin.mockResolvedValue({
       status: "mfa_enrollment_required",
       enrollmentToken: "enrollment",
       maskedEmail: "b***@traeger.example",
       organizationId: "7",
+      trustedDeviceEnabled: false,
+      trustedDeviceDays: 0,
     });
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ challenge_token: "challenge" }))
@@ -137,7 +174,7 @@ describe("TraegerLoginPage", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Code an meine E-Mail senden" }),
     );
-    await enterCode("654321");
+    await enterCode("654321", "Bestätigen");
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const [startUrl, startInit] = fetchMock.mock.calls[0]!;

@@ -205,6 +205,10 @@ func (rs *Resource) mountAuthRoutes(r chi.Router, authRateLimiter func(http.Hand
 			// School switching for Lehrkraft accounts mapped to several
 			// schools — the school-portal sibling of /auth/switch-tenant.
 			r.Post("/switch-school", rs.switchSchool)
+			// The devices moto schule remembered at the session's school
+			// (#6955).
+			r.Get("/mfa/trusted-devices", rs.mfaTrustedDevices)
+			r.Delete("/mfa/trusted-devices/{deviceId}", rs.mfaRevokeTrustedDevice)
 		})
 	})
 

@@ -467,13 +467,13 @@ func TestLoginSchool_TrustedDevice_SkipsChallenge(t *testing.T) {
 	// of starting another email-code challenge.
 	db := testpkg.SetupTestDB(t)
 	var verifiedCookie string
-	var verifiedTenantID int64
+	var verifiedScope identityaccess.TrustedDeviceScope
 	service := newGatedAuthService(t, db, &MFAServiceMock{
 		IsRequiredFn:       func(context.Context, int64, []string, int64) (bool, error) { return true, nil },
 		HasMFAEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
-		VerifyTrustedDeviceFn: func(_ context.Context, _, cookieTenantID int64, cookie string) (bool, error) {
+		VerifyTrustedDeviceFn: func(_ context.Context, _ int64, scope identityaccess.TrustedDeviceScope, cookie string) (bool, error) {
 			verifiedCookie = cookie
-			verifiedTenantID = cookieTenantID
+			verifiedScope = scope
 			return true, nil
 		},
 		StartMFAChallengeFn: func(context.Context, int64, int64, string, net.IP) (string, error) {
@@ -491,7 +491,8 @@ func TestLoginSchool_TrustedDevice_SkipsChallenge(t *testing.T) {
 	require.Equal(t, identityaccess.LoginStatusAuthenticated, result.Status)
 	require.NotEmpty(t, result.AccessToken)
 	assert.Equal(t, "trusted-cookie", verifiedCookie)
-	assert.Equal(t, tenantID, verifiedTenantID, "the trusted device must be checked against the resolved school")
+	assert.Equal(t, identityaccess.SchoolPortalDevice(tenantID), verifiedScope,
+		"the trusted device must be checked against the resolved school and moto schule only (#6955)")
 
 	scope, tokenTenantID := decodeTokenClaimsWith(t, service.TokenAuth, result.AccessToken)
 	assert.Equal(t, schoolScope, scope)

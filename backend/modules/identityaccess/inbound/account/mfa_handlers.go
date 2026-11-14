@@ -167,21 +167,12 @@ func (rs *Resource) mfaListTrustedDevices(w http.ResponseWriter, r *http.Request
 	// settings page never leaks devices trusted in another tenant. The
 	// route runs inside TenantTxMiddleware, but threading the value
 	// explicitly avoids relying on context state at the handler boundary.
-	devices, err := rs.MFAService.ListTrustedDevices(r.Context(), int64(claims.ID), claims.TenantID)
+	devices, err := rs.MFAService.ListTrustedDevices(r.Context(), int64(claims.ID), identityaccess.TenantPortalDevice(claims.TenantID))
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
-	render.JSON(w, r, common.MapTrustedDevices(devices, func(d identityaccess.AccountTrustedDevice) common.TrustedDeviceRow {
-		return common.TrustedDeviceRow{
-			ID:         d.ID,
-			UserAgent:  d.UserAgent,
-			IPAddress:  d.IPAddress,
-			CreatedAt:  d.CreatedAt,
-			ExpiresAt:  d.ExpiresAt,
-			LastUsedAt: d.LastUsedAt,
-		}
-	}))
+	render.JSON(w, r, common.MapTrustedDevices(devices, portalauth.TrustedDeviceRowOf))
 }
 
 // mfaRevokeTrustedDevice deletes one trusted device the user has
@@ -206,7 +197,7 @@ func (rs *Resource) mfaRevokeTrustedDevice(w http.ResponseWriter, r *http.Reques
 	// Tenant scope is enforced at the service layer too: a user with an
 	// access token for (account A, tenant T1) can't revoke a device that
 	// was trusted in tenant T2.
-	if err := rs.MFAService.RevokeTrustedDevice(r.Context(), int64(claims.ID), claims.TenantID, deviceID); err != nil {
+	if err := rs.MFAService.RevokeTrustedDevice(r.Context(), int64(claims.ID), identityaccess.TenantPortalDevice(claims.TenantID), deviceID); err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
@@ -221,7 +212,7 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 	}
 	client := portalauth.ClientOf(r)
 	prepare := portalauth.RememberDevice(rememberDevice, func(ctx context.Context) (identityaccess.TrustedDeviceIssue, error) {
-		return rs.MFAService.PrepareTrustedDevice(ctx, proof.AccountID, proof.TenantID, client.UserAgent, common.ParseClientIP(r))
+		return rs.MFAService.PrepareTrustedDevice(ctx, proof.AccountID, identityaccess.TenantPortalDevice(proof.TenantID), client.UserAgent, common.ParseClientIP(r))
 	})
 	tokens, err := portalauth.Exchange(w, r, proof.AccountID, prepare, func(ctx context.Context) (string, string, error) {
 		return rs.Sessions.IssueTokensForVerifiedMFA(ctx, proof, client.IP, client.UserAgent)

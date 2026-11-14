@@ -68,6 +68,7 @@ type trustedDeviceMFAStub struct {
 
 	gotIssueAccountID int64
 	gotIssueTenantID  int64
+	gotIssuePortal    string
 	gotIssueUA        string
 	gotIssueIP        net.IP
 }
@@ -76,18 +77,19 @@ func (s *trustedDeviceMFAStub) VerifyMFAChallenge(_ context.Context, _, _ string
 	return s.verifyResult, s.verifyErr
 }
 
-func (s *trustedDeviceMFAStub) PrepareTrustedDevice(_ context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+func (s *trustedDeviceMFAStub) PrepareTrustedDevice(_ context.Context, accountID int64, scope identityaccess.TrustedDeviceScope, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
 	if errors.Is(s.issueErr, identityaccess.ErrMFAStatusUnavailable) {
 		return nil, s.issueErr
 	}
 	return func(ctx context.Context) (string, time.Time, error) {
-		return s.IssueTrustedDevice(ctx, accountID, tenantID, userAgent, ip)
+		return s.IssueTrustedDevice(ctx, accountID, scope, userAgent, ip)
 	}, nil
 }
 
-func (s *trustedDeviceMFAStub) IssueTrustedDevice(_ context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {
+func (s *trustedDeviceMFAStub) IssueTrustedDevice(_ context.Context, accountID int64, scope identityaccess.TrustedDeviceScope, userAgent string, ip net.IP) (string, time.Time, error) {
 	s.gotIssueAccountID = accountID
-	s.gotIssueTenantID = tenantID
+	s.gotIssueTenantID = scope.TenantID
+	s.gotIssuePortal = scope.Portal
 	s.gotIssueUA = userAgent
 	s.gotIssueIP = ip
 	return s.issueCookie, s.issueExpiresAt, s.issueErr

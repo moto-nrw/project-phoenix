@@ -44,7 +44,7 @@ func TestOwnPasswordChangeEndsEveryOtherAccess(t *testing.T) {
 
 	mfa, _, _ := newTestMFAService(t)
 	require.NoError(t, enrollMFA(ctx, t, f.db, mfa, f.accountID))
-	device, _, err := mfa.IssueTrustedDevice(ctx, f.accountID, f.homeTenantID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
+	device, _, err := mfa.IssueTrustedDevice(ctx, f.accountID, identityaccess.TenantPortalDevice(f.homeTenantID), "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
 	require.NotEmpty(t, device)
 
@@ -67,7 +67,7 @@ func TestOwnPasswordChangeEndsEveryOtherAccess(t *testing.T) {
 
 	require.Error(t, f.module.ResetPassword(context.Background(), link.Token, testpkg.NewTestPassword()),
 		"a reset link mailed before the change overwrites nothing")
-	trusted, err := mfa.VerifyTrustedDevice(ctx, f.accountID, f.homeTenantID, device)
+	trusted, err := mfa.VerifyTrustedDevice(ctx, f.accountID, identityaccess.TenantPortalDevice(f.homeTenantID), device)
 	require.NoError(t, err)
 	assert.False(t, trusted, "a remembered device no longer skips the second factor")
 }
@@ -127,13 +127,13 @@ func TestCatererPasswordChangeRevokesRememberedDevices(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	mfa, _, _ := newTestMFAService(t)
 	require.NoError(t, enrollMFA(ctx, t, db, mfa, acceptance.AccountID))
-	device, _, err := mfa.IssueTrustedDevice(ctx, acceptance.AccountID, school, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
+	device, _, err := mfa.IssueTrustedDevice(ctx, acceptance.AccountID, identityaccess.TenantPortalDevice(school), "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
 	require.NotEmpty(t, device)
 
 	require.NoError(t, caterers.ChangeCatererPassword(context.Background(), acceptance.AccountID, catererPassword, testpkg.NewTestPassword(), "192.0.2.20", "test"))
 
-	trusted, err := mfa.VerifyTrustedDevice(ctx, acceptance.AccountID, school, device)
+	trusted, err := mfa.VerifyTrustedDevice(ctx, acceptance.AccountID, identityaccess.TenantPortalDevice(school), device)
 	require.NoError(t, err)
 	assert.False(t, trusted, "a remembered device no longer skips the second factor")
 }
@@ -157,13 +157,13 @@ func TestPasswordResetRevokesRememberedDevices(t *testing.T) {
 	})
 	mfa, _, _ := newTestMFAService(t)
 	require.NoError(t, enrollMFA(ctx, t, f.db, mfa, f.accountID))
-	device, _, err := mfa.IssueTrustedDevice(ctx, f.accountID, f.homeTenantID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
+	device, _, err := mfa.IssueTrustedDevice(ctx, f.accountID, identityaccess.TenantPortalDevice(f.homeTenantID), "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
 	require.NotEmpty(t, device)
 
 	require.NoError(t, f.module.ResetPassword(context.Background(), link.Token, testpkg.NewTestPassword()))
 
-	trusted, err := mfa.VerifyTrustedDevice(ctx, f.accountID, f.homeTenantID, device)
+	trusted, err := mfa.VerifyTrustedDevice(ctx, f.accountID, identityaccess.TenantPortalDevice(f.homeTenantID), device)
 	require.NoError(t, err)
 	assert.False(t, trusted, "a remembered device no longer skips the second factor")
 }

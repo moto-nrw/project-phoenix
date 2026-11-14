@@ -497,7 +497,7 @@ func TestMFAListTrustedDevices_EmptyOK(t *testing.T) {
 	t.Parallel()
 
 	svc := newStubMFAService()
-	svc.ListTrustedDevicesFn = func(context.Context, int64, int64) ([]identityaccess.AccountTrustedDevice, error) {
+	svc.ListTrustedDevicesFn = func(context.Context, int64, identityaccess.TrustedDeviceScope) ([]identityaccess.AccountTrustedDevice, error) {
 		return []identityaccess.AccountTrustedDevice{}, nil
 	}
 	rs := &Resource{
@@ -530,7 +530,7 @@ func TestMFAListTrustedDevices_ServiceErrorReturns500(t *testing.T) {
 	t.Parallel()
 
 	svc := newStubMFAService()
-	svc.ListTrustedDevicesFn = func(context.Context, int64, int64) ([]identityaccess.AccountTrustedDevice, error) {
+	svc.ListTrustedDevicesFn = func(context.Context, int64, identityaccess.TrustedDeviceScope) ([]identityaccess.AccountTrustedDevice, error) {
 		return nil, errors.New("db down")
 	}
 	rs := &Resource{

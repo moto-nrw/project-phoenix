@@ -22,11 +22,15 @@ import {
   type LoginScope,
   type MFAResult,
 } from "~/lib/mfa-api";
-import { OTPInputGrid, type OTPInputGridHandle } from "./otp-input-grid";
+import type { OTPInputGridHandle } from "./otp-input-grid";
+import {
+  MFA_CODE_LENGTH,
+  MFACodeConfirm,
+  type CodeConfirmChoice,
+} from "./mfa-code-confirm";
 
 const logger = createLogger({ component: "MFAEnrollmentScreen" });
 
-const CODE_LENGTH = 6;
 const STEPS = ["Start", "Bestätigung", "Abschluss"] as const;
 
 type Step = "intro" | "code" | "success";
@@ -55,6 +59,14 @@ interface MFAEnrollmentScreenProps {
   readonly onExit?: () => void;
   /** The Träger the Träger-Portal login resolved (#4651). */
   readonly organizationId?: string;
+  /**
+   * Whether the code step may remember the device, as at every sign-in
+   * (#6955): the login's trusted_device_enabled. Undefined or false offers
+   * only „Bestätigen“.
+   */
+  readonly trustedDeviceEnabled?: boolean;
+  /** The login's trusted_device_days. */
+  readonly trustedDeviceDays?: number;
 }
 
 export function MFAEnrollmentScreen({
@@ -64,6 +76,8 @@ export function MFAEnrollmentScreen({
   onComplete,
   onExit,
   organizationId,
+  trustedDeviceEnabled = false,
+  trustedDeviceDays = 90,
 }: MFAEnrollmentScreenProps) {
   const [step, setStep] = useState<Step>("intro");
   // Fehler über den gemeinsamen Weg (#2517). Ein abgelehnter Code bleibt im
@@ -74,7 +88,10 @@ export function MFAEnrollmentScreen({
   const { show: showError, clear: clearError } = formErrors;
   const latestStartRef = useRef<() => void>(() => undefined);
   const [isStarting, setIsStarting] = useState(false);
-  const [isConfirming, setIsConfirming] = useState(false);
+  // Which button is being checked; null while nothing is sent.
+  const [pending, setPending] = useState<CodeConfirmChoice | null>(null);
+  const isConfirming = pending !== null;
+  const [code, setCode] = useState("");
   // Keep the completion result until the explicit Continue action. For
   // every portal it contains status only.
   const resultRef = useRef<MFAResult | null>(null);
@@ -116,6 +133,7 @@ export function MFAEnrollmentScreen({
     clearError();
     if (step === "code") {
       otpRef.current?.reset();
+      setCode("");
       setStep("intro");
       return;
     }
@@ -123,8 +141,8 @@ export function MFAEnrollmentScreen({
   };
 
   const performConfirm = useCallback(
-    async (submittedCode: string) => {
-      setIsConfirming(true);
+    async (submittedCode: string, choice: CodeConfirmChoice) => {
+      setPending(choice);
       clearError();
       try {
         const result = await enrollConfirm(
@@ -133,6 +151,8 @@ export function MFAEnrollmentScreen({
           submittedCode,
           challengeTokenRef.current,
           organizationId,
+          // Only the explicit second button remembers the device (#6955).
+          trustedDeviceEnabled && choice === "remember",
         );
         resultRef.current = result;
         setStep("success");
@@ -142,15 +162,23 @@ export function MFAEnrollmentScreen({
           error: err instanceof Error ? err.message : String(err),
         });
         otpRef.current?.reset();
+        setCode("");
         // Kein Wiederholen: der Code steht nicht mehr im Feld.
         void showError(credentialError(err, MFA_STEP_REFUSALS), {
           object: "die Prüfung des Codes",
         });
       } finally {
-        setIsConfirming(false);
+        setPending(null);
       }
     },
-    [scope, bearerToken, organizationId, clearError, showError],
+    [
+      scope,
+      bearerToken,
+      organizationId,
+      trustedDeviceEnabled,
+      clearError,
+      showError,
+    ],
   );
 
   const showBack = step !== "success";
@@ -282,23 +310,27 @@ export function MFAEnrollmentScreen({
           )}
 
           {step === "code" && (
-            <div className="space-y-5">
-              <OTPInputGrid
-                ref={otpRef}
-                length={CODE_LENGTH}
-                disabled={isConfirming}
-                onComplete={(code) => {
-                  // Fire-and-forget: errors surface through state, not the caller.
-                  void performConfirm(code);
-                }}
-                ariaLabel="6-stelliger Bestätigungscode"
-              />
-              <p className="text-center text-xs text-gray-500">
-                {isConfirming
-                  ? "Code wird geprüft…"
-                  : "Der Code wird automatisch geprüft, sobald alle 6 Stellen eingegeben sind."}
-              </p>
-
+            <MFACodeConfirm
+              scope={scope}
+              otpRef={otpRef}
+              code={code}
+              onCodeChange={(next) => {
+                setCode(next);
+                if (formErrors.error) clearError();
+              }}
+              pending={pending}
+              trustedDeviceEnabled={trustedDeviceEnabled}
+              trustedDeviceDays={trustedDeviceDays}
+              onConfirm={(submitted, choice) => {
+                // Fire-and-forget: errors surface through state, not the caller.
+                void performConfirm(submitted, choice);
+              }}
+              onIncomplete={() =>
+                formErrors.invalid(
+                  `Bitte geben Sie alle ${MFA_CODE_LENGTH} Stellen des Codes ein.`,
+                )
+              }
+            >
               <div className="flex items-center justify-center">
                 <Button
                   type="button"
@@ -308,11 +340,12 @@ export function MFAEnrollmentScreen({
                     void handleStart();
                   }}
                   disabled={isStarting || isConfirming}
+                  tooltip="Schickt einen neuen Code an Ihre E-Mail-Adresse."
                 >
                   Keinen Code erhalten? Erneut senden
                 </Button>
               </div>
-            </div>
+            </MFACodeConfirm>
           )}
         </>
       )}

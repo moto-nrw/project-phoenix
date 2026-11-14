@@ -32,9 +32,9 @@ func (s *AccountAuthentication) loginSchoolWithMFAGate(ctx context.Context, emai
 		return nil, err
 	}
 	if mfaRequired && !enrolled {
-		return s.mfaEnrollmentResult(account, portalTenantID, domain.PortalSchool)
+		return s.mfaEnrollmentResult(ctx, account, portalTenantID, domain.PortalSchool)
 	}
-	if mfaRequired && enrolled && !s.trustedDeviceVerified(ctx, account.ID, portalTenantID, trustedDeviceCookie) {
+	if mfaRequired && enrolled && !s.trustedDeviceVerified(ctx, account.ID, domain.DeviceScopeOf(domain.PortalSchool, portalTenantID, 0), trustedDeviceCookie) {
 		return s.mfaChallengeResult(ctx, account, portalTenantID, domain.PortalSchool, ipAddress)
 	}
 

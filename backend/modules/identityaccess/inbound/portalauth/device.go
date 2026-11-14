@@ -77,3 +77,16 @@ type Client struct {
 func ClientOf(r *http.Request) Client {
 	return Client{IP: common.GetClientIPString(r), UserAgent: r.Header.Get("User-Agent")}
 }
+
+// TrustedDeviceRowOf projects a remembered device onto the wire row every
+// portal's device list answers with.
+func TrustedDeviceRowOf(device identityaccess.AccountTrustedDevice) common.TrustedDeviceRow {
+	return common.TrustedDeviceRow{
+		ID:         device.ID,
+		UserAgent:  device.UserAgent,
+		IPAddress:  device.IPAddress,
+		CreatedAt:  device.CreatedAt,
+		ExpiresAt:  device.ExpiresAt,
+		LastUsedAt: device.LastUsedAt,
+	}
+}

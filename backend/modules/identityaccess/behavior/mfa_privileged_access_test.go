@@ -117,7 +117,7 @@ func TestSchoolPrivilegedMFAEnrollmentPrecedesTrustedDevice(t *testing.T) {
 	email, accountID := createLehrkraftAccount(t, db, service, "school-health-mfa", school)
 	testpkg.GrantTestPermission(t, db, school, accountID, "staff_documents:health")
 	ctx := context.Background()
-	cookie, _, err := module.MFA.IssueTrustedDevice(ctx, accountID, school, "test-device", nil)
+	cookie, _, err := module.MFA.IssueTrustedDevice(ctx, accountID, identityaccess.SchoolPortalDevice(school), "test-device", nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, cookie)
 	result, err := service.LoginSchoolWithMFAGate(ctx, email, testPassword, "", "", cookie)
@@ -216,7 +216,7 @@ func checkRevokedDeviceAtMint(t *testing.T, schoolPortal bool) {
 	service := newGatedAuthService(t, db, &MFAServiceMock{
 		IsRequiredFn:       func(context.Context, int64, []string, int64) (bool, error) { return true, nil },
 		HasMFAEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
-		VerifyTrustedDeviceFn: func(context.Context, int64, int64, string) (bool, error) {
+		VerifyTrustedDeviceFn: func(context.Context, int64, identityaccess.TrustedDeviceScope, string) (bool, error) {
 			checks++
 			return checks == 1, nil // trust is revoked before the account lock is held
 		},

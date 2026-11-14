@@ -56,16 +56,16 @@ func TestNativeMFATrustedDeviceLifecycle(t *testing.T) {
 	home := testpkg.Tenant(t)
 	other, _ := testpkg.CreateTestTenant(t, db)
 	first, err := records.CreateTrustedDevice(ctx, domain.AccountTrustedDevice{
-		AccountID: account.ID, TenantID: home, TokenHash: "first", ExpiresAt: time.Now().Add(time.Hour),
+		AccountID: account.ID, Portal: "tenant", TenantID: home, TokenHash: "first", ExpiresAt: time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
 	second, err := records.CreateTrustedDevice(ctx, domain.AccountTrustedDevice{
-		AccountID: account.ID, TenantID: other, TokenHash: "second", ExpiresAt: time.Now().Add(time.Hour),
+		AccountID: account.ID, Portal: "tenant", TenantID: other, TokenHash: "second", ExpiresAt: time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
 	stamp := time.Now().Truncate(time.Microsecond)
 	require.NoError(t, records.TouchTrustedDevice(ctx, first.ID, stamp))
-	active, found, err := records.FindActiveTrustedDevice(ctx, account.ID, home, first.TokenHash)
+	active, found, err := records.FindActiveTrustedDevice(ctx, account.ID, domain.TrustedDeviceScope{Portal: "tenant", TenantID: home}, first.TokenHash)
 	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, first.ID, active.ID)
@@ -73,14 +73,14 @@ func TestNativeMFATrustedDeviceLifecycle(t *testing.T) {
 	require.True(t, stamp.Equal(*active.LastUsedAt))
 	require.NoError(t, records.RevokeAllTrustedDevices(ctx, account.ID, time.Now()))
 	for _, device := range []domain.AccountTrustedDevice{first, second} {
-		_, found, _ := records.FindActiveTrustedDevice(ctx, account.ID, device.TenantID, device.TokenHash)
+		_, found, _ := records.FindActiveTrustedDevice(ctx, account.ID, domain.TrustedDeviceScope{Portal: "tenant", TenantID: device.TenantID}, device.TokenHash)
 		require.False(t, found, "account-wide revocation must reach every school")
 	}
 	_, err = records.CreateTrustedDevice(ctx, domain.AccountTrustedDevice{
-		AccountID: account.ID, TenantID: home, TokenHash: "expired", ExpiresAt: time.Now().Add(-time.Minute),
+		AccountID: account.ID, Portal: "tenant", TenantID: home, TokenHash: "expired", ExpiresAt: time.Now().Add(-time.Minute),
 	})
 	require.NoError(t, err)
-	devices, err := records.ListActiveTrustedDevices(ctx, account.ID, home)
+	devices, err := records.ListActiveTrustedDevices(ctx, account.ID, domain.TrustedDeviceScope{Portal: "tenant", TenantID: home})
 	require.NoError(t, err)
 	require.Empty(t, devices, "neither expired nor revoked devices may be listed")
 }

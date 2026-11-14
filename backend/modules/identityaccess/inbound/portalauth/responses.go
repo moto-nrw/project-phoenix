@@ -41,9 +41,11 @@ func LoginBody(result identityaccess.LoginResult) LoginResponse {
 			TrustedDeviceEnabled: &enabled, TrustedDeviceDays: &days,
 		}
 	case identityaccess.LoginStatusMFAEnrollmentRequired:
+		// The enrollment's code step offers to remember the device too (#6955).
+		enabled, days := result.TrustedDeviceEnabled, result.TrustedDeviceDays
 		return LoginResponse{
 			Status: string(result.Status), AccessToken: result.AccessToken, MaskedEmail: result.MaskedEmail,
-			MFAEnrollmentRequired: true,
+			MFAEnrollmentRequired: true, TrustedDeviceEnabled: &enabled, TrustedDeviceDays: &days,
 		}
 	default:
 		return LoginResponse{

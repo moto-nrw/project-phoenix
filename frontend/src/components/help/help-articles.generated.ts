@@ -4382,7 +4382,9 @@ export const loginTopic = function loginTopic(
       "Geben Sie unter `Passwort` Ihr Passwort ein.",
       "Wählen Sie `Anmelden`.",
       "Zeigt moto die `Code-Eingabe`? Öffnen Sie die E-Mail von moto.",
-      "Geben Sie den sechsstelligen Code ein. moto prüft ihn automatisch.",
+      "Geben Sie den sechsstelligen Code ein.",
+      "Ist das Ihr eigenes Gerät? Wählen Sie `Bestätigen und dieses Gerät 90 Tage merken`. Dann fragt moto hier eine Zeit lang nicht nach einem Code.",
+      "Ist es ein geteiltes Gerät, zum Beispiel ein Tablet im Raum? Wählen Sie `Nur dieses Mal bestätigen`.",
     ],
     result: loginResult(presenceMode, groupMode),
     differences: [
@@ -4390,9 +4392,12 @@ export const loginTopic = function loginTopic(
       "Richten Sie die Sicherheitsabfrage erstmals ein? Wählen Sie `Code an meine E-Mail senden`.",
       "Geben Sie danach den sechsstelligen Code ein.",
       "Wenn Sie bereits einen Passkey eingerichtet haben, können Sie `Mit Passkey anmelden` wählen.",
+      "Wie lange moto ein Gerät merkt, legt Ihre Schule fest. Die Zahl steht auf dem Knopf. Hat Ihre Schule das Merken ausgeschaltet, sehen Sie nur `Bestätigen`.",
+      "Ein gemerktes Gerät gilt nur für diese Schule und nur für die OGS-Seite. In moto schule und an einer anderen Schule fragt moto wieder nach einem Code.",
     ],
     notes: [
       "Nutzen mehrere Personen das Gerät? Melden Sie sich bei moto ab, wenn Sie fertig sind.",
+      "Gemerkte Geräte sehen Sie unter `Profil` bei `Meine vertrauten Geräte`. Dort können Sie ein Gerät wieder entfernen.",
     ],
     troubleshootingDetails: [
       "Kein Zugriff auf Ihre E-Mails? Wenden Sie sich an Ihre Schulverwaltung. Der zusätzliche Nachweis bleibt bei besonderen Zugriffsrechten Pflicht.",
@@ -9663,14 +9668,18 @@ export const teacherLoginTopic = function teacherLoginTopic(): HelpTopic {
       "Wählen Sie `Anmelden`.",
       "Fragt moto nach einem Code? Öffnen Sie die E-Mail von moto.",
       "Geben Sie den sechsstelligen Code ein.",
+      "Ist das Ihr eigenes Gerät? Wählen Sie `Bestätigen und dieses Gerät 90 Tage merken`. Auf einem geteilten Gerät wählen Sie `Nur dieses Mal bestätigen`.",
     ],
     result: "moto öffnet die `Klassenansicht` mit dem heutigen Tag.",
     notes: [
+      "Gemerkte Geräte sehen Sie unter `Einstellungen` bei `Vertraute Geräte`. Dort können Sie ein Gerät wieder entfernen.",
       "Legen Sie sich die Adresse als Lesezeichen an.",
       "Passwort vergessen? Wählen Sie `Passwort vergessen?` auf der Anmeldeseite.",
     ],
     differences: [
       "Oben steht `Willkommen im Schulportal`. So erkennen Sie, dass Sie richtig sind.",
+      "Wie lange moto ein Gerät merkt, legt Ihre Schule fest. Die Zahl steht auf dem Knopf. Hat Ihre Schule das Merken ausgeschaltet, sehen Sie nur `Bestätigen`.",
+      "Ein gemerktes Gerät gilt nur für moto schule an dieser Schule. Auf der OGS-Seite fragt moto wieder nach einem Code.",
       "Für Verwaltung ist ein zweiter Nachweis immer Pflicht. Ebenso für Personalstammdaten, Personaldokumente und Personalfinanzen. Das gilt auch für Einkommensnachweise der Eltern. Ebenso für Gesundheitsdokumente und das Verwalten fremder Arbeitszeiten. Ebenso, wenn Sie Urlaub genehmigen dürfen. Gesundheitshinweise der Kinder allein lösen diese Pflicht nicht aus.",
     ],
     troubleshootingDetails: [
@@ -13077,7 +13086,8 @@ export const traegerKeyDateCountsTopic =
 // deshalb bleiben es Entwuerfe.
 /**
  * `/traeger/login` (#4649): eigene Adresse, danach die Liste der Schulen.
- * Der Code per E-Mail ist Pflicht, beim ersten Mal mit Einrichtung (#4651).
+ * Der Code per E-Mail ist Pflicht, beim ersten Mal mit Einrichtung (#4651);
+ * ein gemerktes Gerät braucht ihn beim selben Träger eine Zeit lang nicht (#6955).
  * „Passwort vergessen?“ schickt den Link auf den Träger-Host (#5149).
  */
 export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
@@ -13102,18 +13112,22 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
       "Gehören Sie zu mehreren Trägern? Wählen Sie den Träger aus.",
       "Wählen Sie dann `Träger öffnen`.",
       "moto zeigt die `Code-Eingabe`. Öffnen Sie die E-Mail von moto.",
-      "Geben Sie den sechsstelligen Code ein. moto prüft ihn automatisch.",
+      "Geben Sie den sechsstelligen Code ein.",
+      "Ist das Ihr eigenes Gerät? Wählen Sie `Bestätigen und dieses Gerät 90 Tage merken`. Dann fragt moto hier 90 Tage lang nicht nach einem Code.",
+      "Ist es ein geteiltes Gerät? Wählen Sie `Nur dieses Mal bestätigen`.",
     ],
     result: "moto öffnet die Seite `Schulen` mit allen Schulen Ihres Trägers.",
     notes: [
       "Legen Sie sich die Adresse als Lesezeichen an.",
       "Ein neues Passwort gilt auch für Ihr Konto in der OGS.",
+      "Gemerkte Geräte sehen Sie unter `Konto` bei `Meine vertrauten Geräte`. Dort können Sie ein Gerät wieder entfernen.",
     ],
     differences: [
       "Oben steht `Willkommen im Träger-Portal`. So erkennen Sie, dass Sie richtig sind.",
       "Haben Sie auch ein Konto in einer OGS? Dann nutzen Sie dasselbe Konto. Ein zweites Passwort brauchen Sie nicht.",
       "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein. Wählen Sie `Weiter zum Dashboard`.",
-      "Der Code ist im Träger-Portal immer Pflicht. moto merkt sich Ihr Gerät hier nicht.",
+      "Der Code ist im Träger-Portal Pflicht. Nur ein gemerktes Gerät braucht ihn eine Zeit lang nicht.",
+      "Ein gemerktes Gerät gilt nur für diesen Träger. Gehören Sie zu mehreren Trägern, fragt moto beim anderen Träger wieder nach einem Code.",
       "Am Computer stehen die Bereiche links in der Navigation. Auf dem Handy stehen sie unten. Was dort keinen Platz hat, finden Sie unter `Mehr`.",
       "`Einstellungen` steht unten in der Navigation. Ein Klick darauf zeigt dort die Einstellungen. `Zurück zur App` führt zurück.",
     ],

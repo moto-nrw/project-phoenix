@@ -199,7 +199,7 @@ func TestTrustedDeviceNoticeOutboxIsAtomicWithDevice(t *testing.T) {
 					// A new operator holds credential generation 1 (#6308).
 					return module.OperatorMFA.IssueOperatorTrustedDevice(ctx, identityaccess.OperatorMFAProof{OperatorID: id, CredentialGeneration: 1}, "Outbox test", net.ParseIP("203.0.113.78"))
 				}
-				return module.MFA.IssueTrustedDevice(ctx, id, testpkg.Tenant(t), "Outbox test", net.ParseIP("203.0.113.78"))
+				return module.MFA.IssueTrustedDevice(ctx, id, identityaccess.TenantPortalDevice(testpkg.Tenant(t)), "Outbox test", net.ParseIP("203.0.113.78"))
 			}
 			_, err = db.NewRaw(`ALTER TABLE platform.email_outbox ADD CONSTRAINT reject_device_notice_test CHECK (payload->>'Type' NOT IN ('mfa_trusted_device_added', 'operator_mfa_trusted_device_added'))`).Exec(ctx)
 			require.NoError(t, err)

@@ -62,6 +62,25 @@ func TestTrustedDeviceAddedTemplate_Renders(t *testing.T) {
 			},
 		},
 		{
+			// A device of the Träger-Portal is managed there; the moto team
+			// resets the factor (#6955).
+			name: "Träger-Portal device",
+			data: map[string]any{
+				"LogoURL": "https://example.com/logo.png", "DeviceLabel": "Firefox auf Windows",
+				"AddedAt": "14.11.2026 07:00", "TrustedDays": 90, "Traeger": true,
+			},
+			mustContain: []string{"Träger-Portal", "Konto → Meine vertrauten Geräte", "moto-Team"},
+		},
+		{
+			// A device of moto schule is managed in its settings (#6955).
+			name: "moto schule device",
+			data: map[string]any{
+				"LogoURL": "https://example.com/logo.png", "DeviceLabel": "Safari auf iPad",
+				"AddedAt": "14.11.2026 07:00", "TrustedDays": 30, "School": true,
+			},
+			mustContain: []string{"moto schule", "Einstellungen → Vertraute Geräte", "Administration"},
+		},
+		{
 			name: "IP optional (template still renders without)",
 			data: map[string]any{
 				"LogoURL":     "https://example.com/logo.png",

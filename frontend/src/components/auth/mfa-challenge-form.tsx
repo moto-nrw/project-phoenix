@@ -9,7 +9,6 @@ import {
 } from "react";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { Checkbox } from "~/components/ui/checkbox";
 import { createLogger } from "~/lib/logger";
 import { credentialError, MFA_STEP_REFUSALS } from "./credential-error";
 import {
@@ -18,12 +17,16 @@ import {
   type LoginScope,
   type MFAResult,
 } from "~/lib/mfa-api";
-import { OTPInputGrid, type OTPInputGridHandle } from "./otp-input-grid";
+import type { OTPInputGridHandle } from "./otp-input-grid";
 import { Button } from "~/components/ui/button";
+import {
+  MFA_CODE_LENGTH,
+  MFACodeConfirm,
+  type CodeConfirmChoice,
+} from "./mfa-code-confirm";
 
 const logger = createLogger({ component: "MFAChallengeForm" });
 
-const CODE_LENGTH = 6;
 const DEFAULT_RESEND_COOLDOWN_SECONDS = 60;
 
 interface MFAChallengeFormProps {
@@ -39,17 +42,15 @@ interface MFAChallengeFormProps {
   readonly onError?: (error: unknown) => boolean | Promise<boolean>;
   readonly onCancel?: () => void;
   /**
-   * Mirrors security.mfa_trusted_device_enabled for the tenant. When false
-   * we hide the "N Tage merken" checkbox and skip its state in the verify
-   * request. Undefined defaults to `true` for backwards compatibility with
-   * older backends that haven't shipped the field.
+   * Whether the code step may remember the device (#6955): the backend's
+   * trusted_device_enabled for this portal and school. When false only
+   * „Bestätigen“ is offered and nothing is remembered.
    */
   readonly trustedDeviceEnabled?: boolean;
   /**
-   * Day count rendered into the "Auf diesem Gerät N Tage merken" label.
-   * Mirrors security.mfa_trusted_device_days so the label always matches
-   * the actual cookie lifetime. Defaults to 90 — the registry default —
-   * if an older backend doesn't surface the field.
+   * Day count of the „… merken“ button, the backend's trusted_device_days,
+   * so the label matches the actual lifetime. Defaults to 90, the registry
+   * default.
    */
   readonly trustedDeviceDays?: number;
   /** The Träger the Träger-Portal login resolved (#4651). */
@@ -64,11 +65,10 @@ export function MFAChallengeForm({
   onSuccess,
   onError,
   onCancel,
-  trustedDeviceEnabled = true,
+  trustedDeviceEnabled = false,
   trustedDeviceDays = 90,
   organizationId,
 }: MFAChallengeFormProps) {
-  const [rememberDevice, setRememberDevice] = useState(false);
   // Fehler über den gemeinsamen Weg (#2517). Ein abgelehnter Code bleibt im
   // Formular (MFA_STEP_REFUSALS); jeder andere 401 ist eine abgelaufene
   // Anmeldung und führt zur Anmeldeseite.
@@ -76,7 +76,10 @@ export function MFAChallengeForm({
   const formErrors = useApiFormError(formRef);
   const { show: showError, clear: clearError } = formErrors;
   const latestResendRef = useRef<() => void>(() => undefined);
-  const [isVerifying, setIsVerifying] = useState(false);
+  // Which button is being checked; null while nothing is sent.
+  const [pending, setPending] = useState<CodeConfirmChoice | null>(null);
+  const isVerifying = pending !== null;
+  const [code, setCode] = useState("");
   const [isResending, setIsResending] = useState(false);
   const [resendIn, setResendIn] = useState(resendCooldownSeconds);
   // The backend rotates the challenge JWT on every resend. The prop is
@@ -95,14 +98,15 @@ export function MFAChallengeForm({
   }, [resendIn]);
 
   const performVerify = useCallback(
-    async (submittedCode: string) => {
-      setIsVerifying(true);
+    async (submittedCode: string, choice: CodeConfirmChoice) => {
+      setPending(choice);
       clearError();
       try {
         const tokens = await verifyMFA(scope, {
           challengeToken: activeToken,
           code: submittedCode,
-          rememberDevice,
+          // Only the explicit second button remembers the device (#6955).
+          rememberDevice: trustedDeviceEnabled && choice === "remember",
           organizationId,
         });
         await onSuccess(tokens);
@@ -115,19 +119,20 @@ export function MFAChallengeForm({
           error: err instanceof Error ? err.message : String(err),
         });
         otpRef.current?.reset();
+        setCode("");
         // Kein Wiederholen: der Code steht nicht mehr im Feld, man tippt
         // ihn neu ein.
         void showError(credentialError(err, MFA_STEP_REFUSALS), {
           object: "die Prüfung des Codes",
         });
       } finally {
-        setIsVerifying(false);
+        setPending(null);
       }
     },
     [
       scope,
       activeToken,
-      rememberDevice,
+      trustedDeviceEnabled,
       organizationId,
       onSuccess,
       onError,
@@ -149,6 +154,7 @@ export function MFAChallengeForm({
       setActiveToken(renewed);
       setResendIn(resendCooldownSeconds);
       otpRef.current?.reset();
+      setCode("");
     } catch (err) {
       logger.warn("mfa_resend_failed", {
         scope,
@@ -223,22 +229,27 @@ export function MFAChallengeForm({
 
       <FormErrorAlert message={formErrors.error} />
 
-      <div className="space-y-3">
-        <OTPInputGrid
-          ref={otpRef}
-          length={CODE_LENGTH}
-          disabled={isVerifying}
-          onComplete={(code) => {
-            // Fire-and-forget: errors surface through state, not the caller.
-            void performVerify(code);
-          }}
-          ariaLabel="6-stelliger Bestätigungscode"
-        />
-        <p className="text-center text-xs text-gray-500">
-          {isVerifying
-            ? "Code wird geprüft…"
-            : "Der Code wird automatisch geprüft, sobald Sie alle 6 Stellen eingegeben haben."}
-        </p>
+      <MFACodeConfirm
+        scope={scope}
+        otpRef={otpRef}
+        code={code}
+        onCodeChange={(next) => {
+          setCode(next);
+          if (formErrors.error) clearError();
+        }}
+        pending={pending}
+        trustedDeviceEnabled={trustedDeviceEnabled}
+        trustedDeviceDays={trustedDeviceDays}
+        onConfirm={(submitted, choice) => {
+          // Fire-and-forget: errors surface through state, not the caller.
+          void performVerify(submitted, choice);
+        }}
+        onIncomplete={() =>
+          formErrors.invalid(
+            `Bitte geben Sie alle ${MFA_CODE_LENGTH} Stellen des Codes ein.`,
+          )
+        }
+      >
         <div className="flex justify-center">
           <Button
             type="button"
@@ -248,28 +259,12 @@ export function MFAChallengeForm({
               void handleResend();
             }}
             disabled={resendIn > 0 || isResending || isVerifying}
+            tooltip="Schickt einen neuen Code an Ihre E-Mail-Adresse."
           >
             {resendLabel}
           </Button>
         </div>
-      </div>
-
-      {trustedDeviceEnabled && (
-        <div className="flex justify-center">
-          <label
-            htmlFor="mfa-remember-device"
-            className="relative flex cursor-pointer items-center gap-2 text-sm text-gray-700 select-none has-[:disabled]:cursor-not-allowed"
-          >
-            <Checkbox
-              id="mfa-remember-device"
-              checked={rememberDevice}
-              onChange={(e) => setRememberDevice(e.target.checked)}
-              disabled={isVerifying}
-            />
-            Auf diesem Gerät {trustedDeviceDays} Tage merken
-          </label>
-        </div>
-      )}
+      </MFACodeConfirm>
     </div>
   );
 }

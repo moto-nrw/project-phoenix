@@ -29,10 +29,10 @@ type MFAServiceMock struct {
 	VerifyMFACodeForAccountFn      func(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error
 	EnrollMFAFn                    func(ctx context.Context, proof identityaccess.VerifiedMFAChallenge) error
 	DisableMFAFn                   func(ctx context.Context, accountID int64) error
-	IssueTrustedDeviceFn           func(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error)
-	VerifyTrustedDeviceFn          func(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error)
-	ListTrustedDevicesFn           func(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error)
-	RevokeTrustedDeviceFn          func(ctx context.Context, accountID, tenantID, deviceID int64) error
+	IssueTrustedDeviceFn           func(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope, userAgent string, ip net.IP) (string, time.Time, error)
+	VerifyTrustedDeviceFn          func(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope, signedCookie string) (bool, error)
+	ListTrustedDevicesFn           func(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope) ([]identityaccess.AccountTrustedDevice, error)
+	RevokeTrustedDeviceFn          func(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope, deviceID int64) error
 	IsTrustedDeviceEnabledFn       func(ctx context.Context, tenantID int64) bool
 	TrustedDeviceDaysFn            func(ctx context.Context, tenantID int64) int
 	AdminDisableMFAFn              func(ctx context.Context, actorID, actorTenantID, targetAccountID int64, reason string, actorPermissions []string) error
@@ -179,36 +179,36 @@ func (m *MFAServiceMock) ResetMFAInTransaction(context.Context, int64) error {
 	return nil
 }
 
-func (m *MFAServiceMock) PrepareTrustedDevice(_ context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+func (m *MFAServiceMock) PrepareTrustedDevice(_ context.Context, accountID int64, scope identityaccess.TrustedDeviceScope, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
 	return func(ctx context.Context) (string, time.Time, error) {
-		return m.IssueTrustedDevice(ctx, accountID, tenantID, userAgent, ip)
+		return m.IssueTrustedDevice(ctx, accountID, scope, userAgent, ip)
 	}, nil
 }
 
-func (m *MFAServiceMock) IssueTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {
+func (m *MFAServiceMock) IssueTrustedDevice(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope, userAgent string, ip net.IP) (string, time.Time, error) {
 	if m.IssueTrustedDeviceFn != nil {
-		return m.IssueTrustedDeviceFn(ctx, accountID, tenantID, userAgent, ip)
+		return m.IssueTrustedDeviceFn(ctx, accountID, scope, userAgent, ip)
 	}
 	return "", time.Time{}, nil
 }
 
-func (m *MFAServiceMock) VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error) {
+func (m *MFAServiceMock) VerifyTrustedDevice(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope, signedCookie string) (bool, error) {
 	if m.VerifyTrustedDeviceFn != nil {
-		return m.VerifyTrustedDeviceFn(ctx, accountID, tenantID, signedCookie)
+		return m.VerifyTrustedDeviceFn(ctx, accountID, scope, signedCookie)
 	}
 	return false, nil
 }
 
-func (m *MFAServiceMock) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error) {
+func (m *MFAServiceMock) ListTrustedDevices(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope) ([]identityaccess.AccountTrustedDevice, error) {
 	if m.ListTrustedDevicesFn != nil {
-		return m.ListTrustedDevicesFn(ctx, accountID, tenantID)
+		return m.ListTrustedDevicesFn(ctx, accountID, scope)
 	}
 	return nil, nil
 }
 
-func (m *MFAServiceMock) RevokeTrustedDevice(ctx context.Context, accountID, tenantID, deviceID int64) error {
+func (m *MFAServiceMock) RevokeTrustedDevice(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope, deviceID int64) error {
 	if m.RevokeTrustedDeviceFn != nil {
-		return m.RevokeTrustedDeviceFn(ctx, accountID, tenantID, deviceID)
+		return m.RevokeTrustedDeviceFn(ctx, accountID, scope, deviceID)
 	}
 	return nil
 }

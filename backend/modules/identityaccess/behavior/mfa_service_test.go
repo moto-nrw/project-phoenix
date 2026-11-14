@@ -58,18 +58,18 @@ func TestMFAService_TrustedDeviceFlow(t *testing.T) {
 
 	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 
-	cookie, expiresAt, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
+	cookie, expiresAt, err := svc.IssueTrustedDevice(ctx, acc.ID, identityaccess.TenantPortalDevice(tenantID), "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
 	assert.NotEmpty(t, cookie)
 	assert.True(t, expiresAt.After(time.Now()), "expiry must be in the future")
 
-	ok, err := svc.VerifyTrustedDevice(ctx, acc.ID, tenantID, cookie)
+	ok, err := svc.VerifyTrustedDevice(ctx, acc.ID, identityaccess.TenantPortalDevice(tenantID), cookie)
 	require.NoError(t, err)
 	assert.True(t, ok, "freshly issued cookie must verify")
 
 	// Tampered cookie rejected.
 	badCookie := cookie + "x"
-	ok, err = svc.VerifyTrustedDevice(ctx, acc.ID, tenantID, badCookie)
+	ok, err = svc.VerifyTrustedDevice(ctx, acc.ID, identityaccess.TenantPortalDevice(tenantID), badCookie)
 	require.NoError(t, err)
 	assert.False(t, ok, "tampered cookie must not verify")
 }

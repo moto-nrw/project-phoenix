@@ -383,17 +383,19 @@ func (s *AccountAuthentication) recheckProof(ctx context.Context, req mintReques
 }
 
 func (s *AccountAuthentication) recheckTrustedDevice(ctx context.Context, req mintRequest, accountID int64) error {
-	deviceSchoolID := req.tenantID
+	// The device must belong to the portal being minted, at its school or,
+	// in the Träger-Portal, at its Träger (#6955).
+	scope := domain.DeviceScopeOf(req.portal, req.tenantID, req.orgID)
 	if req.portal.Schoolless() {
 		// A device of a portal without a school names none, nor does its
 		// ledger.
-		ctx, deviceSchoolID = withoutSchoolLedgerContext(ctx), 0
+		ctx = withoutSchoolLedgerContext(ctx)
 	}
 	enrolled, err := s.mfa.HasEnrollment(ctx, accountID)
 	if err != nil {
 		return identityaccess.ErrMFAStatusUnavailable
 	}
-	if !enrolled || !s.trustedDeviceVerified(ctx, accountID, deviceSchoolID, req.proof.trustedDeviceCookie) {
+	if !enrolled || !s.trustedDeviceVerified(ctx, accountID, scope, req.proof.trustedDeviceCookie) {
 		return identityaccess.ErrInvalidToken
 	}
 	return nil

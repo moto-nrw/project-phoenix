@@ -28,7 +28,7 @@ func seedAuthTenantRLS(t *testing.T, db *testpkg.DB, tenantID int64) {
 		(account_id, tenant_id, scope, code_hash, expires_at) VALUES (?, ?, '', 'test-placeholder', NOW() + INTERVAL '1 hour')`, account.ID, tenantID)
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, `INSERT INTO auth.mfa_trusted_devices
-		(account_id, tenant_id, token_hash, expires_at) VALUES (?, ?, 'test-placeholder', NOW() + INTERVAL '1 hour')`, account.ID, tenantID)
+		(account_id, portal, tenant_id, token_hash, expires_at) VALUES (?, 'tenant', ?, 'test-placeholder', NOW() + INTERVAL '1 hour')`, account.ID, tenantID)
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, `INSERT INTO auth.passkey_sessions
 		(id, account_id, tenant_id, purpose, rp_id, expected_origin, session_json, expires_at)

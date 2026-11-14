@@ -36,9 +36,9 @@ func (s *AccountAuthentication) loginWithMFAGate(ctx context.Context, email, pas
 		return nil, err
 	}
 	if mfaRequired && !enrolled {
-		return s.mfaEnrollmentResult(account, metadata.TenantID, domain.PortalTenant)
+		return s.mfaEnrollmentResult(ctx, account, metadata.TenantID, domain.PortalTenant)
 	}
-	if mfaRequired && enrolled && !s.trustedDeviceVerified(ctx, account.ID, metadata.TenantID, trustedDeviceCookie) {
+	if mfaRequired && enrolled && !s.trustedDeviceVerified(ctx, account.ID, domain.DeviceScopeOf(domain.PortalTenant, metadata.TenantID, 0), trustedDeviceCookie) {
 		return s.mfaChallengeResult(ctx, account, metadata.TenantID, domain.PortalTenant, ipAddress)
 	}
 
@@ -76,25 +76,43 @@ func (s *AccountAuthentication) resolveTenantMFAGate(ctx context.Context, accoun
 }
 
 // mfaEnrollmentResult issues an enrollment JWT only the portal's
-// /mfa/enroll/* surface accepts.
-func (s *AccountAuthentication) mfaEnrollmentResult(account domain.LoginAccount, tenantID int64, portal domain.Portal) (*domain.LoginResult, error) {
+// /mfa/enroll/* surface accepts. Its code step offers to remember the device
+// like a sign-in's (#6955), so it carries the same trusted-device facts.
+func (s *AccountAuthentication) mfaEnrollmentResult(ctx context.Context, account domain.LoginAccount, tenantID int64, portal domain.Portal) (*domain.LoginResult, error) {
 	token, err := s.codec.IssueMFAEnrollmentToken(account.ID, tenantID, portal.Name, domain.MFAEnrollmentTokenTTL, account.MFAResetGeneration)
 	if err != nil {
 		return nil, failed("issue mfa enrollment token", err)
 	}
-	return &domain.LoginResult{
+	result := &domain.LoginResult{
 		Status:                domain.LoginStatusMFAEnrollmentRequired,
 		AccessToken:           token,
 		MaskedEmail:           domain.MaskEmail(account.Email),
 		MFAEnrollmentRequired: true,
-	}, nil
+	}
+	s.offerTrustedDevice(ctx, result, tenantID, portal)
+	return result, nil
 }
 
-func (s *AccountAuthentication) trustedDeviceVerified(ctx context.Context, accountID, tenantID int64, cookie string) bool {
+// offerTrustedDevice tells a code step whether and for how long it may
+// remember the device. A portal that remembers none offers nothing; an
+// unreadable setting offers nothing either, so the step never promises what
+// the exchange will not do (#4641).
+func (s *AccountAuthentication) offerTrustedDevice(ctx context.Context, result *domain.LoginResult, tenantID int64, portal domain.Portal) {
+	if !portal.TrustedDevice || !s.mfa.Configured() {
+		return
+	}
+	result.TrustedDeviceEnabled = s.mfa.IsTrustedDeviceEnabled(ctx, tenantID)
+	result.TrustedDeviceDays = s.mfa.TrustedDeviceDays(ctx, tenantID)
+}
+
+// trustedDeviceVerified reports whether the cookie names a remembered device
+// of the account in exactly this scope: a device of another portal, school
+// or Träger never skips the code (#6955).
+func (s *AccountAuthentication) trustedDeviceVerified(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope, cookie string) bool {
 	if cookie == "" || !s.mfa.Configured() {
 		return false
 	}
-	ok, _ := s.mfa.VerifyTrustedDevice(ctx, accountID, tenantID, cookie)
+	ok, _ := s.mfa.VerifyTrustedDevice(ctx, accountID, scope, cookie)
 	return ok
 }
 
@@ -105,16 +123,9 @@ func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account 
 	if err != nil {
 		return nil, failed("start mfa challenge", err)
 	}
-	if !portal.TrustedDevice {
-		return &domain.LoginResult{Status: domain.LoginStatusMFARequired, ChallengeToken: challenge, MaskedEmail: domain.MaskEmail(account.Email)}, nil
-	}
-	return &domain.LoginResult{
-		Status:               domain.LoginStatusMFARequired,
-		ChallengeToken:       challenge,
-		MaskedEmail:          domain.MaskEmail(account.Email),
-		TrustedDeviceEnabled: s.mfa.IsTrustedDeviceEnabled(ctx, tenantID),
-		TrustedDeviceDays:    s.mfa.TrustedDeviceDays(ctx, tenantID),
-	}, nil
+	result := &domain.LoginResult{Status: domain.LoginStatusMFARequired, ChallengeToken: challenge, MaskedEmail: domain.MaskEmail(account.Email)}
+	s.offerTrustedDevice(ctx, result, tenantID, portal)
+	return result, nil
 }
 
 // IssueTokensForPasskey mints the tenant session of a passkey sign-in: the

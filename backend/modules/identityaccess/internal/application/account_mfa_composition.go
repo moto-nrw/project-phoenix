@@ -129,23 +129,23 @@ func (unavailableAccountMFA) ResetMFAInTransaction(context.Context, int64) error
 	return errAccountMFAUnavailable
 }
 
-func (unavailableAccountMFA) PrepareTrustedDevice(context.Context, int64, int64, string, net.IP) (identityaccess.TrustedDeviceIssue, error) {
+func (unavailableAccountMFA) PrepareTrustedDevice(context.Context, int64, identityaccess.TrustedDeviceScope, string, net.IP) (identityaccess.TrustedDeviceIssue, error) {
 	return nil, errAccountMFAUnavailable
 }
 
-func (unavailableAccountMFA) IssueTrustedDevice(context.Context, int64, int64, string, net.IP) (string, time.Time, error) {
+func (unavailableAccountMFA) IssueTrustedDevice(context.Context, int64, identityaccess.TrustedDeviceScope, string, net.IP) (string, time.Time, error) {
 	return "", time.Time{}, errAccountMFAUnavailable
 }
 
-func (unavailableAccountMFA) VerifyTrustedDevice(context.Context, int64, int64, string) (bool, error) {
+func (unavailableAccountMFA) VerifyTrustedDevice(context.Context, int64, identityaccess.TrustedDeviceScope, string) (bool, error) {
 	return false, errAccountMFAUnavailable
 }
 
-func (unavailableAccountMFA) ListTrustedDevices(context.Context, int64, int64) ([]identityaccess.AccountTrustedDevice, error) {
+func (unavailableAccountMFA) ListTrustedDevices(context.Context, int64, identityaccess.TrustedDeviceScope) ([]identityaccess.AccountTrustedDevice, error) {
 	return nil, errAccountMFAUnavailable
 }
 
-func (unavailableAccountMFA) RevokeTrustedDevice(context.Context, int64, int64, int64) error {
+func (unavailableAccountMFA) RevokeTrustedDevice(context.Context, int64, identityaccess.TrustedDeviceScope, int64) error {
 	return errAccountMFAUnavailable
 }
 

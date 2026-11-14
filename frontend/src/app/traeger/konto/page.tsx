@@ -12,6 +12,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { usePublishTraegerOwnProfile } from "~/components/traeger/traeger-own-name";
+import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiFormError,
@@ -170,6 +171,8 @@ export default function TraegerAccountPage() {
             </DataGrid>
           </SectionCard>
           <NameCard name={profile.name} onSaved={showProfile} />
+          {/* Die Geräte, die diese Person bei diesem Träger gemerkt hat (#6955). */}
+          <TrustedDevicesSection scope="traeger" />
         </>
       ) : null}
     </TenantPage>

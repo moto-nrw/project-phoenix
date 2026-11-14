@@ -190,20 +190,52 @@ type AccountMFAEnrollment interface {
 // Call it only after session issuance succeeds.
 type TrustedDeviceIssue = func(context.Context) (cookieValue string, expiresAt time.Time, err error)
 
+// TrustedDeviceScope is where a remembered device counts (#6955): one portal
+// and, for a portal of a school, that school; for the Träger-Portal, its
+// Träger. A device of one scope never answers for another, so a device of
+// the tenant portal opens neither moto schule nor another school, and one of
+// a Träger neither the caterer portal nor another Träger. Build it with the
+// constructors below.
+type TrustedDeviceScope struct {
+	Portal         string
+	TenantID       int64
+	OrganizationID int64
+}
+
+// TenantPortalDevice is a device of the tenant portal at one school.
+func TenantPortalDevice(tenantID int64) TrustedDeviceScope {
+	return TrustedDeviceScope{Portal: MFAChallengeScopeTenant, TenantID: tenantID}
+}
+
+// SchoolPortalDevice is a device of moto schule at one school.
+func SchoolPortalDevice(tenantID int64) TrustedDeviceScope {
+	return TrustedDeviceScope{Portal: MFAChallengeScopeSchool, TenantID: tenantID}
+}
+
+// CatererPortalDevice is a device of the caterer portal; it names no school.
+func CatererPortalDevice() TrustedDeviceScope {
+	return TrustedDeviceScope{Portal: MFAChallengeScopeCaterer}
+}
+
+// TraegerPortalDevice is a device of the Träger-Portal at one Träger.
+func TraegerPortalDevice(organizationID int64) TrustedDeviceScope {
+	return TrustedDeviceScope{Portal: MFAChallengeScopeOrg, OrganizationID: organizationID}
+}
+
 // AccountTrustedDevices is the remember-device cookie.
 type AccountTrustedDevices interface {
 	// PrepareTrustedDevice resolves policy without writes. A nil operation
 	// means the feature is disabled. Either policy read can return an error;
 	// login callers then skip remembering the device, not the verified login.
 	// The operation does not re-read settings.
-	PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (TrustedDeviceIssue, error)
+	PrepareTrustedDevice(ctx context.Context, accountID int64, scope TrustedDeviceScope, userAgent string, ip net.IP) (TrustedDeviceIssue, error)
 	// IssueTrustedDevice answers an empty cookie value without persisting a
 	// row when the school turned the feature off; the caller then writes no
 	// Set-Cookie header.
-	IssueTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (cookieValue string, expiresAt time.Time, err error)
-	VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error)
-	ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]AccountTrustedDevice, error)
-	RevokeTrustedDevice(ctx context.Context, accountID, tenantID, deviceID int64) error
+	IssueTrustedDevice(ctx context.Context, accountID int64, scope TrustedDeviceScope, userAgent string, ip net.IP) (cookieValue string, expiresAt time.Time, err error)
+	VerifyTrustedDevice(ctx context.Context, accountID int64, scope TrustedDeviceScope, signedCookie string) (bool, error)
+	ListTrustedDevices(ctx context.Context, accountID int64, scope TrustedDeviceScope) ([]AccountTrustedDevice, error)
+	RevokeTrustedDevice(ctx context.Context, accountID int64, scope TrustedDeviceScope, deviceID int64) error
 }
 
 // AccountMFAAdministration is the admin side: a school admin managing a

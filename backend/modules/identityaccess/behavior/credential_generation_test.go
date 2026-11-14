@@ -124,7 +124,7 @@ func TestRememberedDeviceOfAnExchangeRacingAPasswordChangeIsRefused(t *testing.T
 	f := newCredentialFixture(t, "exchange-device-race")
 	ctx := context.Background()
 	verified := f.verifiedChallenge(t, "246810")
-	issue, err := f.module.MFA.PrepareTrustedDevice(ctx, f.accountID, f.tenantID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
+	issue, err := f.module.MFA.PrepareTrustedDevice(ctx, f.accountID, identityaccess.TenantPortalDevice(f.tenantID), "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
 	require.NotNil(t, issue, "trusted devices are on at the school")
 	access, _, err := f.module.Auth.IssueTokensForVerifiedMFA(ctx, verified, "203.0.113.7", "Mozilla/5.0 (Test)")
@@ -155,7 +155,7 @@ func TestRememberedDeviceOfAnExchangeRacingAPasswordChangeIsRefused(t *testing.T
 	}
 	require.Error(t, device.err, "the exchange stores no device after the password changed")
 	if device.cookie != "" {
-		trusted, verifyErr := f.module.MFA.VerifyTrustedDevice(ctx, f.accountID, f.tenantID, device.cookie)
+		trusted, verifyErr := f.module.MFA.VerifyTrustedDevice(ctx, f.accountID, identityaccess.TenantPortalDevice(f.tenantID), device.cookie)
 		require.NoError(t, verifyErr)
 		assert.False(t, trusted, "no remembered device survives the change")
 	}

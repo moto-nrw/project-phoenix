@@ -46,6 +46,9 @@ interface MFAStep {
 interface MFAEnrollmentStep {
   enrollmentToken: string;
   email: string;
+  /** Whether the enrollment's code step may remember the device (#6955). */
+  trustedDeviceEnabled: boolean;
+  trustedDeviceDays: number;
 }
 
 function clearSessionErrorFromUrl() {
@@ -194,6 +197,8 @@ function LoginForm() {
         setEnrollmentStep({
           enrollmentToken: response.access_token,
           email,
+          trustedDeviceEnabled: response.trusted_device_enabled === true,
+          trustedDeviceDays: response.trusted_device_days ?? 0,
         });
         return;
       }
@@ -274,6 +279,8 @@ function LoginForm() {
               scope="school"
               bearerToken={enrollmentStep.enrollmentToken}
               userEmail={enrollmentStep.email}
+              trustedDeviceEnabled={enrollmentStep.trustedDeviceEnabled}
+              trustedDeviceDays={enrollmentStep.trustedDeviceDays}
               onExit={() => {
                 setEnrollmentStep(null);
                 clearFormError();

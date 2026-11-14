@@ -235,7 +235,8 @@ describe("getParentHelpTopicForPath", () => {
       id: HELP_TOPICS.login,
       group: "einstieg",
     });
-    expect(caregiverTopics[1]?.steps).toHaveLength(6);
+    // The code step names both choices of the remembered device (#6955).
+    expect(caregiverTopics[1]?.steps).toHaveLength(8);
     expect(caregiverTopics[2]).toMatchObject({
       id: HELP_TOPICS.installApp,
       group: "einstieg",

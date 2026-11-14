@@ -33,7 +33,11 @@ import { hasSessionAccess } from "~/lib/session-access";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
-import { traegerLogin, type TraegerChoice } from "~/lib/traeger-api";
+import {
+  traegerLogin,
+  type TraegerChoice,
+  type TrustedDeviceOffer,
+} from "~/lib/traeger-api";
 import { TRAEGER_FORGOT_PASSWORD_PARAM } from "~/lib/traeger-login-params";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -57,13 +61,13 @@ function clearSessionErrorFromUrl() {
   );
 }
 
-interface MFAStep {
+interface MFAStep extends TrustedDeviceOffer {
   readonly challengeToken: string;
   readonly maskedEmail: string;
   readonly organizationId: string;
 }
 
-interface EnrollmentStep {
+interface EnrollmentStep extends TrustedDeviceOffer {
   readonly enrollmentToken: string;
   readonly organizationId: string;
 }
@@ -193,6 +197,8 @@ function LoginForm() {
           challengeToken: result.challengeToken,
           maskedEmail: result.maskedEmail,
           organizationId: result.organizationId,
+          trustedDeviceEnabled: result.trustedDeviceEnabled,
+          trustedDeviceDays: result.trustedDeviceDays,
         });
         return;
       }
@@ -200,6 +206,8 @@ function LoginForm() {
         setEnrollmentStep({
           enrollmentToken: result.enrollmentToken,
           organizationId: result.organizationId,
+          trustedDeviceEnabled: result.trustedDeviceEnabled,
+          trustedDeviceDays: result.trustedDeviceDays,
         });
         return;
       }
@@ -250,7 +258,8 @@ function LoginForm() {
           challengeToken={mfaStep.challengeToken}
           maskedEmail={mfaStep.maskedEmail}
           organizationId={mfaStep.organizationId}
-          trustedDeviceEnabled={false}
+          trustedDeviceEnabled={mfaStep.trustedDeviceEnabled}
+          trustedDeviceDays={mfaStep.trustedDeviceDays}
           onSuccess={completeLogin}
           onCancel={backToCredentials}
         />
@@ -266,6 +275,8 @@ function LoginForm() {
           bearerToken={enrollmentStep.enrollmentToken}
           userEmail={email}
           organizationId={enrollmentStep.organizationId}
+          trustedDeviceEnabled={enrollmentStep.trustedDeviceEnabled}
+          trustedDeviceDays={enrollmentStep.trustedDeviceDays}
           onExit={backToCredentials}
           onComplete={completeLogin}
         />

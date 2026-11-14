@@ -79,7 +79,7 @@ type Portal struct {
 	Challenge  bool
 	Enrollment bool
 	// TrustedDevice: a redeemed challenge may remember the browser. The
-	// Träger-Portal remembers none (#4651).
+	// device counts only in its portal, at its school or Träger (#6955).
 	TrustedDevice bool
 	MFA           MFARule
 	// Push is empty for a portal without push messages.
@@ -97,7 +97,7 @@ var (
 	PortalCaterer = Portal{Name: "caterer", Claim: "caterer",
 		Persisted: true, Challenge: true, TrustedDevice: true, MFA: MFAAccountChoice}
 	PortalOrg = Portal{Name: "org", Claim: "org", Tenant: ShapeForbidden, Org: ShapeRequired,
-		Persisted: true, Challenge: true, Enrollment: true, MFA: MFAAlways, Push: PushPortalStaff}
+		Persisted: true, Challenge: true, Enrollment: true, TrustedDevice: true, MFA: MFAAlways, Push: PushPortalStaff}
 	PortalPlatform = Portal{Name: "platform", Claim: "platform", Tenant: ShapeOptional, Org: ShapeOptional,
 		Challenge: true, Enrollment: true, TrustedDevice: true, MFA: MFAOperator}
 
@@ -112,7 +112,8 @@ func (p Portal) Holds(tenantID, orgID int64) bool {
 
 // Schoolless reports a portal whose sign-in names no school: its challenge,
 // its remembered device and its authentication-ledger entries carry none
-// (Träger-Portal, ADR 0084; caterer, ADR 0077 addendum).
+// (Träger-Portal, ADR 0084, whose device names its Träger instead, #6955;
+// caterer, ADR 0077 addendum).
 func (p Portal) Schoolless() bool { return p.Tenant != ShapeRequired }
 
 // KeptAtSchool reports whether the portal's refresh sessions are stored at a

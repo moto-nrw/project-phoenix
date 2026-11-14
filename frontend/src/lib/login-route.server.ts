@@ -147,6 +147,8 @@ export function createPortalLoginRoute(login: LoginPortal, step: LoginStep) {
             masked_email: data.masked_email,
             ...(organizations ? { organization_id: data.organization_id } : {}),
             mfa_enrollment_required: true,
+            trusted_device_enabled: data.trusted_device_enabled,
+            trusted_device_days: data.trusted_device_days,
           });
         } else {
           const failure = await installLoginSession(request, data, login);

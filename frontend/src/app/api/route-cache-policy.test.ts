@@ -91,6 +91,9 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "proxyDelete",
     "createSchoolDeleteHandler",
     "school.route",
+    // The unwrapped JSON pass-through the device list shares with every
+    // portal (#6955).
+    "school.jsonProxy",
     "proxyFile",
     "proxyUpload",
   ],
@@ -107,6 +110,9 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "proxyUpload",
     // The builder under proxyDelete, for a removal that answers its result.
     "traeger.del",
+    // The unwrapped JSON pass-through the device list shares with every
+    // portal (#6955).
+    "traeger.jsonProxy",
   ],
   "~/lib/backend-proxy-route.server": ["createPublicJsonProxy"],
   "~/lib/auth-proxy.server": ["authStepProxy"],

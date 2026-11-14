@@ -14,6 +14,7 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/auth/mfa/enroll/confirm"}:               notCaptured,
 	{http.MethodPost, "/traeger/auth/mfa/enroll/start"}:                 notCaptured,
 	{http.MethodPost, "/traeger/auth/mfa/resend"}:                       notCaptured,
+	{http.MethodDelete, "/traeger/auth/mfa/trusted-devices/{deviceId}"}: notCaptured,
 	{http.MethodPost, "/traeger/auth/mfa/verify"}:                       notCaptured,
 	{http.MethodPost, "/traeger/auth/password-reset"}:                   notCaptured,
 	{http.MethodPost, "/traeger/auth/password-reset/confirm"}:           notCaptured,

@@ -50,9 +50,14 @@ type MFARuntime struct {
 	ResendChallenge func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 	// StartChallenge mails the enrollment code and names its row; it is bound
 	// to the credential generation the enrollment token names (#6289).
-	StartChallenge       func(ctx context.Context, accountID, tenantID int64, ip net.IP, credentialGeneration int64) (string, error)
-	Enroll               func(ctx context.Context, proof VerifiedChallenge) error
+	StartChallenge func(ctx context.Context, accountID, tenantID int64, ip net.IP, credentialGeneration int64) (string, error)
+	Enroll         func(ctx context.Context, proof VerifiedChallenge) error
+	// PrepareTrustedDevice, ListTrustedDevices and RevokeTrustedDevice act on
+	// the devices moto schule remembered at one school; they never reach a
+	// device of the tenant portal (#6955).
 	PrepareTrustedDevice func(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error)
+	ListTrustedDevices   func(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error)
+	RevokeTrustedDevice  func(ctx context.Context, accountID, tenantID, deviceID int64) error
 }
 
 func (rt *MFARuntime) complete() bool {
@@ -60,7 +65,12 @@ func (rt *MFARuntime) complete() bool {
 		rt.ResendChallenge != nil && rt.StartChallenge != nil && rt.Enroll != nil && rt.PrepareTrustedDevice != nil
 }
 
+func (rt *MFARuntime) devicesComplete() bool {
+	return rt != nil && rt.ListTrustedDevices != nil && rt.RevokeTrustedDevice != nil
+}
+
 var (
 	errLoginUnavailable      = errors.New("account sessions are not composed")
 	errMFAServiceUnavailable = errors.New("mfa service is not configured for this deployment")
+	errDevicesUnavailable    = errors.New("remembered devices are not composed")
 )

@@ -38,13 +38,15 @@ import (
 )
 
 // TraegerPortalIdentity is what the Träger-Portal serves of Identity &
-// Access: the sign-in, the account second factor, the password reset, the
+// Access: the sign-in, the account second factor and its remembered
+// devices, the password reset, the
 // Träger-Büro account management, the Träger-Büro members' addresses and the
 // Absprung into a school.
 type TraegerPortalIdentity interface {
 	identityaccess.TraegerAccountLogin
 	identityaccess.AccountMFAChallenges
 	identityaccess.AccountMFAEnrollment
+	identityaccess.AccountTrustedDevices
 	identityaccess.TraegerAccountManagement
 	identityaccess.TraegerRoles
 	identityaccess.TraegerSchoolSessions
@@ -437,10 +439,12 @@ func TraegerPortalAuth(sessions identityaccess.TraegerAccountLogin) traegerporta
 
 // TraegerPortalMFA binds the Träger second factor. The org challenge scope is
 // applied here, so a challenge of another portal is refused before any code
-// is compared. A Träger challenge names no school.
+// is compared. A Träger challenge names no school; a remembered device names
+// the Träger.
 func TraegerPortalMFA(mfa interface {
 	identityaccess.AccountMFAChallenges
 	identityaccess.AccountMFAEnrollment
+	identityaccess.AccountTrustedDevices
 }) traegerportal.MFARuntime {
 	if mfa == nil {
 		return traegerportal.MFARuntime{}
@@ -465,6 +469,16 @@ func TraegerPortalMFA(mfa interface {
 		},
 		Enroll: func(ctx context.Context, proof traegerportal.VerifiedChallenge) error {
 			return mfa.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: proof.AccountID, Scope: identityaccess.MFAChallengeScopeOrg, MFAResetGeneration: proof.MFAResetGeneration})
+		},
+		// A Träger's device names its Träger and no school (#6955).
+		PrepareTrustedDevice: func(ctx context.Context, accountID, organizationID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+			return mfa.PrepareTrustedDevice(ctx, accountID, identityaccess.TraegerPortalDevice(organizationID), userAgent, ip)
+		},
+		ListTrustedDevices: func(ctx context.Context, accountID, organizationID int64) ([]identityaccess.AccountTrustedDevice, error) {
+			return mfa.ListTrustedDevices(ctx, accountID, identityaccess.TraegerPortalDevice(organizationID))
+		},
+		RevokeTrustedDevice: func(ctx context.Context, accountID, organizationID, deviceID int64) error {
+			return mfa.RevokeTrustedDevice(ctx, accountID, identityaccess.TraegerPortalDevice(organizationID), deviceID)
 		},
 	}
 }

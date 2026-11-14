@@ -47,7 +47,9 @@ type MFAGate interface {
 	// every request-scoped cache.
 	ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
 	HasEnrollment(ctx context.Context, accountID int64) (bool, error)
-	VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, cookie string) (bool, error)
+	// VerifyTrustedDevice checks a remembered device in one scope: its
+	// portal, its school and its Träger (#6955).
+	VerifyTrustedDevice(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope, cookie string) (bool, error)
 	// StartChallenge is bound to the credential generation the sign-in's
 	// password check read (#6289).
 	StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string, credentialGeneration int64) (string, error)

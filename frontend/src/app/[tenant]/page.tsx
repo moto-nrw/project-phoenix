@@ -124,6 +124,9 @@ interface MFAEnrollmentStep {
   // endpoint and installed server-side once enrollment succeeds.
   enrollmentToken: string;
   email: string;
+  /** Whether the enrollment's code step may remember the device (#6955). */
+  trustedDeviceEnabled: boolean;
+  trustedDeviceDays: number;
 }
 
 function LoginForm() {
@@ -339,6 +342,8 @@ function LoginForm() {
         setEnrollmentStep({
           enrollmentToken: response.access_token,
           email,
+          trustedDeviceEnabled: response.trusted_device_enabled === true,
+          trustedDeviceDays: response.trusted_device_days ?? 0,
         });
         return;
       }
@@ -502,6 +507,8 @@ function LoginForm() {
               scope="tenant"
               bearerToken={enrollmentStep.enrollmentToken}
               userEmail={enrollmentStep.email}
+              trustedDeviceEnabled={enrollmentStep.trustedDeviceEnabled}
+              trustedDeviceDays={enrollmentStep.trustedDeviceDays}
               onExit={() => {
                 setEnrollmentStep(null);
                 clearFormError();
