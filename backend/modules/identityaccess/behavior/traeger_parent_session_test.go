@@ -104,9 +104,9 @@ func TestHolidayParentSetupCreatesAnAccountAndKeepsAnExistingPassword(t *testing
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.traeger_parent_access WHERE account_id = ? AND organization_id = ?`, account.ID, traeger).Scan(context.Background(), &access))
 	assert.Equal(t, 1, access)
 
-	_, _, err = module.LoginParentWithAudit(context.Background(), email, other, "", "")
+	_, _, err = parentPasswordLogin(context.Background(), module.Owner, email, other)
 	require.Error(t, err, "the second password was not written")
-	_, _, err = module.LoginParentWithAudit(context.Background(), email, holidayParentPassword, "", "")
+	_, _, err = parentPasswordLogin(context.Background(), module.Owner, email, holidayParentPassword)
 	require.NoError(t, err, "the account keeps its own password")
 }
 
@@ -116,7 +116,7 @@ func TestHolidayParentSetupRefusesInvalidLinks(t *testing.T) {
 	module := holidayParentModule{setupAuthFactory(t, db)}
 	traeger := newHolidayTraeger(t, db, "Träger Ferien Ungültig")
 	email, accountID := setUpHolidayParent(t, db, module, "holiday-invalid", traeger)
-	access, refresh, err := module.LoginParentWithAudit(context.Background(), email, holidayParentPassword, "", "")
+	access, refresh, err := parentPasswordLogin(context.Background(), module.Owner, email, holidayParentPassword)
 	require.NoError(t, err)
 
 	for name, token := range map[string]string{"garbage": "not-a-token", "access token": access, "refresh token": refresh} {
@@ -149,7 +149,7 @@ func TestTraegerParentSessionNamesTheTraegerAndEndsWithItsAccess(t *testing.T) {
 	traeger := newHolidayTraeger(t, db, "Träger Ferien Sitzung")
 	email, accountID := setUpHolidayParent(t, db, module, "holiday-session", traeger)
 
-	access, refresh, err := module.LoginParentWithAudit(context.Background(), email, holidayParentPassword, "", "")
+	access, refresh, err := parentPasswordLogin(context.Background(), module.Owner, email, holidayParentPassword)
 	require.NoError(t, err, "the access at the Träger opens the parents portal")
 	claims, err := module.ValidateSessionTokens(context.Background(), access, refresh, "parent")
 	require.NoError(t, err)
@@ -178,7 +178,7 @@ func TestTraegerParentSessionNamesTheTraegerAndEndsWithItsAccess(t *testing.T) {
 	assert.Equal(t, identityaccess.SessionEnded, identityaccess.SessionOutcomeOf(err), "validation ends the session without access: %v", err)
 	_, _, err = module.RefreshTokenWithAudit(context.Background(), refresh, "", "", "")
 	assert.ErrorIs(t, err, identityaccess.ErrTenantNotFound, "refresh ends the session without access")
-	_, _, err = module.LoginParentWithAudit(context.Background(), email, holidayParentPassword, "", "")
+	_, _, err = parentPasswordLogin(context.Background(), module.Owner, email, holidayParentPassword)
 	assert.ErrorIs(t, err, identityaccess.ErrAccountNoGuardianRole, "without access the refusal of today stands")
 }
 
@@ -188,7 +188,7 @@ func TestTraegerParentSessionEndsWithTheTraeger(t *testing.T) {
 	module := holidayParentModule{setupAuthFactory(t, db)}
 	traeger := newHolidayTraeger(t, db, "Träger Ferien Ende")
 	email, _ := setUpHolidayParent(t, db, module, "holiday-traeger-end", traeger)
-	access, refresh, err := module.LoginParentWithAudit(context.Background(), email, holidayParentPassword, "", "")
+	access, refresh, err := parentPasswordLogin(context.Background(), module.Owner, email, holidayParentPassword)
 	require.NoError(t, err)
 
 	_, err = db.ExecContext(context.Background(), `UPDATE platform.organizations SET active = FALSE WHERE id = ?`, traeger)
@@ -232,7 +232,7 @@ func TestParentLoginFallsBackToTheOldestTraegerAccess(t *testing.T) {
 	_, err = db.ExecContext(context.Background(), `UPDATE auth.traeger_parent_access SET created_at = created_at - INTERVAL '1 day' WHERE account_id = ? AND organization_id = ?`, accountID, second)
 	require.NoError(t, err)
 
-	access, _, err := module.LoginParentWithAudit(context.Background(), email, holidayParentPassword, "", "")
+	access, _, err := parentPasswordLogin(context.Background(), module.Owner, email, holidayParentPassword)
 	require.NoError(t, err)
 	claims, err := module.ValidateSessionTokens(context.Background(), access, "", "parent")
 	require.NoError(t, err)
@@ -244,7 +244,7 @@ func TestParentLoginFallsBackToTheOldestTraegerAccess(t *testing.T) {
 	existed, err := module.CompleteHolidayParentSetup(context.Background(), guardianToken, identityaccess.GuardianRegistration{})
 	require.NoError(t, err)
 	assert.True(t, existed)
-	access, _, err = module.LoginParentWithAudit(context.Background(), guardianEmail, testPassword, "", "")
+	access, _, err = parentPasswordLogin(context.Background(), module.Owner, guardianEmail, testPassword)
 	require.NoError(t, err)
 	claims, err = module.ValidateSessionTokens(context.Background(), access, "", "parent")
 	require.NoError(t, err)
@@ -293,7 +293,7 @@ func TestTraegerAccessDoesNotBypassTheParentsPortalBooking(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, existed)
 
-	_, _, err = module.LoginParentWithAudit(context.Background(), email, testPassword, "", "")
+	_, _, err = parentPasswordLogin(context.Background(), module.Owner, email, testPassword)
 
 	requirePortalNotBooked(t, err, "eltern_app")
 	var sessions int

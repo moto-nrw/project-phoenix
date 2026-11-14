@@ -16,8 +16,9 @@ import (
 // A Träger session minted before the duty or one whose proof an MFA reset
 // revoked is refused at mint, refresh and validation. A caterer or parent
 // session needs its proof once the account has a second factor (#4497,
-// #7051): a session minted before that ends at its next refresh or
-// validation.
+// #7051): a session minted before that ends at its next refresh, and at its
+// next validation where the portal reads the enrollment there
+// (domain.Portal.FactorAtValidation).
 func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID, tenantID int64, scope string, verified bool, r factReads) error {
 	if !s.mfa.Configured() {
 		return nil
@@ -29,13 +30,7 @@ func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID
 		}
 		return nil
 	case domain.MFAAccountChoice:
-		if !r.locked && scope == domain.PortalParent.Name {
-			// The parents portal validates its session on every page view
-			// (#5399), for every parent, and almost none has the factor. A
-			// parent session minted before the switch-on ends at its next
-			// mint or refresh, which read the enrollment under the account
-			// lock; until then its access token lives out its lifetime, as
-			// after a password change (#7051).
+		if portal, _ := domain.PortalOfPersisted(scope); !r.locked && !portal.FactorAtValidation {
 			return nil
 		}
 		return s.requireAccountChoiceSessionMFA(ctx, accountID, verified)
@@ -91,10 +86,15 @@ func (s *AccountAuthentication) switchMFAProof(ctx context.Context, accountID in
 		}
 		return false, identityaccess.ErrMFAStatusUnavailable
 	}
-	now := time.Now()
+	return liveVerifiedHead(domain.AccountSession(source), accountID, scope, time.Now()), nil
+}
+
+// liveVerifiedHead reports a family head of the account in that portal that
+// carries second-factor proof and is neither rotated nor expired.
+func liveVerifiedHead(source domain.AccountSession, accountID int64, scope string, now time.Time) bool {
 	return source.AccountID == accountID && source.PortalScope == scope &&
 		source.MFAVerified && source.RotatedAt == nil && source.Expiry.After(now) &&
-		(source.FamilyExpiryCap == nil || source.FamilyExpiryCap.After(now)), nil
+		(source.FamilyExpiryCap == nil || source.FamilyExpiryCap.After(now))
 }
 
 // adoptSourceFamily checks the family a switch presents: it must still live,

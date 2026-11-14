@@ -56,37 +56,13 @@ const (
 	MFAChallengeScopeOrg = "org"
 )
 
-// MFAEmailCodeLength is the number of decimal digits in an e-mail code. The
-// HTTP surfaces validate the body against it before a code reaches the flow.
-const MFAEmailCodeLength = 6
-
-// MFALockoutThreshold and MFALockoutDuration are the failure policy the MFA
-// gate applies when a school set no security.account_lockout_* override. The
-// PIN lockout shares them, so the 5-attempt / 15-minute rule has one source
-// of truth across the platform (#586).
+// The fixed code policy, as the flows apply it (internal/domain/mfa.go):
+// a code lives MFAChallengeTTL, and MFALockoutThreshold failed codes lock an
+// operator's second factor. A school's lockout follows its
+// security.account_lockout_* settings instead.
 const (
+	MFAChallengeTTL     = 10 * time.Minute
 	MFALockoutThreshold = 5
-	MFALockoutDuration  = 15 * time.Minute
-)
-
-// The code policy the flows apply. The window and the cap are an abuse
-// defense, not a UX knob, and stay fixed; the remember-device lifetime is
-// the fallback the school's security.mfa_trusted_device_days overrides.
-const (
-	MFAChallengeTTL                   = 10 * time.Minute
-	MFAEmailRateLimitWindow           = 15 * time.Minute
-	MFAEmailRateLimitMaxSent          = 3
-	MFATrustedDeviceCookieDefaultDays = 90
-)
-
-// The modes a school's security.mfa_mode setting takes, and the role whose
-// holders required_admins gates on.
-const (
-	MFAModeOff            = "off"
-	MFAModeRequiredAll    = "required_all"
-	MFAModeRequiredAdmins = "required_admins"
-	// AdminRoleName is the role required_admins looks for.
-	AdminRoleName = "admin"
 )
 
 // The admin-override values. There is no "none" row: its absence is the
@@ -260,23 +236,4 @@ func WithTraegerDevice(ctx context.Context, organizationID int64) context.Contex
 func TraegerDeviceOf(ctx context.Context) int64 {
 	organizationID, _ := ctx.Value(traegerDeviceKey{}).(int64)
 	return organizationID
-}
-
-// parentDeviceKey marks the trusted-device calls of the parents portal.
-type parentDeviceKey struct{}
-
-// WithParentDevice binds the parents portal to the trusted-device calls of
-// ctx (#7051). A parent session names no school and no Träger (ADR 0216), so
-// its device does not either: AccountTrustedDevices called with tenantID
-// zero then prepares, issues, verifies, lists and revokes only the devices
-// the parents portal remembered, never the caterer portal's. A call that
-// names a school ignores it.
-func WithParentDevice(ctx context.Context) context.Context {
-	return context.WithValue(ctx, parentDeviceKey{}, true)
-}
-
-// ParentDeviceOf reports whether WithParentDevice bound ctx.
-func ParentDeviceOf(ctx context.Context) bool {
-	bound, _ := ctx.Value(parentDeviceKey{}).(bool)
-	return bound
 }

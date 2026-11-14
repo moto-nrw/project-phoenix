@@ -913,16 +913,24 @@ Backend paths in this section are relative to `backend/`:
   `security.mfa_trusted_device_enabled` is off or unreadable (#6955), on
   `POST /traeger/school-sessions` and on `POST /auth/switch-tenant` of a
   Träger school session into a school of the Träger where the account holds
-  no mapping. The Träger portal then runs its logout (revoke, clear, session
-  barrier) and signs in once without the device cookie (the BFF drops it for
-  `ignore_trusted_device`); the school app links to the Träger login with
+  no mapping. The Träger portal then offers the code step in the running
+  session (#7068): `POST /traeger/auth/mfa/step-up` (right
+  `traeger_school:switch`, auth limiter, mail counted like a resend) mails an
+  org-scope code with the sign-in's cap, and `POST
+  /traeger/auth/mfa/step-up/verify` `{challenge_token, code}` redeems it for
+  the session's account (pinned before the code is compared) and mints a new
+  Träger family with `mfa_by_device` false through the session mint, which
+  retires the presented family with the recovery grace and keeps its switch
+  lineage. The BFF installs the pair and answers `{session_renewed}`; when it
+  cannot install it, the portal runs its logout and signs in once without
+  the device cookie (the BFF drops it for `ignore_trusted_device`); the
+  school app links to the Träger login with
   `?mit-code=1`, where a running Träger session ends only through the button
   „Abmelden und mit Code anmelden“, never by the visit. A switch into a
   school where the account holds its own mapping, and a switch between the
   account's own schools, answer 401 `identity.mfa_session_required` and sign
   in at the target school. The school's
-  `mfa_trusted_device_days` is not applied at the Absprung; an in-session
-  code step instead of the new sign-in is #7068. A
+  `mfa_trusted_device_days` is not applied at the Absprung. A
   switch to a school where the account holds its own mapping keeps its own
   role. Every Absprung writes `traeger_school_switch` (metadata
   `organization_id`) to the school's `audit.auth_events` in the mint
@@ -957,10 +965,14 @@ Backend paths in this section are relative to `backend/`:
 - Every account portal answers a refused sign-in, MFA step, exchange, switch,
   refresh or passkey sign-in through the owner's rule tables in
   `modules/identityaccess/inbound/portalauth`, so one refusal has one status and
-  code in every portal; the parents login keeps `care.invalid_credentials`
-  (`ParentLoginRules`). The caterer portal may not import that package and keeps
-  its table in `workflows/catererportal/http/errors.go`; the operator keeps its
-  own bodies. Each enrollment route group mounts
+  code in every portal. A portal's own refusals precede the shared tables
+  and live with the portal: the parents login keeps `care.invalid_credentials`
+  (`inbound/parentauth/errors.go`), the caterer's sign-in and second factor
+  answer from `inbound/catererauth/errors.go`. The caterer portal workflow may
+  not import `portalauth` and keeps the table of its own routes in
+  `workflows/catererportal/http/errors.go`; the operator keeps its own bodies.
+  The remembered devices and the switch-off of a voluntary factor answer
+  through the portal's own table (`portalauth.Refusal`). Each enrollment route group mounts
   `sessiontoken.EnrollmentAuthenticatorFor(portal)`, which admits only that
   portal's enrollment token with the school its shape demands. An exchange
   prepares the trusted device (policy and MFA reset generation), mints, then
@@ -970,8 +982,7 @@ Backend paths in this section are relative to `backend/`:
   that says so; no request without it stores a device. Each portal lists and
   revokes the own devices behind its session: `/auth/mfa/trusted-devices`
   (tenant), `/school/auth/mfa/trusted-devices`, `/traeger/auth/…`,
-  `/caterer/auth/…`, `/operator/auth/…`. The parents portal has no second
-  factor.
+  `/caterer/auth/…`, `/operator/auth/…`, `/parent/me/mfa/trusted-devices`.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/portalauth`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
   the token wire schema in `modules/identityaccess/tokenprimitives/session_wire.go`, and trusted-device settings

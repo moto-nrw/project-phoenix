@@ -1830,7 +1830,7 @@ export const ERROR_CATALOG = {
       "traeger.school_not_found":
         "Diese Schule gehört nicht zu Ihrem Träger. Bitte laden Sie die Seite neu.",
       "traeger.school_requires_code":
-        "Diese Schule verlangt jetzt eine Anmeldung mit Code. Bitte melden Sie sich im Träger-Portal neu an.",
+        "Diese Schule verlangt zum Öffnen einen Code aus Ihrer E-Mail.",
       "traeger.second_factor_required":
         "Zum Öffnen einer Schule brauchen Sie einen zweiten Anmeldenachweis. Bitte melden Sie sich im Träger-Portal neu an.",
       "traeger.shared_document_not_found":
@@ -2710,7 +2710,7 @@ export const ERROR_CATALOG = {
       "traeger.school_not_found":
         "This school does not belong to your Träger. Please reload the page.",
       "traeger.school_requires_code":
-        "This school currently requires signing in with a code. Please sign in to the Träger portal again.",
+        "This school asks for a code from your e-mail before it opens.",
       "traeger.second_factor_required":
         "To open a school you need a second sign-in factor. Please sign in to the Träger portal again.",
       "traeger.shared_document_not_found":

@@ -601,10 +601,30 @@ func withoutSchoolLedger(ctx context.Context) bool {
 	return marked || identityaccess.TraegerDeviceOf(ctx) > 0
 }
 
-// deviceBinding is the portal a trusted-device call is bound to: the school
-// it names; without one, the Träger identityaccess.WithTraegerDevice names
-// (#6955), the parents portal identityaccess.WithParentDevice marks (#7051),
-// or else the caterer portal.
+// parentDeviceKey marks the trusted-device calls of the parents portal.
+type parentDeviceKey struct{}
+
+// portalDeviceContext binds a flow to its portal's remembered devices and
+// ledger: a portal without a school files no school ledger entry, and the
+// trusted-device calls it makes with tenantID zero mean only the devices of
+// its realm (domain.DeviceRealm), never another portal's.
+func portalDeviceContext(ctx context.Context, portal domain.Portal, organizationID int64) context.Context {
+	if portal.Schoolless() {
+		ctx = withoutSchoolLedgerContext(ctx)
+	}
+	switch portal.Device {
+	case domain.DeviceOfTraeger:
+		return identityaccess.WithTraegerDevice(ctx, organizationID)
+	case domain.DeviceOfParentPortal:
+		return context.WithValue(ctx, parentDeviceKey{}, true)
+	case domain.DeviceOfSchool, domain.DeviceOfAccount:
+	}
+	return ctx
+}
+
+// deviceBinding is the realm a trusted-device call is bound to: the school
+// it names; without one, the Träger identityaccess.WithTraegerDevice names,
+// the parents portal, or else the caterer portal.
 func deviceBinding(ctx context.Context, tenantID int64) domain.DeviceBinding {
 	if tenantID != 0 {
 		return domain.DeviceBinding{TenantID: tenantID}
@@ -612,7 +632,8 @@ func deviceBinding(ctx context.Context, tenantID int64) domain.DeviceBinding {
 	if organizationID := identityaccess.TraegerDeviceOf(ctx); organizationID > 0 {
 		return domain.DeviceBinding{OrganizationID: organizationID}
 	}
-	return domain.DeviceBinding{ParentPortal: identityaccess.ParentDeviceOf(ctx)}
+	parentPortal, _ := ctx.Value(parentDeviceKey{}).(bool)
+	return domain.DeviceBinding{ParentPortal: parentPortal}
 }
 
 func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.AccountMFAChallenge, message domain.MFACodeMail, credentialGeneration *int64) (domain.AccountMFAChallenge, func(context.Context) error, error) {
@@ -656,22 +677,26 @@ func (f *AccountMFAFlows) activateDeliveredChallenge(ctx context.Context, challe
 }
 
 func (f *AccountMFAFlows) requireChallengeRateLimit(ctx context.Context, accountID int64) error {
-	// The hard cap of three codes per fifteen minutes is an abuse defense,
-	// so a failed count refuses the send instead of waving it through:
-	// ignoring the error meant the cap silently stopped existing exactly
-	// when the database was least healthy.
-	since := f.now().Add(-domain.MFAEmailRateLimitWindow)
-	count, err := f.records.CountChallengesSince(ctx, accountID, since)
+	sent, err := f.records.CountChallengesSince(ctx, accountID, f.now().Add(-domain.MFAEmailRateLimitWindow))
 	if err != nil {
 		f.logger.Warn("mfa code rate-limit lookup failed; refusing to issue a code",
 			slog.Int64("account_id", accountID),
 			slog.String("error", err.Error()))
+	}
+	return codeSendCap(sent, err, domain.MFAEmailRateLimitMaxSent)
+}
+
+// codeSendCap refuses another code once max were sent within the window.
+// The cap is an abuse defense, so a count that could not be read refuses
+// the send too: ignoring the error meant the cap silently stopped existing
+// exactly when the database was least healthy.
+func codeSendCap(sent int, countErr error, maxSent int) error {
+	if countErr != nil {
 		return identityaccess.ErrMFAStatusUnavailable
 	}
-	if count >= domain.MFAEmailRateLimitMaxSent {
+	if sent >= maxSent {
 		return identityaccess.ErrMFARateLimited
 	}
-
 	return nil
 }
 

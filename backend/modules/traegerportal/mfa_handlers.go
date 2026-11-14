@@ -228,7 +228,7 @@ func (rs *Resource) listTrustedDevices(w http.ResponseWriter, r *http.Request) {
 	}
 	portalauth.ListTrustedDevices(w, r, func(ctx context.Context) ([]identityaccess.AccountTrustedDevice, error) {
 		return rs.mfa.ListTrustedDevices(ctx, actor.AccountID, actor.OrganizationID)
-	})
+	}, portalauth.RefuseMFA)
 }
 
 // revokeTrustedDevice forgets one remembered device of the person at the
@@ -240,7 +240,7 @@ func (rs *Resource) revokeTrustedDevice(w http.ResponseWriter, r *http.Request) 
 	}
 	portalauth.RevokeTrustedDevice(w, r, func(ctx context.Context, deviceID int64) error {
 		return rs.mfa.RevokeTrustedDevice(ctx, actor.AccountID, actor.OrganizationID, deviceID)
-	})
+	}, portalauth.RefuseMFA)
 }
 
 func (rs *Resource) deviceActor(w http.ResponseWriter, r *http.Request) (identityaccess.TraegerActor, bool) {

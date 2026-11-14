@@ -91,7 +91,7 @@ func (s *AccountAuthentication) traegerSecondFactor(ctx context.Context, account
 			MaskedEmail: result.MaskedEmail, OrganizationID: organizationID,
 		}, nil
 	}
-	if s.trustedDeviceVerified(identityaccess.WithTraegerDevice(ctx, organizationID), account.ID, 0, in.trustedDeviceCookie) {
+	if s.trustedDeviceVerified(portalDeviceContext(ctx, domain.PortalOrg, organizationID), account.ID, 0, in.trustedDeviceCookie) {
 		return s.mintTraegerSession(ctx, account, organizationID, mintProof{kind: proofTrustedDevice, trustedDeviceCookie: in.trustedDeviceCookie}, in.ipAddress, in.userAgent)
 	}
 	result, err := s.mfaChallengeResult(ctx, account, 0, domain.PortalOrg, in.ipAddress)

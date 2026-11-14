@@ -85,6 +85,13 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 // give no care on days.
 func traegerPortalRouterWithDays(t *testing.T, db *bun.DB, identity TraegerPortalIdentity, unit tenant.UnitOfWork, days owners.HolidayTestSchoolCalendar) http.Handler {
 	t.Helper()
+	return testpkg.SessionVerifier(traegerPortalRoutes(t, db, identity, unit, days))
+}
+
+// traegerPortalRoutes is the /traeger router before the session verifier, so
+// a test can mount the serving root's family check between the two.
+func traegerPortalRoutes(t *testing.T, db *bun.DB, identity TraegerPortalIdentity, unit tenant.UnitOfWork, days owners.HolidayTestSchoolCalendar) http.Handler {
+	t.Helper()
 	database := testpkg.NewDatabase(t, db)
 	organizations, err := owners.NewOrganizationTenancy(database)
 	require.NoError(t, err)
@@ -122,7 +129,7 @@ func traegerPortalRouterWithDays(t *testing.T, db *bun.DB, identity TraegerPorta
 		owners.HolidayClosureMail{Delivery: delivery.Module, TraegerMails: delivery.TraegerMails}, days, closureTestHolidays{}, slog.Default())
 	mountCareContractRoutes(router, organizations, settings, schoolSettings.Settings, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, audit.DataAccessLog,
 		owners.NewCareContractNoticeAddressees(owners.MustNewPeopleDirectory(database), identity), owners.CareContractTestHolidays{}, "http://parents.localhost:3000")
-	return testpkg.SessionVerifier(router)
+	return router
 }
 
 func traegerOrganization(t *testing.T, db *bun.DB, name string, active bool) int64 {

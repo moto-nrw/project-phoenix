@@ -259,12 +259,6 @@ func (s *AccountAuthentication) ConfirmAccountPassword(ctx context.Context, acco
 	})
 }
 
-func (s *AccountAuthentication) LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
-	return runFlow2(ctx, s.flow(), func(ctx context.Context) (string, string, error) {
-		return s.loginParentWithAudit(ctx, email, password, ipAddress, userAgent)
-	})
-}
-
 func (s *AccountAuthentication) RefreshTokenWithAudit(ctx context.Context, refreshToken, recoveryProof, ipAddress, userAgent string) (string, string, error) {
 	return runFlow2(ctx, s.flow(), func(ctx context.Context) (string, string, error) {
 		return s.refreshTokenWithAudit(ctx, refreshToken, domain.NewRecoveryProof(recoveryProof), ipAddress, userAgent)
@@ -313,12 +307,6 @@ func (s *AccountAuthentication) LoadAccountClaims(ctx context.Context, accountID
 func (s *AccountAuthentication) FindGuardianTenant(ctx context.Context, accountID int64) (bool, int64, error) {
 	return runFlow2(ctx, s.flow(), func(ctx context.Context) (bool, int64, error) {
 		return s.findGuardianTenant(ctx, accountID)
-	})
-}
-
-func (s *AccountAuthentication) FindSchoolPortalTenant(ctx context.Context, accountID int64) (bool, int64, error) {
-	return runFlow2(ctx, s.flow(), func(ctx context.Context) (bool, int64, error) {
-		return s.findSchoolPortalTenant(ctx, accountID)
 	})
 }
 

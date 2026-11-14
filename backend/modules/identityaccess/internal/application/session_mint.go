@@ -318,6 +318,11 @@ func (s *AccountAuthentication) adoptSourceProof(ctx context.Context, req mintRe
 	if err := s.adoptSourceFamily(ctx, accountID, req.sourceFamilyID, session, now); err != nil {
 		return err
 	}
+	// A code redeemed for this mint proves the factor itself; the device
+	// mark of the source does not carry over (Träger step-up, #7068).
+	if req.proof.kind == proofChallenge {
+		session.MFAByDevice = false
+	}
 	if req.proof.kind == proofTrustedDevice {
 		return nil
 	}
@@ -412,24 +417,12 @@ func (s *AccountAuthentication) recheckProof(ctx context.Context, req mintReques
 func (s *AccountAuthentication) recheckTrustedDevice(ctx context.Context, req mintRequest, accountID int64) error {
 	deviceSchoolID := req.tenantID
 	if req.portal.Schoolless() {
-		// A device of a portal without a school names none, nor does its
-		// ledger.
-		ctx, deviceSchoolID = withoutSchoolLedgerContext(ctx), 0
+		deviceSchoolID = 0
 	}
-	if req.portal.Org == domain.ShapeRequired {
-		// A Träger-Portal device names its Träger (#6955): only a device of
-		// this Träger proves the factor, never the caterer portal's.
-		if req.orgID <= 0 {
-			return identityaccess.ErrInvalidToken
-		}
-		ctx = identityaccess.WithTraegerDevice(ctx, req.orgID)
+	if req.portal.Device == domain.DeviceOfTraeger && req.orgID <= 0 {
+		return identityaccess.ErrInvalidToken
 	}
-	if req.portal.Name == domain.PortalParent.Name {
-		// A parents-portal device names no school and no Träger, a parent
-		// session at a Träger included (#7051): only a device of this portal
-		// proves the factor, never the caterer portal's.
-		ctx = identityaccess.WithParentDevice(ctx)
-	}
+	ctx = portalDeviceContext(ctx, req.portal, req.orgID)
 	enrolled, err := s.mfa.HasEnrollment(ctx, accountID)
 	if err != nil {
 		return identityaccess.ErrMFAStatusUnavailable

@@ -15,6 +15,10 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/auth/mfa/enroll/start"}:   notCaptured,
 	{http.MethodPost, "/traeger/auth/mfa/resend"}:         notCaptured,
 	{http.MethodPost, "/traeger/auth/mfa/verify"}:         notCaptured,
+	// The code step in the running session (#7068) renews the person's own
+	// session, no work of a school.
+	{http.MethodPost, "/traeger/auth/mfa/step-up"}:        notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/step-up/verify"}: notCaptured,
 	// Forgetting a remembered device (#6955) changes the person's security,
 	// not a school's work: no school to count it for.
 	{http.MethodDelete, "/traeger/auth/mfa/trusted-devices/{deviceId}"}: notCaptured,
