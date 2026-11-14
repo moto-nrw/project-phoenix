@@ -476,6 +476,61 @@ export async function startTraegerSchoolSession(
   return token;
 }
 
+/** The mailed code of a step in the running Träger session (#7068). */
+export interface TraegerCodeStep {
+  challengeToken: string;
+  maskedEmail: string;
+}
+
+async function postTraegerJson(path: string, body: unknown): Promise<unknown> {
+  const response = await transportFetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  return data;
+}
+
+/**
+ * Mails a code for the person of the Träger session (#7068). A school that
+ * accepts no remembered device opens once the code is redeemed.
+ */
+export async function startTraegerCodeStep(): Promise<TraegerCodeStep> {
+  const data = (await postTraegerJson("/api/traeger/auth/mfa/step-up", {})) as {
+    data?: { challenge_token?: string; masked_email?: string };
+  } | null;
+  const challengeToken = data?.data?.challenge_token;
+  if (!challengeToken) {
+    throw apiErrorFromBody("Code step without challenge", 502, data);
+  }
+  return { challengeToken, maskedEmail: data?.data?.masked_email ?? "" };
+}
+
+/**
+ * Redeems the code in the running Träger session (#7068). The BFF installs
+ * the renewed session; false means the code was right but the new session
+ * could not be installed, so the person signs in again.
+ */
+export async function verifyTraegerCodeStep(
+  challengeToken: string,
+  code: string,
+): Promise<boolean> {
+  const data = (await postTraegerJson("/api/traeger/auth/mfa/step-up/verify", {
+    challenge_token: challengeToken,
+    code,
+  })) as { session_renewed?: boolean } | null;
+  return data?.session_renewed === true;
+}
+
 // --- Ferienzeiträume (#4659) ---
 
 /** A bookable care time of a holiday week; the price is in whole cent. */

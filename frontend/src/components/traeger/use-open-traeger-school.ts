@@ -9,13 +9,12 @@ import { createLogger } from "~/lib/logger";
 import { endTraegerSession, useShellAuthSafe } from "~/lib/shell-auth-context";
 import { requestTraegerSignInWithCode } from "~/lib/traeger-sign-in-with-code";
 import {
+  startTraegerCodeStep,
   startTraegerSchoolSession,
+  type TraegerCodeStep,
   type TraegerSchool,
 } from "~/lib/traeger-api";
-import {
-  TRAEGER_SIGN_IN_WITH_CODE_LABEL,
-  traegerHandoffUrl,
-} from "~/lib/traeger-handoff";
+import { traegerHandoffUrl } from "~/lib/traeger-handoff";
 import { TRAEGER_ROLE_LABELS } from "~/lib/traeger-roles";
 
 const logger = createLogger({ component: "useOpenTraegerSchool" });
@@ -34,9 +33,9 @@ export const SCHOOL_SWITCH_MISSING_HINT = `Die Schul-App öffnen Sie nur mit der
  * does not block it, and receives the school's address once the hand-off
  * token is there. Without a tab the school opens here.
  */
-async function openSchool(
-  school: Pick<TraegerSchool, "id" | "subdomain">,
-): Promise<void> {
+type OpenableSchool = Pick<TraegerSchool, "id" | "subdomain">;
+
+async function openSchool(school: OpenableSchool): Promise<void> {
   const tab = globalThis.open("", "_blank");
   try {
     const url = traegerHandoffUrl(
@@ -55,11 +54,14 @@ async function openSchool(
   }
 }
 
+/** Label of the action that mails the code for the running session. */
+const TRAEGER_CODE_STEP_LABEL = "Code anfordern";
+
 /**
- * A school that switched remembered devices off asks for the code (#6955):
- * the person signs out and in again, this time with the code.
+ * A school that switched remembered devices off asks for the code (#6955).
+ * The person enters it in the running session (#7068) and the school opens.
  */
-function needsSignInWithCode(err: unknown): boolean {
+function needsCode(err: unknown): boolean {
   return err instanceof ApiError && err.code === "traeger.school_requires_code";
 }
 
@@ -67,6 +69,10 @@ function needsSignInWithCode(err: unknown): boolean {
 export function useOpenTraegerSchool() {
   const { data: session } = useSession();
   const [opening, setOpening] = useState<string | null>(null);
+  const [codeStep, setCodeStep] = useState<{
+    school: OpenableSchool;
+    step: TraegerCodeStep;
+  } | null>(null);
   const openErrors = useApiErrorDisplay();
   const shellAuth = useShellAuthSafe();
 
@@ -87,13 +93,27 @@ export function useOpenTraegerSchool() {
     }
   }, [shellAuth, openErrors]);
 
+  const requestCode = useCallback(
+    async (school: OpenableSchool) => {
+      try {
+        setCodeStep({ school, step: await startTraegerCodeStep() });
+      } catch (err) {
+        logger.warn("traeger_code_step_start_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void openErrors.show(err, { object: "das Senden des Codes" });
+      }
+    },
+    [openErrors],
+  );
+
   const open = useCallback(
-    async (school: Pick<TraegerSchool, "id" | "subdomain">) => {
+    async (school: OpenableSchool) => {
       setOpening(school.id);
       try {
         await openSchool(school);
       } catch (err) {
-        const askForCode = needsSignInWithCode(err);
+        const askForCode = needsCode(err);
         // The school's „Aus“ for remembered devices is an expected answer,
         // not a failure of the app.
         if (askForCode) {
@@ -107,18 +127,8 @@ export function useOpenTraegerSchool() {
           object: "die Schule",
           ...(askForCode && {
             action: {
-              label: TRAEGER_SIGN_IN_WITH_CODE_LABEL,
-              // A failed sign-out leaves the person signed in; opening the
-              // school again offers the action again.
-              onClick: () =>
-                void signInWithCode().catch((signOutError: unknown) => {
-                  logger.warn("traeger_sign_in_with_code_failed", {
-                    error:
-                      signOutError instanceof Error
-                        ? signOutError.message
-                        : String(signOutError),
-                  });
-                }),
+              label: TRAEGER_CODE_STEP_LABEL,
+              onClick: () => void requestCode(school),
             },
           }),
         });
@@ -126,12 +136,42 @@ export function useOpenTraegerSchool() {
         setOpening(null);
       }
     },
-    [openErrors, signInWithCode],
+    [openErrors, requestCode],
+  );
+
+  const closeCodeStep = useCallback(() => setCodeStep(null), []);
+
+  const codeVerified = useCallback(
+    async (renewed: boolean) => {
+      const school = codeStep?.school;
+      setCodeStep(null);
+      if (!renewed) {
+        // The code was right, but the renewed session could not be kept:
+        // the old one is retired, so the person signs in again.
+        await signInWithCode().catch((signOutError: unknown) => {
+          logger.warn("traeger_sign_in_with_code_failed", {
+            error:
+              signOutError instanceof Error
+                ? signOutError.message
+                : String(signOutError),
+          });
+        });
+        return;
+      }
+      if (school) await open(school);
+    },
+    [codeStep, open, signInWithCode],
   );
 
   return {
     canOpen: hasPermission(session, SCHOOL_SWITCH_RIGHT),
     opening,
     open,
+    /** Props of the TraegerCodeStepModal the page renders. */
+    codeStep: {
+      step: codeStep?.step ?? null,
+      onClose: closeCodeStep,
+      onVerified: codeVerified,
+    },
   };
 }

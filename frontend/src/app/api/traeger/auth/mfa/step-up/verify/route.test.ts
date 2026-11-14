@@ -1,0 +1,122 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
+
+const { mockSetSession, mockTraegerAuth, mockUncachedTraegerAuth } = vi.hoisted(
+  () => ({
+    mockSetSession: vi.fn(),
+    mockTraegerAuth: vi.fn(),
+    mockUncachedTraegerAuth: vi.fn(),
+  }),
+);
+
+// The Träger binding reads the session through its auth().
+vi.mock("~/server/auth/traeger", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("traeger", {
+    auth: mockTraegerAuth,
+    uncachedAuth: mockUncachedTraegerAuth,
+    setSession: mockSetSession,
+  }),
+);
+
+import { POST } from "./route";
+
+const fetchMock = vi.fn<typeof fetch>();
+const ORIGIN = "http://traeger.localhost:3000";
+
+function confirmRequest(token: string | undefined, origin = ORIGIN) {
+  const request = new NextRequest(
+    `${ORIGIN}/api/traeger/auth/mfa/step-up/verify`,
+    {
+      method: "POST",
+      headers: { origin, "Content-Type": "application/json" },
+      body: JSON.stringify({ challenge_token: "challenge", code: "123456" }),
+    },
+  );
+  const session = token ? { user: { token } } : null;
+  mockTraegerAuth.mockResolvedValue(session);
+  return Object.assign(request, {
+    auth: session,
+  }) as unknown as Parameters<typeof POST>[0];
+}
+
+describe("POST /api/traeger/auth/mfa/step-up/verify (#7068)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("API_URL", "http://backend.test");
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("installs the new session in the BFF and never returns its tokens", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ access_token: "access", refresh_token: "refresh" }),
+    );
+    mockSetSession.mockResolvedValueOnce(undefined);
+
+    const response = await POST(confirmRequest("traeger-token"));
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(JSON.parse(body)).toEqual({ session_renewed: true });
+    expect(body).not.toContain("access");
+    expect(body).not.toContain("refresh");
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe(
+      "http://backend.test/traeger/auth/mfa/step-up/verify",
+    );
+    expect((init!.headers as Record<string, string>).Authorization).toBe(
+      "Bearer traeger-token",
+    );
+    expect(JSON.parse(String(init?.body))).toEqual({
+      challenge_token: "challenge",
+      code: "123456",
+    });
+    expect(mockSetSession).toHaveBeenCalledWith("access", "refresh");
+  });
+
+  it("reports a session it could not install and revokes it", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({ access_token: "access", refresh_token: "refresh" }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    mockSetSession.mockRejectedValueOnce(new Error("refused"));
+
+    const response = await POST(confirmRequest("traeger-token"));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ session_renewed: false });
+    const [url, init] = fetchMock.mock.calls[1]!;
+    expect(String(url)).toBe("http://backend.test/auth/logout");
+    expect((init!.headers as Record<string, string>).Authorization).toBe(
+      "Bearer refresh",
+    );
+  });
+
+  it("passes a wrong code through without touching the session", async () => {
+    const problem = { code: "identity.mfa_code_invalid", status: 401 };
+    fetchMock.mockResolvedValueOnce(Response.json(problem, { status: 401 }));
+
+    const response = await POST(confirmRequest("traeger-token"));
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject(problem);
+    // No retry: a renewed session would redeem the code a second time.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mockUncachedTraegerAuth).not.toHaveBeenCalled();
+    expect(mockSetSession).not.toHaveBeenCalled();
+  });
+
+  it("refuses a request without a Träger session or from another origin", async () => {
+    expect((await POST(confirmRequest(undefined))).status).toBe(401);
+    expect(
+      (await POST(confirmRequest("traeger-token", "http://other.localhost")))
+        .status,
+    ).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

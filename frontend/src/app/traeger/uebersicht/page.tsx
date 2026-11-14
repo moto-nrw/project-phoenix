@@ -39,6 +39,7 @@ import {
   SCHOOL_SWITCH_MISSING_HINT,
   useOpenTraegerSchool,
 } from "~/components/traeger/use-open-traeger-school";
+import { TraegerCodeStepModal } from "~/components/traeger/traeger-code-step-modal";
 import { useTraegerSchoolsAlerts } from "~/components/traeger/use-traeger-schools-alerts";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { between, useMediaQuery } from "~/lib/hooks/use-media-query";
@@ -389,7 +390,7 @@ export default function TraegerDashboardPage() {
   const { alerts, error, refreshFailed, reload } = useTraegerSchoolsAlerts();
   const { data: session } = useSession();
   const router = useRouter();
-  const { canOpen, opening, open } = useOpenTraegerSchool();
+  const { canOpen, opening, open, codeStep } = useOpenTraegerSchool();
   const [search, setSearch] = useState("");
   const [alertSchoolId, setAlertSchoolId] = useState(ALL_SCHOOLS);
   const [alertsExpanded, setAlertsExpanded] = useState(false);
@@ -817,6 +818,7 @@ export default function TraegerDashboardPage() {
           )
         }
       />
+      <TraegerCodeStepModal {...codeStep} />
     </TenantPage>
   );
 }

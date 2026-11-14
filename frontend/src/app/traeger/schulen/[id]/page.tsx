@@ -11,6 +11,7 @@ import {
   SCHOOL_SWITCH_MISSING_HINT,
   useOpenTraegerSchool,
 } from "~/components/traeger/use-open-traeger-school";
+import { TraegerCodeStepModal } from "~/components/traeger/traeger-code-step-modal";
 import { useTraegerSchool } from "~/components/traeger/use-traeger-school";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -166,7 +167,7 @@ function MasterDataTab({
 export default function TraegerSchoolPage() {
   const params = useParams<{ id: string }>();
   const { school, error } = useTraegerSchool(params?.id ?? "");
-  const { canOpen, opening, open } = useOpenTraegerSchool();
+  const { canOpen, opening, open, codeStep } = useOpenTraegerSchool();
   const [tab, setTab] = useState<SchoolTab>("uebersicht");
 
   return (
@@ -232,6 +233,7 @@ export default function TraegerSchoolPage() {
       ) : (
         <MasterDataTab school={school} />
       )}
+      <TraegerCodeStepModal {...codeStep} />
     </TenantPage>
   );
 }
