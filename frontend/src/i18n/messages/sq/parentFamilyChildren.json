@@ -19,5 +19,9 @@
   "enrollmentSaved": "U ruajt. Numri do të kalojë në kontratën tuaj të kujdesit.",
   "enrollmentClosed": "Fëmija juaj është pranuar. Numrin tani e ndryshoni në kontratën e kujdesit.",
   "linkHint": "Deri në nënshkrim mund ta ndryshoni numrin këtu.",
-  "enrollmentHint": "Derisa fëmija juaj të pranohet, mund ta ndryshoni numrin këtu."
+  "enrollmentHint": "Derisa fëmija juaj të pranohet, mund ta ndryshoni numrin këtu.",
+  "sendTooltip": "E dërgon numrin menjëherë te ofruesi për kontroll.",
+  "enrollmentSendTooltip": "Ruan numrin për kontratën tuaj të ardhshme të kujdesit.",
+  "decrementTooltip": "Numëron një fëmijë më pak.",
+  "incrementTooltip": "Numëron një fëmijë më shumë."
 }

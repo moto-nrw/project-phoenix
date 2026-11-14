@@ -105,6 +105,7 @@ export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
           className="mt-2 w-full"
           aria-expanded={expanded}
           aria-controls="parent-todo-items"
+          noTooltip="Das Wort sagt, was der Klick zeigt; er ändert nichts."
           onClick={() => setExpanded((current) => !current)}
         >
           {expanded ? (

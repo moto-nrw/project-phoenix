@@ -12,5 +12,8 @@
   "close": "Zamknij okno",
   "errorObjectRecipients": "lista odbiorców",
   "errorObjectSelection": "wybór",
-  "optionsHint": "Mogą Państwo mimo to wysłać prośbę i udostępnić ją później."
+  "optionsHint": "Mogą Państwo mimo to wysłać prośbę i udostępnić ją później.",
+  "buttonTooltip": "Otwiera okno, w którym wybierasz, kto widzi prośbę.",
+  "saveTooltip": "Zapisuje, kto może widzieć prośbę i odpowiedź.",
+  "closeTooltip": "Zamyka okno; wybór pozostaje bez zmian."
 }

@@ -56,5 +56,8 @@
   "decisionLabel": "Kurumun kararı",
   "decisionSet": "Neden kabul edildi",
   "decisionReinterpreted": "Neden kabul edilmedi. Olağan fesih sayılır.",
-  "endNoticeTitle": "Kurumun sözleşme sonu hakkındaki bildirimi"
+  "endNoticeTitle": "Kurumun sözleşme sonu hakkındaki bildirimi",
+  "submitTerminationTooltip": "Feshi hemen kuruma gönderir.",
+  "submitWithdrawalTooltip": "Cayma beyanını hemen kuruma gönderir.",
+  "submitDisabledReason": "Önce yukarıdan bir seçenek seçin."
 }
