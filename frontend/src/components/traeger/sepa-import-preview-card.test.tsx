@@ -62,6 +62,7 @@ const result: ImportResult = {
     imported: 0,
     debtorNumbers: 0,
     debtorConflicts: 0,
+    withoutMandate: 0,
   },
   rows: [
     row(2, {}),
@@ -113,6 +114,22 @@ describe("SepaImportPreviewCard", () => {
     expect(question).toBeDefined();
     fireEvent.click(screen.getAllByRole("button", { name: "Ja" })[0]!);
     expect(onAnswer).toHaveBeenCalledWith(3, "recurring");
+  });
+
+  it("counts the rows without a mandate once, not as errors (#7009)", () => {
+    render(
+      <SepaImportPreviewCard
+        result={{ ...result, counts: { ...result.counts, withoutMandate: 517 } }}
+        answers={{}}
+        applying={false}
+        onAnswer={vi.fn()}
+        onApply={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(/^517 Zeilen ohne Mandat: .* Das ist kein Fehler\.$/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fehler 1" })).toBeInTheDocument();
   });
 
   it("names the debtor number siblings disagree on (#4693)", () => {

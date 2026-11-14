@@ -116,6 +116,18 @@ func addProblem(row *parentbilling.SEPAMandateImportRow, field, problem string) 
 	row.Problems = append(row.Problems, parentbilling.SEPAMandateImportProblem{Field: field, Code: problem})
 }
 
+// candidate checks a mandate or reads only the family of a child without
+// one. Such a child still contributes its debtor number but neither
+// validates nor reserves a mandate; its mandate status stays empty.
+func (c *importCheck) candidate(cells []string, line int) importCandidate {
+	if c.cell(cells, parentbilling.ImportFieldIBAN) == "" && c.cell(cells, parentbilling.ImportFieldReference) == "" {
+		candidate := importCandidate{row: parentbilling.SEPAMandateImportRow{Line: line}}
+		c.readPayer(&candidate, cells)
+		return candidate
+	}
+	return c.row(cells, line)
+}
+
 // row checks one row of the file.
 func (c *importCheck) row(cells []string, line int) importCandidate {
 	candidate := importCandidate{row: parentbilling.SEPAMandateImportRow{Line: line,
