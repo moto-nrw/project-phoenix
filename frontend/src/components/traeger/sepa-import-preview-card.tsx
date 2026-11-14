@@ -6,6 +6,7 @@
 // hier; moto rät das nie. Übernommen werden nur die bereiten Zeilen.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -98,6 +99,16 @@ function NotesCell({ row }: Readonly<{ row: ImportRow }>) {
       ))}
     </ul>
   );
+}
+
+/**
+ * Rows without IBAN and reference are children whose family pays without
+ * a mandate (#7009): the import leaves them out and says so once.
+ */
+function withoutMandateText(count: number): string {
+  return count === 1
+    ? "1 Zeile ohne Mandat: Sie hat keine IBAN und keine Mandatsreferenz. moto übernimmt sie nicht. Das ist kein Fehler."
+    : `${count} Zeilen ohne Mandat: Sie haben keine IBAN und keine Mandatsreferenz. moto übernimmt sie nicht. Das ist kein Fehler.`;
 }
 
 export function SepaImportPreviewCard({
@@ -272,6 +283,13 @@ export function SepaImportPreviewCard({
         </div>
       }
     >
+      {counts.withoutMandate > 0 ? (
+        <Alert
+          type="info"
+          className="mb-4"
+          message={withoutMandateText(counts.withoutMandate)}
+        />
+      ) : null}
       <div ref={filtersRef} className="mb-4">
         <SegmentedControl
           ariaLabel="Zeilen zeigen"

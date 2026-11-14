@@ -61,6 +61,7 @@ export function traegerSepaMandatesTopic(): HelpTopic {
           "Haben Sie die Mandate schon in einem anderen Programm, zum Beispiel OGS Connect? Dann übernehmen Sie alle auf einmal aus einer CSV-Datei. Referenz und Datum der Unterschrift bleiben gleich. moto bewahrt die Datei nicht auf.",
         steps: [
           "Speichern Sie die Mandate im anderen Programm als CSV-Datei. Die erste Zeile enthält die Überschriften.",
+          "Aus OGS Connect nehmen Sie den Export der Stammdaten. Er hat eine Zeile je Kind. Als Zahler braucht moto dort noch eine Spalte mit E-Mail oder Vertragsnummer.",
           "Öffnen Sie unter `Abrechnung` den Reiter `Lastschrift` und wählen Sie `Mandate importieren`.",
           "Ziehen Sie die Datei in das Feld oder wählen Sie `Datei wählen`.",
           "Prüfen Sie unter `Spalten zuordnen`, aus welcher Spalte jedes Feld kommt. moto schlägt passende Spalten vor.",
@@ -88,6 +89,7 @@ export function traegerSepaMandatesTopic(): HelpTopic {
       "Ob die App Mandate annimmt, sehen Sie unter `Abrechnungsvorgaben` in der Karte `Lastschrift` bei `Mandat in der Eltern-App`. Ohne Gläubiger-ID oder ohne Absender im Briefkopf nimmt die App kein Mandat an.",
       "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",
       "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Bei importierten Mandaten stehen dort auch Dateiname und Zeile. Kontodaten stehen dort nicht.",
+      "Zeilen ohne IBAN und ohne Mandatsreferenz übernimmt moto nicht. Die Vorschau zählt sie als „ohne Mandat“. Das sind meist Kinder, deren Familie ohne Lastschrift zahlt.",
       "Mandate übernimmt moto nur mit dem Stand `Bereit`. Fehlende Debitorennummern können Sie auch bei vorhandenen Mandaten übernehmen. Die Vorschau zählt jede Familie einmal. Unterschiedliche Nummern werden nicht übernommen. Korrigieren Sie die Datei und laden Sie sie noch einmal.",
       "Ein Mandat aus der Datei, mit dem schon abgebucht wurde, übernimmt moto als Folgelastschrift. Steht die letzte Abbuchung in der Datei, zählen die 36 Monate bis zum Verfall ab diesem Tag. Fehlt sie, zählen sie ab dem Import.",
       "Wissen Sie, dass die letzte Abbuchung lange her ist? Dann tragen Sie das Datum in der Datei ein oder holen ein neues Mandat ein. Ohne Datum geht moto davon aus, dass das Mandat bis kurz vor dem Import genutzt wurde.",

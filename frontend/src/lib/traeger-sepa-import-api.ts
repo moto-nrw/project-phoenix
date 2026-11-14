@@ -79,6 +79,8 @@ type ImportCounts = Readonly<
   Record<ImportRowStatus, number> & {
     debtorNumbers: number;
     debtorConflicts: number;
+    /** Rows without IBAN and reference the import skipped (#7009). */
+    withoutMandate: number;
   }
 >;
 
@@ -153,6 +155,7 @@ interface BackendResult {
   counts: Record<ImportRowStatus, number> & {
     debtor_numbers?: number;
     debtor_conflicts?: number;
+    without_mandate?: number;
   };
   rows: BackendRow[] | null;
 }
@@ -214,6 +217,7 @@ function mapImportResult(result: BackendResult): ImportResult {
       ...result.counts,
       debtorNumbers: result.counts.debtor_numbers ?? 0,
       debtorConflicts: result.counts.debtor_conflicts ?? 0,
+      withoutMandate: result.counts.without_mandate ?? 0,
     },
     rows: (result.rows ?? []).map(mapRow),
   };
