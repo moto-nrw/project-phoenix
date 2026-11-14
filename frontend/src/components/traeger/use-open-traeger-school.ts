@@ -69,7 +69,7 @@ function needsCode(err: unknown): boolean {
 export function useOpenTraegerSchool() {
   const { data: session } = useSession();
   const [opening, setOpening] = useState<string | null>(null);
-  const [codeStep, setCodeStep] = useState<{
+  const [pendingCode, setPendingCode] = useState<{
     school: OpenableSchool;
     step: TraegerCodeStep;
   } | null>(null);
@@ -96,7 +96,7 @@ export function useOpenTraegerSchool() {
   const requestCode = useCallback(
     async (school: OpenableSchool) => {
       try {
-        setCodeStep({ school, step: await startTraegerCodeStep() });
+        setPendingCode({ school, step: await startTraegerCodeStep() });
       } catch (err) {
         logger.warn("traeger_code_step_start_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -139,12 +139,12 @@ export function useOpenTraegerSchool() {
     [openErrors, requestCode],
   );
 
-  const closeCodeStep = useCallback(() => setCodeStep(null), []);
+  const closeCodeStep = useCallback(() => setPendingCode(null), []);
 
   const codeVerified = useCallback(
     async (renewed: boolean) => {
-      const school = codeStep?.school;
-      setCodeStep(null);
+      const school = pendingCode?.school;
+      setPendingCode(null);
       if (!renewed) {
         // The code was right, but the renewed session could not be kept:
         // the old one is retired, so the person signs in again.
@@ -160,7 +160,7 @@ export function useOpenTraegerSchool() {
       }
       if (school) await open(school);
     },
-    [codeStep, open, signInWithCode],
+    [pendingCode, open, signInWithCode],
   );
 
   return {
@@ -168,8 +168,8 @@ export function useOpenTraegerSchool() {
     opening,
     open,
     /** Props of the TraegerCodeStepModal the page renders. */
-    codeStep: {
-      step: codeStep?.step ?? null,
+    codeStepModal: {
+      step: pendingCode?.step ?? null,
       onClose: closeCodeStep,
       onVerified: codeVerified,
     },

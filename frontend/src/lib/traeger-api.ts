@@ -4,7 +4,7 @@
  * session. Backend int64 IDs arrive as numbers and leave here as strings.
  */
 
-import { apiErrorFromBody, transportFetch } from "./api-error";
+import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 import type { SettingsSchema } from "./settings-api";
 import { filenameFromDisposition } from "./file-download";
 import { type TraegerRole, traegerRoles } from "./traeger-roles";
@@ -482,37 +482,22 @@ export interface TraegerCodeStep {
   maskedEmail: string;
 }
 
-async function postTraegerJson(path: string, body: unknown): Promise<unknown> {
-  const response = await transportFetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(body),
-  });
-  const data = await readJson(response);
-  if (!response.ok) {
-    throw apiErrorFromBody(
-      `Request failed (${response.status})`,
-      response.status,
-      data,
-    );
-  }
-  return data;
-}
-
 /**
  * Mails a code for the person of the Träger session (#7068). A school that
  * accepts no remembered device opens once the code is redeemed.
  */
 export async function startTraegerCodeStep(): Promise<TraegerCodeStep> {
-  const data = (await postTraegerJson("/api/traeger/auth/mfa/step-up", {})) as {
-    data?: { challenge_token?: string; masked_email?: string };
-  } | null;
-  const challengeToken = data?.data?.challenge_token;
-  if (!challengeToken) {
-    throw apiErrorFromBody("Code step without challenge", 502, data);
+  const data = await traegerRequest<{
+    challenge_token?: string;
+    masked_email?: string;
+  } | null>("/api/traeger/auth/mfa/step-up", { method: "POST", body: {} });
+  if (!data?.challenge_token) {
+    throw new ApiError("Code step without challenge", 502);
   }
-  return { challengeToken, maskedEmail: data?.data?.masked_email ?? "" };
+  return {
+    challengeToken: data.challenge_token,
+    maskedEmail: data.masked_email ?? "",
+  };
 }
 
 /**
@@ -524,10 +509,10 @@ export async function verifyTraegerCodeStep(
   challengeToken: string,
   code: string,
 ): Promise<boolean> {
-  const data = (await postTraegerJson("/api/traeger/auth/mfa/step-up/verify", {
-    challenge_token: challengeToken,
-    code,
-  })) as { session_renewed?: boolean } | null;
+  const data = await traegerRequest<{ session_renewed?: boolean } | null>(
+    "/api/traeger/auth/mfa/step-up/verify",
+    { method: "POST", body: { challenge_token: challengeToken, code } },
+  );
   return data?.session_renewed === true;
 }
 

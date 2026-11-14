@@ -358,7 +358,7 @@ describe("TenantGuard", () => {
       name: "Mit Code neu anmelden",
     });
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Diese Schule verlangt zum Öffnen einen Code.",
+      "Diese Schule verlangt zum Öffnen einen Code aus Ihrer E-Mail.",
     );
     expect(
       screen.queryByRole("button", { name: "Zur Schulanmeldung" }),

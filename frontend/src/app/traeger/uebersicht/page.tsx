@@ -390,7 +390,7 @@ export default function TraegerDashboardPage() {
   const { alerts, error, refreshFailed, reload } = useTraegerSchoolsAlerts();
   const { data: session } = useSession();
   const router = useRouter();
-  const { canOpen, opening, open, codeStep } = useOpenTraegerSchool();
+  const { canOpen, opening, open, codeStepModal } = useOpenTraegerSchool();
   const [search, setSearch] = useState("");
   const [alertSchoolId, setAlertSchoolId] = useState(ALL_SCHOOLS);
   const [alertsExpanded, setAlertsExpanded] = useState(false);
@@ -818,7 +818,7 @@ export default function TraegerDashboardPage() {
           )
         }
       />
-      <TraegerCodeStepModal {...codeStep} />
+      <TraegerCodeStepModal {...codeStepModal} />
     </TenantPage>
   );
 }

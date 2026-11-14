@@ -39,7 +39,7 @@ export const POST = traegerPortal.withAuth(async (request) => {
       throw new Error("Invalid step-up response");
     })) as Record<string, unknown>;
     const failure = await installLoginSession(request, data, traegerPortal);
-    return Response.json({ session_renewed: failure === null });
+    return Response.json({ data: { session_renewed: failure === null } });
   } catch (error) {
     captureBffException(error, request);
     logger.error("traeger_step_up_verify_failed", {

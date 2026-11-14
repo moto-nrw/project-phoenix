@@ -86,10 +86,15 @@ func (s *AccountAuthentication) switchMFAProof(ctx context.Context, accountID in
 		}
 		return false, identityaccess.ErrMFAStatusUnavailable
 	}
-	now := time.Now()
+	return liveVerifiedHead(domain.AccountSession(source), accountID, scope, time.Now()), nil
+}
+
+// liveVerifiedHead reports a family head of the account in that portal that
+// carries second-factor proof and is neither rotated nor expired.
+func liveVerifiedHead(source domain.AccountSession, accountID int64, scope string, now time.Time) bool {
 	return source.AccountID == accountID && source.PortalScope == scope &&
 		source.MFAVerified && source.RotatedAt == nil && source.Expiry.After(now) &&
-		(source.FamilyExpiryCap == nil || source.FamilyExpiryCap.After(now)), nil
+		(source.FamilyExpiryCap == nil || source.FamilyExpiryCap.After(now))
 }
 
 // adoptSourceFamily checks the family a switch presents: it must still live,

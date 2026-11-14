@@ -2,6 +2,9 @@ package application
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"time"
 
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
@@ -95,18 +98,14 @@ func (s *AccountAuthentication) traegerStepUpAccount(ctx context.Context, reques
 // unrotated and verified Träger session at that Träger: a rotated, retired
 // or foreign family cannot be stepped up.
 func (s *AccountAuthentication) requireLiveTraegerFamily(ctx context.Context, accountID, organizationID int64, familyID string) error {
-	verified, err := s.switchMFAProof(ctx, accountID, familyID, domain.PortalOrg.Name)
-	if err != nil {
-		return err
-	}
-	if !verified {
+	source, err := s.sessions.LatestAccountSessionInFamily(ctx, familyID)
+	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
 		return failed("Träger step-up", identityaccess.ErrInvalidToken)
 	}
-	source, err := s.sessions.LatestAccountSessionInFamily(ctx, familyID)
 	if err != nil {
-		return identityaccess.ErrMFAStatusUnavailable
+		return fmt.Errorf("read the presented Träger family: %w: %w", identityaccess.ErrMFAStatusUnavailable, err)
 	}
-	if source.OrganizationID != organizationID {
+	if !liveVerifiedHead(domain.AccountSession(source), accountID, domain.PortalOrg.Name, time.Now()) || source.OrganizationID != organizationID {
 		return failed("Träger step-up", identityaccess.ErrInvalidToken)
 	}
 	return nil

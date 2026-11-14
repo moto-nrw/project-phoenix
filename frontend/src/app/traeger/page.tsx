@@ -61,7 +61,7 @@ export default function TraegerSchoolsPage() {
   const schools = schoolData ?? [];
   const loading = schoolData === null && !schoolsError;
   const router = useRouter();
-  const { canOpen, opening, open, codeStep } = useOpenTraegerSchool();
+  const { canOpen, opening, open, codeStepModal } = useOpenTraegerSchool();
 
   const columns = useMemo<DataTableColumn<TraegerSchool>[]>(
     () =>
@@ -165,7 +165,7 @@ export default function TraegerSchoolsPage() {
           />
         }
       />
-      <TraegerCodeStepModal {...codeStep} />
+      <TraegerCodeStepModal {...codeStepModal} />
     </TenantPage>
   );
 }

@@ -61,7 +61,7 @@ describe("POST /api/traeger/auth/mfa/step-up/verify (#7068)", () => {
 
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(JSON.parse(body)).toEqual({ session_renewed: true });
+    expect(JSON.parse(body)).toEqual({ data: { session_renewed: true } });
     expect(body).not.toContain("access");
     expect(body).not.toContain("refresh");
     const [url, init] = fetchMock.mock.calls[0]!;
@@ -89,7 +89,7 @@ describe("POST /api/traeger/auth/mfa/step-up/verify (#7068)", () => {
     const response = await POST(confirmRequest("traeger-token"));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ session_renewed: false });
+    expect(await response.json()).toEqual({ data: { session_renewed: false } });
     const [url, init] = fetchMock.mock.calls[1]!;
     expect(String(url)).toBe("http://backend.test/auth/logout");
     expect((init!.headers as Record<string, string>).Authorization).toBe(

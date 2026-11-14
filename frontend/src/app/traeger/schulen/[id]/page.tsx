@@ -167,7 +167,7 @@ function MasterDataTab({
 export default function TraegerSchoolPage() {
   const params = useParams<{ id: string }>();
   const { school, error } = useTraegerSchool(params?.id ?? "");
-  const { canOpen, opening, open, codeStep } = useOpenTraegerSchool();
+  const { canOpen, opening, open, codeStepModal } = useOpenTraegerSchool();
   const [tab, setTab] = useState<SchoolTab>("uebersicht");
 
   return (
@@ -233,7 +233,7 @@ export default function TraegerSchoolPage() {
       ) : (
         <MasterDataTab school={school} />
       )}
-      <TraegerCodeStepModal {...codeStep} />
+      <TraegerCodeStepModal {...codeStepModal} />
     </TenantPage>
   );
 }

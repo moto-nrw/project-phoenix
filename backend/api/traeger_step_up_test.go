@@ -158,4 +158,21 @@ func TestTraegerStepUpNeedsTheSchoolSwitchRightAndTheOwnCode(t *testing.T) {
 		"challenge_token": foreign.ChallengeToken, "code": foreignCode, "organization_id": organization,
 	})
 	assert.Equal(t, http.StatusOK, rec.Code, "the refused step consumed nothing: %s", rec.Body.String())
+
+	// „Neuen Code anfordern“ in the dialog renews the step's challenge
+	// through the sign-in's resend; the renewed code completes the step.
+	code, start := traegerPost(t, portal, traegerStepUpPath, memberSession.AccessToken, map[string]any{})
+	require.Equal(t, http.StatusOK, code, start.Code)
+	rec = traegerRequest(t, portal, "/traeger/auth/mfa/resend", map[string]any{"challenge_token": start.ChallengeToken})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var renewed struct {
+		ChallengeToken string `json:"challenge_token"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &renewed))
+	require.NotEmpty(t, renewed.ChallengeToken)
+	code, stepped := traegerPost(t, portal, traegerStepUpVerifyPath, memberSession.AccessToken, map[string]any{
+		"challenge_token": renewed.ChallengeToken, "code": lastTraegerCode(t, portal, member.Email),
+	})
+	assert.Equal(t, http.StatusOK, code, stepped.Code)
+	assert.NotEmpty(t, stepped.AccessToken, "the resent code completes the step")
 }
