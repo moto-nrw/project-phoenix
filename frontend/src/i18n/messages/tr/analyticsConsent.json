@@ -7,6 +7,8 @@
   "promptChangeLater": "Seçiminiz hesabınız için geçerlidir. İstediğiniz zaman „Ayarlar“ bölümünden değiştirebilirsiniz.",
   "allow": "İzin ver",
   "refuse": "Reddet",
+  "allowTooltip": "Hesabınız için kullanım analizine izin verir. İstediğiniz zaman değiştirebilirsiniz.",
+  "refuseTooltip": "Hesabınız için kullanım analizini reddeder. moto o zaman hiçbir şey saymaz.",
   "saving": "Kaydediliyor…",
   "closeLabel": "Daha sonra karar ver",
   "sectionDescription": "moto, hangi sayfaları ve düğmeleri kullandığınızı sayabilir mi? moto bu sırada isimleri ve yazdıklarınızı görmez. Buna yalnızca siz karar verirsiniz.",

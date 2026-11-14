@@ -461,6 +461,8 @@ export function GradeTransitionsManager({
                     label: "Bearbeiten",
                     icon: <Pencil className="h-4 w-4" aria-hidden />,
                     onClick: () => openEditorFor(t),
+                    description:
+                      "Öffnet den Entwurf, um Klassen und Abgänge zu ändern.",
                   },
                 ]
               : []),
@@ -470,6 +472,8 @@ export function GradeTransitionsManager({
                     label: "Anwenden",
                     icon: <Play className="h-4 w-4" aria-hidden />,
                     onClick: () => setPreviewFor(t),
+                    description:
+                      "Zeigt zuerst eine Vorschau, erst danach wechseln die Kinder.",
                   },
                 ]
               : []),
@@ -479,6 +483,8 @@ export function GradeTransitionsManager({
                     label: "Zurücksetzen",
                     icon: <RotateCcw className="h-4 w-4" aria-hidden />,
                     onClick: () => setRevertTarget(t),
+                    description:
+                      "Holt Kinder in die alte Klasse und Abgänge zurück, moto fragt vorher nach.",
                   },
                 ]
               : []),
@@ -491,6 +497,8 @@ export function GradeTransitionsManager({
                     label: "Abgänge",
                     icon: <Users className="h-4 w-4" aria-hidden />,
                     onClick: () => setGraduatesFor(t),
+                    description:
+                      "Zeigt die Kinder, die mit diesem Wechsel abgehen.",
                   },
                 ]
               : []),
@@ -501,6 +509,8 @@ export function GradeTransitionsManager({
                     icon: <Trash2 className="h-4 w-4" aria-hidden />,
                     destructive: true,
                     onClick: () => setDeleteTarget(t),
+                    description:
+                      "Löscht nur den Entwurf, moto fragt vorher nach.",
                   },
                 ]
               : []),
@@ -540,7 +550,12 @@ export function GradeTransitionsManager({
         description="Versetzt alle Kinder in die nächste Klasse und verwaltet Abgänge zum Schuljahreswechsel."
         actions={
           permissions.canCreate ? (
-            <Button type="button" size="md" onClick={() => openEditorFor(null)}>
+            <Button
+              type="button"
+              size="md"
+              onClick={() => openEditorFor(null)}
+              tooltip="Öffnet einen Entwurf, der jede Klasse eine Stufe höher vorschlägt."
+            >
               Neuer Schuljahreswechsel
             </Button>
           ) : undefined
@@ -613,6 +628,7 @@ export function GradeTransitionsManager({
         onConfirm={handleRevert}
         title="Schuljahreswechsel zurücksetzen"
         confirmText="Ja, zurücksetzen"
+        confirmTooltip="Holt Kinder sofort in die alte Klasse und Abgänge zurück."
         cancelText="Abbrechen"
         isConfirmLoading={busy}
         loadingText="Wird zurückgesetzt …"
@@ -636,6 +652,7 @@ export function GradeTransitionsManager({
         }
         gate={{ mode: "twoStep" }}
         onConfirm={handleDelete}
+        confirmTooltip="Löscht den Entwurf sofort, kein Kind wird verändert."
         onClose={() => {
           setDeleteTarget(null);
           deleteErrors.clear();

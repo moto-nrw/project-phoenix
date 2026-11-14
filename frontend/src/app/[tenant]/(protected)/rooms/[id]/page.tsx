@@ -359,6 +359,8 @@ function RoomDetailPageContent() {
           {
             label: exporting ? "Raumplan wird erstellt…" : "Raumplan als PDF",
             icon: <FileDown className="size-4" aria-hidden />,
+            description:
+              "Speichert den Raumplan als PDF zum Aushängen auf Ihrem Gerät.",
             onClick: () => {
               if (!exporting) void exportRoomPlan();
             },
@@ -370,6 +372,8 @@ function RoomDetailPageContent() {
           {
             label: "Löschen",
             icon: <Trash2 className="size-4" aria-hidden />,
+            description:
+              "Löscht oder archiviert den Raum, moto zeigt vorher, was ihn noch hält.",
             destructive: true,
             onClick: () => setShowDeleteModal(true),
           },
@@ -417,6 +421,7 @@ function RoomDetailPageContent() {
               variant="outline"
               size="md"
               href={tenantPath(`/active-supervisions?room=${room.id}`)}
+              tooltip="Öffnet die Aufsicht für diesen offenen Raum."
             >
               Zur Aufsicht
             </ButtonLink>

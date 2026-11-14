@@ -7,6 +7,8 @@
   "promptChangeLater": "Zgjedhja juaj vlen për llogarinë tuaj. Mund ta ndryshoni në çdo kohë te „Cilësimet“.",
   "allow": "Lejo",
   "refuse": "Refuzo",
+  "allowTooltip": "Lejon analizën e përdorimit për llogarinë tuaj. Mund ta ndryshoni në çdo kohë.",
+  "refuseTooltip": "Refuzon analizën e përdorimit për llogarinë tuaj. moto atëherë nuk numëron asgjë.",
   "saving": "Po ruhet…",
   "closeLabel": "Vendos më vonë",
   "sectionDescription": "A mund të numërojë moto cilat faqe dhe butona përdorni? moto nuk sheh emra apo atë që shkruani. Vendosni vetëm ju.",

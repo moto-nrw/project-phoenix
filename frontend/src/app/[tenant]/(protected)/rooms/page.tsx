@@ -481,6 +481,8 @@ function RoomsPageContent() {
         icon: <FileText className="size-4" aria-hidden />,
         badge: exportTargetCount,
         disabled: loading || isExporting,
+        description:
+          "Speichert als PDF, wer in den gezeigten Räumen oder unterwegs ist.",
         onClick: () => {
           void handleExport("pdf");
         },
@@ -490,6 +492,8 @@ function RoomsPageContent() {
         icon: <FileText className="size-4" aria-hidden />,
         badge: exportTargetCount,
         disabled: loading || isExporting,
+        description:
+          "Speichert als Word-Datei, wer in den gezeigten Räumen oder unterwegs ist.",
         onClick: () => {
           void handleExport("docx");
         },
@@ -499,6 +503,8 @@ function RoomsPageContent() {
         icon: <FileSpreadsheet className="size-4" aria-hidden />,
         badge: exportTargetCount,
         disabled: loading || isExporting,
+        description:
+          "Speichert als Excel-Datei, wer in den gezeigten Räumen oder unterwegs ist.",
         onClick: () => {
           void handleExport("xlsx");
         },
@@ -533,7 +539,12 @@ function RoomsPageContent() {
             description:
               "Zu Suche und Filtern passt kein Raum. Setzen Sie die Filter zurück, um alle Räume zu sehen.",
             action: (
-              <Button type="button" size="md" onClick={resetFilters}>
+              <Button
+                type="button"
+                size="md"
+                onClick={resetFilters}
+                tooltip="Leert Suche und Filter und zeigt wieder alle Einträge."
+              >
                 Filter zurücksetzen
               </Button>
             ),
