@@ -217,6 +217,27 @@ Paths are relative to `frontend/src/`.
   derives every portal's path the same way); the per-key copy mapping in
   `parent-sign-in-section.tsx` (next-intl checks the keys).
 
+## Final round (after PR 1 to 3)
+
+A last read-only hunt over the merged code found one defect and otherwise
+only small items.
+
+- S1 done, bug fix (#7084). A Träger-Portal session could not be renewed
+  once the request named a client address: the refresh audited at the
+  session's school, a Träger session has none, and only the parent session
+  at a Träger fell back to the account's default school. The refresh now
+  asks `AccountSession.KeptAtSchool` (the table of fix Q) and files through
+  `schoollessAudit`; `traegerLoginAudit` was the same code and is gone.
+  Test: `TestTraegerSessionRefreshesWithAClientAddress` (fails on the old
+  rule).
+- Open, small: the realm of a remembered device is derived three ways (the
+  context keys, `DeviceBinding`, the three flags of the device mail), a
+  `DeviceBinding.Realm()` would be the one place; `Portal.TrustedDevice` is
+  true for every portal since #7051 and #6955 and decides nothing (a test
+  pins it to the token gates); „the schools a caterer supplies now“ is read
+  by the same three calls in `caterer_session.go` and `caterer_access.go`;
+  `CatererAccess.tenantless` repeats the factor's `bind`.
+
 ## Special cases that stay
 
 - The parent validation does not read the enrollment (contract and query
