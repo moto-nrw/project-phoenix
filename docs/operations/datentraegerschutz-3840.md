@@ -48,9 +48,9 @@ HTTP-Auslieferung und 0600/0700 ersetzen den Datenträger-/Schlüsselnachweis ni
    Den Bestandsschritt nach dem [Foto-Runbook](private-fotodateien-3840.md)
    prüfen; HTTP-Authentifizierung oder Volume-
    Verschlüsselung allein schließen lokalen Lesezugriff nicht aus.
-   Die im Code umgesetzte Diagnose-Leserolle 3840-f nach dem
-   [Diagnose-Runbook](diagnose-lesezugang-3840.md) einrichten und ihre effektiven
-   Rechte ohne Kundeninhalte prüfen. Sensible Spalten und Umgehungen über Views,
+   Die effektiven Rechte der persönlichen Diagnosezugänge ohne Kundeninhalte
+   prüfen; den Stand beschreibt
+   [Schutz gespeicherter Daten](../reference/schutz-gespeicherter-daten.md). Sensible Spalten und Umgehungen über Views,
    Funktionen oder Rollenwechsel ausschließen; keine Abnahme allein anhand
    eines Rollennamens. Bestehende Dumps, cron-Sicherungen,
    Release-Snapshots und temporäre Kopien inventarisieren. Getrennte
