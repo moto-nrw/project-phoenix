@@ -2272,7 +2272,7 @@ export interface StaffStammdaten {
  * die Person in seiner Personalakte (#4705); die Nummer ist dann seine, und
  * die Schule ändert sie nicht.
  */
-export interface StaffPayrollNumber {
+interface StaffPayrollNumber {
   personnelNumber: string | null;
   keptByTraeger: boolean;
 }

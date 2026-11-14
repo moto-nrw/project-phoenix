@@ -26,20 +26,20 @@ export type StaffRecordField =
 export type StaffMatchReason =
   "same_account" | "same_personnel_number" | "same_name_birthday" | "single";
 
-export type StaffRepresentation = "agreement" | "none";
+type StaffRepresentation = "agreement" | "none";
 
-export interface StaffRelease {
+interface StaffRelease {
   readonly representation: StaffRepresentation;
   readonly releasedAt: string;
 }
 
-export interface StaffSchool {
+interface StaffSchool {
   readonly id: string;
   readonly name: string;
 }
 
 /** Ein Einsatzort einer Akte: die Beschäftigung an einer Schule. */
-export interface StaffEmployment {
+interface StaffEmployment {
   readonly schoolId: string;
   readonly schoolName: string;
   readonly staffId: string;
@@ -103,14 +103,14 @@ export interface StaffRecordDetail extends StaffRecordSummary {
   readonly changes: readonly StaffChange[];
 }
 
-export interface StaffFieldOption {
+interface StaffFieldOption {
   /** `record` oder die ID der Schule, deren Beschäftigung den Wert bringt. */
   readonly source: string;
   readonly schoolName: string;
   readonly value: string;
 }
 
-export interface StaffFieldPreview {
+interface StaffFieldPreview {
   readonly field: StaffRecordField;
   readonly options: readonly StaffFieldOption[];
   readonly conflict: boolean;
@@ -122,7 +122,7 @@ export interface StaffLinkPreview {
   readonly fields: readonly StaffFieldPreview[];
 }
 
-export interface StaffMemberRef {
+interface StaffMemberRef {
   readonly schoolId: string;
   readonly staffId: string;
 }
@@ -258,7 +258,7 @@ function mapDetail(record: BackendDetail): StaffRecordDetail {
   };
 }
 
-export function mapStaffOverview(data: BackendOverview): StaffOverview {
+function mapStaffOverview(data: BackendOverview): StaffOverview {
   return {
     release: data.release
       ? {

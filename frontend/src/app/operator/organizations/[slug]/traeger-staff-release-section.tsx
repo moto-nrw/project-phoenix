@@ -39,7 +39,7 @@ import {
 const logger = createLogger({ component: "TraegerStaffReleaseSection" });
 
 /** Die zwei Erklärungen des Trägers, wörtlich wie im Operator-Audit. */
-export const STAFF_REPRESENTATIONS: readonly {
+const STAFF_REPRESENTATIONS: readonly {
   readonly value: StaffRepresentation;
   readonly label: string;
   readonly hint: string;
