@@ -13574,7 +13574,7 @@ export const traegerSepaMandatesTopic =
         {
           title: "Mandat einer Familie erfassen",
           description:
-            "Je Familie gilt ein Mandat. Es gilt auch für Geschwister mit derselben E-Mail-Adresse im Vertrag.",
+            "Je Familie gilt ein Mandat. Es gilt auch für Geschwister mit derselben E-Mail-Adresse im Vertrag. Stehen Geschwister mit demselben Konto und derselben Mandatsreferenz in mehreren Zeilen, legt moto das Mandat einmal an. Die Vorschau zeigt die weiteren Zeilen als `Gleiches Mandat`.",
           steps: [
             "Öffnen Sie den Vertrag des Kindes unter `Verträge`. Oder öffnen Sie im Monatslauf bei der Rechnung das Menü mit den drei Punkten und dann `Empfänger und Zahlung`.",
             "Wählen Sie in der Karte `SEPA-Lastschriftmandat` den Knopf `Mandat erfassen`. Es öffnet sich die Seite des Mandats.",
@@ -13602,11 +13602,11 @@ export const traegerSepaMandatesTopic =
             "Haben Sie die Mandate schon in einem anderen Programm, zum Beispiel OGS Connect? Dann übernehmen Sie alle auf einmal aus einer CSV-Datei. Referenz und Datum der Unterschrift bleiben gleich. moto bewahrt die Datei nicht auf.",
           steps: [
             "Speichern Sie die Mandate im anderen Programm als CSV-Datei. Die erste Zeile enthält die Überschriften.",
-            "Aus OGS Connect nehmen Sie den Export der Stammdaten. Er hat eine Zeile je Kind. Als Zahler braucht moto dort noch eine Spalte mit E-Mail oder Vertragsnummer.",
+            "Aus OGS Connect nehmen Sie den Export der Stammdaten. Er hat eine Zeile je Kind. moto schlägt dort die Spalte `Debitor-Nr.` als Zahler vor. Dafür muss moto die Debitorennummern schon kennen, zum Beispiel aus dem Reiter `Familien`.",
             "Öffnen Sie unter `Abrechnung` den Reiter `Lastschrift` und wählen Sie `Mandate importieren`.",
             "Ziehen Sie die Datei in das Feld oder wählen Sie `Datei wählen`.",
             "Prüfen Sie unter `Spalten zuordnen`, aus welcher Spalte jedes Feld kommt. moto schlägt passende Spalten vor.",
-            "Wählen Sie bei `Die Spalte „Zahler“ enthält`, ob dort die E-Mail der Familie oder die Vertragsnummer steht.",
+            "Wählen Sie bei `Die Spalte „Zahler“ enthält`, ob dort die E-Mail der Familie, die Vertragsnummer oder die Debitorennummer steht. Bei `Debitorennummer` sucht moto die Nummer des Kindes oder des Zahlers, je nach Ihrer Einstellung.",
             "Hat Ihre Datei keine Spalte mit der Gläubiger-ID? Dann bestätigen Sie, dass alle Mandate zu Ihrer Gläubiger-ID gehören.",
             "Prüfen Sie die Zeilen unter `Prüfen und übernehmen`. Bei `Bitte klären` wählen Sie unter `Schon abgebucht?` die Antwort `Ja` oder `Nein`.",
             "Wählen Sie unten `übernehmen`. Der Knopf nennt Mandate und Debitorennummern getrennt.",
@@ -13632,7 +13632,7 @@ export const traegerSepaMandatesTopic =
         "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Bei importierten Mandaten stehen dort auch Dateiname und Zeile. Kontodaten stehen dort nicht.",
         "Für Zeilen ohne IBAN und ohne Mandatsreferenz legt moto kein Mandat an. Die Vorschau zählt sie als „ohne Mandat“. Das sind meist Kinder, deren Familie ohne Lastschrift zahlt. Eine fehlende Debitorennummer übernimmt moto trotzdem, solange es keinen Konflikt gibt. Konflikte zeigt die Vorschau mit der Zeilennummer.",
         "Mandate übernimmt moto nur mit dem Stand `Bereit`. Fehlende Debitorennummern können Sie auch bei vorhandenen Mandaten übernehmen. Die Vorschau zählt jede Familie einmal. Unterschiedliche Nummern werden nicht übernommen. Korrigieren Sie die Datei und laden Sie sie noch einmal.",
-        "Führt Ihr Träger die Debitorennummer je Kind, bekommt jedes Kind die Nummer seiner Zeile. Geschwister dürfen verschiedene Nummern haben. Damit moto das Kind erkennt, wählen Sie als Zahler die Vertragsnummer. Mit der E-Mail erkennt moto das Kind nur, wenn die Familie ein Kind mit Vertrag hat.",
+        "Führt Ihr Träger die Debitorennummer je Kind, bekommt jedes Kind die Nummer seiner Zeile. Geschwister dürfen verschiedene Nummern haben. Damit moto das Kind erkennt, wählen Sie als Zahler die Vertragsnummer oder die Debitorennummer. Mit der E-Mail erkennt moto das Kind nur, wenn die Familie ein Kind mit Vertrag hat.",
         "Ein Mandat aus der Datei, mit dem schon abgebucht wurde, übernimmt moto als Folgelastschrift. Steht die letzte Abbuchung in der Datei, zählen die 36 Monate bis zum Verfall ab diesem Tag. Fehlt sie, zählen sie ab dem Import.",
         "Wissen Sie, dass die letzte Abbuchung lange her ist? Dann tragen Sie das Datum in der Datei ein oder holen ein neues Mandat ein. Ohne Datum geht moto davon aus, dass das Mandat bis kurz vor dem Import genutzt wurde.",
       ],
@@ -13645,7 +13645,7 @@ export const traegerSepaMandatesTopic =
         "Die Mandate sind übernommen, aber die Liste der Importe fehlt? Wählen Sie dort `Erneut laden`. Die Mandate müssen Sie nicht noch einmal übernehmen.",
         "Die IBAN wird nicht angenommen? Prüfen Sie jedes Zeichen. moto prüft die Prüfziffer.",
         "Beim Import steht `Konflikt`? Das Mandat passt nicht zu dem, was moto schon hat: eine andere Gläubiger-ID, eine schon vergebene Mandatsreferenz oder eine Familie mit einem anderen gültigen Mandat. moto überschreibt nichts. Klären Sie das Mandat und erfassen Sie es bei Bedarf von Hand.",
-        "Beim Import steht `Zu diesem Zahler gibt es bei Ihnen keinen Vertrag`? Prüfen Sie die E-Mail-Adresse oder Vertragsnummer in der Datei. Sie muss zu einem Vertrag Ihres Trägers passen.",
+        "Beim Import steht `Zu diesem Zahler gibt es bei Ihnen keinen Vertrag`? Prüfen Sie die E-Mail-Adresse, Vertragsnummer oder Debitorennummer in der Datei. Sie muss zu einem Vertrag Ihres Trägers passen. Eine Debitorennummer muss moto schon kennen.",
         "Die Prüfung meldet `früher als Ihre Vorabankündigung erlaubt`? Die Abbuchung kommt zu früh nach dem Rechnungsdatum. Ändern Sie die Fälligkeit des Laufs oder das Rechnungsdatum.",
       ],
       related: [

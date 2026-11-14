@@ -94,6 +94,8 @@ func TestReadImportTableReadsTheOGSConnectMasterData(t *testing.T) {
 	mapping := suggestImportMapping(table.headers)
 	assert.Equal(t, "Unterschriftsdatum", mapping.Columns.SignedOn)
 	assert.Equal(t, "Debitor-Nr.", mapping.Columns.DebtorNumber)
+	assert.Equal(t, "Debitor-Nr.", mapping.Columns.Payer, "without contract number and address the debtor number names the payer (#7009)")
+	assert.Equal(t, parentbilling.PayerByDebtorNumber, mapping.PayerKey)
 	assert.Equal(t, "Lastschriftart", mapping.Columns.Sequence)
 
 	columns := importColumnIndex{fields: map[string]int{parentbilling.ImportFieldIBAN: 5, parentbilling.ImportFieldReference: 6}}
@@ -345,9 +347,17 @@ func TestImportCheckSkipsDuplicatesAndReportsConflicts(t *testing.T) {
 
 	first := check.row(importRow("SJR-C", "01.02.2026", importIBAN, "c@example.org", importCreditor, "RCUR", ""), 5)
 	require.Equal(t, parentbilling.ImportRowReady, first.row.Status)
+	// A sibling's row repeats the family's mandate: one mandate (#7009).
 	again := check.row(importRow("SJR-C", "01.02.2026", importIBAN, "c@example.org", importCreditor, "RCUR", ""), 6)
-	assert.Equal(t, parentbilling.ImportRowConflict, again.row.Status)
-	assert.ElementsMatch(t, []string{"reference:reference_repeated", "payer:payer_repeated"}, problemCodes(again.row))
+	assert.Equal(t, parentbilling.ImportRowSameMandate, again.row.Status)
+	assert.Equal(t, 5, again.row.SameMandateLine)
+	assert.Empty(t, again.row.Problems)
+	otherIBAN := check.row(importRow("SJR-C", "01.02.2026", "DE02120300000000202051", "c@example.org", importCreditor, "RCUR", ""), 11)
+	assert.Equal(t, parentbilling.ImportRowConflict, otherIBAN.row.Status, "the same reference with another account is no repeat")
+	assert.ElementsMatch(t, []string{"reference:reference_repeated", "payer:payer_repeated"}, problemCodes(otherIBAN.row))
+	otherFamily := check.row(importRow("SJR-C", "01.02.2026", importIBAN, "a@example.org", importCreditor, "RCUR", ""), 12)
+	assert.ElementsMatch(t, []string{"reference:reference_repeated", "payer:payer_has_mandate"}, problemCodes(otherFamily.row),
+		"another family under the reference is a conflict")
 
 	// A conflicting row claims nothing: a later row of that family is free.
 	conflicting := check.row(importRow("SJR-1", "01.02.2026", importIBAN, "b@example.org", importCreditor, "RCUR", ""), 7)
@@ -437,13 +447,15 @@ func TestChildNumbersToSetKeepTheLatestContractEnd(t *testing.T) {
 func TestImportPayersKeepTheLatestContractOfAChild(t *testing.T) {
 	t.Parallel()
 	payers := importPayers{byContract: map[int64]importPayer{}, byFamily: map[string]importPayer{}, children: map[string]map[string]bool{},
-		childUntil: map[string]calendar.Date{}}
+		childUntil: map[string]calendar.Date{}, byChild: map[string]importPayer{}}
 	child := parentbilling.FamilyChild{FirstName: "Mia", LastName: "Beispiel"}
 	payers.countChild(importPayer{contractID: 1, family: "eva@example.org", child: child, until: calendar.NewDate(2026, 7, 31)})
-	payers.countChild(importPayer{contractID: 2, family: "eva@example.org", child: child, until: calendar.NewDate(2030, 7, 31)})
+	later := importPayer{contractID: 2, family: "eva@example.org", child: child, until: calendar.NewDate(2030, 7, 31)}
+	payers.countChild(later)
 	key := parentbilling.ChildDebtorNumberKey("eva@example.org", parentbilling.ChildKey("Mia", "Beispiel", nil))
 	assert.Equal(t, calendar.NewDate(2030, 7, 31), payers.childUntil[key])
 	assert.Len(t, payers.children["eva@example.org"], 1, "one child with two contracts")
+	assert.Equal(t, later.contractID, payers.byChild[key].contractID, "the child's number names its contract in force longest (#7009)")
 }
 
 // Every row naming a child keeps its stored number until the latest end of
@@ -459,4 +471,29 @@ func TestChildNumbersToExtendCoverEveryRowOfAChild(t *testing.T) {
 	require.Len(t, extend, 1)
 	assert.Equal(t, calendar.NewDate(2032, 7, 31), extend[0].LastUsedOn)
 	assert.Empty(t, extend[0].DebtorNumber, "the number stays as stored")
+}
+
+// A debtor number names its payer only when moto keeps it for one payer
+// (#7009): a number of two families names none, an unknown one neither.
+func TestPayerOfNumberNamesOnlyAnUnambiguousPayer(t *testing.T) {
+	t.Parallel()
+	eva := importPayer{contractID: 3, family: "eva@example.org"}
+	jan := importPayer{contractID: 4, family: "jan@example.org"}
+	payers := importPayers{byFamily: map[string]importPayer{eva.family: eva, jan.family: jan}}
+	payers.byNumber, payers.ambiguous = map[string]numberPayer{}, map[string]bool{}
+	payers.indexFamilyNumbers([]parentbilling.FamilyBilling{
+		{FamilyEmail: eva.family, DebtorNumber: "10 0001"}, {FamilyEmail: jan.family, DebtorNumber: "10 0002"},
+		{FamilyEmail: "ohne@example.org", DebtorNumber: "10 0003"},
+	})
+	candidate := importCandidate{}
+	payer, problem := payers.payerOfNumber(&candidate, " 10 0001 ")
+	assert.Empty(t, problem)
+	assert.Equal(t, eva.contractID, payer.contractID)
+	assert.Equal(t, "10 0001", candidate.payerNumber, "the read number goes to its trail")
+	_, problem = payers.payerOfNumber(&importCandidate{}, "10 0003")
+	assert.Equal(t, parentbilling.ImportProblemPayerUnknown, problem, "a number without a contract names no payer")
+
+	payers.addNumber("10 0002", numberPayer{key: eva.family, payer: eva})
+	_, problem = payers.payerOfNumber(&importCandidate{}, "10 0002")
+	assert.Equal(t, parentbilling.ImportProblemPayerAmbiguous, problem)
 }
