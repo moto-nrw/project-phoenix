@@ -489,6 +489,20 @@ if [ -z "$restore_rows" ] ||
   echo 'only restore-changed may add the restore suite to the matrix' >&2
   exit 1
 fi
+# The split suites start together: the release restore left the restore job
+# and the script self-tests left the ratchets job only to shorten both (#6962).
+suite_rows=$(sed -n '/^        suite: >-$/,/^    [a-z-]*:$/p' "$repo_root/.github/workflows/main.yml" | grep -F '["unit"' || true)
+while IFS= read -r row; do
+  for pair in '"restore" "release-restore"' '"ratchets" "selection"'; do
+    read -r first second <<<"$pair"
+    has_first=0; has_second=0
+    grep -qF "$first" <<<"$row" && has_first=1
+    grep -qF "$second" <<<"$row" && has_second=1
+    [ "$has_first" = "$has_second" ] ||
+      { echo "suites $first and $second must start together: $row" >&2; exit 1; }
+  done
+done <<<"$suite_rows"
+[ "$(grep -c . <<<"$suite_rows")" = 4 ] || { echo 'expected four suite rows in the ci-scripts matrix' >&2; exit 1; }
 if workflow_filter_matches restore-suite scripts/posthog-dashboards.mjs; then
   echo 'a PostHog dashboard change must not start the restore suite' >&2
   exit 1
@@ -505,7 +519,7 @@ restore_queue=$(awk '
   /^      - / { if (keep) printf "%s", block; block = ""; keep = 0 }
   /^  [a-z-]+:$/ { if (keep) printf "%s", block; exit }
   { block = block $0 "\n" }
-  /if: matrix\.suite == .restore.$/ { keep = 1 }
+  /if: matrix\.suite == .(release-)?restore.$/ { keep = 1 }
 ' "$repo_root/.github/workflows/main.yml" | { grep -oE '(scripts|docs|monitoring)/[A-Za-z0-9_.@/-]+' || true; } | sort -u)
 [ -n "$restore_queue" ] || { echo 'restore suite steps missing from main.yml' >&2; exit 1; }
 restore_seen=' '

@@ -471,11 +471,13 @@ jobs:
       matrix:
         # These suites have separate fixtures and no ordering dependency.
         # Keep the existing path selection without buying unused runners.
+        # "selection" starts wherever "ratchets" does: its script self-tests
+        # ran after the source ratchets in one job of 233-271 s (#6962).
         suite: >-
           ${{ fromJSON(
-            needs.detect-changes.outputs.restore-changed == 'true' && needs.detect-changes.outputs.toolchain-changed == 'true' && '["unit","restore","ratchets"]'
-            || needs.detect-changes.outputs.restore-changed == 'true' && '["unit","restore"]'
-            || needs.detect-changes.outputs.toolchain-changed == 'true' && '["unit","ratchets"]'
+            needs.detect-changes.outputs.restore-changed == 'true' && needs.detect-changes.outputs.toolchain-changed == 'true' && '["unit","restore","release-restore","ratchets","selection"]'
+            || needs.detect-changes.outputs.restore-changed == 'true' && '["unit","restore","release-restore"]'
+            || needs.detect-changes.outputs.toolchain-changed == 'true' && '["unit","ratchets","selection"]'
             || '["unit"]'
           ) }}
     permissions:
@@ -486,10 +488,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The register ratchets compare against the merge base with development,
       # which a depth-1 checkout cannot resolve. Unrelated refs and tags are
-      # not inputs.
+      # not inputs. Commits and trees are enough for the merge base; git
+      # loads a base file on demand. With every blob the fetch took 40-48 s
+      # here and 58 s locally, without them 13 s locally (#6962).
       - name: Fetch source ratchet comparison history
         if: matrix.suite == 'ratchets'
-        run: git fetch --no-tags --unshallow origin "$(git rev-parse HEAD)" +refs/heads/development:refs/remotes/origin/development
+        run: git fetch --no-tags --unshallow --filter=blob:none origin "$(git rev-parse HEAD)" +refs/heads/development:refs/remotes/origin/development
 
       - name: Verify pre-push failure and selection behavior
         if: matrix.suite == 'unit'
@@ -508,8 +512,10 @@ jobs:
         if: matrix.suite == 'unit'
         run: node scripts/check-test-runners.mjs
 
+      # A suite of its own: it took 41-43 s in front of the daily backup
+      # test, whose job ran 230-281 s (three runs, 14.11.2026, #6962).
       - name: Verify complete release restore with PostgreSQL
-        if: matrix.suite == 'restore'
+        if: matrix.suite == 'release-restore'
         run: node --test scripts/release-backup.integration.test.mjs
 
       - name: Install daily backup test tools
@@ -532,7 +538,7 @@ jobs:
           node --test scripts/erasure-ledger.integration.test.mjs
 
       - name: Setup Node.js for error-code generator fixtures
-        if: matrix.suite == 'ratchets'
+        if: matrix.suite == 'ratchets' || matrix.suite == 'selection'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26"
@@ -541,7 +547,7 @@ jobs:
       # Changed-test selection adds ./test only for backend changes, so such a
       # change runs the ratchets here instead of the full backend suite.
       - name: Setup Go with cache
-        if: matrix.suite == 'ratchets'
+        if: matrix.suite == 'ratchets' || matrix.suite == 'selection'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
@@ -555,14 +561,14 @@ jobs:
 
       # The selector suite also pins contracts in main.yml and lint.yml.
       - name: Verify workflow selection contracts
-        if: matrix.suite == 'ratchets'
+        if: matrix.suite == 'selection'
         run: scripts/backend-affected-packages_test.sh
 
       # Not in "Backend tests": that job sets the wall-clock time. This suite
       # starts whenever the backend suite is full or one of these scripts
       # changed (toolchain-changed in detect-changes).
       - name: Verify backend test scripts
-        if: matrix.suite == 'ratchets'
+        if: matrix.suite == 'selection'
         run: |
           scripts/backend-test-matrix_test.sh
           scripts/test-changed_test.sh
