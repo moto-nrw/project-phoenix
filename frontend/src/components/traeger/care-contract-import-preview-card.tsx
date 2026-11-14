@@ -39,7 +39,14 @@ function NotesCell({ row }: Readonly<{ row: ContractImportRow }>) {
   if (row.status === "duplicate" && !row.hints.includes("imported_before")) {
     lines.unshift("Das Kind hat an dieser Schule schon einen Vertrag.");
   }
-  lines.push(...row.hints.map(contractImportHintText));
+  // A hint matters only where the row leads somewhere: a moved start for a
+  // row moto takes over, an earlier import for the row it leaves.
+  const ready = row.status === "ready" || row.status === "imported";
+  lines.push(
+    ...row.hints
+      .filter((hint) => (hint === "start_moved" ? ready : true))
+      .map(contractImportHintText),
+  );
   const debtor = contractImportDebtorText(row);
   if (debtor) lines.push(debtor);
   if (lines.length === 0) return <span className="text-gray-400">–</span>;
@@ -97,7 +104,7 @@ export function CareContractImportPreviewCard({
           <span className="block font-medium wrap-anywhere text-gray-900">
             {contractImportChild(row)}
           </span>
-          <span className="block text-xs text-gray-500">
+          <span className="block text-xs text-gray-500 sm:whitespace-nowrap">
             {`Zeile ${row.line} · ${
               row.childBirthDate
                 ? `geb. ${formatDate(row.childBirthDate)}`
@@ -130,9 +137,12 @@ export function CareContractImportPreviewCard({
             {row.moduleNames.length > 0 ? row.moduleNames.join(" und ") : "–"}
           </span>
           <span className="block text-xs wrap-anywhere text-gray-500">
-            {[row.schoolName, contractImportWeekdays(row.weekdays)]
-              .filter((part) => part !== "" && part !== "–")
-              .join(" · ") || "–"}
+            {row.schoolName || "–"}
+            {row.weekdays.length > 0 ? (
+              <span className="whitespace-nowrap">
+                {` · ${contractImportWeekdays(row.weekdays)}`}
+              </span>
+            ) : null}
           </span>
         </span>
       ),
