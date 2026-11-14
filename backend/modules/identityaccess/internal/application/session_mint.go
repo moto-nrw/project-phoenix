@@ -318,6 +318,11 @@ func (s *AccountAuthentication) adoptSourceProof(ctx context.Context, req mintRe
 	if err := s.adoptSourceFamily(ctx, accountID, req.sourceFamilyID, session, now); err != nil {
 		return err
 	}
+	// A code redeemed for this mint proves the factor itself; the device
+	// mark of the source does not carry over (Träger step-up, #7068).
+	if req.proof.kind == proofChallenge {
+		session.MFAByDevice = false
+	}
 	if req.proof.kind == proofTrustedDevice {
 		return nil
 	}

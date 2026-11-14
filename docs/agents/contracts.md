@@ -913,16 +913,24 @@ Backend paths in this section are relative to `backend/`:
   `security.mfa_trusted_device_enabled` is off or unreadable (#6955), on
   `POST /traeger/school-sessions` and on `POST /auth/switch-tenant` of a
   Träger school session into a school of the Träger where the account holds
-  no mapping. The Träger portal then runs its logout (revoke, clear, session
-  barrier) and signs in once without the device cookie (the BFF drops it for
-  `ignore_trusted_device`); the school app links to the Träger login with
+  no mapping. The Träger portal then offers the code step in the running
+  session (#7068): `POST /traeger/auth/mfa/step-up` (right
+  `traeger_school:switch`, auth limiter, mail counted like a resend) mails an
+  org-scope code with the sign-in's cap, and `POST
+  /traeger/auth/mfa/step-up/verify` `{challenge_token, code}` redeems it for
+  the session's account (pinned before the code is compared) and mints a new
+  Träger family with `mfa_by_device` false through the session mint, which
+  retires the presented family with the recovery grace and keeps its switch
+  lineage. The BFF installs the pair and answers `{session_renewed}`; when it
+  cannot install it, the portal runs its logout and signs in once without
+  the device cookie (the BFF drops it for `ignore_trusted_device`); the
+  school app links to the Träger login with
   `?mit-code=1`, where a running Träger session ends only through the button
   „Abmelden und mit Code anmelden“, never by the visit. A switch into a
   school where the account holds its own mapping, and a switch between the
   account's own schools, answer 401 `identity.mfa_session_required` and sign
   in at the target school. The school's
-  `mfa_trusted_device_days` is not applied at the Absprung; an in-session
-  code step instead of the new sign-in is #7068. A
+  `mfa_trusted_device_days` is not applied at the Absprung. A
   switch to a school where the account holds its own mapping keeps its own
   role. Every Absprung writes `traeger_school_switch` (metadata
   `organization_id`) to the school's `audit.auth_events` in the mint
