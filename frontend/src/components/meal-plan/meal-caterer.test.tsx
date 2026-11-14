@@ -226,6 +226,32 @@ describe("MealCaterer", () => {
     ).not.toBeInTheDocument();
   });
 
+  // #5960: the school sees whether its invitation reached the caterer.
+  it("shows what became of each invitation's mail", async () => {
+    mocks.getMealCaterer.mockResolvedValue({
+      supply: null,
+      invitations: [
+        { ...invitation, mailOutcome: "undeliverable" },
+        {
+          ...invitation,
+          id: "6",
+          email: "zweite@example.com",
+          mailOutcome: "delivered",
+        },
+      ],
+    });
+    render(<MealCaterer canManageSupply />, { wrapper: ToastProvider });
+
+    expect(await screen.findByText("Nicht zustellbar")).toBeInTheDocument();
+    // Desktop shows the note as a sub-row, the phone rows in the cell.
+    expect(
+      screen.getAllByText(
+        "Die Mail kam nicht an. Stimmt die Adresse nicht, widerrufen Sie die Einladung und laden Sie neu ein.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("Zugestellt")).toBeInTheDocument();
+  });
+
   it("tells non-admins that only admins invite a caterer", async () => {
     mocks.getMealCaterer.mockResolvedValue({
       supply: null,

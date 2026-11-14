@@ -58,8 +58,8 @@ func supplyLock(schoolID int64) string {
 	return fmt.Sprintf("caterer-school:%d", schoolID)
 }
 
-// SchoolCaterer reads the school's running supply and the school's
-// invitations.
+// SchoolCaterer reads the school's running supply, the school's invitations
+// and, in one read for all of them, what became of their mails (#5960).
 func (p *Portal) SchoolCaterer(ctx context.Context) (catererportal.SchoolCaterer, error) {
 	supply, active, err := p.deps.Caterers.SchoolCaterer(ctx)
 	if err != nil {
@@ -69,7 +69,15 @@ func (p *Portal) SchoolCaterer(ctx context.Context) (catererportal.SchoolCaterer
 	if err != nil {
 		return catererportal.SchoolCaterer{}, err
 	}
-	result := catererportal.SchoolCaterer{Invitations: invitations}
+	ids := make([]int64, 0, len(invitations))
+	for _, invitation := range invitations {
+		ids = append(ids, invitation.ID)
+	}
+	mail, err := p.deps.Caterers.CatererInvitationMailStates(ctx, ids)
+	if err != nil {
+		return catererportal.SchoolCaterer{}, err
+	}
+	result := catererportal.SchoolCaterer{Invitations: invitations, InvitationMail: mail}
 	if active {
 		result.Supply = &catererportal.SchoolSupply{CatererName: supply.Caterer.Name, DeliveryAddress: supply.DeliveryAddress, StartedAt: supply.StartedAt}
 	}

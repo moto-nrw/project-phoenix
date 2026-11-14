@@ -115,7 +115,7 @@ func TestStopFollowsThePersonToANewAddress(t *testing.T) {
 	old := *guardian.Email
 
 	stopGuardian(t, ctx, db, guardian.ID)
-	listed, stopped, err := store.SchoolEmailHolds(ctx, school, " "+old+" ")
+	listed, stopped, err := store.listedStopped(ctx, school, " "+old+" ")
 	require.NoError(t, err)
 	assert.False(t, listed, "the stop is not on the address list")
 	assert.True(t, stopped)
@@ -123,10 +123,10 @@ func TestStopFollowsThePersonToANewAddress(t *testing.T) {
 	next := "neu-" + old
 	_, err = db.ExecContext(ctx, `UPDATE users.guardian_profiles SET email = ? WHERE id = ?`, next, guardian.ID)
 	require.NoError(t, err)
-	_, stopped, err = store.SchoolEmailHolds(ctx, school, next)
+	_, stopped, err = store.listedStopped(ctx, school, next)
 	require.NoError(t, err)
 	assert.True(t, stopped, "a new address does not end the stop")
-	_, stopped, err = store.SchoolEmailHolds(ctx, school, old)
+	_, stopped, err = store.listedStopped(ctx, school, old)
 	require.NoError(t, err)
 	assert.False(t, stopped, "nobody holds the old address any more")
 }
@@ -144,7 +144,7 @@ func TestStopCoversTheAccountAddress(t *testing.T) {
 	require.NoError(t, err)
 	stopGuardian(t, ctx, db, guardian.ID)
 
-	_, stopped, err := store.SchoolEmailHolds(ctx, school, account.Email)
+	_, stopped, err := store.listedStopped(ctx, school, account.Email)
 	require.NoError(t, err)
 	assert.True(t, stopped)
 }
@@ -186,7 +186,7 @@ func TestStopLeavesAnotherHolderOfTheAddressAlone(t *testing.T) {
 	require.NoError(t, err)
 	stopGuardian(t, ctx, db, stopped.ID)
 
-	_, held, err := store.SchoolEmailHolds(ctx, school, account.Email)
+	_, held, err := store.listedStopped(ctx, school, account.Email)
 	require.NoError(t, err)
 	assert.False(t, held)
 }
@@ -203,7 +203,7 @@ func TestABounceAndAStopStaySeparate(t *testing.T) {
 
 	_, err := store.RecordEmailDeliveryEvent(ctx, eventAt(eventMailToken(t, db, mail), "hard", domain.EmailDeliveryFailed, time.Now()))
 	require.NoError(t, err)
-	listed, stopped, err := store.SchoolEmailHolds(ctx, school, *guardian.Email)
+	listed, stopped, err := store.listedStopped(ctx, school, *guardian.Email)
 	require.NoError(t, err)
 	assert.True(t, listed)
 	assert.True(t, stopped)
@@ -211,7 +211,7 @@ func TestABounceAndAStopStaySeparate(t *testing.T) {
 	inSchool(t, ctx, db, school, func(txCtx context.Context) error {
 		return store.Store.DeleteEmailSuppression(txCtx, school, *guardian.Email)
 	})
-	listed, stopped, err = store.SchoolEmailHolds(ctx, school, *guardian.Email)
+	listed, stopped, err = store.listedStopped(ctx, school, *guardian.Email)
 	require.NoError(t, err)
 	assert.False(t, listed)
 	assert.True(t, stopped, "lifting the bounce does not end the school's decision")
@@ -240,7 +240,7 @@ func TestAHeldBackMailMarksNoAddress(t *testing.T) {
 		event.Provider = test.provider
 		_, err := store.RecordEmailDeliveryEvent(ctx, event)
 		require.NoError(t, err)
-		listed, _, err := store.SchoolEmailHolds(ctx, school, address)
+		listed, _, err := store.listedStopped(ctx, school, address)
 		require.NoError(t, err)
 		assert.False(t, listed, test.key)
 		inSchool(t, ctx, db, school, func(txCtx context.Context) error {

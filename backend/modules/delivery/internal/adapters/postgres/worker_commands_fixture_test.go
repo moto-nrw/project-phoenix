@@ -88,9 +88,9 @@ func (c *workerCommandsForTest) RecordEmailDeliveryEvent(ctx context.Context, ev
 	return
 }
 
-func (c *workerCommandsForTest) SchoolEmailHolds(ctx context.Context, tenantID int64, address string) (listed, stopped bool, err error) {
+func (c *workerCommandsForTest) SchoolEmailHolds(ctx context.Context, tenantID int64, address string) (holds domain.SchoolMailHolds, err error) {
 	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
-		listed, stopped, err = c.Store.SchoolEmailHolds(txCtx, tenantID, address)
+		holds, err = c.Store.SchoolEmailHolds(txCtx, tenantID, address)
 		return err
 	})
 	return
@@ -105,13 +105,20 @@ func (c *workerCommandsForTest) TraegerEmailHolds(ctx context.Context, organizat
 }
 
 func (c *workerCommandsForTest) EmailAddressSuppressed(ctx context.Context, tenantID int64, address string) (bool, error) {
-	var listed bool
+	var holds domain.SchoolMailHolds
 	err := c.withinAdmin(ctx, func(txCtx context.Context) error {
 		var err error
-		listed, _, err = c.Store.SchoolEmailHolds(txCtx, tenantID, address)
+		holds, err = c.Store.SchoolEmailHolds(txCtx, tenantID, address)
 		return err
 	})
-	return listed, err
+	return holds.Listed, err
+}
+
+// listedStopped reads the list and the stop of a school's address, the two holds
+// every mail to parents honours.
+func (c *workerCommandsForTest) listedStopped(ctx context.Context, tenantID int64, address string) (listed, stopped bool, err error) {
+	holds, err := c.SchoolEmailHolds(ctx, tenantID, address)
+	return holds.Listed, holds.Stopped, err
 }
 
 func (c *workerCommandsForTest) OpenProviderMails(ctx context.Context, query domain.ProviderMailQuery) (result0 []domain.ProviderMail, err error) {

@@ -46,9 +46,11 @@ type EmailOutcomes interface {
 	// EmailAddressMarks reports the marked addresses among the given ones. The
 	// key is the normalized address.
 	EmailAddressMarks(ctx context.Context, tenantID int64, addresses []string) (map[string]deliveryContract.EmailAddressMark, error)
-	// StoppedEmailAddresses reports the addresses among the given ones whose
-	// holders all carry the school's stop. The key is the normalized address.
-	StoppedEmailAddresses(ctx context.Context, tenantID int64, addresses []string) (map[string]bool, error)
+	// GuardianEmailHolds reports addresses whose holders all carry the school's
+	// stop, and guardian addresses without a child in care, staff account or open
+	// enrollment. Departure only holds distribution mail; the stop holds all
+	// school mail to parents. Both maps are keyed by normalized address.
+	GuardianEmailHolds(ctx context.Context, tenantID int64, addresses []string) (stopped, departed map[string]bool, err error)
 	// TraegerMailHolds reports, in the caller's Träger transaction, whether a school
 	// of the Träger lists the address and whether all its holders there carry a stop.
 	TraegerMailHolds(ctx context.Context, organizationID int64, address string) (listed, stopped bool, err error)

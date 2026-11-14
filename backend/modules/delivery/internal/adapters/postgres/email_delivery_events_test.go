@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -248,11 +249,11 @@ func TestRetentionRemovesExpiredEventsAndSuppressions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	store, ctx := testStore(t, db)
 	school := testpkg.Tenant(t)
-	guardian := testpkg.CreateTestGuardianProfileNamed(t, db, "Erika", "Muster", "erika")
-	_, err := db.ExecContext(context.Background(), `UPDATE users.guardian_profiles SET email = ? WHERE id = ?`, eventAddress, guardian.ID)
-	require.NoError(t, err)
+	guardian := eventGuardian(t, db)
+	child := testpkg.CreateTestStudent(t, db, "Kind", "Muster", "2a")
+	testpkg.CreateTestStudentGuardianLink(t, db, child.ID, guardian.ID, "primary_guardian")
 	mail := enqueueEventMail(t, db, store, ctx, school, "retention", false)
-	_, err = store.RecordEmailDeliveryEvent(ctx, eventAt(eventMailToken(t, db, mail.ID), "hard", domain.EmailDeliveryFailed, time.Now()))
+	_, err := store.RecordEmailDeliveryEvent(ctx, eventAt(eventMailToken(t, db, mail.ID), "hard", domain.EmailDeliveryFailed, time.Now()))
 	require.NoError(t, err)
 	_, err = db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW() - INTERVAL '31 days' WHERE id = ?`, mail.ID)
 	require.NoError(t, err)
@@ -278,7 +279,7 @@ func TestRetentionRemovesExpiredEventsAndSuppressions(t *testing.T) {
 		return err
 	}))
 	assert.Equal(t, 1, events)
-	assert.Zero(t, keptSuppressions, "a fresh entry of a known address stays")
+	assert.Zero(t, keptSuppressions, "a fresh entry of a family with a child in care stays")
 	assert.Zero(t, suppressions, "an old entry of a known address stays too")
 }
 
@@ -299,6 +300,121 @@ func TestRetentionRemovesASuppressionNobodyAtTheSchoolHolds(t *testing.T) {
 		return err
 	}))
 	assert.Equal(t, 1, removed)
+}
+
+// eventGuardian is a guardian contact of the test's school holding eventAddress.
+func eventGuardian(t *testing.T, db *bun.DB) *testpkg.GuardianProfile {
+	t.Helper()
+	guardian := testpkg.CreateTestGuardianProfileNamed(t, db, "Erika", "Muster", "erika")
+	_, err := db.ExecContext(context.Background(), `UPDATE users.guardian_profiles SET email = ? WHERE id = ?`, eventAddress, guardian.ID)
+	require.NoError(t, err)
+	return guardian
+}
+
+// setChildStatus moves a child's membership the way the activate-students tick
+// (inactive) or the grade transition (alumnus) does.
+func setChildStatus(t *testing.T, db *bun.DB, school, studentID int64, status string) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(), `UPDATE users.student_school_memberships SET status = ?
+		WHERE tenant_id = ? AND student_profile_id = ?`, status, school, studentID)
+	require.NoError(t, err)
+}
+
+func schoolHolds(t *testing.T, store *workerCommandsForTest, ctx context.Context, school int64) domain.SchoolMailHolds {
+	t.Helper()
+	holds, err := store.SchoolEmailHolds(ctx, school, eventAddress)
+	require.NoError(t, err)
+	require.NoError(t, store.withinTenant(ctx, school, func(txCtx context.Context) error {
+		_, departed, err := store.GuardianEmailHolds(txCtx, school, []string{" " + strings.ToUpper(eventAddress) + " ", "nobody@example.test"})
+		require.NoError(t, err)
+		assert.Equal(t, holds.Departed, departed[strings.ToLower(eventAddress)], "the invitation precheck agrees with the worker")
+		assert.False(t, departed["nobody@example.test"])
+		return nil
+	}))
+	return holds
+}
+
+// The school's mailings end with the family's last child in care, whether its
+// care ended (inactive) or it left with the grade transition (alumnus) (#5960).
+func TestSchoolMailHoldsDepartOnlyWithTheFamilysLastChild(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	assert.False(t, schoolHolds(t, store, ctx, school).Departed, "an address no guardian holds is no departed family")
+
+	guardian := eventGuardian(t, db)
+	first := testpkg.CreateTestStudent(t, db, "Erstes", "Kind", "2a")
+	second := testpkg.CreateTestStudent(t, db, "Zweites", "Kind", "4b")
+	testpkg.CreateTestStudentGuardianLink(t, db, first.ID, guardian.ID, "primary_guardian")
+	testpkg.CreateTestStudentGuardianLink(t, db, second.ID, guardian.ID, "primary_guardian")
+	assert.False(t, schoolHolds(t, store, ctx, school).Departed)
+
+	setChildStatus(t, db, school, first.ID, "inactive")
+	assert.False(t, schoolHolds(t, store, ctx, school).Departed, "one child is still in care")
+
+	setChildStatus(t, db, school, second.ID, "alumnus")
+	holds := schoolHolds(t, store, ctx, school)
+	assert.True(t, holds.Departed, "no child of the family is in care any more")
+	assert.False(t, holds.Listed)
+	assert.False(t, holds.Stopped)
+
+	setChildStatus(t, db, school, first.ID, "pending")
+	assert.False(t, schoolHolds(t, store, ctx, school).Departed, "a child admitted again brings the family back")
+}
+
+// The parent's school account outlives the child, so its membership alone holds
+// no address. The same person as staff of the school still does (#5960).
+func TestSchoolMailHoldsReadAParentAccountLikeItsGuardian(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	guardian := testpkg.CreateTestGuardianProfileNamed(t, db, "Erika", "Muster", "erika")
+	account := testpkg.CreateTestAccount(t, db, "parent")
+	testpkg.EnsureAccountTenant(t, db, account.ID, school)
+	_, err := db.ExecContext(context.Background(), `UPDATE auth.accounts SET email = ? WHERE id = ?`, eventAddress, account.ID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(context.Background(), `UPDATE users.guardian_profiles SET account_id = ?, has_account = TRUE WHERE id = ?`, account.ID, guardian.ID)
+	require.NoError(t, err)
+	child := testpkg.CreateTestStudent(t, db, "Kind", "Muster", "2a")
+	testpkg.CreateTestStudentGuardianLink(t, db, child.ID, guardian.ID, "primary_guardian")
+	assert.False(t, schoolHolds(t, store, ctx, school).Departed)
+
+	setChildStatus(t, db, school, child.ID, "alumnus")
+	assert.True(t, schoolHolds(t, store, ctx, school).Departed, "the account's address departs with its guardian")
+
+	testpkg.CreateTestStaffForExistingAccountInTenant(t, db, school, account.ID, "Erika", "Muster")
+	assert.False(t, schoolHolds(t, store, ctx, school).Departed, "a staff member of the school keeps the address")
+}
+
+// After the last child left, the nightly run ends the school's mark of the
+// family's address, a complaint too: the provider keeps its own block. A family
+// with a child in care keeps its mark (#5960).
+func TestRetentionEndsTheMarkOfADepartedFamily(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	guardian := eventGuardian(t, db)
+	child := testpkg.CreateTestStudent(t, db, "Kind", "Muster", "2a")
+	testpkg.CreateTestStudentGuardianLink(t, db, child.ID, guardian.ID, "primary_guardian")
+	mail := enqueueEventMail(t, db, store, ctx, school, "complaint", false)
+	_, err := store.RecordEmailDeliveryEvent(ctx, eventAt(eventMailToken(t, db, mail.ID), "spam", domain.EmailDeliveryComplained, time.Now()))
+	require.NoError(t, err)
+	sweep := func() int {
+		var removed int
+		require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
+			removed, err = store.DeleteUnheldEmailSuppressions(txCtx, school)
+			return err
+		}))
+		return removed
+	}
+
+	assert.Zero(t, sweep(), "the family still has a child in care")
+	setChildStatus(t, db, school, child.ID, "inactive")
+	assert.Equal(t, 1, sweep(), "the mark ends once the last child left")
+	assert.False(t, schoolHolds(t, store, ctx, school).Listed)
 }
 
 // A provider that names two mails leaves the school open: nothing is recorded.

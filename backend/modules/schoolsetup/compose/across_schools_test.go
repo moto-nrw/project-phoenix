@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/moto-ogs/project-phoenix/tenant"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
@@ -23,7 +22,7 @@ func inTenant(t *testing.T, tenantID int64) context.Context {
 func createTraeger(t *testing.T) (organizationID, schoolA, schoolB int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
+	suffix := strconv.FormatInt(testpkg.UniqueSuffix(), 10)
 	organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
 		Name: "Träger " + suffix, Slug: "traeger-" + suffix, Active: true,
 	})

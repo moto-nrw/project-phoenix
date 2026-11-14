@@ -104,6 +104,7 @@ export function settingsGuideTopic(): HelpTopic {
           "Vor dem Einschalten prüft die Schule die Rechtsgrundlage. Sie ist für die Nutzung verantwortlich.",
           "`Nutzungsanalyse`: moto erhält Nutzungsstatistiken Ihrer Schule, aber keine eingegebenen Inhalte.",
           "Löschfristen wie `Anwesenheit aufbewahren (Tage)`: Wie lange moto Daten behält. Sie können sie nur lesen.",
+          "`Erziehungsberechtigte ohne Kind aufbewahren (Tage)`: Diese Frist stellen Sie selbst ein. Sie beginnt erst, wenn das letzte Kind der Person gelöscht ist.",
         ],
       },
       {

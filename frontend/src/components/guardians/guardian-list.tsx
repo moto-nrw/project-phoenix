@@ -21,6 +21,7 @@ import {
 } from "./guardian-contact-actions";
 import type { GuardianEmailState } from "@/lib/guardian-api";
 import {
+  GUARDIAN_DEPARTED_COPY,
   GUARDIAN_STOPPED_COPY,
   STOP_SHARED_NOTE,
   guardianAddressNextStep,
@@ -239,12 +240,15 @@ export default function GuardianList({
     <div className="space-y-3">
       {guardians.map((guardian) => {
         const emailState = emailStates?.[guardian.id];
-        const mailCopy = mailStatusCopy(
-          emailState?.mailOutcome,
-          emailState?.addressMark,
-          false,
-          emailState?.providerBlock,
-        );
+        const mailCopy =
+          emailState?.sendBlock === "departed"
+            ? GUARDIAN_DEPARTED_COPY
+            : mailStatusCopy(
+                emailState?.mailOutcome,
+                emailState?.addressMark,
+                false,
+                emailState?.providerBlock,
+              );
         const stopped = emailState?.emailsStopped === true;
         // A new invitation would change nothing: the note below says why.
         const showInvite =

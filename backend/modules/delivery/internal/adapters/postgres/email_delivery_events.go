@@ -143,12 +143,17 @@ func suppressEmailEventAddress(ctx context.Context, db bun.IDB, mail emailEventM
 }
 
 // A stop holds a mail back only if every person who holds the address carries it,
-// so a shared address still reaches the person nobody stopped.
+// so a shared address still reaches the person nobody stopped. A departure holds
+// an address a guardian holds and the school no longer knows (#5960): no
+// guardian holding it has a child in care, no staff account and no open
+// application names it.
 const (
 	schoolEmailHoldsSQL = `SELECT
 		EXISTS (SELECT 1 FROM platform.email_suppressions WHERE tenant_id = ?0 AND address = ?1) AS listed,
 		EXISTS (SELECT 1 FROM platform.delivery_guardian_contacts WHERE tenant_id = ?0 AND address = ?1 AND emails_stopped_at IS NOT NULL)
-		AND NOT EXISTS (SELECT 1 FROM platform.delivery_guardian_contacts WHERE tenant_id = ?0 AND address = ?1 AND emails_stopped_at IS NULL) AS stopped`
+		AND NOT EXISTS (SELECT 1 FROM platform.delivery_guardian_contacts WHERE tenant_id = ?0 AND address = ?1 AND emails_stopped_at IS NULL) AS stopped,
+		EXISTS (SELECT 1 FROM platform.delivery_guardian_contacts WHERE tenant_id = ?0 AND address = ?1)
+		AND NOT EXISTS (SELECT 1 FROM platform.delivery_known_email_addresses WHERE tenant_id = ?0 AND address = ?1) AS departed`
 	traegerEmailHoldsSQL = `SELECT
 		EXISTS (SELECT 1 FROM platform.email_suppressions AS list JOIN platform.delivery_traeger_schools AS school ON school.tenant_id = list.tenant_id
 			WHERE school.organization_id = ?0 AND list.address = ?1) AS listed,
@@ -163,16 +168,21 @@ type emailHoldsRow struct {
 	Stopped bool `bun:"stopped"`
 }
 
+type schoolEmailHoldsRow struct {
+	emailHoldsRow
+	Departed bool `bun:"departed"`
+}
+
 // SchoolEmailHolds implements ports.EmailDeliveryEventStore.
-func (s *Store) SchoolEmailHolds(ctx context.Context, tenantID int64, address string) (bool, bool, error) {
-	var row emailHoldsRow
+func (s *Store) SchoolEmailHolds(ctx context.Context, tenantID int64, address string) (domain.SchoolMailHolds, error) {
+	var row schoolEmailHoldsRow
 	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		return db.NewRaw(schoolEmailHoldsSQL, tenantID, normalizedAddress(address)).Scan(txCtx, &row)
 	})
 	if err != nil {
-		return false, false, fmt.Errorf("delivery postgres: read the holds of a school's mail: %w", err)
+		return domain.SchoolMailHolds{}, fmt.Errorf("delivery postgres: read the holds of a school's mail: %w", err)
 	}
-	return row.Listed, row.Stopped, nil
+	return domain.SchoolMailHolds{Listed: row.Listed, Stopped: row.Stopped, Departed: row.Departed}, nil
 }
 
 // TraegerEmailHolds implements ports.EmailDeliveryEventStore.
@@ -242,10 +252,14 @@ func (s *Store) DeleteExpiredEmailDeliveryEvents(ctx context.Context, tenantID i
 
 // DeleteUnheldEmailSuppressions implements ports.RetentionStore. An address stays
 // marked until someone at the school checked it, however old the mark is (#5934).
-// An address no guardian, account or open application at the school holds any more
-// goes with the first run: this
-// covers every path that deletes an account or a guardian, without each of them
-// knowing the list. A new bounce would put it back.
+// The first run removes the mark of an address the school no longer knows
+// (platform.delivery_known_email_addresses): no guardian with a child in care, no
+// staff or other account of the school and no open application holds it (#5960).
+// This covers every path that deletes a person or ends a child's care, without
+// each of them knowing the list. Complaints go the same way: the mail provider
+// keeps its own block of the address, which only its support lifts. The school's
+// mailings to a departed family stay back anyway, and a new bounce or complaint
+// puts the address back on the list.
 func (s *Store) DeleteUnheldEmailSuppressions(ctx context.Context, tenantID int64) (int, error) {
 	db, err := s.tenantDB(ctx, tenantID)
 	if err != nil {

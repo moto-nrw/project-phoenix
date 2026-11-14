@@ -104,7 +104,7 @@ export const categoryLabels: Record<string, string> = {
   // Wann der Betreuungsvertrag gilt (#4680); Träger-Wert, Schule darf abweichen.
   vertragsabschluss: "Betreuungsvertrag",
   schulstunden: "Schulstunden",
-  schülerdaten: "Kinderdaten",
+  schülerdaten: "Kinder und Familien",
   "sehen-und-bearbeiten": "Sehen und bearbeiten",
   sicherheit: "Prüfung der Anmeldungen",
   sitzungsbereinigung: "Nicht genutzte Sitzungen bereinigen",

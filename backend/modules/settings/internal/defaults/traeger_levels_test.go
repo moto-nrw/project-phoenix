@@ -17,7 +17,8 @@ import (
 // thresholds of the hints on the Träger dashboard (#4675), the confirmations
 // of a termination and a withdrawal of a care contract (#4682); how the contracts
 // of a school come about is "beide" (#4680: Träger value with a school
-// override); everything else stays at the school. A change of these lists is
+// override), and so is the retention of parent contacts without a child
+// (#5960); everything else stays at the school. A change of these lists is
 // a product
 // decision.
 func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
@@ -27,6 +28,8 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 		config.KeyEnrollmentLegalAGBText, config.KeyEnrollmentLegalDSGVOEnabled, config.KeyEnrollmentLegalDSGVOText,
 		config.KeyEnrollmentLegalEmailContactEnabled, config.KeyEnrollmentLegalEmailContactText,
 		config.KeyEnrollmentLegalPhotoEnabled, config.KeyEnrollmentLegalPhotoText, config.KeyEnrollmentLegalTermsEnabled,
+		// How long parent contacts outlive their last child (#5960).
+		config.KeyGDPRGuardianRetentionDays,
 		config.KeyGuardianParentCanRemove, config.KeyGuardianParentInviteMode, config.KeyParentCareModeRequestEnabled,
 		config.KeyParentCarePickupRequestEnabled, config.KeyParentGuardianManagementEnabled,
 		config.KeyParentMasterDataEditEnabled, config.KeyParentMasterDataRequestEnabled,

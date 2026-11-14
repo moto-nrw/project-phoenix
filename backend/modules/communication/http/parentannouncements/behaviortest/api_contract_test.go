@@ -96,7 +96,7 @@ func (s *announcementContract) UpdateParentAnnouncementReminder(c context.Contex
 }
 func (s *announcementContract) ParentAnnouncementLetterStatus(c context.Context, id int64) (*communication.ParentAnnouncementLetterStatus, error) {
 	now := time.Date(2026, 9, 21, 9, 0, 0, 0, time.UTC)
-	return &communication.ParentAnnouncementLetterStatus{Recipients: []communication.ParentAnnouncementLetterRecipient{{EmailStatus: "failed", Reachability: "email"}}, Children: []communication.ParentAnnouncementLetterChild{{StudentID: id, CanConfirm: true}, {StudentID: id, AcknowledgedAt: &now, AckFirstName: "Ada", AckLastName: "Lovelace"}}, Summary: communication.ParentAnnouncementLetterSummary{ChildrenTotal: 2, ChildrenFulfilled: 1}}, s.call(c, "letter-status", id)
+	return &communication.ParentAnnouncementLetterStatus{Recipients: []communication.ParentAnnouncementLetterRecipient{{EmailStatus: "failed", MailOutcome: "send_failed", Departed: true, Reachability: "email"}}, Children: []communication.ParentAnnouncementLetterChild{{StudentID: id, CanConfirm: true}, {StudentID: id, AcknowledgedAt: &now, AckFirstName: "Ada", AckLastName: "Lovelace"}}, Summary: communication.ParentAnnouncementLetterSummary{ChildrenTotal: 2, ChildrenFulfilled: 1}}, s.call(c, "letter-status", id)
 }
 
 func announcementRoute(t *testing.T) (*announcementContract, *announcement.Resource, string) {
@@ -147,6 +147,10 @@ func TestAnnouncementRoutesPreserveAuthoringAndResponseContracts(t *testing.T) {
 			status, body := announcementRequest(t, r, token, tc.method, tc.path, tc.body)
 			require.Equal(t, tc.status, status, body)
 			require.Contains(t, body, tc.fragment)
+			if tc.call == "letter-status" {
+				require.Contains(t, body, `"departed":true`)
+				require.Contains(t, body, `"mail_outcome":"send_failed"`)
+			}
 			expected := []string{tc.call}
 			if tc.method == "GET" && tc.call != "get" && tc.call != "list" {
 				expected = append([]string{"get"}, expected...)

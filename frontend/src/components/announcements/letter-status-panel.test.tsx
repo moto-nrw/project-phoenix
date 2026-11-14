@@ -274,6 +274,35 @@ describe("LetterStatusPanel mail state (#5934)", () => {
       screen.getByRole("button", { name: "Fehlgeschlagene erneut senden" }),
     ).toBeEnabled();
   });
+
+  it.each(["send_failed", "delivered"] as const)(
+    "keeps %s as history and explains the current departure hold",
+    async (outcome) => {
+      fetchLetterStatus.mockResolvedValue(
+        status({ emails_resendable: 0 }, [
+          recipient({
+            mail_outcome: outcome,
+            email_status: outcome === "send_failed" ? "failed" : "sent",
+            departed: true,
+          }),
+        ]),
+      );
+      renderPanel();
+      expect(await screen.findByText("Kein Kind in Betreuung")).toBeVisible();
+      expect(screen.getByText(/Kein Kind dieser Person/)).toBeVisible();
+      expect(
+        screen.getByText(
+          outcome === "send_failed" ? "Fehlgeschlagen" : "Zugestellt",
+        ),
+      ).toBeVisible();
+      expect(
+        screen.queryByText(/Bitte senden Sie neu/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Fehlgeschlagene erneut senden" }),
+      ).toHaveAttribute("aria-disabled", "true");
+    },
+  );
 });
 
 // #6652: a write holds once it is through; a failed reload keeps the shown

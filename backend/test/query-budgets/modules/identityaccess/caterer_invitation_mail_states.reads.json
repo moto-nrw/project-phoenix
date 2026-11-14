@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.identityaccess.caterer_invitation_mail_states.reads",
+  "max": 1,
+  "exact": true,
+  "description": "#5960: what became of the mails of the school's caterer invitations,\nread for the whole list in one statement of Delivery."
+}

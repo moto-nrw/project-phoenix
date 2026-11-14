@@ -87,13 +87,13 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 }
 
 // GuardianMailBlocks asks Delivery what a new invitation to the addresses would
-// run into: the school's list, or a last mail the server still tries.
+// run into: the school's holds, or a last mail the server still tries.
 func (d guardianInvitationDelivery) GuardianMailBlocks(ctx context.Context, tenantID int64, addresses []string) (map[string]string, error) {
 	marks, err := d.outcomes.EmailAddressMarks(ctx, tenantID, addresses)
 	if err != nil {
 		return nil, err
 	}
-	stopped, err := d.outcomes.StoppedEmailAddresses(ctx, tenantID, addresses)
+	stopped, departed, err := d.outcomes.GuardianEmailHolds(ctx, tenantID, addresses)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +105,11 @@ func (d guardianInvitationDelivery) GuardianMailBlocks(ctx context.Context, tena
 	blocks := make(map[string]string, len(marks))
 	for _, address := range addresses {
 		key := deliveryContract.NormalizedEmailAddress(address)
+		if departed[key] {
+			// The existing refusal points to the reason shown on the guardian.
+			blocks[key] = identityaccess.GuardianMailBlockAddress
+			continue
+		}
 		switch deliveryContract.EmailSendBlockOf(marks[key], stopped[key], latest[key].Outcome, provider[key]) {
 		case deliveryContract.EmailSendBlockAddress, deliveryContract.EmailSendBlockStopped:
 			blocks[key] = identityaccess.GuardianMailBlockAddress

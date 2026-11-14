@@ -249,6 +249,8 @@ export interface LetterRecipient {
   stopped?: boolean;
   /** Another holder of the address carries no stop: mail to it still goes out. */
   stop_shared?: boolean;
+  /** No holder of this address has a child in care at the school now. */
+  departed?: boolean;
   /** Where this mail went: its outcome belongs there. `email` is the current address. */
   mailed_to?: string;
   provider_block?: MailProviderBlock;
