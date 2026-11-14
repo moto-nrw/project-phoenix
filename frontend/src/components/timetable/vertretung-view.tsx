@@ -672,6 +672,8 @@ function VertretungContent() {
         {
           label: "Drucken oder exportieren",
           icon: <Printer className="h-4 w-4" aria-hidden />,
+          description:
+            "Öffnet ein Fenster, um den Plan zu drucken oder zu speichern",
           onClick: () => setExportOpen(true),
         },
       ]
@@ -756,6 +758,7 @@ function VertretungContent() {
               variant="primary"
               size="md"
               aria-label="Sammel-Vertretung eintragen"
+              tooltip="Öffnet ein Fenster für Abwesenheit und Ersatz über mehrere Tage."
               onClick={() => setBulkOpen(true)}
             >
               <CalendarRange className="mr-1.5 h-4 w-4 shrink-0" aria-hidden />

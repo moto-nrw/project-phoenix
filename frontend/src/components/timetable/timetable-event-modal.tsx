@@ -428,6 +428,19 @@ export function TimetableEventModal({
     isSeriesFlow,
   ]);
   const closingDayConflict = closingDayInfo?.conflict ?? null;
+  // Was „Speichern“ tut und warum es gesperrt ist (#6773). Eine Serie gilt
+  // ab heute oder ab diesem Termin, ein einzelner Termin nur für sich.
+  const statusLocked =
+    isEditingInstance && initialInstance?.status !== "planned";
+  const saveTooltip = `${
+    isSeriesFlow
+      ? isEditingSeries
+        ? "Speichert die Änderung für die kommenden Termine der Serie."
+        : "Legt den Regeltermin an und trägt seine Termine ein."
+      : isEditingInstance
+        ? "Speichert die Änderung nur für diesen Termin."
+        : "Legt den Termin im Betreuungsplan an."
+  }${closingDayConflict === null ? "" : " moto fragt wegen des Schließtags vorher nach."}`;
   const closingDayConfirmationKey =
     closingDayConflict === null
       ? null
@@ -843,6 +856,7 @@ export function TimetableEventModal({
                 type="button"
                 variant="outline_danger"
                 size="md"
+                tooltip="Löscht den Regeltermin ab einem Tag, den Sie wählen. moto fragt vorher nach."
                 onClick={openSeriesDeleteConfirm}
                 className="w-full sm:w-auto"
               >
@@ -861,6 +875,7 @@ export function TimetableEventModal({
               variant="outline"
               size="md"
               className="flex-1 sm:flex-none"
+              noTooltip="Schließt das Formular ohne Speichern, das Wort sagt alles."
               onClick={onClose}
             >
               Abbrechen
@@ -871,6 +886,7 @@ export function TimetableEventModal({
                 variant="outline"
                 size="md"
                 className="flex-1 sm:flex-none"
+                noTooltip="Geht einen Schritt zurück, Eingaben bleiben erhalten."
                 onClick={() => setStep((current) => Math.max(current - 1, 0))}
               >
                 Zurück
@@ -890,6 +906,7 @@ export function TimetableEventModal({
                 variant="primary"
                 size="md"
                 className="flex-1 sm:flex-none"
+                tooltip="Prüft die Angaben und zeigt den nächsten Schritt."
               >
                 Weiter
               </Button>
@@ -902,9 +919,12 @@ export function TimetableEventModal({
                 className="flex-1 sm:flex-none"
                 isLoading={submitting}
                 loadingText="Speichere …"
-                disabled={
-                  closingDaysLoading ||
-                  (isEditingInstance && initialInstance?.status !== "planned")
+                tooltip={saveTooltip}
+                disabled={closingDaysLoading || statusLocked}
+                disabledReason={
+                  statusLocked
+                    ? "Laufende, beendete und abgesagte Termine lassen sich nicht mehr ändern."
+                    : undefined
                 }
               >
                 Speichern

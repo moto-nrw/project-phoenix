@@ -496,6 +496,29 @@ export function SubstitutionSlideOver({
     restoredSubs.size > 0 ||
     peopleChanged;
 
+  const noticeIncomplete =
+    cancel &&
+    guardianNoticeIncomplete(
+      noticeDraft,
+      noticeReach,
+      Boolean(instance && instance.date >= berlinTodayISO()),
+    );
+  // Warum „Speichern“ gesperrt ist (#6773). Die Reihenfolge folgt `save()`.
+  const saveBlockedReason = !hasChanges
+    ? "Ändern Sie zuerst etwas an diesem Termin."
+    : !cancel && !peopleValid
+      ? "Wählen Sie zuerst für jede abwesende Person die Termine aus."
+      : noticeIncomplete
+        ? noticeDraft?.send
+          ? "Geben Sie zuerst Betreff und Text an die Eltern ein."
+          : "moto prüft noch, welche Familien die Nachricht erreicht."
+        : undefined;
+  const saveTooltip = !cancel
+    ? "Speichert Abwesenheit und Ersatz für die gewählten Termine."
+    : guardianNoticePayload(noticeDraft, noticeReach)
+      ? "Sagt diesen Termin ab und informiert die Eltern per App und E-Mail."
+      : "Sagt diesen Termin ab, die Eltern bekommen keine Nachricht.";
+
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     void save();
@@ -841,6 +864,9 @@ export function SubstitutionSlideOver({
                                                 size={14}
                                               />
                                             ),
+                                            description: removed
+                                              ? "Behält die Ersatzperson in diesem Termin"
+                                              : "Nimmt die Ersatzperson beim Speichern aus diesem Termin",
                                             onClick: () =>
                                               toggleRemoveSub(row.staffId),
                                           },
@@ -865,6 +891,9 @@ export function SubstitutionSlideOver({
                                                       aria-hidden
                                                     />
                                                   ),
+                                                  description: restored
+                                                    ? "Lässt die Person als abwesend eingetragen"
+                                                    : "Meldet die Person beim Speichern wieder als anwesend",
                                                   onClick: () =>
                                                     toggleRestoreSub(
                                                       row.staffId,
@@ -997,6 +1026,7 @@ export function SubstitutionSlideOver({
                     type="button"
                     variant="outline"
                     size="md"
+                    noTooltip="Schließt die Vertretung ohne Speichern, das Wort sagt alles."
                     onClick={onClose}
                   >
                     Abbrechen
@@ -1008,19 +1038,9 @@ export function SubstitutionSlideOver({
                     size="md"
                     isLoading={saving}
                     loadingText="Speichere …"
-                    disabled={
-                      saving ||
-                      !hasChanges ||
-                      (!cancel && !peopleValid) ||
-                      (cancel &&
-                        guardianNoticeIncomplete(
-                          noticeDraft,
-                          noticeReach,
-                          Boolean(
-                            instance && instance.date >= berlinTodayISO(),
-                          ),
-                        ))
-                    }
+                    tooltip={saveTooltip}
+                    disabled={saving || saveBlockedReason !== undefined}
+                    disabledReason={saveBlockedReason}
                   >
                     Speichern
                   </Button>

@@ -6134,6 +6134,16 @@ const TOOLTIP_SCOPE = [
   "src/components/timetable/betreuungsplan-view.tsx",
   "src/components/timetable/booking-leftover-hints.tsx",
   "src/components/timetable/bulk-substitution-modal.tsx",
+  // Planung: Vertretung, Tagesplan, Vorlagen, Stundenplan (#6773).
+  "src/components/timetable/substitution-person-card.tsx",
+  "src/components/timetable/substitution-slide-over.tsx",
+  "src/components/timetable/tagesplan-view.tsx",
+  "src/components/timetable/template-card.tsx",
+  "src/components/timetable/template-list.tsx",
+  "src/components/timetable/timetable-add-menu.tsx",
+  "src/components/timetable/timetable-event-modal.tsx",
+  "src/components/timetable/vertretung-day-list.tsx",
+  "src/components/timetable/vertretung-view.tsx",
   // Kommunikation: Nachrichten, Ankündigungen, Umfragen (#6754).
   "src/app/[tenant]/(protected)/messages/",
   "src/app/[tenant]/(protected)/parent-announcements/",
