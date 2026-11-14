@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
@@ -71,20 +72,20 @@ func holidayChildKey(registration parentbilling.HolidayRegistration, child paren
 	return parentbilling.ChildDebtorNumberKey(registration.GuardianEmail, key)
 }
 
-// confirmsChildNumbers says whether a confirmation takes the numbers of the
-// children: when the office enters them and the Träger keeps the number per
-// child. Otherwise the registration's number applies, which the Träger may
-// ask for.
-func (h *HolidayContributions) confirmsChildNumbers(ctx context.Context, organizationID int64, debtorNumber string,
+// confirmsChildNumbers chooses validation from the configured scope and
+// registration, not from the presence of the optional request array. A
+// single-child registration can still use its one registration number.
+func (h *HolidayContributions) confirmsChildNumbers(ctx context.Context, organizationID int64, registration parentbilling.HolidayRegistration,
 	childNumbers []parentbilling.HolidayChildDebtorNumberInput,
 ) (bool, error) {
-	if childNumbers != nil {
-		perChild, err := h.perChild(ctx, organizationID)
-		if err != nil || perChild {
-			return perChild, err
-		}
+	perChild, err := h.perChild(ctx, organizationID)
+	if err != nil {
+		return false, err
 	}
-	return false, h.requireDebtorNumber(ctx, organizationID, debtorNumber)
+	if perChild && (len(registration.Children) > 1 || childNumbers != nil) {
+		return true, nil
+	}
+	return false, h.requireDebtorNumber(ctx, organizationID, registration.DebtorNumber)
 }
 
 // SetHolidayChildDebtorNumbers changes the numbers of the children of a
@@ -136,6 +137,7 @@ func (h *HolidayContributions) keepChildNumbers(ctx context.Context, reviewer pa
 	}
 	result := parentbilling.HolidayFamilyDebtorNumber{Children: make([]parentbilling.HolidayChildDebtorNumber, 0, len(registration.Children))}
 	var save []parentbilling.ChildDebtorNumber
+	var remove []string
 	for _, child := range registration.Children {
 		number, named := entered[child.ID]
 		if !named {
@@ -145,15 +147,17 @@ func (h *HolidayContributions) keepChildNumbers(ctx context.Context, reviewer pa
 		result.Children = append(result.Children, parentbilling.HolidayChildDebtorNumber{ChildID: child.ID, FirstName: child.FirstName,
 			LastName: child.LastName, DebtorNumber: number})
 		if number == "" {
-			if err := h.removeChildNumber(ctx, reviewer, registration, child); err != nil {
-				return parentbilling.HolidayFamilyDebtorNumber{}, err
-			}
+			birth := child.BirthDate
+			remove = append(remove, parentbilling.ChildKey(child.FirstName, child.LastName, &birth))
 			continue
 		}
 		birth := child.BirthDate
 		save = append(save, parentbilling.ChildDebtorNumber{FamilyEmail: registration.GuardianEmail, ChildFirstName: truncateName(child.FirstName),
 			ChildLastName: truncateName(child.LastName), ChildBirthDate: &birth, DebtorNumber: number,
 			LastUsedOn: lastBookedDay(registration, h.today())})
+	}
+	if err := h.removeChildNumbers(ctx, reviewer, registration.GuardianEmail, remove); err != nil {
+		return parentbilling.HolidayFamilyDebtorNumber{}, err
 	}
 	if len(save) == 0 {
 		return result, nil
@@ -178,34 +182,38 @@ func (h *HolidayContributions) enteredChildNumbers(ctx context.Context, organiza
 	if parentbilling.FamilyKey(registration.GuardianEmail) == "" {
 		return nil, parentbilling.ErrChildNotFound
 	}
-	children := make(map[int64]bool, len(registration.Children))
-	for _, child := range registration.Children {
-		if holidayChildKey(registration, child) == "" {
-			return nil, parentbilling.ErrChildNotFound
-		}
-		children[child.ID] = true
+	stored, err := h.storedHolidayChildNumbers(ctx, organizationID, registration)
+	if err != nil {
+		return nil, err
 	}
 	required, err := h.asksDebtorNumber(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	format, err := debtorNumberFormatOf(ctx, h.settings, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	entered := make(map[int64]string, len(inputs))
 	errs := validation.Errors{}
 	for _, input := range inputs {
-		if !children[input.ChildID] {
+		previous, known := stored[input.ChildID]
+		if !known {
 			return nil, parentbilling.ErrChildNotFound
 		}
-		number, err := h.debtorNumberOf(ctx, organizationID, input.DebtorNumber)
-		if err != nil {
-			errs[childDebtorNumberField(input.ChildID)] = fieldError(err)
-			continue
+		number := strings.TrimSpace(input.DebtorNumber)
+		if number != previous {
+			checked, err := debtorNumberOf(input.DebtorNumber, format)
+			if err != nil {
+				errs[childDebtorNumberField(input.ChildID)] = fieldError(err)
+				continue
+			}
+			number = checked
 		}
 		entered[input.ChildID] = number
 	}
 	if required {
-		if err := h.requireChildNumbers(ctx, organizationID, registration, entered, errs); err != nil {
-			return nil, err
-		}
+		requireChildNumbers(stored, entered, errs)
 	}
 	if len(errs) > 0 {
 		return nil, errs
@@ -213,30 +221,42 @@ func (h *HolidayContributions) enteredChildNumbers(ctx context.Context, organiza
 	return entered, nil
 }
 
-// requireChildNumbers refuses each child without a number: one the office
-// empties, or one it does not name that has none stored.
-func (h *HolidayContributions) requireChildNumbers(ctx context.Context, organizationID int64, registration parentbilling.HolidayRegistration,
-	entered map[int64]string, errs validation.Errors,
-) error {
+// storedHolidayChildNumbers loads the stored values once and limits them
+// to children of this registration, including children without a number.
+func (h *HolidayContributions) storedHolidayChildNumbers(ctx context.Context, organizationID int64,
+	registration parentbilling.HolidayRegistration,
+) (map[int64]string, error) {
 	numbers, err := h.store.ChildDebtorNumbers(ctx, organizationID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	stored := make(map[string]bool, len(numbers))
+	byKey := make(map[string]string, len(numbers))
 	for _, number := range numbers {
-		stored[number.Key()] = number.DebtorNumber != ""
+		byKey[number.Key()] = number.DebtorNumber
 	}
+	stored := make(map[int64]string, len(registration.Children))
 	for _, child := range registration.Children {
-		field := childDebtorNumberField(child.ID)
+		key := holidayChildKey(registration, child)
+		if key == "" {
+			return nil, parentbilling.ErrChildNotFound
+		}
+		stored[child.ID] = byKey[key]
+	}
+	return stored, nil
+}
+
+// requireChildNumbers refuses a missing number, whether omitted or cleared.
+func requireChildNumbers(stored, entered map[int64]string, errs validation.Errors) {
+	for id, previous := range stored {
+		field := childDebtorNumberField(id)
 		if _, refused := errs[field]; refused {
 			continue
 		}
-		number, named := entered[child.ID]
-		if (named && number == "") || (!named && !stored[holidayChildKey(registration, child)]) {
+		number, named := entered[id]
+		if (named && number == "") || (!named && previous == "") {
 			errs[field] = errors.New("is required")
 		}
 	}
-	return nil
 }
 
 // fieldError is the refusal of a number without the field debtorNumberOf
@@ -251,21 +271,18 @@ func fieldError(err error) error {
 	return err
 }
 
-// removeChildNumber empties the number of a child that has one and records
-// the removal in its trail.
-func (h *HolidayContributions) removeChildNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer,
-	registration parentbilling.HolidayRegistration, child parentbilling.HolidayChild,
+// removeChildNumbers empties the requested numbers and records the old
+// values in one batch, preserving the known children.
+func (h *HolidayContributions) removeChildNumbers(ctx context.Context, reviewer parentbilling.HolidayReviewer,
+	familyEmail string, childKeys []string,
 ) error {
-	birth := child.BirthDate
-	key := parentbilling.ChildKey(child.FirstName, child.LastName, &birth)
-	removed, err := h.store.DeleteChildDebtorNumber(ctx, reviewer.OrganizationID, reviewer.AccountID,
-		parentbilling.FamilyKey(registration.GuardianEmail), key)
-	if err != nil || removed == nil {
+	removed, err := h.store.DeleteChildDebtorNumbers(ctx, reviewer.OrganizationID, reviewer.AccountID,
+		parentbilling.FamilyKey(familyEmail), childKeys)
+	if err != nil {
 		return err
 	}
-	if err := h.store.InsertChildDebtorNumberEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingDelete,
-		[]parentbilling.ChildDebtorNumber{*removed}); err != nil {
-		return fmt.Errorf("parent billing: record the removal of the child's number: %w", err)
+	if err := h.store.InsertChildDebtorNumberEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingDelete, removed); err != nil {
+		return fmt.Errorf("parent billing: record the removal of the children's numbers: %w", err)
 	}
 	return nil
 }

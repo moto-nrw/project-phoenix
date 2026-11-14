@@ -208,16 +208,16 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 	if err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}
-	byChild, err := h.confirmsChildNumbers(ctx, reviewer.OrganizationID, debtorNumber, childNumbers)
-	if err != nil {
-		return parentbilling.HolidayConfirmation{}, err
-	}
 	registration, err := h.registrations.ConfirmHolidayRegistration(ctx, reviewer, periodID, registrationID, debtorNumber)
 	if err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}
 	if registration.Status != parentbilling.HolidayRegistrationConfirmed {
 		return parentbilling.HolidayConfirmation{}, parentbilling.ErrHolidayRegistrationStateConflict
+	}
+	byChild, err := h.confirmsChildNumbers(ctx, reviewer.OrganizationID, registration, childNumbers)
+	if err != nil {
+		return parentbilling.HolidayConfirmation{}, err
 	}
 	choice := holidayMemberChoice{exemption: benefitsExemption, bearer: bearer}
 	if err := h.freezeConfirmed(ctx, reviewer, periodID, registration, others, issued, choice); err != nil {

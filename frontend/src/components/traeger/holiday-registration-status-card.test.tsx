@@ -145,7 +145,10 @@ describe("HolidayRegistrationStatusCard", () => {
         debtorNumber: "",
       },
     ];
-    const renderPerChild = (registration: HolidayRegistrationDetail) =>
+    const renderPerChild = (
+      registration: HolidayRegistrationDetail,
+      legacy = false,
+    ) =>
       render(
         <ToastProvider>
           <HolidayRegistrationStatusCard
@@ -153,6 +156,11 @@ describe("HolidayRegistrationStatusCard", () => {
             registration={registration}
             contribution={HOLIDAY_CONTRIBUTION}
             debtorNumberRequired
+            debtorNumberFormat={
+              legacy
+                ? { digitsOnly: true, minDigits: 6, maxDigits: 6 }
+                : undefined
+            }
             childDebtorNumbers={children}
             exemption={false}
             onExemptionChange={vi.fn()}
@@ -188,6 +196,55 @@ describe("HolidayRegistrationStatusCard", () => {
         { childId: "72", debtorNumber: "60102" },
       ]);
     });
+
+    it("keeps the registration number editable alongside the child numbers", async () => {
+      mockChangeDebtorNumber.mockResolvedValue({
+        registrationId: "7",
+        debtorNumber: "60104",
+      });
+      renderPerChild({
+        ...HOLIDAY_REGISTRATION,
+        status: "confirmed",
+        debtorNumber: "OLD",
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Debitorennummer ändern" }),
+      );
+      fireEvent.change(
+        screen.getByRole("textbox", { name: /^Debitorennummer/ }),
+        { target: { value: "60104" } },
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      await waitFor(() =>
+        expect(mockChangeDebtorNumber).toHaveBeenCalledWith("5", "7", "60104"),
+      );
+    });
+
+    it.each(["received", "confirmed"] as const)(
+      "preserves untouched legacy numbers when %s",
+      async (status) => {
+        mockConfirm.mockResolvedValue(HOLIDAY_CONTRIBUTION);
+        mockSetChildNumbers.mockResolvedValue([]);
+        renderPerChild({ ...HOLIDAY_REGISTRATION, status }, true);
+        if (status === "confirmed")
+          fireEvent.click(
+            screen.getByRole("button", { name: "Nummern der Kinder ändern" }),
+          );
+        fireEvent.change(screen.getByLabelText(/^Noah Muster/), {
+          target: { value: "601032" },
+        });
+        fireEvent.click(
+          screen.getByRole("button", {
+            name: status === "received" ? "Bestätigen" : "Speichern",
+          }),
+        );
+        await waitFor(() =>
+          expect(
+            status === "received" ? mockConfirm : mockSetChildNumbers,
+          ).toHaveBeenCalledTimes(1),
+        );
+      },
+    );
 
     it("changes the numbers of the children of a confirmed registration", async () => {
       mockSetChildNumbers.mockResolvedValue([]);

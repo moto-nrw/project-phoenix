@@ -516,8 +516,12 @@ export function HolidayRegistrationStatusCard({
   const setDebtorNumber = (value: string) =>
     setTypedDebtorNumber({ registrationId: registration.id, value });
   const [editingDebtorNumber, setEditingDebtorNumber] = useState(false);
+  const [editingChildNumbers, setEditingChildNumbers] = useState(false);
   // With a number per child, several children get a field each (#7007).
   const perChild = childDebtorNumbers.length > 1;
+  // A cancelled whole-registration invoice keeps its shape after a scope
+  // switch. Its existing number must remain editable for the replacement.
+  const showsRegistrationNumber = !perChild || registration.debtorNumber !== "";
   const [typedChildNumbers, setTypedChildNumbers] = useState<{
     readonly registrationId: string;
     readonly values: ChildNumberValues;
@@ -720,21 +724,28 @@ export function HolidayRegistrationStatusCard({
           </Button>
         </>
       )}
-      {showsDebtorNumber && perChild && !editingDebtorNumber ? (
+      {showsDebtorNumber &&
+      perChild &&
+      !editingChildNumbers &&
+      !editingDebtorNumber ? (
         <Button
           type="button"
           variant="outline"
           size="md"
           disabled={running !== null}
           tooltip="Öffnet je Kind ein Feld für seine Debitorennummer."
-          onClick={() => setEditingDebtorNumber(true)}
+          onClick={() => setEditingChildNumbers(true)}
         >
           {childHasNumber
             ? "Nummern der Kinder ändern"
             : "Nummern der Kinder eintragen"}
         </Button>
       ) : null}
-      {showsDebtorNumber && !perChild && !invoiced && !editingDebtorNumber ? (
+      {showsDebtorNumber &&
+      showsRegistrationNumber &&
+      !invoiced &&
+      !editingDebtorNumber &&
+      !editingChildNumbers ? (
         <Button
           type="button"
           variant="outline"
@@ -909,12 +920,12 @@ export function HolidayRegistrationStatusCard({
             required={debtorNumberRequired}
             format={debtorNumberFormat}
             invoiced={invoiced}
-            editing={editingDebtorNumber}
-            onEditingChange={setEditingDebtorNumber}
+            editing={editingChildNumbers}
+            onEditingChange={setEditingChildNumbers}
             onChanged={debtorAfterWrite.refresh}
           />
         ) : null}
-        {showsDebtorNumber && !perChild ? (
+        {showsDebtorNumber && showsRegistrationNumber ? (
           <DebtorNumberField
             periodId={periodId}
             registrationId={registration.id}
@@ -927,6 +938,12 @@ export function HolidayRegistrationStatusCard({
             onEditingChange={setEditingDebtorNumber}
             onChanged={debtorAfterWrite.refresh}
           />
+        ) : null}
+        {showsDebtorNumber && perChild && showsRegistrationNumber ? (
+          <p>
+            Die Nummer der Anmeldung gilt für eine gemeinsame Rechnung.
+            Einzelrechnungen nutzen die Nummer des Kindes.
+          </p>
         ) : null}
         {choosesPayer ? (
           <PayerChoice

@@ -245,3 +245,14 @@ func billingPosition(line parentbilling.HolidayContributionLine) parentbilling.B
 		WeekID: line.WeekID,
 	}
 }
+
+// hasChildInvoices includes replacements that keep their child-specific
+// shape after a switch to payer scope.
+func hasChildInvoices(documents []parentbilling.BillingDocument) bool {
+	for _, document := range documents {
+		if document.RegistrationChildID != 0 {
+			return true
+		}
+	}
+	return false
+}

@@ -70,11 +70,13 @@ export function childNumberHints(
 ): Record<string, string> | null {
   const hints: Record<string, string> = {};
   for (const child of children) {
-    const value = values[child.childId] ?? "";
+    const value = (values[child.childId] ?? "").trim();
     const error =
       required && !value.trim()
         ? "Bitte geben Sie die Debitorennummer ein."
-        : debtorNumberFormatError(value, format);
+        : value === child.debtorNumber
+          ? null
+          : debtorNumberFormatError(value, format);
     if (error) hints[childNumberField(child.childId)] = error;
   }
   return Object.keys(hints).length > 0 ? hints : null;
@@ -256,8 +258,8 @@ export function ChildDebtorNumbersField({
       </DataGrid>
       <p>
         {invoiced
-          ? "Jedes Kind hat eine eigene Rechnung mit seiner Nummer. Ausgestellte Rechnungen behalten ihre Nummer; eine geänderte Nummer gilt ab der nächsten Rechnung."
-          : "Jedes Kind bekommt eine eigene Rechnung mit seiner Nummer. Sie steht im Schreiben als Verwendungszweck."}
+          ? "Ausgestellte Rechnungen behalten ihre Nummer. Eine geänderte Nummer gilt für neue Einzelrechnungen."
+          : "Einzelrechnungen nutzen die Nummer des Kindes als Verwendungszweck."}
       </p>
     </div>
   );

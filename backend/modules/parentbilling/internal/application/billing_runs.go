@@ -512,7 +512,7 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 		run: run, registrations: registrations, contributions: contributions, issued: issued, corrections: corrections,
 		replaces: replaces, replaced: replaced, perChild: scope == parentbilling.DebtorNumberScopeChild,
 	})
-	payments, err := readInvoicePayments(ctx, b.store, reviewer.OrganizationID, 0, run.ID, scope)
+	payments, err := readInvoicePayments(ctx, b.store, reviewer.OrganizationID, 0, run.ID, scope, hasChildInvoices(result.documents))
 	if err != nil {
 		return preview{}, err
 	}
@@ -676,7 +676,7 @@ func (b *BillingRuns) releasedDetail(ctx context.Context, organizationID int64, 
 		return err
 	}
 	detail.DocumentKind = issuedDocumentKind(detail.Documents)
-	payments, err := readInvoicePayments(ctx, b.store, organizationID, 0, detail.ID, parentbilling.DebtorNumberScopePayer)
+	payments, err := readInvoicePayments(ctx, b.store, organizationID, 0, detail.ID, parentbilling.DebtorNumberScopePayer, false)
 	if err != nil {
 		return err
 	}

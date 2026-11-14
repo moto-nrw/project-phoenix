@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 type holidayChildNumbersBody struct {
@@ -132,13 +134,23 @@ func TestHolidayInvoicePerChildCarriesTheNumberOfEachChild(t *testing.T) {
 		{f.siblings, first.ChildID, "60101", 1}, {f.siblings, second.ChildID, "60103", 1}, {f.again, againChild(t, f), "70001", 1},
 	}, got, "each child its invoice with its number")
 
-	// A cancelled invoice of one child is issued again for that child alone.
+	// A cancelled invoice keeps its child number after switching to payer scope.
+	setTraegerSetting(t, f, configModels.KeyParentBillingDebtorNumberScope, "payer")
 	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, cancellationPath(released.ID, released.Documents[1].ID),
 		map[string]any{"reason": "Falsche Debitorennummer"})
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	setTraegerSetting(t, f, configModels.KeyParentBillingDebtorNumberOnConfirm, false)
+	newRegistration := f.submitChild(t, f.period, f.offer, "eva.muster@example.org", first.FirstName, 0)
+	rec = f.confirmWith(t, newRegistration, map[string]any{"debtor_number": "80001"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = f.changeDebtorNumber(t, f.office.token, newRegistration, "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	again := perChildRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
-	require.Len(t, again.Documents, 1)
+	require.Len(t, again.Documents, 2)
+	assert.Zero(t, again.Documents[1].RegistrationChildID)
+	assert.Equal(t, "80001", again.Documents[1].DebtorNumber)
 	assert.Equal(t, second.ChildID, again.Documents[0].RegistrationChildID)
+	assert.Equal(t, "60103", again.Documents[0].DebtorNumber)
 	assert.Equal(t, released.Documents[1].Number, again.Documents[0].ReferenceNumber)
 }
 
@@ -175,4 +187,83 @@ func TestHolidayInvoiceOfAWholeRegistrationKeepsItsShapeAfterTheSwitch(t *testin
 	require.Len(t, again.Documents, 1, "the invoice of the whole is issued again as one")
 	assert.Zero(t, again.Documents[0].RegistrationChildID)
 	assert.Len(t, again.Documents[0].Children, 2)
+}
+
+func TestHolidayConfirmationRequiresChildNumbersWithoutAnArray(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Pflichtnummern ohne Kinderliste")
+	setTraegerSetting(t, f, configModels.KeyParentBillingDebtorNumberScope, "child")
+	setTraegerSetting(t, f, configModels.KeyParentBillingDebtorNumberOnConfirm, true)
+	rec := f.confirmWith(t, f.siblings, map[string]any{"debtor_number": "70001"})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	_, fields := registrationRefusalOf(t, rec)
+	proposal := holidayChildNumbers(t, f, f.siblings)
+	for _, child := range proposal.Children {
+		assert.Contains(t, fields, fmt.Sprintf("child_debtor_number_%d", child.ChildID))
+	}
+}
+
+func TestHolidayChildNumbersKeepUnchangedLegacyValues(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Alte Kindernummern")
+	setTraegerSetting(t, f, configModels.KeyParentBillingDebtorNumberScope, "child")
+	proposal := holidayChildNumbers(t, f, f.siblings)
+	first, second := proposal.Children[0], proposal.Children[1]
+	inputs := []map[string]any{{"child_id": first.ChildID, "debtor_number": "OLD-1"}, {"child_id": second.ChildID, "debtor_number": "OLD-2"}}
+	rec := f.confirmWith(t, f.siblings, map[string]any{"child_debtor_numbers": inputs})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	fiveDigits(t, f)
+	path := holidayContributionPath(f.period.ID, f.siblings) + "/child-debtor-numbers"
+	inputs[1]["debtor_number"] = "60102"
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, path, map[string]any{"children": inputs})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, "OLD-1", holidayChildNumbers(t, f, f.siblings).Children[0].DebtorNumber)
+	inputs[0]["debtor_number"] = "NEW-1"
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, path, map[string]any{"children": inputs})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	// A later registration of the same children submits the stored proposal too.
+	repeated := f.submitChild(t, f.period, f.offer, "eva.muster@example.org", first.FirstName, 0)
+	children := holidayChildNumbers(t, f, repeated)
+	require.Len(t, children.Children, 1)
+	rec = f.confirmWith(t, repeated, map[string]any{"child_debtor_numbers": []map[string]any{
+		{"child_id": children.Children[0].ChildID, "debtor_number": "OLD-1"},
+	}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+}
+
+func TestHolidayChildNumberRemovalsAreBatched(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Kindernummern gemeinsam entfernen")
+	setTraegerSetting(t, f, configModels.KeyParentBillingDebtorNumberScope, "child")
+	proposal := holidayChildNumbers(t, f, f.siblings)
+	var inputs []map[string]any
+	for i, child := range proposal.Children {
+		inputs = append(inputs, map[string]any{"child_id": child.ChildID, "debtor_number": fmt.Sprint(60101 + i)})
+	}
+	rec := f.confirmWith(t, f.siblings, map[string]any{"child_debtor_numbers": inputs})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	for _, input := range inputs {
+		input["debtor_number"] = ""
+	}
+	counter := testpkg.CaptureQueriesForContext(t, f.db)
+	tracked := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f.traeger.ServeHTTP(w, r.WithContext(counter.Context(r.Context())))
+	})
+	rec = traegerJSON(t, tracked, f.office.token, http.MethodPut,
+		holidayContributionPath(f.period.ID, f.siblings)+"/child-debtor-numbers", map[string]any{"children": inputs})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Len(t, counter.Matching(func(sql string) bool {
+		return strings.Contains(sql, "update parent_billing.child_debtor_numbers as child")
+	}), 1, "all removals use one update")
+	assert.Len(t, counter.Matching(func(sql string) bool {
+		return strings.Contains(sql, "insert into parent_billing.child_debtor_number_events")
+	}), 1, "all removal events use one insert")
+	for _, child := range holidayChildNumbers(t, f, f.siblings).Children {
+		assert.Empty(t, child.DebtorNumber)
+	}
+	var removed int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.child_debtor_number_events
+		WHERE organization_id = ? AND action = 'delete'`, f.office.organization).Scan(context.Background(), &removed))
+	assert.Equal(t, len(inputs), removed, "every cleared number gets its event")
 }
