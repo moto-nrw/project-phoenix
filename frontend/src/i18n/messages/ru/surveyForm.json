@@ -25,5 +25,7 @@
   "submitObject": "ваш ответ",
   "participated": "Ответ отправлен",
   "needsAnswer": "Нужно ответить",
-  "questionLabel": "Вопрос {number} из {total}"
+  "questionLabel": "Вопрос {number} из {total}",
+  "submitTooltip": "Сразу отправляет ваш ответ в школу, с вашим именем.",
+  "submitTooltipAnonymous": "Сразу отправляет ваш ответ в школу, без вашего имени."
 }
