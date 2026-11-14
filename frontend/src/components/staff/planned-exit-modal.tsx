@@ -116,9 +116,11 @@ export function PlannedExitModal({
         disabledReason={
           day === ""
             ? "Wählen Sie zuerst den letzten Arbeitstag aus."
-            : "Der letzte Arbeitstag darf nicht in der Vergangenheit liegen."
+            : day < today
+              ? "Der letzte Arbeitstag darf nicht in der Vergangenheit liegen."
+              : undefined
         }
-        tooltip="Plant den Austritt, nach diesem Tag löscht moto die Person."
+        tooltip="Plant den Austritt, danach entzieht moto den Zugang und entfernt die Person."
       >
         {plannedDay ? "Speichern" : "Austritt planen"}
       </Button>

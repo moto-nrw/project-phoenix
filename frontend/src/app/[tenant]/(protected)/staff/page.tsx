@@ -931,7 +931,7 @@ function StaffPageContent() {
                 </>
               }
               submitLabel="Monat abschließen"
-              submitTooltip="Friert den Saldo zum Monatsende für alle Mitarbeitenden ein."
+              submitTooltip="Schreibt das Stundenkonto aller Mitarbeitenden zum Monatsende fest."
               successMessage="Der Monat ist abgeschlossen."
               onSubmit={handleCloseMonth}
               onClose={() => setShowCloseModal(false)}

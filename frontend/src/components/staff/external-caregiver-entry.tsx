@@ -72,14 +72,17 @@ function grantableExternalAccess(
   return canGrantView ? ["none", "view", "supervise"] : ["none", "supervise"];
 }
 
-/** Email check shared by the entry and the invitation dialog. */
-// Mit Zugang verschickt das Anlegen im selben Schritt die Einladung (#4573).
+/**
+ * Erklärung des Anlege-Knopfs (#6643): Mit Zugang verschickt das Anlegen im
+ * selben Schritt die Einladung (#4573).
+ */
 export function externalCreateTooltip(access: ExternalAccess): string {
   return access === "none"
     ? "Trägt die Person ohne eigenes Konto in moto ein."
-    : "Trägt die Person ein und schickt ihr sofort eine Einladung per E-Mail.";
+    : "Trägt die Person ein und lädt sie sofort per E-Mail zu moto ein.";
 }
 
+/** Email check shared by the entry and the invitation dialog. */
 export function emailFieldHint(email: string): string | null {
   const trimmed = email.trim();
   if (!trimmed) return "Bitte E-Mail-Adresse eingeben.";

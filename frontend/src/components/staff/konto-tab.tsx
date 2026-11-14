@@ -249,7 +249,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
             variant="outline"
             size="md"
             onClick={startEditing}
-            tooltip="Öffnet Name, Rolle und Notizen dieser Person zum Ändern."
+            tooltip="Öffnet die Angaben dieser Person zum Ändern."
           >
             Bearbeiten
           </Button>

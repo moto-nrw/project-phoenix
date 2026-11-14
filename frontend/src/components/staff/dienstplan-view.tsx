@@ -587,7 +587,7 @@ function DienstplanContent() {
                   label: "Drucken oder exportieren",
                   icon: <Printer className="h-4 w-4" aria-hidden />,
                   description:
-                    "Öffnet ein Fenster, um den Plan zu drucken oder zu speichern",
+                    "Öffnet ein Fenster, um den Plan zu drucken oder zu speichern.",
                   onClick: () => setExportOpen(true),
                 },
               ]}

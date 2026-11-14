@@ -353,7 +353,8 @@ export function SonderarbeitszeitenSection({
           {
             label: "Löschen",
             destructive: true,
-            description: "Löscht die Sonderarbeitszeit, moto fragt vorher nach",
+            description:
+              "Löscht die Sonderarbeitszeit, moto fragt vorher nach.",
             onClick: () => {
               deleteErrors.clear();
               setDeleteTarget(row);
@@ -424,10 +425,11 @@ export function SonderarbeitszeitenSection({
               variant="primary"
               size="md"
               onClick={() => void handleSave()}
-              disabled={saving}
+              isLoading={saving}
+              loadingText="Speichert…"
               tooltip="Speichert die Stunden, das Soll der Person ändert sich dann."
             >
-              {saving ? "Speichert…" : "Speichern"}
+              Speichern
             </Button>
           </div>
         }

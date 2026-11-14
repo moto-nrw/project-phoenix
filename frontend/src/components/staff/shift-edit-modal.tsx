@@ -1016,13 +1016,9 @@ export function ShiftEditModal({
           isSaving || !timesValid || !breakValid || seriesWeekdays.length === 0
         }
         disabledReason={
-          !timesValid
-            ? "Prüfen Sie zuerst Beginn und Ende."
-            : !breakValid
-              ? "Prüfen Sie zuerst die Pause."
-              : "Wählen Sie zuerst mindestens einen Wochentag aus."
+          timeBlockedReason(timesValid, breakValid) ?? WEEKDAY_BLOCKED_REASON
         }
-        tooltip="Ändert die Serie ab diesem Tag, frühere Wochen bleiben gleich."
+        tooltip="Ändert die Serie ab diesem Termin, frühestens ab morgen."
       >
         Serie speichern
       </Button>
@@ -1083,13 +1079,10 @@ export function ShiftEditModal({
         disabledReason={
           isDeleting
             ? undefined
-            : !timesValid
-              ? "Prüfen Sie zuerst Beginn und Ende."
-              : !breakValid
-                ? "Prüfen Sie zuerst die Pause."
-                : weekdays.length === 0
-                  ? "Wählen Sie zuerst mindestens einen Wochentag aus."
-                  : "Wählen Sie zuerst einen Planungszeitraum aus."
+            : (timeBlockedReason(timesValid, breakValid) ??
+              (weekdays.length === 0
+                ? WEEKDAY_BLOCKED_REASON
+                : "Wählen Sie zuerst einen Planungszeitraum aus."))
         }
         tooltip={submitTooltip({
           mode,
@@ -1394,7 +1387,7 @@ export function ShiftEditModal({
                                     variant="ghost"
                                     size="icon"
                                     aria-label={`Vertretung ${index + 1} entfernen`}
-                                    tooltip="Entfernt die Vertretung, gespeichert wird erst beim Speichern."
+                                    tooltip="Nimmt die Vertretung heraus, das gilt erst nach dem Speichern."
                                     onClick={() => removeReplacement(index)}
                                   >
                                     <X className="h-4 w-4" aria-hidden="true" />
@@ -1684,6 +1677,19 @@ function submitLabel(mode: ShiftEditMode, repeatEnabled: boolean): string {
   return repeatEnabled ? "Serie anlegen" : "Schicht anlegen";
 }
 
+const WEEKDAY_BLOCKED_REASON =
+  "Wählen Sie zuerst mindestens einen Wochentag aus.";
+
+/** Warum Beginn, Ende oder Pause das Speichern sperren (#6643). */
+function timeBlockedReason(
+  timesValid: boolean,
+  breakValid: boolean,
+): string | undefined {
+  if (!timesValid) return "Prüfen Sie zuerst Beginn und Ende.";
+  if (!breakValid) return "Prüfen Sie zuerst die Pause.";
+  return undefined;
+}
+
 function submitTooltip({
   mode,
   repeatEnabled,
@@ -1700,7 +1706,7 @@ function submitTooltip({
       : "Trägt die Schicht an diesem Tag in den Dienstplan ein.";
   }
   return asksScope
-    ? "Speichert die Änderung, moto fragt: nur diese Woche oder dauerhaft."
+    ? "Speichert die Änderung, moto fragt vorher nach, für welche Wochen."
     : "Speichert die Änderung an dieser Schicht.";
 }
 

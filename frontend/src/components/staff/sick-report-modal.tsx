@@ -201,7 +201,7 @@ export function SickReportModal({
         tooltip={
           halfDay
             ? "Trägt den halben Krankheitstag ein, der Dienstplan bleibt gleich."
-            : "Meldet die Person krank und streicht ihre Schichten in dieser Zeit."
+            : "Meldet die Person krank und storniert ihre Schichten in dieser Zeit."
         }
       >
         Krank melden
