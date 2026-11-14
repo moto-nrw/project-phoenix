@@ -187,6 +187,41 @@ Warnung `email webhook has no signing secret`, keinen Fehler und kein
 Sentry-Ereignis; Lettermint wiederholt und schaltet den Webhook nach 72 Stunden
 ab.
 
+## Rückweg auf Strato
+
+Der Rückweg gilt, solange Strato nicht gekündigt ist. Deshalb kündigt #5935
+Strato erst nach der Beobachtungswoche.
+
+**Kein Rückweg nötig** bei einer kurzen Störung von Lettermint: Andere Mails
+warten in der Warteschlange und gehen danach raus (siehe Drosselung).
+Sicherheitsmails nehmen den Notweg.
+
+**Rückweg** bei einem längeren Ausfall, einer Sperre des Lettermint-Kontos oder
+Zustellproblemen, die sich nicht schnell lösen lassen:
+
+1. Den Commit, der die Umgebung auf Lettermint umgestellt hat, per Pull Request
+   zurücknehmen (`git revert`). Damit steht wieder der alte Stand in der
+   `environments/<umgebung>.sops.env`: `EMAIL_PROVIDER` leer und die
+   Strato-Werte in `EMAIL_SMTP_*` und `EMAIL_FROM_ADDRESS`. Strato nimmt nur
+   seine eigene Absenderadresse an. Neue Absender wie `mail.moto-ogs.de`
+   funktionieren dort nicht.
+2. Deployen: Production über `main`, Demo und Staging über `development`.
+3. Eine Testmail senden, zum Beispiel einen Anmeldecode.
+
+Danach gilt:
+
+- moto sendet über einfaches SMTP. Mails bleiben bei „Versendet“, denn ohne
+  Lettermint meldet niemand „Zugestellt“ oder einen Bounce. Der Abgleich und der
+  Notweg sind aus.
+- Mails, die in der Warteschlange warten, gehen über Strato raus.
+- Eine Sicherheitsmail, die gerade auf den Notweg wartet, endet mit dem Alarm
+  „Security mail fallback request ended“. Die Person startet den Vorgang neu.
+- Lettermint kann den Webhook nach 72 Stunden ohne Antwort abschalten. Vor der
+  Rückkehr zu Lettermint den Webhook im Dashboard prüfen und einschalten.
+
+Zurück zu Lettermint geht es, indem man den Revert wieder zurücknimmt und
+deployt.
+
 ## Sperren
 
 Eine Sperre nach Hard Bounce gilt bei Lettermint teamweit und läuft nicht ab.
