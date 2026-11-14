@@ -86,6 +86,9 @@ func (s *mealOrderServer) handle(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 			return
 		}
 		_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+	case path == "/api/settings/values/operations.meal_plan_enabled", path == "/api/settings/values/operations.meal_registration_enabled":
+		s.events = append(s.events, fmt.Sprintf("enable %s", strings.TrimPrefix(path, "/api/settings/values/")))
+		_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 	case path == "/api/settings/values/operations.meal_registration_lead_days":
 		s.events = append(s.events, fmt.Sprintf("lead %v", body["value"]))
 		_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
@@ -220,6 +223,27 @@ func TestSeedMealCatererInvitationStepNeedsAMailbox(t *testing.T) {
 	require.NoError(t, step.Run(context.Background(), withMailbox))
 	assert.Equal(t, []string{"invite kontakt@frischekueche-rheinland.example Frischeküche Rheinland GmbH"}, server.events)
 	assert.IsType(t, time.Time{}, withMailbox.Values[seedCatererInvitedAt])
+}
+
+// The manual school switches on meal registration and invites a caterer that
+// never accepts, so an open invitation with its mail status stays visible
+// (#5960). Without a mailbox it invites nobody.
+func TestSeedManualOpenCatererInvitationStaysOpen(t *testing.T) {
+	t.Parallel()
+	server := &mealOrderServer{t: t}
+	srv := newSeedHTTPTestServer(server.handle)
+	defer srv.Close()
+	readMailLink := func(context.Context, string, string, time.Time) (string, error) { return "", nil }
+
+	require.NoError(t, (&Seeder{}).seedManualOpenCatererInvitation(mealOrderRuntime(srv.URL)))
+	assert.Empty(t, server.events)
+
+	seeder := &Seeder{options: SeedOptions{ReadMailLink: readMailLink}}
+	require.NoError(t, seeder.seedManualOpenCatererInvitation(mealOrderRuntime(srv.URL)))
+	assert.Equal(t, []string{
+		"enable operations.meal_plan_enabled", "enable operations.meal_registration_enabled",
+		"invite bestellung@kuechenwerk-nord.example Küchenwerk Nord",
+	}, server.events)
 }
 
 // Without a mailbox the order week is still fixed, and no caterer accepts.
