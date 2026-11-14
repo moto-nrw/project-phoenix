@@ -179,9 +179,13 @@ export function GroupTransferModal({
         disabled={!selectedStaffId || availableUsers.length === 0}
         tooltip="Macht die gewählte Fachkraft heute zusätzlich für die Gruppe zuständig."
         disabledReason={
-          availableUsers.length === 0
-            ? "Es ist keine pädagogische Fachkraft verfügbar."
-            : "Wählen Sie zuerst eine Fachkraft aus."
+          // Bei einem Ladefehler ist die Liste nur scheinbar leer: dort steht
+          // der Fehler, der Knopf behauptet nichts (#6643).
+          loadError
+            ? undefined
+            : availableUsers.length === 0
+              ? "Es ist keine pädagogische Fachkraft verfügbar."
+              : "Wählen Sie zuerst eine Fachkraft aus."
         }
       >
         Übergeben

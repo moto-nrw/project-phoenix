@@ -257,7 +257,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
           {
             label: "Belieferung beenden",
             description:
-              "Der Caterer sieht danach keine Bestellungen mehr. moto fragt vorher nach",
+              "Beendet die Belieferung, der Caterer sieht nichts mehr. moto fragt vorher nach",
             destructive: true,
             onClick: () => setEndOpen(true),
           },

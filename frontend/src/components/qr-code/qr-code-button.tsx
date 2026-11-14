@@ -26,6 +26,8 @@ interface QrCodeButtonProps extends QrCodeTarget {
   readonly className?: string;
 }
 
+const QR_TOOLTIP = "Zeigt den Link als QR-Code zum Scannen oder Speichern.";
+
 /** Opens the QR code of a link. It stands beside the button that copies it. */
 export function QrCodeButton({
   appearance = "labelled",
@@ -49,7 +51,7 @@ export function QrCodeButton({
           size="icon"
           className={className ?? "shrink-0"}
           aria-label="QR-Code anzeigen"
-          tooltip="Zeigt den Link als QR-Code zum Scannen oder Speichern."
+          tooltip={QR_TOOLTIP}
           onClick={(event) => {
             event.stopPropagation();
             show();
@@ -64,7 +66,7 @@ export function QrCodeButton({
           size="md"
           className={className ?? "inline-flex shrink-0 items-center gap-2"}
           onClick={show}
-          tooltip="Zeigt den Link als QR-Code zum Scannen oder Speichern."
+          tooltip={QR_TOOLTIP}
         >
           <QrCode className="h-4 w-4" aria-hidden="true" />
           QR-Code

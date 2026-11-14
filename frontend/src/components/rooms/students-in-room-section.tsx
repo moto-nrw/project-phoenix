@@ -655,7 +655,7 @@ function BulkMoveToolbar({
     moveBlockedReason = "Wählen Sie zuerst mindestens ein Kind aus.";
   } else if (noTargets) {
     moveBlockedReason =
-      "Es gibt gerade keinen Raum, in den Sie Kinder setzen können.";
+      "Gerade gibt es keinen Raum, in den Sie Kinder setzen können.";
   } else if (targetValue.length === 0) {
     moveBlockedReason = "Wählen Sie zuerst einen Zielraum.";
   }

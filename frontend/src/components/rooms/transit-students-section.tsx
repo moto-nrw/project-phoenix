@@ -278,7 +278,7 @@ export function TransitStudentsSection({
     assignBlockedReason = "Wählen Sie zuerst mindestens ein Kind aus.";
   } else if (!targetsLoading && targetOptions.length === 0) {
     assignBlockedReason =
-      "Gerade ist kein Raum aktiv, in den Sie Kinder setzen können.";
+      "Gerade gibt es keinen Raum, in den Sie Kinder setzen können.";
   } else if (!targetsLoading && !targetValue) {
     assignBlockedReason = "Wählen Sie zuerst einen Zielraum.";
   }
