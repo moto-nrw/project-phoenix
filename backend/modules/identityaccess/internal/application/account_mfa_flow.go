@@ -466,8 +466,9 @@ func (f *AccountMFAFlows) VerifyTrustedDevice(ctx context.Context, accountID int
 	return true, nil
 }
 
-// ListTrustedDevices lists the account's active devices of one scope.
-func (f *AccountMFAFlows) ListTrustedDevices(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope) ([]domain.AccountTrustedDevice, error) {
+// listTrustedDevices lists the account's active devices of one scope; a
+// scope no portal remembers a device in lists none.
+func (f *AccountMFAFlows) listTrustedDevices(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope) ([]domain.AccountTrustedDevice, error) {
 	if !scope.Valid() {
 		return nil, identityaccess.ErrMFAPermissionDenied
 	}
@@ -478,7 +479,10 @@ func (f *AccountMFAFlows) ListTrustedDevices(ctx context.Context, accountID int6
 // calling account in the calling scope, so neither an id guess nor a token
 // from another school or portal can revoke it.
 func (f *AccountMFAFlows) RevokeTrustedDevice(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope, deviceID int64) error {
-	devices, err := f.ListTrustedDevices(ctx, accountID, scope)
+	if !scope.Valid() {
+		return identityaccess.ErrMFAPermissionDenied
+	}
+	devices, err := f.records.ListActiveTrustedDevices(ctx, accountID, scope)
 	if err != nil {
 		return err
 	}

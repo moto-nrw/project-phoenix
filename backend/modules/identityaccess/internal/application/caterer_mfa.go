@@ -370,7 +370,7 @@ func (c *CatererAccess) listTrustedDevices(ctx context.Context, accountID int64)
 	if err := c.secondFactorOf(ctx, accountID); err != nil {
 		return nil, err
 	}
-	return c.mfa.ListTrustedDevices(ctx, accountID, domain.DeviceScopeOf(domain.PortalCaterer, 0, 0))
+	return c.mfa.listTrustedDevices(ctx, accountID, domain.DeviceScopeOf(domain.PortalCaterer, 0, 0))
 }
 
 // RevokeCatererTrustedDevice forgets one remembered device of the caterer.

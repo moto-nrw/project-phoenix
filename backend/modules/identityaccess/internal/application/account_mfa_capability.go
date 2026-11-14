@@ -141,7 +141,7 @@ func (c ComposedAccountMFA) VerifyTrustedDevice(ctx context.Context, accountID i
 }
 
 func (c ComposedAccountMFA) ListTrustedDevices(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope) ([]identityaccess.AccountTrustedDevice, error) {
-	devices, err := c.Flows.ListTrustedDevices(c.ctx(ctx), accountID, domain.TrustedDeviceScope(scope))
+	devices, err := c.Flows.listTrustedDevices(c.ctx(ctx), accountID, domain.TrustedDeviceScope(scope))
 	if err != nil {
 		return nil, MFAError(err)
 	}

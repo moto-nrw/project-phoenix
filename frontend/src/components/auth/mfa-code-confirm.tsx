@@ -20,7 +20,7 @@ const DEVICE_LIST_PLACE: Record<LoginScope, string> = {
 };
 
 /** „90 Tage“, „1 Tag“. */
-export function trustedDeviceDuration(days: number): string {
+function trustedDeviceDuration(days: number): string {
   return days === 1 ? "1 Tag" : `${days} Tage`;
 }
 

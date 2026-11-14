@@ -272,18 +272,8 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/application/AccountMFAFlows.ListTrustedDevices",
-      "reason": "Exact evidence for #6955: the scope check of the remembered-device list and revoke, before the adapter reads or writes; owner-internal, no new forwarding debt."
-    },
-    {
-      "decision": "0090",
       "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallengeForScope",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/AccountMFAFlows.RevokeTrustedDevice",
-      "reason": "Exact evidence for #6955: the scope check of the remembered-device list and revoke, before the adapter reads or writes; owner-internal, no new forwarding debt."
     },
     {
       "decision": "0090",

@@ -380,23 +380,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (f *AccountMFAFlows) ListTrustedDevices(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope) ([]domain.AccountTrustedDevice, error) {\n\tif !scope.Valid() {\n\t\treturn nil, identityaccess.ErrMFAPermissionDenied\n\t}\n\treturn f.records.ListActiveTrustedDevices(ctx, accountID, scope)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/AccountMFAFlows.ListTrustedDevices",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
       "evidence": "func (f *AccountMFAFlows) ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\tif claims.Scope != expectedScope {\n\t\treturn \"\", identityaccess.ErrMFAUnsupportedScope\n\t}\n\treturn f.resend(ctx, claims, ip)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallengeForScope",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
-      "evidence": "func (f *AccountMFAFlows) RevokeTrustedDevice(ctx context.Context, accountID int64, scope domain.TrustedDeviceScope, deviceID int64) error {\n\tdevices, err := f.ListTrustedDevices(ctx, accountID, scope)\n\tif err != nil {\n\t\treturn err\n\t}\n\tfor _, device := range devices {\n\t\tif device.ID == deviceID {\n\t\t\treturn f.records.RevokeTrustedDevice(ctx, deviceID, f.now())\n\t\t}\n\t}\n\treturn identityaccess.ErrMFAPermissionDenied\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/AccountMFAFlows.RevokeTrustedDevice",
       "owner": "modules/identityaccess"
     },
     {
@@ -758,7 +744,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (c ComposedAccountMFA) ListTrustedDevices(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope) ([]identityaccess.AccountTrustedDevice, error) {\n\tdevices, err := c.Flows.ListTrustedDevices(c.ctx(ctx), accountID, domain.TrustedDeviceScope(scope))\n\tif err != nil {\n\t\treturn nil, MFAError(err)\n\t}\n\tresult := make([]identityaccess.AccountTrustedDevice, 0, len(devices))\n\tfor _, device := range devices {\n\t\tresult = append(result, identityaccess.AccountTrustedDevice(device))\n\t}\n\treturn result, nil\n}",
+      "evidence": "func (c ComposedAccountMFA) ListTrustedDevices(ctx context.Context, accountID int64, scope identityaccess.TrustedDeviceScope) ([]identityaccess.AccountTrustedDevice, error) {\n\tdevices, err := c.Flows.listTrustedDevices(c.ctx(ctx), accountID, domain.TrustedDeviceScope(scope))\n\tif err != nil {\n\t\treturn nil, MFAError(err)\n\t}\n\tresult := make([]identityaccess.AccountTrustedDevice, 0, len(devices))\n\tfor _, device := range devices {\n\t\tresult = append(result, identityaccess.AccountTrustedDevice(device))\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ListTrustedDevices",
       "owner": "modules/identityaccess"

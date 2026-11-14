@@ -96,7 +96,12 @@ func TestMFASecurityPolicyFailuresBothPortals(t *testing.T) {
 				} else {
 					assert.Empty(t, response.Result().Cookies())
 				}
-				devices, err := module.MFA.ListTrustedDevices(context.Background(), account.ID, identityaccess.TenantPortalDevice(tenantID))
+				// The device belongs to the portal that remembered it (#6955).
+				deviceScope := identityaccess.TenantPortalDevice(tenantID)
+				if scope == identityaccess.MFAChallengeScopeSchool {
+					deviceScope = identityaccess.SchoolPortalDevice(tenantID)
+				}
+				devices, err := module.MFA.ListTrustedDevices(context.Background(), account.ID, deviceScope)
 				require.NoError(t, err)
 				if lockoutFailure {
 					assert.Len(t, devices, 1)
