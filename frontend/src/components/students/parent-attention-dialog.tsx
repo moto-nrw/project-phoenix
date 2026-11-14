@@ -171,9 +171,9 @@ function MessagesSection({ studentId }: Readonly<{ studentId: string }>) {
       });
     }
   }, [clear, showLoadError, studentId]);
-  loadRef.current = load;
 
   useEffect(() => {
+    loadRef.current = load;
     void load();
   }, [load]);
 
