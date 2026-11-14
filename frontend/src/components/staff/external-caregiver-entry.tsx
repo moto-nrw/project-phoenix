@@ -73,6 +73,13 @@ function grantableExternalAccess(
 }
 
 /** Email check shared by the entry and the invitation dialog. */
+// Mit Zugang verschickt das Anlegen im selben Schritt die Einladung (#4573).
+export function externalCreateTooltip(access: ExternalAccess): string {
+  return access === "none"
+    ? "Trägt die Person ohne eigenes Konto in moto ein."
+    : "Trägt die Person ein und schickt ihr sofort eine Einladung per E-Mail.";
+}
+
 export function emailFieldHint(email: string): string | null {
   const trimmed = email.trim();
   if (!trimmed) return "Bitte E-Mail-Adresse eingeben.";
@@ -435,6 +442,7 @@ export function ExternalCaregiverEntry({
         size="compact"
         onClick={() => setIsOpen(true)}
         disabled={disabled}
+        tooltip="Öffnet Felder, um eine Person von außerhalb einzutragen."
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
         Externe Person eintragen
@@ -460,6 +468,7 @@ export function ExternalCaregiverEntry({
             size="md"
             onClick={close}
             disabled={form.isSaving}
+            tooltip="Schließt die Felder, ohne die Person einzutragen."
           >
             Nicht eintragen
           </Button>
@@ -470,6 +479,7 @@ export function ExternalCaregiverEntry({
             onClick={() => void submitAndClose()}
             isLoading={form.isSaving}
             loadingText="Wird eingetragen ..."
+            tooltip={externalCreateTooltip(form.values.access)}
           >
             Eintragen
           </Button>

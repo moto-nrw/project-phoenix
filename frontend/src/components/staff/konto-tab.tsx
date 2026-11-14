@@ -249,6 +249,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
             variant="outline"
             size="md"
             onClick={startEditing}
+            tooltip="Öffnet Name, Rolle und Notizen dieser Person zum Ändern."
           >
             Bearbeiten
           </Button>
@@ -559,6 +560,16 @@ function KontoEditForm({
         onCancel={onCancel}
         saving={saving}
         disabled={requiredNameMissing || roleAssignmentLoading}
+        disabledReason={
+          requiredNameMissing
+            ? "Geben Sie zuerst Vor- und Nachnamen ein."
+            : undefined
+        }
+        saveTooltip={
+          editing.canEditRole
+            ? "Speichert die Angaben, eine neue Rolle ändert die Rechte der Person."
+            : undefined
+        }
       />
     </form>
   );
@@ -670,6 +681,7 @@ function EmailActions({
           variant="outline"
           size="compact"
           onClick={handleMailto}
+          tooltip="Öffnet Ihr E-Mail-Programm mit einer Nachricht an diese Person."
         >
           Schreiben
         </Button>
@@ -678,6 +690,7 @@ function EmailActions({
           variant="outline"
           size="compact"
           onClick={() => void copy(email)}
+          tooltip="Kopiert die E-Mail-Adresse in die Zwischenablage."
         >
           {copied ? "Kopiert" : "Kopieren"}
         </Button>

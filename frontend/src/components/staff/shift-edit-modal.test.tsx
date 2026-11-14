@@ -67,13 +67,13 @@ describe("ShiftEditModal", () => {
     const saveButton = screen.getByRole("button", {
       name: "Änderungen speichern",
     });
-    expect(saveButton).toBeEnabled();
+    expect(saveButton).not.toHaveAttribute("aria-disabled");
 
     fireEvent.change(breakInput, { target: { value: "61" } });
-    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.change(breakInput, { target: { value: "60" } });
-    expect(saveButton).toBeEnabled();
+    expect(saveButton).not.toHaveAttribute("aria-disabled");
   });
 
   it("keeps existing covers when the cancel toggle is un- and re-checked (#1841)", async () => {

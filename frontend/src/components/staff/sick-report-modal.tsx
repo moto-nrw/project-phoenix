@@ -154,7 +154,13 @@ export function SickReportModal({
 
   const footer = isSuccess ? (
     <>
-      <Button type="button" variant="outline" size="md" onClick={onClose}>
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={onClose}
+        noTooltip="Schließt nur das Fenster, die Krankmeldung ist schon gespeichert."
+      >
         Schließen
       </Button>
       <Button
@@ -162,6 +168,7 @@ export function SickReportModal({
         variant="primary"
         size="md"
         onClick={goToVertretung}
+        tooltip="Öffnet die Vertretung am ersten Krankheitstag."
       >
         Zur Vertretung
       </Button>
@@ -174,6 +181,7 @@ export function SickReportModal({
         size="md"
         onClick={onClose}
         disabled={submitting}
+        noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
       >
         Abbrechen
       </Button>
@@ -185,6 +193,16 @@ export function SickReportModal({
         isLoading={submitting}
         loadingText="Wird gemeldet…"
         disabled={submitting || !dateStart || (!halfDay && !dateEnd)}
+        disabledReason={
+          !dateStart
+            ? "Wählen Sie zuerst den ersten Tag aus."
+            : "Wählen Sie zuerst den letzten Tag aus."
+        }
+        tooltip={
+          halfDay
+            ? "Trägt den halben Krankheitstag ein, der Dienstplan bleibt gleich."
+            : "Meldet die Person krank und streicht ihre Schichten in dieser Zeit."
+        }
       >
         Krank melden
       </Button>
