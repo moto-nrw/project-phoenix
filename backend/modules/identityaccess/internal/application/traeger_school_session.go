@@ -145,7 +145,9 @@ func (s *AccountAuthentication) traegerSessionMFAProof(ctx context.Context, acco
 // second factor only a remembered device proved, inherited through an
 // Absprung from the Träger-Portal or through a switch from another school,
 // is not minted at a school that switched remembered devices off; the
-// person proves the factor with a code. An unreadable setting counts as off.
+// person proves the factor with a code, in the Träger-Portal for a session
+// that came from there, else at the target school. An unreadable setting
+// counts as off.
 // The school's lifetime (mfa_trusted_device_days) is not enforced here: a
 // device the Träger or another school remembered keeps its own lifetime.
 func (s *AccountAuthentication) refuseDeviceProofAtSchool(ctx context.Context, portal domain.Portal, tenantID int64, session domain.AccountSession) error {
@@ -155,7 +157,12 @@ func (s *AccountAuthentication) refuseDeviceProofAtSchool(ctx context.Context, p
 	if s.mfa.IsTrustedDeviceEnabled(ctx, tenantID) {
 		return nil
 	}
-	return failed("session at a school without remembered devices", identityaccess.ErrSchoolRequiresCodeProof)
+	// A session from the Träger-Portal names its Träger: the person proves
+	// the factor there, since the school may hold no account of theirs.
+	if session.OrganizationID > 0 {
+		return failed("Träger session at a school without remembered devices", identityaccess.ErrSchoolRequiresCodeProof)
+	}
+	return failed("switch to a school without remembered devices", identityaccess.ErrSwitchRequiresCodeProof)
 }
 
 // requireTraegerSchoolMFA holds a Träger school session to the second factor

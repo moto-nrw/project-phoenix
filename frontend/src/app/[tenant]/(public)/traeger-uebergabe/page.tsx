@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { MotoBrand } from "~/components/auth/moto-brand";
 import { ButtonLink } from "~/components/ui/button";
@@ -30,11 +30,19 @@ const logger = createLogger({ component: "TraegerHandoffPage" });
  */
 export default function TraegerHandoffPage() {
   const [failed, setFailed] = useState(false);
+  // Auth.js answers every request without a CSRF cookie with a new one. The
+  // session check the provider starts on mount and signIn's own token
+  // request would each set one; if the check answers last, its cookie no
+  // longer fits signIn's token and the hand-off fails with MissingCSRF.
+  // signIn therefore starts once the check has answered.
+  const { status } = useSession();
+  const sessionChecked = status !== "loading";
   const redemption = useRef<Promise<
     Awaited<ReturnType<typeof signIn>> | undefined
   > | null>(null);
 
   useEffect(() => {
+    if (!sessionChecked) return;
     // The token works once: the fragment is read once and redeemed once. A
     // repeated effect run (React strict mode) waits for the same answer.
     if (redemption.current === null) {
@@ -68,7 +76,7 @@ export default function TraegerHandoffPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [sessionChecked]);
 
   return (
     <main className="moto-dotted-background moto-dotted-background--fullscreen flex min-h-dvh flex-col items-center justify-center px-4 py-10">

@@ -391,8 +391,13 @@ Entscheidung:
    Träger-Sitzung öffnet jede Schule. Die Gültigkeitsdauer der Schule
    (`mfa_trusted_device_days`) gilt beim Absprung nicht: Das Gerät des
    Trägers behält seine eigene. Derselbe Schritt gilt für den Wechsel einer
-   Sitzung in eine andere Schule; dort antwortet die Ablehnung wie bisher 401
-   `identity.mfa_session_required`. Ein Code-Schritt in der laufenden
+   Sitzung in eine andere Schule. Kommt die Sitzung aus dem Träger-Portal
+   (zweiter Tab eines Absprungs), antwortet auch der Wechsel 403
+   `traeger.school_requires_code`, und die Schul-App führt mit „Mit Code neu
+   anmelden“ zurück ins Träger-Portal (`/login?mit-code=1`): Die Person hat
+   an der Schule oft kein eigenes Konto. Wechselt ein Konto zwischen eigenen
+   Schulen, bleibt es bei 401 `identity.mfa_session_required` und der
+   Anmeldung an der Zielschule. Ein Code-Schritt in der laufenden
    Träger-Sitzung statt der neuen Anmeldung ist #7068.
 
 Nicht entschieden: ein Gerät für alle Schulen eines Kontos. Es bleibt bei

@@ -237,8 +237,8 @@ func checkRevokedDeviceAtMint(t *testing.T, schoolPortal bool) {
 
 // TestSwitchFromADeviceProvenSessionHonoursTheTargetSchool: a session whose
 // second factor only a device remembered at school A proved does not carry
-// that proof into school B once B switched remembered devices off (#6955);
-// B asks for a direct sign-in with a code. A target that allows remembered
+// that proof into school B once B switched remembered devices off (#6955),
+// also after a refresh; B asks for a direct sign-in with a code. A target that allows remembered
 // devices takes the proof as before.
 func TestSwitchFromADeviceProvenSessionHonoursTheTargetSchool(t *testing.T) {
 	t.Parallel()
@@ -264,10 +264,13 @@ func TestSwitchFromADeviceProvenSessionHonoursTheTargetSchool(t *testing.T) {
 	result, err := service.LoginWithMFAGate(ctx, email, testPassword, "", "", slugA, cookie)
 	require.NoError(t, err)
 	require.Equal(t, identityaccess.LoginStatusAuthenticated, result.Status, "the remembered device proves the factor at school A")
+	// The refresh keeps how the factor was proven.
+	_, _, err = service.RefreshTokenWithAudit(ctx, result.RefreshToken, "", "", "")
+	require.NoError(t, err)
 	family := tokenFamilyID(t, db, accountID, 0)
 
 	_, _, err = service.SwitchTenant(ctx, accountID, slugRefusing, family, "", "")
-	require.ErrorIs(t, err, identityaccess.ErrSchoolRequiresCodeProof, "a school without remembered devices asks for the code")
+	require.ErrorIs(t, err, identityaccess.ErrSwitchRequiresCodeProof, "a school without remembered devices asks for a sign-in there with the code")
 	_, refresh, err := service.SwitchTenant(ctx, accountID, slugAllowing, family, "", "")
 	require.NoError(t, err, "a school that allows remembered devices takes the proof")
 	assert.NotEmpty(t, refresh)

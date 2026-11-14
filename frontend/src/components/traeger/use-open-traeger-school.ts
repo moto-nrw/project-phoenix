@@ -13,7 +13,10 @@ import {
   startTraegerSchoolSession,
   type TraegerSchool,
 } from "~/lib/traeger-api";
-import { traegerHandoffUrl } from "~/lib/traeger-handoff";
+import {
+  TRAEGER_SIGN_IN_WITH_CODE_LABEL,
+  traegerHandoffUrl,
+} from "~/lib/traeger-handoff";
 import { TRAEGER_ROLE_LABELS } from "~/lib/traeger-roles";
 
 const logger = createLogger({ component: "useOpenTraegerSchool" });
@@ -98,7 +101,7 @@ export function useOpenTraegerSchool() {
           object: "die Schule",
           ...(askForCode && {
             action: {
-              label: "Mit Code neu anmelden",
+              label: TRAEGER_SIGN_IN_WITH_CODE_LABEL,
               // A failed sign-out leaves the person signed in; opening the
               // school again offers the action again.
               onClick: () =>

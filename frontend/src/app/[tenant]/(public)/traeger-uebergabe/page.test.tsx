@@ -24,8 +24,10 @@ vi.mock("~/env.client", () => ({
 }));
 
 const signIn = vi.fn();
+const session = vi.hoisted(() => ({ status: "unauthenticated" }));
 vi.mock("next-auth/react", () => ({
   signIn: (...args: unknown[]) => signIn(...args) as unknown,
+  useSession: () => ({ data: null, status: session.status }),
 }));
 
 const assign = vi.fn();
@@ -36,6 +38,7 @@ function open(hash: string) {
 }
 
 beforeEach(() => {
+  session.status = "unauthenticated";
   signIn.mockReset().mockResolvedValue({ error: undefined });
   assign.mockReset();
   vi.stubGlobal("location", {
@@ -51,6 +54,25 @@ beforeEach(() => {
 });
 
 describe("TraegerHandoffPage (#4654)", () => {
+  it("redeems only after the session check answered, so its CSRF cookie cannot replace signIn's (#6955)", async () => {
+    session.status = "loading";
+    const view = open("#token=handoff-token");
+
+    expect(screen.getByText(TRAEGER_HANDOFF_OPENING)).toBeInTheDocument();
+    await Promise.resolve();
+    expect(signIn).not.toHaveBeenCalled();
+    expect(globalThis.location.hash).toBe("#token=handoff-token");
+
+    session.status = "unauthenticated";
+    view.rerender(<TraegerHandoffPage />);
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+    expect(signIn).toHaveBeenCalledTimes(1);
+    expect(signIn).toHaveBeenCalledWith("credentials", {
+      redirect: false,
+      traegerHandoff: "handoff-token",
+    });
+  });
+
   it("redeems the hand-off token, removes it from the address and opens the start page", async () => {
     open("#token=handoff-token");
 

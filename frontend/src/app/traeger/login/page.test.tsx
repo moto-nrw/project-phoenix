@@ -5,20 +5,30 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
-const { mockLogin, mockSignIn, mockSearchParamsGet } = vi.hoisted(() => ({
-  mockLogin: vi.fn(),
-  mockSignIn: vi.fn(),
-  mockSearchParamsGet: vi.fn((_key: string): string | null => null),
-}));
+const { mockLogin, mockSignIn, mockSignOut, mockSession, mockSearchParamsGet } =
+  vi.hoisted(() => ({
+    mockLogin: vi.fn(),
+    mockSignIn: vi.fn(),
+    mockSignOut: vi.fn(),
+    mockSession: {
+      current: { data: null, status: "unauthenticated" } as {
+        data: unknown;
+        status: string;
+      },
+    },
+    mockSearchParamsGet: vi.fn((_key: string): string | null => null),
+  }));
 
 vi.mock("next-auth/react", () => ({
   signIn: (...args: unknown[]) => mockSignIn(...args),
-  signOut: vi.fn(),
-  useSession: () => ({ data: null, status: "unauthenticated" }),
+  signOut: (...args: unknown[]) => mockSignOut(...args),
+  useSession: () => mockSession.current,
 }));
 
 const stableSearchParams = { get: mockSearchParamsGet };
@@ -70,6 +80,8 @@ describe("TraegerLoginPage", () => {
       .mockImplementation(() => undefined);
     mockLogin.mockReset();
     mockSignIn.mockReset();
+    mockSignOut.mockReset().mockResolvedValue(undefined);
+    mockSession.current = { data: null, status: "unauthenticated" };
     mockSearchParamsGet.mockReturnValue(null);
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
@@ -138,7 +150,7 @@ describe("TraegerLoginPage", () => {
 
     expect(
       screen.getByText(
-        "Die Schule erlaubt keine gemerkten Geräte. Bestätigen Sie diese Anmeldung deshalb mit dem Code aus Ihrer E-Mail.",
+        "Die Schule verlangt eine Anmeldung mit Code. Geben Sie nach dem Passwort den Code aus Ihrer E-Mail ein.",
       ),
     ).toBeInTheDocument();
     submitCredentials();
@@ -147,6 +159,99 @@ describe("TraegerLoginPage", () => {
       expect.objectContaining({ ignoreTrustedDevice: true }),
     );
     expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBeNull();
+  });
+
+  it("shows the code hint after hydrating server markup and sends the flag (#6955)", async () => {
+    // The page as the server renders it, then hydrated in the browser: the
+    // request must survive the server render and show up after hydration.
+    sessionStorage.setItem("moto.traeger.sign-in-with-code", "1");
+    mockLogin.mockResolvedValue({
+      status: "mfa_required",
+      challengeToken: "challenge",
+      maskedEmail: "b***@traeger.example",
+      organizationId: "7",
+      trustedDeviceEnabled: true,
+      trustedDeviceDays: 90,
+    });
+    const container = document.createElement("div");
+    document.body.append(container);
+    container.innerHTML = renderToString(<TraegerLoginPage />);
+    const recoverableErrors = vi.fn();
+    const root = await act(async () =>
+      hydrateRoot(container, <TraegerLoginPage />, {
+        onRecoverableError: recoverableErrors,
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Schule verlangt eine Anmeldung mit Code. Geben Sie nach dem Passwort den Code aus Ihrer E-Mail ein.",
+      ),
+    ).toBeInTheDocument();
+    expect(recoverableErrors).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBe("1");
+    submitCredentials();
+    await screen.findByRole("heading", { name: "Code-Eingabe" });
+    expect(mockLogin).toHaveBeenCalledWith(
+      expect.objectContaining({ ignoreTrustedDevice: true }),
+    );
+    expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBeNull();
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it("keeps the code request while the person still chooses the Träger (#6955)", async () => {
+    sessionStorage.setItem("moto.traeger.sign-in-with-code", "1");
+    mockLogin.mockResolvedValueOnce({
+      status: "organization_selection_required",
+      organizations: [
+        { id: "7", name: "Träger Nord" },
+        { id: "8", name: "Träger Süd" },
+      ],
+    });
+    render(<TraegerLoginPage />);
+
+    submitCredentials();
+    await waitFor(() => expect(mockLogin).toHaveBeenCalledTimes(1));
+    expect(mockLogin).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ignoreTrustedDevice: true }),
+    );
+    expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBe("1");
+    sessionStorage.removeItem("moto.traeger.sign-in-with-code");
+  });
+
+  it("takes the code request from a school tab's link and forgets it in the address (#6955)", () => {
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "mit-code" ? "1" : null,
+    );
+    globalThis.history.replaceState(null, "", "/login?mit-code=1");
+    render(<TraegerLoginPage />);
+
+    expect(
+      screen.getByText(
+        "Die Schule verlangt eine Anmeldung mit Code. Geben Sie nach dem Passwort den Code aus Ihrer E-Mail ein.",
+      ),
+    ).toBeInTheDocument();
+    expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBe("1");
+    expect(globalThis.location.search).toBe("");
+    sessionStorage.removeItem("moto.traeger.sign-in-with-code");
+  });
+
+  it("ends a running Träger session instead of opening the school list when a school asks for the code (#6955)", async () => {
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "mit-code" ? "1" : null,
+    );
+    mockSession.current = {
+      data: { user: { scope: "org", token: "access-token" } },
+      status: "authenticated",
+    };
+    render(<TraegerLoginPage />);
+
+    await waitFor(() =>
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false }),
+    );
+    expect(navigate).not.toHaveBeenCalled();
+    sessionStorage.removeItem("moto.traeger.sign-in-with-code");
   });
 
   it("sets up the second factor before the first Träger session", async () => {

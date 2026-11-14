@@ -6,6 +6,7 @@
  */
 
 import { clientEnv } from "~/env.client";
+import { TRAEGER_SIGN_IN_WITH_CODE_PARAM } from "~/lib/traeger-login-params";
 
 /** The entry page on the school's host. */
 const TRAEGER_HANDOFF_PATH = "/traeger-uebergabe";
@@ -47,6 +48,19 @@ export function traegerHandoffUrl(subdomain: string, token: string): string {
 /** The start page of the Träger portal, for the way back. */
 export function traegerPortalUrl(): string {
   return `${globalThis.location.protocol}//${clientEnv.NEXT_PUBLIC_TRAEGER_HOSTNAME}/`;
+}
+
+/** Label of the way back when a school asks for a sign-in with code (#6955). */
+export const TRAEGER_SIGN_IN_WITH_CODE_LABEL = "Mit Code neu anmelden";
+
+/**
+ * The Träger login that asks for the code (#6955): a school whose remembered
+ * devices are off refused a session that came from the Träger-Portal. The
+ * person may hold no account at the school, so the way back leads to the
+ * Träger-Portal, which ends its session and ignores the device once.
+ */
+export function traegerSignInWithCodeUrl(): string {
+  return `${traegerPortalUrl()}login?${TRAEGER_SIGN_IN_WITH_CODE_PARAM}=1`;
 }
 
 /**

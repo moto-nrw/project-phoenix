@@ -890,10 +890,14 @@ Backend paths in this section are relative to `backend/`:
   A Träger session whose factor only a remembered device proved
   (`auth.tokens.mfa_by_device`, carried by refresh, Absprung and switch) is
   refused with 403 `traeger.school_requires_code` at a school whose
-  `security.mfa_trusted_device_enabled` is off or unreadable (#6955); a
-  switch between schools answers 401 `identity.mfa_session_required` there.
-  The portal then signs out and signs in once without the device cookie (the
-  BFF drops it for `ignore_trusted_device`). The school's
+  `security.mfa_trusted_device_enabled` is off or unreadable (#6955), on
+  `POST /traeger/school-sessions` and on `POST /auth/switch-tenant` of a
+  Träger school session alike. The Träger portal then signs out and signs in
+  once without the device cookie (the BFF drops it for
+  `ignore_trusted_device`); the school app links to the Träger login with
+  `?mit-code=1`, which ends a running Träger session and does the same. A
+  switch between the account's own schools answers 401
+  `identity.mfa_session_required` and signs in at the target school. The school's
   `mfa_trusted_device_days` is not applied at the Absprung; an in-session
   code step instead of the new sign-in is #7068. A
   switch to a school where the account holds its own mapping keeps its own

@@ -7,7 +7,14 @@
 // das Träger-Portal nicht. „Passwort vergessen?“ schickt den Link auf den
 // Träger-Host (#5149).
 
-import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
@@ -33,9 +40,18 @@ import { hasSessionAccess } from "~/lib/session-access";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
-import { takeTraegerSignInWithCode } from "~/lib/traeger-sign-in-with-code";
+import {
+  clearTraegerSignInWithCode,
+  isTraegerSignInWithCodeRequested,
+  requestTraegerSignInWithCode,
+  serverTraegerSignInWithCode,
+  subscribeTraegerSignInWithCode,
+} from "~/lib/traeger-sign-in-with-code";
 import { traegerLogin, type TraegerChoice } from "~/lib/traeger-api";
-import { TRAEGER_FORGOT_PASSWORD_PARAM } from "~/lib/traeger-login-params";
+import {
+  TRAEGER_FORGOT_PASSWORD_PARAM,
+  TRAEGER_SIGN_IN_WITH_CODE_PARAM,
+} from "~/lib/traeger-login-params";
 import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerLoginPage" });
@@ -75,9 +91,14 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [sessionExpired, setSessionExpired] = useState(false);
-  // A school without remembered devices asked for the code (#6955): this
-  // sign-in ignores the remembered device once.
-  const [withCode] = useState(takeTraegerSignInWithCode);
+  // A school asked for a sign-in with code (#6955): the next sign-in in
+  // this tab ignores the remembered device. Read, never consumed, while
+  // rendering; the server renders no hint.
+  const withCode = useSyncExternalStore(
+    subscribeTraegerSignInWithCode,
+    isTraegerSignInWithCodeRequested,
+    serverTraegerSignInWithCode,
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [choices, setChoices] = useState<readonly TraegerChoice[] | null>(null);
@@ -96,12 +117,29 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
 
+  // A school tab sends the person here to sign in with code (#6955): the
+  // request holds for this tab, and the address forgets it. Declared before
+  // the session effect below, which reads it in the same commit.
+  useEffect(() => {
+    if (searchParams.get(TRAEGER_SIGN_IN_WITH_CODE_PARAM) !== "1") return;
+    requestTraegerSignInWithCode();
+    const url = new URL(window.location.href);
+    url.searchParams.delete(TRAEGER_SIGN_IN_WITH_CODE_PARAM);
+    window.history.replaceState(
+      {},
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }, [searchParams]);
+
   // An existing Träger session goes straight to the school list; a session
   // the backend no longer refreshes is cleared so a new login is not
-  // shadowed by it.
+  // shadowed by it, and so is one a sign-in with code replaces.
   useEffect(() => {
     if (status !== "authenticated") return;
-    if (session?.error && !isCleaningSessionRef.current) {
+    const replaceSession =
+      hasSessionAccess(session) && isTraegerSignInWithCodeRequested();
+    if ((session?.error || replaceSession) && !isCleaningSessionRef.current) {
       isCleaningSessionRef.current = true;
       void signOut({ redirect: false }).catch((err: unknown) => {
         isCleaningSessionRef.current = false;
@@ -111,6 +149,8 @@ function LoginForm() {
       });
       return;
     }
+    // The session being replaced must not open the school list meanwhile.
+    if (replaceSession) return;
     // The layout's server snapshot carries no token (#4991) and redirects
     // too; a stripped session (empty token) stays on the form.
     if (
@@ -184,12 +224,21 @@ function LoginForm() {
     setIsLoading(true);
     setSessionExpired(false);
     try {
+      const ignoreTrustedDevice = isTraegerSignInWithCodeRequested();
       const result = await traegerLogin({
         email,
         password,
         organizationId: choices ? (selectedId ?? undefined) : undefined,
-        ...(withCode && { ignoreTrustedDevice: true }),
+        ...(ignoreTrustedDevice && { ignoreTrustedDevice: true }),
       });
+      // The request ends once a sign-in that carried it resolved the
+      // Träger; choosing the Träger first sends it again.
+      if (
+        ignoreTrustedDevice &&
+        result.status !== "organization_selection_required"
+      ) {
+        clearTraegerSignInWithCode();
+      }
       if (result.status === "organization_selection_required") {
         setChoices(result.organizations);
         setSelectedId(result.organizations[0]?.id ?? null);
@@ -305,7 +354,7 @@ function LoginForm() {
           ) : withCode ? (
             <Alert
               type="info"
-              message="Die Schule erlaubt keine gemerkten Geräte. Bestätigen Sie diese Anmeldung deshalb mit dem Code aus Ihrer E-Mail."
+              message="Die Schule verlangt eine Anmeldung mit Code. Geben Sie nach dem Passwort den Code aus Ihrer E-Mail ein."
             />
           ) : null}
 

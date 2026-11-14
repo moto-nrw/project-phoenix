@@ -489,7 +489,7 @@ func setSchoolTrustedDevices(t *testing.T, db *bun.DB, schoolID int64, raw strin
 
 func TestTraegerAbsprungHonoursASchoolWithoutRememberedDevices(t *testing.T) {
 	t.Parallel()
-	db, portal, identity, _ := newTraegerSchoolSessionPortal(t)
+	db, portal, identity, unit := newTraegerSchoolSessionPortal(t)
 	password := testpkg.NewTestPassword()
 	organization := traegerOrganization(t, db, "Träger Gerät Absprung", true)
 	allowing := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Gerät erlaubt")
@@ -515,18 +515,36 @@ func TestTraegerAbsprungHonoursASchoolWithoutRememberedDevices(t *testing.T) {
 	_, byDevice := traegerLoginWithDevice(t, portal, account.Email, password, organization, cookie)
 	require.Equal(t, "authenticated", byDevice.Status, "the remembered device skips the code at the Träger")
 
-	code, answer := startTraegerSchoolSession(t, portal, byDevice.AccessToken, refusing)
-	assert.Equal(t, http.StatusForbidden, code, "a school without remembered devices asks for the code")
+	// The refresh of the Träger session keeps how its factor was proven.
+	ctx := tenant.WithUnitOfWork(context.Background(), unit)
+	traegerAccess, _, err := identity.RefreshTokenWithAudit(ctx, byDevice.RefreshToken, "", "", "")
+	require.NoError(t, err)
+
+	code, answer := startTraegerSchoolSession(t, portal, traegerAccess, refusing)
+	assert.Equal(t, http.StatusForbidden, code, "a school without remembered devices asks for the code, also after a refresh")
 	assert.Equal(t, "traeger.school_requires_code", answer.Code)
 	assert.Empty(t, answer.Data.HandoffToken)
 
-	code, answer = startTraegerSchoolSession(t, portal, byDevice.AccessToken, unreadable)
+	code, answer = startTraegerSchoolSession(t, portal, traegerAccess, unreadable)
 	assert.Equal(t, http.StatusForbidden, code, "an unreadable setting asks for the code as well")
 	assert.Equal(t, "traeger.school_requires_code", answer.Code)
 
-	code, answer = startTraegerSchoolSession(t, portal, byDevice.AccessToken, allowing)
-	assert.Equal(t, http.StatusCreated, code, answer.Code)
-	assert.NotEmpty(t, answer.Data.HandoffToken, "a school that allows remembered devices opens")
+	code, answer = startTraegerSchoolSession(t, portal, traegerAccess, allowing)
+	require.Equal(t, http.StatusCreated, code, answer.Code)
+	require.NotEmpty(t, answer.Data.HandoffToken, "a school that allows remembered devices opens")
+
+	// The school session keeps the mark through its own refresh; its switch
+	// into the refusing school goes back to the Träger-Portal, since the
+	// school may hold no account of the person.
+	_, schoolRefresh, err := identity.RefreshTokenWithAudit(ctx, answer.Data.HandoffToken, "tab-1", "", "")
+	require.NoError(t, err)
+	schoolAccess, _, err := identity.RefreshTokenWithAudit(ctx, schoolRefresh, "tab-1", "", "")
+	require.NoError(t, err)
+	family, _ := traegerTokenClaims(t, schoolAccess)["family_id"].(string)
+	_, _, err = identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, refusing), family, "192.0.2.10", "test")
+	require.ErrorIs(t, err, identityaccess.ErrSchoolRequiresCodeProof, "a refreshed Absprung session keeps its device mark at the switch")
+	_, _, err = identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, unreadable), family, "192.0.2.10", "test")
+	require.ErrorIs(t, err, identityaccess.ErrSchoolRequiresCodeProof, "an unreadable setting refuses the switch as well")
 
 	code, answer = startTraegerSchoolSession(t, portal, byCode.AccessToken, refusing)
 	assert.Equal(t, http.StatusCreated, code, answer.Code)
@@ -535,5 +553,9 @@ func TestTraegerAbsprungHonoursASchoolWithoutRememberedDevices(t *testing.T) {
 	var marks []bool
 	require.NoError(t, db.NewRaw(`SELECT mfa_by_device FROM auth.tokens WHERE account_id = ? AND tenant_id IS NOT NULL ORDER BY id`, account.ID).
 		Scan(context.Background(), &marks))
-	assert.Equal(t, []bool{true, false}, marks, "the school session keeps how its Träger session proved the factor")
+	require.GreaterOrEqual(t, len(marks), 2)
+	for _, mark := range marks[:len(marks)-1] {
+		assert.True(t, mark, "every school session from the device-proven Träger session keeps its mark")
+	}
+	assert.False(t, marks[len(marks)-1], "the school session of the code-proven Träger session carries none")
 }
