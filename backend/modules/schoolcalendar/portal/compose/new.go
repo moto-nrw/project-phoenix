@@ -16,7 +16,6 @@ type EmailConfig = application.EmailConfig
 type ReminderEffects = application.ReminderEffects
 type GuardianNotificationAudience = application.GuardianNotificationAudience
 type GuardianNotificationProfile = application.GuardianNotificationProfile
-type GuardianNotificationAnswer = application.GuardianNotificationAnswer
 type Application interface {
 	portal.FullService
 	ReminderEffects() ReminderEffects

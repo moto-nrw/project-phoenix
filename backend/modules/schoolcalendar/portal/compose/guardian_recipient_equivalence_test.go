@@ -41,7 +41,7 @@ func legacyRecipientAudiences(t *testing.T, ctx context.Context, cfg calendarCom
 	}
 	result := map[int64]calendarCompose.GuardianNotificationAudience{}
 	for _, id := range ids {
-		result[id] = calendarCompose.GuardianNotificationAudience{Profiles: profiles, StudentsByGuardian: map[int64][]int64{}, Answers: map[int64]calendarCompose.GuardianNotificationAnswer{}}
+		result[id] = calendarCompose.GuardianNotificationAudience{Profiles: profiles, StudentsByGuardian: map[int64][]int64{}}
 	}
 	for _, row := range rows {
 		if row.GuardianProfileID == nil {
@@ -62,7 +62,6 @@ func legacyRecipientAudiences(t *testing.T, ctx context.Context, cfg calendarCom
 			audience := result[row.AppointmentID]
 			audience.GuardianIDs = append(audience.GuardianIDs, guardian)
 			audience.StudentsByGuardian[guardian] = append(audience.StudentsByGuardian[guardian], children...)
-			audience.Answers[guardian] = calendarCompose.GuardianNotificationAnswer{Status: row.Status, OccurrenceResponses: row.OccurrenceResponses}
 			result[row.AppointmentID] = audience
 		}
 	}
@@ -120,6 +119,22 @@ func TestGuardianNotificationAudiencesMatchLegacyLinks(t *testing.T) {
 			before := legacyRecipientAudiences(t, txCtx, cfg, ids)
 			after, err := service.GuardianNotificationAudiences(txCtx, ids)
 			require.NoError(t, err)
+			// Each reachable guardian carries the answer of its own recipient row (#7014).
+			for _, row := range rows {
+				audience := after[row.AppointmentID]
+				if row.GuardianProfileID == nil || len(audience.StudentsByGuardian[*row.GuardianProfileID]) == 0 {
+					continue
+				}
+				answer, ok := audience.Answers[*row.GuardianProfileID]
+				require.True(t, ok, "reachable guardian %d has an answer", *row.GuardianProfileID)
+				require.Equal(t, row.Status, answer.Status)
+				require.Equal(t, row.OccurrenceResponses, answer.OccurrenceResponses)
+			}
+			for id, audience := range before {
+				require.Len(t, after[id].Answers, len(audience.GuardianIDs), "only reachable guardians carry an answer")
+				audience.Answers = after[id].Answers
+				before[id] = audience
+			}
 			require.Equal(t, before, after)
 			require.Empty(t, after[foreignID].GuardianIDs)
 			require.Equal(t, want, after[ids[0]].StudentsByGuardian[family.GuardianProfileID])
