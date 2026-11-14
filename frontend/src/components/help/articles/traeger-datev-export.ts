@@ -38,7 +38,8 @@ export function traegerDatevExportTopic(): HelpTopic {
         steps: [
           "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
           "Wählen Sie oben rechts `Konten und Kostenstellen`.",
-          "Unter `Erlöskonten` wählen Sie bei `Monatsbeiträge`, `Mensa` oder `Ferienbetreuung` `Ändern`. Tragen Sie das Konto ein und wählen Sie `Speichern`. Ein Angebot kann ein eigenes Konto haben.",
+          "Unter `Erlöskonten` wählen Sie bei `Monatsbeiträge`, `Mensa`, `Ferienbetreuung` oder `Mittagessen in den Ferien` `Ändern`. Tragen Sie das Konto ein und wählen Sie `Speichern`. Ein Angebot kann ein eigenes Konto haben.",
+          "Ohne eigenes Konto bucht `Mittagessen in den Ferien` auf das Konto der `Ferienbetreuung`. Daneben steht dann `wie Ferienbetreuung`.",
           "Unter `Kostenstellen (KOST1)` wählen Sie bei der Schule `Neue Kostenstelle`. Wählen Sie den Tag bei `Gilt ab` und tragen Sie die `Kostenstelle` ein.",
           "Eine Ferienwoche bucht auf die Kostenstelle der Schule, an der sie stattfindet. Die Kostenstelle bei `Ferienbetreuung` ist der Ersatz, wenn diese Schule keine hat.",
           "Eine `Zweite Kostenstelle (KOST2)` je Angebot tragen Sie nur ein, wenn Ihr Steuerbüro sie braucht.",

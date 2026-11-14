@@ -16,7 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
@@ -294,4 +296,32 @@ func TestHolidayLunchShowsOnTheParticipantListOfTheHostingSchool(t *testing.T) {
 	}
 	assert.Equal(t, map[string]int{dayMonday: 1, dayTuesday: 0, dayWednesday: 1, dayThursday: 0, dayFriday: 0}, lunches,
 		"only Tom eats, on his two days; every care day of the week is named")
+}
+
+// A closing day planned after the booking takes its lunch away: the Büro
+// sees four lunches before it confirms, and the confirmation freezes them.
+// A day without care never has a lunch, whoever closed it.
+func TestHolidayLunchCountsNoLunchOnADayWithoutCare(t *testing.T) {
+	t.Parallel()
+	l := newLunchFixture(t, "Mittagessen Schließtag")
+	receipt := l.submit(t, l.registration("schliesstag.essen@example.org", "Tom", l.booking(1, true)))
+	read := func(router http.Handler) lunchContributionBody {
+		rec := traegerJSON(t, router, l.office.token, http.MethodGet, holidayContributionPath(l.period.ID, receipt.ID), nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return decodeSchoolPortalData[lunchContributionBody](t, rec.Body.Bytes())
+	}
+	assert.Equal(t, int64(4500+2150), read(l.traeger).TotalCents, "five care days, five lunches")
+
+	closed := parentBillingCalendarRouter(t, l.review, owners.HolidayTestSchoolCalendar{
+		{Date: calendar.NewDate(2027, 1, 13), Kind: enrollment.HolidayNoCareClosingDay, Name: "Betriebsausflug"},
+	})
+	preview := read(closed)
+	assert.Equal(t, int64(4500+1720), preview.TotalCents, "the care keeps its price, the closed Wednesday has no lunch")
+	meal := preview.Children[0].Lines[len(preview.Children[0].Lines)-1]
+	assert.Equal(t, "meal", meal.Kind)
+	assert.Equal(t, 4, *meal.BookedDays)
+
+	rec := traegerJSON(t, closed, l.office.token, http.MethodPost, holidayConfirmPath(l.period.ID, receipt.ID), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, int64(4500+1720), read(l.traeger).TotalCents, "the confirmation froze four lunches; the frozen contribution no longer follows the calendar")
 }

@@ -505,8 +505,34 @@ func (h *HolidayRegistrationReview) readPeriod(ctx context.Context, reviewer enr
 	if err != nil {
 		return enrollment.HolidayPeriod{}, nil, fmt.Errorf("enrollment: read holiday registrations: %w", err)
 	}
-	h.complete(period, read, overrides)
+	if err := h.completeWithLunch(ctx, period, read, overrides); err != nil {
+		return enrollment.HolidayPeriod{}, nil, err
+	}
 	return period, read, nil
+}
+
+// completeWithLunch is complete with the days without care of the host
+// schools marked on the weeks, so a booked lunch counts no day without care
+// (#5631). It reads the schools' calendar only when a booking has lunch; a
+// review composed without the calendar counts every care day.
+func (h *HolidayRegistrationReview) completeWithLunch(ctx context.Context, period enrollment.HolidayPeriod, read []enrollment.HolidayRegistrationDetail, overrides map[int64]string) error {
+	if holidayReviewHasLunch(read) {
+		marked, err := withHolidayNoCareDays(ctx, h.calendar, period)
+		if err != nil {
+			return err
+		}
+		period = marked
+	}
+	h.complete(period, read, overrides)
+	return nil
+}
+
+func holidayReviewHasLunch(read []enrollment.HolidayRegistrationDetail) bool {
+	return slices.ContainsFunc(read, func(registration enrollment.HolidayRegistrationDetail) bool {
+		return slices.ContainsFunc(registration.Children, func(child enrollment.HolidayRegistrationChild) bool {
+			return slices.ContainsFunc(child.Bookings, func(booking enrollment.HolidayRegistrationBooking) bool { return booking.Lunch })
+		})
+	})
 }
 
 func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollment.HolidayReviewer, period enrollment.HolidayPeriod, registrationID int64) (enrollment.HolidayRegistrationDetail, error) {
@@ -517,7 +543,9 @@ func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollm
 	if len(read) == 0 {
 		return enrollment.HolidayRegistrationDetail{}, enrollment.ErrHolidayRegistrationEntryNotFound
 	}
-	h.complete(period, read, overrides)
+	if err := h.completeWithLunch(ctx, period, read, overrides); err != nil {
+		return enrollment.HolidayRegistrationDetail{}, err
+	}
 	detail := read[0]
 	if texts, ok := enrollment.HolidayConsentTextsOf(detail.ConsentVersion, detail.RetentionDays); ok {
 		detail.ConsentTexts = &texts

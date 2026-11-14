@@ -116,7 +116,9 @@ func (r *HolidayRegistrationRecords) read(ctx context.Context, reviewer enrollme
 	if err != nil {
 		return enrollment.HolidayRegistrationRecordSet{}, fmt.Errorf("enrollment: read holiday registrations: %w", err)
 	}
-	r.review.complete(period, details, overrides)
+	if err := r.review.completeWithLunch(ctx, period, details, overrides); err != nil {
+		return enrollment.HolidayRegistrationRecordSet{}, err
+	}
 	set := enrollment.HolidayRegistrationRecordSet{Period: period, Records: []enrollment.HolidayRegistrationRecord{}}
 	if len(details) == 0 {
 		return set, nil
