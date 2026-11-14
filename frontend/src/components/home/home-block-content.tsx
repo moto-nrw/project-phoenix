@@ -1,5 +1,6 @@
 "use client";
 
+import { STUDENT_SEARCH_LINK_TOOLTIP } from "~/components/home/home-link-tooltips";
 import type { ReactNode } from "react";
 
 import { BirthdaysBlock } from "~/components/home/birthdays-block";
@@ -18,7 +19,6 @@ import { ListRow } from "~/components/ui/list-row";
 import { SkeletonRows } from "~/components/ui/skeleton";
 import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import {
-  STUDENT_SEARCH_LINK_TOOLTIP,
   HomeCardLink,
   HomeMoreRow,
   useHomeCardRows,

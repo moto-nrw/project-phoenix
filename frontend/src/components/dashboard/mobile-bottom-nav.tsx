@@ -3,6 +3,7 @@
 "use client";
 /* oxlint-disable ui-kit/menu-item-needs-description -- Die Objekte mit `label` und `href` sind Navigationsziele der unteren Leiste und des „Mehr“-Blatts, keine Kebab-Einträge; die Datei rendert kein OverflowMenu (#6777). */
 
+import { REMINDERS_LINK_TOOLTIP } from "~/components/home/home-link-tooltips";
 import { Alert } from "~/components/ui/alert";
 import { SectionLabel } from "~/components/ui/section-label";
 import React, { useRef, useCallback, useState, useMemo } from "react";
@@ -12,7 +13,6 @@ import {
   usePortalBottomNavIndicator,
 } from "~/components/ui/portal-bottom-nav";
 import { PortalMoreBottomNav } from "~/components/ui/portal-more-bottom-nav";
-import { REMINDERS_LINK_TOOLTIP } from "~/components/home/home-card-rows";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";

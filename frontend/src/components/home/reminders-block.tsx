@@ -1,5 +1,6 @@
 "use client";
 
+import { REMINDERS_LINK_TOOLTIP } from "~/components/home/home-link-tooltips";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ListRow } from "~/components/ui/list-row";
@@ -16,7 +17,6 @@ import {
 } from "~/lib/reminders-display";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
-  REMINDERS_LINK_TOOLTIP,
   HomeCardLink,
   HomeMoreRow,
   useHomeCardRows,

@@ -1,5 +1,6 @@
 "use client";
 
+import { STUDENT_SEARCH_LINK_TOOLTIP } from "~/components/home/home-link-tooltips";
 import { Fragment, type ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -7,10 +8,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
-import {
-  STUDENT_SEARCH_LINK_TOOLTIP,
-  useBerlinClock,
-} from "~/components/home/home-card-rows";
+import { useBerlinClock } from "~/components/home/home-card-rows";
 import {
   START_OWN_BLOCK_TOOLTIP,
   useStartOwnBlock,
