@@ -1375,6 +1375,7 @@ function OGSGroupPageContent() {
       variant="outline"
       size="md"
       onClick={() => router.push("/ferienwochen")}
+      tooltip={HOLIDAY_WEEKS_TOOLTIP}
     >
       Zu den Ferienwochen
     </Button>
@@ -1547,6 +1548,7 @@ function OGSGroupPageContent() {
                   variant="ghost_tone"
                   size="compact"
                   onClick={() => router.push("/ferienwochen")}
+                  tooltip={HOLIDAY_WEEKS_TOOLTIP}
                 >
                   Zu den Ferienwochen
                 </Button>
@@ -1583,6 +1585,9 @@ function OGSGroupPageContent() {
 }
 
 // Main component with Suspense wrapper
+const HOLIDAY_WEEKS_TOOLTIP =
+  "Öffnet die Ferienwochen, dort steht, welche Feriengäste kommen.";
+
 export default function OGSGroupPage() {
   return (
     <OpenCareModeGuard>

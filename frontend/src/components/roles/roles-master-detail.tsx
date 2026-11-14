@@ -196,7 +196,10 @@ function RoleDetailContent({
             Bearbeiten
           </Button>
         ) : null}
-        <DetailDeleteButton onClick={onDeleteClick} />
+        <DetailDeleteButton
+          onClick={onDeleteClick}
+          tooltip="Löscht die Rolle und nimmt ihren Personen die Rechte, moto fragt vorher nach."
+        />
       </>
     );
 
