@@ -220,5 +220,25 @@
   "signatureDownload": "PDF olarak belge",
   "signatureDownloading": "Belge yükleniyor …",
   "signatureEditHint": "Kaydı değiştirirseniz yeniden imzalarsınız.",
-  "errorObjectProof": "belge"
+  "errorObjectProof": "belge",
+  "buttonHints": {
+    "parentApp": "Veli uygulamasını açar, bakımı orada değiştirirsiniz.",
+    "editFull": "Başvuruyu düzenlemek için açar.",
+    "requestChange": "{careTerm}'den değişiklik istemek için başvuruyu açar.",
+    "withdrawChild": "Bu çocuğun başvurusunu geri çeker, moto önce sorar.",
+    "withdrawAll": "Tüm çocukların başvurusunu geri çeker, moto önce sorar.",
+    "withdrawOne": "Başvuruyu geri çeker, moto önce sorar.",
+    "editGuardian": "Adınızı ve telefon numaranızı değiştirmek için alanlar gösterir.",
+    "saveGuardian": "Adınızı ve telefon numaranızı başvuruya kaydeder.",
+    "replySubmit": "Cevabınızı hemen {careTerm}'ye gönderir.",
+    "signatureDownload": "İmzanızın kanıtını PDF olarak indirir.",
+    "confirmRenewal": "Onayınızı hemen gönderir, ardından yer hakkında {careTerm} karar verir.",
+    "confirmTerms": "Yeni dönemin koşullarına onayınızı kaydeder.",
+    "adjust": "Teklifleri ve hafta günlerini değiştirmek için açar.",
+    "declineRenewal": "Bir sonraki dönem için başvuruyu reddeder, moto önce sorar.",
+    "unsubscribe": "Bir sonraki dönem için başvuruyu sonlandırır, moto önce sorar.",
+    "termsRead": "Tam metni okumak için açar.",
+    "editSubmit": "Başvurudaki değişikliklerinizi kaydeder.",
+    "changeRequestSubmit": "Değişikliklerinizi hemen talep olarak {careTerm}'ye gönderir."
+  }
 }

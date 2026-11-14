@@ -168,6 +168,8 @@ interface FieldEditorRowProps {
   readonly onMoveUp: () => void;
   readonly onMoveDown: () => void;
   readonly disabled: boolean;
+  /** Why `disabled` locks the row, e.g. a running upload; none while saving. */
+  readonly disabledReason?: string;
   /** The types a free question may take; the online registration's by default. */
   readonly fieldTypes?: readonly FormFieldType[];
   /** The sources a visibility condition may use; all by default. */
@@ -249,6 +251,7 @@ export function FieldEditorRow({
   onMoveUp,
   onMoveDown,
   disabled,
+  disabledReason,
   fieldTypes = freeFieldTypes,
   conditionSources = ALL_CONDITION_SOURCES,
   allowAttachments = true,
@@ -463,9 +466,15 @@ export function FieldEditorRow({
                   type="button"
                   onClick={onMoveUp}
                   disabled={disabled || index === 0}
+                  disabledReason={
+                    index === 0
+                      ? "Die Frage steht schon ganz oben."
+                      : disabledReason
+                  }
                   variant="surface"
                   size="icon"
                   aria-label="Frage nach oben verschieben"
+                  tooltip="Setzt die Frage im Elternformular eine Stelle weiter nach oben."
                 >
                   <ArrowUp className="h-4 w-4" aria-hidden="true" />
                 </Button>
@@ -473,9 +482,15 @@ export function FieldEditorRow({
                   type="button"
                   onClick={onMoveDown}
                   disabled={disabled || index === total - 1}
+                  disabledReason={
+                    index === total - 1
+                      ? "Die Frage steht schon ganz unten."
+                      : disabledReason
+                  }
                   variant="surface"
                   size="icon"
                   aria-label="Frage nach unten verschieben"
+                  tooltip="Setzt die Frage im Elternformular eine Stelle weiter nach unten."
                 >
                   <ArrowDown className="h-4 w-4" aria-hidden="true" />
                 </Button>
@@ -486,6 +501,8 @@ export function FieldEditorRow({
                   variant="outline_danger"
                   size="icon"
                   aria-label="Frage entfernen"
+                  disabledReason={disabledReason}
+                  tooltip="Entfernt die Frage sofort aus dem Entwurf der Vorlage."
                 >
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
                 </Button>
@@ -718,6 +735,8 @@ export function FieldEditorRow({
                         type="button"
                         onClick={addAllowedTime}
                         disabled={disabled}
+                        disabledReason={disabledReason}
+                        tooltip="Fügt eine Uhrzeit hinzu, die Eltern pro Wochentag wählen können."
                         variant="outline"
                         size="md"
                         className="mt-2 inline-flex items-center justify-center gap-2"
@@ -750,6 +769,8 @@ export function FieldEditorRow({
                                 items={[
                                   {
                                     label: "Auswahlzeit entfernen",
+                                    description:
+                                      "Entfernt die Uhrzeit sofort aus der Auswahl",
                                     icon: (
                                       <Trash2
                                         className="h-4 w-4"
