@@ -51,6 +51,7 @@ export function SetupBeacon({ open, onOpen }: BeaconProps) {
         variant="success"
         size="md"
         onClick={onOpen}
+        tooltip="Öffnet die Checkliste mit den ersten Schritten."
         aria-label={
           open === 0
             ? "Erste Schritte öffnen, alles erledigt"
@@ -172,6 +173,8 @@ interface SetupChecklistProps<K extends string> {
   readonly finished: ReactNode;
   /** Beschriftung des Knopfs, der die fertige Checkliste schließt. */
   readonly finishLabel: string;
+  /** Was der Abschluss-Knopf bewirkt, etwa für wen die Checkliste verschwindet. */
+  readonly finishTooltip: string;
   readonly onFinish: () => void;
   readonly onExpand: (step: K | null) => void;
   readonly onStartTour: (step: K) => void;
@@ -196,6 +199,7 @@ export function SetupChecklist<K extends string>({
   replayDone = false,
   finished: finishedContent,
   finishLabel,
+  finishTooltip,
   onFinish,
   onExpand,
   onStartTour,
@@ -223,6 +227,7 @@ export function SetupChecklist<K extends string>({
             size="icon"
             onClick={onCollapse}
             aria-label="Checkliste einklappen"
+            tooltip="Klappt die Checkliste zu einem Knopf am unteren Rand ein."
           >
             <CaretDownIcon size={18} aria-hidden />
           </Button>
@@ -327,6 +332,7 @@ export function SetupChecklist<K extends string>({
                             variant="primary"
                             size="compact"
                             onClick={() => onExpand(blockedBy.step)}
+                            tooltip="Klappt den Schritt auf, der zuerst erledigt sein muss."
                           >
                             Zu „{blockedBy.title}“
                           </Button>
@@ -337,6 +343,11 @@ export function SetupChecklist<K extends string>({
                               variant={step.done ? "outline" : "primary"}
                               size="compact"
                               onClick={() => onStartTour(step.key)}
+                              tooltip={
+                                step.done
+                                  ? "Startet die Tour zu diesem Schritt noch einmal."
+                                  : "Startet eine Tour, die Sie Schritt für Schritt hinführt."
+                              }
                             >
                               {step.done ? "Noch einmal zeigen" : "Zeig es mir"}
                             </Button>
@@ -347,6 +358,7 @@ export function SetupChecklist<K extends string>({
                             href={helpHref(step.helpTopic)}
                             variant="outline"
                             size="compact"
+                            tooltip="Öffnet die Anleitung zu diesem Schritt in der Hilfe."
                           >
                             Anleitung lesen
                           </ButtonLink>
@@ -358,6 +370,11 @@ export function SetupChecklist<K extends string>({
                             size="compact"
                             disabled={busy}
                             onClick={() => onSkip(step.key, !step.skipped)}
+                            tooltip={
+                              step.skipped
+                                ? "Nimmt den Schritt wieder zu den offenen Schritten."
+                                : "Lässt den Schritt aus und zählt ihn als fertig."
+                            }
                           >
                             {step.skipped
                               ? "Doch nicht überspringen"
@@ -386,6 +403,7 @@ export function SetupChecklist<K extends string>({
             className="w-full"
             disabled={busy}
             onClick={onFinish}
+            tooltip={finishTooltip}
           >
             {finishLabel}
           </Button>
@@ -396,6 +414,7 @@ export function SetupChecklist<K extends string>({
             size="compact"
             disabled={busy}
             onClick={onDismiss}
+            tooltip="Blendet die Checkliste für Sie aus. moto fragt vorher nach."
           >
             Nicht mehr anzeigen
           </Button>
@@ -504,6 +523,7 @@ export function SchoolSetupChecklist({
         </>
       }
       finishLabel="Abschließen"
+      finishTooltip="Blendet die Checkliste sofort für alle aus."
       onFinish={onComplete}
     />
   );

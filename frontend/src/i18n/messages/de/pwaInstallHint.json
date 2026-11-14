@@ -11,7 +11,10 @@
   "share": "Teilen",
   "homeScreen": "Zum Home-Bildschirm",
   "install": "App installieren",
+  "installTooltip": "Installiert moto als App, Ihr Gerät fragt vorher nach.",
   "addToHome": "Zum Startbildschirm hinzufügen",
   "openInChrome": "In Chrome öffnen",
-  "close": "Hinweis schließen"
+  "openInChromeTooltip": "Öffnet diese Seite in Chrome, dort können Sie moto installieren.",
+  "close": "Hinweis schließen",
+  "closeTooltip": "Blendet den Hinweis auf diesem Gerät dauerhaft aus."
 }

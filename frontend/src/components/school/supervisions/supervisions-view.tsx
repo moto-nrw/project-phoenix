@@ -126,7 +126,11 @@ function SupervisionIntro({
             size="md"
             variant="success"
             disabled={busy || startState !== "startable"}
+            disabledReason={
+              startState === "too_early" && !busy ? explanation : undefined
+            }
             onClick={onStart}
+            tooltip="Startet die Aufsicht sofort, danach führen Sie die Anwesenheit."
           >
             {busy ? "Wird gestartet..." : "Aufsicht starten"}
           </Button>
