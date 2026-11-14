@@ -326,7 +326,7 @@ describe("EnrollmentFormEditor", () => {
     expect(error).toHaveClass("bg-moto-red-soft");
     expect(
       screen.getByRole("button", { name: "Speichern und fortfahren" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("creates, previews, updates, and deletes schemas", async () => {
@@ -2557,7 +2557,7 @@ describe("information PDF attachments in the form editor", () => {
     });
     expect(
       screen.getByRole("button", { name: "Formularvorlage erstellen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     view.unmount();
     await act(async () => pending.resolve(firstURL));
     await waitFor(() =>

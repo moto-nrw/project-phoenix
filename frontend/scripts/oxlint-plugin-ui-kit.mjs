@@ -6316,6 +6316,21 @@ const TOOLTIP_SCOPE = [
   "src/components/students/student-selection-bar.tsx",
   "src/components/students/students-list.tsx",
   "src/components/students/use-bulk-checkin-actions.tsx",
+  // Anmeldung: Anmeldungen und Anmeldeformular (#6768).
+  "src/components/enrollment/enrollment-file-upload.tsx",
+  "src/components/enrollment/enrollment-form-consent.tsx",
+  "src/components/enrollment/enrollment-form-contact-inputs.tsx",
+  "src/components/enrollment/enrollment-form-editor.tsx",
+  "src/components/enrollment/enrollment-form-overview.tsx",
+  "src/components/enrollment/enrollment-form.tsx",
+  "src/components/enrollment/enrollment-renewal-banners.tsx",
+  "src/components/enrollment/enrollment-signature-status.tsx",
+  "src/components/enrollment/enrollment-status-view.tsx",
+  "src/components/enrollment/file-field-editor.tsx",
+  "src/components/enrollment/form-field-builder.tsx",
+  "src/components/enrollment/form-preview.tsx",
+  "src/components/enrollment/form-template-builder-sections.tsx",
+  "src/components/enrollment/form-template-detail.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
