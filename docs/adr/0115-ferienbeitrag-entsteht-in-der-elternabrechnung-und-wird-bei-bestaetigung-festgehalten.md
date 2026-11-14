@@ -311,63 +311,8 @@ Kette von vorher.
 Offen bleibt die Entscheidung der Gemeinde vom 11.11.2026. Sie ändert nur, was
 Bissendorf einstellt, nicht diesen Code.
 
-## Nachtrag 2026-11-14: Mittagessen der Ferienbetreuung als eigene Position (#5631)
+## Nachtrag 2026-11-14: Mittagessen der Ferienbetreuung (#5631)
 
-Die Gemeinde Bissendorf bietet in den Sommerferien Mittagessen an und will es
-ab 2027 getrennt vom Ferienbeitrag berechnen, in derselben Ferienabrechnung
-(Termin 11.11.2026). Die Mensa der Monatsbeiträge
-([ADR 0168](0168-mensa-wird-aus-der-monatsfreigabe-der-schule-im-monatslauf-abgerechnet.md))
-passt nicht: Sie hängt an Vertrag, Monatslauf und Monatsfreigabe und zählt
-Ferientage nicht.
-
-1. **Angebot und Buchung bei Enrollment.** Eine Ferienwoche trägt den Preis
-   für ein Essen (`enrollment.holiday_period_weeks.lunch_price_cents`, `NULL`
-   ohne Angebot), eine Buchung, ob das Kind isst
-   (`holiday_registration_bookings.lunch`). Ein Kind mit Essen isst an jedem
-   Betreuungstag seiner Buchung: an den gebuchten Tagen einer Woche nach
-   Tagen, an Montag bis Freitag einer ganzen Woche, nie an einem Tag ohne
-   Betreuung (Feiertag, Schließtag). Die Zahl rechnet Enrollment
-   (`HolidayLunch`); die Elternabrechnung bekommt Zahl und Betrag über den
-   Port `HolidayRegistrations`. Das Angebot einer Woche bleibt, solange eine
-   Buchung Essen hat (409 `enrollment.holiday_lunch_booked`); der Preis lässt
-   sich ändern.
-2. **Pauschale, keine Spitzabrechnung.** Gebucht heißt berechnet. Es gibt
-   keine Abmeldung einzelner Essen und keine Freigabe nach Anwesenheit.
-   Dafür müsste Meal Plan Ferientage und Feriengäste kennen; das ist nicht
-   Teil dieses Schnitts.
-3. **Neue Zeilenart nach der Kette.** `meal` steht je Kind und gebuchter
-   Woche hinter allen Zeilen der Kette (Punkt 3) und außerhalb von ihr: Die
-   Geschwisterermäßigung rechnet nur aus der Betreuung, die Befreiung und die
-   Kostenübernahme setzen nur die Betreuung auf 0 €, und der Rang der Kinder
-   folgt der Betreuung allein. Das Essen zahlt die Familie voll, wie bei der
-   Mensa (ADR 0168 Punkt 6). Die Zeile hält die Zahl der Essen
-   (`booked_days`) und den Betrag; der Preis für ein Essen ist ihr Quotient.
-   Eine Buchung auf der Warteliste hat noch kein Essen.
-4. **Festhalten (zu Punkt 5).** Die Bestätigung hält die Essenszeilen mit dem
-   Beitrag fest. Ein späterer Preis, ein später geplanter Schließtag und eine
-   Umbuchung des Essens ändern einen festgehaltenen Beitrag nicht, wie beim
-   Grundpreis; nur eine nachgerückte Woche wird mit ihrem Essen neu
-   berechnet. Wird die Gruppe neu gerechnet, kommt das Essen aus den
-   festgehaltenen Zeilen. Den Unterschied nach einer Umbuchung berechnet das
-   Träger-Büro als Korrektur des Laufs (ADR 0119).
-5. **Rechnung und Exporte.** Es bleibt eine Rechnung je Anmeldung oder Kind.
-   Die Position `meal` nennt Woche, Zahl der Essen und Preis für ein Essen
-   (`document_positions.booked_days`). Sie bucht auf die Kostenstelle ihrer
-   Woche (Nachtrag #6624) und auf ein eigenes Erlöskonto
-   (`revenue_accounts.scope = 'holiday_meals'`), ohne eigenes auf das der
-   Ferienbetreuung, sonst auf das Standard-Erlöskonto. In den Finanz-Exporten
-   ist sie ein eigener Teil (`holiday_meal`): Ermäßigungen der Betreuung
-   werden nicht mit dem Essen verrechnet.
-6. **Wer was sieht.** Die ausrichtende OGS sieht je Kind, ob es isst, und
-   die Zahl der Essen je Betreuungstag, keinen Preis. Die Heimatschule sieht
-   bei den Ferienbuchungen ihrer Kinder, ob sie dort essen
-   (`enrollment.holiday_home_school_bookings()`, jetzt als wiederholbare
-   Definition nach ADR 0223). Eltern sehen das Essen in Anmeldung,
-   Eingangsmail, Stand und Beitrag.
-
-Offen für das Folgegespräch mit der Gemeinde 2027: ob Geschwisterregel und
-Befreiung auch für das Essen gelten sollen, wer das Essen bei Leistungsbezug
-zahlt und ob es beim langen Zeitmodell Pflicht ist. Entscheidet die Gemeinde
-anders, kommt ein Schalter je Regel in einem eigenen Schnitt. Die Liste der
-OGS zählt bei einer ganzen Woche Montag bis Freitag; einen Schließtag der
-eigenen Schule zieht sie nicht ab.
+Das Mittagessen der Ferienbetreuung ist eine eigene Zeilenart `meal` nach der
+Regelkette und außerhalb von ihr. Die Entscheidung steht in
+[ADR 0232](0232-ferien-mittagessen-ist-eine-eigene-position-ausserhalb-der-regelkette.md).

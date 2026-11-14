@@ -44,13 +44,16 @@ func init() {
 //     gains the lunch, and its one current definition now lives in
 //     repeatable_enrollment_holiday_home_school_bookings.go (ADR 0223).
 const holidayLunchUpSQL = `
-ALTER TABLE enrollment.holiday_period_weeks ADD COLUMN lunch_price_cents INTEGER;
+-- IF NOT EXISTS: the down migration keeps these two columns for the
+-- repeatable home school function.
+ALTER TABLE enrollment.holiday_period_weeks ADD COLUMN IF NOT EXISTS lunch_price_cents INTEGER;
+ALTER TABLE enrollment.holiday_period_weeks DROP CONSTRAINT IF EXISTS chk_holiday_period_weeks_lunch_price;
 ALTER TABLE enrollment.holiday_period_weeks ADD CONSTRAINT chk_holiday_period_weeks_lunch_price
 	CHECK (lunch_price_cents IS NULL OR lunch_price_cents BETWEEN 0 AND 1000000);
 COMMENT ON COLUMN enrollment.holiday_period_weeks.lunch_price_cents IS
 	'Price of one lunch in the week; NULL offers no lunch (#5631).';
 
-ALTER TABLE enrollment.holiday_registration_bookings ADD COLUMN lunch BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE enrollment.holiday_registration_bookings ADD COLUMN IF NOT EXISTS lunch BOOLEAN NOT NULL DEFAULT FALSE;
 COMMENT ON COLUMN enrollment.holiday_registration_bookings.lunch IS
 	'The child eats lunch on the care days of this booking (#5631).';
 
@@ -83,10 +86,13 @@ ALTER TABLE parent_billing.revenue_accounts
 DROP FUNCTION IF EXISTS enrollment.holiday_home_school_bookings();
 `
 
-// holidayLunchDownSQL takes the lunch away again. It refuses while a line or
-// a position bills a lunch: an issued invoice never changes, and dropping
-// the kind would lose what it billed. holidayLunchDown first puts back the
-// home school function of 1.15.957, which does not read the lunch.
+// holidayLunchDownSQL takes the billing of the lunch away again. It refuses
+// while a line or a position bills a lunch: an issued invoice never changes,
+// and dropping the kind would lose what it billed. The lunch price of the
+// weeks and the lunch of the bookings stay: the repeatable definition of
+// enrollment.holiday_home_school_bookings() reads them and is installed
+// after every migrate run (ADR 0223), and nothing bills them without the
+// kind 'meal'.
 const holidayLunchDownSQL = `
 DO $$
 BEGIN
@@ -117,10 +123,6 @@ ALTER TABLE parent_billing.holiday_contribution_lines
 		CHECK (kind IN ('base', 'sibling', 'benefits_exemption', 'cost_takeover'));
 
 ALTER TABLE enrollment.holiday_guests DROP COLUMN lunch;
-ALTER TABLE enrollment.holiday_registration_bookings DROP COLUMN lunch;
-ALTER TABLE enrollment.holiday_period_weeks
-	DROP CONSTRAINT chk_holiday_period_weeks_lunch_price,
-	DROP COLUMN lunch_price_cents;
 `
 
 func holidayLunchUp(ctx context.Context, db *bun.DB) error {
@@ -134,9 +136,6 @@ func holidayLunchUp(ctx context.Context, db *bun.DB) error {
 
 func holidayLunchDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, holidayHomeSchoolBookingsDownSQL+holidayHomeSchoolBookingsUpSQL); err != nil {
-			return fmt.Errorf("restore the home school bookings without lunch: %w", err)
-		}
 		if _, err := tx.ExecContext(ctx, holidayLunchDownSQL); err != nil {
 			return fmt.Errorf("drop holiday lunch: %w", err)
 		}

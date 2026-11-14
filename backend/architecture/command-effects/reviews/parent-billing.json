@@ -848,7 +848,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.HolidayRegistrations.HolidayWeeks",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayRegistrations.HolidayRegistrationOffer: the published period of a resolved link with the prices of its time models, read in the Träger transaction of the link's Träger for the public contribution (ADR 0115). Since #4701 the binding also copies the care days Enrollment names for a week by days, so the quote prices a day; it adds no read and no write.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayRegistrations.HolidayRegistrationOffer: the published period of a resolved link with the prices of its time models, read in the Träger transaction of the link's Träger for the public contribution (ADR 0115). Since #4701 the binding also copies the care days Enrollment names for a week by days, so the quote prices a day; since #5631 it copies the price of one lunch and the lunches of a whole week the same way (ADR 0232). It adds no read and no write.",
       "source_owner": "parent-billing",
       "target": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayRegistrations.HolidayRegistrationOffer",
       "target_owner": "enrollment"
@@ -959,12 +959,12 @@
     },
     {
       "adr": "0067",
-      "approval_adr": "0206",
+      "approval_adr": "0232",
       "binding": "github.com/moto-ogs/project-phoenix/api.parentBillingPlaceChanges.RebookHolidayChild",
       "classification": "workflow",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling/http.HolidayPlaceChanges.RebookHolidayChild",
-      "reason": "HTTP transport entry (#4699, ADR 0206): the port is the Parent Billing http package's own narrow write port; the root binds the holiday-allocation workflow and translates values and refusals only. In the request's Träger unit the workflow takes the period billing lock (B), Enrollment's period row (P), then Enrollment's rebooking (registration, affected weeks ascending, day limits, waiting-list promotions, audit, outbox), then Parent Billing refreezes the moved-up registrations' confirmed sibling groups. Any failure rolls the unit back. Replaces Parent Billing's former coordinator HolidayContributions.RebookHolidayChild and its HolidayRegistrations.RebookHolidayChild binding. Evidence: TestHolidayAllocationWorkflowOrdersLocksAndStopsAtTheFirstFailure, TestHolidayAllocationWorkflowRollsBackOnARefusedContribution, TestHolidayPlacesMoveUpOnRebookingAndCapacity.",
+      "reason": "HTTP transport entry (#4699, ADR 0206): the port is the Parent Billing http package's own narrow write port; the root binds the holiday-allocation workflow and translates values and refusals only. In the request's Träger unit the workflow takes the period billing lock (B), Enrollment's period row (P), then Enrollment's rebooking (registration, affected weeks ascending, day limits, waiting-list promotions, audit, outbox), then Parent Billing refreezes the moved-up registrations' confirmed sibling groups. Any failure rolls the unit back. Replaces Parent Billing's former coordinator HolidayContributions.RebookHolidayChild and its HolidayRegistrations.RebookHolidayChild binding. Evidence: TestHolidayAllocationWorkflowOrdersLocksAndStopsAtTheFirstFailure, TestHolidayAllocationWorkflowRollsBackOnARefusedContribution, TestHolidayPlacesMoveUpOnRebookingAndCapacity. Since #5631 (ADR 0232) the translation also hands on the lunch of each booking; lock order, transaction, placement and refreeze are unchanged, a lunch takes no place. Evidence: TestHolidayLunchShowsOnTheParticipantListOfTheHostingSchool.",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-ogs/project-phoenix/workflows/holidayallocation.Workflow.RebookHolidayChild",
       "target_owner": "holiday-allocation"
