@@ -223,12 +223,8 @@ func (s *AccountAuthentication) parseSessionRefresh(refresh string, claims domai
 // parent session names the Träger its access token names. A staff access
 // token names its school's Träger, which its refresh token does not.
 func refreshNamesTokenTraeger(refresh domain.RefreshClaims, access domain.SessionClaims) bool {
-	switch access.Scope {
-	case domain.PortalOrg.Claim, domain.PortalParent.Claim:
-		return refresh.OrgID == access.OrgID
-	default:
-		return true
-	}
+	portal, _ := domain.PortalOfClaim(access.Scope)
+	return !portal.OrgNamesSession || refresh.OrgID == access.OrgID
 }
 
 func (s *AccountAuthentication) validateRefreshRow(ctx context.Context, kind domain.SessionKind, claims domain.SessionClaims, refreshClaims domain.RefreshClaims, accountID int64) (domain.AccountSession, error) {

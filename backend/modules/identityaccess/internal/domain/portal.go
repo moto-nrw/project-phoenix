@@ -117,21 +117,31 @@ type Portal struct {
 	MovesSchool bool
 	// Push is empty for a portal without push messages.
 	Push string
+	// TraegerKind is the sub-portal of a session of this portal that names a
+	// Träger; empty for a portal without one.
+	TraegerKind SessionKind
+	// OrgNamesSession: the org_id of an access token names the Träger of its
+	// session, and so does its refresh token. A staff token names the Träger
+	// of its school instead, which says nothing about its session.
+	OrgNamesSession bool
 }
 
 // The portals, closed.
 var (
 	PortalTenant = Portal{Name: "tenant", Claim: "", LegacyClaim: "tenant", Tenant: ShapeRequired, Org: ShapeOptional,
-		Persisted: true, Challenge: true, Enrollment: true, TrustedDevice: true, Device: DeviceOfSchool, MFA: MFASchoolPolicy, Push: PushPortalStaff}
+		Persisted: true, Challenge: true, Enrollment: true, TrustedDevice: true, Device: DeviceOfSchool, MFA: MFASchoolPolicy, Push: PushPortalStaff,
+		TraegerKind: SessionKindTraegerSchool}
 	PortalSchool = Portal{Name: "school", Claim: "school", Tenant: ShapeRequired, Org: ShapeOptional,
 		Persisted: true, Challenge: true, Enrollment: true, TrustedDevice: true, Device: DeviceOfSchool, MFA: MFASchoolPolicy, Push: PushPortalSchool}
 	PortalParent = Portal{Name: "parent", Claim: "parent",
-		Persisted: true, Challenge: true, TrustedDevice: true, Device: DeviceOfParentPortal, MFA: MFAAccountChoice, Push: PushPortalParent}
+		Persisted: true, Challenge: true, TrustedDevice: true, Device: DeviceOfParentPortal, MFA: MFAAccountChoice, Push: PushPortalParent,
+		TraegerKind: SessionKindTraegerParent, OrgNamesSession: true}
 	PortalCaterer = Portal{Name: "caterer", Claim: "caterer",
 		Persisted: true, Challenge: true, TrustedDevice: true, Device: DeviceOfAccount, MFA: MFAAccountChoice,
 		FactorAtValidation: true, MovesSchool: true}
 	PortalOrg = Portal{Name: "org", Claim: "org", Tenant: ShapeForbidden, Org: ShapeRequired,
-		Persisted: true, Challenge: true, Enrollment: true, TrustedDevice: true, Device: DeviceOfTraeger, MFA: MFAAlways, Push: PushPortalStaff}
+		Persisted: true, Challenge: true, Enrollment: true, TrustedDevice: true, Device: DeviceOfTraeger, MFA: MFAAlways, Push: PushPortalStaff,
+		OrgNamesSession: true}
 	PortalPlatform = Portal{Name: "platform", Claim: "platform", Tenant: ShapeOptional, Org: ShapeOptional,
 		Challenge: true, Enrollment: true, TrustedDevice: true, MFA: MFAOperator}
 
@@ -179,13 +189,26 @@ const (
 // token of the parents portal by its Träger, which no other parent token
 // names.
 func SessionKindOf(portal Portal, namesTraeger bool) SessionKind {
-	switch {
-	case portal.Name == PortalTenant.Name && namesTraeger:
-		return SessionKindTraegerSchool
-	case portal.Name == PortalParent.Name && namesTraeger:
-		return SessionKindTraegerParent
+	if namesTraeger && portal.TraegerKind != "" {
+		return portal.TraegerKind
 	}
 	return SessionKind(portal.Name)
+}
+
+// traegerKinds are the kinds whose sessions name a Träger, with how their
+// stored rows name a school: a Träger session and a parent session at a
+// Träger (ADR 0216) name none, an OGS session the Träger opened through the
+// Absprung (ADR 0084 section 5) names its school.
+var traegerKinds = map[SessionKind]Shape{
+	SessionKind(PortalOrg.Name): ShapeForbidden,
+	SessionKindTraegerSchool:    ShapeRequired,
+	SessionKindTraegerParent:    ShapeForbidden,
+}
+
+// NamesTraeger reports a kind whose sessions name a Träger.
+func (k SessionKind) NamesTraeger() bool {
+	_, names := traegerKinds[k]
+	return names
 }
 
 // PortalOfClaim resolves a JWT scope, the legacy tenant claim included.

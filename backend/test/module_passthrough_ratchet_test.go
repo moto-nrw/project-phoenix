@@ -274,7 +274,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // cascade instead of forwarding the write (-2).
 // Raised by ADR 0230: Timetable's set-based assignment read of the absence
 // plan gaps (+1).
-const modulePassthroughOwnerBudgetTotal = 1400
+const modulePassthroughOwnerBudgetTotal = 1399
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -309,7 +309,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/feedback":       2,
 	"modules/filestorage":    6,
 	// Raised by ADR 0077: the caterer flows.
-	"modules/identityaccess": 207,
+	"modules/identityaccess": 206,
 	"modules/mealplan":       1,
 	// Raised by ADR 0112: the Träger logo read of the Träger-Portal.
 	// Raised by ADR 0172: the document contact read without an account (+1).
