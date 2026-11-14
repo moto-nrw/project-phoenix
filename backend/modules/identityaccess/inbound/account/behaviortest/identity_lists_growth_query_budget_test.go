@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
@@ -152,16 +150,12 @@ func TestIdentityAccountPasskeysGrowthQueryBudget(t *testing.T) {
 	t.Parallel()
 	f := newRBACBudgetFixtureOn(t, testpkg.SetupIsolatedTestDB(t))
 	f.resource.PasskeyService = f.module.Passkeys
-	owner, err := identityCompose.New(identityCompose.Dependencies{DB: f.db, TenantRuntime: testpkg.TenantRuntime(t, f.db), Observe: func(identityCompose.Observation) {}})
-	require.NoError(t, err)
-	records := owner.(ports.Records)
 	want := []identityaccess.PasskeyCredentialSummary{}
 	for _, n := range []int{3, 8} {
 		for len(want) < n {
 			name := fmt.Sprintf("Budget key %d", len(want))
-			row, err := records.CreateAccountPasskey(testpkg.Ctx(t), identityaccess.AccountPasskeyCredential{AccountID: f.actor, UserHandle: []byte(fmt.Sprintf("budget-handle-%d", f.actor)), CredentialID: []byte(fmt.Sprintf("budget-credential-%d-%d", f.actor, len(want))), CredentialJSON: json.RawMessage(`{"id":"fixture"}`), Name: name})
-			require.NoError(t, err)
-			want = append(want, identityaccess.PasskeyCredentialSummary{ID: fmt.Sprint(row.ID), Name: name, CreatedAt: row.CreatedAt})
+			id, createdAt := testpkg.CreateTestAccountPasskey(t, f.db, f.actor, name)
+			want = append(want, identityaccess.PasskeyCredentialSummary{ID: fmt.Sprint(id), Name: name, CreatedAt: createdAt})
 		}
 		rr, queries := f.get(t, "/auth/passkeys/", f.token)
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())

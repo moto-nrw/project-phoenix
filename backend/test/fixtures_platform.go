@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -86,6 +87,23 @@ func OwnTestAccountPasskeySession(tb testing.TB, db *bun.DB, sessionID string) {
 		_, err := db.ExecContext(context.Background(), `DELETE FROM auth.passkey_sessions WHERE id = ?`, sessionID)
 		require.NoError(tb, err)
 	})
+}
+
+// CreateTestAccountPasskey inserts an active school-portal passkey of an
+// account and returns its ID and registration time. The row cascades with
+// the account fixture. Its credential state is a placeholder: a test that
+// signs in with a passkey registers one through the ceremonies.
+func CreateTestAccountPasskey(tb testing.TB, db *bun.DB, accountID int64, name string) (int64, time.Time) {
+	tb.Helper()
+	var row struct {
+		ID        int64
+		CreatedAt time.Time
+	}
+	err := db.NewRaw(`INSERT INTO auth.passkey_credentials (account_id, user_handle, credential_id, credential_json, name)
+ VALUES (?, ?, ?, '{"id":"fixture"}', ?) RETURNING id, created_at`,
+		accountID, []byte(fmt.Sprintf("fixture-handle-%d", accountID)), []byte(fmt.Sprintf("fixture-credential-%d-%s", accountID, name)), name).Scan(context.Background(), &row)
+	require.NoError(tb, err, "Failed to create test account passkey")
+	return row.ID, row.CreatedAt
 }
 
 // cleanupOperator removes an operator and its audit-log rows. All other

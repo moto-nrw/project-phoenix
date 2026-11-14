@@ -30,6 +30,7 @@ export function settingsTopic(): HelpTopic {
       "Damit enden auch Sitzungsaufzeichnungen. Die Fehlerdiagnose bleibt davon getrennt.",
       "Unter `Datenschutz` sehen Sie die Löschfristen. Sie zeigen, wie lange moto Daten aufbewahrt.",
       "moto legt die Löschfristen mit Ihrer Schule fest. Sie können sie nur lesen.",
+      "Eine Ausnahme ist `Erziehungsberechtigte ohne Kind aufbewahren (Tage)`. Diese Frist stellen Sie selbst ein, zwischen 30 und 365 Tagen. Sie beginnt erst, wenn das letzte Kind der Person gelöscht ist.",
       "Unter `Betrieb` steht das `Bundesland` Ihrer Schule. Danach richten sich die gesetzlichen Feiertage. Ändern kann es nur das moto-Team.",
       "Wer Blöcke starten oder beenden darf, legen Sie unter `Betrieb` fest: bei `Wer darf Blöcke starten?` und `Wer darf Blöcke beenden?`.",
       "`Das ganze Team` geht dort nur, wenn das Team alle Gruppen und Blöcke sieht.",

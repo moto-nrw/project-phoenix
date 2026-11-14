@@ -12,6 +12,7 @@ export type MailOutcome =
   | "blocked"
   | "provider_blocked"
   | "held_by_stop"
+  | "held_by_departure"
   | "unsubscribed"
   | "overdue"
   | "complained"
@@ -59,6 +60,14 @@ export const GUARDIAN_STOPPED_COPY: MailStatusCopy = {
   tone: "gray",
   explanation:
     "Ihre Schule hat die Mails an diese Person gestoppt. Anmeldecodes, Mails zum Passwort und Abrechnungsbriefe des Trägers kommen weiter an.",
+};
+
+/** The current departure hold, separate from the outcome of an earlier mail. */
+export const GUARDIAN_DEPARTED_COPY: MailStatusCopy = {
+  label: "Kein Kind in Betreuung",
+  tone: "gray",
+  explanation:
+    "Kein Kind dieser Person wird noch an Ihrer Schule betreut. Elternbriefe, Nachrichten, Termine und Einladungen gehen deshalb nicht mehr an sie.",
 };
 
 /** Mails still go out to an address someone else holds without a stop. */
@@ -123,6 +132,12 @@ const OUTCOME_COPY: Record<MailOutcome, MailStatusCopy> = {
     tone: "gray",
     explanation:
       "Die Mail ging nicht raus, weil die Mails an diese Person gestoppt waren. Sie können sie neu senden.",
+  },
+  held_by_departure: {
+    label: "Nicht gesendet",
+    tone: "gray",
+    explanation:
+      "Kein Kind dieser Person wurde beim Versand noch betreut. Die Mail ging deshalb nicht raus.",
   },
   unsubscribed: {
     label: "Abgemeldet",
@@ -227,3 +242,36 @@ export const CHECK_ADDRESS_AT_GUARDIAN =
 /** Whoever sees a letter without the OGS's access to the guardian's card. */
 export const TELL_THE_OGS_ABOUT_THE_ADDRESS =
   "Sagen Sie der OGS Bescheid. Dort lässt sich die Adresse korrigieren.";
+
+/** What Delivery knows about the mail of an invitation (#5934, #5960). */
+export interface InvitationMail {
+  readonly mailOutcome?: MailOutcome;
+  readonly addressMark?: EmailAddressMark;
+  readonly providerBlock?: MailProviderBlock;
+}
+
+/**
+ * The line under an invitation of a staff member or a caterer. Their mail still
+ * goes out to a marked address (#5935), so the note only says what is known about
+ * the address and never speaks of a block. The address of an invitation is fixed:
+ * nextStep names the new invitation.
+ */
+export function invitationMailNote(
+  mail: InvitationMail,
+  nextStep: string,
+): string | null {
+  if (mail.mailOutcome === "undeliverable") {
+    return `Die Mail kam nicht an. ${nextStep}`;
+  }
+  if (mail.addressMark === "complained") {
+    return `Von dieser Adresse kam eine Beschwerde über eine Mail. ${nextStep}`;
+  }
+  if (mail.addressMark === "failed") {
+    return `Eine frühere Mail an diese Adresse kam nicht an. ${nextStep}`;
+  }
+  if (mail.mailOutcome === "accepted") return null;
+  return (
+    mailStatusCopy(mail.mailOutcome, "", false, mail.providerBlock)
+      ?.explanation ?? null
+  );
+}

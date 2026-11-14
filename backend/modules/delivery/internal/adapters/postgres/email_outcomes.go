@@ -138,29 +138,36 @@ func (s *Store) EmailAddressMarks(ctx context.Context, tenantID int64, addresses
 	return marks, nil
 }
 
-// StoppedEmailAddresses reports the addresses whose holders all carry the school's
-// stop, in the caller's tenant transaction.
-func (s *Store) StoppedEmailAddresses(ctx context.Context, tenantID int64, addresses []string) (map[string]bool, error) {
+// GuardianEmailHolds reports the stop and departure holds for all given
+// addresses in one read in the caller's tenant transaction. Departure only
+// holds distribution mail; the stop holds all school mail to parents.
+func (s *Store) GuardianEmailHolds(ctx context.Context, tenantID int64, addresses []string) (stopped, departed map[string]bool, err error) {
 	normalized := normalizedAddresses(addresses)
-	stopped := make(map[string]bool, len(normalized))
+	stopped, departed = make(map[string]bool, len(normalized)), make(map[string]bool, len(normalized))
 	if len(normalized) == 0 {
-		return stopped, nil
+		return stopped, departed, nil
 	}
 	db, err := s.tenantDB(ctx, tenantID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var rows []string
-	if err := db.NewRaw(`SELECT contact.address FROM platform.delivery_guardian_contacts AS contact
+	var rows []struct {
+		Address  string `bun:"address"`
+		Stopped  bool   `bun:"stopped"`
+		Departed bool   `bun:"departed"`
+	}
+	if err := db.NewRaw(`SELECT contact.address, bool_and(contact.emails_stopped_at IS NOT NULL) AS stopped,
+		NOT EXISTS (SELECT 1 FROM platform.delivery_known_email_addresses AS known
+			WHERE known.tenant_id = ? AND known.address = contact.address) AS departed
+		FROM platform.delivery_guardian_contacts AS contact
 		WHERE contact.tenant_id = ? AND contact.address IN (?)
-		GROUP BY contact.address
-		HAVING bool_and(contact.emails_stopped_at IS NOT NULL)`, tenantID, bun.List(normalized)).Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("delivery postgres: read stopped email addresses: %w", err)
+		GROUP BY contact.address`, tenantID, tenantID, bun.List(normalized)).Scan(ctx, &rows); err != nil {
+		return nil, nil, fmt.Errorf("delivery postgres: read guardian email holds: %w", err)
 	}
-	for _, address := range rows {
-		stopped[address] = true
+	for _, row := range rows {
+		stopped[row.Address], departed[row.Address] = row.Stopped, row.Departed
 	}
-	return stopped, nil
+	return stopped, departed, nil
 }
 
 func normalizedAddresses(addresses []string) []string {

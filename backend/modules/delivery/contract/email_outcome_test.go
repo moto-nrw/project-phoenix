@@ -35,6 +35,7 @@ func TestEmailOutcomeOfNeverCallsAnAcceptedMailDelivered(t *testing.T) {
 		"back on the fallback way":  {status: "pending", want: EmailQueued},
 		"left over the fallback":    {status: "sent", want: EmailAccepted},
 		"accepted, address marked":  {status: "sent", mark: EmailMarkFailed, want: EmailAccepted},
+		"held back, family left":    {status: "cancelled", state: state("suppressed"), err: strPtr(MailHeldByDeparture), want: EmailHeldByDeparture},
 	} {
 		assert.Equal(t, test.want, EmailOutcomeOf(test.status, test.state, test.err, test.mark), name)
 	}
@@ -79,4 +80,19 @@ func TestAppointmentMailsAreParentMails(t *testing.T) {
 func TestCareContractConfirmationsAreParentMails(t *testing.T) {
 	t.Parallel()
 	assert.True(t, IsParentMail("care_contract_notice"))
+}
+
+func strPtr(value string) *string { return &value }
+
+// The school's mailings are parent mails, and the mail a family needs on its own
+// is not among them (#5960).
+func TestDistributionMailsAreParentMailsWithoutTheIndividualOnes(t *testing.T) {
+	t.Parallel()
+	for template := range distributionMailTemplates {
+		assert.True(t, IsParentMail(template), template)
+	}
+	for _, template := range []string{"care_contract", "care_contract_notice", "enrollment_approved", "enrollment_rejected", "guardian_welcome", "holiday_place_granted"} {
+		assert.True(t, IsParentMail(template), template)
+		assert.False(t, IsDistributionMail(template), template)
+	}
 }

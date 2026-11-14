@@ -7,7 +7,7 @@
 // The BFF installs the session.
 
 import { useEffect, useLayoutEffect, useRef, useState, Suspense } from "react";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
 import {
@@ -30,7 +30,11 @@ import { hasSessionAccess } from "~/lib/session-access";
 import { requestCatererPasswordReset } from "~/lib/auth-api";
 import { loginCaterer } from "~/lib/caterer-api";
 import { catererPath } from "~/lib/caterer-url";
-import { useSessionExpiredNotice } from "~/lib/login-session-notice";
+import {
+  signOutStaleSession,
+  useSessionExpiredNotice,
+} from "~/lib/login-session-notice";
+import type { MFAStep } from "~/lib/sign-in-answer";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import {
@@ -48,13 +52,6 @@ const SHELL_COPY = {
   title: "Willkommen im Caterer-Portal",
   subtitle: "Melden Sie sich mit Ihrem Caterer-Konto an.",
 } as const;
-
-interface MFAStep {
-  readonly challengeToken: string;
-  readonly maskedEmail: string;
-  readonly trustedDeviceEnabled: boolean;
-  readonly trustedDeviceDays?: number;
-}
 
 function LoginForm() {
   const [email, setEmail] = useState("");
@@ -79,21 +76,14 @@ function LoginForm() {
 
   useEffect(() => {
     const check = async () => {
-      // A refresh the backend refused leaves a stale cookie behind.
-      if (
-        status === "authenticated" &&
-        session?.error &&
-        !cleaningRef.current
-      ) {
-        cleaningRef.current = true;
-        try {
-          await signOut({ redirect: false });
-        } catch (cause) {
-          cleaningRef.current = false;
-          logger.warn("signout_during_cleanup_failed", {
-            error: cause instanceof Error ? cause.message : String(cause),
-          });
-        }
+      const cleanup = signOutStaleSession({
+        status,
+        session,
+        started: cleaningRef,
+        logger,
+      });
+      if (cleanup) {
+        await cleanup;
         setCheckingAuth(false);
         return;
       }
@@ -129,12 +119,7 @@ function LoginForm() {
     try {
       const result = await loginCaterer(email, password);
       if (result.status === "mfa_required") {
-        setMfaStep({
-          challengeToken: result.challengeToken,
-          maskedEmail: result.maskedEmail,
-          trustedDeviceEnabled: result.trustedDeviceEnabled,
-          trustedDeviceDays: result.trustedDeviceDays,
-        });
+        setMfaStep(result);
         return;
       }
       completeLogin();

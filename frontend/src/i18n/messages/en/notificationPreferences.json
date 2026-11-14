@@ -27,7 +27,7 @@
     },
     "parent_appointment_reminder": {
       "label": "Appointment reminder",
-      "description": "Shortly before an appointment to which you are invited."
+      "description": "Shortly before an appointment to which you are invited. Not for appointments you declined."
     },
     "parent_request_decided": {
       "label": "Decision on your request",

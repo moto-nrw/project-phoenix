@@ -119,6 +119,22 @@ func TestGuardianNotificationAudiencesMatchLegacyLinks(t *testing.T) {
 			before := legacyRecipientAudiences(t, txCtx, cfg, ids)
 			after, err := service.GuardianNotificationAudiences(txCtx, ids)
 			require.NoError(t, err)
+			// Each reachable guardian carries the answer of its own recipient row (#7014).
+			for _, row := range rows {
+				audience := after[row.AppointmentID]
+				if row.GuardianProfileID == nil || len(audience.StudentsByGuardian[*row.GuardianProfileID]) == 0 {
+					continue
+				}
+				answer, ok := audience.Answers[*row.GuardianProfileID]
+				require.True(t, ok, "reachable guardian %d has an answer", *row.GuardianProfileID)
+				require.Equal(t, row.Status, answer.Status)
+				require.Equal(t, row.OccurrenceResponses, answer.OccurrenceResponses)
+			}
+			for id, audience := range before {
+				require.Len(t, after[id].Answers, len(audience.GuardianIDs), "only reachable guardians carry an answer")
+				audience.Answers = after[id].Answers
+				before[id] = audience
+			}
 			require.Equal(t, before, after)
 			require.Empty(t, after[foreignID].GuardianIDs)
 			require.Equal(t, want, after[ids[0]].StudentsByGuardian[family.GuardianProfileID])

@@ -34,6 +34,12 @@ var errAddressSuppressed = errors.New(deliveryContract.MailHeldByList)
 //nolint:staticcheck // user-visible sentence, not a wrapped message
 var errGuardianEmailsStopped = errors.New(deliveryContract.MailHeldByStop)
 
+// errFamilyDeparted is the reason of a school mailing to a family whose last
+// child left the school (#5960). Like the ones above it is shown to the school.
+//
+//nolint:staticcheck // user-visible sentence, not a wrapped message
+var errFamilyDeparted = errors.New(deliveryContract.MailHeldByDeparture)
+
 var eventStates = []domain.EmailDeliveryState{
 	domain.EmailDeliveryDelayed, domain.EmailDeliveryDelivered, domain.EmailDeliverySuppressed, domain.EmailDeliveryUnsubscribed,
 	domain.EmailDeliveryFailed, domain.EmailDeliveryComplained,
@@ -76,8 +82,10 @@ func truncateDiagnostic(text string) string {
 	return text
 }
 
-// mailHold says why a mail stays back: the address is on a school's list, or the
-// school stopped mail to the person who holds it. The empty value lets it go.
+// mailHold says why a mail stays back: the address is on a school's list, the
+// school stopped mail to the person who holds it, or, for one of the school's
+// mailings, the family has no child in care there any more. The empty value lets
+// it go.
 func (w *Worker) mailHold(ctx context.Context, intent domain.Intent) (error, error) {
 	if intent.Transport != domain.TransportEmail || intent.Security || !deliveryContract.IsParentMail(intent.Template) {
 		return nil, nil
@@ -90,13 +98,15 @@ func (w *Worker) mailHold(ctx context.Context, intent domain.Intent) (error, err
 	if err := json.Unmarshal(intent.Recipient, &recipient); err != nil {
 		return nil, fmt.Errorf("delivery: decode email recipient: %w", err)
 	}
-	listed, stopped, err := heldAddress(ctx, store, intent, recipient.Address)
+	holds, err := heldAddress(ctx, store, intent, recipient.Address)
 	switch {
 	case err != nil:
 		return nil, fmt.Errorf("delivery: read the mail holds: %w", err)
-	case stopped:
+	case holds.Stopped:
 		return errGuardianEmailsStopped, nil
-	case listed:
+	case holds.Departed && deliveryContract.IsDistributionMail(intent.Template):
+		return errFamilyDeparted, nil
+	case holds.Listed:
 		return errAddressSuppressed, nil
 	}
 	return nil, nil
@@ -104,15 +114,17 @@ func (w *Worker) mailHold(ctx context.Context, intent domain.Intent) (error, err
 
 // heldAddress reads the holds of a school's mail, or of a Träger's mail across
 // the schools of that Träger: a Träger has no list of its own, and a contract
-// goes to a family one of its schools knows.
-func heldAddress(ctx context.Context, store ports.EmailDeliveryEventStore, intent domain.Intent, address string) (listed, stopped bool, err error) {
+// goes to a family one of its schools knows. A Träger sends none of the
+// school's mailings, so departure holds only a school's mail.
+func heldAddress(ctx context.Context, store ports.EmailDeliveryEventStore, intent domain.Intent, address string) (domain.SchoolMailHolds, error) {
 	switch {
 	case intent.TenantID > 0:
 		return store.SchoolEmailHolds(ctx, intent.TenantID, address)
 	case intent.OrganizationID > 0:
-		return store.TraegerEmailHolds(ctx, intent.OrganizationID, address)
+		listed, stopped, err := store.TraegerEmailHolds(ctx, intent.OrganizationID, address)
+		return domain.SchoolMailHolds{Listed: listed, Stopped: stopped}, err
 	}
-	return false, false, nil
+	return domain.SchoolMailHolds{}, nil
 }
 
 // recordHeldSend marks the mail that stayed back, so the school sees why. The

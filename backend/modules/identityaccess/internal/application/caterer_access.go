@@ -172,6 +172,24 @@ func (c *CatererAccess) ListCatererInvitations(ctx context.Context) ([]identitya
 	return result, nil
 }
 
+// CatererInvitationMailStates reads what became of the mails of the school's
+// invitations in one read, in the school's transaction (#5960). Delivery owns
+// the answer; the root binds it.
+func (c *CatererAccess) CatererInvitationMailStates(ctx context.Context, invitationIDs []int64) (map[int64]identityaccess.InvitationMailState, error) {
+	ctx = c.attach(ctx)
+	if !c.inSchool(ctx) {
+		return nil, catererError(failed("read caterer invitation mail states", errSchoolTransactionRequired))
+	}
+	if len(invitationIDs) == 0 {
+		return map[int64]identityaccess.InvitationMailState{}, nil
+	}
+	states, err := c.delivery.CatererInvitationMailStates(ctx, c.runtime.TenantID(ctx), invitationIDs)
+	if err != nil {
+		return nil, catererError(failed("read caterer invitation mail states", err))
+	}
+	return states, nil
+}
+
 // RevokeCatererInvitation takes back an open invitation of the school.
 func (c *CatererAccess) RevokeCatererInvitation(ctx context.Context, invitationID int64) error {
 	ctx = c.attach(ctx)
@@ -387,32 +405,14 @@ func (c *CatererAccess) catererSchools(ctx context.Context, accountID int64) (do
 		schools []int64
 	)
 	err := globalIdentityRead(ctx, c.runtime, func(readCtx context.Context) error {
-		found, _, err := c.findCaterer(readCtx, accountID, &caterer)
-		switch {
-		case err != nil:
-			return err
-		case !found:
-			return domain.ErrAccountNotCaterer
-		}
-		schools, _, err = c.store.ListCatererSchools(readCtx, caterer.ID)
-		if err != nil {
-			return err
-		}
-		// School liveness belongs to Organisation & Tenancy. Resolve the
-		// linked schools in bulk before the portal opens any tenant.
-		schools, err = c.auth.liveSchoolIDs(readCtx, schools)
+		var err error
+		caterer, schools, err = c.auth.suppliedSchools(readCtx, accountID)
 		return err
 	})
 	if err != nil {
 		return domain.Caterer{}, nil, failed("find caterer schools", err)
 	}
 	return caterer, schools, nil
-}
-
-func (c *CatererAccess) findCaterer(ctx context.Context, accountID int64, into *domain.Caterer) (bool, domain.OperationStats, error) {
-	caterer, found, stats, err := c.store.FindCatererOfAccount(ctx, accountID)
-	*into = caterer
-	return found, stats, err
 }
 
 // buildCatererMetadata is the claims material of a caterer token: the

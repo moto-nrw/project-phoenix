@@ -80,6 +80,17 @@ func (s EmailDeliveryState) SuppressionReason() EmailSuppressionReason {
 	return EmailSuppressionFailed
 }
 
+// SchoolMailHolds is what holds a school's mail to one address back: the
+// school's list, a stop on every person who holds the address, or that every
+// guardian who holds it has no child in care at the school any more and no open
+// application names it (Departed, #5960). Departed holds only the school's
+// mailings (deliveryContract.IsDistributionMail).
+type SchoolMailHolds struct {
+	Listed   bool
+	Stopped  bool
+	Departed bool
+}
+
 // EmailDeliveryEvent is one reported event of a mail. The mail is named by
 // the token of its X-Moto-Outbox-Id header, its Message-ID or the ID the
 // provider gave it; an event without any match changes nothing.

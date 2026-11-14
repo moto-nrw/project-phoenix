@@ -95,6 +95,9 @@ type CatererAccessEngine interface {
 	// never sees it.
 	CreateCatererInvitation(ctx context.Context, request CatererInvitationRequest) (CatererInvitation, error)
 	ListCatererInvitations(ctx context.Context) ([]CatererInvitation, error)
+	// CatererInvitationMailStates reports, in one read, what became of the mail
+	// of each of the school's invitations (#5960); one without a mail has no key.
+	CatererInvitationMailStates(ctx context.Context, invitationIDs []int64) (map[int64]InvitationMailState, error)
 	RevokeCatererInvitation(ctx context.Context, invitationID int64) error
 	PreviewCatererInvitation(ctx context.Context, token string) (CatererInvitationPreview, error)
 	// AcceptCatererInvitation spends the invitation and starts the school's

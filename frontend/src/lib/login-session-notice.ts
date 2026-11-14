@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import type { Session } from "next-auth";
+import { signOut } from "next-auth/react";
 import type { ReadonlyURLSearchParams } from "next/navigation";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 
@@ -38,4 +40,45 @@ export function useSessionExpiredNotice(searchParams: ReadonlyURLSearchParams) {
     clearSessionErrorFromUrl();
   }, [searchParams]);
   return [sessionExpired, setSessionExpired] as const;
+}
+
+interface StaleSessionSignOut {
+  readonly status: "authenticated" | "loading" | "unauthenticated";
+  readonly session: Session | null;
+  /** Set while a sign-out runs or is done, so one stale session ends once. */
+  readonly started: { current: boolean };
+  readonly logger: { warn: (event: string, data: { error: string }) => void };
+  /** The sign-out failed; a later call tries again. */
+  readonly onFailure?: (cause: unknown) => void;
+}
+
+/**
+ * Ends a session the backend no longer refreshes when a login page opens.
+ * Without this the JWT callback keeps retrying the refused refresh, and the
+ * stale cookie competes with the new sign-in. Answers null, at once, when
+ * there is nothing to end or a sign-out already runs, so the page goes on
+ * to its other checks in the same tick; otherwise the sign-out it started. Nothing is shown for a failure
+ * unless the page asks for it: no one requested the cleanup.
+ */
+export function signOutStaleSession({
+  status,
+  session,
+  started,
+  logger,
+  onFailure,
+}: StaleSessionSignOut): Promise<void> | null {
+  if (status !== "authenticated" || !session?.error || started.current) {
+    return null;
+  }
+  started.current = true;
+  return signOut({ redirect: false }).then(
+    () => undefined,
+    (cause: unknown) => {
+      started.current = false;
+      logger.warn("stale_session_signout_failed", {
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+      onFailure?.(cause);
+    },
+  );
 }

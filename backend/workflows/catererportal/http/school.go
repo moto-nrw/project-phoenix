@@ -24,6 +24,13 @@ type InvitationResponse struct {
 	AcceptedAt      *time.Time `json:"accepted_at,omitempty"`
 	RevokedAt       *time.Time `json:"revoked_at,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
+	// MailOutcome is what Delivery knows about the invitation's mail (#5960),
+	// as for staff and guardian invitations. AddressMark is set while the
+	// school's list holds the address, ProviderBlock when the provider was
+	// asked about it. All three are empty before a mail exists.
+	MailOutcome   string `json:"mail_outcome,omitempty"`
+	AddressMark   string `json:"address_mark,omitempty"`
+	ProviderBlock string `json:"provider_block,omitempty"`
 }
 
 // SupplyResponse is the school's running supply.
@@ -65,7 +72,10 @@ func invitationResponse(invitation identityaccess.CatererInvitation, now time.Ti
 func schoolCatererResponse(caterer catererportal.SchoolCaterer, now time.Time) SchoolCatererResponse {
 	response := SchoolCatererResponse{Invitations: make([]InvitationResponse, 0, len(caterer.Invitations))}
 	for _, invitation := range caterer.Invitations {
-		response.Invitations = append(response.Invitations, invitationResponse(invitation, now))
+		item := invitationResponse(invitation, now)
+		mail := caterer.InvitationMail[invitation.ID]
+		item.MailOutcome, item.AddressMark, item.ProviderBlock = mail.Outcome, mail.AddressMark, mail.ProviderBlock
+		response.Invitations = append(response.Invitations, item)
 	}
 	if caterer.Supply != nil {
 		response.Supply = &SupplyResponse{

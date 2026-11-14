@@ -30,7 +30,10 @@ import {
   revokeInvitation,
 } from "~/lib/invitation-api";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { mailStatusCopy } from "~/lib/email-delivery-status";
+import {
+  invitationMailNote,
+  mailStatusCopy,
+} from "~/lib/email-delivery-status";
 import type { PendingInvitation } from "~/lib/invitation-helpers";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { isValidDateString, isDateExpired } from "~/lib/utils/date-helpers";
@@ -48,25 +51,10 @@ interface PendingInvitationsListProps {
   readonly onRevoked?: () => void;
 }
 
-// Mail to staff still goes out to a marked address (#5935), so the note only says
-// what is known about the address and never speaks of a block. The address of an
-// invitation is fixed: the next step is a new invitation.
 function staffMailNote(invitation: PendingInvitation): string | null {
-  const nextStep =
-    "Stimmt die Adresse nicht, löschen Sie die Einladung und laden Sie neu ein.";
-  if (invitation.mailOutcome === "undeliverable") {
-    return `Die Mail kam nicht an. ${nextStep}`;
-  }
-  if (invitation.addressMark === "complained") {
-    return `Von dieser Adresse kam eine Beschwerde über eine Mail. ${nextStep}`;
-  }
-  if (invitation.addressMark === "failed") {
-    return `Eine frühere Mail an diese Adresse kam nicht an. ${nextStep}`;
-  }
-  if (invitation.mailOutcome === "accepted") return null;
-  return (
-    mailStatusCopy(invitation.mailOutcome, "", false, invitation.providerBlock)
-      ?.explanation ?? null
+  return invitationMailNote(
+    invitation,
+    "Stimmt die Adresse nicht, löschen Sie die Einladung und laden Sie neu ein.",
   );
 }
 

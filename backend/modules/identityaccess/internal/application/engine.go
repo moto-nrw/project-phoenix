@@ -28,8 +28,6 @@ type engine struct {
 	*Service
 	ports.OperatorMFARecords
 	ports.OperatorTokens
-	ports.OperatorPasskeyRecords
-	ports.AccountPasskeyRecords
 	*AccountAuthentication
 	*OperatorAuthentication
 	*OperatorAccountAccess

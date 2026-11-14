@@ -41,7 +41,8 @@ func (a parentAnnouncementDeliveryAdapter) ListForEntity(ctx context.Context, te
 			FirstName: row.FirstName, LastName: row.LastName, RecipientEmail: row.RecipientEmail,
 			Reachability: row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,
 			MailOutcome: row.MailOutcome, AddressMark: row.AddressMark, Stopped: row.Stopped, StopShared: row.StopShared, MailedTo: row.MailedTo, ProviderBlock: row.ProviderBlock,
-			SentAt: row.SentAt, Attempts: row.Attempts,
+			Departed: row.Departed,
+			SentAt:   row.SentAt, Attempts: row.Attempts,
 		})
 	}
 	return result, nil
@@ -193,7 +194,7 @@ func (p *parentAnnouncements) ParentAnnouncementLetterStatus(ctx context.Context
 			FirstName: recipient.FirstName, LastName: recipient.LastName, RecipientEmail: recipient.RecipientEmail,
 			EmailStatus: recipient.EmailStatus, Reachability: recipient.Reachability,
 			MailOutcome: recipient.MailOutcome, AddressMark: recipient.AddressMark, Stopped: recipient.Stopped, StopShared: recipient.StopShared, MailedTo: recipient.MailedTo, ProviderBlock: recipient.ProviderBlock,
-			LastError: recipient.LastError, SentAt: recipient.SentAt,
+			Departed: recipient.Departed, LastError: recipient.LastError, SentAt: recipient.SentAt,
 		})
 	}
 	for _, child := range status.Children {

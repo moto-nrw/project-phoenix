@@ -1074,7 +1074,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
-      "binding_digest": "065fd3734504dadd802f2b1e140926b4",
+      "binding_digest": "596eeb6f8ee61328c916b91ce984ea5e",
       "port": "github.com/moto-ogs/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
       "source_owner": "communication",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -1082,7 +1082,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
-      "binding_digest": "226f68cf7fecd40db82a0b23e6696236",
+      "binding_digest": "24a93e2d9b78ac961e5b3de060d5abc8",
       "port": "github.com/moto-ogs/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
       "source_owner": "communication",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
@@ -1090,7 +1090,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
-      "binding_digest": "a7dcf788bc8d3d02106bf458d2bf5a89",
+      "binding_digest": "3403f8547783342901efb84e5098853f",
       "port": "github.com/moto-ogs/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
       "source_owner": "communication",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.Capability.EmailDeliveryStatuses",
@@ -1098,7 +1098,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
-      "binding_digest": "68b51f66553b711685d9008b4cb43198",
+      "binding_digest": "5d3e99f5d7cbaef525d6de3f863968ba",
       "port": "github.com/moto-ogs/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
       "source_owner": "communication",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",

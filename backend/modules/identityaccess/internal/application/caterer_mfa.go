@@ -18,12 +18,13 @@ import (
 // Träger's, without a school ledger. The caterer's session row stays kept at
 // a supplied school, as a storage key only.
 
-// tenantless marks a passkey or operator flow of the caterer: it names no
-// school, so its events are logged without a school ledger. Its policy is
-// the registry default, which the settings binding resolves for the zero
-// school whatever school a context carries.
+// tenantless binds a passkey or operator flow of the caterer the way its
+// factor binds a sign-in: it names no school, so its events are logged
+// without a school ledger. Its policy is the registry default, which the
+// settings binding resolves for the zero school whatever school a context
+// carries.
 func (c *CatererAccess) tenantless(ctx context.Context) context.Context {
-	return withoutSchoolLedgerContext(c.attach(ctx))
+	return c.voluntary().bind(c.attach(ctx))
 }
 
 func (c *CatererAccess) flow() flowUnit {

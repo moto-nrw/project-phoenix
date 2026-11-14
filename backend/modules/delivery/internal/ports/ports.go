@@ -57,8 +57,10 @@ type RetentionStore interface {
 	// DeleteExpiredEmailDeliveryEvents removes the events of the mails that
 	// ended before the instant, including those of cleared key-only mails.
 	DeleteExpiredEmailDeliveryEvents(ctx context.Context, tenantID int64, before time.Time) (int, error)
-	// DeleteUnheldEmailSuppressions removes marked addresses nobody at the
-	// school holds any more. Every other mark stays until the school checked it.
+	// DeleteUnheldEmailSuppressions removes marked addresses the school no
+	// longer knows: no guardian with a child in care, no staff or other account
+	// and no open application holds them (#5960). Every other mark stays until
+	// the school checked it.
 	DeleteUnheldEmailSuppressions(ctx context.Context, tenantID int64) (int, error)
 	// DeleteExpiredEmailDeliveryLogs removes the delivery logs of the
 	// expired mails and the logs without a mail written before the instant.

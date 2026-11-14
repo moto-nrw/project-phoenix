@@ -105,9 +105,6 @@ func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account 
 	if err != nil {
 		return nil, failed("start mfa challenge", err)
 	}
-	if !portal.TrustedDevice {
-		return &domain.LoginResult{Status: domain.LoginStatusMFARequired, ChallengeToken: challenge, MaskedEmail: domain.MaskEmail(account.Email)}, nil
-	}
 	return &domain.LoginResult{
 		Status:               domain.LoginStatusMFARequired,
 		ChallengeToken:       challenge,

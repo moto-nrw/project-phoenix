@@ -97,6 +97,9 @@ type EmailDeliveryStatus struct {
 	MailedTo    *string          `json:"mailed_to,omitempty"`
 	AddressMark EmailAddressMark `json:"address_mark,omitempty"`
 	Stopped     bool             `json:"stopped,omitempty"`
+	// Departed is the current departure hold at RecipientEmail, not the outcome
+	// of an earlier mail. It clears when the school knows that address again.
+	Departed bool `json:"-"`
 	// StopShared says another holder of the address carries no stop, so mail to the
 	// address still goes out.
 	StopShared bool `json:"stop_shared,omitempty"`
@@ -319,6 +322,25 @@ var parentMailTemplates = map[string]bool{
 
 // IsParentMail reports whether a mail template goes to parents.
 func IsParentMail(template string) bool { return parentMailTemplates[template] }
+
+// distributionMailTemplates are the school's mailings to its families: letters,
+// messages, appointments, and the invitation to the parent portal (#5960). They
+// stop once no child of the recipient is in care at the school any more. Mail a
+// family needs individually goes on: care contracts and their notices, billing
+// letters, decisions on an application, and sign-in and password mail.
+var distributionMailTemplates = map[string]bool{
+	"guardian_invitation":   true,
+	"parent_announcement":   true,
+	"parent_message":        true,
+	"appointment_published": true,
+	"appointment_updated":   true,
+	"appointment_cancelled": true,
+	"appointment_reminder":  true,
+}
+
+// IsDistributionMail reports whether a mail template is one of the school's
+// mailings that end when the family's last child left. Each is a parent mail.
+func IsDistributionMail(template string) bool { return distributionMailTemplates[template] }
 
 // HolidayClosureMailRecovery exposes only the key and whether a retry needs outcome clarification.
 type HolidayClosureMailRecovery struct {

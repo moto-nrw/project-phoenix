@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -224,4 +225,19 @@ func TestTraegerParentSessionShape(t *testing.T) {
 	assert.Error(t, valid(10, 7), "a parent session names a school or a Träger, not both")
 	caterer := AccountSession{AccountID: 1, Token: "t", PortalScope: PortalCaterer.Name, OrganizationID: 7}
 	assert.Error(t, caterer.Validate(), "no caterer session names a Träger")
+}
+
+// A remembered device belongs to exactly one realm, and every portal that
+// remembers devices reads its own.
+func TestDeviceBindingNamesOneRealm(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, DeviceOfSchool, DeviceBinding{TenantID: 3}.Realm())
+	assert.Equal(t, DeviceOfTraeger, DeviceBinding{OrganizationID: 5}.Realm())
+	assert.Equal(t, DeviceOfParentPortal, DeviceBinding{ParentPortal: true}.Realm())
+	assert.Equal(t, DeviceOfAccount, DeviceBinding{}.Realm(), "a device without school, Träger or portal mark is the caterer portal's")
+	assert.Equal(t, DeviceOfTraeger, AccountTrustedDevice{OrganizationID: 5}.Binding().Realm())
+
+	for _, realm := range []DeviceRealm{DeviceOfSchool, DeviceOfTraeger, DeviceOfParentPortal, DeviceOfAccount} {
+		assert.True(t, slices.ContainsFunc(portals, func(portal Portal) bool { return portal.Device == realm }), "a portal remembers devices of realm %d", realm)
+	}
 }
