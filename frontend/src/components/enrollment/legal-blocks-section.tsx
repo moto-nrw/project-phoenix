@@ -27,6 +27,7 @@ import {
   FieldErrorContext,
   fieldErrorProps,
 } from "~/components/enrollment/form-field-builder";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Button, buttonClassName } from "~/components/ui/button";
@@ -279,6 +280,7 @@ export function LegalBlocksSection({
                 variant="ghost"
                 size="compact"
                 className="w-fit"
+                tooltip="Nimmt wieder den Text aus den Einstellungen, wirksam erst nach dem Speichern."
               >
                 Einstellungen wieder verwenden
               </Button>
@@ -291,6 +293,7 @@ export function LegalBlocksSection({
                 variant="ghost_danger"
                 size="compact"
                 className="w-fit gap-2"
+                tooltip="Nimmt diesen Eintrag aus dem Formular, wirksam erst nach dem Speichern."
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Entfernen
@@ -537,6 +540,8 @@ export function LegalBlocksSection({
                         label: "Abweichend bearbeiten",
                         icon: <Pencil className="h-4 w-4" aria-hidden="true" />,
                         onClick: () => editStandardBlock(block.key),
+                        description:
+                          "Öffnet den Text zum Ändern nur für diese Vorlage",
                         disabled,
                       },
                     ]}
@@ -584,6 +589,7 @@ export function LegalBlocksSection({
           variant="outline"
           size="md"
           className="inline-flex items-center justify-center gap-2"
+          tooltip="Fügt eine weitere Einwilligung an, wirksam erst nach dem Speichern."
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           {customOnly
@@ -696,6 +702,11 @@ function AGBTemplateSourceEditor({
                 size="compact"
                 disabled={disabled || documentSaving}
                 onClick={() => documentPicker.current?.click()}
+                tooltip={
+                  hasDocument
+                    ? "Tauscht die PDF aus, wirksam erst nach dem Speichern."
+                    : "Lädt die AGB als PDF hoch, wirksam erst nach dem Speichern."
+                }
               >
                 <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
@@ -713,19 +724,21 @@ function AGBTemplateSourceEditor({
                 }}
               />
               {hasDocument ? (
-                <a
-                  href={publicAGBDocumentURL(documentURL)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={buttonClassName({
-                    variant: "surface",
-                    size: "compact",
-                    className: "",
-                  })}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Öffnen</span>
-                </a>
+                <ActionHint text="Öffnet die PDF in einem neuen Tab.">
+                  <a
+                    href={publicAGBDocumentURL(documentURL)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={buttonClassName({
+                      variant: "surface",
+                      size: "compact",
+                      className: "",
+                    })}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Öffnen</span>
+                  </a>
+                </ActionHint>
               ) : null}
               {hasDocument ? (
                 <Button
@@ -734,6 +747,7 @@ function AGBTemplateSourceEditor({
                   disabled={disabled || documentSaving}
                   variant="outline_danger"
                   size="compact"
+                  tooltip="Nimmt die PDF aus der Vorlage, wirksam erst nach dem Speichern."
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Entfernen</span>

@@ -183,6 +183,7 @@ function TranslationRow({
               size="compact"
               disabled={disabled}
               onClick={() => setText(entry?.text ?? "")}
+              tooltip="Bestätigt die Übersetzung als aktuell, wirksam erst nach dem Speichern."
             >
               Passt noch
             </Button>

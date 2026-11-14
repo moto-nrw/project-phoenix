@@ -84,6 +84,10 @@ function warningCopy(warning: PhaseExpiryWarning): {
       };
 }
 
+// Erstellt noch nichts: Die E-Mail an die Eltern geht erst beim Absenden.
+export const CREATE_SUCCESSOR_HINT =
+  "Öffnet das Formular für die Anschlussphase, noch ohne E-Mail an Eltern.";
+
 function WarningAction({
   warning,
   label,
@@ -102,6 +106,7 @@ function WarningAction({
         variant="surface"
         size="md"
         onClick={() => onCreateSuccessor(warning.source_phase_id)}
+        tooltip={CREATE_SUCCESSOR_HINT}
       >
         {label}
       </Button>
@@ -123,6 +128,7 @@ function WarningAction({
           variant="surface"
           size="md"
           className="lg:hidden"
+          tooltip={CREATE_SUCCESSOR_HINT}
         >
           {label}
         </ButtonLink>
@@ -131,6 +137,7 @@ function WarningAction({
           variant="surface"
           size="md"
           className="hidden lg:inline-flex"
+          tooltip={CREATE_SUCCESSOR_HINT}
         >
           {label}
         </ButtonLink>
@@ -144,7 +151,12 @@ function WarningAction({
     );
   }
   return (
-    <ButtonLink href={href} variant="surface" size="md">
+    <ButtonLink
+      href={href}
+      variant="surface"
+      size="md"
+      tooltip="Öffnet die Anmeldungen der Anschlussphase, um die Übernahme abzuschließen."
+    >
       {label}
     </ButtonLink>
   );
