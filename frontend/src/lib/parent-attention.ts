@@ -6,7 +6,7 @@ import type { InboxThread } from "~/lib/parent-messages-api";
 const logger = createLogger({ component: "ParentAttention" });
 
 /**
- * Was auf der Kinderkachel als rote Zahl steht (#6486): neue Nachrichten der
+ * Was auf der Kinderkachel als blaue Zahl steht (#6486): neue Nachrichten der
  * Eltern und offene Anfragen, die die Person entscheiden darf.
  */
 export interface ParentAttention {

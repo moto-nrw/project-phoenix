@@ -151,7 +151,7 @@ export function buttonStyles({
     // durchsichtig, die sichtbare Zahl ist ein `NotificationBadge` im Knopf.
     // 32 px Trefferfläche, per Finger 44 px. Bringt sein Maß selbst mit.
     count_badge:
-      "h-8 min-w-8 rounded-full p-0 bg-transparent shadow-none pointer-coarse:min-w-11 hover:opacity-90 focus-visible:ring-moto-red",
+      "h-8 min-w-8 rounded-full p-0 bg-transparent shadow-none pointer-coarse:min-w-11 hover:opacity-90 focus-visible:ring-moto-blue",
   };
   // Fingerregel (#5531): Bei Bedienung per Finger ist jeder Kit-Knopf
   // mindestens 44 px hoch (Apple HIG 44 pt), `icon` auch 44 px breit. Mit Maus

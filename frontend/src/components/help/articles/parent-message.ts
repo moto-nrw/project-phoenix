@@ -47,9 +47,9 @@ export function parentMessageTopic(): HelpTopic {
       {
         title: "Neues von den Eltern direkt an der Kinderkachel bearbeiten",
         description:
-          "Das geht nur, wenn die Schule unter `Einstellungen` den Schalter `Neue Elternnachrichten auf der Kinderkachel` eingeschaltet hat. Die rote Zahl oben rechts an der Kachel zählt neue Nachrichten und offene Anfragen der Eltern.",
+          "Das geht nur, wenn die Schule unter `Einstellungen` den Schalter `Neue Elternnachrichten auf der Kinderkachel` eingeschaltet hat. Die blaue Zahl oben rechts an der Kachel zählt neue Nachrichten und offene Anfragen der Eltern.",
         steps: [
-          "Tippen Sie auf die rote Zahl an der Kinderkachel, zum Beispiel in Ihrer Gruppe.",
+          "Tippen Sie auf die blaue Zahl an der Kinderkachel, zum Beispiel in Ihrer Gruppe.",
           "Lesen Sie die neuen Nachrichten.",
           "Wählen Sie `Als gelesen bestätigen`. Dann sieht das ganze Team die Nachricht nicht mehr als neu.",
           "Oder wählen Sie `Antworten`. moto öffnet dann die Unterhaltung.",
@@ -95,7 +95,7 @@ export function parentMessageTopic(): HelpTopic {
       "Sehen Sie `Nachrichten` nicht? Vielleicht ist die Funktion ausgeschaltet.",
       "Schaltet die Schule Eltern-Nachrichten während einer offenen Unterhaltung aus? Der Verlauf bleibt lesbar. Statt des Schreibfelds erscheint ein Hinweis. Sie können nicht mehr antworten.",
       "Möglicherweise fehlt Ihnen auch der Zugriff auf die betroffenen Kinder.",
-      "Zählt die rote Zahl an der Kinderkachel keine Anfragen? Dann dürfen Sie Anfragen für dieses Kind nicht entscheiden. Sie sehen dort nur die Nachrichten.",
+      "Zählt die blaue Zahl an der Kinderkachel keine Anfragen? Dann dürfen Sie Anfragen für dieses Kind nicht entscheiden. Sie sehen dort nur die Nachrichten.",
       "Fehlen bei einer Anfrage `Anfrage ansehen` oder `Anfrage bearbeiten`? Dann dürfen Sie die Anfrage für dieses Kind nicht prüfen.",
       "Steht beim Kind `Kein Eltern-Zugang`? Dann kann niemand die Nachricht in der Eltern-App lesen. Den Zugang der Eltern legen Sie beim Kind fest.",
       "Steht bei einer Unterhaltung `Nur Leitung`? Dann lesen sie nur die Bezugsperson und die Leitung. Begonnen hat sie die Bezugsperson oder jemand aus der Leitung. Ohne das Recht `Vertrauliche Elternnachrichten lesen` sehen Sie solche Unterhaltungen nicht.",

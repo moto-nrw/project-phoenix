@@ -49,7 +49,7 @@ var parentFeaturesDefinitions = []config.Definition{
 		// bestehende Schulen nicht überrascht werden.
 		Key:             config.KeyParentMessageCardBadgeEnabled,
 		Label:           "Neue Elternnachrichten auf der Kinderkachel",
-		Description:     "Eine rote Zahl auf der Kinderkachel zeigt neue Nachrichten und offene Anfragen der Eltern. Das Team öffnet und erledigt sie direkt dort.",
+		Description:     "Eine blaue Zahl auf der Kinderkachel zeigt neue Nachrichten und offene Anfragen der Eltern. Das Team öffnet und erledigt sie direkt dort.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",

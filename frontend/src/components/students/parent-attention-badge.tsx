@@ -42,7 +42,7 @@ export function parentAttentionLabel(
 }
 
 /**
- * Rote Zahl oben rechts an der Kinderkachel (#6486): neue Nachrichten und
+ * Blaue Zahl oben rechts an der Kinderkachel (#6486): neue Nachrichten und
  * offene Anfragen der Eltern. Ein Tipp öffnet sie, ohne die Kachel zu
  * verlassen. Ohne Neues zeigt sie nichts.
  */
@@ -75,7 +75,7 @@ export function ParentAttentionBadge({
         >
           <NotificationBadge
             count={attention.total}
-            tone="danger"
+            tone="parents"
             ariaLabel=""
           />
         </Button>
