@@ -501,6 +501,7 @@ export default function GuardiansPanel({
                 type="button"
                 variant="surface"
                 size="md"
+                tooltip={t("guardians.addContactTooltip")}
                 onClick={() => {
                   setAddMode("contact");
                   setMessage(null);
@@ -560,6 +561,7 @@ export default function GuardiansPanel({
               type="button"
               variant="surface"
               size="md"
+              tooltip={t("guardians.access.inviteTooltip")}
               onClick={() => {
                 setAddMode("access");
                 clearInviteError();
@@ -672,6 +674,7 @@ export default function GuardiansPanel({
                 className="hidden sm:inline-flex"
                 onClick={closeInvite}
                 disabled={busy}
+                noTooltip="Schließt das Fenster, ohne jemanden einzuladen."
               >
                 {t("guardians.cancel")}
               </Button>
@@ -683,6 +686,12 @@ export default function GuardiansPanel({
                 isLoading={busy}
                 loadingText={t("guardians.access.inviteLoading")}
                 disabled={busy || !inviteEmail.trim()}
+                disabledReason={
+                  inviteEmail.trim()
+                    ? undefined
+                    : t("guardians.access.sendDisabledReason")
+                }
+                tooltip={t("guardians.access.sendTooltip")}
               >
                 {t("guardians.access.send")}
               </Button>
@@ -735,6 +744,7 @@ export default function GuardiansPanel({
         cancelText={t("guardians.cancel")}
         isConfirmLoading={busy}
         loadingText={t("guardians.access.grantLoading")}
+        confirmTooltip={t("guardians.access.grantConfirmTooltip")}
       >
         <p className="text-sm leading-6 text-gray-600">
           {upgradePrompt
@@ -817,6 +827,7 @@ function ConnectedAccountRow({
                 size="md"
                 disabled={busy}
                 onClick={onConfirmRemove}
+                tooltip={t("guardians.access.removeConfirmTooltip")}
               >
                 {t("guardians.access.removeConfirm")}
               </Button>
@@ -825,6 +836,7 @@ function ConnectedAccountRow({
                 variant="ghost"
                 size="md"
                 onClick={onCancelRemove}
+                noTooltip="Lässt den Zugang, wie er ist."
               >
                 {t("guardians.cancel")}
               </Button>
@@ -835,6 +847,7 @@ function ConnectedAccountRow({
               variant="outline_danger"
               size="md"
               onClick={onAskRemove}
+              tooltip={t("guardians.access.removeTooltip")}
             >
               <X className="mr-2 h-4 w-4 shrink-0" aria-hidden="true" />
               {t("guardians.access.remove")}
@@ -1037,7 +1050,7 @@ function GuardianRow({
                 variant="ghost"
                 size="icon"
                 onClick={onEditContact}
-                title={t("guardians.editContact")}
+                tooltip={t("guardians.editContactTooltip")}
                 aria-label={t("guardians.editContact")}
               >
                 <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -1057,10 +1070,10 @@ function GuardianRow({
                 variant="ghost"
                 size="icon"
                 onClick={onEditPickup}
-                title={
+                tooltip={
                   g.can_manage_pickup
-                    ? t("guardians.managePickup")
-                    : t("guardians.pickupNotes")
+                    ? t("guardians.managePickupTooltip")
+                    : t("guardians.pickupNotesTooltip")
                 }
                 aria-label={
                   g.can_manage_pickup
@@ -1087,6 +1100,7 @@ function GuardianRow({
             size="md"
             disabled={busy}
             onClick={() => onGrantAccess(accessEmail, name)}
+            tooltip={t("guardians.access.grantTooltip")}
           >
             {t("guardians.access.grant")}
           </Button>
@@ -1308,6 +1322,7 @@ function ContactModal({
             size="md"
             className="hidden sm:inline-flex"
             onClick={onClose}
+            noTooltip="Schließt das Fenster, ohne etwas zu speichern."
           >
             {t("guardians.cancel")}
           </Button>
@@ -1317,6 +1332,13 @@ function ContactModal({
             className="w-full sm:w-auto"
             disabled={busy}
             onClick={() => void handleSave()}
+            tooltip={
+              mode === "edit"
+                ? t("guardians.saveContactTooltip")
+                : canManagePickup && canPickup
+                  ? t("guardians.createContactWithPickupTooltip")
+                  : t("guardians.createContactTooltip")
+            }
           >
             {mode === "create"
               ? t("guardians.createContact")
@@ -1502,6 +1524,7 @@ function ContactModal({
                       setPhones((prev) => prev.filter((_, idx) => idx !== i))
                     }
                     aria-label={t("guardians.removePhone")}
+                    tooltip={t("guardians.removePhoneTooltip")}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -1515,6 +1538,7 @@ function ContactModal({
               variant="ghost"
               size="compact"
               className="mt-2"
+              tooltip={t("guardians.addPhoneTooltip")}
               onClick={() =>
                 setPhones((prev) => [
                   ...prev,
@@ -1694,6 +1718,7 @@ function PickupModal({
             size="md"
             className="hidden sm:inline-flex"
             onClick={onClose}
+            noTooltip="Schließt das Fenster, ohne etwas zu speichern."
           >
             {t("guardians.cancel")}
           </Button>
@@ -1703,6 +1728,13 @@ function PickupModal({
             className="w-full sm:w-auto"
             disabled={busy}
             onClick={() => void handleSave()}
+            tooltip={
+              grants
+                ? t("guardians.savePickupRequestTooltip")
+                : revokes
+                  ? t("guardians.savePickupRevokeTooltip")
+                  : t("guardians.savePickupTooltip")
+            }
           >
             {t("guardians.save")}
           </Button>

@@ -26,5 +26,6 @@
   "note": "Dieser Nachweis belegt eine einfache elektronische Erklärung. Er ersetzt keine gesetzlich vorgeschriebene Unterschrift auf Papier.",
   "noteSigned": "Unterschriebene Antworten sind als einfache elektronische Signatur mit gezeichneter Unterschrift gegeben.",
   "errorObjectProof": "das Nachweisdokument",
-  "errorObjectPdf": "das PDF"
+  "errorObjectPdf": "das PDF",
+  "downloadTooltip": "Speichert den Nachweis als PDF auf diesem Gerät."
 }

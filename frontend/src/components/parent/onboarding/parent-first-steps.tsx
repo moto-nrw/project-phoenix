@@ -313,6 +313,7 @@ export function ParentFirstSteps({
           size="md"
           onClick={() => setView("checklist")}
           aria-label={t("open", { count: steps.length - finished })}
+          tooltip={t("tooltips.open")}
           className="gap-2"
         >
           <span>{t("shortTitle")}</span>
@@ -351,6 +352,7 @@ export function ParentFirstSteps({
               size="icon"
               onClick={() => setView("beacon")}
               aria-label={t("collapse")}
+              tooltip={t("tooltips.collapse")}
             >
               <CaretDownIcon size={18} aria-hidden />
             </Button>
@@ -376,6 +378,7 @@ export function ParentFirstSteps({
                 type="button"
                 size="md"
                 onClick={() => updateState({ ...state, finished: true })}
+                tooltip={t("tooltips.complete")}
               >
                 {t("complete.action")}
               </Button>
@@ -445,6 +448,7 @@ export function ParentFirstSteps({
                               setView("beacon");
                               tour.start(step.key);
                             }}
+                            tooltip={t("tooltips.show")}
                           >
                             {done ? t("actions.showAgain") : t("actions.show")}
                           </Button>
@@ -456,6 +460,11 @@ export function ParentFirstSteps({
                               rel="noopener noreferrer"
                               variant="surface"
                               size="md"
+                              tooltip={
+                                step.key === "installApp"
+                                  ? t("tooltips.installGuide")
+                                  : t("tooltips.guide")
+                              }
                               onClick={() => {
                                 if (step.key !== "installApp") return;
                                 updateState(
@@ -483,6 +492,7 @@ export function ParentFirstSteps({
               variant="link"
               size="md"
               onClick={() => setConfirmDismiss(true)}
+              tooltip={t("tooltips.dismiss")}
             >
               {t("dismiss.action")}
             </Button>
@@ -499,6 +509,7 @@ export function ParentFirstSteps({
         }}
         title={t("dismiss.title")}
         confirmText={t("dismiss.confirm")}
+        confirmTooltip={t("tooltips.dismissConfirm")}
       >
         <p className="text-sm text-gray-700">{t("dismiss.body")}</p>
       </ConfirmationModal>

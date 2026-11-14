@@ -26,5 +26,6 @@
   "note": "To potwierdzenie dokumentuje proste oświadczenie elektroniczne. Nie zastępuje podpisu na papierze, jeśli wymaga go prawo.",
   "noteSigned": "Podpisane odpowiedzi złożono jako zwykły podpis elektroniczny z narysowanym podpisem.",
   "errorObjectProof": "dokument potwierdzenia",
-  "errorObjectPdf": "plik PDF"
+  "errorObjectPdf": "plik PDF",
+  "downloadTooltip": "Zapisuje potwierdzenie jako PDF na tym urządzeniu."
 }

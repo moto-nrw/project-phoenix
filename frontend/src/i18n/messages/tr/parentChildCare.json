@@ -123,13 +123,11 @@
   "actions": {
     "sick": {
       "label": "Hastalık bildirimi",
-      "shortLabel": "Hastalık bildirimi",
-      "hint": "Çocuğu bir veya birkaç gün için hasta bildir"
+      "shortLabel": "Hastalık bildirimi"
     },
     "pickup": {
       "label": "Bir gün için teslim alma saatini değiştir",
-      "shortLabel": "Teslim alma saatini değiştir",
-      "hint": "Tek bir günde teslim alma saatini ayarla"
+      "shortLabel": "Teslim alma saatini değiştir"
     }
   },
   "request": {

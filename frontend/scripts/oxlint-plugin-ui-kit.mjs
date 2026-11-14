@@ -6247,6 +6247,15 @@ const TOOLTIP_SCOPE = [
   "src/components/parent/start/holiday-offers.tsx",
   "src/components/parent/start/holiday-registration-entries.tsx",
   "src/components/parent/start/todo-list.tsx",
+  // Elternportal: Sorgeberechtigte, Neuigkeiten, Angebote, Erste Schritte
+  // (#6779).
+  "src/components/parent/guardians-panel.tsx",
+  "src/components/parent/news/declaration-proof-page.tsx",
+  "src/components/parent/news/declaration-section.tsx",
+  "src/components/parent/news/news-components.tsx",
+  "src/components/parent/offering-change-request-modal.tsx",
+  "src/components/parent/ogs-conversation.tsx",
+  "src/components/parent/onboarding/parent-first-steps.tsx",
   // Träger: Betreuungsverträge, Dokumente und Familien (#6762).
   "src/components/traeger/care-contract-change-card.tsx",
   "src/components/traeger/care-contract-change-modal.tsx",

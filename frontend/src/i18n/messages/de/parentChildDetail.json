@@ -111,7 +111,14 @@
         "pending": "Einladung ist unterwegs",
         "no_account": "Kontakt ohne Zugang zur App",
         "active_no_access": "Hat ein Konto, aber noch keinen Zugang zu diesem Kind"
-      }
+      },
+      "inviteTooltip": "Öffnet ein Fenster, um einer Person Zugang zur App zu geben.",
+      "sendTooltip": "Lädt die Person ein, je nach Einstellung prüft die {careTerm} das zuerst.",
+      "sendDisabledReason": "Geben Sie zuerst die E-Mail-Adresse der Person ein.",
+      "grantTooltip": "Fragt vollen App-Zugang für diese Person an, moto fragt vorher nach.",
+      "grantConfirmTooltip": "Schickt die Anfrage sofort an die {careTerm}.",
+      "removeTooltip": "Nimmt der Person den Zugang zu diesem Kind, moto fragt vorher nach.",
+      "removeConfirmTooltip": "Nimmt der Person sofort den Zugang zu diesem Kind in der App."
     },
     "errorObjectContacts": "die Liste der Kontakte",
     "errorObjectAccounts": "die Liste der verbundenen Konten",
@@ -120,7 +127,19 @@
     "reloadObject": "die Anzeige der Kontakte",
     "savedButStale": "Ihre Änderung ist gespeichert. Nur die Anzeige ist noch nicht aktuell.",
     "errorObjectContact": "die Änderung am Kontakt",
-    "errorObjectPickup": "die Abholregelung"
+    "errorObjectPickup": "die Abholregelung",
+    "addContactTooltip": "Öffnet ein Formular für eine Kontakt- oder Abholperson ohne Konto.",
+    "editContactTooltip": "Öffnet die Kontaktdaten dieser Person zum Bearbeiten.",
+    "managePickupTooltip": "Öffnet die Abholregelung und den Notfallkontakt für diese Person.",
+    "pickupNotesTooltip": "Öffnet den Hinweis zur Abholung für diese Person.",
+    "removePhoneTooltip": "Entfernt diese Nummer aus dem Formular.",
+    "addPhoneTooltip": "Fügt ein leeres Feld für eine weitere Nummer an.",
+    "createContactTooltip": "Trägt den Kontakt ein, die {careTerm} sieht ihn sofort.",
+    "createContactWithPickupTooltip": "Trägt den Kontakt ein, die Abholerlaubnis gilt erst nach Bestätigung der {careTerm}.",
+    "saveContactTooltip": "Speichert die Kontaktdaten, die {careTerm} sieht sie sofort.",
+    "savePickupTooltip": "Speichert die Angaben, die {careTerm} sieht sie sofort.",
+    "savePickupRequestTooltip": "Schickt die Abholerlaubnis an die {careTerm}, sie gilt erst nach Bestätigung.",
+    "savePickupRevokeTooltip": "Nimmt das Abholrecht sofort weg, die {careTerm} sieht das."
   },
   "back": "Zurück zu Meine Kinder",
   "backSingle": "Zurück zu Mein Kind",

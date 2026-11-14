@@ -267,7 +267,7 @@ describe("OfferingChangeRequestModal", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Anfrage senden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
