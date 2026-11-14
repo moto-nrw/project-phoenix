@@ -37,8 +37,8 @@ var seedTraegerOperatorInvitee = struct {
 
 // seedTraegerAdminRoles are the Träger roles of the bootstrap school admin.
 // Dokumente comes with Verwaltung (#5992), so the dev database manages the
-// shared documents.
-var seedTraegerAdminRoles = []string{"administration", "documents", "leadership", "school_access", "billing"}
+// shared documents; Personal (#4705) lets it link the staff records.
+var seedTraegerAdminRoles = []string{"administration", "documents", "leadership", "school_access", "billing", "personnel"}
 
 // seedTraegerBueroStep makes the bootstrap school admin the first person of
 // the Träger-Büro (ADR 0084, #4649) through the operator route, so every dev
