@@ -1,5 +1,6 @@
 import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
+import { SIMPLE_NAV_DIFFERENCE } from "../help-article-shared";
 
 export function myScheduleTopic(): HelpTopic {
   return {
@@ -57,6 +58,7 @@ export function myScheduleTopic(): HelpTopic {
     ],
     differences: [
       "Das Kalender-Abo ist nur zum Lesen. Änderungen in Ihrem persönlichen Kalender werden nicht an moto übertragen.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     related: [HELP_TOPICS.carePlan, HELP_TOPICS.trackWorkTime],
   };

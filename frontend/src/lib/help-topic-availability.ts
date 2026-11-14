@@ -111,6 +111,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.login]: ["caregiver", "lead"],
   [HELP_TOPICS.installApp]: ["caregiver", "lead"],
   [HELP_TOPICS.appOverview]: ["caregiver", "lead"],
+  [HELP_TOPICS.schoolSearch]: ["caregiver", "lead"],
   [HELP_TOPICS.caregiverFirstSteps]: "caregiver",
   [HELP_TOPICS.mySchedule]: ["caregiver", "lead"],
   [HELP_TOPICS.carePlan]: ["caregiver", "lead"],

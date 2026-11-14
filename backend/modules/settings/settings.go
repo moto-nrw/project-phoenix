@@ -50,6 +50,7 @@ const (
 	KeyEnrollmentRejectedRetentionDays       = configModel.KeyEnrollmentRejectedRetentionDays
 	KeyEnrollmentWaitlistEnabled             = configModel.KeyEnrollmentWaitlistEnabled
 	KeyChildSearchOnlyNavigation             = configModel.KeyChildSearchOnlyNavigation
+	KeySimpleStaffNavigation                 = configModel.KeySimpleStaffNavigation
 	KeyFeedbackEnabled                       = configModel.KeyFeedbackEnabled
 	KeyGroupMode                             = configModel.KeyGroupMode
 	KeyOGSDevicePIN                          = configModel.KeyOGSDevicePIN

@@ -115,6 +115,24 @@ jobs:
           --health-retries 10
 
     steps:
+      # Peak memory in use on the runner for the whole job, page cache not
+      # counted: test binaries, toolchain, and Postgres with its tmpfs data
+      # directory (shared memory is not available memory). "Summarize backend
+      # CPU use" reports it beside the runner's total.
+      - name: Start memory sampler
+        run: |
+          (
+            peak=0
+            while :; do
+              used=$(awk '/^MemTotal:/ { total = $2 } /^MemAvailable:/ { available = $2 } END { print total - available }' /proc/meminfo)
+              if [ "$used" -gt "$peak" ]; then
+                peak=$used
+                echo "$peak" > "$RUNNER_TEMP/memory-peak-kib"
+              fi
+              sleep 0.5
+            done
+          ) > /dev/null 2>&1 < /dev/null &
+
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -387,19 +405,30 @@ jobs:
           # Single pass produces junit.xml. No retries: flaky tests should fail
           # loudly, not be hidden. gotestsum propagates race/test failures.
           #
-          # GOGC=400 is for the compiler, vet and the linker only: they are
+          # GOGC=400 is for the compiler and the linker only: they are
           # short-lived and spent 13 % less CPU with it (549 against 480 CPU s
           # in the median of four alternating builds of a typical selection,
           # 11/2026; GOGC=off saved 18 % but leaves memory unbounded). -exec
-          # starts every test binary without it, so tests run as before.
+          # starts every test binary without it. GOGC=200 for the test
+          # binaries raised the peak memory by 0.6-1.0 GiB and saved no busy CPU
+          # seconds (three full suites each, 14.11.2026, #7045).
+          #
+          # -vet=off: "Backend lint" (lint.yml) runs every analyzer of go
+          # test's vet subset (Go 1.27: atomic, bools, buildtag, directive,
+          # errorsas, ifaceassert, nilfunc, printf, slog, stdversion,
+          # stringintconv, tests) on the same package selection, test and
+          # generated files included. vet cost 17-55 CPU s, about 2 % of the
+          # busy seconds, in pull requests with Go changes (14.11.2026, #7045);
+          # a full suite of an unchanged tree finds it in the build cache.
+          # backend-build-cache.yml builds with the same flag.
           GOGC=400 "${measure[@]}" go tool gotestsum --format pkgname-and-test-fails \
             --junitfile junit.xml --jsonfile go-test.json \
-            -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" \
+            -- "${race_flags[@]}" -count=1 -vet=off -parallel 8 -p "$PACKAGE_WORKERS" \
             -exec "env -u GOGC" \
             -debug-actiongraph="$RUNNER_TEMP/actiongraph.json" "${packages[@]}"
 
       # The job keeps its cores busy, so its wall time follows CPU work. This
-      # table says whose: the compiler, vet and the linker from Go's action
+      # table says whose: the compiler and the linker from Go's action
       # graph, Postgres from its cgroup, and the test binaries as the rest.
       # Compare it before and after a change instead of the job duration,
       # which varies by minutes between runs of one commit (#6784).
@@ -435,6 +464,14 @@ jobs:
               "| **busy** | | **\($busy)** |",
               "| idle | | \($idle) |"
             ' "$RUNNER_TEMP/actiongraph.json"
+            total=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo)
+            peak=unknown
+            [ -s "$RUNNER_TEMP/memory-peak-kib" ] && peak="$(($(cat "$RUNNER_TEMP/memory-peak-kib") / 1024)) MiB"
+            postgres_peak=unknown
+            postgres_bytes=$(docker exec "$PG_CONTAINER" cat /sys/fs/cgroup/memory.peak 2>/dev/null) &&
+              postgres_peak="$((postgres_bytes / 1048576)) MiB"
+            echo
+            echo "Peak memory in use: $peak of $((total / 1024)) MiB on the runner; Postgres container: $postgres_peak"
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       # A package over its budget fails the pull request that made it slower,

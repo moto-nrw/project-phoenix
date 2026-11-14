@@ -87,12 +87,13 @@ jobs:
         if: steps.build-cache.outputs.cache-hit != 'true'
         run: scripts/go-cache-sweep.sh mark "$RUNNER_TEMP/build-cache-marker" ~/.cache/go-build
 
-      # Compiles and vets every test package as "Run Go tests" does and links
-      # each test binary, but runs none: -exec hands the binary to true.
+      # Compiles every test package as "Run Go tests" does and links each
+      # test binary, but runs none: -exec hands the binary to true. Like that
+      # step it skips vet ("Backend lint" runs the analyzers).
       - name: Build every test package
         if: steps.build-cache.outputs.cache-hit != 'true'
         working-directory: backend
-        run: go test -count=1 -exec true ./... > /dev/null
+        run: go test -count=1 -vet=off -exec true ./... > /dev/null
 
       # internal/architecture loads the backend and its fixture modules with
       # go list -export and packages.Load in child processes, with
@@ -109,7 +110,7 @@ jobs:
         if: steps.build-cache.outputs.cache-hit != 'true'
         continue-on-error: true
         working-directory: backend
-        run: go test -count=1 ./internal/architecture
+        run: go test -count=1 -vet=off ./internal/architecture
 
       - name: Drop build cache entries this build did not use
         if: steps.build-cache.outputs.cache-hit != 'true'

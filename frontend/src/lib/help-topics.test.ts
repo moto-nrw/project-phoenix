@@ -1,3 +1,4 @@
+import { SIMPLE_NAV_DIFFERENCE } from "~/components/help/help-article-shared";
 import { readdirSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -248,97 +249,105 @@ describe("getParentHelpTopicForPath", () => {
       id: HELP_TOPICS.appOverview,
       group: "einstieg",
     });
-    // Am Computer, Wie die Seitenleiste geordnet ist, Auf dem Handy oder
-    // Tablet, Die Startseite anpassen (#4347), Hilfe öffnen.
+    // Am Computer, Wie die Seitenleiste geordnet ist, Die einfache
+    // Seitenleiste (#6956), Auf dem Handy oder Tablet, Die Startseite
+    // anpassen (#4347), Hilfe öffnen.
     expect(
       caregiverTopics[3]?.instructionGroups?.map((group) => group.title),
     ).toEqual([
       "Am Computer",
       "Wie die Seitenleiste geordnet ist",
+      "Die einfache Seitenleiste",
       "Auf dem Handy oder Tablet",
       "Die Startseite anpassen",
       "Hilfe öffnen",
     ]);
+    // #6954: die Suche über die ganze App steht direkt nach dem Überblick.
     expect(caregiverTopics[4]).toMatchObject({
-      id: HELP_TOPICS.caregiverFirstSteps,
+      id: HELP_TOPICS.schoolSearch,
       group: "einstieg",
     });
     expect(caregiverTopics[5]).toMatchObject({
+      id: HELP_TOPICS.caregiverFirstSteps,
+      group: "einstieg",
+    });
+    expect(caregiverTopics[6]).toMatchObject({
       id: HELP_TOPICS.mySchedule,
       group: "tagesplanung",
     });
     expect(
-      caregiverTopics[5]?.instructionGroups?.map((group) => group.title),
+      caregiverTopics[6]?.instructionGroups?.map((group) => group.title),
     ).toEqual([
       "Termine und Einsätze ansehen",
       "Die Farben verstehen",
       "Den Kalender abonnieren",
     ]);
-    expect(caregiverTopics[5]?.instructionGroups?.[2]?.description).toBe(
+    expect(caregiverTopics[6]?.instructionGroups?.[2]?.description).toBe(
       "Nutzen Sie das Abo, wenn Sie hauptsächlich Ihren persönlichen Kalender verwenden. Neue und geänderte Einträge aus moto erscheinen dort automatisch.",
     );
-    expect(caregiverTopics[5]?.result).toContain(
+    expect(caregiverTopics[6]?.result).toContain(
       "Das Kalender-Abo übernimmt neue, geänderte und abgesagte Einträge automatisch.",
     );
-    expect(caregiverTopics[6]).toMatchObject({
+    expect(caregiverTopics[7]).toMatchObject({
       id: HELP_TOPICS.carePlan,
       group: "tagesplanung",
     });
-    expect(caregiverTopics[6]?.troubleshooting).toBeUndefined();
-    expect(caregiverTopics[6]?.troubleshootingDetails).toEqual([
+    expect(caregiverTopics[7]?.troubleshooting).toBeUndefined();
+    expect(caregiverTopics[7]?.troubleshootingDetails).toEqual([
       "Der Tab `Betreuungsplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
       "Steht dort `Noch kein Planungszeitraum`? Dann hat Ihre Leitung den Zeitraum noch nicht angelegt.",
       "Steht dort `Für diese Auswahl ist nichts geplant`? Stellen Sie die Filter wieder auf `Alle Gruppen`, `Alle Personen` und `Alle Räume`.",
     ]);
-    expect(caregiverTopics[6]?.differences).toEqual([
+    expect(caregiverTopics[7]?.differences).toEqual([
       "Steht oben rechts `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",
+      SIMPLE_NAV_DIFFERENCE,
     ]);
     // Der Tagesplan steht in der App ganz oben im Tagesbetrieb und folgt in
     // der Hilfe auf den Betreuungsplan (#2383).
-    expect(caregiverTopics[7]).toMatchObject({
+    expect(caregiverTopics[8]).toMatchObject({
       id: HELP_TOPICS.dayPlan,
       group: "tagesplanung",
     });
-    expect(caregiverTopics[8]).toMatchObject({
+    expect(caregiverTopics[9]).toMatchObject({
       id: HELP_TOPICS.studentSearch,
       group: "kinder",
     });
-    expect(caregiverTopics[8]?.instructionGroups).toHaveLength(5);
-    expect(caregiverTopics[8]?.instructionGroups?.[3]).toMatchObject({
+    expect(caregiverTopics[9]?.instructionGroups).toHaveLength(6);
+    expect(caregiverTopics[9]?.instructionGroups?.[3]).toMatchObject({
       title: "Ein Anwesenheitsprotokoll herunterladen",
       steps: expect.arrayContaining([
         "Möglich sind nur die sichtbaren Tage bis heute.",
         "Wählen Sie das Format und danach `Herunterladen`.",
       ]),
     });
-    expect(caregiverTopics[8]?.troubleshooting).toBe(
+    expect(caregiverTopics[9]?.troubleshooting).toBe(
       HELP_TOPICS.missingChildOrGroup,
     );
-    expect(caregiverTopics[9]).toMatchObject({
+    expect(caregiverTopics[10]).toMatchObject({
       id: HELP_TOPICS.editStudent,
     });
-    expect(caregiverTopics[10]).toMatchObject({
+    expect(caregiverTopics[11]).toMatchObject({
       id: HELP_TOPICS.webAttendance,
     });
-    expect(caregiverTopics[11]).toMatchObject({
+    expect(caregiverTopics[12]).toMatchObject({
       id: HELP_TOPICS.changeLocation,
     });
-    expect(caregiverTopics[12]).toMatchObject({
+    expect(caregiverTopics[13]).toMatchObject({
       id: HELP_TOPICS.absences,
     });
-    expect(caregiverTopics[13]).toMatchObject({
+    expect(caregiverTopics[14]).toMatchObject({
       id: HELP_TOPICS.dayLog,
     });
-    expect(caregiverTopics[14]).toMatchObject({
+    expect(caregiverTopics[15]).toMatchObject({
       id: HELP_TOPICS.emergency,
     });
-    expect(caregiverTopics[15]).toMatchObject({
+    expect(caregiverTopics[16]).toMatchObject({
       id: HELP_TOPICS.ownGroups,
     });
-    expect(caregiverTopics[16]).toMatchObject({
+    expect(caregiverTopics[17]).toMatchObject({
       id: HELP_TOPICS.transferGroup,
     });
-    expect(caregiverTopics[17]).toMatchObject({
+    expect(caregiverTopics[18]).toMatchObject({
       id: HELP_TOPICS.weekProtocol,
     });
     // 42 seit #3821 („Eigenen Dienstplan ansehen“), 45 seit #4901
@@ -348,7 +357,8 @@ describe("getParentHelpTopicForPath", () => {
     // 48 seit #4666 („Feriengäste betreuen“, Betreuung und Leitung).
     // 49 seit #4774 („Soll und Ist vergleichen“, Betreuung und Leitung).
     // 50 seit #4769 („Das Wochenprotokoll ergänzen“, Betreuung und Leitung).
-    expect(caregiverTopics).toHaveLength(50);
+    // 51 seit #6954 („Mit der Suche finden“, Betreuung und Leitung).
+    expect(caregiverTopics).toHaveLength(51);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -557,7 +567,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            50 -
+            51 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 6 : 5) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -611,7 +621,8 @@ describe("getParentHelpTopicForPath", () => {
     // 100 seit #4769: das geteilte Wochenprotokoll.
     // 101 seit #4808: Nachweise wie Erste Hilfe im Blick behalten.
     // 103 seit #4692: Dokumente vom Träger finden.
-    expect(leadTopics).toHaveLength(106);
+    // 107 seit #6954: Mit der Suche finden.
+    expect(leadTopics).toHaveLength(107);
     expect(
       leadTopics.every(
         (topic) =>
