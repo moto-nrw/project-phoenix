@@ -671,6 +671,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0075",
+      "id": "api/groupLiveSettings.StudentCardActivitiesEnabled",
+      "reason": "ADR 0075 consumer-port adapter (#6487): binds the live-group projection Settings port to the tenant setting operations.student_card_activities_enabled, the same shape as StudentPhotosEnabled."
+    },
+    {
       "decision": "0090",
       "id": "api/groupLiveSettings.StudentPhotosEnabled",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

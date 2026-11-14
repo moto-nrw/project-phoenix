@@ -936,6 +936,8 @@ export function useGlobalSSE(): SSEHookState {
             // created, edited or deleted planned block announces only
             // staffing_deviation_changed (#5017).
             key.includes("active-supervision-dashboard-") ||
+            // Group cards project today's offerings from the same instances.
+            key.includes(groupKeys.liveFamily) ||
             key.includes("database-calendar-periods-list") ||
             // Children planned by hand without a booking (#5102): a removal,
             // „Bleibt so“ and every series write announce this event, and the
