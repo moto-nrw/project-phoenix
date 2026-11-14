@@ -8,7 +8,8 @@ Entscheidung vom 2026-11-13 für
 [#6954](https://github.com/moto-ogs/project-phoenix/issues/6954). Sie fügt den
 Projektions-Owner `school-search-view` hinzu und erweitert Enrollment um die
 öffentliche Lesefähigkeit `StudentAnswers`. Sie fügt keine Tabelle, keinen
-Index und keine Schreibbefugnis hinzu.
+Index und keine Schreibbefugnis hinzu, aber eine generierte Spalte: den
+Suchschlüssel einer Telefonnummer (Punkt 3).
 
 ## Kontext
 
@@ -32,9 +33,12 @@ Drei Fragen waren offen:
 2. **Reichen Abfragen auf den bestehenden Tabellen?** Ja. Eine Schule hat
    einige hundert Kinder, Kontaktpersonen und Telefonnummern. Jede Abfrage
    filtert auf die Schule und begrenzt ihr Ergebnis; RLS gilt zusätzlich.
-   Gemessen (Pläne und Endpunkt, [Messung im PR](https://github.com/moto-ogs/project-phoenix/pull/7016#issuecomment-6863948202)):
-   bei zehnfacher Seed-Größe p95 höchstens 64 ms, bei fünfzigfacher bis
-   200 ms, weil Namen, Notizen und Nummern je Zeile verglichen werden.
+   Gemessen (Pläne und Endpunkt, [erste Messung](https://github.com/moto-ogs/project-phoenix/pull/7016#issuecomment-6863948202),
+   [Vorher/Nachher](https://github.com/moto-ogs/project-phoenix/pull/7016#issuecomment-6873774013)): Bei Seed-Größe kosteten Planen,
+   Ausführen und Roundtrips je etwa gleich viel, bei zehn- und
+   fünfzigfacher Größe der Vergleich je Zeile. Nach Punkt 3 und 8 liegt p95
+   bei Seed-Größe unter 10 ms, bei zehnfacher unter 30 ms, bei
+   fünfzigfacher unter 100 ms.
 3. **Welcher Owner stellt die Suche bereit?** Keiner der Domänen-Owner: die
    Abfragen verbinden Tabellen mehrerer Owner in einer Anweisung.
 
@@ -66,10 +70,10 @@ Drei Fragen waren offen:
    Kinderakte oder eine Projektion mit eigenem Speicher würde eine zweite
    Quelle schaffen, die bei Korrekturen und Löschungen mitgepflegt werden
    müsste.
-3. **Die Telefonnummer wird beim Lesen normalisiert.** Gespeicherte Nummern
-   sind Freitext. Suche und Speicher werden auf dieselbe Ziffernfolge
-   gebracht (`schoolsearchview.PhoneNumberKey`, die gleichlautende
-   SQL-Konstante und `phoneSearchKey` im Frontend, mit denselben
+3. **Die Telefonnummer hat einen gespeicherten Suchschlüssel.** Gespeicherte
+   Nummern sind Freitext. Suche und Speicher werden auf dieselbe Ziffernfolge
+   gebracht (`schoolsearchview.PhoneNumberKey`, die SQL-Funktion
+   `public.f_phone_search_key` und `phoneSearchKey` im Frontend, mit denselben
    Testfällen): Der Text wird auf Ziffern, Plus und Klammern verdichtet,
    eine eingeklammerte Null fällt weg, gleich welche Trenner in der Klammer
    standen; dann fallen 00, die 49 einer internationalen Nummer und die
@@ -89,11 +93,19 @@ Drei Fragen waren offen:
      Ziffern, ein bis fünf mehr) und nimmt nur die längste passende
      gespeicherte Nummer. Eine exakte Nummer bringt so keine kürzere Nachbarin
      mit.
+   - **Der Schlüssel steht in der Zeile der Nummer:**
+     `users.guardian_phone_numbers.search_digits` ist eine generierte Spalte
+     über `public.f_phone_search_key(phone_number)` (Migration
+     `20261114065713`). Die Datenbank füllt sie bei jedem Schreiben, kein
+     Schreiber kann sie veralten lassen, und sie geht mit ihrer Zeile.
+     Beim Lesen berechnet, kostete der Schlüssel drei reguläre Ausdrücke je
+     Vergleich und war die teuerste Anweisung einer Suche. Die Tabelle
+     bleibt bei People Directory; die Projektion liest die Spalte über ihre
+     bestehende Lesegrant. Wer die Lesart der Funktion ändert, schreibt die
+     Spalte in derselben Migration neu.
    Nur Kontaktpersonen werden über diese Folge gesucht; alle anderen Felder
    vergleichen den Text wie eingegeben, damit Ziffern auch einen Raum „1012“
-   finden. Eine generierte Spalte oder ein Funktionsindex bräuchte eine
-   Migration im Owner People Directory und lohnt erst bei Schulen jenseits der
-   gemessenen zehnfachen Größe.
+   finden.
 4. **Die Suche zeigt nur, was das Konto ohne Suche lesen darf.** Die Route
    leitet aus den Rechten einen Scope ab und sucht nur in den Arten und
    Feldern, die er öffnet: Kinder mit `users:read` oder `students:read`;
@@ -142,6 +154,39 @@ Drei Fragen waren offen:
    `backend/test/module_legacy_budget_ratchet_test.go` nennt diese
    Entscheidung.
 
+8. **Eine Suche ist eine Anweisung, und kein Index trägt den Textvergleich.**
+   Die Projektion liest alle Arten, die der Scope öffnet, in einer
+   Anweisung; eine Art außerhalb des Scopes ist darin abgeschaltet und liest
+   keine Zeile. Die Kinder der
+   Schule werden darin einmal verbunden und von Kindertreffern, Kontakten und
+   deren Kindern gelesen. Dazu kommen die zwei Lesungen von Enrollment und
+   eine für die Kinder der Antworttreffer, nur wenn Plätze frei sind.
+   - **Vorfilter:** Der Vergleich je Zeile (`f_unaccent` und `ILIKE`) ist,
+     was eine Suche in einer großen Schule kostet. Eine Zeile wird deshalb
+     erst als ein zusammengesetzter Text verglichen und nur bei Erfolg Feld
+     für Feld. Der Vorfilter verbirgt keinen Treffer: Die Trenner (Leerzeichen,
+     Zeilenumbruch) gehören zu keiner `unaccent`-Regel und beenden für
+     `lower` ein Wort wie das Feldende; Felder mit der Kollation
+     `public.german_name` und Felder der Standardkollation werden getrennt
+     zusammengesetzt, weil `ILIKE` nach der Kollation seines Textes
+     kleinschreibt. `TestPrefiltersKeepEveryHit` vergleicht beide Lesarten.
+   - **Kein Trigramm-Index:** Gemessen nutzt der Planer einen
+     `pg_trgm`-Index auf `f_unaccent(...)` unter RLS nicht, auch nicht mit
+     abgeschaltetem Seq Scan: `ILIKE` ist nicht leakproof und darf deshalb
+     nicht vor der Mandanten-Policy als Indexbedingung laufen. Ohne RLS
+     (Superuser) braucht dieselbe Abfrage 0,1 ms statt 19 ms. Ein Index, den
+     keine Anfrage der App nutzen kann, wird nicht angelegt. Dasselbe gilt
+     für einen Index auf dem Telefon-Schlüssel (`strpos`, `LIKE`).
+   - **Anmeldeantworten bleiben in Go gefiltert.** Ein Filter in SQL müsste
+     Fragen, Auswahltexte, Zahl- und Datumsformat der Formularversion und
+     „die neueste Antwort je Kind und Frage“ nachbilden, und
+     `FoldForSearch` ist kein exakter Zwilling von `f_unaccent`. Enrollment
+     faltet stattdessen jeden Text nur einmal je Suche.
+   Der nächste Hebel für sehr große Schulen wären gespeicherte, gefaltete
+   Suchspalten für Namen und Notizen (generiert wie der Telefon-Schlüssel).
+   Sie sind nicht umgesetzt: Sie beträfen mehrere Tabellen mehrerer Owner und
+   sparen bei Seed-Größe unter einer Millisekunde.
+
 ## Nicht entschieden
 
 Gesundheitsangaben liegen versiegelt in der Kinderakte (#5472) und sind ohne
@@ -151,7 +196,10 @@ nicht Teil dieser Suche; eine Erweiterung braucht eine eigene Entscheidung.
 
 ## Nachweis
 
-Die Tests der Projektion prüfen den Abgleich von Telefonnummern in Go und SQL
-mit denselben Fällen, Scope und Mandantentrennung. Enrollments Tests prüfen
+Die Tests der Projektion prüfen den Abgleich von Telefonnummern in Go, in der
+SQL-Funktion und in der gespeicherten Spalte mit denselben Fällen, die
+Vorfilter gegen die Vergleiche, vor denen sie stehen, Scope und
+Mandantentrennung. Das Query-Budget `modules.schoolsearchview.search` hält
+die Suche bei genau zwei Anweisungen der Projektion. Enrollments Tests prüfen
 Antworttexte, Filter und Suche. `scripts/backend-architecture.sh check`
 bestätigt Grants, Regeln und die fehlenden Pass-throughs.

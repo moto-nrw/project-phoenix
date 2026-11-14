@@ -13,21 +13,17 @@ import (
 )
 
 // Reader is the projection's SQL side. Every read runs in the caller's tenant
-// transaction and returns at most limit rows.
+// transaction and returns bounded lists.
 type Reader interface {
-	// Children finds children by name, class or group; with notes also by
-	// their parent note (Elternnotizen).
-	Children(ctx context.Context, text string, notes bool, limit int) ([]schoolsearchview.Child, error)
+	// Search reads every kind the scope opens in one statement: children by
+	// name, class or group and with ChildDetails also by their parent note
+	// (Elternnotizen); contact persons of a child at the school by name or
+	// e-mail address, or by the phone key and its alternative reading when
+	// phoneKey is not empty; staff, rooms and groups by name.
+	Search(ctx context.Context, text, phoneKey, alternativeKey string, scope schoolsearchview.Scope) (schoolsearchview.Result, error)
 	// ChildrenByID reads the first limit of the given children that are
 	// still at the school, in the order of ids.
 	ChildrenByID(ctx context.Context, ids []int64, limit int) ([]schoolsearchview.Child, error)
-	// Contacts finds contact persons of a child at the school by name or
-	// e-mail address, or by the phone key and its alternative reading when
-	// phoneKey is not empty.
-	Contacts(ctx context.Context, text, phoneKey, alternativeKey string, limit int) ([]schoolsearchview.Contact, error)
-	Staff(ctx context.Context, text string, limit int) ([]schoolsearchview.Staff, error)
-	Rooms(ctx context.Context, text string, limit int) ([]schoolsearchview.Room, error)
-	Groups(ctx context.Context, text string, limit int) ([]schoolsearchview.Group, error)
 }
 
 // Search is the projection's search capability.
@@ -44,51 +40,33 @@ func New(reader Reader, answers schoolsearchview.StudentAnswerSearch) (*Search, 
 	return &Search{reader: reader, answers: answers}, nil
 }
 
-// SearchSchool answers one query within its Scope.
+// SearchSchool answers one query within its Scope. Contact persons match a
+// phone query by its key; every other field compares the text as typed, so
+// digits still find a room "1012" or a parent note that names a number.
 func (s *Search) SearchSchool(ctx context.Context, query schoolsearchview.Query) (schoolsearchview.Result, error) {
-	result := schoolsearchview.Result{
+	empty := schoolsearchview.Result{
 		Children: []schoolsearchview.Child{}, Contacts: []schoolsearchview.Contact{},
 		Staff: []schoolsearchview.Staff{}, Rooms: []schoolsearchview.Room{}, Groups: []schoolsearchview.Group{},
 		Scope: query.Scope,
 	}
 	text, err := schoolsearchview.ValidateQueryText(query.Text)
 	if err != nil {
-		return result, err
+		return empty, err
 	}
 	scope := query.Scope
-	phoneKey := schoolsearchview.PhoneSearchKey(text)
-	if err := s.searchPeople(ctx, text, phoneKey, scope, &result); err != nil {
-		return result, err
+	result, err := s.reader.Search(ctx, text, schoolsearchview.PhoneSearchKey(text), schoolsearchview.PhoneSearchAlternativeKey(text), scope)
+	if err != nil {
+		return empty, fmt.Errorf("school search: %w", err)
 	}
-	return result, s.searchDirectory(ctx, text, scope, &result)
-}
-
-// searchPeople fills children and contacts. Contacts match a phone query by
-// its key; every other field compares the text as typed, so digits still find
-// a room "1012" or a parent note that names a number.
-func (s *Search) searchPeople(ctx context.Context, text, phoneKey string, scope schoolsearchview.Scope, result *schoolsearchview.Result) error {
-	if scope.Children {
-		children, err := s.reader.Children(ctx, text, scope.ChildDetails, schoolsearchview.ChildLimit)
+	result.Scope = scope
+	withNoteSnippets(result.Children, text)
+	if scope.Children && scope.ChildDetails {
+		result.Children, err = s.withAnswerHits(ctx, text, result.Children)
 		if err != nil {
-			return fmt.Errorf("school search: children: %w", err)
+			return empty, err
 		}
-		withNoteSnippets(children, text)
-		if scope.ChildDetails {
-			children, err = s.withAnswerHits(ctx, text, children)
-			if err != nil {
-				return err
-			}
-		}
-		result.Children = children
 	}
-	if scope.Contacts {
-		contacts, err := s.reader.Contacts(ctx, text, phoneKey, schoolsearchview.PhoneSearchAlternativeKey(text), schoolsearchview.ContactLimit)
-		if err != nil {
-			return fmt.Errorf("school search: contacts: %w", err)
-		}
-		result.Contacts = contacts
-	}
-	return nil
+	return result, nil
 }
 
 // withAnswerHits appends the children found through a registration answer
@@ -135,32 +113,6 @@ func (s *Search) withAnswerHits(ctx context.Context, text string, children []sch
 		children = append(children, row)
 	}
 	return children, nil
-}
-
-// searchDirectory fills staff, rooms and groups.
-func (s *Search) searchDirectory(ctx context.Context, text string, scope schoolsearchview.Scope, result *schoolsearchview.Result) error {
-	if scope.Staff {
-		staff, err := s.reader.Staff(ctx, text, schoolsearchview.OtherLimit)
-		if err != nil {
-			return fmt.Errorf("school search: staff: %w", err)
-		}
-		result.Staff = staff
-	}
-	if scope.Rooms {
-		rooms, err := s.reader.Rooms(ctx, text, schoolsearchview.OtherLimit)
-		if err != nil {
-			return fmt.Errorf("school search: rooms: %w", err)
-		}
-		result.Rooms = rooms
-	}
-	if scope.Groups {
-		groups, err := s.reader.Groups(ctx, text, schoolsearchview.OtherLimit)
-		if err != nil {
-			return fmt.Errorf("school search: groups: %w", err)
-		}
-		result.Groups = groups
-	}
-	return nil
 }
 
 // withNoteSnippets cuts the parent note of a note hit to the part around the

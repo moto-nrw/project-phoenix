@@ -42,7 +42,8 @@ var answerableTypes = map[enrollment.FormFieldType]bool{
 // studentAnswer is a child's newest answer to one question.
 type studentAnswer struct {
 	studentID int64
-	field     enrollment.FormField
+	// field is the question in the form version the answer was given in.
+	field *enrollment.FormField
 	// value is the canonical filter value ("true", "false", an option
 	// value), text the answer as the school reads it.
 	value, text string
@@ -57,11 +58,17 @@ type answerSet struct {
 	answers   []studentAnswer
 	questions map[string]enrollment.FormField
 	versions  map[string]int64
-	seen      map[string]bool
+	seen      map[answeredQuestion]bool
+}
+
+// answeredQuestion names one question of one child.
+type answeredQuestion struct {
+	studentID int64
+	key       string
 }
 
 func (s *StudentAnswers) load(ctx context.Context) (answerSet, error) {
-	set := answerSet{questions: map[string]enrollment.FormField{}, versions: map[string]int64{}, seen: map[string]bool{}}
+	set := answerSet{questions: map[string]enrollment.FormField{}, versions: map[string]int64{}, seen: map[answeredQuestion]bool{}}
 	rows, err := s.records.LinkedChildAnswers(ctx)
 	if err != nil {
 		return set, err
@@ -79,14 +86,15 @@ func (s *StudentAnswers) load(ctx context.Context) (answerSet, error) {
 // add takes the answers of one registration child. Rows come newest first,
 // so the first answer of a child to a question is its newest one.
 func (set *answerSet) add(row enrollment.LinkedChildAnswers, schema *enrollment.FormSchema) {
-	for _, field := range schema.Fields {
+	for i := range schema.Fields {
+		field := &schema.Fields[i]
 		if !field.AppliesToCh || field.Target != "" || !answerableTypes[field.Type] {
 			continue
 		}
 		if set.versions[field.Key] < schema.ID {
-			set.questions[field.Key], set.versions[field.Key] = field, schema.ID
+			set.questions[field.Key], set.versions[field.Key] = *field, schema.ID
 		}
-		key := strconv.FormatInt(row.StudentID, 10) + "\x00" + field.Key
+		key := answeredQuestion{studentID: row.StudentID, key: field.Key}
 		raw, ok := row.CustomData.Lookup(field.Key)
 		if !ok || set.seen[key] {
 			continue
@@ -135,7 +143,7 @@ func (s *StudentAnswers) schemas(ctx context.Context, rows []enrollment.LinkedCh
 
 // readAnswer turns one stored value into the answer the school reads. A value
 // of the wrong shape or an empty one is no answer.
-func readAnswer(field enrollment.FormField, raw any) (studentAnswer, bool) {
+func readAnswer(field *enrollment.FormField, raw any) (studentAnswer, bool) {
 	answer := studentAnswer{field: field}
 	if field.Type == enrollment.FormFieldBoolean {
 		yes, ok := raw.(bool)
@@ -166,7 +174,7 @@ func readAnswer(field enrollment.FormField, raw any) (studentAnswer, bool) {
 	return answer, true
 }
 
-func optionLabel(field enrollment.FormField, value string) string {
+func optionLabel(field *enrollment.FormField, value string) string {
 	for _, option := range field.Options {
 		if option.Value == value {
 			return option.Label
@@ -274,8 +282,9 @@ func (s *StudentAnswers) SearchStudentAnswers(ctx context.Context, text string, 
 	}
 	out := make([]enrollment.StudentAnswerMatch, 0)
 	found := map[int64]bool{}
+	fold := memoizedFold()
 	for _, answer := range set.answers {
-		if found[answer.studentID] || !answerMatches(answer, set.questions[answer.field.Key].Label, query) {
+		if found[answer.studentID] || !answerMatches(answer, set.questions[answer.field.Key].Label, query, fold) {
 			continue
 		}
 		found[answer.studentID] = true
@@ -289,12 +298,26 @@ func (s *StudentAnswers) SearchStudentAnswers(ctx context.Context, text string, 
 	return out, nil
 }
 
+// memoizedFold is collation.FoldForSearch that folds each distinct text once.
+// A school's answers repeat a few question labels and many answers ("keine",
+// an option label), and folding is most of what the comparison costs.
+func memoizedFold() func(string) string {
+	folded := map[string]string{}
+	return func(text string) string {
+		if value, ok := folded[text]; ok {
+			return value
+		}
+		value := collation.FoldForSearch(text)
+		folded[text] = value
+		return value
+	}
+}
+
 // answerMatches compares the folded query with the question of a stated
 // answer and with the text of any answer but yes/no.
-func answerMatches(answer studentAnswer, label, query string) bool {
-	if answer.affirmative && (strings.Contains(collation.FoldForSearch(label), query) ||
-		strings.Contains(collation.FoldForSearch(answer.field.Label), query)) {
+func answerMatches(answer studentAnswer, label, query string, fold func(string) string) bool {
+	if answer.affirmative && (strings.Contains(fold(label), query) || strings.Contains(fold(answer.field.Label), query)) {
 		return true
 	}
-	return answer.field.Type != enrollment.FormFieldBoolean && strings.Contains(collation.FoldForSearch(answer.text), query)
+	return answer.field.Type != enrollment.FormFieldBoolean && strings.Contains(fold(answer.text), query)
 }
