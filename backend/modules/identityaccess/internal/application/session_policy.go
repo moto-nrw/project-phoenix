@@ -122,6 +122,11 @@ type sessionPolicy struct {
 	keptAt func(s *AccountAuthentication, b sessionBinding) successorTenant
 }
 
+// keptAtNoSchool keeps a session that names a Träger and no school.
+func keptAtNoSchool(*AccountAuthentication, sessionBinding) successorTenant {
+	return func(context.Context, int64, domain.AccountSession) (int64, error) { return 0, nil }
+}
+
 // guard is the eligibility a session mints or renews under: the facts under
 // the guard's locks, then the claims.
 func (p sessionPolicy) guard(s *AccountAuthentication, b sessionBinding) eligibility {
@@ -294,9 +299,7 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 		claims: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, account domain.LoginAccount, _ heldFacts) (*domain.AccountClaimsPayload, error) {
 			return s.traegerClaims(ctx, account, b.orgID)
 		},
-		keptAt: func(*AccountAuthentication, sessionBinding) successorTenant {
-			return func(context.Context, int64, domain.AccountSession) (int64, error) { return 0, nil }
-		},
+		keptAt: keptAtNoSchool,
 	},
 	// A Träger school session has no mapping at its school; its facts are
 	// the Träger's instead (ADR 0084 section 5).

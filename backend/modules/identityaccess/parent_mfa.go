@@ -30,16 +30,15 @@ var (
 	ErrParentMFANeedsSchool = errors.New("parent second factor needs a school of the account")
 )
 
-// The parents portal shares the request and answer shapes of the caterer's
-// sign-in: a password with the remember-device cookie, the session pair or
-// the challenge of the mailed code, and the redeemed code.
+// The parents portal's sign-in and second-factor shapes are the voluntary
+// factor's.
 type (
-	ParentLoginRequest    = CatererLoginRequest
-	ParentLoginResult     = CatererLoginResult
-	ParentMFAVerification = CatererMFAVerification
-	ParentSession         = CatererSession
-	ParentMFAChallenge    = CatererMFAChallenge
-	ParentMFAConfirmation = CatererMFAConfirmation
+	ParentLoginRequest    = VoluntaryLoginRequest
+	ParentLoginResult     = VoluntaryLoginResult
+	ParentMFAVerification = VoluntaryMFAVerification
+	ParentSession         = VoluntarySession
+	ParentMFAChallenge    = VoluntaryMFAChallenge
+	ParentMFAConfirmation = VoluntaryMFAConfirmation
 )
 
 // ParentMFAState is what the parents portal's settings show. Available is

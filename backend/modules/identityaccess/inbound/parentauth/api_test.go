@@ -201,3 +201,39 @@ func TestParentLoginInputAndServerFaults(t *testing.T) {
 	rr = post(t, router(refusing(errors.New("database exploded")), &signInRecorder{}), "/login", credentials)
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
+
+type refusingDevices struct {
+	identityaccess.ParentSecondFactor
+	err error
+}
+
+func (d refusingDevices) ListParentTrustedDevices(context.Context, int64) ([]identityaccess.AccountTrustedDevice, error) {
+	return nil, d.err
+}
+
+func (d refusingDevices) RevokeParentTrustedDevice(context.Context, int64, int64) error { return d.err }
+
+// The remembered devices answer a refusal like the other settings routes of
+// the second factor.
+func TestParentTrustedDevicesAnswerLikeTheSecondFactorSettings(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		err    error
+		status int
+	}{
+		"factor not composed": {identityaccess.ErrAccountMFAUnavailable, http.StatusServiceUnavailable},
+		"account ended":       {identityaccess.ErrAccountInactive, http.StatusUnauthorized},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := chi.NewRouter()
+			parentauth.NewResource(identityaccess.NewParentAccess(stubSignIn{}, refusingDevices{err: tc.err})).MountSession(r)
+			list := httptest.NewRecorder()
+			r.ServeHTTP(list, httptest.NewRequest(http.MethodGet, "/me/mfa/trusted-devices", nil))
+			assert.Equal(t, tc.status, list.Code, list.Body.String())
+			revoke := httptest.NewRecorder()
+			r.ServeHTTP(revoke, httptest.NewRequest(http.MethodDelete, "/me/mfa/trusted-devices/7", nil))
+			assert.Equal(t, tc.status, revoke.Code, revoke.Body.String())
+		})
+	}
+}

@@ -30,6 +30,13 @@ type parentMFAScenario struct {
 	account int64
 }
 
+// parentPasswordLogin signs a parent in with the password and returns the
+// session pair of an account without a second factor.
+func parentPasswordLogin(ctx context.Context, owner identityaccess.Owner, email, password string) (string, string, error) {
+	result, err := owner.(identityaccess.ParentPortalAccess).Parents().LoginParent(ctx, identityaccess.ParentLoginRequest{Email: email, Password: password})
+	return result.AccessToken, result.RefreshToken, err
+}
+
 // parentsOf is the parents portal's sign-in the composed owner serves
 // beside its Owner facade.
 func parentsOf(t *testing.T, owner identityaccess.Owner) *identityaccess.ParentAccess {

@@ -957,10 +957,14 @@ Backend paths in this section are relative to `backend/`:
 - Every account portal answers a refused sign-in, MFA step, exchange, switch,
   refresh or passkey sign-in through the owner's rule tables in
   `modules/identityaccess/inbound/portalauth`, so one refusal has one status and
-  code in every portal; the parents login keeps `care.invalid_credentials`
-  (`ParentLoginRules`). The caterer portal may not import that package and keeps
-  its table in `workflows/catererportal/http/errors.go`; the operator keeps its
-  own bodies. Each enrollment route group mounts
+  code in every portal. A portal's own refusals precede the shared tables
+  and live with the portal: the parents login keeps `care.invalid_credentials`
+  (`inbound/parentauth/errors.go`), the caterer's sign-in and second factor
+  answer from `inbound/catererauth/errors.go`. The caterer portal workflow may
+  not import `portalauth` and keeps the table of its own routes in
+  `workflows/catererportal/http/errors.go`; the operator keeps its own bodies.
+  The remembered devices and the switch-off of a voluntary factor answer
+  through the portal's own table (`portalauth.Refusal`). Each enrollment route group mounts
   `sessiontoken.EnrollmentAuthenticatorFor(portal)`, which admits only that
   portal's enrollment token with the school its shape demands. An exchange
   prepares the trusted device (policy and MFA reset generation), mints, then
@@ -970,8 +974,7 @@ Backend paths in this section are relative to `backend/`:
   that says so; no request without it stores a device. Each portal lists and
   revokes the own devices behind its session: `/auth/mfa/trusted-devices`
   (tenant), `/school/auth/mfa/trusted-devices`, `/traeger/auth/…`,
-  `/caterer/auth/…`, `/operator/auth/…`. The parents portal has no second
-  factor.
+  `/caterer/auth/…`, `/operator/auth/…`, `/parent/me/mfa/trusted-devices`.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/portalauth`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
   the token wire schema in `modules/identityaccess/tokenprimitives/session_wire.go`, and trusted-device settings

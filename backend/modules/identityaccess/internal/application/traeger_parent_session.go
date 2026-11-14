@@ -37,9 +37,7 @@ var traegerParentPolicy = sessionPolicy{
 		claims.OrgID = b.orgID
 		return claims, nil
 	},
-	keptAt: func(*AccountAuthentication, sessionBinding) successorTenant {
-		return func(context.Context, int64, domain.AccountSession) (int64, error) { return 0, nil }
-	},
+	keptAt: keptAtNoSchool,
 }
 
 // requireTraegerParentAccess: the account holds parents-portal access at the
@@ -77,17 +75,11 @@ func (s *AccountAuthentication) liveTraeger(ctx context.Context, organizationID 
 	return len(live) > 0, err
 }
 
-// traegerParentOrganizations returns the active Träger the account holds
-// parents-portal access at, oldest access first, read inside an
-// administrative transaction.
-func (s *AccountAuthentication) traegerParentOrganizations(ctx context.Context, accountID int64) ([]identityaccess.TraegerOrganization, error) {
-	return liveTraegerParentOrganizations(ctx, s, accountID)
-}
-
 // liveTraegerParentOrganizations reads the active Träger the account holds
-// parents-portal access at, oldest access first; without the Träger
-// directory there are none. The sign-in and the acceptance mail's check of a
-// parent account (HasTraegerParentAccess) share it.
+// parents-portal access at, oldest access first, inside an administrative
+// transaction; without the Träger directory there are none. The sign-in
+// and the acceptance mail's check of a parent account
+// (HasTraegerParentAccess) share it.
 func liveTraegerParentOrganizations(ctx context.Context, s *AccountAuthentication, accountID int64) ([]identityaccess.TraegerOrganization, error) {
 	if s.traeger == nil {
 		return nil, nil
@@ -107,7 +99,7 @@ func liveTraegerParentOrganizations(ctx context.Context, s *AccountAuthenticatio
 // hasTraegerParentAccess reports whether the parents portal serves the
 // account at an active Träger; the password reset sends it the parents link.
 func (s *AccountAuthentication) hasTraegerParentAccess(ctx context.Context, accountID int64) (bool, error) {
-	organizations, err := s.traegerParentOrganizations(ctx, accountID)
+	organizations, err := liveTraegerParentOrganizations(ctx, s, accountID)
 	return len(organizations) > 0, err
 }
 

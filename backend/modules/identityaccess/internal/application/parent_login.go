@@ -9,39 +9,21 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-// LoginParentWithAudit authenticates a parent and issues a parent-scope JWT
-// with no tenant binding: the token works against parent-scoped endpoints
-// regardless of which school the children attend. Accounts without a
-// guardian role on at least one active mapping are refused. It knows no
-// second factor; the parents portal signs in through ParentAccess (#7051),
-// which refuses an account with one before any session exists.
-func (s *AccountAuthentication) loginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
-	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
-	if err != nil {
-		return "", "", err
-	}
-	return s.issueParentTokens(ctx, account, email, ipAddress, userAgent, true, mintProof{})
-}
-
 // IssueDemoParentTokens mints the parent-scope session the demo access
 // redeems for the demo school's parent (#3468). It skips the credential
-// check but otherwise is the parent login. The link left by mail only, so
-// it proves the mailbox like a code (proofDemoLink), as the demo's staff
-// session does.
+// check but otherwise is the parent login, without the parent session at a
+// Träger. The link left by mail only, so it proves the mailbox like a code
+// (proofDemoLink), as the demo's staff session does.
 func (s *AccountAuthentication) IssueDemoParentTokens(ctx context.Context, accountID int64, ipAddress, userAgent string) (string, string, error) {
 	account, err := s.authenticatedAccount(ctx, "issue parent tokens", accountID)
 	if err != nil {
 		return "", "", err
 	}
-	return s.issueParentTokens(ctx, account, account.Email, ipAddress, userAgent, false, mintProof{kind: proofDemoLink})
-}
-
-func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account domain.LoginAccount, email, ipAddress, userAgent string, traegerFallback bool, proof mintProof) (string, string, error) {
-	target, err := s.parentTarget(ctx, account, ipAddress, userAgent, traegerFallback)
+	target, err := s.parentTarget(ctx, account, ipAddress, userAgent, false)
 	if err != nil {
 		return "", "", err
 	}
-	minted, err := s.mintParentSession(ctx, account, email, target, proof, ipAddress, userAgent)
+	minted, err := s.mintParentSession(ctx, account, account.Email, target, mintProof{kind: proofDemoLink}, ipAddress, userAgent)
 	return minted.accessToken, minted.refreshToken, err
 }
 
@@ -84,7 +66,7 @@ func (s *AccountAuthentication) parentTarget(ctx context.Context, account domain
 		return parentTarget{tenantID: bookedTenantIDs[0], booked: bookedTenantIDs}, nil
 	}
 	if traegerFallback && len(guardianTenantIDs) == 0 {
-		organizations, err := s.traegerParentOrganizations(ctx, account.ID)
+		organizations, err := liveTraegerParentOrganizations(ctx, s, account.ID)
 		if err != nil {
 			return parentTarget{}, failed("parent login: read Träger access", err)
 		}
