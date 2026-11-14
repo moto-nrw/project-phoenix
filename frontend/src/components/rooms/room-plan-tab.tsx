@@ -132,7 +132,7 @@ export function RoomPlanControls({
           variant="outline"
           size="compact"
           href={planHref}
-          tooltip="Öffnet den Betreuungsplan für diesen Raum, dort ändern Sie die Belegung."
+          tooltip="Öffnet den Betreuungsplan, gefiltert auf diesen Raum."
         >
           {planLinkLabel}
         </ButtonLink>
