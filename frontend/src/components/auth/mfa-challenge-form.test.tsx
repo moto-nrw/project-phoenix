@@ -105,6 +105,38 @@ describe("MFAChallengeForm", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  it.each(["typing", "paste"] as const)(
+    "keeps the code grid blurred after completion by %s",
+    (inputMethod) => {
+      vi.useFakeTimers();
+      render(<MFAChallengeForm {...defaultProps} onSuccess={vi.fn()} />);
+      const inputs = screen.getAllByRole("textbox");
+      expect(inputs[0]).toHaveFocus();
+
+      if (inputMethod === "typing") {
+        for (let index = 0; index < 6; index++) {
+          fireEvent.change(inputs[index]!, {
+            target: { value: String(index + 1) },
+          });
+        }
+      } else {
+        fireEvent.paste(inputs[0]!, {
+          clipboardData: { getData: () => "123456" },
+        });
+      }
+
+      expect(inputs[5]).toHaveValue("6");
+      expect(screen.getByRole("button", { name: ONCE })).not.toHaveAttribute(
+        "aria-disabled",
+      );
+      expect(document.activeElement).toBe(document.body);
+
+      act(() => vi.advanceTimersToNextFrame());
+
+      expect(document.activeElement).toBe(document.body);
+    },
+  );
+
   it("confirms without remembering the device on „Nur dieses Mal“", async () => {
     global.fetch = mockOk({ status: "authenticated" });
     const onSuccess = vi.fn();
