@@ -137,7 +137,10 @@ import {
   getTimeStatusSortRank,
   type StudentDayTimes,
 } from "~/lib/student-time-status";
-import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
+import {
+  getDayPlanningNotComingLabel,
+  hasActualAttendance,
+} from "~/lib/day-planning-helper";
 
 import { createLogger } from "~/lib/logger";
 import { type SidebarMemory, useSidebarMemory } from "~/lib/sidebar-memory";
@@ -1296,13 +1299,15 @@ function OGSGroupPageContent() {
                           const arrivalAbsent =
                             (student.arrival_is_exception ?? false) &&
                             !student.arrival_time;
-                          // Wer heute nicht kommt oder ohne Zeit abgemeldet
-                          // ist, hat auch keine Angebote auf der Karte (#6487).
+                          // As in day planning, attendance (including a return
+                          // to class) takes precedence over absence exceptions.
                           const notHereToday =
-                            arrivalAbsent ||
-                            ((studentPickup?.isException ?? false) &&
-                              !studentPickup?.pickupTime &&
-                              !student.actual_pickup_time);
+                            !hasActualAttendance(student) &&
+                            !isInClassLocation(student.current_location) &&
+                            (arrivalAbsent ||
+                              ((studentPickup?.isException ?? false) &&
+                                !studentPickup?.pickupTime &&
+                                !student.actual_pickup_time));
                           return (
                             <>
                               <ArrivalTimeRow
