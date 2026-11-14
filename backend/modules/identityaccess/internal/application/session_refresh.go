@@ -151,7 +151,7 @@ type refreshRotation struct {
 	plan              refreshPlan
 	account           domain.LoginAccount
 	payload           *domain.AccountClaimsPayload
-	catererSchoolID   int64
+	successorSchoolID int64
 	newSession        domain.AccountSession
 	recovered         bool
 	rejectAfterCommit error
@@ -231,10 +231,28 @@ func (r *refreshRotation) lockAccount(ctx context.Context) error {
 		return err
 	}
 	r.payload, err = r.service.eligibleClaims(ctx, r.plan.eligible, r.account)
-	if err != nil || r.plan.portal.Name != domain.PortalCaterer.Name {
+	if err != nil || !r.plan.portal.MovesSchool {
 		return err
 	}
-	return r.lockCatererSessionSchool(ctx, unlocked)
+	return r.lockSuccessorSchool(ctx, unlocked)
+}
+
+// lockSuccessorSchool chooses and locks the successor's storage school
+// under the account lock, before refresh locks any token. Revocation may have
+// missed a first login in its account snapshot: it then holds the school while
+// deleting the token, so taking these locks in reverse order would deadlock.
+// The chosen school is kept through persistence: the supplies may change
+// after the token lock.
+func (r *refreshRotation) lockSuccessorSchool(ctx context.Context, current domain.AccountSession) error {
+	schoolID, err := r.plan.successor(ctx, r.account.ID, current)
+	if err != nil {
+		return err
+	}
+	if err := r.service.requireLiveSessionSchool(ctx, schoolID); err != nil {
+		return err
+	}
+	r.successorSchoolID = schoolID
+	return nil
 }
 
 func (r *refreshRotation) presentedSession(ctx context.Context) (domain.AccountSession, error) {
@@ -289,7 +307,7 @@ func (r *refreshRotation) reject(ctx context.Context, session domain.AccountSess
 }
 
 func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSession, wasRecovered bool, now time.Time) error {
-	effectiveTenantID := r.catererSchoolID
+	effectiveTenantID := r.successorSchoolID
 	if effectiveTenantID == 0 {
 		var err error
 		effectiveTenantID, err = r.plan.successor(ctx, r.account.ID, current)
@@ -573,10 +591,11 @@ func (s *AccountAuthentication) auditLogoutAtSchool(txCtx context.Context, accou
 
 // sameAccountSessionLineage holds when next continues current's family.
 // Tenant 0 is the legacy pre-tenant-claim state whose first successor may
-// carry the resolved tenant; a caterer session may be re-pinned to another
-// supplied school.
+// carry the resolved tenant; a portal whose sessions move
+// (domain.Portal.MovesSchool) may keep the successor at another school.
 func sameAccountSessionLineage(current, next domain.AccountSession) bool {
 	sameTenant := current.TenantID == 0 || next.TenantID == current.TenantID
-	catererRepin := current.PortalScope == domain.PortalCaterer.Name && next.PortalScope == domain.PortalCaterer.Name
-	return next.FamilyID == current.FamilyID && next.AccountID == current.AccountID && (sameTenant || catererRepin) && next.OrganizationID == current.OrganizationID && next.Generation == current.Generation+1
+	portal, _ := domain.PortalOfPersisted(current.PortalScope)
+	moved := portal.MovesSchool && next.PortalScope == current.PortalScope
+	return next.FamilyID == current.FamilyID && next.AccountID == current.AccountID && (sameTenant || moved) && next.OrganizationID == current.OrganizationID && next.Generation == current.Generation+1
 }

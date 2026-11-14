@@ -18,8 +18,9 @@ import (
 // reaches it. It is the account's e-mail factor and its remembered devices,
 // as on the school portals, but its challenges and devices name no school:
 // its policy is the registry default, and its events are logged without a
-// school ledger. The portals differ only in who belongs to them (member),
-// in how their devices are bound (bind) and in the session they mint.
+// school ledger. The portals differ only in who belongs to them (member)
+// and in the session they mint (mint); the devices follow the portal's
+// realm (domain.Portal.Device).
 type voluntaryFactor struct {
 	portal   domain.Portal
 	auth     *AccountAuthentication
@@ -27,89 +28,122 @@ type voluntaryFactor struct {
 	verifier ports.PasswordVerifier
 	runtime  ports.Runtime
 	logger   *slog.Logger
-	// bind prepares the context of every flow: the composed unit, the
-	// missing school ledger and the portal's trusted-device binding.
-	bind func(context.Context) context.Context
 	// member reads the signed-in account and proves it still belongs to the
 	// portal.
 	member func(ctx context.Context, accountID int64) (domain.LoginAccount, error)
+	// mint mints the portal's session of an account that proved its second
+	// factor. It reads the portal's refusals again: the account may have
+	// left the portal since the password.
+	mint func(ctx context.Context, account domain.LoginAccount, proof mintProof, ipAddress, userAgent string) (mintedSession, error)
 	// notEnabled refuses switching off a factor that is not on.
 	notEnabled error
 }
 
-// voluntaryGate is the outcome of the second-factor check of a sign-in: a
-// challenge to answer, or a session to mint with its proof.
-type voluntaryGate struct {
-	challenge *domain.LoginResult
-	proof     mintProof
+func (f voluntaryFactor) bind(ctx context.Context) context.Context {
+	return portalDeviceContext(ctx, f.portal, 0)
 }
 
-// gate checks the second factor of a password sign-in. An account without
-// the factor mints with the password; a remembered device of this portal
-// proves the factor; otherwise the code is mailed.
-func (f voluntaryFactor) gate(ctx context.Context, account domain.LoginAccount, trustedDeviceCookie, ipAddress string) (voluntaryGate, error) {
+// answer finishes a password sign-in the portal admitted. An account
+// without the factor mints with the password; a remembered device of this
+// portal proves the factor; otherwise the code is mailed.
+func (f voluntaryFactor) answer(ctx context.Context, account domain.LoginAccount, request identityaccess.VoluntaryLoginRequest, mint func(context.Context, mintProof) (mintedSession, error)) (identityaccess.VoluntaryLoginResult, error) {
+	proof, challenge, err := f.gate(ctx, account, request.TrustedDeviceCookie, request.IPAddress)
+	if err != nil {
+		return identityaccess.VoluntaryLoginResult{}, err
+	}
+	if challenge != nil {
+		return identityaccess.VoluntaryLoginResult{
+			Status: identityaccess.LoginStatusMFARequired, ChallengeToken: challenge.ChallengeToken,
+			MaskedEmail: challenge.MaskedEmail, TrustedDeviceDays: challenge.TrustedDeviceDays,
+		}, nil
+	}
+	minted, err := mint(ctx, proof)
+	if err != nil {
+		return identityaccess.VoluntaryLoginResult{}, err
+	}
+	return identityaccess.VoluntaryLoginResult{
+		Status: identityaccess.LoginStatusAuthenticated, AccessToken: minted.accessToken, RefreshToken: minted.refreshToken,
+	}, nil
+}
+
+// gate checks the second factor of a password sign-in: the proof to mint
+// with, or the challenge to answer first.
+func (f voluntaryFactor) gate(ctx context.Context, account domain.LoginAccount, trustedDeviceCookie, ipAddress string) (mintProof, *domain.LoginResult, error) {
 	if !f.auth.mfa.Configured() {
-		return voluntaryGate{}, nil
+		return mintProof{}, nil, nil
 	}
 	ctx = f.bind(ctx)
 	enrolled, err := f.auth.mfa.HasEnrollment(ctx, account.ID)
 	if err != nil {
-		return voluntaryGate{}, failed("check "+f.portal.Name+" mfa enrollment", identityaccess.ErrMFAStatusUnavailable)
+		return mintProof{}, nil, failed("check "+f.portal.Name+" mfa enrollment", identityaccess.ErrMFAStatusUnavailable)
 	}
 	if !enrolled {
-		return voluntaryGate{}, nil
+		return mintProof{}, nil, nil
 	}
 	if f.auth.trustedDeviceVerified(ctx, account.ID, 0, trustedDeviceCookie) {
-		return voluntaryGate{proof: mintProof{kind: proofTrustedDevice, trustedDeviceCookie: trustedDeviceCookie}}, nil
+		return mintProof{kind: proofTrustedDevice, trustedDeviceCookie: trustedDeviceCookie}, nil, nil
 	}
 	result, err := f.auth.mfaChallengeResult(ctx, account, 0, f.portal, ipAddress)
 	if err != nil {
-		return voluntaryGate{}, err
+		return mintProof{}, nil, err
 	}
 	if !result.TrustedDeviceEnabled {
 		result.TrustedDeviceDays = 0
 	}
-	return voluntaryGate{challenge: result}, nil
+	return mintProof{}, result, nil
 }
 
-// signInProof is a redeemed sign-in code of this portal and, when the
-// person asked to remember the browser, the prepared device. A device that
-// cannot be prepared never fails the sign-in.
-type signInProof struct {
-	challenge identityaccess.VerifiedMFAChallenge
-	device    identityaccess.TrustedDeviceIssue
-}
-
-func (f voluntaryFactor) verifySignIn(ctx context.Context, challengeToken, code string, rememberDevice bool, ipAddress, userAgent string) (signInProof, error) {
+// redeem redeems the mailed code of a sign-in and mints the session. A
+// remembered device is prepared before the mint and stored after it; a
+// device that cannot be prepared or stored never fails the sign-in.
+func (f voluntaryFactor) redeem(ctx context.Context, verification identityaccess.VoluntaryMFAVerification) (identityaccess.VoluntarySession, error) {
 	if f.mfa == nil {
-		return signInProof{}, identityaccess.ErrAccountMFAUnavailable
+		return identityaccess.VoluntarySession{}, identityaccess.ErrAccountMFAUnavailable
 	}
-	ctx = f.bind(ctx)
-	proof, err := f.mfa.VerifyChallengeForScope(ctx, challengeToken, code, f.portal.Name)
+	bound := f.bind(ctx)
+	proof, err := f.mfa.VerifyChallengeForScope(bound, verification.ChallengeToken, verification.Code, f.portal.Name)
 	if err != nil {
-		return signInProof{}, err
+		return identityaccess.VoluntarySession{}, err
 	}
-	result := signInProof{challenge: identityaccess.VerifiedMFAChallenge(proof)}
-	if rememberDevice {
-		result.device, err = f.mfa.PrepareTrustedDevice(ctx, proof.AccountID, 0, userAgent, parseGateIP(ipAddress))
+	var device identityaccess.TrustedDeviceIssue
+	if verification.RememberDevice {
+		device, err = f.mfa.PrepareTrustedDevice(bound, proof.AccountID, 0, verification.UserAgent, parseGateIP(verification.IPAddress))
 		if err != nil {
 			f.logger.Warn("trusted-device policy unavailable; skipping cookie",
 				slog.String("portal", f.portal.Name),
 				slog.Int64("account_id", proof.AccountID),
 				slog.String("error", err.Error()))
-			result.device = nil
+			device = nil
 		}
 	}
-	return result, nil
+	challenge := identityaccess.VerifiedMFAChallenge(proof)
+	session, err := f.proven(ctx, proof.AccountID, challengeProof(&challenge), verification.IPAddress, verification.UserAgent)
+	if err != nil {
+		return identityaccess.VoluntarySession{}, err
+	}
+	session.TrustedDeviceCookie, session.TrustedDeviceExpiresAt = f.remember(bound, proof.AccountID, device)
+	return session, nil
 }
 
-// remember stores the prepared device after the session was minted. A
-// device that cannot be stored never fails the sign-in.
+// proven mints the portal's session of an account that proved its second
+// factor.
+func (f voluntaryFactor) proven(ctx context.Context, accountID int64, proof mintProof, ipAddress, userAgent string) (identityaccess.VoluntarySession, error) {
+	account, err := f.auth.authenticatedAccount(ctx, "issue "+f.portal.Name+" tokens", accountID)
+	if err != nil {
+		return identityaccess.VoluntarySession{}, err
+	}
+	minted, err := f.mint(ctx, account, proof, ipAddress, userAgent)
+	if err != nil {
+		return identityaccess.VoluntarySession{}, err
+	}
+	return identityaccess.VoluntarySession{AccessToken: minted.accessToken, RefreshToken: minted.refreshToken, Email: account.Email}, nil
+}
+
 func (f voluntaryFactor) remember(ctx context.Context, accountID int64, issue identityaccess.TrustedDeviceIssue) (string, time.Time) {
 	if issue == nil {
 		return "", time.Time{}
 	}
-	cookie, expiresAt, err := issue(f.bind(ctx))
+	cookie, expiresAt, err := issue(ctx)
 	if err != nil {
 		f.logger.Warn("failed to remember device",
 			slog.String("portal", f.portal.Name),
@@ -146,51 +180,52 @@ func (f voluntaryFactor) status(ctx context.Context, accountID int64) (bool, str
 }
 
 // start mails the code that switches the second factor on.
-func (f voluntaryFactor) start(ctx context.Context, accountID int64, ip net.IP) (string, string, error) {
+func (f voluntaryFactor) start(ctx context.Context, accountID int64, ip net.IP) (identityaccess.VoluntaryMFAChallenge, error) {
 	if f.mfa == nil {
-		return "", "", identityaccess.ErrAccountMFAUnavailable
+		return identityaccess.VoluntaryMFAChallenge{}, identityaccess.ErrAccountMFAUnavailable
 	}
 	ctx = f.bind(ctx)
 	account, err := f.member(ctx, accountID)
 	if err != nil {
-		return "", "", err
+		return identityaccess.VoluntaryMFAChallenge{}, err
 	}
 	enrolled, err := f.mfa.HasEnrollment(ctx, accountID)
 	if err != nil {
-		return "", "", err
+		return identityaccess.VoluntaryMFAChallenge{}, err
 	}
 	if enrolled {
-		return "", "", identityaccess.ErrMFAAlreadyEnrolled
+		return identityaccess.VoluntaryMFAChallenge{}, identityaccess.ErrMFAAlreadyEnrolled
 	}
 	token, err := f.mfa.StartChallenge(ctx, accountID, 0, f.portal.Name, ip)
 	if err != nil {
-		return "", "", err
+		return identityaccess.VoluntaryMFAChallenge{}, err
 	}
-	return token, domain.MaskEmail(account.Email), nil
+	return identityaccess.VoluntaryMFAChallenge{ChallengeToken: token, MaskedEmail: domain.MaskEmail(account.Email)}, nil
 }
 
-// confirm switches the second factor on with the mailed code and returns
-// the proof the caller mints its session with. Every other session of the
-// account was minted without the factor and ends at its next refresh.
-func (f voluntaryFactor) confirm(ctx context.Context, accountID int64, challengeToken, code string) (identityaccess.VerifiedMFAChallenge, error) {
+// enable switches the second factor on with the mailed code and mints a
+// session proven by it. Every other session of the account was minted
+// without the factor and ends at its next refresh.
+func (f voluntaryFactor) enable(ctx context.Context, confirmation identityaccess.VoluntaryMFAConfirmation) (identityaccess.VoluntarySession, error) {
 	if f.mfa == nil {
-		return identityaccess.VerifiedMFAChallenge{}, identityaccess.ErrAccountMFAUnavailable
+		return identityaccess.VoluntarySession{}, identityaccess.ErrAccountMFAUnavailable
 	}
-	ctx = f.bind(ctx)
-	if _, err := f.member(ctx, accountID); err != nil {
-		return identityaccess.VerifiedMFAChallenge{}, err
+	bound := f.bind(ctx)
+	if _, err := f.member(bound, confirmation.AccountID); err != nil {
+		return identityaccess.VoluntarySession{}, err
 	}
-	proof, err := f.mfa.VerifyChallengeForOwner(ctx, challengeToken, code, f.portal.Name, accountID, 0)
+	proof, err := f.mfa.VerifyChallengeForOwner(bound, confirmation.ChallengeToken, confirmation.Code, f.portal.Name, confirmation.AccountID, 0)
 	if err != nil {
-		return identityaccess.VerifiedMFAChallenge{}, err
+		return identityaccess.VoluntarySession{}, err
 	}
-	if err := f.mfa.Enroll(ctx, proof); err != nil {
-		return identityaccess.VerifiedMFAChallenge{}, err
+	if err := f.mfa.Enroll(bound, proof); err != nil {
+		return identityaccess.VoluntarySession{}, err
 	}
 	f.logger.Info("second factor switched on",
 		slog.String("portal", f.portal.Name),
-		slog.Int64("account_id", accountID))
-	return identityaccess.VerifiedMFAChallenge(proof), nil
+		slog.Int64("account_id", confirmation.AccountID))
+	challenge := identityaccess.VerifiedMFAChallenge(proof)
+	return f.proven(ctx, confirmation.AccountID, challengeProof(&challenge), confirmation.IPAddress, confirmation.UserAgent)
 }
 
 // disable switches the second factor off once the current password is

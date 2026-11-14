@@ -1,0 +1,175 @@
+# Untangle: Identity & Access sign-in and second factor
+
+Decision log of the structural refactor of `backend/modules/identityaccess`
+(sign-in, sessions, second factor), the portal wiring around it and the
+frontend sign-in and second-factor screens. Each fix stands above the
+problems it removes. Status: `done` (with the PR), `open`, `kept` (a special
+case the system still needs) or `dropped` (with the reason).
+
+Paths without a prefix are relative to `backend/modules/identityaccess/`.
+
+One test for every fix: what changes together ends up together, what does
+not is not tied, and everything depends on what changes less.
+
+## Plan of the PRs
+
+1. Backend: portal facts and the voluntary factor (fixes A to F).
+2. Backend: second-factor machinery (fixes G to K).
+3. Frontend: sign-in and second-factor screens (fixes L to P).
+
+## Fix A: a portal fact decides, not a portal name (done, PR 1)
+
+A property of a portal is a field of `domain.Portal`
+(`internal/domain/portal.go`). Shared code reads the field; no shared rule
+names one portal.
+
+- A1 done. `session_mfa.go`: the validation skipped the enrollment read with
+  `scope == PortalParent.Name`. Now `Portal.FactorAtValidation` (caterer
+  true). Same statements; budget `identity.session_validate.parent` unchanged.
+- A2 done. Which remembered devices a call means was decided by name in the
+  mint (`recheckTrustedDevice`), again in each portal's `bind` and in the
+  Träger sign-in. Now `Portal.Device` (`DeviceRealm`) and one
+  `portalDeviceContext`. `WithParentDevice` and `ParentDeviceOf` left the
+  public package: nothing outside the owner called them.
+  `WithTraegerDevice` stays public: the Träger portal binds it.
+- A3 kept. `domain/mfa_mail.go` `ForPortal`: the parents' code mail is the
+  parents' copy in the parent's language. That is a fact of that mail
+  family, not a rule another portal could share.
+- A4 done. `session_validation.go`: two `platform` branches in one function.
+  Now each path prepares its check (`operatorSessionCheck`,
+  `accountSessionCheck`) and the one administrative transaction runs it. A
+  first cut with a transaction per path added a site to the enumerated
+  register `test/transaction_boundaries.json`; the shape above keeps the
+  site.
+- A5 done. `session_refresh.go`: the caterer's moving storage school was
+  decided by name in three places. Now `Portal.MovesSchool`,
+  `lockSuccessorSchool` (reads the portal's own `keptAt`) and
+  `successorSchoolID`.
+
+## Fix B: one voluntary factor, two thin portals (done, PR 1)
+
+`voluntaryFactor` owns the flow of a portal without a school: `answer`
+(gate, then challenge or mint), `redeem` (verify, prepare the device, mint,
+remember), `enable` (confirm, enroll, mint), `proven` (mint with a proof),
+switch-off and devices. A portal supplies who belongs to it (`member`), the
+session it mints (`mint`) and its refusal for a factor that is not on.
+
+- B1 done. Two wrapper layers in two styles, each with its own
+  `mintProvenSession`. Both portals now run `runFlow` over the factor; the
+  caterer's private one-line forwards (`login`, `signInGate`, `verifyMFA`,
+  `resendMFA`, `confirmMFA`) are gone. The caterer's passkey sign-in mints
+  through `proven` too.
+- B2 done. The factor is built once per portal.
+- B3 done. `errCatererMFAUnavailable` is gone; `catererHost` moved to the
+  passkey flows that read it.
+- B4 done. `ComposeParentAccess` no longer swallows a construction error:
+  the constructor it called repeated the composition's own guard, so the two
+  are one function without an error path.
+- B5 done. The parents' shapes were aliases of `Caterer*` types, and
+  `CatererSession.Email` existed for the parents. The shapes are now
+  `Voluntary*` (`voluntary_factor.go`), and both portals alias them.
+- Kept: the per-portal method names of the public contract
+  (`VerifyCatererMFA`, `VerifyParentMFA`, ...) and with them the one-line
+  adapters in `caterer_mfa.go` and `parent_mfa.go`. One neutral interface
+  would remove them, but it re-keys 16 ports of the command-effects register
+  and turns three factor methods into registered pass-throughs (ADR 0075
+  budget is at its floor). That needs its own decision.
+
+## Fix C: a portal's refusals live with the portal (done, PR 1)
+
+- C1 done. `ParentLoginRules` and `ParentSecondFactorRules` moved from
+  `inbound/portalauth` to `inbound/parentauth/errors.go`.
+- C2 done. `portalauth.ListTrustedDevices`, `RevokeTrustedDevice` and the new
+  `SwitchOffFactor` take the portal's refusal (`portalauth.Refusal`). The
+  caterer's copies of all three handlers and the parents' copy of the
+  switch-off are gone.
+- C3 done, bug fix. The parents' device routes answered through `MFARules`
+  alone: `ErrAccountMFAUnavailable` and an ended account answered 500 there
+  and 503 or 401 on the other settings routes. They now use the parents'
+  table. Test: `TestParentTrustedDevicesAnswerLikeTheSecondFactorSettings`
+  (fails on the old table).
+- Open: the caterer's password change sits in
+  `workflows/catererportal/http/account.go`, its switch-off in
+  `inbound/catererauth` (third copy of the wrong-password field refusal).
+
+## Fix D: remove what nothing calls (done, PR 1)
+
+- D1 done. `LoginParentWithAudit` (public, application, `inbound/account`
+  port): no production caller, and it skipped the second-factor gate. Tests
+  sign in through `Parents().LoginParent`.
+- D2 done. `FindSchoolPortalTenant`: no caller.
+- D3 done. `traegerParentOrganizations` forwarded to
+  `liveTraegerParentOrganizations`.
+- D4 dropped. `SessionProvesInvitationOwnership` and `PortalOrg.Claim`: the
+  audit called the case unreachable; `TestNativeInvitationOwnershipProof`
+  pins it. It stays.
+
+## Fix E: one copy of a rule (PR 1)
+
+- E1 done. The live-school filter existed three times; the caterer's two
+  copies now call `liveSchoolIDs`.
+- E2 kept. `findSchoolPortalTenantForAccount(…, requireBooked bool)`: two
+  functions would each open an administrative transaction, one more site in
+  `test/transaction_boundaries.json`.
+- E3 done. `keptAtNoSchool` replaces two identical closures.
+
+## Fix F: the parents' mail copy is one table (done, PR 1)
+
+- F1 done. Four tables keyed by language became `parentCopies`, one struct
+  per language. The rendered content of every mail in every language is
+  byte-identical (dumped before and after, `cmp`).
+
+## Fix G to K: second-factor machinery (PR 2)
+
+- G1 Dead and stale public constants (`account_mfa.go:59-90`,
+  `operator_mfa_flows.go:26-31`) with a comment that states a fallback that
+  does not exist.
+- H1 Account and operator twins: send cap, code generation, device token,
+  cookie check, revoke loop.
+- I1 Two names per operator operation and three styles of refusal
+  translation.
+- J1 Passkey record surface only tests call (`internal/ports/records.go:337-395`).
+- K1 `IssueTrustedDevice` without a production caller, working through a
+  context key.
+
+## Fix L to P: frontend (PR 3)
+
+- L1 `app/api/parent/me/mfa/{confirm,disable}` copy the caterer's routes.
+- M1 `lib/caterer-mfa-api.ts` takes `emailCodeFactorApi` apart and the
+  account page puts it together again.
+- N1 Three mappings of the sign-in answer and six local `MFAStep` types.
+- O1 Session notice and stale-session handling copied on the sign-in pages.
+- P1 `mfa-admin-override-modal`: `scope` plus three optional ids with
+  runtime throws; `headingLevel` never passed.
+
+## Special cases that stay
+
+- The parent validation does not read the enrollment (contract and query
+  budget); only its place changes (A1).
+- `ErrParentMFANeedsSchool`: a lost factor is reset through a school of the
+  account.
+- A device that cannot be prepared or stored never fails the sign-in.
+- The parents portal's refusals come before the code is mailed.
+- The caterer's sign-in answer uses `bool,omitempty`, the other portals a
+  pointer: the JSON differs.
+- The two send-cap checks: the early one saves the hash and the mail, the
+  one under the lock is the race-safe one.
+- The retry in `persistNewSession`: bounded, only on a family collision of
+  concurrent sign-ins.
+- The portal table exists in `tokenprimitives` and in the domain: the domain
+  may not import its owner's packages; a test pins them to each other.
+- Parent mail templates stay apart from the German ones: other wording,
+  `lang`, no label styling for non-Latin scripts.
+
+## Tests
+
+PR 1:
+
+- `parent_security_mails_test.go`: three `assert.Len` comparisons of the
+  tables removed. One table of one struct per language cannot hold a
+  language with a missing part; the test still renders every language.
+- `LoginParentWithAudit` call sites (`behavior/traeger_parent_session_test.go`,
+  `behavior/auth_service_shim_test.go`, `api/password_login_protection_test.go`,
+  `internal/application/mint_live_account_internal_test.go`): the call
+  changed to the parents portal's sign-in, every assertion is unchanged.
+- Added `TestParentTrustedDevicesAnswerLikeTheSecondFactorSettings`.

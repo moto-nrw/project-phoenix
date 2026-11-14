@@ -370,10 +370,10 @@ type AccountAuthentication interface {
 	AccountPasswordConfirmation
 }
 
-// AccountLogin combines tenant, parent, school and Träger sign-in capabilities.
+// AccountLogin combines tenant, school and Träger sign-in capabilities. The
+// parents portal signs in through ParentAccess.
 type AccountLogin interface {
 	TenantAccountLogin
-	ParentAccountLogin
 	SchoolAccountLogin
 	TraegerAccountLogin
 	TraegerSchoolSessions
@@ -386,12 +386,6 @@ type TenantAccountLogin interface {
 	// IssueTokensForPasskey mints the verified tenant session of a passkey
 	// sign-in at the ceremony's school.
 	IssueTokensForPasskey(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
-}
-
-// ParentAccountLogin authenticates guardians and confirms their passwords.
-type ParentAccountLogin interface {
-	AccountPasswordConfirmation
-	LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 }
 
 // SchoolAccountLogin authenticates accounts and switches their school portal.
@@ -451,7 +445,6 @@ type AccountClaimsQuery interface {
 	// LoadAccountClaims runs on the caller's transaction.
 	LoadAccountClaims(ctx context.Context, accountID, tenantID int64) (AccountClaims, error)
 	FindGuardianTenant(ctx context.Context, accountID int64) (bool, int64, error)
-	FindSchoolPortalTenant(ctx context.Context, accountID int64) (bool, int64, error)
 }
 
 // AccountPasswordConfirmation re-checks the signed-in account's password

@@ -103,13 +103,6 @@ var SessionRules = []common.ErrorRule{
 	rule(identityaccess.ErrNoTraegerMembership, coded(common.ErrorForbiddenWithCode, identityaccess.ErrNoTraegerMembership, common.CodeTraegerNoMembership)),
 }
 
-// ParentLoginRules precede LoginRules on the parents portal: its login page
-// names a masked refusal by the care code it has always shown.
-var ParentLoginRules = []common.ErrorRule{
-	rule(identityaccess.ErrInvalidCredentials, coded(common.ErrorUnauthorizedWithCode, identityaccess.ErrInvalidCredentials, common.CodeCareInvalidCredentials)),
-	rule(identityaccess.ErrAccountNotFound, coded(common.ErrorUnauthorizedWithCode, identityaccess.ErrInvalidCredentials, common.CodeCareInvalidCredentials)),
-}
-
 // WrongPassword reports a refused password check of a signed-in account.
 func WrongPassword(err error) bool {
 	return errors.Is(err, identityaccess.ErrInvalidCredentials) || errors.Is(err, identityaccess.ErrAccountNotFound)
@@ -269,14 +262,3 @@ func PasswordResetRoutes(resets identityaccess.PasswordResets, scope identityacc
 		RetryAfter:   PasswordResetRetryAfter,
 	}
 }
-
-// ParentSecondFactorRules classify the parents portal's own management of
-// its second factor (#7051), ahead of the shared code and session tables.
-// Switching off a factor the account does not have and switching it on
-// without a school of the account are business refusals; the settings show
-// neither action in those states.
-var ParentSecondFactorRules = slices.Concat([]common.ErrorRule{
-	rule(identityaccess.ErrParentMFANotEnabled, common.FixedRenderer(common.ErrorConflict, identityaccess.ErrParentMFANotEnabled)),
-	rule(identityaccess.ErrParentMFANeedsSchool, common.FixedRenderer(common.ErrorConflict, identityaccess.ErrParentMFANeedsSchool)),
-	rule(identityaccess.ErrAccountMFAUnavailable, common.FixedRenderer(common.ErrorServiceUnavailable, identityaccess.ErrAccountMFAUnavailable)),
-}, ExchangeRules, MFARules)

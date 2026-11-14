@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"slices"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -75,16 +74,7 @@ func currentAccountID(ctx context.Context) int64 {
 	return int64(sessiontoken.ClaimsFromCtx(ctx).ID)
 }
 
-// signInRules classify a refused password sign-in and a refused code: the
-// parents portal's masked refusals first, then the mint after a proven code,
-// the code steps and the password sign-in.
-var signInRules = slices.Concat(portalauth.ParentLoginRules, portalauth.ExchangeRules, portalauth.MFARules, portalauth.LoginRules)
-
-var (
-	errLoginFieldsRequired  = errors.New("email and password are required")
-	errPasswordRequired     = errors.New("current_password is required")
-	errCurrentPasswordWrong = errors.New("current password is incorrect")
-)
+var errLoginFieldsRequired = errors.New("email and password are required")
 
 type loginRequest struct {
 	Email    string `json:"email"`
@@ -183,14 +173,6 @@ type MFAChallengeResponse struct {
 	MaskedEmail    string `json:"masked_email"`
 }
 
-type disableMFARequest struct {
-	CurrentPassword string `json:"current_password"`
-}
-
-func renderFailure(w http.ResponseWriter, r *http.Request, err error) {
-	common.RenderError(w, r, portalauth.RendererOr(err, common.ErrorInternalServerRenderer("parent second factor failed"), portalauth.ParentSecondFactorRules))
-}
-
 func (rs *Resource) mfaStatus(w http.ResponseWriter, r *http.Request) {
 	state, err := rs.secondFactor.ParentMFAStatus(r.Context(), currentAccountID(r.Context()))
 	if err != nil {
@@ -230,34 +212,20 @@ func (rs *Resource) confirmMFA(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, portalauth.TokenResponse{AccessToken: session.AccessToken, RefreshToken: session.RefreshToken})
 }
 
-// disableMFA switches the second factor off. A wrong current password
-// answers on its field, like the password change.
 func (rs *Resource) disableMFA(w http.ResponseWriter, r *http.Request) {
-	var request disableMFARequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.CurrentPassword == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errPasswordRequired))
-		return
-	}
-	client := portalauth.ClientOf(r)
-	err := rs.secondFactor.DisableParentMFA(r.Context(), currentAccountID(r.Context()), request.CurrentPassword, client.IP, client.UserAgent)
-	switch {
-	case err == nil:
-		common.RespondNoContent(w, r)
-	case errors.Is(err, identityaccess.ErrInvalidCredentials):
-		common.RenderError(w, r, common.ErrorUnauthorizedOnField(errCurrentPasswordWrong, common.CodeIdentityCurrentPasswordWrong, "current_password"))
-	default:
-		renderFailure(w, r, err)
-	}
+	portalauth.SwitchOffFactor(w, r, func(ctx context.Context, currentPassword string, client portalauth.Client) error {
+		return rs.secondFactor.DisableParentMFA(ctx, currentAccountID(ctx), currentPassword, client.IP, client.UserAgent)
+	}, renderFailure)
 }
 
 func (rs *Resource) listTrustedDevices(w http.ResponseWriter, r *http.Request) {
 	portalauth.ListTrustedDevices(w, r, func(ctx context.Context) ([]identityaccess.AccountTrustedDevice, error) {
 		return rs.secondFactor.ListParentTrustedDevices(ctx, currentAccountID(ctx))
-	})
+	}, renderFailure)
 }
 
 func (rs *Resource) revokeTrustedDevice(w http.ResponseWriter, r *http.Request) {
 	portalauth.RevokeTrustedDevice(w, r, func(ctx context.Context, deviceID int64) error {
 		return rs.secondFactor.RevokeParentTrustedDevice(ctx, currentAccountID(ctx), deviceID)
-	})
+	}, renderFailure)
 }
