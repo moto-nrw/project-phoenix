@@ -79,6 +79,7 @@ function MarkAbsentAction({ person, name, onUpdate }: PersonHeaderProps) {
       variant="outline_danger"
       size="md"
       aria-label={`${name} als abwesend markieren`}
+      tooltip="Markiert die Person beim Speichern als abwesend."
       onClick={() =>
         onUpdate({
           absent: true,
@@ -101,6 +102,11 @@ function UndoAbsenceAction({ person, name, onUpdate }: PersonHeaderProps) {
       variant="ghost"
       size="md"
       aria-label={`${name} ${person.wasAbsent ? "anwesend melden" : "Änderung rückgängig machen"}`}
+      tooltip={
+        person.wasAbsent
+          ? "Meldet die Person beim Speichern wieder als anwesend."
+          : "Verwirft die Abwesenheit, die Sie gerade eingetragen haben."
+      }
       onClick={() =>
         onUpdate({
           absent: false,
@@ -221,7 +227,9 @@ function appointmentState(appointment: EnrichedInstance, person: PersonForm) {
   const status = !editable
     ? ` · ${getStatusLabel(appointment.status)}`
     : sickLocked
-      ? " · Krankgemeldet"
+      ? person.lockedByOtherAbsence
+        ? " · Abwesend"
+        : " · Krankgemeldet"
       : "";
   return { selectable, status };
 }
@@ -430,7 +438,11 @@ function AbsentDetails(props: PersonCardProps) {
       {props.person.sickLocked && (
         <Alert
           type="warning"
-          message="Diese Abwesenheit kommt aus einer Krankmeldung. Sie können hier nur die Vertretung ändern."
+          message={
+            props.person.lockedByOtherAbsence
+              ? "Diese Abwesenheit ist in der Zeiterfassung eingetragen. Sie können hier nur die Vertretung ändern."
+              : "Diese Abwesenheit kommt aus einer Krankmeldung. Sie können hier nur die Vertretung ändern."
+          }
         />
       )}
       <PersonScope {...props} />

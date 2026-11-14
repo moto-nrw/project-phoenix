@@ -4,7 +4,7 @@ status: accepted
 
 # Shared fixtures reach their standing targets
 
-Accepted for [#2748](https://github.com/moto-nrw/project-phoenix/issues/2748)
+Accepted for [#2748](https://github.com/moto-ogs/project-phoenix/issues/2748)
 in the policy epoch that registers the rules, following ADR 0014. The pull
 request review is where it can still be rejected; the exception activates
 only in the epoch that review merges.

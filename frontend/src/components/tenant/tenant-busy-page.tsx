@@ -27,6 +27,7 @@ export function TenantBusyPage() {
               variant="primary"
               size="base"
               onClick={() => globalThis.location.reload()}
+              tooltip="Versucht noch einmal, die Seite zu öffnen."
             >
               Neu laden
             </Button>

@@ -17,7 +17,7 @@ import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { clearPersonalStorage } from "~/lib/personal-storage";
 import { createLogger } from "~/lib/logger";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
-import { apiErrorFromResponse } from "~/lib/api-error";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { unsubscribePushSilently } from "~/lib/push-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { getSmartRedirectPath } from "~/lib/redirect-utils";
@@ -100,7 +100,7 @@ async function revokeSessionFamily(
   path: string,
   signal?: AbortSignal,
 ): Promise<void> {
-  const response = await fetch(path, {
+  const response = await transportFetch(path, {
     method: "POST",
     signal: signal
       ? AbortSignal.any([signal, AbortSignal.timeout(5000)])
@@ -519,12 +519,38 @@ export function CatererShellProvider({
   );
 }
 
+/**
+ * Ends the Träger session (#4649) and opens the Träger login: behind the
+ * session barrier (#5399), the server revokes the refresh family first
+ * (#5194), then this account's local data goes (#5000) and the cookie with
+ * it. A failed revocation throws and keeps the session. The shell's logout
+ * and the way back to a sign-in with code (#6955) both run exactly this.
+ */
+export const endTraegerSession: () => Promise<void> = behindSessionBarrier(
+  async () => {
+    try {
+      sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
+    } catch {
+      // sessionStorage unavailable: the login page then shows its
+      // "session expired" note, which is harmless.
+    }
+    // Revoke the backend refresh session first (#5194).
+    await revokeSessionFamily(portalAuthPath("traeger", "logout"));
+    // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+    // Gerät (#5000).
+    clearPersonalStorage();
+    clearSessionCache();
+    await signOutToLogin("traeger");
+  },
+);
+
 // TraegerShellProvider — the Träger portal ("moto träger", #4649) sibling of
 // CatererShellProvider (#5145). Feeds the shared header from the org-scope
 // NextAuth session (traeger.session-token cookie).
 export function TraegerShellProvider({
   children,
   organizationName,
+  memberName,
 }: {
   readonly children: React.ReactNode;
   /**
@@ -533,6 +559,12 @@ export function TraegerShellProvider({
    * dort nur das Logo.
    */
   readonly organizationName?: string;
+  /**
+   * Der Name der Person in diesem Träger-Büro (#6870), aus dem eigenen
+   * Profil. Das Token trägt nur die E-Mail-Adresse; solange der Name lädt
+   * oder fehlt, steht sie in der Kopfzeile.
+   */
+  readonly memberName?: string;
 }) {
   const { data: session, status: sessionStatus } = useSession();
   const { show: showLogoutError } = useApiErrorDisplay();
@@ -541,7 +573,8 @@ export function TraegerShellProvider({
     const user: ShellUser | null = session?.user
       ? {
           ...(session.user.id ? { id: session.user.id } : {}),
-          name: session.user.name?.trim() || "Träger-Büro",
+          name:
+            memberName?.trim() || session.user.name?.trim() || "Träger-Büro",
           email: session.user.email ?? "",
           roles: session.user.roles ?? [],
         }
@@ -559,31 +592,15 @@ export function TraegerShellProvider({
       profile: null,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: reportingLogout(
-        behindSessionBarrier(async () => {
-          try {
-            sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
-          } catch {
-            // sessionStorage unavailable: the login page then shows its
-            // "session expired" note, which is harmless.
-          }
-          // Revoke the backend refresh session first (#5194).
-          await revokeSessionFamily(portalAuthPath("traeger", "logout"));
-          // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
-          // Gerät (#5000).
-          clearPersonalStorage();
-          clearSessionCache();
-          await signOutToLogin("traeger");
-        }),
-        showLogoutError,
-      ),
+      logout: reportingLogout(endTraegerSession, showLogoutError),
       mode: "traeger" as const,
       homeUrl: traegerPath("/traeger"),
-      // Kein eigenes Profil: Passwort und Code gehören zum moto-Konto.
-      profileUrl: null,
+      // Die Konto-Seite mit dem eigenen Namen (#4693). Passwort und Code
+      // gehören zum moto-Konto und haben dort keine Karte.
+      profileUrl: traegerPath("/traeger/konto"),
       ...(organizationName ? { brandLabel: organizationName } : {}),
     };
-  }, [organizationName, session, sessionStatus, showLogoutError]);
+  }, [memberName, organizationName, session, sessionStatus, showLogoutError]);
 
   return (
     <ShellAuthContext.Provider value={value}>

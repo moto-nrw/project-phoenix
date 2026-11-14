@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
+	"github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

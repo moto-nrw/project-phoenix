@@ -3,21 +3,21 @@ package owners
 import (
 	"context"
 
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	staffStore "github.com/moto-ogs/project-phoenix/modules/communication/staffstore"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // BuildParentEventEmitter builds the chat-pill emitter (#1803) that also

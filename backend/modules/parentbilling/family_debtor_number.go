@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The debtor number of a family (#6692): the number of the family in the
@@ -113,10 +113,12 @@ func (e *DebtorNumberFormatError) Error() string {
 }
 
 // DebtorNumberFormats reads the format of a Träger's debtor numbers: its
-// values of the parent_billing.debtor_number_* settings or their defaults.
-// It joins the caller's Träger transaction.
+// values of the parent_billing.debtor_number_* settings or their defaults,
+// and whom the numbers name (#7007). It joins the caller's Träger
+// transaction.
 type DebtorNumberFormats interface {
 	DebtorNumberFormat(ctx context.Context, organizationID int64) (DebtorNumberFormat, error)
+	DebtorNumberScopes
 }
 
 // Which number applies when the number entered at a holiday registration
@@ -150,7 +152,28 @@ func (c *FamilyDebtorNumberConflict) Error() string {
 
 // HolidayFamilyDebtorNumber is the number the family of a holiday
 // registration has, as the confirmation proposes it; empty without one.
+// When the Träger keeps the number per child (#7007), Children names every
+// child of the registration with the number it has, empty for none, and
+// DebtorNumber is the first child's; with a number per payer Children is
+// empty.
 type HolidayFamilyDebtorNumber struct {
+	DebtorNumber string                     `json:"debtor_number"`
+	Children     []HolidayChildDebtorNumber `json:"children,omitempty"`
+}
+
+// HolidayChildDebtorNumber is a child of a holiday registration with its
+// debtor number (#7007).
+type HolidayChildDebtorNumber struct {
+	ChildID      int64  `json:"child_id"`
+	FirstName    string `json:"first_name"`
+	LastName     string `json:"last_name"`
+	DebtorNumber string `json:"debtor_number"`
+}
+
+// HolidayChildDebtorNumberInput is the number the office enters for a child
+// of a holiday registration (#7007); an empty number removes it.
+type HolidayChildDebtorNumberInput struct {
+	ChildID      int64  `json:"child_id"`
 	DebtorNumber string `json:"debtor_number"`
 }
 

@@ -13,6 +13,7 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { DESKTOP_WIDTH, setViewportWidth } from "~/test/helpers/viewport";
+import { groupKeys } from "~/lib/swr/groups-keys";
 
 function createLocalStorageMock() {
   const store: Record<string, string> = {};
@@ -96,7 +97,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 }));
 
 // Mock OverflowMenu — das Kebab-Menü sitzt seit der Kopfkarte in PageIntro
-// statt in PageHeaderSearchLayout. Der echte OverflowMenu gibt seine Einträge
+// statt in TenantPageSearchRow. Der echte OverflowMenu gibt seine Einträge
 // erst nach einem Klick frei; hier werden sie flach gerendert, damit die
 // bestehenden "Gruppe übergeben"-Assertions weiter greifen.
 vi.mock("~/components/ui/page-header/OverflowMenu", () => ({
@@ -128,12 +129,12 @@ vi.mock("~/components/ui/page-header/OverflowMenu", () => ({
   ),
 }));
 
-// Mock PageHeaderSearchLayout — renders filters, activeFilters, and the
+// Mock TenantPageSearchRow — renders filters, activeFilters, and the
 // overflow-menu items so the existing "Gruppe übergeben" assertions keep
 // working. The real OverflowMenu requires a click to expose its items, but
 // for tests we render them flat so getByLabelText still finds them.
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: ({
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: ({
     title,
     filters,
     activeFilters,
@@ -229,7 +230,6 @@ vi.mock("~/lib/location-helper", async (importOriginal) => {
       HOME: "#DC2626",
       GROUP_ROOM: "#83CD2D",
     },
-    LOCATION_STATUSES: { PRESENT: "Anwesend" },
     isPresentLocation: vi.fn((location?: string | null) =>
       (location ?? "").startsWith("Anwesend"),
     ),
@@ -281,7 +281,7 @@ vi.mock("~/lib/substitution-api", () => ({
 
 // Mock LocationBadge (kept even though page now imports StudentPresenceBadge,
 // so co-tests that transitively render LocationBadge don't explode).
-vi.mock("@/components/ui/location-badge", () => ({
+vi.mock("@/components/students/presence/location-badge", () => ({
   LocationBadge: () => <div data-testid="location-badge">Location</div>,
 }));
 
@@ -289,29 +289,33 @@ vi.mock("@/components/ui/location-badge", () => ({
 // PresenceBadge based on tenant presence mode. Exposes `current_room_color`
 // from the student prop as a data attribute so we can assert the BFF→state
 // pipeline doesn't drop the per-room color (regression guard for #1324).
-vi.mock("@/components/ui/student-presence-badge", () => ({
-  StudentPresenceBadge: ({
-    student,
-  }: {
-    student?: {
-      current_room_color?: string | null;
-      not_arrival_today?: boolean;
-      not_arrival_reason?: string | null;
-    };
-  }) => (
-    <div
-      data-testid="location-badge"
-      data-room-color={student?.current_room_color ?? ""}
-      data-not-arrival={String(student?.not_arrival_today ?? false)}
-      data-not-arrival-reason={student?.not_arrival_reason ?? ""}
-    >
-      Presence
-    </div>
-  ),
-}));
+// The badge reads today's plan from the student itself (#6572); the mock
+// exposes that reading the same way.
+vi.mock("@/components/students/presence/student-presence-badge", async () => {
+  const { getStudentPresenceBadgePlanning } = await vi.importActual<
+    typeof import("~/lib/day-planning-helper")
+  >("~/lib/day-planning-helper");
+  return {
+    StudentPresenceBadge: ({ student }: { student?: PresenceStudent }) => {
+      const planning = student
+        ? getStudentPresenceBadgePlanning(student)
+        : null;
+      return (
+        <div
+          data-testid="location-badge"
+          data-room-color={student?.current_room_color ?? ""}
+          data-not-arrival={String(planning?.notArrivalToday ?? false)}
+          data-not-arrival-reason={planning?.notArrivalReason ?? ""}
+        >
+          Presence
+        </div>
+      );
+    },
+  };
+});
 
 // Mock EmptyStudentResults
-vi.mock("~/components/ui/empty-student-results", () => ({
+vi.mock("~/components/students/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results">No results</div>,
 }));
 
@@ -404,6 +408,15 @@ vi.mock("~/components/students/student-card", () => ({
   StudentAbsenceRow: ({ label, note }: { label: string; note?: string }) => (
     <div data-testid="student-absence-row">
       Kommt heute nicht ({label}){note && <span>Notiz: {note}</span>}
+    </div>
+  ),
+  PlannedActivityRows: ({
+    activities,
+  }: {
+    activities?: readonly { title: string }[];
+  }) => (
+    <div data-testid="planned-activity-rows">
+      {(activities ?? []).map((activity) => activity.title).join(", ")}
     </div>
   ),
 }));
@@ -528,6 +541,7 @@ import type {
   OgsLiveViewData,
   OgsLiveWireStudent,
 } from "~/lib/ogs-group-live-api";
+import type { PresenceStudent } from "~/lib/presence-status";
 import OGSGroupPage from "./page";
 
 // ── Aggregated live-view mock builders (#2056) ──────────────────────────────
@@ -979,6 +993,158 @@ describe("OGSGroupPage", () => {
       expect(screen.getByText(/15:30 Uhr/)).toBeInTheDocument();
     });
   });
+
+  it("puts today's offerings between arrival and pickup (#6487)", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Raum 101",
+            arrival_time: "11:45",
+            planned_activities: [
+              { title: "Töpfer-AG", start_time: "14:00", end_time: "15:00" },
+              { title: "Handball", start_time: "15:15", end_time: "16:00" },
+            ],
+          }),
+        ],
+        roomStatus: { "1": { in_group_room: true } },
+        pickupTimes: new Map([
+          ["1", { pickupTime: "16:30", isException: false, dayNotes: [] }],
+        ]),
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    const activities = await screen.findByTestId("planned-activity-rows");
+    expect(activities).toHaveTextContent("Töpfer-AG, Handball");
+    const order = Array.from(
+      screen
+        .getByTestId("extra-content")
+        .querySelectorAll(
+          "[data-testid='arrival-time-row'], [data-testid='planned-activity-rows'], [data-testid='pickup-time-row']",
+        ),
+    ).map((row) => row.getAttribute("data-testid"));
+    expect(order).toEqual([
+      "arrival-time-row",
+      "planned-activity-rows",
+      "pickup-time-row",
+    ]);
+  });
+
+  it.each([
+    ["arrival", "Anwesend - Raum 101"],
+    ["pickup", "Anwesend - Raum 101"],
+    ["arrival", "Schulhof"],
+    ["pickup", "Unterwegs"],
+    ["arrival", "Im Unterricht"],
+    ["pickup", ""],
+  ])(
+    "keeps offerings despite a timeless %s exception when checked in at %s (#6487)",
+    async (exception, currentLocation) => {
+      vi.mocked(useSWRAuth).mockReturnValue({
+        data: liveData({
+          students: [
+            wireStudent({
+              id: 1,
+              first_name: "Max",
+              last_name: "Mustermann",
+              current_location: currentLocation,
+              actual_arrival_time:
+                currentLocation === "Im Unterricht" ? undefined : "08:00",
+              day_planning_status: "not_coming_today",
+              day_planning_label: "Arzttermin",
+              arrival_is_exception: exception === "arrival",
+              arrival_time: exception === "arrival" ? undefined : "11:45",
+              planned_activities: [
+                { title: "Töpfer-AG", start_time: "14:00", end_time: "15:00" },
+              ],
+            }),
+          ],
+          roomStatus: {
+            "1": { in_group_room: currentLocation.includes("Raum") },
+          },
+          pickupTimes: new Map([
+            [
+              "1",
+              {
+                pickupTime: exception === "pickup" ? undefined : "16:30",
+                isException: exception === "pickup",
+                dayNotes: [],
+              },
+            ],
+          ]),
+        }),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+      render(<OGSGroupPage />);
+
+      expect(
+        await screen.findByTestId("planned-activity-rows"),
+      ).toHaveTextContent("Töpfer-AG");
+    },
+  );
+
+  it.each(["arrival", "pickup"])(
+    "shows no offerings for a child at home with a timeless %s exception (#6487)",
+    async (exception) => {
+      vi.mocked(useSWRAuth).mockReturnValue({
+        data: liveData({
+          students: [
+            wireStudent({
+              id: 1,
+              first_name: "Max",
+              last_name: "Mustermann",
+              current_location: "Zuhause",
+              actual_arrival_time: "08:00",
+              arrival_is_exception: exception === "arrival",
+              arrival_time: exception === "arrival" ? undefined : "11:45",
+              arrival_notes: "Arzttermin",
+              planned_activities: [
+                { title: "Töpfer-AG", start_time: "14:00", end_time: "15:00" },
+              ],
+            }),
+          ],
+          roomStatus: { "1": { in_group_room: false } },
+          pickupTimes: new Map([
+            [
+              "1",
+              {
+                pickupTime: exception === "pickup" ? undefined : "16:30",
+                isException: exception === "pickup",
+                dayNotes: [],
+              },
+            ],
+          ]),
+        }),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+      render(<OGSGroupPage />);
+
+      expect(await screen.findByTestId("arrival-time-row")).toHaveAttribute(
+        "data-is-absent",
+        String(exception === "arrival"),
+      );
+      expect(
+        screen.queryByTestId("planned-activity-rows"),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("handles pickup times with day notes correctly", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
@@ -2462,6 +2628,61 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
       isPersonal: true,
     },
   ];
+
+  it.each([null, "1"])(
+    "syncs another tab's group choice unless the URL selects %s",
+    async (groupParam) => {
+      localStorage.setItem(memoryKey("sidebar-last-group"), "1");
+      mockSearchParamsGet.mockImplementation((key) =>
+        key === "group" ? groupParam : null,
+      );
+      const response = {
+        data: liveData({
+          groups: groupsAB,
+          groupId: "1",
+          students: [
+            wireStudent({ id: 1, first_name: "Max", last_name: "Mustermann" }),
+          ],
+        }),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+      vi.mocked(useSWRAuth).mockReturnValue(response as never);
+      const { rerender } = render(<OGSGroupPage />);
+      expect(await screen.findByText(/Max Mustermann/)).toBeInTheDocument();
+
+      act(() => {
+        const key = memoryKey("sidebar-last-group");
+        localStorage.setItem(key, "2");
+        window.dispatchEvent(
+          new StorageEvent("storage", { key, oldValue: "1", newValue: "2" }),
+        );
+      });
+
+      const expectedGroup = groupParam ?? "2";
+      expect(vi.mocked(useSWRAuth).mock.lastCall?.[0]).toBe(
+        groupKeys.live(expectedGroup),
+      );
+      if (!groupParam) {
+        vi.mocked(useSWRAuth).mockReturnValue({
+          ...response,
+          data: liveData({
+            groups: groupsAB,
+            groupId: "2",
+            students: [
+              wireStudent({ id: 2, first_name: "Erika", last_name: "Schmidt" }),
+            ],
+          }),
+        } as never);
+        rerender(<OGSGroupPage />);
+        expect(await screen.findByText(/Erika Schmidt/)).toBeInTheDocument();
+      } else {
+        expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
+      }
+    },
+  );
 
   it("resets to first group when previously selected group disappears from list", async () => {
     // Initial render: User has Group A (id=1) and Group B (id=2), Group A selected

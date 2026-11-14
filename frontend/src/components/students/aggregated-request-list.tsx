@@ -573,6 +573,7 @@ export function AggregatedRequestList({
             }}
             isLoading={loadingMore || withdrawalsLoadingMore}
             loadingText="Wird geladen…"
+            tooltip="Lädt ältere Anfragen der Eltern unten in die Liste."
           >
             Weitere Einträge laden
           </Button>

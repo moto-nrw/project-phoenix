@@ -9,10 +9,16 @@ import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
+  changeTraegerMemberName,
   changeTraegerRoles,
   inviteTraegerAccount,
   type TraegerMember,
 } from "~/lib/traeger-api";
+import {
+  MEMBER_NAME_REQUIRED,
+  TRAEGER_NAME_HINT,
+  TRAEGER_NAME_MAX_LENGTH,
+} from "~/lib/traeger-person-name";
 import type { TraegerRole } from "~/lib/traeger-roles";
 import { TraegerRoleChoice } from "./traeger-role-choice";
 
@@ -27,7 +33,7 @@ export interface TraegerInvitationInput {
 }
 
 const TRAEGER_INVITATION_HINT =
-  "Die Person bekommt eine E-Mail mit einem Link zum Träger-Portal. Bis wann der Link gilt, steht danach bei den offenen Einladungen.";
+  "Die Person bekommt einen Link per E-Mail. Bis wann er gilt, steht danach bei den offenen Einladungen.";
 
 /**
  * Invites a person into the Träger-Büro by e-mail (#4650). The person gets a
@@ -102,7 +108,7 @@ export function InviteTraegerAccountModal({
       pending={save}
       isBackdropDismissDisabled
       title={title}
-      size="md"
+      size="lg"
       error={formErrors.error}
       footer={
         <EditActions
@@ -126,7 +132,7 @@ export function InviteTraegerAccountModal({
       >
         <p className="text-sm text-gray-600">{hint}</p>
         <Input
-          controlSize="compact"
+          controlSize="touch"
           id="invite-traeger-account-email"
           label="E-Mail-Adresse"
           name="email"
@@ -204,7 +210,7 @@ export function ChangeTraegerRolesModal({
           error: err instanceof Error ? err.message : String(err),
         });
         if (!op.isCurrent()) return;
-        void formErrors.show(err, { object: "die Rollen" });
+        void formErrors.show(err, { object: "die Rollenvergabe" });
         return;
       }
       if (op.isCurrent()) onClose();
@@ -219,7 +225,7 @@ export function ChangeTraegerRolesModal({
       onClose={onClose}
       pending={save}
       title="Rollen ändern"
-      size="md"
+      size="lg"
       error={formErrors.error}
       footer={
         <EditActions
@@ -242,8 +248,8 @@ export function ChangeTraegerRolesModal({
         <p className="text-sm text-gray-600">
           Rollen für{" "}
           <span className="font-medium wrap-anywhere">{member?.email}</span>.
-          Die Änderung gilt nach wenigen Minuten, spätestens bei der nächsten
-          Anmeldung.
+          Neue Rollen gelten nach wenigen Minuten. Nehmen Sie eine Rolle weg,
+          wird die Person sofort abgemeldet.
         </p>
         <TraegerRoleChoice
           value={roles}
@@ -251,6 +257,115 @@ export function ChangeTraegerRolesModal({
           disabled={saving}
           error={formErrors.fieldError("roles")}
           locked={isLastLeader ? LAST_LEADER_LOCK : undefined}
+        />
+      </form>
+    </FormModal>
+  );
+}
+
+/**
+ * Enters or changes the name of a person of the Träger-Büro (#4693). The
+ * export protocol and the history of every invoice show it. `onSaved` gets
+ * the person as the backend keeps it, so the row shows the name at once.
+ */
+export function ChangeTraegerMemberNameModal({
+  member,
+  onClose,
+  onSaved,
+  onChanged,
+}: Readonly<{
+  member: TraegerMember | null;
+  onClose: () => void;
+  onSaved: (member: TraegerMember) => void;
+  /** Reloads the list and the history; never rejects (#6652). */
+  onChanged: RefreshAfterWrite;
+}>) {
+  const [name, setName] = useState("");
+  const save = useFormModalPending(member !== null);
+  const saving = save.pending;
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearErrors } = formErrors;
+  const { success } = useToast();
+
+  useEffect(() => {
+    if (!member) return;
+    setName(member.name);
+    clearErrors();
+  }, [member, clearErrors]);
+
+  const submit = async () => {
+    if (!member) return;
+    formErrors.clear();
+    const trimmed = name.trim();
+    if (!trimmed) {
+      formErrors.invalid(MEMBER_NAME_REQUIRED, { name: MEMBER_NAME_REQUIRED });
+      return;
+    }
+    await save.run(async (op) => {
+      let saved: TraegerMember;
+      try {
+        saved = await changeTraegerMemberName(member.accountId, trimmed);
+      } catch (err) {
+        logger.error("traeger_member_name_change_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "der Name" });
+        return;
+      }
+      onSaved(saved);
+      if (op.isCurrent()) onClose();
+      success("Der Name ist gespeichert.");
+      await onChanged();
+    });
+  };
+
+  const title = member?.name ? "Namen ändern" : "Namen eintragen";
+
+  return (
+    <FormModal
+      isOpen={member !== null}
+      onClose={onClose}
+      pending={save}
+      title={title}
+      size="md"
+      error={formErrors.error}
+      footer={
+        <EditActions
+          onCancel={onClose}
+          onSave={() => formRef.current?.requestSubmit()}
+          saving={saving}
+        />
+      }
+    >
+      <form
+        ref={formRef}
+        id="change-traeger-member-name-form"
+        noValidate
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <p className="text-sm text-gray-600">
+          Name für{" "}
+          <span className="font-medium wrap-anywhere">{member?.email}</span>.
+        </p>
+        <Input
+          controlSize="compact"
+          id="change-traeger-member-name"
+          label="Name"
+          name="name"
+          autoComplete="off"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          error={formErrors.fieldError("name")}
+          hint={TRAEGER_NAME_HINT}
+          maxLength={TRAEGER_NAME_MAX_LENGTH}
+          disabled={saving}
+          required
         />
       </form>
     </FormModal>

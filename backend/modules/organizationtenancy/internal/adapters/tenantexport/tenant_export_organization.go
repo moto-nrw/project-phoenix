@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 // A Träger package (#3838) returns what belongs to the Träger: its own
@@ -50,7 +50,10 @@ var errInSchoolPackage = errors.New("tenant export: held by a school")
 // school package nor the tenant scope finds them. Their delivery events
 // follow their mail.
 var organizationRows = map[string]string{
-	"auth.tokens":                    ".organization_id = ?0",
+	"auth.tokens": ".organization_id = ?0",
+	// A device the Träger-Portal remembered names its Träger and no school
+	// (#6955); the school packages carry only the devices of their school.
+	"auth.mfa_trusted_devices":       ".organization_id = ?0",
 	"platform.email_outbox":          ".organization_id = ?0",
 	"platform.push_outbox":           ".organization_id = ?0",
 	"platform.email_delivery_events": ".outbox_id IN (SELECT id FROM platform.email_outbox WHERE organization_id = ?0)",

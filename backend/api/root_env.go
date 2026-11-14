@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	securityRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/securityruntime/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // newRootEnvironment validates the portal links of the configuration and

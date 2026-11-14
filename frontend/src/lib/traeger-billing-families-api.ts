@@ -57,6 +57,37 @@ export interface BillingFamily extends BillingAmounts {
   readonly holidayOnly: boolean;
   /** The family has an issued document, so it opens a page of its own. */
   readonly hasDocuments: boolean;
+  /**
+   * The children and their own numbers when the Träger keeps a number per
+   * child (#7007); absent when it keeps one per payer.
+   */
+  readonly children?: readonly FamilyChild[];
+}
+
+/** Whom the Träger's debtor numbers name (#7007). */
+type DebtorNumberScope = "payer" | "child";
+
+/** A child of a family with its own debtor number, "" for none (#7007). */
+export interface FamilyChild {
+  readonly firstName: string;
+  readonly lastName: string;
+  /** Calendar date "YYYY-MM-DD"; null without one. */
+  readonly birthDate: string | null;
+  readonly debtorNumber: string;
+}
+
+/** A family with its children as the list of children answers it. */
+export interface FamilyChildNumbers {
+  readonly familyEmail: string;
+  readonly recipientFirstName: string;
+  readonly recipientLastName: string;
+  readonly children: readonly FamilyChild[];
+}
+
+/** The format of the Träger's debtor numbers and whom they name. */
+export interface DebtorNumberSettings {
+  readonly format: DebtorNumberFormat;
+  readonly scope: DebtorNumberScope;
 }
 
 export interface BillingFamilyDocument {
@@ -241,12 +272,123 @@ export async function setFamilyDebtorNumber(
 
 /**
  * The format of the Träger's debtor numbers (#6675), so a field can name it
- * and check it before the backend does.
+ * and check it before the backend does, and whom they name (#7007).
  */
-export async function fetchDebtorNumberFormat(): Promise<DebtorNumberFormat> {
-  return debtorNumberFormatOf(
-    await traegerRequest<BackendDebtorNumberFormat | null>(
-      `${FAMILIES_PATH}/debtor-number-format`,
-    ),
+export async function fetchDebtorNumberSettings(): Promise<DebtorNumberSettings> {
+  const raw = await traegerRequest<
+    (BackendDebtorNumberFormat & { scope?: string }) | null
+  >(`${FAMILIES_PATH}/debtor-number-format`);
+  return {
+    format: debtorNumberFormatOf(raw),
+    scope: raw?.scope === "child" ? "child" : "payer",
+  };
+}
+
+interface BackendFamilyChild {
+  first_name: string;
+  last_name: string;
+  birth_date?: string | null;
+  debtor_number?: string;
+}
+
+interface BackendFamilyChildNumbers {
+  family_email: string;
+  recipient_first_name?: string;
+  recipient_last_name?: string;
+  children?: BackendFamilyChild[] | null;
+}
+
+function childFromBackend(child: BackendFamilyChild): FamilyChild {
+  return {
+    firstName: child.first_name,
+    lastName: child.last_name,
+    birthDate: child.birth_date ?? null,
+    debtorNumber: child.debtor_number ?? "",
+  };
+}
+
+/**
+ * Every family with a care contract or a child's number, with its children
+ * and their own numbers (#7007).
+ */
+export async function fetchFamilyChildren(): Promise<FamilyChildNumbers[]> {
+  const families = await traegerRequest<BackendFamilyChildNumbers[] | null>(
+    `${FAMILIES_PATH}/children`,
   );
+  return (families ?? []).map((family) => ({
+    familyEmail: family.family_email,
+    recipientFirstName: family.recipient_first_name ?? "",
+    recipientLastName: family.recipient_last_name ?? "",
+    children: (family.children ?? []).map(childFromBackend),
+  }));
+}
+
+/**
+ * Sets the number of a child of a family (#7007); "" removes it. Returns
+ * the child with the number it has.
+ */
+export async function setChildDebtorNumber(
+  familyEmail: string,
+  child: FamilyChild,
+  debtorNumber: string,
+): Promise<FamilyChild> {
+  const saved = await traegerRequest<BackendFamilyChild>(
+    `${FAMILIES_PATH}/child-debtor-number`,
+    {
+      method: "PUT",
+      body: {
+        family_email: familyEmail,
+        child_first_name: child.firstName,
+        child_last_name: child.lastName,
+        child_birth_date: child.birthDate,
+        debtor_number: debtorNumber,
+      },
+    },
+  );
+  return childFromBackend(saved);
+}
+
+/**
+ * The families of the list with their children (#7007): each family takes
+ * its children by its address, and a family with a contract or a child's
+ * number but no document and no number of its own joins the list.
+ */
+export function withFamilyChildren(
+  families: readonly BillingFamily[],
+  children: readonly FamilyChildNumbers[],
+): BillingFamily[] {
+  const byEmail = new Map(
+    children.map((family) => [family.familyEmail, family]),
+  );
+  const listed = families.map((family) => ({
+    ...family,
+    children: byEmail.get(family.familyEmail)?.children ?? [],
+  }));
+  const known = new Set(families.map((family) => family.familyEmail));
+  for (const family of children) {
+    if (known.has(family.familyEmail)) continue;
+    listed.push({
+      id: "0",
+      recipientFirstName: family.recipientFirstName,
+      recipientLastName: family.recipientLastName,
+      recipientEmail: family.familyEmail,
+      debtorNumbers: [],
+      payments: [],
+      paymentMethods: [],
+      invoiceCount: 0,
+      openInvoiceCount: 0,
+      documentCount: 0,
+      lastIssuedOn: "",
+      familyEmail: family.familyEmail,
+      familyDebtorNumber: "",
+      holidayOnly: false,
+      hasDocuments: false,
+      children: family.children,
+      issuedCents: 0,
+      cancelledCents: 0,
+      creditedCents: 0,
+      openCents: 0,
+    });
+  }
+  return listed;
 }

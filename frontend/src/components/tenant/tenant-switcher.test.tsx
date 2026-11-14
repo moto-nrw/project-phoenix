@@ -85,6 +85,7 @@ vi.mock("~/lib/shell-seed", () => ({
 vi.mock("~/env.client", () => ({
   clientEnv: {
     NEXT_PUBLIC_TENANT_DOMAIN: "localhost",
+    NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.localhost:3000",
   },
 }));
 
@@ -451,6 +452,39 @@ describe("BrandTenantSwitcher", () => {
       },
       expect.any(AbortSignal),
     );
+  });
+
+  it("sends a Träger session the school refused for its remembered device back to the Träger sign-in with code (#6955)", async () => {
+    realErrorDisplay.enabled = true;
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
+    mockPerformTenantSwitch.mockRejectedValue(
+      new ApiError("remembered device refused", 403, {
+        code: "traeger.school_requires_code",
+      }),
+    );
+    render(
+      <ToastProvider>
+        <BrandTenantSwitcher />
+      </ToastProvider>,
+    );
+    await screen.findByRole("button", { name: TRIGGER_LABEL });
+    openDropdown();
+    fireEvent.click(screen.getByText("School B"));
+
+    const back = await screen.findByRole("button", {
+      name: "Mit Code neu anmelden",
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Diese Schule verlangt zum Öffnen einen Code aus Ihrer E-Mail.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Zur Schulanmeldung" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(back);
+    expect(window.location.assign).toHaveBeenCalledWith(
+      "http://traeger.localhost:3000/login?mit-code=1",
+    );
+    expect(mockSignOut).not.toHaveBeenCalled();
   });
 
   it("offers moto schule when the selected school only grants Lehrkraft access", async () => {

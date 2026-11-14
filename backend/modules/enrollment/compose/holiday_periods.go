@@ -3,10 +3,10 @@ package compose
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
-	applicationNative "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/adapters/postgres"
+	applicationNative "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // NewHolidayPeriods builds a Träger's holiday periods (#4659) in the Träger transaction (ADR 0105); schoolCalendar (#4702) may be nil only for a reader.
@@ -42,7 +42,7 @@ func NewHolidayRegistrationAnnouncements() enrollment.HolidayRegistrationAnnounc
 
 // NewHolidayWishes builds the prefill's sealed statements of the holiday care wish (school tenant transaction) and the office's decision on it (#4703).
 func NewHolidayWishes(health enrollment.HolidayHealthCipher) (enrollment.HolidayWishProofs, enrollment.HolidayWishReview) {
-	review, _, _, _ := applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil, nil, nil, nil)
+	review, _, _, _ := applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil, nil, nil, nil, nil)
 	return applicationNative.NewHolidayWishProofs(newStore(), health, nil), applicationNative.NewHolidayWishReview(review)
 }
 
@@ -51,9 +51,9 @@ func NewHolidayRegistrationRetention(mail enrollment.HolidayRegistrationMailEras
 	return applicationNative.NewHolidayRegistrationRetention(postgres.NewHolidayRegistrationStore(), mail, today)
 }
 
-// NewHolidayRegistrationReview builds the Träger-Büro's review (ADR 0114, #4722), places (#4699), allocation by criteria (#4700) and the reads for the files (#6691); nil mail moves nobody up and decides nothing; traeger names the Träger and the host schools in those mails (#6437); schoolCalendar (#4702) may be nil without rebooking.
-func NewHolidayRegistrationReview(health enrollment.HolidayHealthCipher, mail enrollment.TraegerMailOutbox, traeger enrollment.HolidayTraegerDirectory, schoolCalendar enrollment.HolidaySchoolCalendar) (enrollment.HolidayRegistrationReview, enrollment.HolidayPlaces, enrollment.HolidayAllocation, enrollment.HolidayRegistrationRecords) {
-	return applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil, mail, traeger, schoolCalendar)
+// NewHolidayRegistrationReview builds the Träger-Büro's review (ADR 0114, #4722), places (#4699), allocation by criteria (#4700) and the reads for the files (#6691); nil mail moves nobody up and decides nothing; traeger names the Träger and the host schools in those mails (#6437); schoolCalendar (#4702) may be nil without rebooking; nil mailStates names no undelivered mail (#6737).
+func NewHolidayRegistrationReview(health enrollment.HolidayHealthCipher, mail enrollment.TraegerMailOutbox, traeger enrollment.HolidayTraegerDirectory, schoolCalendar enrollment.HolidaySchoolCalendar, mailStates enrollment.HolidayMailStates) (enrollment.HolidayRegistrationReview, enrollment.HolidayPlaces, enrollment.HolidayAllocation, enrollment.HolidayRegistrationRecords) {
+	return applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil, mail, traeger, schoolCalendar, mailStates)
 }
 
 // NewHolidayHealthExportFields opens the sealed health information for the return export (#3838, #6328); only the administrative export CLI binds it, never HTTP.

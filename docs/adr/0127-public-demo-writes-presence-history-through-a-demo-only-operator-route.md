@@ -5,7 +5,7 @@ status: accepted
 # The public demo writes the presence history through a demo-only operator route
 
 Decision of 2026-10-27 for
-[#5029](https://github.com/moto-nrw/project-phoenix/issues/5029). It
+[#5029](https://github.com/moto-ogs/project-phoenix/issues/5029). It
 completes [ADR 0125](0125-demo-seed-writes-presence-history-through-student-presence.md),
 which left the public demo without a write path for its past presence. It
 adds no owner, no policy rule, no data object and no compose line.

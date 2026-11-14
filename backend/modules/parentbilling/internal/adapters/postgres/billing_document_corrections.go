@@ -5,7 +5,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // The cancellations, credits and invoices issued again (#4690). They are
@@ -41,25 +41,25 @@ func (s *Store) ReferencingDocuments(ctx context.Context, organizationID int64, 
 	})
 }
 
-// cancelledInvoiceRow is a cancelled invoice of a registration that no
-// invoice replaces yet.
+// cancelledInvoiceRow is a cancelled invoice of a registration, or of one
+// of its children, that no invoice replaces yet.
 type cancelledInvoiceRow struct {
-	ID                    int64  `bun:"id"`
-	HolidayRegistrationID int64  `bun:"holiday_registration_id"`
-	Number                string `bun:"number"`
+	ID     int64  `bun:"id"`
+	Number string `bun:"number"`
+	invoiceKeyRow
 }
 
-// CancelledInvoices names, per registration of the period, the cancelled
-// invoice of the service that no invoice replaces yet; the next release
-// issues its replacement.
-func (s *Store) CancelledInvoices(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]parentbilling.BillingDocumentLink, error) {
+// CancelledInvoices names, per registration of the period and child of an
+// invoice per child (#7007), the cancelled invoice of the service that no
+// invoice replaces yet; the next release issues its replacement.
+func (s *Store) CancelledInvoices(ctx context.Context, organizationID int64, service string, periodID int64) (map[parentbilling.HolidayInvoiceKey]parentbilling.BillingDocumentLink, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	var rows []cancelledInvoiceRow
 	if err := db.NewSelect().TableExpr("parent_billing.documents AS document").
-		Column("document.id", "document.holiday_registration_id", "document.number").
+		Column("document.id", "document.holiday_registration_id", "document.holiday_registration_child_id", "document.number").
 		Where("document.organization_id = ?", organizationID).Where("document.service = ?", service).
 		Where("document.holiday_period_id = ?", periodID).Where("document.kind = ?", parentbilling.DocumentInvoice).
 		Where("NOT ("+notCancelledSQL+")").
@@ -69,9 +69,9 @@ func (s *Store) CancelledInvoices(ctx context.Context, organizationID int64, ser
 		OrderExpr("document.id").Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
-	cancelled := make(map[int64]parentbilling.BillingDocumentLink, len(rows))
+	cancelled := make(map[parentbilling.HolidayInvoiceKey]parentbilling.BillingDocumentLink, len(rows))
 	for _, row := range rows {
-		cancelled[row.HolidayRegistrationID] = parentbilling.BillingDocumentLink{
+		cancelled[row.key()] = parentbilling.BillingDocumentLink{
 			ID: row.ID, Kind: parentbilling.DocumentInvoice, Number: row.Number,
 		}
 	}

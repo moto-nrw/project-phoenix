@@ -7,9 +7,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // The holiday guests of the hosting school (#4666, ADR 0120): the school
@@ -161,6 +161,26 @@ func (rs *HolidayHostResource) listOwnChildAssignments(w http.ResponseWriter, r 
 		return
 	}
 	common.Respond(w, r, http.StatusOK, assignments, "Own children of the holiday week retrieved successfully")
+}
+
+// listHomeSchoolBookings answers GET /home-school-children (#6679): the
+// confirmed holiday bookings of the school's own children in weeks other
+// schools of its Träger host, each with the name of the hosting school.
+func (rs *HolidayHostResource) listHomeSchoolBookings(w http.ResponseWriter, r *http.Request) {
+	host, ok := hostOf(w, r)
+	if !ok {
+		return
+	}
+	bookings, err := rs.guests.HolidayHomeSchoolBookings(r.Context(), host)
+	if err != nil {
+		renderHolidayGuestError(w, r, err)
+		return
+	}
+	names := hostSchoolNames(r.Context())
+	for i := range bookings {
+		bookings[i].HostSchoolName = names.school(bookings[i].HostSchoolID)
+	}
+	common.Respond(w, r, http.StatusOK, bookings, "Holiday bookings of the school's children at other schools retrieved successfully")
 }
 
 func (rs *HolidayGuestResource) getSheet(w http.ResponseWriter, r *http.Request) {

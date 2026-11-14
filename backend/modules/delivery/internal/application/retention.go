@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Retention deletes a school's delivery data after the fixed window (#3955).

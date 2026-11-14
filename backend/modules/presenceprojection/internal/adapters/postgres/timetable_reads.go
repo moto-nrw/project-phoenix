@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	presenceContract "github.com/moto-nrw/project-phoenix/modules/presenceprojection/presencecontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	presenceContract "github.com/moto-ogs/project-phoenix/modules/presenceprojection/presencecontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 

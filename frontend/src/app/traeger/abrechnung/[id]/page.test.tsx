@@ -44,6 +44,11 @@ vi.mock("next-auth/react", () => ({
 }));
 const { downloadBlob } = vi.hoisted(() => ({ downloadBlob: vi.fn() }));
 vi.mock("~/lib/file-download", () => ({ downloadBlob }));
+// The recipient of the handover (ADR 0218) is tested on its own.
+vi.mock("~/lib/traeger-export-handovers-api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  fetchExportRecipients: () => new Promise(() => undefined),
+}));
 
 vi.mock("~/lib/traeger-billing-api", () => api);
 vi.mock("~/lib/traeger-url", () => ({
@@ -89,6 +94,7 @@ const PREVIEW: BillingRunDetail = {
       number: "",
       issuedOn: null,
       registrationId: "31",
+      registrationChildId: "",
       recipientFirstName: "Eva",
       recipientLastName: "Muster",
       recipientEmail: "eva@example.org",
@@ -207,7 +213,7 @@ async function openInvoiceMenu() {
 async function showBreakdown() {
   await openInvoiceMenu();
   fireEvent.click(
-    await screen.findByRole("menuitem", { name: "Aufschlüsselung ansehen" }),
+    await screen.findByRole("menuitem", { name: "Aufschlüsselung zeigen" }),
   );
   return screen.findByRole("dialog", { name: "Rechnung an Eva Muster" });
 }
@@ -257,7 +263,7 @@ describe("TraegerBillingRunPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /1 bestätigte Anmeldung\(en\) haben keinen festgehaltenen Beitrag/,
+        /1 bestätigte Anmeldung hat keinen festgehaltenen Beitrag/,
       ),
     ).toBeInTheDocument();
   });
@@ -439,9 +445,7 @@ describe("TraegerBillingRunPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Lauf freigeben" }));
     expect(
-      await screen.findByText(
-        /1 Rechnung\(en\) über 112,50 € bekommen ihre Nummer/,
-      ),
+      await screen.findByText(/1 Rechnung über 112,50 € bekommt ihre Nummer/),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
@@ -562,7 +566,7 @@ describe("TraegerBillingRunPage", () => {
     // The row menu only shows the breakdown; nothing changes the invoice.
     await openInvoiceMenu();
     const breakdown = await screen.findByRole("menuitem", {
-      name: "Aufschlüsselung ansehen",
+      name: "Aufschlüsselung zeigen",
     });
     expect(
       screen.queryByRole("menuitem", { name: /korrigieren/ }),
@@ -978,7 +982,7 @@ describe("TraegerBillingRunPage", () => {
       ).not.toBeInTheDocument();
       fireEvent.click(
         await screen.findByRole("menuitem", {
-          name: "Aufschlüsselung ansehen",
+          name: "Aufschlüsselung zeigen",
         }),
       );
       const panel = await screen.findByRole("dialog", {

@@ -21,6 +21,8 @@
     "title": "Your holiday registrations",
     "showAll": "View all",
     "showAllLabel": "View all holiday registrations",
-    "more": "{count, plural, one {# more registration} other {# more registrations}}"
-  }
+    "more": "{count, plural, one {# more registration} other {# more registrations}}",
+    "showAllTooltip": "Opens the list of all holiday registrations of your children."
+  },
+  "toDocumentsTooltip": "Opens your documents with the confirmation and invoice."
 }

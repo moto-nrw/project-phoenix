@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // DisplayFeatureEnabled binds the display routes' feature toggle to the

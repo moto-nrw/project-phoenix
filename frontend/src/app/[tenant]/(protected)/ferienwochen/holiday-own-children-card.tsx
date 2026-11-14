@@ -1,7 +1,10 @@
 "use client";
 
 import { ButtonLink } from "~/components/ui/button";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatDate } from "~/lib/date-helpers";
@@ -93,9 +96,9 @@ export function HolidayOwnChildrenCard({
               {open.map(({ assignment, child }) => {
                 const name = `${child.firstName} ${child.lastName}`;
                 return (
-                  <li
+                  <ResponsiveActionRow
                     key={child.childId}
-                    className="flex flex-col gap-2 py-3 text-sm text-gray-700 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
+                    className="text-sm text-gray-700"
                   >
                     <div className="min-w-0">
                       <p>
@@ -114,11 +117,12 @@ export function HolidayOwnChildrenCard({
                         variant="surface"
                         size="compact"
                         aria-label={`Kind suchen: ${name}`}
+                        tooltip="Öffnet die Kindersuche mit dem Nachnamen dieses Kindes."
                       >
                         Kind suchen
                       </ButtonLink>
                     </div>
-                  </li>
+                  </ResponsiveActionRow>
                 );
               })}
             </ResponsiveActionList>

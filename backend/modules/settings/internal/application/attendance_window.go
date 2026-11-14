@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // The window the team sees attendance (gdpr.attendance_visible_days) never

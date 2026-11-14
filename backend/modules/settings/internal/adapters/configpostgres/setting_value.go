@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 	"github.com/uptrace/bun"
 )
 

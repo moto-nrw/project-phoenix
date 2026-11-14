@@ -8,7 +8,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/uptrace/bun"
+
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // AccountMFARecords persists the account second factor on the caller's connection.
@@ -35,12 +38,62 @@ func (r *AccountMFARecords) FindAccountIdentity(ctx context.Context, accountID i
 		return domain.AccountIdentity{}, false, err
 	}
 	var row domain.AccountIdentity
-	err = db.NewRaw(`SELECT id, email, active, mfa_attempts, mfa_locked_until, mfa_reset_generation
+	err = db.NewRaw(`SELECT id, email, active, mfa_attempts, mfa_locked_until, mfa_reset_generation, portal_locale
 		FROM auth.accounts WHERE id = ? AND personal_data_erased_at IS NULL`, accountID).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.AccountIdentity{}, false, nil
 	}
 	return row, err == nil, err
+}
+
+// ListActiveTenantIDs reads the account's active schools through the narrow
+// database capability offboarding uses, so a school caller learns them only
+// for an account active at its own school.
+func (r *AccountMFARecords) ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error) {
+	db, err := r.store.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var ids []int64
+	if err := db.NewRaw(`SELECT tenant_id FROM auth.active_school_ids_for_account(?)`, accountID).Scan(ctx, &ids); err != nil {
+		return nil, domain.OperationStats{Queries: 1}, fmt.Errorf("identity access postgres: list active schools of account: %w", err)
+	}
+	return ids, domain.OperationStats{Queries: 1, Rows: int64(len(ids))}, nil
+}
+
+// HoldsTraegerParentAccess reports whether the account has parents-portal
+// access at any Träger (ADR 0216). The table carries no tenant: a school
+// caller reads the fact through the narrow database capability, which
+// answers only for an account active at its own school.
+func (r *AccountMFARecords) HoldsTraegerParentAccess(ctx context.Context, accountID int64) (bool, error) {
+	db, err := r.store.database(ctx)
+	if err != nil {
+		return false, err
+	}
+	return holdsTraegerParentAccess(ctx, db, accountID)
+}
+
+// HoldsTraegerParentAccess is the same fact for the account administration.
+func (s *Store) HoldsTraegerParentAccess(ctx context.Context, accountID int64) (bool, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return false, err
+	}
+	return holdsTraegerParentAccess(ctx, db, accountID)
+}
+
+func holdsTraegerParentAccess(ctx context.Context, db bun.IDB, accountID int64) (bool, error) {
+	var held bool
+	var err error
+	if tenant.IsAdminTx(ctx) {
+		err = db.NewRaw(`SELECT EXISTS (SELECT 1 FROM auth.traeger_parent_access WHERE account_id = ?)`, accountID).Scan(ctx, &held)
+	} else {
+		err = db.NewRaw(`SELECT auth.account_has_traeger_parent_access(?)`, accountID).Scan(ctx, &held)
+	}
+	if err != nil {
+		return false, fmt.Errorf("identity access postgres: Träger parent access of account: %w", err)
+	}
+	return held, nil
 }
 
 func (r *AccountMFARecords) AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {

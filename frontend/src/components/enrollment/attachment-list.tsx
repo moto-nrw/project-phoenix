@@ -33,6 +33,10 @@ export interface AttachmentLabels {
   download: string;
   openLabel: (label: string) => string;
   downloadLabel: (label: string) => string;
+  /** What „Öffnen“ does, shown as the button's explanation (#6749). */
+  openHint: string;
+  /** What „Herunterladen“ does, shown as the button's explanation. */
+  downloadHint: string;
   popupBlocked: string;
   errorObject: string;
 }
@@ -74,6 +78,8 @@ function LocalizedAttachmentActions(props: Readonly<AttachmentActionsProps>) {
         download: t("download"),
         openLabel: (label) => t("openLabel", { label }),
         downloadLabel: (label) => t("downloadLabel", { label }),
+        openHint: t("openHint"),
+        downloadHint: t("downloadHint"),
         popupBlocked: t("popupBlocked"),
         errorObject: t("errorObject"),
       }}
@@ -158,6 +164,7 @@ function AttachmentActions({
               className="gap-2"
               disabled={busyURL !== null}
               aria-label={labels.openLabel(attachment.label)}
+              tooltip={labels.openHint}
               onClick={() => void read(attachment, true)}
             >
               <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -170,6 +177,7 @@ function AttachmentActions({
               className="gap-2"
               disabled={busyURL !== null}
               aria-label={labels.downloadLabel(attachment.label)}
+              tooltip={labels.downloadHint}
               onClick={() => void read(attachment, false)}
             >
               <Download className="h-4 w-4" aria-hidden="true" />

@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	schedule "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // sourcedInstanceBatch holds the shared roster snapshots and their diff.
@@ -137,12 +137,17 @@ func (s *RosterReconciler) applySourcedRosterStatusDays(ctx context.Context, tou
 }
 
 func (s *RosterReconciler) saveSourcedInstanceBatch(ctx context.Context, batch *sourcedInstanceBatch) error {
-	if len(batch.creates)+len(batch.deletes) == 0 {
+	return s.saveParticipantDiff(ctx, batch.creates, batch.deletes)
+}
+
+// saveParticipantDiff writes a planned-roster diff in one batch.
+func (s *RosterReconciler) saveParticipantDiff(ctx context.Context, creates []timetable.InstanceStudentInput, deletes []int64) error {
+	if len(creates)+len(deletes) == 0 {
 		return nil
 	}
 	commands, ok := s.instanceStudentRepo.Plans.(timetable.SourcedInstanceStudents)
 	if !ok {
-		return errors.New("sourced roster batch: participant diff commands are required")
+		return errors.New("roster diff: participant diff commands are required")
 	}
-	return commands.SaveSourcedInstanceStudents(ctx, batch.creates, batch.deletes)
+	return commands.SaveSourcedInstanceStudents(ctx, creates, deletes)
 }

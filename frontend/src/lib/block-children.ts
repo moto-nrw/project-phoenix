@@ -3,7 +3,9 @@
  * „Ablauf des Tages“ sie in einer Zeile zeigen (#3921).
  *
  * „X von Y da“ heißt: X Kinder sind gerade da, Y Kinder gehören heute zu
- * diesem Block. Wer gegangen ist, steht getrennt daneben. Ungeplant
+ * diesem Block. Wer nicht mehr im Raum ist, steht getrennt daneben: gegangen,
+ * im Unterricht oder in einem anderen Raum. Der Name folgt der Aufsicht
+ * („Nicht mehr im Raum“, #5660, #5710). Ungeplant
  * dazugekommene Kinder zählen in X, aber nicht in Y. Ein Block ohne eigene
  * Kinder (spontan gestartet) zeigt nur „X da“, nie „X von 0 da“. Sind mehr
  * Kinder da als geplant, steht ebenfalls nur „X da“.
@@ -25,7 +27,7 @@ function kinder(count: number): string {
 }
 
 /**
- * Laufend: „12 von 18 da · 3 gegangen“. Beendet: wie viele da waren.
+ * Laufend: „12 von 18 da · 3 nicht mehr im Raum“. Beendet: wie viele da waren.
  * Davor: wie viele erwartet werden.
  */
 export function blockChildrenLabel(block: BlockCounts): string {
@@ -36,13 +38,13 @@ export function blockChildrenLabel(block: BlockCounts): string {
   // turns a populated running block into the false label "0 da".
   const current = block.currentStudentsCount ?? block.presentStudentsCount;
   const planned = block.plannedStudentsCount ?? block.expectedStudentsCount;
-  const departed = Math.max(0, block.presentStudentsCount - current);
+  const left = Math.max(0, block.presentStudentsCount - current);
   // Mehr Kinder da als geplant (dazugekommene): „10 von 6“ wäre unlogisch.
   const here =
     planned > 0 && current <= planned
       ? `${current} von ${planned} da`
       : `${current} da`;
-  return departed > 0 ? `${here} · ${departed} gegangen` : here;
+  return left > 0 ? `${here} · ${left} nicht mehr im Raum` : here;
 }
 
 type BlockClock = Pick<

@@ -6,14 +6,14 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // The group threads (#4784) for the parent portal suites, which may not

@@ -17,7 +17,7 @@ Before your first contribution can be accepted, you must agree to our [Contribut
 ### Prerequisites
 
 - Docker and Docker Compose
-- [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/) + [direnv](https://direnv.net/docs/installation.html) (pin Go 1.27.3, Node 26, and all CLI tools)
+- [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/) + [direnv](https://direnv.net/docs/installation.html) (pin Go 1.27.4, Node 26, and all CLI tools)
 
 The pinned Devbox environment supports Apple Silicon macOS and Linux on arm64
 or amd64. Intel macOS is not supported; current Nixpkgs releases no longer
@@ -26,7 +26,7 @@ provide `x86_64-darwin` packages.
 ### Quick Setup
 
 ```bash
-git clone https://github.com/moto-nrw/project-phoenix.git
+git clone https://github.com/moto-ogs/project-phoenix.git
 cd project-phoenix
 direnv allow              # activates the devbox environment
 devbox run bootstrap      # installs frontend and browser dependencies

@@ -145,6 +145,11 @@ export function WeekdayRosterSection({
               size="compact"
               className="ml-auto"
               onClick={applyActiveWeekdayToAll}
+              tooltip={
+                childrenFromSource
+                  ? "Übernimmt das Personal dieses Tags für alle Wochentage der Serie."
+                  : "Übernimmt Personal und Kinder dieses Tags für alle Wochentage der Serie."
+              }
             >
               Auf alle Tage übertragen
             </Button>

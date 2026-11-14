@@ -372,6 +372,7 @@ export function TransitionEditor({
                       size="compact"
                       onClick={() => removeRow(index)}
                       aria-label={`${schoolClassLabel(row.fromClass)} nicht ändern`}
+                      tooltip="Nimmt die Klasse aus dem Wechsel, ihre Kinder bleiben dort."
                     >
                       Nicht ändern
                     </Button>
@@ -398,6 +399,8 @@ export function TransitionEditor({
                 size="md"
                 onClick={() => addRow(classToAdd)}
                 disabled={!classToAdd}
+                tooltip="Nimmt die gewählte Klasse in den Wechsel auf."
+                disabledReason="Wählen Sie zuerst eine Klasse aus."
               >
                 Hinzufügen
               </Button>
@@ -410,7 +413,13 @@ export function TransitionEditor({
           <FormErrorAlert message={saveError} />
         </div>
         <SlideOverFooter>
-          <Button type="button" variant="outline" size="md" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            noTooltip="Schließt das Fenster, nichts wird gespeichert."
+          >
             Abbrechen
           </Button>
           <Button
@@ -418,6 +427,10 @@ export function TransitionEditor({
             size="md"
             onClick={handleContinue}
             disabled={Boolean(validationError) || save.pending || !rows}
+            tooltip="Speichert den Entwurf und zeigt, welche Kinder wohin wechseln."
+            disabledReason={
+              save.pending || !rows ? undefined : (validationError ?? undefined)
+            }
           >
             {save.pending ? "Speichern …" : "Weiter zur Vorschau"}
           </Button>

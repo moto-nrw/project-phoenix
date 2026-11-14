@@ -56,5 +56,8 @@
   "decisionLabel": "Entscheidung des Trägers",
   "decisionSet": "Grund anerkannt",
   "decisionReinterpreted": "Grund nicht anerkannt. Gilt als ordentliche Kündigung.",
-  "endNoticeTitle": "Mitteilung des Trägers zum Vertragsende"
+  "endNoticeTitle": "Mitteilung des Trägers zum Vertragsende",
+  "submitTerminationTooltip": "Schickt die Kündigung sofort an den Träger.",
+  "submitWithdrawalTooltip": "Schickt den Widerruf sofort an den Träger.",
+  "submitDisabledReason": "Wählen Sie zuerst oben eine Möglichkeit aus."
 }

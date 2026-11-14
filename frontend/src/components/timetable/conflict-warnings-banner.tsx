@@ -117,6 +117,7 @@ function ConflictRow({
             onClick={() => onJump(entry, instance.id)}
             className="max-w-48"
             aria-label={`Termin „${instance.title}“ öffnen`}
+            tooltip="Öffnet die Details dieses Termins im Plan."
           >
             <span className="truncate">{instance.title}</span>
           </Button>
@@ -129,6 +130,7 @@ function ConflictRow({
           size="compact"
           onClick={() => onUnhide(entry)}
           aria-label={`Konflikt für ${entry.personName} wieder anzeigen`}
+          tooltip="Zeigt Ihnen den Konflikt wieder als offen an."
         >
           <Eye className="h-3.5 w-3.5" aria-hidden />
           Wieder anzeigen
@@ -140,6 +142,7 @@ function ConflictRow({
           size="compact"
           onClick={() => onHide(entry)}
           aria-label={`Konflikt für ${entry.personName} ausblenden`}
+          tooltip="Blendet den Konflikt nur für Sie aus, bis er sich ändert."
         >
           <EyeOff className="h-3.5 w-3.5" aria-hidden />
           Ausblenden
@@ -191,6 +194,7 @@ export function ConflictWarningsBanner({
             size="compact"
             onClick={onDismissHiddenPanel}
             aria-label="Ausgeblendete Konflikte schließen"
+            tooltip="Blendet die Liste der ausgeblendeten Konflikte wieder aus."
           >
             Schließen
           </Button>
@@ -237,6 +241,7 @@ export function ConflictWarningsBanner({
               size="compact"
               onClick={onHideAll}
               aria-label="Alle Konflikte ausblenden"
+              tooltip="Blendet alle offenen Konflikte nur für Sie aus."
             >
               <EyeOff className="h-3.5 w-3.5" aria-hidden />
               Alle ausblenden
@@ -252,6 +257,11 @@ export function ConflictWarningsBanner({
               expanded
                 ? "Konfliktdetails verbergen"
                 : "Konfliktdetails anzeigen"
+            }
+            tooltip={
+              expanded
+                ? "Klappt die Liste der Konflikte wieder zu."
+                : "Zeigt, wer wann doppelt eingeplant ist."
             }
           >
             Details

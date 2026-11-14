@@ -21,6 +21,14 @@ const TONE_HOVER_CLASSES: Record<ListRowTone, string> = {
   surface: "hover:bg-gray-50",
 };
 
+/**
+ * Die Hover-Farbe von `neutral`, wenn die Zeile in einem Link (`group`) liegt
+ * und dessen Überfahren sie färbt (Zeile der `StatCard`). Steht neben
+ * `TONE_HOVER_CLASSES`, damit beide gemeinsam wandern.
+ */
+export const LIST_ROW_NEUTRAL_GROUP_HOVER =
+  "transition-colors group-hover:bg-gray-100/50";
+
 const DENSITY_CLASSES: Record<ListRowDensity, string> = {
   default: "px-3 py-2",
   // Für Karten fester Höhe: ab `sm` passen so drei Zeilen ganz hinein.
@@ -42,7 +50,7 @@ export function listRowClasses({
     DENSITY_CLASSES[density],
     TONE_CLASSES[tone],
     interactive &&
-      `w-full text-left transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset ${TONE_HOVER_CLASSES[tone]}`,
+      `w-full text-left transition-colors focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none focus-visible:ring-inset ${TONE_HOVER_CLASSES[tone]}`,
   );
 }
 

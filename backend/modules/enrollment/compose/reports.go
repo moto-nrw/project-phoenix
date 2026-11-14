@@ -1,8 +1,8 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application"
 )
 
 // Ports the composition root binds for Enrollment's reports.

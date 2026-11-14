@@ -35,6 +35,7 @@ function AbsenceNoteModal({
   placeholder,
   submitLabel,
   submitVariant,
+  submitTooltip,
   onSubmitNote,
   successMessage,
   logEvent,
@@ -47,6 +48,8 @@ function AbsenceNoteModal({
   readonly placeholder: string;
   readonly submitLabel: string;
   readonly submitVariant: "danger" | "primary";
+  /** Was der Absende-Knopf auslöst, ein Satz (#6643). */
+  readonly submitTooltip: string;
   readonly onSubmitNote: (note: string) => Promise<void>;
   readonly successMessage: string;
   readonly logEvent: string;
@@ -107,6 +110,7 @@ function AbsenceNoteModal({
             size="md"
             onClick={onClose}
             disabled={submitting}
+            noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
           >
             Abbrechen
           </Button>
@@ -116,6 +120,7 @@ function AbsenceNoteModal({
             size="md"
             onClick={handleSubmit}
             disabled={submitting}
+            tooltip={submitTooltip}
           >
             {submitting ? "…" : submitLabel}
           </Button>
@@ -162,6 +167,7 @@ export function DenyAbsenceModal({
       placeholder="Wird der Mitarbeiterin im Antrag angezeigt und bei aktivierten Benachrichtigungen zusätzlich per E-Mail mitgeteilt."
       submitLabel="Ablehnen"
       submitVariant="danger"
+      submitTooltip="Lehnt den Antrag sofort ab und informiert die Person mit Begründung."
       onSubmitNote={(note) => staffAbsenceService.deny(absence.id, note)}
       successMessage="Der Antrag ist abgelehnt."
       logEvent="absence_deny_failed"
@@ -188,6 +194,7 @@ export function QuestionAbsenceModal({
       placeholder="Wird der Mitarbeiterin im Antrag angezeigt. Sie kann ihre Antwort ergänzen und den Antrag erneut einreichen; bei aktivierten Benachrichtigungen erhält sie zusätzlich eine E-Mail."
       submitLabel="Rückfrage senden"
       submitVariant="primary"
+      submitTooltip="Schickt die Rückfrage sofort an die Person, sie kann den Antrag ergänzen."
       onSubmitNote={(note) => staffAbsenceService.question(absence.id, note)}
       successMessage="Die Rückfrage ist gesendet."
       logEvent="absence_question_failed"

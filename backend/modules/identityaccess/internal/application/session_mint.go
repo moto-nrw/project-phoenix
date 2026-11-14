@@ -10,9 +10,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // Every account session of every portal is minted by mintAccountSession and
@@ -89,9 +89,16 @@ type mintProof struct {
 	kind                proofKind
 	challenge           *identityaccess.VerifiedMFAChallenge
 	trustedDeviceCookie string
-	// traegerFamilyID and traegerVerified describe the source of an Absprung.
+	// traegerFamilyID and traegerVerified describe the source of an Absprung;
+	// traegerByDevice says only a remembered device proved its factor.
 	traegerFamilyID string
 	traegerVerified bool
+	traegerByDevice bool
+}
+
+// byDevice reports a proof that only a remembered device supplied (#6955).
+func (p mintProof) byDevice() bool {
+	return p.kind == proofTrustedDevice || (p.kind == proofTraegerSession && p.traegerByDevice)
 }
 
 func (p mintProof) verified() bool {
@@ -162,6 +169,7 @@ func (s *AccountAuthentication) mintAccountSession(ctx context.Context, req mint
 	session := s.newRefreshSession(req.account.ID, req.portal.Claim)
 	session.OrganizationID = req.orgID
 	session.MFAVerified = req.proof.verified()
+	session.MFAByDevice = session.MFAVerified && req.proof.byDevice()
 	if req.lifetime > 0 {
 		session.Expiry = time.Now().Add(req.lifetime)
 	}
@@ -177,9 +185,6 @@ func (s *AccountAuthentication) mintAccountSession(ctx context.Context, req mint
 	accessToken, refreshToken, err := s.codec.IssueTokenPair(access, refresh)
 	if err != nil {
 		return mintedSession{}, failed("generate tokens", err)
-	}
-	if req.audit != nil {
-		s.auditSession(ctx, req.account.ID, *req.audit)
 	}
 	return mintedSession{accessToken: accessToken, refreshToken: refreshToken, claims: claims}, nil
 }
@@ -244,7 +249,13 @@ func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context,
 				slog.Int64("account_id", req.account.ID),
 				slog.Any("error", err))
 		}
-		return s.capSessionsUnlessDemo(txCtx, req.account.ID, stored)
+		if err := s.capSessionsUnlessDemo(txCtx, req.account.ID, stored); err != nil {
+			return err
+		}
+		if req.audit == nil {
+			return nil
+		}
+		return s.auditSession(txCtx, req.account.ID, *req.audit)
 	})
 	if err != nil {
 		return domain.AccountSession{}, nil, err
@@ -290,13 +301,32 @@ func (s *AccountAuthentication) authorizeMint(ctx context.Context, req mintReque
 	if err != nil {
 		return nil, time.Time{}, err
 	}
-	if err := s.adoptSourceFamily(ctx, account.ID, req.sourceFamilyID, session, loginTime); err != nil {
+	if err := s.adoptSourceProof(ctx, req, account.ID, session, loginTime); err != nil {
 		return nil, time.Time{}, refused(err)
 	}
 	if err := s.requireSessionFloor(ctx, account.ID, req.tenantID, *session, factReads{locked: true}); err != nil {
 		return nil, time.Time{}, refused(err)
 	}
 	return claims, loginTime, nil
+}
+
+// adoptSourceProof adopts the family a switch presents, then lets the
+// school's "no remembered devices" win over a device proof the session
+// inherited (#6955). A device of this school and portal was already checked
+// against the school's setting by recheckProof.
+func (s *AccountAuthentication) adoptSourceProof(ctx context.Context, req mintRequest, accountID int64, session *domain.AccountSession, now time.Time) error {
+	if err := s.adoptSourceFamily(ctx, accountID, req.sourceFamilyID, session, now); err != nil {
+		return err
+	}
+	// A code redeemed for this mint proves the factor itself; the device
+	// mark of the source does not carry over (Träger step-up, #7068).
+	if req.proof.kind == proofChallenge {
+		session.MFAByDevice = false
+	}
+	if req.proof.kind == proofTrustedDevice {
+		return nil
+	}
+	return s.refuseDeviceProofAtSchool(ctx, req.portal, req.tenantID, *session)
 }
 
 func (s *AccountAuthentication) eligibleClaims(ctx context.Context, eligible eligibility, account domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
@@ -367,11 +397,16 @@ func (s *AccountAuthentication) recheckProof(ctx context.Context, req mintReques
 	case proofTrustedDevice:
 		return s.recheckTrustedDevice(ctx, req, account.ID)
 	case proofTraegerSession:
-		current, err := s.traegerSessionMFAProof(ctx, account.ID, req.orgID, req.proof.traegerFamilyID)
+		current, byDevice, err := s.traegerSessionMFAProof(ctx, account.ID, req.orgID, req.proof.traegerFamilyID)
 		if err != nil {
 			return err
 		}
 		if req.proof.traegerVerified && !current {
+			return failed("Träger school session", identityaccess.ErrInvalidToken)
+		}
+		// The mark read before the transaction must still hold: a code
+		// proof that turned into a device proof meanwhile proves less.
+		if byDevice && !req.proof.traegerByDevice {
 			return failed("Träger school session", identityaccess.ErrInvalidToken)
 		}
 	case proofNone, proofPasskey, proofDemoLink:
@@ -382,10 +417,12 @@ func (s *AccountAuthentication) recheckProof(ctx context.Context, req mintReques
 func (s *AccountAuthentication) recheckTrustedDevice(ctx context.Context, req mintRequest, accountID int64) error {
 	deviceSchoolID := req.tenantID
 	if req.portal.Schoolless() {
-		// A device of a portal without a school names none, nor does its
-		// ledger.
-		ctx, deviceSchoolID = withoutSchoolLedgerContext(ctx), 0
+		deviceSchoolID = 0
 	}
+	if req.portal.Device == domain.DeviceOfTraeger && req.orgID <= 0 {
+		return identityaccess.ErrInvalidToken
+	}
+	ctx = portalDeviceContext(ctx, req.portal, req.orgID)
 	enrolled, err := s.mfa.HasEnrollment(ctx, accountID)
 	if err != nil {
 		return identityaccess.ErrMFAStatusUnavailable
@@ -420,10 +457,10 @@ func (s *AccountAuthentication) requireSessionFloor(ctx context.Context, account
 	return s.requireTraegerSchoolMFA(session)
 }
 
-// auditSession records the event of a committed session. Persistence has
-// committed, so a failure is logged rather than reported: reporting it would
-// leave the caller with an issued session but no response.
-func (s *AccountAuthentication) auditSession(ctx context.Context, accountID int64, audit mintAudit) {
+// auditSession records the event of a session in the transaction that
+// persists it: no session commits without its entry (#6844), and a failed
+// entry rolls the session back.
+func (s *AccountAuthentication) auditSession(txCtx context.Context, accountID int64, audit mintAudit) error {
 	// The ledger stores the client address and requires one (ip_address is
 	// NOT NULL); a caller without it, like an in-process tool, files no event
 	// rather than an invented address.
@@ -431,17 +468,20 @@ func (s *AccountAuthentication) auditSession(ctx context.Context, accountID int6
 		s.logger.Warn("authenticated session not audited: no client address",
 			slog.Int64("account_id", accountID),
 			slog.String("event_type", audit.event))
-		return
+		return nil
 	}
-	if audit.schoolID > 0 {
-		ctx = s.runtime.WithTenantID(ctx, audit.schoolID)
+	// The ledger is school-scoped; every caller names the school the event
+	// is filed at (a schoolless session its account's default school).
+	if audit.schoolID <= 0 {
+		return fmt.Errorf("audit %s: school is required", audit.event)
 	}
-	if err := s.logAuthEvent(ctx, accountID, audit.event, true, audit.ipAddress, audit.userAgent, ""); err != nil {
-		s.logger.Error("failed to audit authenticated session",
-			slog.Int64("account_id", accountID),
-			slog.String("event_type", audit.event),
-			slog.Any("error", err))
+	if err := s.audit.RecordAuthEvent(txCtx, domain.AuthEvent{
+		AccountID: accountID, TenantID: audit.schoolID, Type: audit.event, Success: true,
+		IPAddress: audit.ipAddress, UserAgent: audit.userAgent,
+	}); err != nil {
+		return fmt.Errorf("audit %s: %w", audit.event, err)
 	}
+	return nil
 }
 
 // recordTraegerSchoolSwitch needs the client address: the entry is the

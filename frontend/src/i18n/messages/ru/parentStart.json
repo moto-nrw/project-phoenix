@@ -50,7 +50,8 @@
     "offeredByTraeger": "Организатор: {traeger}",
     "careLine": "Присмотр {from} – {to}",
     "registrationLine": "Запись до {date}",
-    "registrationRangeLine": "Запись {from} – {to}"
+    "registrationRangeLine": "Запись {from} – {to}",
+    "registerTooltip": "Открывает запись на это каникулярное предложение."
   },
   "childrenLoading": "Загрузка данных о детях",
   "noChildren": "К вашему аккаунту ещё не привязан ребёнок. {careTerm} вашей школы может это настроить.",

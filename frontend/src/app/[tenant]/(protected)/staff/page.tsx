@@ -2,6 +2,7 @@
 
 import { ListRowLink } from "~/components/ui/list-row-link";
 import { FramedList } from "~/components/ui/framed-list";
+import { COUNTER_TONE } from "~/lib/counter-tones";
 import { staff as staffKeys } from "~/lib/swr/staff";
 import { Suspense, useState, useMemo, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
@@ -44,6 +45,7 @@ import { useInvalidateMatching, useSWRAuth } from "~/lib/swr";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { workTimeModelPath } from "~/components/staff/missing-target-notice";
 import { isAdmin, hasPermission } from "~/lib/auth-utils";
 import { useStaffPendingAbsences } from "~/lib/hooks/use-staff-pending-absences";
 import { SchoolOverviewSection } from "~/components/staff/school-overview-section";
@@ -237,9 +239,13 @@ function StaffPageContent() {
   const [locationFilter, setLocationFilter] = useState(
     searchParams.get("status") === "ehemalige" ? "ehemalige" : "all",
   );
+  // `?view=accounts` öffnet die Zeitkonten, `&filter=ohne-soll` gleich mit
+  // dem Filter auf Personen ohne Soll und `&month=JJJJ-MM` im geprüften
+  // Monat: so führt die Vollständigkeit unter Abrechnung zu den Betroffenen
+  // (#6890).
   const [selectedView, setSelectedView] = useState<
     "status" | "accounts" | "audit" | "documents"
-  >("status");
+  >(() => (searchParams.get("view") === "accounts" ? "accounts" : "status"));
   const [employmentFilter, setEmploymentFilter] = useState("all");
   // Angezeigter Monat der Zeitkonten (#1417): Default ist der laufende Monat;
   // zurückblättern erlaubt der Endpoint seit #1988, vorwärts über heute hinaus
@@ -250,7 +256,7 @@ function StaffPageContent() {
   const [monthAnchor, setMonthAnchor] = useState<{
     year: number;
     month: number;
-  }>(() => ({ year: currentYear, month: currentMonth }));
+  }>(() => linkedMonth(searchParams.get("month"), berlinToday));
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [saldoPreset, setSaldoPreset] = useState<SaldoPresetId>("all");
@@ -550,7 +556,7 @@ function StaffPageContent() {
     return matchesLocationFilter(location, locationFilter);
   });
 
-  // Prepare filter configurations for PageHeaderWithSearch. Der Status-Filter
+  // Prepare filter configurations for the TenantPage search row. Der Status-Filter
   // gehört zur Karten-Ansicht, der Beschäftigungstyp zur Zeitkonten-Tabelle —
   // beide gleichzeitig anzuzeigen würde Filter anbieten, die auf die sichtbare
   // Ansicht nicht wirken.
@@ -794,6 +800,7 @@ function StaffPageContent() {
               variant="outline"
               size="md"
               onClick={() => setSearchTerm("")}
+              tooltip="Leert die Suche und zeigt wieder alle Ehemaligen."
             >
               Suche zurücksetzen
             </Button>
@@ -822,6 +829,7 @@ function StaffPageContent() {
                 setSearchTerm("");
                 setLocationFilter("all");
               }}
+              tooltip="Leert Suche und Ortsfilter und zeigt wieder alle Personen."
             >
               Suche zurücksetzen
             </Button>
@@ -831,6 +839,7 @@ function StaffPageContent() {
               variant="primary"
               size="md"
               onClick={() => router.push("/database/personal")}
+              tooltip="Öffnet das Personal in der Datenverwaltung, dort legen Sie Personen an."
             >
               Zur Datenverwaltung
             </Button>
@@ -922,6 +931,7 @@ function StaffPageContent() {
                 </>
               }
               submitLabel="Monat abschließen"
+              submitTooltip="Schreibt das Stundenkonto aller Mitarbeitenden zum Monatsende fest."
               successMessage="Der Monat ist abgeschlossen."
               onSubmit={handleCloseMonth}
               onClose={() => setShowCloseModal(false)}
@@ -957,7 +967,7 @@ function StaffPageContent() {
           <div className="flex shrink-0 items-center gap-2">
             <NotificationBadge
               count={pendingAbsences.length}
-              tone="staff"
+              tone={COUNTER_TONE.staff}
               ariaLabel={`${pendingAbsences.length} ${pendingAbsences.length === 1 ? "offener Antrag" : "offene Anträge"}`}
             />
             <CaretRightIcon
@@ -1016,8 +1026,16 @@ function StaffPageContent() {
               error={accountsLoadError}
               onRowClick={(row) =>
                 router.push(
-                  `/staff/${row.staffId}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
+                  // Ohne Soll führt die Zeile dorthin, wo es fehlt (#6887);
+                  // den Reiter sieht nur die Leitung.
+                  !row.hasTarget && userIsAdmin
+                    ? workTimeModelPath(row.staffId)
+                    : `/staff/${row.staffId}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
                 )
+              }
+              canSetTarget={userIsAdmin}
+              initialOnlyWithoutTarget={
+                searchParams.get("filter") === "ohne-soll"
               }
               saldoPreset={saldoPreset}
               onSaldoPresetChange={setSaldoPreset}
@@ -1222,4 +1240,26 @@ export default function StaffPage() {
       <StaffPageContent />
     </Suspense>
   );
+}
+
+/**
+ * Der Monat aus `?month=JJJJ-MM` (#6890), sonst der laufende. Ein Monat nach
+ * heute gilt nicht: die Zeitkonten kennen keine Zukunft.
+ */
+function linkedMonth(
+  param: string | null,
+  today: string,
+): { year: number; month: number } {
+  const current = {
+    year: Number(today.slice(0, 4)),
+    month: Number(today.slice(5, 7)),
+  };
+  const match = /^(\d{4})-(\d{2})$/.exec(param ?? "");
+  if (!match) return current;
+  const linked = { year: Number(match[1]), month: Number(match[2]) };
+  const valid =
+    linked.month >= 1 &&
+    linked.month <= 12 &&
+    linked.year * 12 + linked.month <= current.year * 12 + current.month;
+  return valid ? linked : current;
 }

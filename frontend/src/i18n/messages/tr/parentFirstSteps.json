@@ -107,5 +107,15 @@
     "title": "İlk adımlar gizlensin mi?",
     "body": "Kılavuzları Yardım bölümünde bulmaya devam edebilirsiniz.",
     "confirm": "Gizle"
+  },
+  "tooltips": {
+    "open": "İlk adımlar listesini gösterir.",
+    "collapse": "Listeyi ekranın kenarında bir düğmeye küçültür.",
+    "show": "İşaretli alanları size adım adım gösterir.",
+    "guide": "Kılavuzu yeni bir sekmede açar.",
+    "installGuide": "Kılavuzu yeni bir sekmede açar ve bu adımı tamamlandı olarak işaretler.",
+    "complete": "İlk adımları tamamlar ve bu cihazda gizler.",
+    "dismiss": "İlk adımları bu cihazda gizler, moto önce sorar.",
+    "dismissConfirm": "İlk adımları bu cihazda gizler."
   }
 }

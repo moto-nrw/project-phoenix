@@ -20,14 +20,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 type hostedWeekBody struct {
@@ -259,7 +259,8 @@ func TestHolidayHostSeesOnlyConfirmedChildrenOfItsWeek(t *testing.T) {
 	assert.Equal(t, "Feriengäste", list.HomeSchools[1].Name)
 	rec := f.get(t, host, fmt.Sprintf("/%d/participants", week))
 	// Inspect every JSON string, including unknown fields and escaped values.
-	// Numeric IDs can contain the phone prefix without exposing a phone number.
+	// Numeric IDs and timestamps can contain the phone prefix without exposing
+	// a phone number, so the check looks for the full number (#6974).
 	decoder := json.NewDecoder(strings.NewReader(rec.Body.String()))
 	for {
 		value, err := decoder.Token()
@@ -268,7 +269,7 @@ func TestHolidayHostSeesOnlyConfirmedChildrenOfItsWeek(t *testing.T) {
 		}
 		require.NoError(t, err)
 		if text, ok := value.(string); ok {
-			for _, private := range []string{"Erdnüsse", "eva.muster@example.org", "Oma Muster", "0151"} {
+			for _, private := range []string{"Erdnüsse", "eva.muster@example.org", "Oma Muster", "0151 2345678"} {
 				assert.NotContains(t, text, private, "only the minimum fields leave the Träger")
 			}
 		}

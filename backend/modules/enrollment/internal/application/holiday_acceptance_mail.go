@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The acceptance mail of a confirmed holiday registration (#6672).
@@ -18,6 +18,12 @@ var errHolidayAcceptanceMailRequired = errors.New("enrollment: confirming a holi
 // one per registration, however often the confirmation is retried.
 func holidayAcceptanceMailKey(registrationID int64) string {
 	return fmt.Sprintf("holiday-registration-accepted:%d", registrationID)
+}
+
+// holidayReceiptMailKey is the idempotency key of the receipt mail of a
+// registration.
+func holidayReceiptMailKey(registrationID int64) string {
+	return fmt.Sprintf("holiday-registration-received:%d", registrationID)
 }
 
 // enqueueAcceptance puts the acceptance mail of the confirmed registration

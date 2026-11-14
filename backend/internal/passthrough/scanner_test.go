@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/passthrough"
+	"github.com/moto-ogs/project-phoenix/internal/passthrough"
 )
 
 func put(t *testing.T, root, path, source string) {
@@ -220,7 +220,7 @@ func TestPassthroughCLIRequiresHostInventoryButNotForeignFixtures(t *testing.T) 
 	}
 	// A generic CLI fixture can legitimately use moto's module identity too.
 	foreign := t.TempDir()
-	put(t, foreign, "go.mod", "module github.com/moto-nrw/project-phoenix\n")
+	put(t, foreign, "go.mod", "module github.com/moto-ogs/project-phoenix\n")
 	if err := passthrough.CheckProject(host, foreign, ""); err != nil {
 		t.Fatalf("independent synthetic project requires host inventory: %v", err)
 	}

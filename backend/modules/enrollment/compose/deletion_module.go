@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
-	applicationBindings "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/adapters/postgres"
+	applicationBindings "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application"
 )
 
 // DeletionOwner is the owner slice the admin deletion and the retention cleanup read, lock and delete through.

@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	carePlanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 type excusalStoreSpy struct {

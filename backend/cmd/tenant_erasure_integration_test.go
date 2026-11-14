@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	tenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	tenancyCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/erasureledger"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -267,6 +267,10 @@ func TestErasureCLIOrganizationNeedsItsDueOrderAndThenErasesTheRoot(t *testing.T
 	_, err = db.ExecContext(ctx, `INSERT INTO auth.tokens (account_id, token, expiry, portal_scope, organization_id)
 		VALUES (?, encode(sha256(gen_random_uuid()::text::bytea), 'hex'), NOW() + INTERVAL '1 hour', 'org', ?)`, member.ID, organizationID)
 	require.NoError(t, err)
+	// A device the Träger-Portal remembered goes with the Träger (#6955).
+	_, err = db.ExecContext(ctx, `INSERT INTO auth.mfa_trusted_devices (account_id, organization_id, token_hash, expires_at)
+		VALUES (?, ?, encode(sha256(gen_random_uuid()::text::bytea), 'hex'), NOW() + INTERVAL '30 days')`, member.ID, organizationID)
+	require.NoError(t, err)
 	uploads := t.TempDir()
 	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(uploads), erasureledger.New(newTestErasureLedger(t), securityruntime.Fingerprint))
 	require.NoError(t, err)
@@ -331,12 +335,13 @@ func TestErasureCLIOrganizationNeedsItsDueOrderAndThenErasesTheRoot(t *testing.T
 	require.NotNil(t, root.CompletedAt)
 	require.Equal(t, operator.ID, root.CompletedBy)
 	require.Equal(t, 1, count(`SELECT count(*) FROM platform.organization_erasure_orders WHERE organization_id = ? AND started_at IS NOT NULL`, organizationID), "the run marked the order as started")
-	require.Equal(t, map[string]int64{"platform.organizations": 1, "platform.organization_accounts": 1, "auth.organization_account_roles": 1, "auth.tokens": 1, "platform.school_erasures": 2}, root.RowCounts)
+	require.Equal(t, map[string]int64{"platform.organizations": 1, "platform.organization_accounts": 1, "auth.organization_account_roles": 1, "auth.tokens": 1, "auth.mfa_trusted_devices": 1, "platform.school_erasures": 2}, root.RowCounts)
 	for _, query := range []string{
 		`SELECT count(*) FROM platform.organizations WHERE id = ?`,
 		`SELECT count(*) FROM platform.organization_accounts WHERE organization_id = ?`,
 		`SELECT count(*) FROM auth.organization_account_roles WHERE organization_id = ?`,
 		`SELECT count(*) FROM auth.tokens WHERE organization_id = ?`,
+		`SELECT count(*) FROM auth.mfa_trusted_devices WHERE organization_id = ?`,
 	} {
 		require.Zero(t, count(query, organizationID), query)
 	}

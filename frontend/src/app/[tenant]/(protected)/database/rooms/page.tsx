@@ -12,7 +12,6 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type {
   FilterConfig,
@@ -320,34 +319,30 @@ function RoomsPageContent() {
           </div>
         ),
       }}
-      search={
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={{
-            icon: (
-              <MotoDuotoneIcon
-                icon={roomsConcept.icon}
-                tone={roomsConcept.tone}
-                size={20}
-              />
-            ),
-            count: filteredRooms.length,
-            label: "Räume",
-          }}
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Räume suchen…",
-          }}
-          filters={filters}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setCategoryFilter("all");
-          }}
-        />
-      }
+      searchRow={{
+        badge: {
+          icon: (
+            <MotoDuotoneIcon
+              icon={roomsConcept.icon}
+              tone={roomsConcept.tone}
+              size={20}
+            />
+          ),
+          count: filteredRooms.length,
+          label: "Räume",
+        },
+        search: {
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Räume suchen…",
+        },
+        filters,
+        activeFilters,
+        onClearAllFilters: () => {
+          setSearchTerm("");
+          setCategoryFilter("all");
+        },
+      }}
     >
       {canShowList ? (
         <div className="min-h-0 flex-1 pb-4">

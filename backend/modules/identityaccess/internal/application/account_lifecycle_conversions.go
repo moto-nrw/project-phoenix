@@ -1,8 +1,8 @@
 package application
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 var errAccountLifecycleUnavailable = identityaccess.ErrAccountLifecycleUnavailable

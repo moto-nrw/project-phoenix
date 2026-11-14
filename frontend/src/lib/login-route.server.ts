@@ -34,6 +34,22 @@ export type LoginStep = Exclude<BackendAuthStep, "refresh">;
 /** The backend's remember-device cookie, read by its login and MFA steps. */
 const TRUSTED_DEVICE_COOKIE = "mfa_trust_device";
 
+function isIgnoringTrustedDevice(body: unknown): boolean {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    (body as Record<string, unknown>).ignore_trusted_device === true
+  );
+}
+
+function withoutIgnoreFlag(body: unknown): Record<string, unknown> {
+  const { ignore_trusted_device: _ignored, ...rest } = body as Record<
+    string,
+    unknown
+  >;
+  return rest;
+}
+
 /**
  * Installs the token pair of a completed login as the portal's session; a
  * failed install revokes the pair with that portal's logout.
@@ -70,8 +86,15 @@ export function createPortalLoginRoute(login: LoginPortal, step: LoginStep) {
     } catch {
       return problemResponse(400, "Invalid JSON", request);
     }
+    // A sign-in that must prove the factor by code (a school without
+    // remembered devices asked for it, #6955) leaves the device cookie
+    // behind; the flag itself is the BFF's and never reaches the backend.
+    const ignoreTrustedDevice = isIgnoringTrustedDevice(body);
+    if (ignoreTrustedDevice) body = withoutIgnoreFlag(body);
     try {
-      const trustedDevice = request.cookies.get(TRUSTED_DEVICE_COOKIE)?.value;
+      const trustedDevice = ignoreTrustedDevice
+        ? undefined
+        : request.cookies.get(TRUSTED_DEVICE_COOKIE)?.value;
       const enrollmentProof =
         step === "mfa/enroll/confirm"
           ? request.headers.get("authorization")

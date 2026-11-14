@@ -3,7 +3,7 @@ package records
 import (
 	"strconv"
 
-	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
+	reviewsettings "github.com/moto-ogs/project-phoenix/modules/settings/review"
 )
 
 // Settings key constants. Use these instead of string literals to ensure
@@ -152,6 +152,22 @@ const (
 	KeyTrackingAutoCheckoutGraceMinutes = "tracking.auto_checkout_grace_minutes"
 )
 
+// Time-tracking credit settings (#6851, #6852): extra minutes for every
+// regular checkout and the rounding of each completed work block.
+const (
+	KeyTrackingPackUpMinutes           = "tracking.pack_up_minutes"
+	KeyTrackingRoundingIntervalMinutes = "tracking.rounding_interval_minutes"
+	KeyTrackingRoundingMode            = "tracking.rounding_mode"
+)
+
+// Values of KeyTrackingRoundingIntervalMinutes and KeyTrackingRoundingMode.
+const (
+	TrackingRoundingOff     = "0"
+	TrackingRoundingNearest = "nearest"
+	TrackingRoundingUp      = "up"
+	TrackingRoundingDown    = "down"
+)
+
 // Operations settings.
 const (
 	KeySessionEndEnabled                 = "operations.session_end_enabled"
@@ -210,7 +226,6 @@ const (
 	KeyAttendanceWebEnabled            = "attendance.web_enabled"
 	KeyWebSpontaneousActivities        = "attendance.web_spontaneous_activities_enabled"
 	KeyWebExceedParticipantLimit       = "attendance.web_exceed_participant_limit_enabled"
-	KeyStudentPhotosEnabled            = "operations.student_photos_enabled"
 	KeyGroupMode                       = "operations.group_mode"
 	KeyBirthdayDisplayEnabled          = "operations.birthday_display_enabled"
 	KeyBirthdayDisplayIncludeStaff     = "operations.birthday_display_include_staff"
@@ -247,7 +262,11 @@ const (
 	// Whether staff find children through the child search alone (#1321):
 	// "Meine Gruppe" and "Aktuelle Aufsicht" leave the navigation and become
 	// quick filters there. Defaults OFF; the pages stay reachable by link.
-	KeyChildSearchOnlyNavigation       = "operations.child_search_only_navigation"
+	KeyChildSearchOnlyNavigation = "operations.child_search_only_navigation"
+	// Whether staff who do not lead the school see the simple navigation
+	// (#6956): only the pages of the daily care work. Defaults OFF; every
+	// person can show all pages again, and no permission changes.
+	KeySimpleStaffNavigation           = "operations.simple_staff_navigation"
 	KeyTimeTrackingAccountStartDate    = "operations.time_tracking_account_start_date"
 	KeyTimeTrackingEnforcePlannedStart = "operations.time_tracking_enforce_planned_start"
 	// #3825: how many minutes before the planned shift start (Dienstplan)

@@ -1,8 +1,8 @@
 package enrollmenttest
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 )
 
 // The Enrollment contract values Care Plan's contract suite drives the
@@ -63,6 +63,7 @@ var (
 	ErrCompleteWithdrawalConfirmationRequired = enrollment.ErrCompleteWithdrawalConfirmationRequired
 	ErrOfferingAdjustmentInvalid              = enrollment.ErrOfferingAdjustmentInvalid
 	ErrPhaseBookingBoundsConflict             = enrollment.ErrPhaseBookingBoundsConflict
+	ErrPhaseHasRequests                       = enrollment.ErrPhaseHasRequests
 	ErrTraegerCopyDelete                      = enrollment.ErrTraegerCopyDelete
 )
 

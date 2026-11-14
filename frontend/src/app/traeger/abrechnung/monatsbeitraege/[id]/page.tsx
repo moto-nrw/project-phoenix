@@ -26,7 +26,20 @@ import {
   CareDuplicatesCard,
   CareUnpricedCard,
 } from "~/components/traeger/care-run-invoices";
+import {
+  careDebitItems,
+  debitHints,
+  debitOpenPoints,
+  debitsHaltRelease,
+  earliestDebitDay,
+} from "~/components/traeger/care-debit-hints";
+import { usePrenotificationDays } from "~/components/traeger/use-prenotification-days";
 import { CareLettersSummaryCard } from "~/components/traeger/care-letters-summary-card";
+import {
+  type OpenPoint,
+  ReleaseOpenPoints,
+  familiesLabel,
+} from "~/components/traeger/release-open-points";
 import { CareRunMealsCard } from "~/components/traeger/care-run-meals";
 import { runDueDatesText } from "~/components/traeger/billing-payment-format";
 import {
@@ -47,6 +60,7 @@ import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
+import { billingConcept } from "~/lib/concepts/billing";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { runDocumentKindLabel } from "~/components/traeger/run-document-kind";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -56,7 +70,8 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
-import { formatDate } from "~/lib/date-helpers";
+import { numberPatternPreview } from "~/components/traeger/billing-format";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   type CareFeeNoticeHold,
@@ -70,6 +85,7 @@ import {
 } from "~/lib/traeger-care-billing-api";
 import { includeCareInvoice } from "~/lib/traeger-care-review-api";
 import { traegerPath } from "~/lib/traeger-url";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "TraegerCareRunPage" });
 
@@ -134,6 +150,27 @@ function feeNoticeHeldText(held: readonly CareFeeNoticeHold[]): string {
   return `${subject} Der Monat bleibt gesperrt. Dieser Lauf rechnet dafür keine Betreuung ab. Wollen Sie den Monat abrechnen, stellen Sie einen neuen Bescheid aus.`;
 }
 
+/** Why „Lauf freigeben“ is blocked, in the order the warnings show. */
+function releaseBlockReason(run: CareRunDetail): string | undefined {
+  if (run.previewCount === 0) {
+    if (run.excludedCount > 0 || (run.freeOfCharge ?? 0) > 0) return undefined;
+    if (run.unpriced.length > 0) {
+      return "Noch keine Rechnung: Für einige Kinder fehlt ein Preis.";
+    }
+    if (run.duplicates.length > 0) {
+      return "Noch keine Rechnung: Einige Kinder haben einen doppelten Vertrag.";
+    }
+    return "Der Lauf hat keine Rechnung zum Freigeben.";
+  }
+  if (run.legalRemedyMissing) {
+    return "Tragen Sie zuerst die Rechtsbehelfsbelehrung in der Vorlage „Bescheid“ ein.";
+  }
+  if (!run.numberRangeSet) {
+    return "Legen Sie zuerst das Muster der Rechnungsnummern für Monatsbeiträge fest.";
+  }
+  return undefined;
+}
+
 function notBilledLabel(children: number, released = false): string {
   if (children === 1) {
     return `1 Kind mit doppeltem Vertrag ${released ? "ist" : "wird"} nicht abgerechnet.`;
@@ -191,7 +228,7 @@ export default function TraegerCareRunPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLettersError(err, {
-        object: "die Schreiben",
+        object: "die Liste der Schreiben",
         retry: () => void loadLetters(),
       });
     }
@@ -306,9 +343,91 @@ export default function TraegerCareRunPage() {
     ),
   );
   const excluded = run?.invoices.filter((invoice) => invoice.exclusion) ?? [];
+  // What the preview still asks to check, repeated where the release is
+  // decided: numbers are final afterwards.
+  const runDebitHints = preview ? debitHints(careDebitItems(run.invoices)) : [];
+  const tooEarly = runDebitHints.some((hint) => hint.dueTooSoon);
+  // With an invoice date the first allowed debit day is known and named.
+  const prenotificationDays = usePrenotificationDays(tooEarly);
+  const earliestDebit =
+    preview && run.invoiceDate && prenotificationDays !== null
+      ? earliestDebitDay(run.invoiceDate, prenotificationDays)
+      : null;
+  const dueDatesHref = run
+    ? `/traeger/abrechnung/monatsbeitraege/${run.id}/faelligkeiten`
+    : "";
+  // The early debit is fixed by a later due date, the rest at the mandates:
+  // apart, so each point carries its own way.
+  const earlyPoints = debitOpenPoints(
+    runDebitHints.filter((hint) => hint.dueTooSoon),
+    earliestDebit,
+  );
+  const mandatePoints = debitOpenPoints(
+    runDebitHints.filter((hint) => !hint.dueTooSoon),
+    earliestDebit,
+  );
+  // The release refuses a direct debit without mandate: no button for it.
+  const releaseHalted = debitsHaltRelease(runDebitHints);
+  const uncounted = preview ? (run.uncountedFamilies ?? 0) : 0;
+  const openMealGaps = preview
+    ? run.mealGaps.filter((gap) => !gap.expired)
+    : [];
+  const mealOpen = openMealGaps.length;
+  // Gaps are school-months: across schools the count is no calendar span.
+  const mealSchools = new Set(openMealGaps.map((gap) => gap.schoolId)).size;
+  const unpriced = preview ? run.unpriced.length : 0;
+  // What cost bearers pay apart from the families, named in the release.
+  const takeoverCents = (run?.costBearers ?? []).reduce(
+    (sum, bearer) => sum + bearer.amountCents,
+    0,
+  );
+  const releaseOpenPoints = [
+    ...earlyPoints.map((text): OpenPoint => ({
+      text,
+      action: (
+        <ButtonLink
+          href={traegerPath(dueDatesHref)}
+          variant="ghost_tone"
+          size="compact"
+          tooltip="Öffnet die Fälligkeiten der Rechnungen dieses Laufs zum Ändern."
+        >
+          Fälligkeiten ändern
+        </ButtonLink>
+      ),
+    })),
+    ...mandatePoints,
+    uncounted > 0
+      ? {
+          text: `${familiesLabel(uncounted)} ohne bestätigte Kinderzahl.`,
+          action: (
+            <ButtonLink
+              href={traegerPath("/traeger/abrechnung/kinderzahl")}
+              variant="ghost_tone"
+              size="compact"
+              tooltip="Öffnet die Kinderzahl der Familien zum Bestätigen."
+            >
+              Kinderzahl prüfen
+            </ButtonLink>
+          ),
+        }
+      : null,
+    mealOpen > 0
+      ? mealOpen === 1
+        ? "1 Mensa-Monat ohne Freigabe der Schule. Ein späterer Lauf rechnet ihn ab."
+        : mealSchools > 1
+          ? `Mensa: Freigabe fehlt an ${mealSchools} Schulen, zusammen ${mealOpen} Monate. Ein späterer Lauf rechnet sie ab.`
+          : `${mealOpen} Mensa-Monate ohne Freigabe der Schule. Ein späterer Lauf rechnet sie ab.`
+      : null,
+    unpriced > 0
+      ? unpriced === 1
+        ? "1 Kind ohne Preis. Es kommt nicht in diesen Lauf."
+        : `${unpriced} Kinder ohne Preis. Sie kommen nicht in diesen Lauf.`
+      : null,
+  ].filter((point): point is string | OpenPoint => point !== null);
 
   return (
     <TenantPage
+      leading={<ConceptIconTile concept={billingConcept} size="page" />}
       title={
         run ? `Monatsbeitrag ${formatMonth(run.billingMonth)}` : "Monatslauf"
       }
@@ -343,6 +462,7 @@ export default function TraegerCareRunPage() {
             type="button"
             variant="outline_danger"
             size="md"
+            tooltip="moto fragt vorher nach, dann ist der Monat frei für einen neuen Lauf."
             onClick={() => setConfirmingDiscard(true)}
           >
             Leeren Lauf verwerfen
@@ -353,6 +473,12 @@ export default function TraegerCareRunPage() {
             variant="primary"
             size="md"
             disabled={!canRelease}
+            disabledReason={releaseBlockReason(run)}
+            tooltip={
+              run.previewCount === 0
+                ? "moto fragt vorher nach, dann ist der Lauf ohne Rechnungen abgeschlossen."
+                : "moto fragt vorher nach, dann sind alle Rechnungen mit Nummer festgeschrieben."
+            }
             onClick={() => setConfirming(true)}
           >
             Lauf freigeben
@@ -388,7 +514,17 @@ export default function TraegerCareRunPage() {
           <ConfirmationModal
             isOpen={confirming}
             title="Monatslauf freigeben?"
-            confirmText="Freigeben"
+            confirmText={
+              releaseOpenPoints.length > 0 && !releaseHalted
+                ? "Trotzdem freigeben"
+                : "Freigeben"
+            }
+            confirmVariant={
+              releaseOpenPoints.length > 0 && !releaseHalted
+                ? "warning"
+                : "primary"
+            }
+            isConfirmDisabled={releaseHalted}
             isConfirmLoading={releasing}
             loadingText="Wird freigegeben …"
             onClose={() => setConfirming(false)}
@@ -404,6 +540,9 @@ export default function TraegerCareRunPage() {
                   {formatMonth(run.billingMonth)} bekommen ihre Nummer und das
                   Rechnungsdatum {invoiceDateLabel(run.invoiceDate)}. Danach
                   lassen sie sich nicht mehr ändern.
+                  {takeoverCents > 0
+                    ? ` Kostenträger übernehmen zusätzlich ${formatEuro(takeoverCents)}.`
+                    : ""}
                 </>
               )}
             </p>
@@ -420,6 +559,7 @@ export default function TraegerCareRunPage() {
                 neuen Lauf nach, wenn ein Vertrag beendet ist.
               </p>
             ) : null}
+            <ReleaseOpenPoints points={releaseOpenPoints} />
           </ConfirmationModal>
         ) : null
       }
@@ -434,6 +574,7 @@ export default function TraegerCareRunPage() {
               href={traegerPath("/traeger/abrechnung/jahresbescheide")}
               variant="surface"
               size="compact"
+              tooltip="Öffnet die Jahresbescheide, dort starten Sie einen neuen Jahreslauf."
             >
               Neuen Bescheid ausstellen
             </ButtonLink>
@@ -502,7 +643,7 @@ export default function TraegerCareRunPage() {
                 invoice={excluding}
                 invoices={run.invoices}
                 onClose={() => setExcluding(null)}
-                onExcluded={(next, invoice) => {
+                onExcluded={(next: CareRunDetail, invoice: CareInvoice) => {
                   setRun(next);
                   setExcluding(null);
                   success(
@@ -514,7 +655,7 @@ export default function TraegerCareRunPage() {
                 run={run}
                 isOpen={editingDate}
                 onClose={() => setEditingDate(false)}
-                onSaved={(next) => {
+                onSaved={(next: CareRunDetail) => {
                   setRun(next);
                   setEditingDate(false);
                   success("Das Rechnungsdatum ist gespeichert.");
@@ -523,10 +664,11 @@ export default function TraegerCareRunPage() {
             </>
           ) : null}
           <SectionCard
+            leading={<ConceptIconTile concept={billingConcept} />}
             title="Monatslauf"
             description={
               preview
-                ? "Prüfen Sie die Vorschau. Neue Verträge und Preise kommen bis zur Freigabe dazu. Stimmt eine Rechnung noch nicht, ändern Sie sie oder schließen sie aus. Beides geht über das Menü ihrer Zeile."
+                ? "Rechnungen ändern oder ausschließen: im Menü der Zeile. Bis zur Freigabe kommen neue Verträge und Preise dazu."
                 : run.previewCount === 0
                   ? "Der Lauf ist ohne Rechnungen abgeschlossen. Die Schulen sind wieder frei."
                   : "Die Rechnungen sind ausgestellt und lassen sich nicht mehr ändern. Eine falsche Rechnung stornieren Sie auf der Seite „Schreiben“."
@@ -536,6 +678,7 @@ export default function TraegerCareRunPage() {
             <WizardStepper
               steps={RUN_STEPS}
               current={preview ? 0 : 1}
+              labeled
               className="mb-5"
             />
             <DataGrid columns={2}>
@@ -544,7 +687,17 @@ export default function TraegerCareRunPage() {
               </DataField>
               <DataField label="Schulen">
                 {preview
-                  ? run.schools.map((school) => school.name).join(", ") || "–"
+                  ? // A school without an invoice says so: nobody looks for
+                    // invoices that are not there.
+                    run.schools
+                      .map((school) =>
+                        run.invoices.some(
+                          (invoice) => invoice.schoolId === school.id,
+                        )
+                          ? school.name
+                          : `${school.name} (keine Rechnung)`,
+                      )
+                      .join(", ") || "–"
                   : run.schoolIds.length === 0
                     ? "–"
                     : run.schoolIds.length === 1
@@ -557,9 +710,10 @@ export default function TraegerCareRunPage() {
                     <span>{invoiceDateLabel(run.invoiceDate)}</span>
                     <Button
                       type="button"
-                      variant="link"
-                      size="md"
+                      variant="outline"
+                      size="compact"
                       aria-label="Rechnungsdatum ändern"
+                      tooltip="Öffnet ein Fenster, um das Rechnungsdatum des Laufs zu ändern."
                       onClick={() => setEditingDate(true)}
                     >
                       Ändern
@@ -582,9 +736,10 @@ export default function TraegerCareRunPage() {
                       href={traegerPath(
                         `/traeger/abrechnung/monatsbeitraege/${run.id}/faelligkeiten`,
                       )}
-                      variant="link"
-                      size="md"
+                      variant="outline"
+                      size="compact"
                       aria-label="Fälligkeiten ändern"
+                      tooltip="Öffnet die Fälligkeiten der Rechnungen dieses Laufs zum Ändern."
                     >
                       Ändern
                     </ButtonLink>
@@ -594,16 +749,12 @@ export default function TraegerCareRunPage() {
                   "Nach dem Zahlungsziel der Leistung")
                 )}
               </DataField>
-              <DataField label="Rechnungen">
-                <span className="tabular-nums">
-                  {invoiceCountLabel(run.previewCount)} ·{" "}
-                  {formatEuro(run.previewCents)}
-                </span>
-              </DataField>
+              {/* Count and sum stand in the head, the excluded invoices
+                  in their own card: no second time here. */}
               <DataField label="Abgerechnet wird">
                 Module nach Vertrag, Mensa nach Freigabe der Schule
               </DataField>
-              <DataField label="Vertrag ändert sich im Monat">
+              <DataField label="Bei Vertragsänderung im Monat">
                 {run.monthRule ? MONTH_RULE_LABELS[run.monthRule] : "–"}
               </DataField>
               <DataField label="Dokumentart">
@@ -611,11 +762,24 @@ export default function TraegerCareRunPage() {
               </DataField>
               <DataField label="Rechnungsnummern">
                 {run.numberRangeSet ? (
-                  <span className="font-mono">{run.numberPattern}</span>
+                  <>
+                    <span className="text-gray-600">z.&nbsp;B. </span>
+                    <span className="font-mono">
+                      {numberPatternPreview(
+                        run.numberPattern,
+                        run.invoiceDate ?? berlinTodayISO(),
+                      )}
+                    </span>{" "}
+                    <span className="text-gray-600">
+                      (die Rechnungsnummer kommt mit der Freigabe)
+                    </span>
+                  </>
                 ) : (
                   "Noch kein Muster"
                 )}
               </DataField>
+              {/* What the release leaves out belongs to the decision, so it
+                  stays in the overview; the card below lists the invoices. */}
               {preview && run.excludedCount > 0 ? (
                 <DataField label="Ausgeschlossen">
                   <span className="tabular-nums">
@@ -644,7 +808,7 @@ export default function TraegerCareRunPage() {
             <Alert
               type="warning"
               title="Rechtsbehelfsbelehrung fehlt"
-              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Bescheid“ fehlt die Rechtsbehelfsbelehrung. Wer das Recht „Einstellungen“ hat, muss sie eintragen. Danach können Sie freigeben."
+              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Gebührenbescheid“ fehlt die Rechtsbehelfsbelehrung. Wer die Rolle „Verwaltung“ hat, muss sie eintragen. Danach können Sie freigeben."
               action={
                 <ButtonLink
                   href={traegerPath(
@@ -652,6 +816,7 @@ export default function TraegerCareRunPage() {
                   )}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Vorlage „Bescheid“ in den Einstellungen."
                 >
                   Vorlage öffnen
                 </ButtonLink>
@@ -667,6 +832,7 @@ export default function TraegerCareRunPage() {
                   href={traegerPath("/traeger/einstellungen/abrechnung")}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Einstellungen für das Muster der Rechnungsnummern."
                 >
                   Abrechnungsvorgaben öffnen
                 </ButtonLink>
@@ -683,6 +849,7 @@ export default function TraegerCareRunPage() {
                     type="button"
                     variant="surface"
                     size="compact"
+                    tooltip="Öffnet die Rechnung, dort nehmen Sie die Änderung zurück."
                     onClick={() => openAmend(conflicted)}
                   >
                     Rechnung öffnen
@@ -692,14 +859,16 @@ export default function TraegerCareRunPage() {
             />
           ) : null}
           {preview && (run.uncountedFamilies ?? 0) > 0 ? (
+            // The release lists it under „Noch offen“: orange here too.
             <Alert
-              type="info"
+              type="warning"
               message={`${run.uncountedFamilies === 1 ? "Für 1 Familie" : `Für ${run.uncountedFamilies ?? 0} Familien`} gibt es in diesem Monat keine bestätigte Kinderzahl. Die Geschwisterregel zählt dort nur die Kinder mit Vertrag.`}
               action={
                 <ButtonLink
                   href={traegerPath("/traeger/abrechnung/kinderzahl")}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Kinderzahl der Familien zum Bestätigen."
                 >
                   Kinderzahl prüfen
                 </ButtonLink>
@@ -715,12 +884,18 @@ export default function TraegerCareRunPage() {
               changed={run.mealChanged}
             />
           ) : null}
-          {preview ? <CareDebitHintsCard invoices={run.invoices} /> : null}
+          {preview ? (
+            <CareDebitHintsCard
+              invoices={run.invoices}
+              dueDatesHref={dueDatesHref}
+              earliest={earliestDebit}
+            />
+          ) : null}
           {preview ? (
             <CareExcludedCard
               invoices={excluded}
               returning={returning}
-              onInclude={(invoice) => void include(invoice)}
+              onInclude={(invoice: CareInvoice) => void include(invoice)}
             />
           ) : null}
           {released && run.previewCount > 0 ? (

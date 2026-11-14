@@ -131,6 +131,7 @@ export function AdminChildDataCorrection({
         type="button"
         variant="outline"
         size="md"
+        tooltip="Öffnet ein Fenster zum Korrigieren der Kinderdaten aus der Anmeldung."
         onClick={openCorrection}
       >
         <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -152,6 +153,7 @@ export function AdminChildDataCorrection({
               size="md"
               onClick={close}
               disabled={saving}
+              noTooltip="Abbrechen schließt nur das Fenster, ohne etwas zu ändern."
             >
               Abbrechen
             </Button>
@@ -161,6 +163,7 @@ export function AdminChildDataCorrection({
               size="md"
               isLoading={saving}
               loadingText="Speichert…"
+              tooltip="Ändert Anmeldung und Akte des Kindes und erledigt offene Änderungsanfragen."
             >
               Korrektur speichern
             </Button>
@@ -197,7 +200,7 @@ export function AdminChildDataCorrection({
           </div>
           <ISODatePicker
             id="correction-date-of-birth"
-            controlSize="lg"
+            controlSize="large"
             label="Geburtsdatum"
             error={errors.fieldError("date_of_birth")}
             value={dateOfBirth}

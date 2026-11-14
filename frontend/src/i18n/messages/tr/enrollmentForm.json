@@ -4,6 +4,8 @@
     "download": "İndir",
     "openLabel": "{label} aç",
     "downloadLabel": "{label} indir",
+    "openHint": "PDF'yi yeni bir sekmede açar.",
+    "downloadHint": "PDF'yi bu cihaza kaydeder.",
     "errorObject": "PDF dosyası",
     "popupBlocked": "Lütfen yeni bir pencerenin açılmasına izin verin."
   },
@@ -270,5 +272,23 @@
     "title": "İmza",
     "description": "Lütfen kaydı imzalayın. İmza olmadan kayıt {careTerm}’ye ulaşmaz.",
     "required": "Lütfen kaydı imzalayın."
+  },
+  "buttonHints": {
+    "addGuardian": "Başka bir veli veya vasi için alanlar ekler.",
+    "removeGuardian": "Bu kişinin bilgilerini formdan hemen kaldırır.",
+    "addChild": "Başka bir çocuk için alanlar ekler.",
+    "removeChild": "Bu çocuğun bilgilerini formdan hemen kaldırır.",
+    "adopt": "Bu çocuğu kayıtlı bilgileriyle başvuruya ekler.",
+    "adopted": "Bu çocuk zaten başvuruda.",
+    "submit": "Başvuruyu hemen {careTerm}'ye, size de bir onay gönderir.",
+    "previewSubmit": "Önizlemede başvuruyu gönderemezsiniz.",
+    "captchaPending": "Lütfen önce güvenlik kontrolünü tamamlayın.",
+    "captchaUnavailable": "Gönderim şu anda mümkün değil, lütfen {careTerm} ile iletişime geçin.",
+    "addPhone": "Başka bir telefon numarası için bir satır ekler.",
+    "removePhone": "Bu numarayı formdan hemen kaldırır.",
+    "addContact": "Başka bir kişi için alanlar ekler.",
+    "removeContact": "Bu kişiyi formdan hemen kaldırır.",
+    "chooseFile": "Cihazınızda dosya seçimini açar.",
+    "details": "Tam metni okumak için açar."
   }
 }

@@ -11,7 +11,10 @@ import { createContext, useContext, useMemo } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatDate } from "~/lib/date-helpers";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -156,9 +159,9 @@ function CourseWaitlistBlock({
       <p className="mb-2 text-sm text-gray-600">{occupancyLine(waitlist)}</p>
       <ResponsiveActionList>
         {waitlist.entries.map((entry) => (
-          <li
+          <ResponsiveActionRow
             key={entry.requestId}
-            className="flex flex-col gap-2 py-2 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
+            className="py-2 first:pt-2 last:pb-2"
           >
             <div className="min-w-0">
               <p className="flex flex-wrap items-center gap-2 text-sm text-gray-900">
@@ -180,12 +183,13 @@ function CourseWaitlistBlock({
                 variant="surface"
                 size="compact"
                 aria-label={`Anfrage von ${entry.studentName} öffnen`}
+                tooltip="Öffnet die Anfrage dieses Kindes mit allen Angaben."
                 onClick={() => onOpenRequest(entry.studentId, entry.requestId)}
               >
                 Zur Anfrage
               </Button>
             </div>
-          </li>
+          </ResponsiveActionRow>
         ))}
       </ResponsiveActionList>
     </section>

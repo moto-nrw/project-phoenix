@@ -5,5 +5,6 @@
   "appInstallTitle": "Zainstaluj moto jako aplikację",
   "appInstallDescription": "Proszę nie instalować moto przez Samsung Internet. Proszę otworzyć moto w Chrome.",
   "appInstallGenericDescription": "Dodaj moto do ekranu głównego telefonu i otwieraj je jak aplikację.",
-  "appInstallGuide": "Otwórz instrukcję"
+  "appInstallGuide": "Otwórz instrukcję",
+  "appInstallGuideTooltip": "Otwiera instrukcję dodania moto do ekranu głównego."
 }

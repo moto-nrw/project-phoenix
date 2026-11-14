@@ -9,6 +9,9 @@ import { applySepaImport, previewSepaImport } from "./traeger-sepa-import-api";
 import { ApiError } from "./api-error";
 import {
   acceptTraegerInvitation,
+  changeTraegerMemberName,
+  changeTraegerProfileName,
+  fetchTraegerProfile,
   createTraegerBankAccount,
   fetchTraegerMasterData,
   uploadTraegerLogo,
@@ -219,6 +222,8 @@ describe("traeger-api", () => {
         challenge_token: "challenge",
         masked_email: "a***@b.de",
         organization_id: 7,
+        trusted_device_enabled: true,
+        trusted_device_days: 90,
       }),
     );
     await expect(
@@ -228,6 +233,24 @@ describe("traeger-api", () => {
       challengeToken: "challenge",
       maskedEmail: "a***@b.de",
       organizationId: "7",
+      trustedDeviceEnabled: true,
+      trustedDeviceDays: 90,
+    });
+
+    // An answer without the fields offers nothing to remember (#6955).
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        status: "mfa_required",
+        challenge_token: "challenge",
+        masked_email: "a***@b.de",
+        organization_id: 7,
+      }),
+    );
+    await expect(
+      traegerLogin({ email: "a@b.de", password: "pw" }),
+    ).resolves.toMatchObject({
+      status: "mfa_required",
+      trustedDeviceEnabled: false,
     });
 
     fetchMock.mockResolvedValueOnce(
@@ -301,6 +324,7 @@ describe("traeger-api", () => {
         data: {
           members: [
             { account_id: 3, email: "a@b.de", roles: ["billing", "unknown"] },
+            { account_id: 4, email: "e@f.de", name: "Eva Müller", roles: [] },
           ],
           invitations: [
             {
@@ -315,7 +339,10 @@ describe("traeger-api", () => {
     );
 
     await expect(fetchTraegerBuero()).resolves.toEqual({
-      members: [{ accountId: "3", email: "a@b.de", roles: ["billing"] }],
+      members: [
+        { accountId: "3", email: "a@b.de", name: "", roles: ["billing"] },
+        { accountId: "4", email: "e@f.de", name: "Eva Müller", roles: [] },
+      ],
       invitations: [
         {
           id: "9",
@@ -334,14 +361,74 @@ describe("traeger-api", () => {
     );
 
     await expect(
-      acceptTraegerInvitation("tok/en", { password: "pw" }),
+      acceptTraegerInvitation("tok/en", { name: "Eva Müller", password: "pw" }),
     ).resolves.toBe("a@b.de");
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/traeger/invitations/tok%2Fen/accept");
     expect(JSON.parse(init!.body as string)).toEqual({
+      name: "Eva Müller",
       password: "pw",
       confirm_password: "",
     });
+  });
+
+  // #4693: the name of a member and the own name.
+  it("changes the name of a member and returns the saved member", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: {
+          account_id: 4,
+          email: "e@f.de",
+          name: "Eva Müller",
+          roles: ["billing"],
+          activated_at: "2026-09-01T08:00:00Z",
+        },
+      }),
+    );
+
+    await expect(changeTraegerMemberName("4", "Eva Müller")).resolves.toEqual({
+      accountId: "4",
+      email: "e@f.de",
+      name: "Eva Müller",
+      roles: ["billing"],
+    });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/traeger/accounts/4/name");
+    expect(init!.method).toBe("PUT");
+    expect(JSON.parse(init!.body as string)).toEqual({ name: "Eva Müller" });
+  });
+
+  it("reads and changes the own profile", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          status: "success",
+          data: { account_id: 4, email: "e@f.de", name: "" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          status: "success",
+          data: { account_id: 4, email: "e@f.de", name: "Eva" },
+        }),
+      );
+
+    await expect(fetchTraegerProfile()).resolves.toEqual({
+      accountId: "4",
+      email: "e@f.de",
+      name: "",
+    });
+    await expect(changeTraegerProfileName("Eva")).resolves.toEqual({
+      accountId: "4",
+      email: "e@f.de",
+      name: "Eva",
+    });
+    expect(fetchMock.mock.calls[0]![0]).toBe("/api/traeger/profile");
+    const [url, init] = fetchMock.mock.calls[1]!;
+    expect(url).toBe("/api/traeger/profile/name");
+    expect(init!.method).toBe("PUT");
+    expect(JSON.parse(init!.body as string)).toEqual({ name: "Eva" });
   });
 });
 

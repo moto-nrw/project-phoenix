@@ -1049,7 +1049,7 @@ describe("useGlobalSSE", () => {
         "staff-balance-adjustments-42-2026-01-01-9999-12-31",
         "staff-schedule-42",
         "staff-schedule-targets-42-2026-07-01-2026-07-31",
-        "staff-schedule-targets-account-42-2026-01-01-2026-07-31",
+        "staff-schedule-targets-42-account-2026-01-01-2026-07-31",
         "staff-shifts-visible-42-2026-07-01-2026-07-31",
         "time-tracking-current",
         "time-tracking-history-2026-07-01-2026-07-31",

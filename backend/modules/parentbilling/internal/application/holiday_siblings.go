@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // Siblings from separate holiday registrations (#5628, ADR 0115 addendum).
@@ -178,7 +178,7 @@ func (h *HolidayContributions) MergeHolidaySiblings(ctx context.Context, reviewe
 		return parentbilling.HolidaySiblingGroup{}, err
 	}
 	// A merge adopts missing family numbers without replacing remembered ones.
-	if err := h.rememberFamilies(ctx, reviewer, confirmedSharers(members, issued), &number, parentbilling.FamilyDebtorNumberKeep, 0); err != nil {
+	if err := h.rememberFamilies(ctx, reviewer, confirmedSharers(members, issued), &number, parentbilling.FamilyDebtorNumberKeep, 0, members); err != nil {
 		return parentbilling.HolidaySiblingGroup{}, err
 	}
 	if err := h.recordSiblings(ctx, reviewer, periodID, members, parentbilling.HolidaySiblingsMerged); err != nil {

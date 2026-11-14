@@ -25,6 +25,7 @@ export function teacherSettingsTopic(): HelpTopic {
       "`Fehlt ohne Meldung`: nur für die Schulverwaltung. moto meldet sich, wenn eine Lehrkraft ein Kind als fehlend einträgt und keine Meldung da ist. Im Hinweis steht nur die Zahl der Kinder. Diese Benachrichtigung ist von Anfang an eingeschaltet.",
       "`Nachrichten von Kolleginnen und Kollegen`: neue Nachrichten im Team-Chat der OGS.",
       "Benachrichtigungen kommen erst an, wenn moto schule auf dem Startbildschirm liegt.",
+      "Im Bereich `Vertraute Geräte` stehen die Geräte, die Sie sich beim Anmelden gemerkt haben. Öffnen Sie das Menü am Gerät und wählen Sie `Entfernen`. Dort fragt moto beim nächsten Anmelden wieder nach dem Code.",
     ],
     differences: [
       "Nutzen Sie Samsung Internet? Öffnen Sie moto schule stattdessen in Chrome.",

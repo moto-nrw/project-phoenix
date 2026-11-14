@@ -17,6 +17,8 @@ export interface StudentSearchFilterInput {
   photoConsent: "all" | NonNullable<StudentFilters["photoConsent"]>;
   pickupStatus: "all" | NonNullable<StudentFilters["pickupStatus"]>;
   companions: boolean;
+  /** "<question key>=<answer value>" of the registration form (#6954); "" = off. */
+  enrollmentAnswer?: string;
 }
 
 /** The search filters, identical for the page and its navigation intent. */
@@ -40,6 +42,9 @@ export function buildStudentSearchFilters(
     includeArrivalTimes: true,
     includeCompanions: params.companions,
     view: "slim",
+    ...(params.enrollmentAnswer
+      ? { enrollmentAnswer: params.enrollmentAnswer }
+      : {}),
   };
 }
 

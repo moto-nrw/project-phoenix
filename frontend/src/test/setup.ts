@@ -170,6 +170,9 @@ const tenantProviderMock = vi.hoisted(() => ({
   // The separate child entries stay like the registry default (#1321); tests
   // of the child-search-only navigation override this locally.
   useChildSearchOnlyNavigation: vi.fn(() => false),
+  // The simple staff navigation stays off like the registry default
+  // (#6956); its tests override this locally.
+  useSimpleStaffNavigationSetting: vi.fn(() => false),
   // Tagesauswertung / Anwesenheitsprotokoll (#1456) is opt-in and defaults
   // off; same reasoning as useDisplayEnabled above.
   useAttendanceLogEnabled: vi.fn(() => false),
@@ -208,6 +211,18 @@ const tenantProviderMock = vi.hoisted(() => ({
 // Mock tenant context globally so tenant-scoped components can render in tests.
 // Tests that need the real context must unmock this module path.
 vi.mock("~/lib/tenant-context", () => tenantProviderMock);
+
+// Page tests render a page without its layout. Like the tenant context above,
+// they run in the tenant area: the kit resolves app paths (the scaffold's back
+// link) for the test school, as `TenantPagePathProvider` does in the
+// `(protected)` layout (#6577). Tests of the kit's own resolution, with or
+// without a provider, must unmock this module path.
+vi.mock("~/components/ui/page-path", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/components/ui/page-path")>();
+  const { useTenantAwarePath } = await import("~/lib/tenant-path");
+  return { ...actual, usePagePath: useTenantAwarePath };
+});
 
 // The DOM environment cannot load a page anew; tests assert the call instead
 // (useRefreshAfterWrite after a refused reload, #6801).

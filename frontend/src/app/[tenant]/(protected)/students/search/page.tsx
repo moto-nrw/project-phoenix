@@ -54,7 +54,14 @@ import type {
   FilterSection,
 } from "~/components/ui/page-header/types";
 import { DetailIcons } from "~/components/ui/detail-modal-components";
-import { fetchSchoolClasses } from "~/lib/student-api";
+import {
+  fetchEnrollmentAnswerFilters,
+  fetchSchoolClasses,
+} from "~/lib/student-api";
+import type { EnrollmentAnswerFilter } from "~/lib/student-helpers";
+import { answerQuestionLabel } from "~/lib/school-search";
+import { hasPermission } from "~/lib/auth-utils";
+import { createLogger } from "~/lib/logger";
 import type { Student } from "~/lib/student-helpers";
 import type { Group, Room } from "~/lib/api";
 import { Button } from "~/components/ui/button";
@@ -70,10 +77,9 @@ import {
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { schoolClassesLabel } from "~/lib/school-class-label";
 import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
-import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
+import { StudentPresenceBadge } from "@/components/students/presence/student-presence-badge";
 import {
   LOCATION_STATUSES,
-  countedDayStatus,
   parseLocation,
   isAtSchoolLocation,
   isInClassLocation,
@@ -82,6 +88,7 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "~/lib/location-helper";
+import { countedDayStatus, dayStatusLabel } from "~/lib/presence-status";
 import {
   SCHOOL_YEAR_FILTER_OPTIONS,
   teacherHintKey,
@@ -134,7 +141,11 @@ import { useBulkCheckinActions } from "~/components/students/use-bulk-checkin-ac
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
-import { canCheckInChildren, canExportStudents } from "~/lib/student-access";
+import {
+  canCheckInChildren,
+  canCheckInToRooms,
+  canExportStudents,
+} from "~/lib/student-access";
 import { useParentAnnouncementsAvailable } from "~/lib/hooks/use-parent-announcements-available";
 import {
   announcementPrefillPath,
@@ -146,6 +157,8 @@ import {
 } from "~/lib/personal-storage";
 import { KIND_PARAM } from "~/components/announcements/announcement-meta";
 import { SchoolCheckinSelectionBar } from "~/components/students/school-checkin-selection-bar";
+import { SchoolCheckinTargetPicker } from "~/components/students/school-checkin-target-picker";
+import { useCheckinTarget } from "~/lib/hooks/use-checkin-target";
 import type { SchoolCheckinAction } from "~/lib/student-api";
 import {
   SchoolCheckinMissingHint,
@@ -161,7 +174,10 @@ import {
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
-import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
+import {
+  CHECKOUT_HINTS,
+  useEarlyCheckoutDialog,
+} from "~/components/students/early-checkout-note";
 import { StudentSearchTransitCard } from "~/components/students/student-search-transit-card";
 import {
   useAttendanceWebEnabled,
@@ -183,10 +199,7 @@ import {
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "~/lib/student-time-status";
-import {
-  getDayPlanningNotComingLabel,
-  getStudentPresenceBadgePlanning,
-} from "~/lib/day-planning-helper";
+import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
 import {
   matchesTrackingFilter,
   parseTrackingFilter,
@@ -314,6 +327,7 @@ const FILTER_QUERY_PARAMS = [
   "pickup_status",
   "pickup_time",
   "arrival_time",
+  "enrollment_answer",
   "day_status",
   "status",
   "tracking",
@@ -322,6 +336,8 @@ const FILTER_QUERY_PARAMS = [
 ] as const;
 
 const SEARCH_QUERY_PARAM = "search";
+
+const studentSearchLogger = createLogger({ component: "StudentSearchPage" });
 
 type FilterQueryParam = (typeof FILTER_QUERY_PARAMS)[number];
 type PersistedSearchFilters = Partial<Record<FilterQueryParam, string>>;
@@ -580,6 +596,7 @@ function normalizeStoredFilters(
       parsePickupTimeParam(params.get("pickup_time")),
     ),
     arrival_time: params.get("arrival_time") ?? "",
+    enrollment_answer: params.get("enrollment_answer") ?? "",
     day_status:
       validQueryValue(
         params.get("day_status"),
@@ -720,18 +737,12 @@ const HOME_STATUSES: ReadonlySet<string> = new Set([
   LOCATION_STATUSES.NOT_ARRIVAL,
 ]);
 
-const DAY_STATUS_LABELS = {
-  sick: "Krank",
-  class_trip: "Klassenfahrt",
-  excused: "Entschuldigt",
-} as const;
-
 // Ort vor Status (#6371): Ein eingechecktes Kind steht unter seinem Ort, auch
 // mit Krankmeldung, Entschuldigung oder Klassenfahrt. Der Status bleibt als
 // Hinweis am Ortsbadge.
 function statusLabelForStudent(student: Student): string {
   const dayStatus = countedDayStatus(student);
-  if (dayStatus) return DAY_STATUS_LABELS[dayStatus];
+  if (dayStatus) return dayStatusLabel(dayStatus);
   if (isSchoolyardLocation(student.current_location)) return "Schulhof";
   if (isTransitLocation(student.current_location)) return "Unterwegs";
   if (isAtSchoolLocation(student.current_location)) return "Schule";
@@ -1176,6 +1187,11 @@ function SearchPageContent() {
   const [arrivalTimeFilter, setArrivalTimeFilter] = useState(
     initialFilterParams.get("arrival_time") ?? "all",
   );
+  // An answer to a question of the registration form, "<key>=<value>"
+  // (#6954). Empty = off.
+  const [enrollmentAnswerFilter, setEnrollmentAnswerFilter] = useState(
+    initialFilterParams.get("enrollment_answer") ?? "",
+  );
   const [trackingFilter, setTrackingFilter] = useState<TrackingFilter>(
     initialTrackingFilter,
   );
@@ -1263,6 +1279,7 @@ function SearchPageContent() {
       );
       setPickupTimeFilter(parsePickupTimeParam(params.get("pickup_time")));
       setArrivalTimeFilter(params.get("arrival_time") ?? "all");
+      setEnrollmentAnswerFilter(params.get("enrollment_answer") ?? "");
       setBusFilter(
         validQueryValue(params.get("bus"), BOOLEAN_FILTER_VALUES, "all"),
       );
@@ -1488,7 +1505,16 @@ function SearchPageContent() {
   // Ohne users:checkin (etwa als Gast, ADR 0091) scheiterte jeder Tipp.
   const checkinModeAvailable =
     isToday && attendanceWebEnabled && canCheckInChildren(session);
-  const schoolCheckin = useSchoolCheckinMode();
+  // „Anmelden in“ (#6953): binary schools and sessions without the move
+  // right see no target; a check-in then stays „Anwesend (ohne Raum)“.
+  const checkinTarget = useCheckinTarget(
+    checkinModeAvailable && canCheckInToRooms(session),
+  );
+  const refreshCheckinTargets = checkinTarget.refresh;
+  const schoolCheckin = useSchoolCheckinMode({
+    target: checkinTarget.target,
+    onTargetRefused: () => void refreshCheckinTargets(),
+  });
   // A checkout well before today's pickup time asks for an optional reason
   // (#3324); every other checkout keeps its current behaviour.
   const earlyCheckout = useEarlyCheckoutDialog((studentId, note, reason) => {
@@ -1561,6 +1587,61 @@ function SearchPageContent() {
   // attendance included) — without the mode in the key SWR would keep
   // serving the stale future-planning response under live controls (#1939).
   //
+  // The registration answer filter (#6954) has the gate of the answers on the
+  // child's page: users:read and a staff record of the school, or an
+  // administrator. Only the server knows the staff record, so its answer to
+  // the options decides: the list and the export carry the filter only after
+  // the server granted it, and a refused (403) account loses a filter from a
+  // saved link or state instead of a whole list refused for it.
+  const mayAskEnrollmentAnswers = hasPermission(session, "users:read");
+  const [enrollmentAnswerAccess, setEnrollmentAnswerAccess] = useState<
+    "pending" | "granted" | "denied"
+  >("pending");
+  const [enrollmentAnswerQuestions, setEnrollmentAnswerQuestions] = useState<
+    readonly EnrollmentAnswerFilter[]
+  >([]);
+  useEffect(() => {
+    // A session that is still loading names no permissions yet: deciding now
+    // would refuse the account and drop its saved filter.
+    if (status === "loading") return;
+    if (!mayAskEnrollmentAnswers) {
+      setEnrollmentAnswerAccess("denied");
+      return;
+    }
+    let cancelled = false;
+    fetchEnrollmentAnswerFilters()
+      .then((questions) => {
+        if (cancelled) return;
+        setEnrollmentAnswerQuestions(questions);
+        setEnrollmentAnswerAccess("granted");
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        if (error instanceof ApiError && error.status === 403) {
+          setEnrollmentAnswerAccess("denied");
+          return;
+        }
+        // Any other failure says nothing about the access: an active filter
+        // keeps working and its chip; only the choice lacks its questions.
+        // The log names no child and no answer.
+        setEnrollmentAnswerAccess("granted");
+        studentSearchLogger.warn("enrollment_answer_filters_load_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mayAskEnrollmentAnswers, status]);
+  const effectiveEnrollmentAnswer =
+    enrollmentAnswerAccess === "granted" ? enrollmentAnswerFilter : "";
+  // A saved filter waits for the server's answer. Loaded before it, the list
+  // would come once without the filter and again with it, and an export in
+  // between would carry every child. The list and the export start when the
+  // access is known; without a saved filter nothing waits.
+  const awaitsEnrollmentAnswerAccess =
+    enrollmentAnswerAccess === "pending" && enrollmentAnswerFilter !== "";
+
   // The group filter leads the key as a fixed `g{id}`/`gall` scope segment
   // (#2097) so the SSE flush can read it back and skip a refetch when a
   // check-in event names a group this view does not show. It has to sit BEFORE
@@ -1580,6 +1661,7 @@ function SearchPageContent() {
     companions: wantsCompanions,
     years: selectedYears,
     pickupStatus: pickupStatusFilter,
+    enrollmentAnswer: effectiveEnrollmentAnswer,
   } satisfies StudentSearchFilterInput & { photoState: string };
   const studentsCacheKey = studentKeys.search(studentSearchParams);
 
@@ -1622,7 +1704,7 @@ function SearchPageContent() {
      */
     truncatedTotal: number | null;
   }>(
-    studentsCacheKey,
+    awaitsEnrollmentAnswerAccess ? null : studentsCacheKey,
     async () => {
       const filters = buildStudentSearchFilters(studentSearchParams);
 
@@ -1723,6 +1805,26 @@ function SearchPageContent() {
     [updateUrlParams],
   );
 
+  const updateEnrollmentAnswerFilter = useCallback(
+    (value: string) => {
+      const next = value === "all" ? "" : value;
+      setEnrollmentAnswerFilter(next);
+      updateUrlParams({ enrollment_answer: next });
+    },
+    [updateUrlParams],
+  );
+
+  // A filter the server refused leaves the address and the saved state.
+  useEffect(() => {
+    if (enrollmentAnswerAccess === "denied" && enrollmentAnswerFilter) {
+      updateEnrollmentAnswerFilter("");
+    }
+  }, [
+    enrollmentAnswerAccess,
+    enrollmentAnswerFilter,
+    updateEnrollmentAnswerFilter,
+  ]);
+
   const updatePickupStatusFilter = useCallback(
     (value: PickupStatusFilter) => {
       setPickupStatusFilter(value);
@@ -1794,6 +1896,7 @@ function SearchPageContent() {
     setPickupStatusFilter("all");
     setPickupTimeFilter([]);
     setArrivalTimeFilter("all");
+    setEnrollmentAnswerFilter("");
     setDayStatusFilter("all");
     setTrackingFilter("all");
     setSortMode("name");
@@ -1967,6 +2070,7 @@ function SearchPageContent() {
   const showGridSkeleton =
     isInitializing ||
     isAuthError ||
+    awaitsEnrollmentAnswerAccess ||
     (!hasLoadError && ((isSearching && !hasFetchedOnce) || isDateTransition));
 
   // The stall is tied to the request it was measured for, so a new key or a
@@ -1998,7 +2102,13 @@ function SearchPageContent() {
     reloadStudentsRef.current = reloadStudents;
   });
   const reloadAction = (
-    <Button type="button" variant="outline" size="md" onClick={reloadStudents}>
+    <Button
+      type="button"
+      variant="outline"
+      size="md"
+      onClick={reloadStudents}
+      tooltip="Versucht noch einmal, die Liste der Kinder zu laden."
+    >
       Erneut laden
     </Button>
   );
@@ -2007,11 +2117,35 @@ function SearchPageContent() {
   // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
   // which triggers SWR refetch for search-students-* keys automatically.
 
-  // Prepare filter configurations for PageHeaderWithSearch
+  // Prepare filter configurations for the TenantPage search row
   const orderedRoomOptions = useMemo(
     () => orderedRooms(rooms, myGroupRooms, mySupervisedRooms),
     [rooms, myGroupRooms, mySupervisedRooms],
   );
+
+  // The answers of the registration form as one choice each (#6954):
+  // "Seepferdchen vorhanden: Ja (12)". An active answer the list no longer
+  // offers (no child gave it any more) stays selectable so it can be undone.
+  const enrollmentAnswerOptions = useMemo(() => {
+    const options = enrollmentAnswerQuestions.flatMap((question) =>
+      question.options.map((option) => ({
+        value: `${question.key}=${option.value}`,
+        label: `${answerQuestionLabel(question.label)}: ${option.label} (${option.count})`,
+        chip: `${answerQuestionLabel(question.label)}: ${option.label}`,
+      })),
+    );
+    if (
+      effectiveEnrollmentAnswer &&
+      !options.some((option) => option.value === effectiveEnrollmentAnswer)
+    ) {
+      options.push({
+        value: effectiveEnrollmentAnswer,
+        label: "Gewählte Angabe aus der Anmeldung",
+        chip: "Angabe aus der Anmeldung",
+      });
+    }
+    return options;
+  }, [enrollmentAnswerQuestions, effectiveEnrollmentAnswer]);
 
   // Grouping for the quiet filter popover. Lives here, not in the shared
   // panel: which student filters belong together is this page's domain
@@ -2038,6 +2172,11 @@ function SearchPageContent() {
           "bus",
           "photoConsent",
         ],
+      },
+      {
+        title: "Anmeldung",
+        icon: DetailIcons.notes,
+        filterIds: ["enrollmentAnswer"],
       },
       {
         title: "Darstellung",
@@ -2208,6 +2347,7 @@ function SearchPageContent() {
                 size="compact"
                 variant={isToday ? "primary" : "outline"}
                 onClick={() => updateSelectedDate(todayIso)}
+                tooltip="Zeigt, wo die Kinder heute gerade sind."
               >
                 Heute
               </Button>
@@ -2220,6 +2360,7 @@ function SearchPageContent() {
                   size="compact"
                   variant={selectedDate === tomorrowIso ? "primary" : "outline"}
                   onClick={() => updateSelectedDate(tomorrowIso)}
+                  tooltip="Zeigt, welche Kinder morgen laut Plan kommen."
                 >
                   Morgen
                 </Button>
@@ -2289,6 +2430,25 @@ function SearchPageContent() {
             },
           ]
         : []),
+      ...(enrollmentAnswerOptions.length > 0
+        ? [
+            {
+              id: "enrollmentAnswer",
+              label: "Angabe aus der Anmeldung",
+              type: "dropdown" as const,
+              value: effectiveEnrollmentAnswer || "all",
+              onChange: (value: string | string[]) =>
+                updateEnrollmentAnswerFilter(value as string),
+              options: [
+                { value: "all", label: "Alle Angaben" },
+                ...enrollmentAnswerOptions.map(({ value, label }) => ({
+                  value,
+                  label,
+                })),
+              ],
+            },
+          ]
+        : []),
       {
         id: "pickupStatus",
         label: "Abholregelung",
@@ -2351,6 +2511,9 @@ function SearchPageContent() {
       photoConsentFilter,
       pickupStatusFilter,
       canUsePhotoConsentFilter,
+      enrollmentAnswerOptions,
+      effectiveEnrollmentAnswer,
+      updateEnrollmentAnswerFilter,
       dayStatusFilter,
       trackingFilter,
       trackingLabels,
@@ -2506,6 +2669,17 @@ function SearchPageContent() {
       });
     }
 
+    if (effectiveEnrollmentAnswer) {
+      filters.push({
+        id: "enrollmentAnswer",
+        label:
+          enrollmentAnswerOptions.find(
+            (option) => option.value === effectiveEnrollmentAnswer,
+          )?.chip ?? "Angabe aus der Anmeldung",
+        onRemove: () => updateEnrollmentAnswerFilter(""),
+      });
+    }
+
     if (dayStatusFilter !== "all") {
       filters.push({
         id: "dayStatus",
@@ -2581,6 +2755,9 @@ function SearchPageContent() {
     busFilter,
     effectivePhotoConsentFilter,
     pickupStatusFilter,
+    effectiveEnrollmentAnswer,
+    enrollmentAnswerOptions,
+    updateEnrollmentAnswerFilter,
     dayStatusFilter,
     pickupTimeFilter,
     arrivalTimeFilter,
@@ -2629,6 +2806,7 @@ function SearchPageContent() {
       bus: busFilter,
       photo_consent: effectivePhotoConsentFilter,
       pickup_status: pickupStatusFilter,
+      enrollment_answer: effectiveEnrollmentAnswer,
       day_status: dayStatusFilter,
       ...(isToday ? {} : { date: selectedDate }),
       pickup_time: encodeMultiValueParam(pickupTimeFilter),
@@ -2645,6 +2823,7 @@ function SearchPageContent() {
       busFilter,
       effectivePhotoConsentFilter,
       pickupStatusFilter,
+      effectiveEnrollmentAnswer,
       dayStatusFilter,
       isToday,
       selectedDate,
@@ -2982,6 +3161,8 @@ function SearchPageContent() {
       qs.set("photo_consent", effectivePhotoConsentFilter);
     if (pickupStatusFilter !== "all")
       qs.set("pickup_status", pickupStatusFilter);
+    if (effectiveEnrollmentAnswer)
+      qs.set("enrollment_answer", effectiveEnrollmentAnswer);
     if (dayStatusFilter !== "all") qs.set("day_status", dayStatusFilter);
     if (!isToday) qs.set("date", selectedDate);
     if (pickupTimeFilter.length > 0)
@@ -3005,6 +3186,7 @@ function SearchPageContent() {
     busFilter,
     effectivePhotoConsentFilter,
     pickupStatusFilter,
+    effectiveEnrollmentAnswer,
     dayStatusFilter,
     isToday,
     selectedDate,
@@ -3135,6 +3317,7 @@ function SearchPageContent() {
         checkinSelectMode={schoolCheckin.selectionActive}
         isCheckinSelected={schoolCheckin.selectedIds.has(studentIdStr)}
         isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
+        checkinTargetName={checkinTarget.target?.roomName ?? null}
         userGroups={myGroups}
         groupRooms={myGroupRooms}
         supervisedRooms={mySupervisedRooms}
@@ -3162,82 +3345,82 @@ function SearchPageContent() {
         statsLoading={!hasFetchedOnce || isDateTransition}
         actions={
           <>
-            <div data-icon-only="">
-              <CollectionViewSwitch
-                value={collectionView.view}
-                onChange={changeView}
-              />
-            </div>
-            {/* Der Rahmen gibt der Einstiegs-Tour ein eindeutiges Ziel: über
+            <CollectionViewSwitch
+              value={collectionView.view}
+              onChange={changeView}
+            />
+            {/* `tourTarget` gibt der Einstiegs-Tour ein eindeutiges Ziel: über
                 dieses Menü erreicht man die Aufsicht, wenn die Schule Kinder
                 nur hier finden lässt (#1321). */}
-            <div
-              className="contents"
-              data-icon-only=""
-              data-setup-tour="child-search-menu"
-            >
-              <OverflowMenu
-                items={[
-                  ...childScope.menuItems,
-                  {
-                    // Abwesenheits-Übersicht (#2288): bewusst kein eigener
-                    // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
-                    // ohnehin nach einem Kind sucht.
-                    label: "Abwesenheiten",
-                    icon: <CalendarRange className="h-4 w-4" aria-hidden />,
-                    onClick: () => router.push("/absences"),
-                  },
-                  // Der Export verlangt users:read; der Gast hat es nicht.
-                  ...(canExportStudents(session)
-                    ? [
-                        {
-                          label: "Exportieren",
-                          icon: <Download className="h-4 w-4" aria-hidden />,
-                          onClick: () => setIsExportOpen(true),
-                          badge: rowsLoaded
-                            ? filteredStudents.length
-                            : undefined,
-                        },
-                      ]
-                    : []),
-                  // Nur mit vollständig geladenen, sichtbaren Kindern: ein
-                  // Brief an eine abgeschnittene Liste würde Empfänger
-                  // auslassen.
-                  ...(parentAnnouncementsAvailable &&
-                  rowsLoaded &&
-                  !isSearchResultValidating &&
-                  !hasLoadError &&
-                  truncatedTotal === null &&
-                  filteredStudents.length > 0
-                    ? [
-                        {
-                          label: "Elternbrief schreiben",
-                          icon: <FileText className="h-4 w-4" aria-hidden />,
-                          onClick: writeParentLetter,
-                          badge: filteredStudents.length,
-                        },
-                      ]
-                    : []),
-                  // Die Spaltenwahl der Liste (#3834) steht hier und nicht
-                  // als eigener Knopf neben dem Umschalter.
-                  ...(showTable && !isPhone
-                    ? columnMenuEntries(
-                        tableColumns,
-                        collectionView.hiddenColumns,
-                        collectionView.setColumnVisible,
-                      )
-                    : []),
-                  ...(showTable && isPhone
-                    ? phoneDetailMenuEntries(
-                        tableColumns,
-                        collectionView.phoneDetail,
-                        collectionView.setPhoneDetail,
-                      )
-                    : []),
-                ]}
-                ariaLabel="Weitere Aktionen"
-              />
-            </div>
+            <OverflowMenu
+              tourTarget="child-search-menu"
+              items={[
+                ...childScope.menuItems,
+                {
+                  // Abwesenheits-Übersicht (#2288): bewusst kein eigener
+                  // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
+                  // ohnehin nach einem Kind sucht.
+                  label: "Abwesenheiten",
+                  description:
+                    "Öffnet die Übersicht, welche Kinder wann fehlen.",
+                  icon: <CalendarRange className="h-4 w-4" aria-hidden />,
+                  onClick: () => router.push("/absences"),
+                },
+                // Der Export verlangt users:read; der Gast hat es nicht.
+                ...(canExportStudents(session)
+                  ? [
+                      {
+                        label: "Exportieren",
+                        description:
+                          "Öffnet den Export der Kinder aus der aktuellen Filterung.",
+                        icon: <Download className="h-4 w-4" aria-hidden />,
+                        onClick: () => setIsExportOpen(true),
+                        // Erst wenn feststeht, ob der gespeicherte Filter
+                        // nach Anmeldeangaben gilt.
+                        disabled: awaitsEnrollmentAnswerAccess,
+                        badge: rowsLoaded ? filteredStudents.length : undefined,
+                      },
+                    ]
+                  : []),
+                // Nur mit vollständig geladenen, sichtbaren Kindern: ein
+                // Brief an eine abgeschnittene Liste würde Empfänger
+                // auslassen.
+                ...(parentAnnouncementsAvailable &&
+                rowsLoaded &&
+                !isSearchResultValidating &&
+                !hasLoadError &&
+                truncatedTotal === null &&
+                filteredStudents.length > 0
+                  ? [
+                      {
+                        label: "Elternbrief schreiben",
+                        description:
+                          "Öffnet einen neuen Brief an die Eltern der gezeigten Kinder.",
+                        icon: <FileText className="h-4 w-4" aria-hidden />,
+                        onClick: writeParentLetter,
+                        badge: filteredStudents.length,
+                      },
+                    ]
+                  : []),
+                // Die Spaltenwahl der Liste (#3834) steht hier und nicht
+                // als eigener Knopf neben dem Umschalter.
+                ...(showTable && !isPhone
+                  ? columnMenuEntries(
+                      tableColumns,
+                      collectionView.hiddenColumns,
+                      collectionView.setColumnVisible,
+                    )
+                  : []),
+                ...(showTable && isPhone
+                  ? phoneDetailMenuEntries(
+                      tableColumns,
+                      collectionView.phoneDetail,
+                      collectionView.setPhoneDetail,
+                    )
+                  : []),
+              ]}
+              ariaLabel="Weitere Aktionen"
+            />
           </>
         }
         // Der Zähler ändert sich mit der Filterung und gehört deshalb in
@@ -3266,9 +3449,6 @@ function SearchPageContent() {
             />
           ) : undefined
         }
-        // Sechs Filter sprengen die Zeile bis hinauf zu Tablet-Breiten;
-        // darunter sammelt die Filterschaltfläche sie hinter einer Fläche.
-        desktopFiltersFrom="xl"
         search={{
           value: searchTerm,
           onChange: updateSearchTerm,
@@ -3278,9 +3458,9 @@ function SearchPageContent() {
         }}
         filters={filterConfigs}
         activeFilters={activeFilters}
-        activeFilterDisplay="count"
-        filterVariant="quiet"
-        filterSections={filterSections}
+        // Sechs Filter sprengen die Zeile bis hinauf zu Tablet-Breiten; die
+        // Filterschaltfläche sammelt sie hinter einer Fläche mit Abschnitten.
+        filterPanel={{ sections: filterSections }}
         onClearAllFilters={clearAllFilters}
         // Ein Ladefehler ist der Fehlerzustand des Gerüsts. Fehlende Rechte
         // stehen als eingebetteter Standardzustand im Inhalt.
@@ -3327,6 +3507,7 @@ function SearchPageContent() {
                     variant="outline"
                     size="md"
                     onClick={clearAllFilters}
+                    tooltip="Hebt Suche, Filter und Sortierung auf und zeigt wieder heute."
                   >
                     Filter zurücksetzen
                   </Button>
@@ -3352,6 +3533,7 @@ function SearchPageContent() {
                     variant="outline"
                     size="md"
                     onClick={() => setPendingRoomCheckout(null)}
+                    noTooltip={CHECKOUT_HINTS.cancel}
                   >
                     Abbrechen
                   </Button>
@@ -3369,6 +3551,7 @@ function SearchPageContent() {
                       );
                       setPendingRoomCheckout(null);
                     }}
+                    tooltip={CHECKOUT_HINTS.toClass}
                   >
                     Geht zum Unterricht
                   </Button>
@@ -3384,6 +3567,7 @@ function SearchPageContent() {
                       );
                       setPendingRoomCheckout(null);
                     }}
+                    tooltip={CHECKOUT_HINTS.home}
                   >
                     Geht nach Hause
                   </Button>
@@ -3435,6 +3619,7 @@ function SearchPageContent() {
                     variant="outline"
                     size="compact"
                     onClick={() => updateSelectedDate(todayIso)}
+                    tooltip="Zeigt, wo die Kinder heute gerade sind."
                   >
                     Zurück zu heute
                   </Button>
@@ -3492,6 +3677,15 @@ function SearchPageContent() {
                 runningAction={runningBulkAction}
                 selectAll={checkinSelectAll}
                 disabled={schoolCheckin.isBulkRunning}
+                targetPicker={
+                  checkinTarget.available ? (
+                    <SchoolCheckinTargetPicker
+                      state={checkinTarget}
+                      layout="sheet"
+                      disabled={schoolCheckin.isBulkRunning}
+                    />
+                  ) : undefined
+                }
               />
             </div>
           )}
@@ -3510,6 +3704,15 @@ function SearchPageContent() {
               isRunning={schoolCheckin.isBulkRunning}
               runningAction={runningBulkAction}
               selectAll={checkinSelectAll}
+              targetRoomName={checkinTarget.target?.roomName ?? null}
+              targetPicker={
+                checkinTarget.available ? (
+                  <SchoolCheckinTargetPicker
+                    state={checkinTarget}
+                    disabled={schoolCheckin.isBulkRunning}
+                  />
+                ) : undefined
+              }
             />
           )}
 
@@ -3621,6 +3824,7 @@ function SearchPageContent() {
                       isCheckinPending={schoolCheckin.pendingIds.has(
                         studentIdStr,
                       )}
+                      checkinTargetName={checkinTarget.target?.roomName ?? null}
                       onCheckinClick={() => {
                         // Selection sub-mode (#2359): a tap only marks the child;
                         // nothing is written until the bar's bulk action runs.
@@ -3642,23 +3846,16 @@ function SearchPageContent() {
                       locationBadge={
                         isToday ? (
                           <StudentPresenceBadge
-                            student={(() => {
-                              const badgePlanning =
-                                getStudentPresenceBadgePlanning(student);
-                              return {
-                                ...student,
-                                not_arrival_today:
-                                  badgePlanning.notArrivalToday,
-                                not_arrival_reason:
-                                  badgePlanning.notArrivalReason,
-                              };
-                            })()}
+                            student={student}
                             displayMode="contextAware"
                             userGroups={myGroups}
                             groupRooms={myGroupRooms}
                             supervisedRooms={mySupervisedRooms}
                             variant="modern"
                             size="md"
+                            showLocationSince={isInClassLocation(
+                              student.current_location,
+                            )}
                           />
                         ) : (
                           // Non-today dates show the planned expectation, never the
@@ -3870,8 +4067,8 @@ function SearchPageContent() {
       </TenantPage>
 
       {/* Tablet (md..xl) check-in mode trigger, floating FAB. Tablet
-          range is bumped to `xl` here to stay aligned with the header's
-          desktopFiltersFrom="xl". Both the filter sheet and the FAB
+          range is bumped to `xl` here to stay aligned with the header,
+          whose filter panel switches to desktop at `xl`. Both the filter sheet and the FAB
           live under the same boundary so iPad Air gets the consistent
           tablet UX. */}
       {checkinModeAvailable && !schoolCheckin.isActive && !showTable && (

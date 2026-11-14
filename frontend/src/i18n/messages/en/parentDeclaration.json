@@ -95,5 +95,16 @@
     "title": "You agreed to version {version} on {date}.",
     "note": "The school changed the text afterwards. Your consent to this text stays valid until you withdraw it.",
     "endsToo": "This also ends your consent to version {version}."
+  },
+  "actionTooltip": {
+    "agreed": "Agrees for {name}; moto asks you to confirm first.",
+    "declined": "Declines for {name}; moto asks you to confirm first.",
+    "revoked": "Withdraws your consent for {name}; moto asks you to confirm first.",
+    "revokeEarlier": "Withdraws your consent to version {version}; moto asks you to confirm first."
+  },
+  "confirmTooltip": {
+    "agreed": "Saves your consent right away; the school can see it.",
+    "declined": "Saves your refusal right away; the school can see it.",
+    "revoked": "Withdraws your consent right away; the school can see this."
   }
 }

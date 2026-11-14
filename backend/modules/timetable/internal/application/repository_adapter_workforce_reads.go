@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The readers below serve the timetable facts the Workforce Dienstplan and
@@ -140,6 +140,19 @@ func (r TimetableInstanceStaffReads) FindByStaffAndDateRange(ctx context.Context
 		StaffIDs: []int64{staffID}, FromDate: &fromDay, ToDate: &toDay, OrderByActivityDateTime: true,
 	})
 	return instanceStaffPointers(values, err, "find by staff and date range")
+}
+
+// FindByStaffIDsAndDateRange returns the assignments of the staff members in
+// the inclusive date range in one read; an empty staff set matches nothing.
+func (r TimetableInstanceStaffReads) FindByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to calendar.Date) ([]*timetable.InstanceStaff, error) {
+	if len(staffIDs) == 0 {
+		return []*timetable.InstanceStaff{}, nil
+	}
+	fromDay, toDay := from.String(), to.String()
+	values, err := r.staff.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{
+		StaffIDs: staffIDs, FromDate: &fromDay, ToDate: &toDay, OrderByActivityDateTime: true,
+	})
+	return instanceStaffPointers(values, err, "find by staff ids and date range")
 }
 
 // ListBySickAbsence returns the assignments a sick report stamped.

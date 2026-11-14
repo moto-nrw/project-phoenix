@@ -3,7 +3,7 @@ package owners
 import (
 	"context"
 
-	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	carePlanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
 )
 
 // carePlanStudentNames serves Care Plan's companion-name port from a People

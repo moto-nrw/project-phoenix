@@ -4,7 +4,7 @@ package delivery
 import (
 	"context"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 )
 
 // Capability enqueues, cancels and reports durable mail and push intents and
@@ -37,6 +37,9 @@ type Capability interface {
 type TraegerMails interface {
 	UnresolvedHolidayClosureEmails(ctx context.Context, organizationID int64) ([]deliveryContract.HolidayClosureMailRecovery, error)
 	TraegerEmailStatusesByKey(ctx context.Context, organizationID int64, idempotencyKeys []string) ([]deliveryContract.Status, error)
+	// TraegerEmailStatusesOf reads the mails of the related entities of one
+	// type and those with the idempotency keys in one read (#6976).
+	TraegerEmailStatusesOf(ctx context.Context, organizationID int64, relatedType string, relatedIDs []int64, idempotencyKeys []string) ([]deliveryContract.Status, error)
 	RetryFailedTraegerEmails(ctx context.Context, organizationID int64, idempotencyKeys []string) (int64, error)
 }
 

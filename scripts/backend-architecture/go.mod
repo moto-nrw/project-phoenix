@@ -1,8 +1,8 @@
-module github.com/moto-nrw/project-phoenix/tools/architecturecmd
+module github.com/moto-ogs/project-phoenix/tools/architecturecmd
 
-go 1.27.3
+go 1.27.4
 
-require github.com/moto-nrw/project-phoenix v0.0.0
+require github.com/moto-ogs/project-phoenix v0.0.0
 
 require (
 	golang.org/x/mod v0.42.0 // indirect
@@ -10,4 +10,4 @@ require (
 	golang.org/x/tools v0.52.0 // indirect
 )
 
-replace github.com/moto-nrw/project-phoenix => ../../backend
+replace github.com/moto-ogs/project-phoenix => ../../backend

@@ -5,6 +5,7 @@ import {
   MISSING_SEED_ACCESS,
   seedAccess as access,
   tenantBase as base,
+  warmPages,
 } from "./tenant-session";
 import {
   berlinTodayISO,
@@ -57,6 +58,22 @@ test.describe("Planung server redirects", () => {
 });
 
 test.describe("Planung navigation", () => {
+  // Der Seitenleisten-Test besucht drei Seiten nacheinander. Auf dem kalten
+  // Server eines CI-Shards (#6937) ist er der erste Test mit Oberfläche; die
+  // ersten Bauten dieser Seiten fraßen sein Zeitbudget, ein Klick wartete dann
+  // vergeblich auf einen ruhigen Browser. Die Bauten laufen deshalb vorher.
+  test.beforeAll(async ({ browser }) => {
+    if (!access) return;
+    test.setTimeout(240_000);
+    const page = await browser.newPage({ baseURL: base });
+    try {
+      await loginToTenant(page, access);
+      await warmPages(page, ["/betreuungsplan", "/dienstplan", "/vertretung"]);
+    } finally {
+      await page.close();
+    }
+  });
+
   test.beforeEach(async ({ page }) => {
     test.skip(access === null, MISSING_SEED_ACCESS);
     if (!access) return;
@@ -66,11 +83,16 @@ test.describe("Planung navigation", () => {
   test("sidebar shows the planning pages inside the Planung group and navigates each area", async ({
     page,
   }) => {
+    // Nach dem Login steht die Seite noch auf „moto öffnet Ihre OGS…“, bis der
+    // Dev-Server die erste Portalseite kompiliert hat. Das dauert in CI länger
+    // als die 5 Sekunden einer einzelnen Erwartung.
+    test.setTimeout(60_000);
     const sidebar = page.locator("aside");
 
     // Die Gruppe Planung (#2826) ist beim ersten Besuch zu; die Gruppenzeile
     // klappt sie auf, ohne zu navigieren.
     const planung = sidebar.getByRole("button", { name: "Planung" });
+    await expect(planung).toBeVisible({ timeout: 30_000 });
     await expect(planung).toHaveAttribute("aria-expanded", "false");
     await planung.click();
     await expect(planung).toHaveAttribute("aria-expanded", "true");
@@ -184,7 +206,7 @@ test.describe("Planung navigation", () => {
     await expect(main.getByText("Gruppenzugriff")).toHaveCount(0);
   });
 
-  test("mobile Mehr drawer lists the Planung group and its pages", async ({
+  test("mobile Mehr drawer expands the Planung group and lists its pages", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -193,6 +215,14 @@ test.describe("Planung navigation", () => {
     // Auf die Mehr-Schublade begrenzt: die eingeklappte Desktop-Seitenleiste
     // bleibt im DOM und trägt dieselben Beschriftungen.
     const drawer = page.getByRole("dialog", { name: "Navigation" });
+
+    const planung = drawer.getByRole("button", {
+      name: "Planung",
+      exact: true,
+    });
+    await expect(planung).toHaveAttribute("aria-expanded", "false");
+    await planung.click();
+    await expect(planung).toHaveAttribute("aria-expanded", "true");
 
     await expect(drawer.getByText("Betreuungsplan")).toBeVisible();
     // exact: "Mein Dienstplan" (Gruppe Team) enthält "Dienstplan" ebenfalls.

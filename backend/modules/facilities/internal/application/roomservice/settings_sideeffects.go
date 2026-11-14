@@ -3,7 +3,7 @@ package facilities
 import (
 	"context"
 
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 // SettingHandlers are the side effects of the Schulhof and WC switch keys:

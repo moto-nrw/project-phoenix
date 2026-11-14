@@ -100,10 +100,11 @@ function ShareCell({
       <span className="text-sm text-gray-900 tabular-nums">
         <span className="font-semibold">{part}</span>
         <span className="text-gray-500"> von {whole}</span>
-        <span className="ml-2 text-xs text-gray-500">
+        <span className="ml-2 text-sm text-gray-500">
           {formatShare(part, whole)}
         </span>
       </span>
+      {/* The same green share as the tiles above. */}
       <ProgressBar
         value={part}
         max={Math.max(whole, 1)}
@@ -150,8 +151,8 @@ function FreePlacesCell({
           label={`${places.full} voll`}
           title={
             places.full === 1
-              ? "Bei einem Angebot sind alle Plätze vergeben."
-              : `Bei ${places.full} Angeboten sind alle Plätze vergeben.`
+              ? "Bei einer Betreuungsform sind alle Plätze vergeben."
+              : `Bei ${places.full} Betreuungsformen sind alle Plätze vergeben.`
           }
         />
       ) : null}
@@ -355,17 +356,20 @@ const SUM_COLUMNS: DataTableColumn<OccupancyCareFormSum>[] = [
   },
 ];
 
-/** „In 4 Angeboten mit Platzgrenze. Ein Angebot ist voll.“ */
+/**
+ * „In 4 Betreuungsformen mit Platzgrenze. Eine ist voll.“ One word with the
+ * tile and the tab: the page calls an offer „Betreuungsform“.
+ */
 function freePlacesHint(places: OccupancyPlaces): string {
-  if (places.limited === 0) return "Kein Angebot hat eine Platzgrenze.";
-  const offers =
-    places.limited === 1
-      ? "In einem Angebot mit Platzgrenze."
-      : `In ${places.limited} Angeboten mit Platzgrenze.`;
-  if (places.full === 0) return offers;
-  return places.full === 1
-    ? `${offers} Ein Angebot ist voll.`
-    : `${offers} ${places.full} Angebote sind voll.`;
+  if (places.limited === 0) return "Keine Betreuungsform hat eine Platzgrenze.";
+  // One sentence: how many of the capped forms are full.
+  if (places.limited === 1)
+    return places.full === 1
+      ? "Die Betreuungsform mit Platzgrenze ist voll."
+      : "1 Betreuungsform hat eine Platzgrenze.";
+  if (places.full === 0)
+    return `${places.limited} Betreuungsformen mit Platzgrenze, keine voll.`;
+  return `${places.full} von ${places.limited} Betreuungsformen mit Platzgrenze ${places.full === 1 ? "ist" : "sind"} voll.`;
 }
 
 function TotalFigures({
@@ -384,9 +388,7 @@ function TotalFigures({
           label="Kinder heute"
           value={totals.children}
           hint={
-            loading
-              ? undefined
-              : "Alle Kinder, die moto heute an Ihren Schulen betreut."
+            loading ? undefined : "Alle Kinder in Betreuung, auch abwesende."
           }
           icon={<MotoConceptIcon concept={childrenConcept} />}
           loading={loading}
@@ -416,7 +418,7 @@ function TotalFigures({
         hint={
           loading
             ? undefined
-            : `${formatShare(totals.withCareForm, totals.children)} der Kinder haben heute ein Betreuungsangebot gebucht.`
+            : `${formatShare(totals.withCareForm, totals.children)} der Kinder haben heute eine Betreuungsform gebucht.`
         }
         progressPct={
           loading || totals.children === 0
@@ -442,6 +444,7 @@ function TotalFigures({
         }
         icon={<MotoConceptIcon concept={utilizationConcept} />}
         loading={loading}
+        // Free capacity in blue; orange when no place is left.
         tone={places.limited > 0 && places.free === 0 ? "orange" : "blue"}
       />
     </div>
@@ -480,7 +483,11 @@ function ViewContent({
   if (view === "gruppen") {
     return (
       <DataTable
-        heading={{ title: "Kinder je Gruppe", count: groupRows.length }}
+        heading={{
+          title: "Kinder je Gruppe",
+          count: groupRows.length,
+          level: 2,
+        }}
         columns={GROUP_COLUMNS}
         rows={groupRows}
         getRowKey={(row) => row.key}
@@ -502,6 +509,7 @@ function ViewContent({
             heading={{
               title: "Gleiche Angebote über alle Schulen",
               count: sums.length,
+              level: 2,
             }}
             columns={SUM_COLUMNS}
             rows={sums}
@@ -515,6 +523,7 @@ function ViewContent({
           heading={{
             title: "Kinder je Betreuungsform und Schule",
             count: formRows.length,
+            level: 2,
           }}
           columns={CARE_FORM_COLUMNS}
           rows={formRows}
@@ -523,8 +532,8 @@ function ViewContent({
           stackedOnMobile
           emptyState={emptyRows(
             search,
-            "Heute läuft kein Betreuungsangebot",
-            "Hier steht jedes Betreuungsangebot, das heute läuft. Auch eins ohne Buchung.",
+            "Heute läuft keine Betreuungsform",
+            "Hier steht jede Betreuungsform, die heute läuft. Auch eine ohne Buchung.",
           )}
         />
       </>
@@ -532,7 +541,7 @@ function ViewContent({
   }
   return (
     <DataTable
-      heading={{ title: "Kinder je Schule", count: schools.length }}
+      heading={{ title: "Kinder je Schule", count: schools.length, level: 2 }}
       columns={SCHOOL_COLUMNS}
       rows={[...schools]}
       getRowKey={(school) => school.id}

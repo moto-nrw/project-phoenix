@@ -1,14 +1,14 @@
 # Schutz gespeicherter Daten
 
-Stand: 23.10.2026, Slices 3840-a und 3840-f, Teil von [#3840](https://github.com/moto-nrw/project-phoenix/issues/3840)
-und [#3846](https://github.com/moto-nrw/project-phoenix/issues/3846).
+Stand: 23.10.2026, Slices 3840-a und 3840-f, Teil von [#3840](https://github.com/moto-ogs/project-phoenix/issues/3840)
+und [#3846](https://github.com/moto-ogs/project-phoenix/issues/3846).
 Geprüfte Codebasis: `origin/development` bei
 `d780efb392ef4d085a5731e615533eead3ee652b`.
 Nachprüfung der Dateischreibpfade in Runde 2 nach Merge von `origin/development`
 bei `c66191b29879360e1eb6085ce46d716080a3b3be`.
 Rollen-/Gesundheitshistorie gegen `origin/development` bei
 `caca213bdb1bf4ef8ff9a5713875f88d3ebe5981` geprüft, ergänzt um Migration `1.15.488`.
-Foto-/Avatar-Abhilfe aus [#4852](https://github.com/moto-nrw/project-phoenix/pull/4852)
+Foto-/Avatar-Abhilfe aus [#4852](https://github.com/moto-ogs/project-phoenix/pull/4852)
 (Slice 3840-h) nach Merge von `origin/development` bei
 `6a8e863cf73047493a602a1abd058aa424761d2a` ergänzt.
 
@@ -57,10 +57,16 @@ Die lokalen `TestDiagnosticsReader*` prüfen erlaubte Metadaten, verweigerte
 sensible Abfragen/Schreibzugriffe, zwei Schulen, zukünftige Tabellen/Spalten,
 effektive Rechte einschließlich PUBLIC und Views, Funktions-/Rollenwechsel
 sowie Up/Down. Systemkataloge und PostgreSQL-Statistikmetadaten bleiben sichtbar,
-nicht SQL-Texte anderer DB-Nutzer. Persönliche LOGIN-Zugänge, Rechteabfrage ohne
-Kundeninhalte und Ablösung der Superuser-Diagnose sind Mensch-Schritte im
-[Diagnose-Runbook](../operations/diagnose-lesezugang-3840.md).
-Ohne datierten produktiven Nachweis bleibt dieser Teil von AK3/AK4 offen.
+nicht SQL-Texte anderer DB-Nutzer.
+
+In Produktion ist `phoenix_diagnostics` nicht in Gebrauch und hat keine
+persönlichen LOGIN-Zugänge (Stand 14.11.2026); ein Runbook dafür gibt es nicht
+mehr. Diagnose läuft dort über persönliche Rollen `dev_<name>`: Mitglied von
+`pg_read_all_data`, `default_transaction_read_only=on`, 60 s Abfragezeit, ohne
+Superuser und ohne RLS-Bypass, erreichbar über den Loopback-Port des Hosts.
+Diese Rollen können alle Tabellen lesen, auch die oben ausgeschlossenen; RLS
+begrenzt weiterhin auf die gewählte Schule, wo eine Policy besteht.
+Dieser Teil von AK3/AK4 bleibt offen.
 
 ## Bestand und Schutz im Code
 
@@ -177,7 +183,7 @@ schließt den Befund nicht.
 Der [Mensch-Prüfablauf 3840-c](../operations/datentraegerschutz-3840.md) führt
 durch Datenträger-, Schlüssel- und Zugangsbelege. Unabhängig davon sind
 [Backup-Abnahme](../operations/daily-backup.md), die produktive Abnahme der
-[Diagnose-Leserolle 3840-f](../operations/diagnose-lesezugang-3840.md),
+Diagnose-Leserolle 3840-f,
 der Gesundheitsmaskierung (#4854, Slice 4844-a) sowie Foto-/Avatar-Bestand,
 Rollout und produktiver Nachweis (3840-h) offen; die Foto-Code-Abhilfe ist
 in #4852 umgesetzt. Änderungen an Hosting, Schlüsseln,
@@ -196,13 +202,13 @@ allein mit Verweis auf Option 1 entfallen.
 - **D7:** [Eltern-Direktbearbeitung](../../backend/workflows/parentportal/internal/care/parent_master_data_service.go), [JSONB-Anfragetabelle](../../backend/database/migrations/001015151_create_student_data_change_requests.go), [Schreib-/Lesespeicher](../../backend/modules/careplan/internal/adapters/postgres/requests.go), [Maskierung des Altbestands](../../backend/database/migrations/001015483_mask_parent_health_history.go).
 - **D8:** [Lokaler Dateispeicher](../../backend/modules/delivery/objects/local.go), [Upload-Schreibadapter](../../backend/modules/delivery/objects/uploads.go), [Bild-/Dateihelfer](../../backend/api/common/upload.go), [Kinderfoto-Upload](../../backend/modules/peopledirectory/inbound/students/photo.go), [Avatar-Upload](../../backend/modules/identityaccess/inbound/me/profile.go), [private Schreiboption](../../backend/modules/delivery/objects/private_uploads.go), [Personaldokument-Upload](../../backend/modules/workforce/http/timetracking/staff_admin_documents.go), [öffentliche Mounts](../../backend/api/serve_mounts_public.go). Die Rechte beim Schreiben belegen keine nachträgliche Bereinigung aller Altdateien.
 - **D9:** [Backup-Implementierung](../../scripts/daily_backup.py), [Backup-Verfahren und Grenzen](../operations/daily-backup.md), [ADR 0085: Schlüsseltrennung](../adr/0085-backup-decryption-keys-stay-off-the-source-host.md).
-- **D11:** [Diagnoserolle](../../backend/database/migrations/001015488_diagnostics_reader.go), [SQL-Verhaltenstests](../../backend/database/migrations/001015488_diagnostics_reader_test.go), [Betriebsablauf](../operations/diagnose-lesezugang-3840.md).
+- **D11:** [Diagnoserolle](../../backend/database/migrations/001015488_diagnostics_reader.go), [SQL-Verhaltenstests](../../backend/database/migrations/001015488_diagnostics_reader_test.go).
 - **D10:** [Betriebsgeheimnisse/SOPS](../agents/operations.md#environment-management-sops). Keine echten Schlüssel oder entschlüsselten Dateien wurden gelesen.
 
 Rechtlicher Bewertungsrahmen, nur gelesen: Legal-Repo bei
 `7a21f6742782bcf6141470a47333ae5be6c3182f`,
-[Pflichtumfang](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/research/14-dsgvo-mindestumfang.md),
-[Checkliste](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/intern/checkliste.md),
-[AVV-Entwurf, Anhang 1 Ziff. 3/7](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/03-avv.md).
+[Pflichtumfang](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/research/14-dsgvo-mindestumfang.md),
+[Checkliste](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/intern/checkliste.md),
+[AVV-Entwurf, Anhang 1 Ziff. 3/7](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/03-avv.md).
 Maßstab ist die dort erläuterte risikobasierte Bewertung nach Art. 32 DSGVO,
 keine allein aus einer älteren TOM abgeleitete Technologiepflicht.

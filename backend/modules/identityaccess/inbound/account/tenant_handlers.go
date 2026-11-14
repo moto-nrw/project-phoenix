@@ -10,10 +10,10 @@ import (
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // Bounds of enrollment.grade_level_max, the same range the settings registry
@@ -136,6 +136,7 @@ func newTenantResolveResponse(school *TenantSchool, resolved tenantShellSettings
 		EarlyCheckoutNoteToleranceMinutes: resolved.earlyCheckoutTolerance,
 		WeekendFollowsFriday:              resolved.weekendFollowsFriday,
 		ChildSearchOnlyNavigation:         resolved.childSearchOnlyNavigation,
+		SimpleStaffNavigation:             resolved.simpleStaffNavigation,
 		CareFacilityTerm:                  resolved.careFacilityTerm,
 	}
 }
@@ -177,6 +178,7 @@ func tenantShellSettingKeys() []string {
 		settings.KeyEarlyCheckoutNoteToleranceMinutes,
 		settings.KeyWeekendFollowsFriday,
 		settings.KeyChildSearchOnlyNavigation,
+		settings.KeySimpleStaffNavigation,
 		settings.KeyEnrollmentCareFacilityTerm,
 		// Not read from this snapshot — prefetched so the hard-fail
 		// resolveTenantGradeLevelMax call hits the request cache instead of
@@ -275,6 +277,7 @@ func (resolved *tenantShellSettings) resolveFeatureFlags(readBool func(string) (
 		{settings.KeyEnrollmentWaitlistEnabled, &resolved.waitlistEnabled},
 		{settings.KeyWeekendFollowsFriday, &resolved.weekendFollowsFriday},
 		{settings.KeyChildSearchOnlyNavigation, &resolved.childSearchOnlyNavigation},
+		{settings.KeySimpleStaffNavigation, &resolved.simpleStaffNavigation},
 		{settings.KeyParentNotesEnabled, &resolved.parentMessagingEnabled},
 		{settings.KeyParentMessageCardBadgeEnabled, &resolved.parentMessageCardBadge},
 		{settings.KeyStaffMessagingEnabled, &resolved.staffMessagingEnabled},

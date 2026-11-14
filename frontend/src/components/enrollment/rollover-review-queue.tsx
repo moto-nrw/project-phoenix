@@ -281,6 +281,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
                         variant="success"
                         onClick={() => void decide(item, "keep")}
                         disabled={busy}
+                        tooltip="Merkt das Kind für die neue Phase vor, ohne E-Mail an die Eltern."
                       >
                         Behalten
                       </Button>
@@ -290,6 +291,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
                         variant="outline_danger"
                         onClick={() => void decide(item, "drop")}
                         disabled={busy}
+                        tooltip="Nimmt das Kind sofort aus der neuen Phase, ohne E-Mail an die Eltern."
                       >
                         Abschließen
                       </Button>
@@ -299,6 +301,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
                         variant="outline"
                         onClick={() => void decide(item, "defer")}
                         disabled={busy}
+                        tooltip="Schiebt die Entscheidung auf, das Kind bleibt in der Prüfliste."
                       >
                         Zurückstellen
                       </Button>

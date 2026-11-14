@@ -26,7 +26,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
-import { formatBytes } from "~/lib/files-api";
+import { formatBytes } from "~/lib/file-format";
 import {
   downloadMyDocument,
   downloadMySharedDocument,
@@ -165,6 +165,7 @@ function InboxDocumentCard({
   title,
   description,
   downloadLabel,
+  downloadTooltip,
   onDownload,
   signHref,
   children,
@@ -173,6 +174,7 @@ function InboxDocumentCard({
   title: string;
   description: string;
   downloadLabel: string;
+  downloadTooltip: string;
   onDownload: () => Promise<void>;
   /** A care contract waiting for the signature links here (#4679). */
   signHref?: string;
@@ -207,11 +209,17 @@ function InboxDocumentCard({
             size="md"
             onClick={() => void download()}
             disabled={downloading}
+            tooltip={downloadTooltip}
           >
             {downloading ? t("downloading") : downloadLabel}
           </Button>
           {signHref ? (
-            <ButtonLink href={signHref} variant="success" size="md">
+            <ButtonLink
+              href={signHref}
+              variant="success"
+              size="md"
+              tooltip={t("signNowTooltip")}
+            >
               {t("signNow")}
             </ButtonLink>
           ) : null}
@@ -245,6 +253,7 @@ function ParentDocumentCard({
       })}
       description={t("sender", { traeger: document.traeger_name })}
       downloadLabel={t("download")}
+      downloadTooltip={t("downloadTooltip")}
       onDownload={() => downloadMyDocument(document)}
       signHref={
         canSign
@@ -334,6 +343,11 @@ function ContractNoticeRow({
             )}
             variant="outline"
             size="md"
+            tooltip={
+              document.can_end_contract || document.can_sign
+                ? t("familyChildrenTooltip")
+                : t("familyChildrenViewTooltip")
+            }
           >
             {/* „angeben“ only where the relationship may state the number:
                 an active contract it may end or a sent one it may sign. */}
@@ -348,7 +362,12 @@ function ContractNoticeRow({
           />
           {document.can_end_contract ? (
             <>
-              <ButtonLink href={href} variant="outline" size="md">
+              <ButtonLink
+                href={href}
+                variant="outline"
+                size="md"
+                tooltip={t("cancelContractTooltip")}
+              >
                 {t("cancelContract")}
               </ButtonLink>
               {document.can_withdraw_contract ? (
@@ -356,6 +375,7 @@ function ContractNoticeRow({
                   href={`${href}?widerruf=1`}
                   variant="outline"
                   size="md"
+                  tooltip={t("withdrawContractTooltip")}
                 >
                   {t("withdrawContract")}
                 </ButtonLink>
@@ -383,7 +403,16 @@ function ContractNoticeRow({
         }
         tone={status === "widerrufen" ? "red" : "warning"}
       />
-      <ButtonLink href={href} variant="ghost" size="md">
+      <ButtonLink
+        href={href}
+        variant="ghost"
+        size="md"
+        tooltip={
+          status === "widerrufen"
+            ? t("showWithdrawalTooltip")
+            : t("showConfirmationTooltip")
+        }
+      >
         {t("showConfirmation")}
       </ButtonLink>
     </div>
@@ -414,6 +443,7 @@ function ParentSharedDocumentCard({
       title={document.title}
       description={t("sharedSender", { traeger: document.traeger_name })}
       downloadLabel={t("downloadFile")}
+      downloadTooltip={t("downloadFileTooltip")}
       onDownload={() => downloadMySharedDocument(document)}
     >
       <DataGrid>

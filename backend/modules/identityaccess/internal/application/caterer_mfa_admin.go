@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // minCatererResetReasonLength mirrors the operator's reset of a Träger-Büro
@@ -57,7 +57,7 @@ func (c *CatererAccess) operatorResetMFA(ctx context.Context, operatorID, catere
 		return identityaccess.ErrCatererMFAResetReasonRequired
 	}
 	if c.mfa == nil {
-		return errCatererMFAUnavailable
+		return identityaccess.ErrAccountMFAUnavailable
 	}
 	recipient, err := c.catererAccountAddress(ctx, catererID, accountID)
 	if err != nil {

@@ -22,9 +22,12 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import type { ContractNoticeOptions } from "~/lib/care-contract-notices";
 import { fetchContractNoticeOptions } from "~/lib/care-contract-notices-api";
 import {
+  berlinTodayISO,
   formatBerlinDate,
   formatBerlinTime,
   formatDate,
+  parseISODate,
+  toISODate,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -130,6 +133,7 @@ export function CareContractNoticeCard({
               variant="outline"
               size="md"
               className="w-full"
+              tooltip="Öffnet ein Fenster für eine Kündigung per Mail oder Brief."
               onClick={() => setOpen(true)}
             >
               Kündigung eintragen
@@ -218,6 +222,7 @@ function EndDecisionActions({
           variant="primary"
           size="md"
           className="w-full"
+          tooltip="Öffnet ein Fenster, um den letzten Tag des Vertrags zu wählen."
           onClick={onSetEnd}
         >
           Vertragsende festlegen
@@ -234,6 +239,8 @@ function EndDecisionActions({
           className="w-full"
           onClick={onReject}
           disabled={!reinterpretedEndsOn}
+          disabledReason="Das neue Vertragsende fehlt noch. Bitte laden Sie die Seite neu."
+          tooltip="Benachrichtigt die Eltern über das neue Vertragsende, moto fragt vorher nach."
         >
           Grund nicht anerkennen
         </Button>
@@ -269,7 +276,16 @@ function ActiveFacts({
       ) : null}
       <DataField label="Widerruf">
         {options.withdrawalUntil ? (
-          `Absendefrist bis ${formatDate(options.withdrawalUntil)}`
+          <>
+            Absendefrist bis {formatDate(options.withdrawalUntil)}
+            {longWithdrawal(options.withdrawalUntil) ? (
+              <span className="block text-sm font-normal text-gray-500">
+                Die Eltern haben die Widerrufsbelehrung noch nicht nachweislich
+                bekommen. Deshalb gilt die lange Frist: 12 Monate und 14 Tage
+                nach dem Abschluss.
+              </span>
+            ) : null}
+          </>
         ) : (
           <span className="font-normal text-gray-500">Nicht mehr möglich</span>
         )}
@@ -279,6 +295,16 @@ function ActiveFacts({
       </DataField>
     </DataGrid>
   );
+}
+
+/**
+ * A deadline more than a month away is the long one: the 14 days start only
+ * with a delivered notice-bearing PDF, else 12 months and 14 days apply.
+ */
+function longWithdrawal(until: string): boolean {
+  const limit = parseISODate(berlinTodayISO());
+  limit.setDate(limit.getDate() + 31);
+  return until > toISODate(limit);
 }
 
 /** Why the end notice did not go out, in the words the office reads. */

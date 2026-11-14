@@ -18,7 +18,10 @@ import {
   useRefreshAfterWrite,
 } from "~/lib/hooks/use-refresh-after-write";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
@@ -263,6 +266,7 @@ export function BookingLeftoverHints({
               aria-expanded={expanded}
               aria-controls={openListId}
               onClick={() => setExpanded((current) => !current)}
+              noTooltip="Klappt nur die Liste auf oder zu, ohne etwas zu ändern."
             >
               {expanded ? (
                 <>
@@ -305,6 +309,7 @@ export function BookingLeftoverHints({
                   aria-label={`Hinweis wieder zeigen: ${leftover.studentName} in „${leftover.templateName}“`}
                   onClick={() => void decide(leftover, false)}
                   disabled={busyKey === bookingLeftoverKey(leftover)}
+                  tooltip="Holt den Hinweis zurück in die offene Liste oben."
                 >
                   Hinweis wieder zeigen
                 </Button>
@@ -374,6 +379,7 @@ function OpenLeftoverActions({
           aria-label={`Entfernen: ${about}`}
           onClick={() => onRemove(leftover)}
           disabled={busy}
+          tooltip="moto fragt vorher nach und nimmt das Kind an diesen Tagen heraus."
         >
           Entfernen
         </Button>
@@ -385,6 +391,7 @@ function OpenLeftoverActions({
         aria-label={`Bleibt so: ${about}`}
         onClick={() => onKeep(leftover)}
         disabled={busy}
+        tooltip="Lässt das Kind im Regeltermin und schließt den Hinweis."
       >
         Bleibt so
       </Button>
@@ -416,7 +423,7 @@ function BookingLeftoverRow({
   children?: ReactNode;
 }>) {
   return (
-    <li className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center">
+    <ResponsiveActionRow>
       <div className="min-w-0">
         <p className="text-sm font-semibold text-gray-900">
           {leftover.studentName}
@@ -432,6 +439,6 @@ function BookingLeftoverRow({
           {children}
         </div>
       ) : null}
-    </li>
+    </ResponsiveActionRow>
   );
 }

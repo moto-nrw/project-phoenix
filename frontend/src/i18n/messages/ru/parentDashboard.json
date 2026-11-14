@@ -53,5 +53,10 @@
   "newsLetterBindingHint": "Это письмо только для информации. Засчитывается подтверждение здесь, в родительском портале. Достаточно одного законного представителя на ребёнка.",
   "newsErrorObjectAnswer": "ответ",
   "newsErrorObjectConfirmation": "подтверждение прочтения",
-  "newsErrorObjectAttachments": "список файлов"
+  "newsErrorObjectAttachments": "список файлов",
+  "newsPollClearTooltip": "Снимает выбор, отправка только после «Сохранить ответ».",
+  "newsPollSaveTooltip": "Сразу отправляет ваш ответ в школу.",
+  "newsPollSaveDisabledReason": "Сначала выберите ответ или измените выбор.",
+  "newsReadAndConfirmTooltip": "Сразу подтверждает школе, что вы прочитали сообщение.",
+  "newsCloseUnsavedTooltip": "Закрывает опрос, новый выбор будет потерян."
 }

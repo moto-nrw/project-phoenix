@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 )
 

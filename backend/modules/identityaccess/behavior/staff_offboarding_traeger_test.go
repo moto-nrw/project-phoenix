@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -59,7 +59,7 @@ func TestLastSchoolOffboardingPreservesTraegerMembership(t *testing.T) {
 					require.NoError(t, db.NewRaw(`SELECT status FROM auth.account_tenants WHERE account_id = ? AND tenant_id = ?`, account.ID, testpkg.Tenant(t)).Scan(ctx, &mappingStatus))
 					require.Equal(t, "inactive", mappingStatus)
 					if status == "active" && organizationState == "active" {
-						login, loginErr := owner.LoginTraeger(context.Background(), account.Email, testPassword, "", "", organization.ID)
+						login, loginErr := owner.LoginTraeger(context.Background(), account.Email, testPassword, "", "", organization.ID, "")
 						require.NoError(t, loginErr, "Träger sign-in must still accept the account")
 						require.Contains(t, []identityaccess.LoginStatus{identityaccess.TraegerLoginAuthenticated, identityaccess.TraegerLoginMFAEnrollmentRequired, identityaccess.TraegerLoginMFARequired}, login.Status)
 					}

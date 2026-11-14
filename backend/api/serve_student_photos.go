@@ -1,12 +1,12 @@
 package api
 
 import (
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // buildServeStudentPhotoRuntime binds photo deletion to the server's local uploads.

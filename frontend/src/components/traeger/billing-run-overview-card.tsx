@@ -10,10 +10,22 @@
 // Zeilen mit eigener Nummer, Minusbetrag und Bezug auf die Rechnung.
 // Sobald die Schreiben erstellt sind, zeigt ein Klick auf eine Zeile ihr
 // Schreiben als PDF (#5692): ab xl rechts neben der Liste, darunter an ihrer
-// Stelle mit dem Weg zurück zur Liste.
+// Stelle mit dem Weg zurück zur Liste. Was mit einer ausgestellten Rechnung
+// geschah (Ausstellung, Versand, Storno, Lastschrift, jede Exportdatei),
+// zeigt „Versand und Exporte ansehen“ im Menü der Zeile im Seitenpanel
+// (#4693); gelesen wird erst beim Öffnen.
 
-import { FileText } from "lucide-react";
+import {
+  Download,
+  Eye,
+  FileText,
+  Pencil,
+  ReceiptText,
+  Undo2,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
+import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -21,8 +33,20 @@ import {
   exportFormatOptions,
   exportMenuItems,
 } from "~/components/ui/export-menu";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+import {
+  OverflowMenu,
+  type OverflowMenuItem,
+} from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
+import {
+  SlideOver,
+  SlideOverBody,
+  SlideOverContent,
+  SlideOverDescription,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { downloadBlob } from "~/lib/file-download";
@@ -41,12 +65,14 @@ import {
 import { BillingLetterPreview } from "./billing-letter-preview";
 import {
   BILLING_DOCUMENT_KIND_LABELS,
+  billingPositionLabel,
   billingReferenceText,
   isCancelled,
   isCredited,
 } from "./billing-format";
 import { formatEuro } from "./contribution-format";
 import { recipientKindLabel } from "./billing-payment-format";
+import { InvoiceExportHistoryCard } from "./invoice-export-history-card";
 import { InvoicePaymentLine } from "./invoice-payment-line";
 
 const logger = createLogger({ component: "BillingRunOverviewCard" });
@@ -58,12 +84,21 @@ const FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
 ]);
 
 function rowMenuLabel(document: BillingDocument): string {
-  return `Aktionen für die Rechnung an ${recipientName(document)}`;
+  // Siblings with an invoice each share the recipient (#7007).
+  const child = document.registrationChildId ? document.children[0] : undefined;
+  const forChild = child ? ` für ${child.firstName}` : "";
+  return `Aktionen für die Rechnung an ${recipientName(document)}${forChild}`;
 }
 
-/** A draft has no ID yet; its registration names it. */
+/**
+ * A draft has no ID yet; its registration names it, and its child when the
+ * registration has an invoice per child (#7007).
+ */
 function rowKey(document: BillingDocument): string {
-  return document.id || `draft-${document.registrationId}`;
+  return (
+    document.id ||
+    `draft-${document.registrationId}-${document.registrationChildId || "all"}`
+  );
 }
 
 /**
@@ -86,15 +121,115 @@ function leftForChild(
   return left;
 }
 
-function invoicesDescription(released: boolean, canPreview: boolean) {
+/**
+ * Whom a draft invoice bills: the family, or each child when the Träger
+ * keeps the debtor number per child (#7007). A registration billed as a
+ * whole before the switch keeps its one invoice.
+ */
+function draftShapeText(documents: readonly BillingDocument[]): string {
+  const perChild = documents.filter((document) => document.registrationChildId);
+  if (perChild.length === 0) return "Je Familie eine Rechnung.";
+  return perChild.length === documents.length
+    ? "Je Kind eine Rechnung, auch für Geschwister."
+    : "Je Kind eine Rechnung, auch für Geschwister. Eine Anmeldung mit einer Rechnung von vor der Umstellung behält ihre eine Rechnung.";
+}
+
+function invoicesDescription(
+  released: boolean,
+  canPreview: boolean,
+  documents: readonly BillingDocument[],
+) {
   if (!released) {
-    return "Je Familie eine Rechnung. Die Aufschlüsselung je Kind steht im Menü der Zeile.";
+    // From md on the card's „Aufschlüsselung zeigen“ opens it for every row;
+    // a phone row keeps it in its menu, so the phone names that place.
+    return (
+      <>
+        {draftShapeText(documents)}
+        <span className="md:hidden">
+          {" "}
+          Die Aufschlüsselung je Kind steht im Menü der Zeile.
+        </span>
+      </>
+    );
   }
   const overview =
     "Die Übersicht für die Kämmerei enthält jede Position, die Summe je Rechnung und die Gesamtsumme. Storno und Gutschrift stehen als eigene Zeilen mit Minusbetrag.";
   return canPreview
     ? `${overview} Wählen Sie eine Zeile, um ihr Schreiben als PDF zu sehen.`
     : overview;
+}
+
+/** The positions of a row's children, opened in place under the row. */
+function InlineBreakdown({
+  document,
+}: Readonly<{ document: BillingDocument }>) {
+  return (
+    <div className="max-w-xl py-1">
+      <ContributionBreakdown
+        items={document.children.map((child) => ({
+          key: child.childId,
+          name: `${child.firstName} ${child.lastName}`,
+          lines: child.positions.map((position) => ({
+            label: billingPositionLabel(position),
+            amount: formatEuro(position.amountCents),
+          })),
+          total: formatEuro(child.totalCents),
+        }))}
+        childTotalLabel="Summe"
+        totalLabel="Rechnungsbetrag"
+        total={formatEuro(document.totalCents)}
+      />
+    </div>
+  );
+}
+
+/**
+ * Only an issued invoice has a history to read: a draft has no number yet,
+ * Storno and Gutschrift stand in the history of their invoice.
+ */
+function hasExportHistory(released: boolean, document: BillingDocument) {
+  return (
+    released &&
+    document.kind === "invoice" &&
+    document.id !== "" &&
+    document.number !== ""
+  );
+}
+
+/** Issue, sending and export files of one issued invoice (#4693). */
+function BillingDocumentExportHistory({
+  document,
+  onClose,
+}: Readonly<{ document: BillingDocument | null; onClose: () => void }>) {
+  return (
+    // oxlint-disable-next-line ui-kit/slide-over-pending -- zeigt den Verlauf nur an und speichert nichts.
+    <SlideOver
+      open={document !== null}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      {document ? (
+        <SlideOverContent>
+          <SlideOverHeader>
+            <SlideOverTitle>Ausstellung, Versand und Exporte</SlideOverTitle>
+            <SlideOverDescription className="wrap-anywhere">
+              {BILLING_DOCUMENT_KIND_LABELS[document.kind]} {document.number} an{" "}
+              {recipientName(document)}
+            </SlideOverDescription>
+          </SlideOverHeader>
+          <SlideOverBody>
+            <InvoiceExportHistoryCard
+              key={document.id}
+              kind="holiday-documents"
+              invoiceId={document.id}
+              embedded
+            />
+          </SlideOverBody>
+        </SlideOverContent>
+      ) : null}
+    </SlideOver>
+  );
 }
 
 /** The empty letter frame beside the list before a row is chosen. */
@@ -137,9 +272,15 @@ export function BillingRunOverviewCard({
   // Gemerkt wird die Zeile, nicht die Rechnung: nach einer Korrektur zeigt das
   // Panel die neuen Beträge.
   const [shownKey, setShownKey] = useState<string | null>(null);
+  // Below md the table shows its rows stacked, with the row menu in the
+  // row's head (DataTable `stackedOnMobile`).
+  const isPhoneRow = useIsMobile();
+  const [breakdownShown, setBreakdownShown] = useState(false);
   // The issued document whose letter shows beside the list (#5692).
   const [previewId, setPreviewId] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+  // The issued invoice whose history shows in the side panel (#4693).
+  const [historyId, setHistoryId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<BillingRunExportFormat | null>(
     null,
   );
@@ -155,6 +296,12 @@ export function BillingRunOverviewCard({
         (document) => document.id !== "" && document.id === previewId,
       )) ||
     null;
+
+  const historyOf =
+    run.documents.find(
+      (document) =>
+        document.id === historyId && hasExportHistory(released, document),
+    ) ?? null;
 
   // Below xl the letter takes the place of the list; a long list may have
   // scrolled the card's top out of view, so the letter starts in view.
@@ -212,10 +359,13 @@ export function BillingRunOverviewCard({
     if (!released || document.kind !== "invoice" || isCancelled(document)) {
       return [];
     }
-    const items: { label: string; onClick: () => void }[] = [];
+    const items: OverflowMenuItem[] = [];
     if (onCancel && !isCredited(document)) {
       items.push({
         label: "Rechnung stornieren",
+        description:
+          "Öffnet ein Fenster, um die ganze Rechnung mit Begründung zurückzunehmen.",
+        icon: <Undo2 className="size-4" aria-hidden />,
         onClick: () => onCancel(document),
       });
     }
@@ -225,6 +375,9 @@ export function BillingRunOverviewCard({
         if (left <= 0) continue;
         items.push({
           label: `Gutschrift für ${child.firstName}`,
+          description:
+            "Öffnet ein Fenster, um für dieses Kind einen Betrag gutzuschreiben.",
+          icon: <ReceiptText className="size-4" aria-hidden />,
           onClick: () => onCredit(document, child, left),
         });
       }
@@ -257,7 +410,13 @@ export function BillingRunOverviewCard({
               </span>
             ) : null}
             {document.kind === "invoice" && document.payment ? (
-              <InvoicePaymentLine payment={document.payment} />
+              document.totalCents <= 0 ? (
+                <span className="mt-0.5 block text-sm text-gray-600">
+                  Nichts zu zahlen
+                </span>
+              ) : (
+                <InvoicePaymentLine payment={document.payment} />
+              )
             ) : null}
           </span>
         );
@@ -321,6 +480,7 @@ export function BillingRunOverviewCard({
       ),
       sortValue: (document) => document.totalCents,
       stacked: "meta",
+      stackedTone: "figure",
     },
     {
       key: "actions",
@@ -337,23 +497,44 @@ export function BillingRunOverviewCard({
         >
           <OverflowMenu
             ariaLabel={rowMenuLabel(document)}
-            triggerSize="sm"
+            // On a phone the menu sits in the row's head: opened upwards it
+            // leaves the invoice's due date and number in view.
+            preferredSide={isPhoneRow ? "above" : "below"}
             items={[
               {
-                label: "Aufschlüsselung ansehen",
+                label: "Aufschlüsselung zeigen",
+                description:
+                  "Zeigt, wie sich der Betrag für jedes Kind zusammensetzt.",
+                icon: <Eye className="size-4" aria-hidden />,
                 onClick: () => setShownKey(rowKey(document)),
               },
               ...(canPreview && document.id
                 ? [
                     {
                       label: "Schreiben ansehen",
+                      description:
+                        "Zeigt das Schreiben dieser Rechnung als PDF.",
+                      icon: <Eye className="size-4" aria-hidden />,
                       onClick: () => openPreview(document),
+                    },
+                  ]
+                : []),
+              ...(hasExportHistory(released, document)
+                ? [
+                    {
+                      label: "Versand und Exporte ansehen",
+                      description:
+                        "Zeigt, wann die Rechnung ausgestellt, verschickt und exportiert wurde.",
+                      onClick: () => setHistoryId(document.id),
                     },
                   ]
                 : []),
               ...(onCorrect
                 ? document.children.map((child) => ({
                     label: `Betrag für ${child.firstName} korrigieren`,
+                    description:
+                      "Öffnet ein Fenster, um den Betrag mit Begründung zu ändern.",
+                    icon: <Pencil className="size-4" aria-hidden />,
                     onClick: () => onCorrect(document, child),
                   }))
                 : []),
@@ -362,6 +543,9 @@ export function BillingRunOverviewCard({
                 ? [
                     {
                       label: "Schreiben herunterladen",
+                      description:
+                        "Lädt das Schreiben dieser Rechnung als PDF herunter.",
+                      icon: <Download className="size-4" aria-hidden />,
                       onClick: () => onDownloadLetter(document),
                     },
                   ]
@@ -379,6 +563,22 @@ export function BillingRunOverviewCard({
       rows={[...run.documents]}
       getRowKey={rowKey}
       onRowClick={canPreview ? openPreview : undefined}
+      // Before the release one switch shows every row's breakdown in place,
+      // so checking the run needs no menu per row; afterwards a row opens
+      // its letter.
+      renderSubRows={
+        breakdownShown && !canPreview
+          ? (document) =>
+              document.children.length > 0
+                ? [
+                    {
+                      key: `${rowKey(document)}-breakdown`,
+                      content: <InlineBreakdown document={document} />,
+                    },
+                  ]
+                : []
+          : undefined
+      }
       activeRowKey={previewed ? rowKey(previewed) : null}
       rowHasInteractiveControls
       stackedOnMobile
@@ -395,7 +595,7 @@ export function BillingRunOverviewCard({
     <SectionCard
       title="Rechnungen"
       overflow="visible"
-      description={invoicesDescription(released, canPreview)}
+      description={invoicesDescription(released, canPreview, run.documents)}
       actions={
         released && run.documents.length > 0 ? (
           <OverflowMenu
@@ -415,6 +615,26 @@ export function BillingRunOverviewCard({
               },
             })}
           />
+        ) : !canPreview && run.documents.length > 0 ? (
+          // Table only: the phone rows keep the breakdown in their menu.
+          // The label names the next step; a second state attribute would
+          // make screen readers say it twice.
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            className="max-md:hidden"
+            tooltip={
+              breakdownShown
+                ? "Blendet die Beträge je Kind in der Liste wieder aus."
+                : "Zeigt in jeder Zeile die Beträge für jedes Kind."
+            }
+            onClick={() => setBreakdownShown((shown) => !shown)}
+          >
+            {breakdownShown
+              ? "Aufschlüsselung ausblenden"
+              : "Aufschlüsselung zeigen"}
+          </Button>
         ) : null
       }
     >
@@ -444,6 +664,10 @@ export function BillingRunOverviewCard({
         runId={run.id}
         onClose={() => setShownKey(null)}
         onReissue={onReissue}
+      />
+      <BillingDocumentExportHistory
+        document={historyOf}
+        onClose={() => setHistoryId(null)}
       />
     </SectionCard>
   );

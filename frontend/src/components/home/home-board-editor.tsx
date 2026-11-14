@@ -758,6 +758,7 @@ function BlockToolbar({
                 size="md"
                 className="gap-1"
                 onClick={() => onRemove(placement.key)}
+                tooltip="Nimmt diesen Baustein von Ihrer Startseite, sobald Sie speichern."
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Entfernen
@@ -787,6 +788,7 @@ function BlockToolbar({
             size="md"
             className="gap-1"
             onClick={() => setAdding(true)}
+            tooltip="Öffnet die Liste der Bausteine, die Sie hinzufügen können."
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Bausteine
@@ -798,6 +800,7 @@ function BlockToolbar({
             className="whitespace-nowrap"
             disabled={restoring}
             onClick={onRestoreDefault}
+            tooltip="Verwirft Ihre Anordnung sofort und zeigt die empfohlene Startseite."
           >
             Standardansicht wiederherstellen
           </Button>
@@ -838,7 +841,7 @@ function AddBlockModal({
       isOpen={open}
       onClose={onClose}
       title="Baustein hinzufügen"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-3xl"
+      size="lg-wide"
     >
       {addable.length === 0 ? (
         <EmptyState

@@ -6,72 +6,72 @@ import (
 	"net/http"
 	"strings"
 
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
 
-	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
+	birthdaysAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/birthdays"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+	authAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/analytics"
-	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
-	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
-	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
-	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
+	"github.com/moto-ogs/project-phoenix/analytics"
+	appointmentsModule "github.com/moto-ogs/project-phoenix/modules/appointments"
+	carePlanModule "github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	communicationModule "github.com/moto-ogs/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	devicefleetModule "github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	devicefleetCompose "github.com/moto-ogs/project-phoenix/modules/devicefleet/compose"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/modules/emergencysnapshot"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	feedbackModule "github.com/moto-ogs/project-phoenix/modules/feedback"
+	feedbackCompose "github.com/moto-ogs/project-phoenix/modules/feedback/compose"
+	filestorageModule "github.com/moto-ogs/project-phoenix/modules/filestorage"
+	filestorageCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
+	"github.com/moto-ogs/project-phoenix/modules/grouplive"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	mealplanModule "github.com/moto-ogs/project-phoenix/modules/mealplan"
+	mealplanCompose "github.com/moto-ogs/project-phoenix/modules/mealplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/planexport"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	calendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/compose"
+	schoolMembershipModule "github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/supervisiondashboard"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	arrivalTimetable "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/observability"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/workflows/gradetransition"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
+	"github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
 	"github.com/spf13/viper"
 )
 
@@ -272,7 +272,7 @@ func composeServeRoot(
 			return nil
 		},
 		func() (err error) {
-			timetableRows, err = owners.BuildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups, hub)
+			timetableRows, err = owners.BuildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups, hub, persons, people.Students)
 			return
 		},
 		func() (err error) { classArrivals, err = owners.BuildClassArrivals(db, env.Logger); return },
@@ -410,7 +410,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			requests, err = owners.BuildCarePlanRequests(db, env, hub, carePlan, persons, people, schedules, offerings, enrollment,
-				timetableOwner, settings.Service, audit, services, emitter, caller, reviewPolicy, tokens.Permissions, notifications.AbsenceNotifier, documentPermissions)
+				timetableOwner, settings.Service, audit, services, emitter, caller, reviewPolicy, tokens.Permissions, notifications.AbsenceNotifier, owners.NewPickupChangeTeamReach(notifications), documentPermissions, timetableRows.CohortRosters)
 			return
 		},
 		func() (err error) {
@@ -464,7 +464,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			groupLive, err = buildGroupLive(env, presence, services.Users, structureViews, caller, active, settings.Service, schedules,
-				lifecycle, requests, persons)
+				lifecycle, requests, persons, timetableOwner)
 			return
 		},
 		func() (err error) {
@@ -487,7 +487,7 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			facilities, err = owners.BuildFacilitiesModule(db, owners.ObserveFacilities, timetableRows.RecurrenceLock, presence.Presence, requests.CareOfferings)
+			facilities, err = owners.BuildFacilitiesModule(db, owners.ObserveFacilities, timetableRows.RecurrenceLock, presence.Presence, requests.CareOfferings, groups, devices)
 			return
 		},
 		func() (err error) {
@@ -499,7 +499,7 @@ func composeServeRoot(
 			guardianProfiles = peopleCompose.NewGuardianProfileLoader(people.GuardianProfiles, db.Pool(), env.Logger.With("service", "guardian-profile-loader"))
 			birthdays, err = buildBirthdayEntry(db, membership, BirthdayRepositories{Students: people.Students, Staff: people.Staff, Persons: people.Persons},
 				settings.Service, env.Logger.With("service", "birthdays"), nil)
-			dataImports = newServeImports(audit, identity, groups, rooms, persons, carePlan, presence, organizations, membership, workTime, workforce)
+			dataImports = newServeImports(audit, identity, groups, rooms, persons, carePlan, presence, organizations, membership, workTime, workforce, newImportCohorts(offerings.Bookings, timetableRows.CohortRosters))
 			databaseStats = newDatabaseStats(people.Repositories, structure.Groups, facilities, timetableRepos, identity, devices, env.Logger)
 			return err
 		},
@@ -520,18 +520,18 @@ func composeServeRoot(
 	}
 	logger, limiters, tenant, deviceAuth, studentPresence := newServeRouteRuntime(db, env.Logger, iot, organizations, settings.Service, env.Config.RateLimitEnabled)
 	mountPublic(router, metricsToken, db, delivery.Runtime.EmailWebhooks, env.Config.RateLimitEnabled)
-	careOfferings := requests.CareOfferings
+	careOfferings, studentAnswers := requests.CareOfferings, newStudentAnswers()
 	err = owners.RunRootSteps(
 		func() error {
 			return mountDemoAccess(router, authAPI.ComposedDemoAccess(identity.DemoAccess()), viper.GetString("app_env"), config.FrontendURL, viper.GetString("tenant_domain"))
 		},
 		func() error { return mountRequestFeed(router, tenant, db, logger, config.FrontendURL) },
-		func() error { return mountModuleRoutes(tenant, settings.Service) },
+		func() error { return mountModuleRoutes(tenant, settings.Service, caller, studentAnswers) },
 		func() error {
 			return mountStudentRoutes(tenant, db, logger, deviceAuth, studentPresence, persons, services, membership, caller, reviewPolicy,
 				settings.Service, hub, carePlan, carePlanRows.Companions, schedules, requests, planning, emitter, activities,
 				lifecycle, reports, structureViews, organizations, presence.StatusDays, notifications.AbsenceNotifier, studentDeletion,
-				groupLive, enrollmentCompose.PublicDecisions(decisions), active, owners.NewCareResumption(carePlanRows.LifecycleOwners.Students, carePlan, carePlanRows.LifecycleOwners.ChangeTrail, nil, logger.With("service", "care_lifecycle")).Resume)
+				groupLive, enrollmentCompose.PublicDecisions(decisions), active, owners.NewCareResumption(carePlanRows.LifecycleOwners.Students, carePlan, carePlanRows.LifecycleOwners.ChangeTrail, nil, logger.With("service", "care_lifecycle")).Resume, persons.StudentNoteTeam, newStudentNoteTeamReach(people.Staff, notifications), timetableRows.CohortRosters, studentAnswers)
 		},
 		func() error {
 			return mountPresenceRoutes(tenant, db, logger, config.SentryPyrePortalDSN, deviceAuth, studentPresence, active, facilities,
@@ -540,13 +540,13 @@ func composeServeRoot(
 				feedback, organizations, identity)
 		},
 		func() error {
-			return mountStaffRoutes(router, tenant, db, logger, membership, workTime, services.Users, staffAdmin, workforce, shifts,
+			return mountStaffRoutes(router, tenant, db, logger, membership, workTime, workTime, workTime, services.Users, staffAdmin, workforce, shifts,
 				structureViews.Education, structureViews.Substitution, persons, settings.Service, hub, identity, caller, calendarAdmin)
 		},
 		func() error {
 			return mountSchoolPortalRoutes(router, tenant, db, logger, limiters, studentPresence, timetableOwner, calendarAdmin,
 				materialization, lifecycle, planning, timetableRows.PlanningTracks, services.Users, schedules, caller, settings.Service,
-				careOfferings, planExport, chat, persons, notifications, deliveryDevices, classDay, identity, calendarApp, announcements)
+				careOfferings, planExport, chat, persons, notifications, deliveryDevices, classDay, identity, calendarApp, announcements, workTime)
 		},
 		func() error {
 			enrollmentResource := newEnrollmentResource(logger, settings.Service, config.Turnstile, careOfferings, flows, phases,

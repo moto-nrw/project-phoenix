@@ -7,11 +7,11 @@ status: historical
 > Historical record since the [amendment of 2026-10-23](#amendment-of-2026-10-23):
 > the gate, its records and `validate-ticket` are removed.
 
-The design interview for [#3415](https://github.com/moto-nrw/project-phoenix/issues/3415)
+The design interview for [#3415](https://github.com/moto-ogs/project-phoenix/issues/3415)
 settled the following contract, confirmed on 2026-09-19. Acceptance records
 the agreed design, not implementation authorization. This record does not
 claim that the validator implements the contract or that
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580) has been updated.
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580) has been updated.
 
 ## Settled decisions
 
@@ -172,7 +172,7 @@ forced edits to historical records whose evidence sources point at files.
 The per-ticket records under `backend/architecture/`, both templates,
 `runtime-checkpoints.json`, the `validate-ticket` command and its CI step are
 removed. The records stay readable at commit
-[`46506b00c6`](https://github.com/moto-nrw/project-phoenix/tree/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture).
+[`46506b00c6`](https://github.com/moto-ogs/project-phoenix/tree/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture).
 The measurements remain in `docs/runtime-checkpoints/`, and the runtime
 measurement helper in `backend/test/runtime_checkpoint.go` is unchanged.
 

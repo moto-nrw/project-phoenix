@@ -145,6 +145,7 @@ export function ChildMasterDataRequestModal({
             size="md"
             className="hidden sm:inline-flex"
             disabled={submitting}
+            noTooltip="Schließt den Dialog, ohne etwas zu senden."
             onClick={onClose}
           >
             {t("identityModal.cancel")}
@@ -155,6 +156,7 @@ export function ChildMasterDataRequestModal({
             className="w-full sm:w-auto"
             isLoading={submitting}
             loadingText={t("identityModal.submitting")}
+            tooltip={t("identityModal.submitTooltip")}
             onClick={() => void submit()}
           >
             {t("identityModal.submit")}
@@ -219,7 +221,7 @@ export function ChildMasterDataRequestModal({
               monthYearNavigation
               max={todayISO()}
               calendarLayout="popover"
-              controlSize="md"
+              controlSize="compact"
             />
           </ModalField>
           <ModalField

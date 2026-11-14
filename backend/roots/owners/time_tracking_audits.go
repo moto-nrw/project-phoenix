@@ -4,9 +4,9 @@ import (
 	"context"
 	"slices"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	audit "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // workSessionEditTrail is the Audit Platform's trail of work-session edits.

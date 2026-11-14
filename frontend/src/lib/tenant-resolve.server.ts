@@ -41,6 +41,7 @@ export interface TenantResolveResponse {
   early_checkout_note_tolerance_minutes?: number;
   weekend_follows_friday?: boolean;
   child_search_only_navigation?: boolean;
+  simple_staff_navigation?: boolean;
   care_facility_term?: string;
 }
 

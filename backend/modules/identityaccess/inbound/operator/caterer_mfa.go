@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // CatererMFA is the operator's recovery of a caterer's second factor
@@ -96,7 +96,7 @@ func (rs *CatererMFAResource) ResetCatererMFA(w http.ResponseWriter, r *http.Req
 	case errors.Is(err, identityaccess.ErrCatererMFAResetReasonRequired):
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 	case errors.Is(err, identityaccess.ErrOperatorAuditUnavailable):
-		common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable"))
+		common.RenderError(w, r, operatorAuditUnavailable())
 	default:
 		common.RenderError(w, r, common.OperatorInternal("caterer MFA reset failed"))
 	}

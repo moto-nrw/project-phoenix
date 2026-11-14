@@ -80,6 +80,7 @@ export function OpenRequestsBlock() {
         <HomeCardLink
           href={tenantPath("/anfragen")}
           label="Offene Anfragen: alle ansehen"
+          tooltip="Öffnet die Liste aller offenen Anfragen."
         >
           Alle ansehen
         </HomeCardLink>

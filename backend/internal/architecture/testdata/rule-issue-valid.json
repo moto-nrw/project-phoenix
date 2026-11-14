@@ -64,7 +64,7 @@
       "source_role": "application",
       "target_role": "domain",
       "same_owner": true,
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/2736"
     }
   ]
 }

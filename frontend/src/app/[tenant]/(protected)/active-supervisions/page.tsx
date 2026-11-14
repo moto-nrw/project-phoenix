@@ -106,6 +106,10 @@ import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
 import {
+  ADD_SUPERVISOR_HINT,
+  REOPEN_TOOLTIP,
+} from "~/components/active-supervisions/supervision-action-hints";
+import {
   HandOverSupervisionButton,
   HandOverSupervisionModal,
 } from "~/components/active-supervisions/hand-over-supervision-modal";
@@ -475,6 +479,7 @@ function MeinRaumPageContent() {
         variant="outline"
         size="md"
         onClick={() => schulhof.setShowReleaseModal(true)}
+        tooltip="Beendet Ihre Aufsicht auf dem Schulhof. moto fragt vorher nach."
       >
         Aufsicht abgeben
       </Button>
@@ -514,6 +519,7 @@ function MeinRaumPageContent() {
             isLoading={actions.isReopeningInstance}
             loadingText="Wird zurückgenommen…"
             onClick={() => void actions.handleReopenTimetableInstance()}
+            tooltip={REOPEN_TOOLTIP}
           >
             Rückgängig
           </Button>
@@ -559,6 +565,7 @@ function MeinRaumPageContent() {
       ? [
           {
             label: "Betreuer hinzufügen",
+            description: ADD_SUPERVISOR_HINT,
             icon: <UserPlus className="h-4 w-4" aria-hidden="true" />,
             onClick: () =>
               setAddSupervisorTarget(additionalSupervisionActiveGroupId),
@@ -603,6 +610,11 @@ function MeinRaumPageContent() {
       <SchulhofSuperviseButton
         isToggling={schulhof.isTogglingSchulhof}
         disabled={superviseDisabled}
+        disabledReason={
+          spontaneousStartBlockedReason
+            ? "Den Schulhof können Sie nur montags bis freitags beaufsichtigen."
+            : undefined
+        }
         onToggle={() => schulhof.handleToggleSchulhof().catch(() => undefined)}
       />
     ) : null;
@@ -851,12 +863,10 @@ function MeinRaumPageContent() {
         hasHeadActions || tableApplies ? (
           <>
             {tableApplies ? (
-              <div data-icon-only="">
-                <CollectionViewSwitch
-                  value={collectionView.view}
-                  onChange={changeView}
-                />
-              </div>
+              <CollectionViewSwitch
+                value={collectionView.view}
+                onChange={changeView}
+              />
             ) : null}
             {/* Die Abzeichen sind eine Zeile: das Gerüst gibt unter sm jedem
                 Kopf-Element eine eigene volle Zeile, zwei gestreckte Pillen

@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 type phaseExpiryCarePlanDirectory struct{ query careplan.Query }

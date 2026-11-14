@@ -8,8 +8,8 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // careModuleHorizon is how far back and ahead the price list looks for
@@ -528,10 +528,15 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	}
 	// After the rule chain: the chain counts the family by the address of
 	// the registration, the payer only receives the invoice (#4689).
-	payments, err := readInvoicePayments(ctx, c.store, organizationID, run.ID, 0)
+	scope, err := debtorNumberScopeOf(ctx, c.settings, organizationID)
 	if err != nil {
 		return rule, month, err
 	}
+	payments, err := readInvoicePayments(ctx, c.store, organizationID, run.ID, 0, scope, false)
+	if err != nil {
+		return rule, month, err
+	}
+	payments.contractChildren = contractChildKeys(in.versions)
 	// The Mensa joins after the chain: no rule reduces it (ADR 0168). Its
 	// terms say on whose invoice it travels (ADR 0167). The shares that
 	// cover the Mensa take their part of it there (ADR 0168 point 12).
@@ -550,6 +555,7 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 		payments.careInvoice(&month.invoices[i], issuedOn)
 	}
 	month.dueDates, month.deviations, month.mandates = payments.run, payments.deviationsRead(), payments.mandatesRead()
+	month.childNumbers = payments.childNumbersRead()
 	return rule, month, nil
 }
 
@@ -639,7 +645,7 @@ func (c *CareBilling) releasedDetail(ctx context.Context, organizationID int64, 
 	detail.Duplicates = holdView(holds)
 	detail.DocumentKind = issuedCareDocumentKind(invoices)
 	// The dates of the release, which its invoices copied.
-	payments, err := readInvoicePayments(ctx, c.store, organizationID, detail.ID, 0)
+	payments, err := readInvoicePayments(ctx, c.store, organizationID, detail.ID, 0, parentbilling.DebtorNumberScopePayer, false)
 	if err != nil {
 		return err
 	}

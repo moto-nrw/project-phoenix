@@ -124,7 +124,13 @@ export function StaffPreviewModal({ isOpen, onClose }: StaffPreviewModalProps) {
       title="Ansicht eines Mitarbeitenden"
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" size="md" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
+          >
             Abbrechen
           </Button>
           <Button
@@ -133,8 +139,10 @@ export function StaffPreviewModal({ isOpen, onClose }: StaffPreviewModalProps) {
             size="md"
             onClick={() => void handleStart()}
             disabled={!selectedId || isStarting}
+            disabledReason="Wählen Sie zuerst eine Person aus."
             isLoading={isStarting}
             loadingText="Wird gestartet …"
+            tooltip="Zeigt moto so, wie diese Person es sieht, nur zum Lesen."
           >
             Vorschau starten
           </Button>

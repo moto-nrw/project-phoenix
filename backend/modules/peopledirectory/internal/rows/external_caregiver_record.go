@@ -1,7 +1,7 @@
 package users
 
 import (
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ExternalCaregiverRecord is one users.external_caregivers row (ADR 0091).

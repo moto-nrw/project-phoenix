@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -22,19 +22,15 @@ import (
 // This schema-shaped fixture gives EVERY catalog table two actual rows, even
 // tables whose business fixtures are normally empty. A second migrated-schema
 // test below checks that the executor also runs against the real migrations.
+//
+// The schema is built once per test binary into a package-local template;
+// each test gets its own clone of it and may change it (#6962).
 func exportFixture(t *testing.T) (*bun.DB, organizationtenancy.DataLifecycleCatalog, int64, int64) {
 	t.Helper()
-	db := testpkg.SetupIsolatedTestDB(t)
-	a, _ := testpkg.CreateTestTenant(t, db)
-	b, _ := testpkg.CreateTestTenant(t, db)
-	data, err := organizationtenancy.DataLifecycleCatalogSource.ReadFile("data_lifecycle_catalog.json")
+	db := testpkg.SetupIsolatedTestDBFrom(t, exportSchemaTemplate)
+	a, b := testpkg.UniqueTestTenantID(t), testpkg.UniqueTestTenantID(t)
+	catalog, err := readExportCatalog()
 	require.NoError(t, err)
-	var catalog organizationtenancy.DataLifecycleCatalog
-	require.NoError(t, json.Unmarshal(data, &catalog))
-	resetExportSchema(t, db, catalog)
-	for _, table := range catalog.Tables {
-		createExportFixtureTable(t, db, table)
-	}
 	for _, table := range catalog.Tables {
 		for _, school := range []int64{a, b} {
 			insertExportFixtureRow(t, db, table, school)
@@ -43,20 +39,50 @@ func exportFixture(t *testing.T) (*bun.DB, organizationtenancy.DataLifecycleCata
 	return db, catalog, a, b
 }
 
-func resetExportSchema(t *testing.T, db *bun.DB, catalog organizationtenancy.DataLifecycleCatalog) {
-	t.Helper()
+// exportSchemaTemplate replaces every catalog schema of a migrated clone
+// with the fixture tables.
+var exportSchemaTemplate = testpkg.NewIsolatedTemplate("export-fixture-schema", func(ctx context.Context, db *bun.DB) error {
+	catalog, err := readExportCatalog()
+	if err != nil {
+		return err
+	}
+	if err := resetExportSchema(ctx, db, catalog); err != nil {
+		return err
+	}
+	for _, table := range catalog.Tables {
+		if err := createExportFixtureTable(ctx, db, table); err != nil {
+			return err
+		}
+	}
+	return nil
+})
+
+func readExportCatalog() (organizationtenancy.DataLifecycleCatalog, error) {
+	var catalog organizationtenancy.DataLifecycleCatalog
+	data, err := organizationtenancy.DataLifecycleCatalogSource.ReadFile("data_lifecycle_catalog.json")
+	if err != nil {
+		return catalog, err
+	}
+	return catalog, json.Unmarshal(data, &catalog)
+}
+
+func resetExportSchema(ctx context.Context, db *bun.DB, catalog organizationtenancy.DataLifecycleCatalog) error {
 	schemas := map[string]bool{}
 	for _, table := range catalog.Tables {
 		schemas[strings.Split(table.Name, ".")[0]] = true
 	}
 	for schema := range schemas {
-		_, err := db.ExecContext(t.Context(), "DROP SCHEMA "+exportIdent(schema)+" CASCADE")
-		require.NoError(t, err)
-		_, err = db.ExecContext(t.Context(), "CREATE SCHEMA "+exportIdent(schema))
-		require.NoError(t, err)
-		_, err = db.ExecContext(t.Context(), "GRANT USAGE ON SCHEMA "+exportIdent(schema)+" TO phoenix_admin")
-		require.NoError(t, err)
+		for _, statement := range []string{
+			"DROP SCHEMA " + exportIdent(schema) + " CASCADE",
+			"CREATE SCHEMA " + exportIdent(schema),
+			"GRANT USAGE ON SCHEMA " + exportIdent(schema) + " TO phoenix_admin",
+		} {
+			if _, err := db.ExecContext(ctx, statement); err != nil {
+				return fmt.Errorf("%s: %w", statement, err)
+			}
+		}
 	}
+	return nil
 }
 
 func exportIdent(value string) string { return `"` + strings.ReplaceAll(value, `"`, `""`) + `"` }
@@ -103,17 +129,21 @@ func exportFixtureColumns(table organizationtenancy.LifecycleTable) map[string]s
 	return columns
 }
 
-func createExportFixtureTable(t *testing.T, db *bun.DB, table organizationtenancy.LifecycleTable) {
-	t.Helper()
+func createExportFixtureTable(ctx context.Context, db *bun.DB, table organizationtenancy.LifecycleTable) error {
 	definitions := []string{}
 	for name, typ := range exportFixtureColumns(table) {
 		definitions = append(definitions, exportIdent(name)+" "+typ)
 	}
 	slices.Sort(definitions)
-	_, err := db.ExecContext(t.Context(), "CREATE TABLE "+table.Name+" ("+strings.Join(definitions, ",")+")")
-	require.NoError(t, err)
-	_, err = db.ExecContext(t.Context(), "GRANT SELECT ON "+table.Name+" TO phoenix_admin")
-	require.NoError(t, err)
+	for _, statement := range []string{
+		"CREATE TABLE " + table.Name + " (" + strings.Join(definitions, ",") + ")",
+		"GRANT SELECT ON " + table.Name + " TO phoenix_admin",
+	} {
+		if _, err := db.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("%s: %w", statement, err)
+		}
+	}
+	return nil
 }
 
 func insertExportFixtureRow(t *testing.T, db *bun.DB, table organizationtenancy.LifecycleTable, school int64) {

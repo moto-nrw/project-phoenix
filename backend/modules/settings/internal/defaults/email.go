@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // Tenant mail identity (#1936). Answers to tenant-bound e-mail must reach the

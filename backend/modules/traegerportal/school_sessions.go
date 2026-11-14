@@ -8,9 +8,9 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // The Absprung into a school of the Träger (ADR 0084 section 5, #4654). The
@@ -85,6 +85,12 @@ var schoolSessionErrorRules = []common.ErrorRule{
 	// the refusal as an ended session.
 	{Target: identityaccess.ErrInvalidToken, Render: func(err error) render.Renderer {
 		return common.ErrorForbiddenWithCode(errors.New("the Absprung requires a live Träger session with a second factor; sign in again"), common.CodeTraegerSecondFactorRequired)
+	}},
+	// The school switched remembered devices off and the Träger session
+	// proved its factor only by one (#6955): the person signs in to the
+	// Träger-Portal again with a code; the Träger session itself stays valid.
+	{Target: identityaccess.ErrSchoolRequiresCodeProof, Render: func(err error) render.Renderer {
+		return common.ErrorForbiddenWithCode(err, common.CodeTraegerSchoolRequiresCode)
 	}},
 	{Target: identityaccess.ErrAccountInactive, Render: func(err error) render.Renderer {
 		return common.ErrorUnauthorizedWithCode(err, common.CodeIdentitySessionAccountInactive)

@@ -1,5 +1,6 @@
 {
   "title": "Die Seite konnte nicht angezeigt werden",
   "object": "die Seite",
-  "home": "Zur Startseite"
+  "home": "Zur Startseite",
+  "homeTooltip": "Öffnet die Startseite der Eltern-App."
 }

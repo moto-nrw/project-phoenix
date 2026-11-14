@@ -3,9 +3,9 @@ package owners
 import (
 	"context"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	audit "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
 )
 
 type deletionAudit struct {

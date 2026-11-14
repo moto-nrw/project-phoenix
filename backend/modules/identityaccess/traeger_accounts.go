@@ -3,6 +3,7 @@ package identityaccess
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -33,7 +34,15 @@ var (
 	// ErrTraegerInvalidEmail reports an invitation address that cannot
 	// receive mail.
 	ErrTraegerInvalidEmail = errors.New("invalid e-mail address")
+	// ErrTraegerInvalidName reports a name of a Träger-Büro person that is
+	// empty after trimming, longer than TraegerMemberNameMaxLength
+	// characters or holds a control character (#4693).
+	ErrTraegerInvalidName = errors.New("invalid name")
 )
+
+// TraegerMemberNameMaxLength is the longest name of a Träger-Büro person, in
+// characters.
+const TraegerMemberNameMaxLength = 100
 
 // TraegerActor is the person acting in the Träger-Portal: the account and
 // the Träger of the session.
@@ -42,10 +51,12 @@ type TraegerActor struct {
 	AccountID      int64
 }
 
-// TraegerMember is an active person of the Träger-Büro with its roles.
+// TraegerMember is an active person of the Träger-Büro with its roles and
+// the name the person carries at this Träger (#4693), empty until set.
 type TraegerMember struct {
 	AccountID   int64
 	Email       string
+	Name        string
 	Roles       []string
 	ActivatedAt *time.Time
 }
@@ -84,10 +95,12 @@ type TraegerInvitationPreview struct {
 	ExpiresAt                time.Time
 }
 
-// TraegerInvitationAcceptance is what the invitee supplies: the password of
-// the existing account, or a new password twice. IPAddress and UserAgent
-// reach the login's record of a refused password.
+// TraegerInvitationAcceptance is what the invitee supplies: the name the
+// colleagues see (#4693), the password of the existing account, or a new
+// password twice. IPAddress and UserAgent reach the login's record of a
+// refused password.
 type TraegerInvitationAcceptance struct {
+	Name            string
 	Password        string
 	ConfirmPassword string
 	IPAddress       string
@@ -101,13 +114,16 @@ type TraegerAccountChange struct {
 	Action          string
 	TargetAccountID *int64
 	TargetEmail     *string
-	RolesBefore     []string
-	RolesAfter      []string
+	// TargetName is the name a name change or an acceptance set (#4693).
+	TargetName  *string
+	RolesBefore []string
+	RolesAfter  []string
 }
 
 // TraegerAccountHistoryEntry is one change of the Träger-Büro as its history
 // shows it (#5474): who did what, when, to whom, with the roles before and
-// after. ActorEmail is empty for an account erased since.
+// after. ActorEmail is empty for an account erased since. TargetName is the
+// name a name change or an acceptance set (#4693).
 type TraegerAccountHistoryEntry struct {
 	ID              int64
 	OccurredAt      time.Time
@@ -116,6 +132,7 @@ type TraegerAccountHistoryEntry struct {
 	ActorEmail      string
 	TargetAccountID *int64
 	TargetEmail     string
+	TargetName      string
 	RolesBefore     []string
 	RolesAfter      []string
 }
@@ -155,15 +172,16 @@ const (
 	TraegerAccountRolesChanged       = "roles_changed"
 	TraegerAccountMemberRemoved      = "member_removed"
 	TraegerAccountMembersListed      = "members_listed"
+	TraegerAccountNameChanged        = "name_changed"
 )
 
 // TraegerAccountManagement serves the Träger-Büro account routes. Role sets
 // are validated against the Träger roles; an empty set is invalid. A change
 // that would leave the Träger-Büro without a person holding the role
 // Leitung is refused with ErrTraegerLastLeader; only a person with
-// Leitung grants, withdraws or removes Leitung (#5471). Changed roles reach
-// a session at its next refresh; a removal ends the person's Träger sessions
-// at once.
+// Leitung grants, withdraws or removes Leitung (#5471). Added roles reach
+// a session at its next refresh; a withdrawn role (TraegerRolesWithdrawn) and
+// a removal end the person's Träger sessions at once (#6850).
 type TraegerAccountManagement interface {
 	ListTraegerBuero(ctx context.Context, actor TraegerActor) (TraegerBuero, error)
 	InviteTraegerAccount(ctx context.Context, actor TraegerActor, email string, roles []string) (TraegerInvitation, error)
@@ -176,6 +194,21 @@ type TraegerAccountManagement interface {
 	PreviewTraegerInvitation(ctx context.Context, token string) (TraegerInvitationPreview, error)
 	// AcceptTraegerInvitation returns the address the invitee signs in with.
 	AcceptTraegerInvitation(ctx context.Context, token string, acceptance TraegerInvitationAcceptance) (string, error)
+}
+
+// TraegerMemberProfiles names the people of the Träger-Büro (#4693). The
+// name belongs to the membership at the Träger of the session and is what
+// colleagues see in the account list, the export protocol and the history of
+// an invoice, without the address. A person with "Konten verwalten" names an
+// active colleague (ChangeTraegerMemberName, ErrTraegerMemberNotFound for
+// anyone else); every active member reads and names themselves without that
+// right. Each change is written to the ledger as name_changed with the new
+// name. A name is trimmed and must hold 1 to TraegerMemberNameMaxLength
+// characters without control characters (ErrTraegerInvalidName).
+type TraegerMemberProfiles interface {
+	ChangeTraegerMemberName(ctx context.Context, actor TraegerActor, accountID int64, name string) (TraegerMember, error)
+	OwnTraegerProfile(ctx context.Context, actor TraegerActor) (TraegerMember, error)
+	ChangeOwnTraegerName(ctx context.Context, actor TraegerActor, name string) (TraegerMember, error)
 }
 
 // TraegerOperatorInvitation lets the moto team invite a person into a
@@ -201,4 +234,10 @@ type TraegerOperatorInvitation interface {
 	ListTraegerInvitationsForOperator(ctx context.Context, organizationID int64) ([]TraegerInvitation, error)
 	ResendTraegerInvitationForOperator(ctx context.Context, organizationID, invitationID int64) (TraegerInvitation, error)
 	RevokeTraegerInvitationForOperator(ctx context.Context, organizationID, invitationID int64) (TraegerInvitation, error)
+}
+
+// TraegerRolesWithdrawn tells whether after lacks a role of before: the
+// change takes a right away from the person (#6850).
+func TraegerRolesWithdrawn(before, after []string) bool {
+	return slices.ContainsFunc(before, func(role string) bool { return !slices.Contains(after, role) })
 }

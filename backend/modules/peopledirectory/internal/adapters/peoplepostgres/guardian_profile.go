@@ -10,9 +10,9 @@ import (
 
 	"github.com/uptrace/bun"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	users "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 // Error messages (S1192 - avoid duplicate string literals)

@@ -174,12 +174,12 @@ it("names each school of a release once the schools are loaded", async () => {
 
   expect(
     await screen.findByRole("button", {
-      name: "Freigabe zurücknehmen: OGS Nord",
+      name: "Freigabe zurücknehmen: OGS-Leitung: OGS Nord",
     }),
   ).toBeInTheDocument();
   expect(
     screen.getByRole("button", {
-      name: "Freigabe zurücknehmen: OGS Süd",
+      name: "Freigabe zurücknehmen: OGS-Leitung: OGS Süd",
     }),
   ).toBeInTheDocument();
 });
@@ -197,8 +197,12 @@ it("deletes the document after naming every release that ends", async () => {
     within(dialog).getByText("Diese Freigaben enden sofort"),
   ).toBeInTheDocument();
   const releases = within(dialog).getByRole("list");
-  expect(within(releases).getByText("OGS Nord")).toBeInTheDocument();
-  expect(within(releases).getByText("OGS Süd")).toBeInTheDocument();
+  expect(
+    within(releases).getByText("OGS-Leitung: OGS Nord"),
+  ).toBeInTheDocument();
+  expect(
+    within(releases).getByText("OGS-Leitung: OGS Süd"),
+  ).toBeInTheDocument();
   expect(
     within(dialog).getByText(
       /Auch ein gespeicherter Link öffnet es nicht mehr/,

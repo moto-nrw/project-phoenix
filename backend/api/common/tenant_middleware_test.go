@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -524,4 +525,42 @@ func (w *statusRecordingResponseWriter) WriteHeader(status int) {
 
 func (w *statusRecordingResponseWriter) Write(body []byte) (int, error) {
 	return w.body.Write(body)
+}
+
+// A begin or commit that fails because the client went away is no server
+// error: 499 instead of a cause-less 500, so Sentry gets no event (BACKEND-1B).
+func TestTenantTxMiddlewareAnswersClientCanceledTransactionWith499(t *testing.T) {
+	t.Parallel()
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name         string
+		cancelClient bool
+		wantStatus   int
+		wantCode     string
+	}{
+		{name: "client canceled", cancelClient: true, wantStatus: statusClientClosedRequest, wantCode: CodeGeneralUnavailable},
+		{name: "server-side cancellation", wantStatus: http.StatusInternalServerError, wantCode: "general.server"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			runtime := testRuntime(t, func(context.Context, int64, func(context.Context, any) error) error {
+				return fmt.Errorf("begin transaction: %w", context.Canceled)
+			})
+			ctx, cancel := context.WithCancel(tenant.WithUnitOfWork(tenant.WithTenant(context.Background(), id), runtime))
+			defer cancel()
+			if tc.cancelClient {
+				cancel()
+			}
+			handler := TenantTxMiddleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Fatal("handler must not run without a transaction")
+			}))
+			recorder := httptest.NewRecorder()
+
+			handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/rooms", nil).WithContext(ctx))
+
+			assert.Equal(t, tc.wantStatus, recorder.Code, recorder.Body.String())
+			assert.Contains(t, recorder.Body.String(), `"code":"`+tc.wantCode+`"`)
+		})
+	}
 }

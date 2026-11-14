@@ -12,7 +12,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import Link from "~/components/ui/navigation-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
@@ -134,6 +134,8 @@ export function CareTimeOverrunsSection({
     { kind: "header", label: "Exportieren" },
     ...EXPORT_FORMATS.map(({ format, label, Icon }) => ({
       label: exporting === format ? "Wird exportiert…" : label,
+      description:
+        "Lädt die Liste für den gewählten Zeitraum und Filter herunter",
       icon: <Icon className="h-4 w-4" aria-hidden />,
       onClick: () => void downloadExport(format),
       disabled: !data || exporting !== null,

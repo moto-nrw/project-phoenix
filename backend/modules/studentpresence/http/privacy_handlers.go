@@ -8,9 +8,9 @@ import (
 	time "time"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // errPrivacyConsentsUnavailable is the bare-Resource outcome: without the

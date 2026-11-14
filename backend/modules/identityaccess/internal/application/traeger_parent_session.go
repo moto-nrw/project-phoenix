@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // Parent session at a Träger (ADR 0216 point 7). An account set up through
@@ -15,7 +15,8 @@ import (
 // (auth.traeger_parent_access). The parent sign-in opens its session only
 // when no guardian school that books Eltern-App opens the ordinary one. The
 // session names the Träger and no school, like the Träger session (ADR 0084),
-// carries no rights, follows no school's module booking and no second factor.
+// carries no rights and follows no school's module booking. It follows the
+// account's own second factor like every parent session (#7051).
 // Every mint, refresh and validation reads the access and the Träger again;
 // without either the session ends.
 
@@ -36,9 +37,7 @@ var traegerParentPolicy = sessionPolicy{
 		claims.OrgID = b.orgID
 		return claims, nil
 	},
-	keptAt: func(*AccountAuthentication, sessionBinding) successorTenant {
-		return func(context.Context, int64, domain.AccountSession) (int64, error) { return 0, nil }
-	},
+	keptAt: keptAtNoSchool,
 }
 
 // requireTraegerParentAccess: the account holds parents-portal access at the
@@ -76,17 +75,11 @@ func (s *AccountAuthentication) liveTraeger(ctx context.Context, organizationID 
 	return len(live) > 0, err
 }
 
-// traegerParentOrganizations returns the active Träger the account holds
-// parents-portal access at, oldest access first, read inside an
-// administrative transaction.
-func (s *AccountAuthentication) traegerParentOrganizations(ctx context.Context, accountID int64) ([]identityaccess.TraegerOrganization, error) {
-	return liveTraegerParentOrganizations(ctx, s, accountID)
-}
-
 // liveTraegerParentOrganizations reads the active Träger the account holds
-// parents-portal access at, oldest access first; without the Träger
-// directory there are none. The sign-in and the acceptance mail's check of a
-// parent account (HasTraegerParentAccess) share it.
+// parents-portal access at, oldest access first, inside an administrative
+// transaction; without the Träger directory there are none. The sign-in
+// and the acceptance mail's check of a parent account
+// (HasTraegerParentAccess) share it.
 func liveTraegerParentOrganizations(ctx context.Context, s *AccountAuthentication, accountID int64) ([]identityaccess.TraegerOrganization, error) {
 	if s.traeger == nil {
 		return nil, nil
@@ -103,40 +96,25 @@ func liveTraegerParentOrganizations(ctx context.Context, s *AccountAuthenticatio
 	return organizations, err
 }
 
-// issueTraegerParentTokens mints the parent session at the first active
-// Träger the account holds access at; found is false when there is none.
-func (s *AccountAuthentication) issueTraegerParentTokens(ctx context.Context, account domain.LoginAccount, email, ipAddress, userAgent string) (string, string, bool, error) {
-	organizations, err := s.traegerParentOrganizations(ctx, account.ID)
-	if err != nil {
-		return "", "", false, failed("parent login: read Träger access", err)
-	}
-	if len(organizations) == 0 {
-		return "", "", false, nil
-	}
-	minted, err := s.mintAccountSession(ctx, mintRequest{
-		portal: domain.PortalParent, account: account, email: email, orgID: organizations[0].ID,
-		op:    "parent login",
-		audit: s.schoollessAudit(ctx, account.ID, domain.AuthEventLogin, ipAddress, userAgent),
-	})
-	return minted.accessToken, minted.refreshToken, true, err
-}
-
 // hasTraegerParentAccess reports whether the parents portal serves the
 // account at an active Träger; the password reset sends it the parents link.
 func (s *AccountAuthentication) hasTraegerParentAccess(ctx context.Context, accountID int64) (bool, error) {
-	organizations, err := s.traegerParentOrganizations(ctx, accountID)
+	organizations, err := liveTraegerParentOrganizations(ctx, s, accountID)
 	return len(organizations) > 0, err
 }
 
-// schoollessAudit files the event of a session without a school at the
-// account's default school; the authentication ledger is school-scoped, and
-// an account set up for a holiday registration may have none.
+// schoollessAudit files the event of a session kept at no school (a Träger
+// session, ADR 0084; a parent session at a Träger, ADR 0216) at the account's
+// default school: the authentication ledger is school-scoped. An account
+// without a school, like a person who works only in the Träger-Büro, has no
+// ledger to file it in, so the event is only logged.
 func (s *AccountAuthentication) schoollessAudit(ctx context.Context, accountID int64, event, ipAddress, userAgent string) *mintAudit {
-	if _, _, err := s.resolveAccountTenantDefault(ctx, accountID); err != nil {
-		s.logger.Info("parent session at a Träger without a school ledger",
+	schoolID, _, err := s.resolveAccountTenantDefault(ctx, accountID)
+	if err != nil {
+		s.logger.Info("session without a school ledger",
 			slog.Int64("account_id", accountID),
 			slog.String("event_type", event))
 		return nil
 	}
-	return &mintAudit{event: event, ipAddress: ipAddress, userAgent: userAgent}
+	return &mintAudit{event: event, ipAddress: ipAddress, userAgent: userAgent, schoolID: schoolID}
 }

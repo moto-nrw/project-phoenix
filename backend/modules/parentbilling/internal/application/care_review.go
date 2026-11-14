@@ -9,8 +9,8 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The review of a monthly run before its release (#5916, ADR 0119
@@ -88,7 +88,7 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[parentbillin
 	review := reviewedMonth{careMonth: careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{},
 		duplicates: []parentbilling.CareDuplicate{}, mealGaps: []parentbilling.CareMealGap{},
 		mealUnbilled: []parentbilling.CareMealUnbilled{}, mealChanged: []parentbilling.CareMealChanged{}, dueDates: month.dueDates, deviations: month.deviations,
-		mandates: month.mandates},
+		mandates: month.mandates, childNumbers: month.childNumbers},
 		excluded: []parentbilling.CareInvoice{}}
 	review.uncounted = uncountedInRun(month.uncountedSchools, inRun)
 	review.billed = countInRun(month.billedBySchool, inRun)
@@ -455,6 +455,10 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	}
 	// So are the masked accounts of the SEPA mandates (#4695).
 	if err := recordMandateReads(ctx, c.store, reviewer, review.mandates); err != nil {
+		return err
+	}
+	// And the debtor numbers of the children (#7007).
+	if err := recordChildNumberReads(ctx, c.store, reviewer, review.childNumbers); err != nil {
 		return err
 	}
 	detail.DueDates = review.dueDates.InPaymentOrder()

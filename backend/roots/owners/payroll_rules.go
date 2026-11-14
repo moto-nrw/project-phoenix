@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // payrollRuleAudit binds Workforce's payroll rule audit (#4807) to the

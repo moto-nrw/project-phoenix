@@ -1,8 +1,6 @@
 "use client";
 
-import { useId } from "react";
-
-import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { FieldShell, useFieldIds } from "~/components/ui/field-shell";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { cn } from "~/lib/utils";
 
@@ -51,16 +49,12 @@ export function WeekdayToggleGroup<T extends string | number>({
   name?: string;
   error?: string;
 }>) {
-  const hintId = `${useId()}-hint`;
-  const errorId = `${useId()}-error`;
-  const describedBy =
-    [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ") ||
-    undefined;
+  const ids = useFieldIds({ hint, error });
   const group = (
     <fieldset
       aria-label={ariaLabel}
       aria-invalid={error ? true : undefined}
-      aria-describedby={describedBy}
+      aria-describedby={ids.describedBy}
       className="flex w-full min-w-0 flex-wrap gap-1.5"
     >
       {days.map((day) => (
@@ -81,20 +75,14 @@ export function WeekdayToggleGroup<T extends string | number>({
     </fieldset>
   );
 
-  if (!hint && !error && !name) return group;
-
+  // Die Gruppe trägt ihren Namen selbst (`aria-label`); eine Beschriftung
+  // darüber hat sie nicht.
   return (
-    <div>
+    <FieldShell ids={ids} keepWrapper={Boolean(name)} hint={hint} error={error}>
       {name ? (
         <input type="hidden" name={name} value={value.join(",")} />
       ) : null}
       {group}
-      {hint ? (
-        <p id={hintId} className="mt-1 text-xs text-gray-600">
-          {hint}
-        </p>
-      ) : null}
-      <FieldErrorHint id={errorId} message={error} />
-    </div>
+    </FieldShell>
   );
 }

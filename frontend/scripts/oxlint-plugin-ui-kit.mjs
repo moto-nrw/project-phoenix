@@ -100,7 +100,8 @@ import {
 // One more keeps form fields on the kit (#5217):
 //
 //   ui-kit/no-kit-domain-import     — files in components/ui import no other
-//                                     components and fetch no data (#5586)
+//                                     components, only pure ~/lib modules
+//                                     and fetch no data (#5586, #6582)
 //   ui-kit/no-raw-table             — no <table> outside components/ui; use
 //                                     DataTable (#5600)
 //   ui-kit/no-em-dash-empty-value   — an empty value is "–", never "—" (#5600)
@@ -139,8 +140,9 @@ import {
 //
 //   ui-kit/no-shadcn-tokens         — no shadcn theme tokens (bg-background,
 //                                     text-muted-foreground …); bg-white/gray-*
-//   ui-kit/no-raw-z-index           — no `z-[n]` inside src/components/ui/;
-//                                     levels come from Z_LAYER
+//   ui-kit/no-raw-z-index           — no `z-[n]` or `z-n` inside
+//                                     src/components/ui/; levels come from
+//                                     Z_LAYER (#6574)
 //
 // One more keeps icon tiles on the kit (#5582):
 //
@@ -214,7 +216,7 @@ const SHADCN_TOKEN_RE =
   /(?<![\w-])(?:bg|text|border(?:-[trblxyse])?|ring|ring-offset|outline|fill|stroke|divide|placeholder|from|via|to|caret|accent|decoration|shadow)-(?:background|foreground|muted(?:-foreground)?|accent(?:-foreground)?|popover(?:-foreground)?|card(?:-foreground)?|primary(?:-foreground)?|secondary(?:-foreground)?|destructive(?:-foreground)?|input|ring|border)(?![\w-])/g;
 // Arbitrary stacking numbers (`z-[9999]`) inside the kit; the levels live in
 // `Z_LAYER` (overlay-styles.ts), the one file this rule skips (#5579).
-const RAW_Z_INDEX_RE = /(?<![\w-])z-\[[^\]\s]+\](?![\w-])/g;
+const RAW_Z_INDEX_RE = /(?<![\w-])z-(?:\[[^\]\s]+\]|\d+)(?![\w-])/g;
 const Z_LAYER_FILE = "src/components/ui/overlay-styles.ts";
 
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
@@ -719,7 +721,6 @@ const SURFACE_CONTROL_ELEMENTS = new Set([
   "select",
   "textarea",
   "Link",
-  "NavLink",
   "NavigationLink",
   "Button",
   "ButtonLink",
@@ -1088,7 +1089,7 @@ const noRawZIndex = makeClassStringRule({
   skipUiKit: false,
   onlyUiKit: true,
   skipFiles: [Z_LAYER_FILE],
-  docs: "Disallow arbitrary z-index numbers in the UI kit; overlays take their level from Z_LAYER.",
+  docs: "Disallow z-index classes in the UI kit; every level comes from Z_LAYER.",
   messageId: "rawZIndex",
   message:
     "{{match}} is a stacking number of its own. Take the level from Z_LAYER / Z_INDEX in overlay-styles.ts, or add a named level there.",
@@ -2422,11 +2423,51 @@ const confirmationLoadingText = {
 // The kit works in every portal, so it knows no domain: a file under
 // components/ui/ imports nothing from other component folders and loads no
 // data. Context arrives through props and slots (#5586).
+//
+// src/lib holds pure helpers next to domain modules (tenant context, concepts,
+// API clients, domain calculations). The kit loads only the modules listed in
+// KIT_PURE_LIB_MODULES: no tenant or school knowledge, no API, no domain rule
+// (#6582). A type-only import stays allowed from every lib
+// module: it leaves no code in the bundle and only names the shape a prop
+// takes (MotoConcept, ModuleKey).
+
+const KIT_PURE_LIB_MODULES = new Set([
+  "src/lib/constants/input-limits",
+  "src/lib/date-helpers",
+  "src/lib/date-picker-labels",
+  "src/lib/file-format",
+  "src/lib/format-utils",
+  "src/lib/hooks/use-berlin-today",
+  "src/lib/hooks/use-latest",
+  "src/lib/hooks/use-media-query",
+  "src/lib/hooks/use-scroll-y",
+  "src/lib/hooks/use-viewport-at-least",
+  "src/lib/kit-palette",
+  // Infrastructure, not domain: frontend/CLAUDE.md requires createLogger for
+  // every log line. It reads the portal only to pick its ingest path.
+  "src/lib/logger",
+  "src/lib/search-fold",
+  "src/lib/use-clipboard-copy",
+  "src/lib/utils",
+]);
 
 const KIT_DATA_HOOK_RE = /^useSWR/;
 
-function kitImportLeavesKit(source, key) {
-  if (source === "swr" || source.startsWith("swr/")) return true;
+/** `import type …`, `export type …`, or only `type` specifiers. */
+function isTypeOnlyImport(node) {
+  if (node.type === "ImportExpression") return false;
+  if (node.importKind === "type" || node.exportKind === "type") return true;
+  const specifiers = node.specifiers ?? [];
+  return (
+    specifiers.length > 0 &&
+    specifiers.every(
+      (specifier) =>
+        specifier.importKind === "type" || specifier.exportKind === "type",
+    )
+  );
+}
+
+function kitImportTarget(source, key) {
   const alias = /^[~@]\/(.*)$/.exec(source);
   let target;
   if (alias) {
@@ -2439,10 +2480,20 @@ function kitImportLeavesKit(source, key) {
     }
     target = parts.join("/");
   } else {
-    return false;
+    return null;
   }
-  if (target.startsWith(UI_KIT_DIR)) return false;
-  return target.startsWith("src/components/") || target.startsWith("src/app/");
+  return target.replace(/\.(?:ts|tsx|js|mjs)$/, "");
+}
+
+function kitImportLeavesKit(node, source, key) {
+  if (source === "swr" || source.startsWith("swr/")) return true;
+  const target = kitImportTarget(source, key);
+  if (target === null || target.startsWith(UI_KIT_DIR)) return false;
+  if (target.startsWith("src/components/") || target.startsWith("src/app/")) {
+    return true;
+  }
+  if (!target.startsWith("src/lib/")) return false;
+  return !KIT_PURE_LIB_MODULES.has(target) && !isTypeOnlyImport(node);
 }
 
 const noKitDomainImport = {
@@ -2454,7 +2505,7 @@ const noKitDomainImport = {
     },
     messages: {
       domainImport:
-        "Das Kit importiert keine Fachlogik ('{{source}}'). Baustein nach components/ui ziehen oder Kontext über Props oder Slots hereinreichen (#5586, .claude/rules/frontend-ui-kit.md).",
+        "Das Kit importiert keine Fachlogik ('{{source}}'). Fachbaustein in seinen Fachordner ziehen oder Kontext über Props oder Slots hereinreichen; aus ~/lib nur reine Module (KIT_PURE_LIB_MODULES) und Typen (#5586, #6582, .claude/rules/frontend-ui-kit.md).",
       dataAccess:
         "Das Kit lädt keine Daten ('{{name}}'). Die Daten kommen über Props vom fachlichen Aufrufer (#5586, .claude/rules/frontend-ui-kit.md).",
     },
@@ -2465,7 +2516,7 @@ const noKitDomainImport = {
     if (!key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
 
     const checkSource = (node, source) => {
-      if (typeof source !== "string" || !kitImportLeavesKit(source, key))
+      if (typeof source !== "string" || !kitImportLeavesKit(node, source, key))
         return;
       context.report({ node, messageId: "domainImport", data: { source } });
     };
@@ -2654,7 +2705,7 @@ const noEmDashEmptyValue = {
 //
 // Jede Aktion nutzt Button, ButtonLink oder buttonClassName aus dem Kit.
 //
-//   no-hand-rolled-button — natives <button>, <a>, <Link>, <NavLink>,
+//   no-hand-rolled-button — natives <button>, <a>, <Link>,
 //     <NavigationLink> oder ein Element mit role="button", das wie ein Knopf
 //     aussieht: Hintergrund- oder Ring-/Rahmenfarbe plus Radius plus Polster
 //     oder Höhe, jeweils ohne Zustandspräfix.
@@ -2675,15 +2726,13 @@ const NATIVE_ACTION_ELEMENTS = new Set([
   "button",
   "a",
   "Link",
-  "NavLink",
   "NavigationLink",
 ]);
 const KIT_BUTTONS = new Set(["Button", "ButtonLink"]);
 const KIT_BUTTON_EXPORTS = new Set(["Button", "ButtonLink", "buttonClassName"]);
-const ACTION_COMPONENTS = new Set(["Link", "NavLink", "NavigationLink"]);
+const ACTION_COMPONENTS = new Set(["Link", "NavigationLink"]);
 const DEFAULT_ACTION_COMPONENTS = new Map([
   ["next/link", "Link"],
-  ["~/components/ui/nav-link", "NavLink"],
   ["~/components/ui/navigation-link", "NavigationLink"],
 ]);
 
@@ -3225,7 +3274,7 @@ const noButtonOverride = makeRatchetRule({
 // prüft, auch in Ternär-Zweigen und Konstanten derselben Datei. Zustände
 // (hover:, active:, aria-pressed:) dürfen grau tönen. Keine Knöpfe in diesem
 // Sinn (frontend-ui-kit.md, Buttons): Schalter, Reiter, Menü- und
-// Auswahleinträge (role), Navigationszeilen (aria-current, NavLink,
+// Auswahleinträge (role), Navigationszeilen (aria-current,
 // NavigationLink) und die Spur eines SegmentedControl. Hart null: keine
 // Baseline; begründete Ausnahmen in der Allowlist (ui-kit-button-baseline.mjs).
 
@@ -3239,7 +3288,7 @@ const NOT_BUTTON_ROLES = new Set([
   "option",
   "radio",
 ]);
-const NAVIGATION_ROWS = new Set(["NavLink", "NavigationLink"]);
+const NAVIGATION_ROWS = new Set(["NavigationLink"]);
 
 function isNavigationOrControl(node, name, bindings) {
   const role = staticAttributeValue(jsxAttribute(node, "role"));
@@ -3712,7 +3761,6 @@ const INTERACTIVE_ELEMENTS = new Set([
   "button",
   "a",
   "Link",
-  "NavLink",
   "NavigationLink",
   "Button",
   "ButtonLink",
@@ -3884,7 +3932,7 @@ const noSelectOverride = {
     },
     messages: {
       override:
-        'Keine eigene Optik am Auswahlfeld ({{tokens}}): Rahmen, Hintergrund, Höhe und Radius kommen aus dem Kit. controlSize="compact" (ListboxDropdown: size) wählen, className nur für Layout (#5580, .claude/rules/frontend-ui-kit.md).',
+        'Keine eigene Optik am Auswahlfeld ({{tokens}}): Rahmen, Hintergrund, Höhe und Radius kommen aus dem Kit. Ohne Angabe 40 px, controlSize="dense" (ListboxDropdown: size) für dichte Zeilen, className nur für Layout (#5580, .claude/rules/frontend-ui-kit.md).',
       unstyled:
         "unstyledTrigger ist nur im Kit erlaubt; außerhalb gilt die Feldoptik von ListboxDropdown (#5580).",
     },
@@ -3989,7 +4037,7 @@ const noControlHeightOverride = {
     },
     messages: {
       override:
-        'Keine eigene Bedienhöhe ({{tokens}}): Input und Auswahlfelder nehmen controlSize="compact" (40 px), OverflowMenu triggerSize (#5605, .claude/rules/frontend-ui-kit.md).',
+        'Keine eigene Bedienhöhe ({{tokens}}): Input nimmt controlSize="compact" (40 px), Auswahlfelder haben 40 px ohne Angabe (ControlSize, control-geometry.ts), OverflowMenu triggerSize (#5605, .claude/rules/frontend-ui-kit.md).',
     },
     schema: [],
   },
@@ -4248,6 +4296,48 @@ const noHandRolledStickyBar = {
   },
 };
 
+// ui-kit/no-hand-rolled-action-row (#6571, hard-zero) — eine Zeile mit eigener
+// Aktionsspalte ist `ResponsiveActionRow`. Fund: `grid-cols-subgrid` außerhalb
+// des Kits, in einem Klassen-String oder einer Konstante.
+function isHandRolledActionRow(text) {
+  return text
+    .split(/\s+/)
+    .some((token) => bareUtility(token) === "grid-cols-subgrid");
+}
+
+const noHandRolledActionRow = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-built subgrid rows outside the UI kit; use ResponsiveActionRow.",
+    },
+    messages: {
+      handRolled:
+        "Keine eigene Zeile mit Aktionsspalte: ResponsiveActionRow (~/components/ui/responsive-action-list) in ResponsiveActionList (#6571).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key.startsWith(UI_KIT_DIR)) return {};
+    const check = (node, text) => {
+      if (isHandRolledActionRow(text)) {
+        context.report({ node, messageId: "handRolled" });
+      }
+    };
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        for (const quasi of node.quasis) check(node, quasi.value.raw);
+      },
+    };
+  },
+};
+
 // ui-kit/no-hand-rolled-field-label (#5589) — die Beschriftung eines Felds kommt
 // aus `FieldLabel` oder der `label`-Prop. Fund: `<label>` mit text-xs/text-sm und
 // font-medium/font-semibold, ein `<span>` dieser Art mit `block` und `mb-*` über
@@ -4492,7 +4582,14 @@ const PORTAL_NAV_KIT_ROW_EXPORTS = new Set([
   "sidebarRowClasses",
   "sidebarLabelClasses",
   "SIDEBAR_GROUP_HEADING_CLASSES",
-  "SIDEBAR_SUB_ITEM_CLASSES",
+  "sidebarSubItemClasses",
+  "sidebarGroupBodyClasses",
+  "sidebarGroupIconClasses",
+  "sidebarChevronClasses",
+  "sidebarFadeClasses",
+  "SIDEBAR_RAIL_BADGE_CLASSES",
+  "SIDEBAR_GROUP_HEADING_RAIL_BADGE_CLASSES",
+  "SidebarRowContent",
 ]);
 
 function hasPortalNavShellSignature(text) {
@@ -5911,22 +6008,58 @@ const noHandRolledCopyField = {
 // ein unbekannter Spread hinter `tooltip`/`noTooltip`, wird gemeldet: Er kann
 // die Erklärung überschreiben, und der Spread davor kostet nichts.
 //
-// Die Regel gilt nur in TOOLTIP_SCOPE. Die Liste wächst nur: Jedes
-// Bereichs-Ticket des Epics trägt seine Ordner oder Dateien ein. Ordner enden
-// auf „/“, alles andere ist eine einzelne Datei. Das Abschluss-Ticket (#6757)
-// ersetzt die Liste durch „überall außer Ausnahmen“.
-// `ui-kit/menu-item-needs-description` (#6745) nutzt dieselbe Liste.
+// Die Regel gilt im ganzen Frontend außer in TOOLTIP_EXEMPT (#6757). Die
+// Ausnahmen nennt das Epic #6643: Operator-Portal, Caterer-Portal,
+// Lohnbüro-Link, Login-, Passwort- und Einladungsseiten, öffentliche Seiten,
+// Demo, Stories und Tests. Ordner enden auf „/“, alles andere ist eine
+// einzelne Datei; TOOLTIP_EXEMPT_RE fängt Seiten, die in jedem Portal unter
+// demselben Ordnernamen liegen. Aus `src/components/auth/` sind nur die
+// Bausteine dieser Seiten ausgenommen; Abmelden, Passwort ändern und das
+// Zurücksetzen der Zwei-Faktor-Anmeldung laufen im Portal und bleiben drin.
+// `ui-kit/menu-item-needs-description` (#6745) nutzt dieselben Grenzen.
 
-const TOOLTIP_SCOPE = [
-  // Einstellungen der Schule und des Trägers, begonnen in #6669.
-  "src/app/[tenant]/(protected)/settings/",
-  "src/app/traeger/einstellungen/",
-  "src/components/settings/",
+const TOOLTIP_EXEMPT = [
+  // Operator-Portal (internes Team).
+  "src/app/operator/",
+  "src/components/operator/",
+  // Caterer-Portal.
+  "src/app/caterer/",
+  "src/components/caterer/",
+  // Lohnbüro-Link.
+  "src/app/lohnbuero/",
+  // Login, Passwort, Einladung: Seiten vor der Anmeldung und ihre Bausteine.
+  "src/app/[tenant]/page.tsx",
+  "src/app/parents/ferienkonto/",
+  "src/components/auth/auth-shell.tsx",
+  "src/components/auth/guardian-invitation-accept-form.tsx",
+  "src/components/auth/holiday-parent-setup.tsx",
+  "src/components/auth/invitation-accept-form.tsx",
+  "src/components/auth/invitation-owner-accept-form.tsx",
+  "src/components/auth/invitation-page-content.tsx",
+  "src/components/auth/invitation-page-route.tsx",
+  "src/components/auth/mfa-challenge-form.tsx",
+  "src/components/auth/mfa-enrollment-screen.tsx",
+  "src/components/auth/password-reset-modal.tsx",
+  "src/components/auth/reset-password-page-content.tsx",
+  "src/components/auth/reset-password-page-route.tsx",
+  "src/components/auth/tenant-password-reset-modal.tsx",
+  // Öffentliche Seiten.
+  "src/app/[tenant]/(public)/",
+  "src/app/page.tsx",
+  "src/app/start/",
+  // Demo (Seiten unter `…/demo/` fängt TOOLTIP_EXEMPT_RE).
+  "src/components/demo/",
 ];
 
-function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
+// Login-, Passwort- und Einladungsseiten jedes Portals und die Demo-Seiten.
+const TOOLTIP_EXEMPT_RE =
+  /^src\/app\/(?:[^/]+\/)*(?:login|reset-password|invite|einladung|accept-guardian-invite|demo)\//;
+
+function inTooltipScope(key) {
   if (EXEMPT_FILE_RE.test(key) || key.includes("src/test/")) return false;
-  return scope.some((entry) =>
+  if (!key.startsWith("src/")) return false;
+  if (TOOLTIP_EXEMPT_RE.test(key)) return false;
+  return !TOOLTIP_EXEMPT.some((entry) =>
     entry.endsWith("/") ? key.startsWith(entry) : key === entry,
   );
 }
@@ -6198,6 +6331,159 @@ const buttonNeedsTooltip = {
   },
 };
 
+// ui-kit/menu-item-needs-description (#6745, Epic #6643)
+//
+// Jeder Eintrag eines Kebab- oder Überlaufmenüs sagt in einer sichtbaren
+// Zeile, was er tut. Im Menü gibt es kein Hover, die Zeile `description` ist
+// also auch auf Handy und Tablet lesbar. Ein Menüeintrag ist ein
+// Objektliteral mit `label` und `onClick`, wie `OverflowMenuItem` es
+// verlangt (#6757). Ein Objekt nur mit `label` und `href` ist ein
+// Navigationsziel (Seitenleiste, Brotkrumen), kein Menüeintrag. Ebenso ist
+// ein Objekt, das als Wert unter einem Schlüssel steht (`retry: { … }`,
+// `action: { … }`), der Knopf einer Meldung: Menüeinträge stehen in einer
+// Liste oder einer Variable, nie unter einem Schlüssel. Ausgenommen sind Einträge mit `kind` (Auswahl, Schalter,
+// Überschrift: sie sagen, was sie sind) und rein navigierende Einträge mit
+// `selected`, etwa die „Mehr“-Leiste der Navigation; ein statisch falscher
+// Wert wie `false` oder `undefined` ist keine Navigation und befreit nicht.
+// Ein unbekannter Wert bleibt als Navigation ausgenommen. Objekte mit
+// `tooltip` oder `noTooltip` sind Knöpfe, etwa `moreAction` der DataTable;
+// sie erklärt `ui-kit/button-needs-tooltip`, ein Menüeintrag hat kein
+// `tooltip`. Verlangt wird
+// `description` oder ein begründetes `noDescription: "<Grund>"`; ein leerer
+// oder `undefined` gesetzter Wert ist ein Fehler. Wie bei
+// `ui-kit/button-needs-tooltip` gilt ein unbekannter Spread ohne Erklärung als
+// erfüllt, ein Spread hinter der Erklärung wird gemeldet: Er kann sie
+// überschreiben. Die Regel gilt in denselben Pfaden wie
+// `ui-kit/button-needs-tooltip`.
+
+function staticObjectProperty(node, name) {
+  // Bei doppelten Schlüsseln gilt zur Laufzeit der letzte.
+  return node.properties.findLast(
+    (property) =>
+      property.type === "Property" &&
+      !property.computed &&
+      propertyName(property) === name,
+  );
+}
+
+function isStaticallyFalsy(expression) {
+  if (expression?.type === "Literal") return !expression.value;
+  return (
+    (expression?.type === "Identifier" && expression.name === "undefined") ||
+    (expression?.type === "UnaryExpression" && expression.operator === "void")
+  );
+}
+
+// Wert unter einem Schlüssel oder an einem JSX-Attribut, auch hinter
+// `cond ? … : undefined`, `a && …` oder `?? …`: der Knopf einer Meldung
+// (`retry`, `action`), kein Eintrag einer Menüliste.
+const KEYED_VALUE_WRAPPERS = new Set([
+  "ConditionalExpression",
+  "LogicalExpression",
+  "ParenthesizedExpression",
+  "TSAsExpression",
+  "TSSatisfiesExpression",
+  "TSNonNullExpression",
+  "JSXExpressionContainer",
+]);
+
+function isKeyedValue(node) {
+  let child = node;
+  let parent = node.parent;
+  while (
+    parent &&
+    KEYED_VALUE_WRAPPERS.has(parent.type) &&
+    !(parent.type === "ConditionalExpression" && parent.test === child)
+  ) {
+    child = parent;
+    parent = parent.parent;
+  }
+  return (
+    (parent?.type === "Property" && parent.value === child) ||
+    parent?.type === "JSXAttribute"
+  );
+}
+
+const menuItemNeedsDescription = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Every menu entry says in a visible line what it does: description, or noDescription with a reason.",
+    },
+    messages: {
+      missing:
+        'Menüeintrag ohne Erklärung: `description` mit einer kurzen Zeile zur Folge setzen oder `noDescription: "<Grund>"`, wenn das Wort schon alles sagt (#6643, Schreibregel in .claude/rules/frontend-ui-kit.md).',
+      emptyDescription:
+        'Leere `description`: eine kurze Zeile zur Folge schreiben oder `noDescription: "<Grund>"` setzen (#6643).',
+      emptyReason:
+        "`noDescription` braucht einen Grund, warum das Wort im Menü reicht (#6643).",
+      conflictingExplanation:
+        "`description` und `noDescription` dürfen nicht zusammen gesetzt sein (#6643).",
+      spreadAfterExplanation:
+        "Gespreizte Werte hinter `description`/`noDescription` können die Erklärung überschreiben: den Spread vor die Erklärung stellen (#6643).",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (!inTooltipScope(fileKey(context))) return {};
+    return {
+      ObjectExpression(node) {
+        if (!staticObjectProperty(node, "label")) return;
+        if (!staticObjectProperty(node, "onClick")) return;
+        if (isKeyedValue(node)) return;
+        const selected = staticObjectProperty(node, "selected");
+        if (
+          staticObjectProperty(node, "kind") ||
+          staticObjectProperty(node, "tooltip") ||
+          staticObjectProperty(node, "noTooltip") ||
+          (selected && !isStaticallyFalsy(selected.value))
+        ) {
+          return;
+        }
+        const description = staticObjectProperty(node, "description");
+        const noDescription = staticObjectProperty(node, "noDescription");
+        if (description && noDescription) {
+          context.report({
+            node: noDescription,
+            messageId: "conflictingExplanation",
+          });
+          return;
+        }
+        const explanation = description ?? noDescription;
+        const unknownSpread = (property) =>
+          property.type === "SpreadElement" || property.computed;
+        if (
+          explanation &&
+          node.properties
+            .slice(node.properties.indexOf(explanation) + 1)
+            .some(unknownSpread)
+        ) {
+          context.report({ node, messageId: "spreadAfterExplanation" });
+          return;
+        }
+        if (description) {
+          if (isBlankExpression(description.value)) {
+            context.report({
+              node: description,
+              messageId: "emptyDescription",
+            });
+          }
+          return;
+        }
+        if (noDescription) {
+          if (isBlankExpression(noDescription.value)) {
+            context.report({ node: noDescription, messageId: "emptyReason" });
+          }
+          return;
+        }
+        if (node.properties.some(unknownSpread)) return;
+        context.report({ node, messageId: "missing" });
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
@@ -6207,6 +6493,7 @@ export default {
     "confirmation-dismiss-lock": confirmationDismissLock,
     "confirmation-loading-text": confirmationLoadingText,
     "green-fill-white-text": greenFillWhiteText,
+    "menu-item-needs-description": menuItemNeedsDescription,
     "no-button-override": noButtonOverride,
     "no-dead-surface-utility": noDeadSurfaceUtility,
     "no-dynamic-color-class": noDynamicColorClass,
@@ -6244,6 +6531,7 @@ export default {
     "no-hand-rolled-removable-chip": noHandRolledRemovableChip,
     "no-arbitrary-slide-over-width": noArbitrarySlideOverWidth,
     "no-hand-rolled-sticky-bar": noHandRolledStickyBar,
+    "no-hand-rolled-action-row": noHandRolledActionRow,
     "no-slide-over-row-override": noSlideOverRowOverride,
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-hand-rolled-weekday-toggle": noHandRolledWeekdayToggle,

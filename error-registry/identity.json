@@ -31,6 +31,12 @@
       "legacy": "identity.account_not_in_school"
     },
     {
+      "code": "identity.account_shared_across_schools",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.account_shared_across_schools"
+    },
+    {
       "code": "identity.caterer_address_taken",
       "class": "business_rejection",
       "parameters": [],

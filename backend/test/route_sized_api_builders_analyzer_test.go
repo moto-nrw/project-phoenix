@@ -62,7 +62,7 @@ func TestRouteSizedBuilderAnalyzerAcceptsNarrowBuilders(t *testing.T) {
 import (
 	"net/http"
 
-	sampleAPI "github.com/moto-nrw/project-phoenix/api/sample"
+	sampleAPI "github.com/moto-ogs/project-phoenix/api/sample"
 	"github.com/uptrace/bun"
 )
 
@@ -105,7 +105,7 @@ func TestRouteSizedBuilderAnalyzerRejectsImportedUntypedCarrier(t *testing.T) {
 			t.Parallel()
 			root := writeRouteBuilderFixture(t, "api/sample/sample_test.go", `package sample_test
 
-import "github.com/moto-nrw/project-phoenix/helpers"
+import "github.com/moto-ogs/project-phoenix/helpers"
 
 func setupSampleModule() helpers.Module { return helpers.Module{} }
 `)
@@ -126,13 +126,13 @@ func TestRouteSizedBuilderAnalyzerRejectsTransitiveImportedUntypedCarrier(t *tes
 
 	root := writeRouteBuilderFixture(t, "api/sample/sample_test.go", `package sample_test
 
-import "github.com/moto-nrw/project-phoenix/helpers"
+import "github.com/moto-ogs/project-phoenix/helpers"
 
 func setupSampleModule() helpers.Module { return helpers.Module{} }
 `)
 	writeRouteBuilderSource(t, root, "helpers/module.go", `package helpers
 
-import "github.com/moto-nrw/project-phoenix/hidden"
+import "github.com/moto-ogs/project-phoenix/hidden"
 
 type Module struct { Hidden hidden.Hidden }
 `)

@@ -1,6 +1,6 @@
 # DB-Transportschutz: Bewertung und Betriebsnachweis
 
-Slice **3842-d**, AK3 von [#3842](https://github.com/moto-nrw/project-phoenix/issues/3842),
+Slice **3842-d**, AK3 von [#3842](https://github.com/moto-ogs/project-phoenix/issues/3842),
 Epic #3846. Repo-Abgleich vom 24.10.2026 gegen `origin/development`,
 Commit `755ccc706520fde78a5946581e9207a8b5660eaa`.
 
@@ -36,7 +36,7 @@ einen Host, Demo hat eine eigene VM; der laufende Aufbau wurde nicht geprüft.
 | Demo-Laufzeit → DB | `demo-runtime` teilt den Netzwerk-Namensraum von `server`; eigener `DEMO_DB_DSN` und Rolle `phoenix_demo`. | Endpoint/TLS unbekannt, nicht vom App-DSN ableiten; beim Betriebsnachweis gesondert erfassen. |
 | Optionaler eigenständiger Worker → DB | [Worker-Runbook](worker-lease-2726.md): gleiche Konfiguration wie `serve`; in den drei Compose-Dateien kein eigener Worker-Dienst. | Eingebetteter Worker nutzt App-Pfad; falls separat betrieben, dessen effektiven DSN und Netz separat prüfen. |
 | Release-/Tagesbackup und Restore → DB | [Release-Skript](../../scripts/release-backup.sh) und [Tagesbackup](../../scripts/daily_backup.py): `compose exec ... postgres` mit `pg_dump`, `pg_dumpall`, `psql`, `pg_restore`, ohne `-h`; PostgreSQL-Env-Allowlist enthält keine `PGHOST`-/`PGSERVICE`-Umleitung. | Lokaler Unix-Socket im DB-Container, kein TCP-Netztransport: TLS hier nicht erforderlich. Docker-/Hostrechte bleiben hochprivilegiert (3842-c); Laufzeitabweichungen prüfen. Backup-Übertragung und Speicherschutz separat unter #3836, nicht durch DB-TLS belegt. |
-| Host-/Diagnosezugang → DB | Loopback-Mappings: Produktion `127.0.0.1:5432`, Staging `:5433`, Demo `:5434`, jeweils Containerport 5432. Compose-Kommentar nennt einen Tunnel; [Diagnose-Runbook](diagnose-lesezugang-3840.md#vorbedingungen-version-und-persönlicher-zugangsweg) verlangt einen freigegebenen MFA-Netzweg und `verify-full`. | Weder Tunnel noch VPN/Proxy sind als aktiv belegt. Keine öffentliche DB-Freigabe. Für externe Diagnose `verify-full`, CA/SAN und vollständigen Weg nachweisen; TLS-terminierende Proxys erfordern Bewertung beider Teilstrecken. |
+| Host-/Diagnosezugang → DB | Loopback-Mappings: Produktion `127.0.0.1:5432`, Staging `:5433`, Demo `:5434`, jeweils Containerport 5432. Compose-Kommentar nennt einen Tunnel. | Weder Tunnel noch VPN/Proxy sind als aktiv belegt. Keine öffentliche DB-Freigabe. Für externe Diagnose `verify-full`, CA/SAN und vollständigen Weg nachweisen; TLS-terminierende Proxys erfordern Bewertung beider Teilstrecken. |
 
 App-/CLI-DSNs werden in
 [`database_config.go`](../../backend/modules/transactionruntime/internal/adapters/database/database_config.go)
@@ -240,9 +240,9 @@ Freigabe; erforderliche Schutzmaßnahmen dadurch nicht aufschieben:
 
 ## Vorschlag AVV/TOM und Abschluss
 
-Gelesene Grundlage: [rechtliche Einordnung](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/research/14-dsgvo-mindestumfang.md),
-[AVV Anhang 1 Ziff. 5](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/03-avv.md)
-und [interne Checkliste](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/intern/checkliste.md).
+Gelesene Grundlage: [rechtliche Einordnung](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/research/14-dsgvo-mindestumfang.md),
+[AVV Anhang 1 Ziff. 5](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/03-avv.md)
+und [interne Checkliste](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/intern/checkliste.md).
 Der AVV-Entwurf sagt derzeit, interne DB-Verbindungen seien verschlüsselt.
 Das ist für die App-Pfade von Staging/Demo im Repo nicht belegt und beschreibt
 lokale Socketpfade nicht treffend. Eine Risikoentscheidung ändert keine Zusage.

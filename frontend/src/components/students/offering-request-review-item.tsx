@@ -392,6 +392,7 @@ export function OfferingRequestReviewItem({
             type="button"
             variant="outline"
             size="md"
+            tooltip="Schließt die Hinweise und nimmt die Anfrage aus der Liste."
             onClick={() => onDecided(applied.notice)}
           >
             Fertig
@@ -432,6 +433,7 @@ export function OfferingRequestReviewItem({
       }
       busy={busy}
       approveDisabled={blocked !== null}
+      approveDisabledReason={blocked ?? undefined}
       approveReasonRequired={approveReasonRequired}
       decisionDisabledReason={decisionDisabledReason}
       onApprove={() => void prepareApproval()}
@@ -467,7 +469,7 @@ export function OfferingRequestReviewItem({
                 max={row.latest_effective_from}
                 required
                 hideClearButton
-                controlSize="md"
+                controlSize="compact"
                 disabled={busy}
                 invalid={blocked !== null}
                 className="w-full"

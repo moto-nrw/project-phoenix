@@ -4,9 +4,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/sepa"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/sepa"
 )
 
 // The check of one row of a mandate import (#6198). A row is invalid when
@@ -29,11 +29,33 @@ type importPayer struct {
 	family              string
 	firstName, lastName string
 	until               calendar.Date
+	// child is the child of the contract, for its own debtor number
+	// (#7007).
+	child parentbilling.FamilyChild
+	// ofChild marks the payer of a child's own debtor number (#7009): the
+	// row names that child, also in a family of several.
+	ofChild bool
 }
 
 type importPayers struct {
 	byContract map[int64]importPayer
 	byFamily   map[string]importPayer
+	// children counts the children under contract of each family, by
+	// ChildKey: a family of one child names its child by its address too.
+	children map[string]map[string]bool
+	// childUntil is the last day of the latest contract of each child, by
+	// ChildDebtorNumberKey, over every contract the import can name.
+	childUntil map[string]calendar.Date
+	// byChild is the contract of each child in force longest, by
+	// ChildDebtorNumberKey (#7009).
+	byChild map[string]importPayer
+	// byNumber is the payer each debtor number moto keeps names, when the
+	// payer column holds debtor numbers (#7009); ambiguous are the numbers
+	// of more than one family or child.
+	byNumber  map[string]numberPayer
+	ambiguous map[string]bool
+	// format reads a debtor number of the payer column.
+	format parentbilling.DebtorNumberFormat
 }
 
 // importCandidate is a checked row with what the answer leaves out: the
@@ -43,6 +65,19 @@ type importCandidate struct {
 	iban       string
 	family     string
 	creditorID string
+	// child is the child the row names when the Träger keeps a number per
+	// child (#7007), empty when the row names no single child.
+	child parentbilling.FamilyChild
+	// perChild marks a row whose number goes to the child, not the family.
+	perChild bool
+	// until is the last day of the contract of the child, which the
+	// retention of its number counts from.
+	until calendar.Date
+	// payerNumber is the stored debtor number the payer column named
+	// (#7009), whose read the trail of the number records.
+	payerNumber string
+	// sourceHistory is the file's collection history before a clarification.
+	sourceHistory importCollectionHistory
 }
 
 // Problems that make a row a conflict or a row to clarify; every other
@@ -66,6 +101,9 @@ type importCheck struct {
 	sequences   map[int]string
 	references  map[string]bool
 	families    map[string]bool
+	// fileMandates is the first row the import can take over of each
+	// reference, which a sibling's row may repeat (#7009).
+	fileMandates map[string]fileMandate
 	// accounts holds the opened account of each stored mandate a row of
 	// the file names by its reference, only in memory (importAccounts).
 	accounts map[int64]importAccount
@@ -81,7 +119,8 @@ func newImportCheck(columns importColumnIndex, creditorID string, payers importP
 ) *importCheck {
 	check := &importCheck{columns: columns, creditorID: creditorID, payers: payers, today: today, sequences: sequences,
 		byReference: map[string]parentbilling.SEPAMandate{}, inForce: map[string]parentbilling.SEPAMandate{},
-		references: map[string]bool{}, families: map[string]bool{}, accounts: map[int64]importAccount{}}
+		references: map[string]bool{}, families: map[string]bool{}, accounts: map[int64]importAccount{},
+		fileMandates: map[string]fileMandate{}}
 	for _, mandate := range existing {
 		check.byReference[mandate.Reference] = mandate
 		if mandate.InForce() {
@@ -114,6 +153,18 @@ func (c *importCheck) textCell(row *parentbilling.SEPAMandateImportRow, cells []
 
 func addProblem(row *parentbilling.SEPAMandateImportRow, field, problem string) {
 	row.Problems = append(row.Problems, parentbilling.SEPAMandateImportProblem{Field: field, Code: problem})
+}
+
+// candidate checks a mandate or reads only the family of a child without
+// one. Such a child still contributes its debtor number but neither
+// validates nor reserves a mandate; its mandate status stays empty.
+func (c *importCheck) candidate(cells []string, line int) importCandidate {
+	if c.cell(cells, parentbilling.ImportFieldIBAN) == "" && c.cell(cells, parentbilling.ImportFieldReference) == "" {
+		candidate := importCandidate{row: parentbilling.SEPAMandateImportRow{Line: line}}
+		c.readPayer(&candidate, cells)
+		return candidate
+	}
+	return c.row(cells, line)
 }
 
 // row checks one row of the file.
@@ -198,7 +249,27 @@ func (c *importCheck) readAccount(candidate *importCandidate, cells []string) {
 }
 
 // readPayer finds the contract the payer column names: a contract of the
-// Träger by its number or the family by its mail address.
+// Träger by its number, the family by its mail address or the family or
+// child by the debtor number moto keeps (#7009).
+
+// payerOf finds the payer of the column's value, or the problem.
+func (c *importCheck) payerOf(candidate *importCandidate, value string) (importPayer, string) {
+	switch c.columns.payerKey {
+	case parentbilling.PayerByContract:
+		id, err := strconv.ParseInt(strings.TrimPrefix(value, "#"), 10, 64)
+		if payer, found := c.payers.byContract[id]; found && err == nil {
+			return payer, ""
+		}
+	case parentbilling.PayerByDebtorNumber:
+		return c.payers.payerOfNumber(candidate, value)
+	default:
+		if payer, found := c.payers.byFamily[parentbilling.FamilyKey(value)]; found {
+			return payer, ""
+		}
+	}
+	return importPayer{}, parentbilling.ImportProblemPayerUnknown
+}
+
 func (c *importCheck) readPayer(candidate *importCandidate, cells []string) {
 	row := &candidate.row
 	value := c.cell(cells, parentbilling.ImportFieldPayer)
@@ -206,17 +277,9 @@ func (c *importCheck) readPayer(candidate *importCandidate, cells []string) {
 		addProblem(row, parentbilling.ImportFieldPayer, parentbilling.ImportProblemMissing)
 		return
 	}
-	var payer importPayer
-	var found bool
-	if c.columns.payerKey == parentbilling.PayerByContract {
-		id, err := strconv.ParseInt(strings.TrimPrefix(value, "#"), 10, 64)
-		payer, found = c.payers.byContract[id]
-		found = found && err == nil
-	} else {
-		payer, found = c.payers.byFamily[parentbilling.FamilyKey(value)]
-	}
-	if !found {
-		addProblem(row, parentbilling.ImportFieldPayer, parentbilling.ImportProblemPayerUnknown)
+	payer, problem := c.payerOf(candidate, value)
+	if problem != "" {
+		addProblem(row, parentbilling.ImportFieldPayer, problem)
 		return
 	}
 	row.ContractID, row.PayerFirstName, row.PayerLastName = payer.contractID, payer.firstName, payer.lastName
@@ -224,6 +287,13 @@ func (c *importCheck) readPayer(candidate *importCandidate, cells []string) {
 		addProblem(row, parentbilling.ImportFieldPayer, parentbilling.ImportProblemFamilyUnknown)
 	}
 	candidate.family = payer.family
+	// The contract and the child's own number name the child; the address
+	// and the family's number only a family of one child.
+	if c.columns.payerKey == parentbilling.PayerByContract || payer.ofChild || len(c.payers.children[payer.family]) == 1 {
+		candidate.child = payer.child
+		candidate.until = c.payers.childUntil[parentbilling.ChildDebtorNumberKey(payer.family,
+			parentbilling.ChildKey(payer.child.FirstName, payer.child.LastName, payer.child.BirthDate))]
+	}
 }
 
 // readCreditor reads the creditor identifier a mandate was given to: the
@@ -254,7 +324,8 @@ func (c *importCheck) readSequence(candidate *importCandidate, cells []string) {
 		addProblem(row, parentbilling.ImportFieldLastCollected, parentbilling.ImportProblemBeforeSigned)
 	}
 	sequence, unclear := c.fileSequence(row, cells)
-	if answer, ok := c.sequences[row.Line]; ok && unclear != "" &&
+	candidate.sourceHistory = importCollectionHistory{sequence: sequence, unclear: unclear, lastCollectedOn: row.LastCollectedOn}
+	if answer := c.sequenceAnswer(candidate); unclear != "" &&
 		(answer == parentbilling.SequenceFirst || answer == parentbilling.SequenceRecurring) {
 		sequence, unclear = answer, ""
 		if answer == parentbilling.SequenceFirst {
@@ -270,6 +341,19 @@ func (c *importCheck) readSequence(candidate *importCandidate, cells []string) {
 		row.Hints = append(row.Hints, parentbilling.ImportHintLastCollectionUnknown)
 	}
 	c.checkLapse(row)
+}
+
+// sequenceAnswer shares a clarification only with rows of the same mandate
+// whose original collection history agrees. An explicit row answer wins.
+func (c *importCheck) sequenceAnswer(candidate *importCandidate) string {
+	if answer, ok := c.sequences[candidate.row.Line]; ok {
+		return answer
+	}
+	if first, ok := c.fileMandates[candidate.row.Reference]; ok && first.sameDetails(candidate) &&
+		first.sourceHistory.sameAs(candidate.sourceHistory) {
+		return c.sequences[first.line]
+	}
+	return ""
 }
 
 // fileSequence is the sequence the file tells, or why it stays unclear.
@@ -326,6 +410,10 @@ func (c *importCheck) classify(candidate *importCandidate) {
 		row.Status, row.MandateID, row.Problems = parentbilling.ImportRowDuplicate, existing.ID, []parentbilling.SEPAMandateImportProblem{}
 		return
 	}
+	if first, ok := c.fileMandates[row.Reference]; ok && first.repeatedBy(candidate) {
+		row.Status, row.SameMandateLine, row.Problems = parentbilling.ImportRowSameMandate, first.line, []parentbilling.SEPAMandateImportProblem{}
+		return
+	}
 	c.checkConflicts(candidate)
 	switch {
 	case hasProblemIn(row.Problems, importConflictCodes):
@@ -377,7 +465,58 @@ func (c *importCheck) checkConflicts(candidate *importCandidate) {
 		// Only a row the import can take over claims its reference and
 		// family against the rows after it.
 		c.references[row.Reference], c.families[candidate.family] = true, true
+		c.fileMandates[row.Reference] = fileMandateOf(candidate)
 	}
+}
+
+// fileMandate is a mandate a row of the file gives, as a sibling's row
+// repeats it: a file with a row per child names the mandate of the family
+// in each row of its children (#7009).
+type fileMandate struct {
+	line                           int
+	family, iban, holder, creditor string
+	signedOn                       calendar.Date
+	history, sourceHistory         importCollectionHistory
+}
+
+func fileMandateOf(candidate *importCandidate) fileMandate {
+	mandate := fileMandate{line: candidate.row.Line, family: candidate.family, iban: candidate.iban,
+		holder: candidate.row.AccountHolder, creditor: candidate.creditorID,
+		history:       importCollectionHistory{sequence: candidate.row.Sequence, lastCollectedOn: candidate.row.LastCollectedOn},
+		sourceHistory: candidate.sourceHistory}
+	if candidate.row.SignedOn != nil {
+		mandate.signedOn = *candidate.row.SignedOn
+	}
+	return mandate
+}
+
+// repeatedBy tells whether a later row names the same mandate: the same
+// family, account, holder, creditor, signing date and collection history.
+// Anything else under the reference stays a conflict.
+func (m fileMandate) repeatedBy(candidate *importCandidate) bool {
+	return m.sameDetails(candidate) && m.history.sameAs(importCollectionHistory{
+		sequence: candidate.row.Sequence, lastCollectedOn: candidate.row.LastCollectedOn})
+}
+
+func (m fileMandate) sameDetails(candidate *importCandidate) bool {
+	return m.family != "" && m.family == candidate.family && m.iban == candidate.iban &&
+		m.holder == candidate.row.AccountHolder && m.creditor == candidate.creditorID &&
+		candidate.row.SignedOn != nil && m.signedOn == *candidate.row.SignedOn
+}
+
+// importCollectionHistory compares the file's history or the clarified history
+// by value, including whether the last collection is known.
+type importCollectionHistory struct {
+	sequence, unclear string
+	lastCollectedOn   *calendar.Date
+}
+
+func (h importCollectionHistory) sameAs(other importCollectionHistory) bool {
+	if h.sequence != other.sequence || h.unclear != other.unclear ||
+		(h.lastCollectedOn == nil) != (other.lastCollectedOn == nil) {
+		return false
+	}
+	return h.lastCollectedOn == nil || *h.lastCollectedOn == *other.lastCollectedOn
 }
 
 func hasProblemIn(problems []parentbilling.SEPAMandateImportProblem, codes []string) bool {

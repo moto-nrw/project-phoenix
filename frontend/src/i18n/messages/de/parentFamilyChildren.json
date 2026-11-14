@@ -19,5 +19,9 @@
   "enrollmentSaved": "Gespeichert. Die Zahl kommt mit in Ihren Betreuungsvertrag.",
   "enrollmentClosed": "Ihr Kind ist angenommen. Die Zahl ändern Sie jetzt in Ihrem Betreuungsvertrag.",
   "linkHint": "Bis zur Unterschrift können Sie die Zahl hier ändern.",
-  "enrollmentHint": "Bis Ihr Kind angenommen ist, können Sie die Zahl hier ändern."
+  "enrollmentHint": "Bis Ihr Kind angenommen ist, können Sie die Zahl hier ändern.",
+  "sendTooltip": "Schickt die Zahl sofort an den Träger, er prüft sie.",
+  "enrollmentSendTooltip": "Speichert die Zahl für Ihren späteren Betreuungsvertrag.",
+  "decrementTooltip": "Zählt ein Kind weniger.",
+  "incrementTooltip": "Zählt ein Kind mehr."
 }

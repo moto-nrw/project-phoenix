@@ -27,7 +27,9 @@ export function loginTopic(
       "Geben Sie unter `Passwort` Ihr Passwort ein.",
       "Wählen Sie `Anmelden`.",
       "Zeigt moto die `Code-Eingabe`? Öffnen Sie die E-Mail von moto.",
-      "Geben Sie den sechsstelligen Code ein. moto prüft ihn automatisch.",
+      "Geben Sie den sechsstelligen Code ein.",
+      "Ist es Ihr eigenes Gerät? Wählen Sie `Ja, merken und anmelden`. Dort fragt moto dann vorerst keinen Code mehr ab.",
+      "Nutzen mehrere Personen das Gerät, zum Beispiel ein Tablet im Gruppenraum? Wählen Sie `Nein, nur anmelden`.",
     ],
     result: loginResult(presenceMode, groupMode),
     differences: [
@@ -35,9 +37,13 @@ export function loginTopic(
       "Richten Sie die Sicherheitsabfrage erstmals ein? Wählen Sie `Code an meine E-Mail senden`.",
       "Geben Sie danach den sechsstelligen Code ein.",
       "Wenn Sie bereits einen Passkey eingerichtet haben, können Sie `Mit Passkey anmelden` wählen.",
+      "Auf dem Knopf steht eine andere Zahl als 90? Ihre OGS legt fest, wie viele Tage moto ein Gerät merkt.",
+      "Sie sehen keine zwei Knöpfe? Dann merkt Ihre OGS keine Geräte. moto prüft den Code, sobald er vollständig ist.",
     ],
     notes: [
       "Nutzen mehrere Personen das Gerät? Melden Sie sich bei moto ab, wenn Sie fertig sind.",
+      "Gemerkte Geräte stehen in Ihrem `Profil` unter `Meine vertrauten Geräte`. Dort entfernen Sie ein Gerät wieder.",
+      "Ein gemerktes Gerät gilt nur für diese OGS. Arbeiten Sie an mehreren Schulen? Dann merken Sie das Gerät an jeder Schule einmal.",
     ],
     troubleshootingDetails: [
       "Kein Zugriff auf Ihre E-Mails? Wenden Sie sich an Ihre Schulverwaltung. Der zusätzliche Nachweis bleibt bei besonderen Zugriffsrechten Pflicht.",

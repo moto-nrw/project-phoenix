@@ -207,6 +207,13 @@ export function MealParticipantList({
     !closed &&
     date >= today;
 
+  // Fachliche Sperre mit Grund; Laden und Ladefehler bleiben ohne (#6643).
+  let changeBlockedReason: string | undefined;
+  if (!loading && !loadError) {
+    if (closed) changeBlockedReason = t("changeClosedReason");
+    else if (date < today) changeBlockedReason = t("changePastReason");
+  }
+
   const columns = useMemo<DataTableColumn<DailyMealParticipant>[]>(
     () => [
       {
@@ -244,6 +251,7 @@ export function MealParticipantList({
                   items={[
                     {
                       label: t("change"),
+                      description: t("changeDescription"),
                       onClick: () => setChanging({ studentId: row.studentId }),
                     },
                   ]}
@@ -394,7 +402,7 @@ export function MealParticipantList({
             }
             {...datePicker}
             calendarLayout="popover-below"
-            controlSize="md"
+            controlSize="compact"
             disabledDay={isWeekendDay}
             hideClearButton
             required
@@ -410,6 +418,8 @@ export function MealParticipantList({
               className="gap-2"
               onClick={() => setChanging({})}
               disabled={!canChangeDay}
+              tooltip={t("changeTooltip")}
+              disabledReason={changeBlockedReason}
             >
               <UserPen className="h-4 w-4" aria-hidden="true" />
               {t("changeTitle")}

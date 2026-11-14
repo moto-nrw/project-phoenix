@@ -202,6 +202,7 @@ function ModalFooter(props: {
   onClose: () => void;
   onAdd: () => void;
   disabled: boolean;
+  disabledReason: string | undefined;
   isSaving: boolean;
 }) {
   return (
@@ -212,6 +213,7 @@ function ModalFooter(props: {
         variant="outline"
         onClick={props.onClose}
         disabled={props.isSaving}
+        noTooltip="Schließt nur das Fenster."
       >
         Abbrechen
       </Button>
@@ -220,6 +222,8 @@ function ModalFooter(props: {
         size="md"
         onClick={props.onAdd}
         disabled={props.disabled}
+        disabledReason={props.disabledReason}
+        tooltip="Trägt die Person sofort als weitere Aufsicht ein."
         isLoading={props.isSaving}
         loadingText="Wird hinzugefügt..."
       >
@@ -269,6 +273,21 @@ function useSupervisionTargets(
   return { targets, onExternalAdded };
 }
 
+/** Why „Hinzufügen“ is blocked once the supervision is loaded. */
+function addBlockedReason(
+  overview: RunningSupervision | null,
+  targetCount: number,
+  selectedStaffId: string,
+): string | undefined {
+  if (!overview) return undefined;
+  if (!overview.canAssign)
+    return "Sie beaufsichtigen diese Betreuung nicht mehr.";
+  if (targetCount === 0)
+    return "Es gibt niemanden mehr, den Sie eintragen können.";
+  if (!selectedStaffId) return "Wählen Sie zuerst eine Person aus.";
+  return undefined;
+}
+
 export function AddSupervisorModal(props: AddSupervisorModalProps) {
   const state = useRunningSupervision(
     props.activeGroupId,
@@ -301,6 +320,11 @@ export function AddSupervisorModal(props: AddSupervisorModalProps) {
           onClose={props.onClose}
           onAdd={() => void action.add()}
           disabled={disabled}
+          disabledReason={addBlockedReason(
+            state.overview,
+            targets.length,
+            selectedStaffId,
+          )}
           isSaving={action.isSaving}
         />
       }

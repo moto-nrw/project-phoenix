@@ -3,7 +3,7 @@ package careplan
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // BookedCareOffering is a care offering that counts as care with the children

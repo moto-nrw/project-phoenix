@@ -3,9 +3,9 @@ package requestreviewbinding
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // ReviewPeople contains the identity facts shared by Care Plan review queues.

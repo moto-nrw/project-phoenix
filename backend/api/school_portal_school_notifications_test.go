@@ -11,16 +11,16 @@ import (
 	"testing"
 	"time"
 
-	timetable "github.com/moto-nrw/project-phoenix/modules/timetable/http"
+	timetable "github.com/moto-ogs/project-phoenix/modules/timetable/http"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // schoolNotificationPreferences is the school portal's observed wire response.

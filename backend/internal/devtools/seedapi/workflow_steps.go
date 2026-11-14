@@ -288,14 +288,14 @@ func traegerSteps(seeder *Seeder) []Step {
 // traegerSetupSteps prepare the Träger: office, holidays, settings and
 // master data.
 func traegerSetupSteps(seeder *Seeder) []Step {
-	return traegerSerial(seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedHolidayParentAccountStep{seeder: seeder}, seedTraegerClosingDayStep{}, seedTraegerHolidayDaysStep{}, seedTraegerHolidayCriteriaStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{})
+	return traegerSerial(seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedHolidayParentAccountStep{seeder: seeder}, seedTraegerClosingDayStep{}, seedTraegerHolidayDaysStep{}, seedTraegerHolidayCriteriaStep{}, seedTraegerHolidayHomeSchoolStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{})
 }
 
 // traegerCareSteps conclude and bill the contracts of the school's accepted
 // applications, then seed the Träger work that follows the billing in a
 // full seed. They follow the applications and the booked care.
 func traegerCareSteps(seeder *Seeder) []Step {
-	return traegerSerial(seedTraegerCareContractsStep{}, seedTraegerCareContractSignaturesStep{}, seedMealBillingStep{seeder: seeder}, seedTraegerCareMonthsStep{}, seedTraegerCareLettersStep{}, seedParentSEPAMandateStep{}, seedTraegerDocumentsStep{}, seedTraegerBillingLettersStep{}, seedTraegerBillingReissueStep{}, seedTraegerBillingCreditStep{}, seedBelegRetentionStep{}, seedHolidayClosuresStep{}, seedTestTraegerStep{})
+	return traegerSerial(seedTraegerCareContractsStep{}, seedTraegerCareContractSignaturesStep{}, seedMealBillingStep{seeder: seeder}, seedTraegerCareMonthsStep{}, seedTraegerChildDebtorNumbersStep{}, seedTraegerCareLettersStep{}, seedParentSEPAMandateStep{}, seedTraegerDocumentsStep{}, seedTraegerBillingLettersStep{}, seedTraegerBillingReissueStep{}, seedTraegerBillingCreditStep{}, seedBelegRetentionStep{}, seedHolidayClosuresStep{}, seedTestTraegerStep{})
 }
 
 func appendPayrollRuleSteps(steps []Step, seeder *Seeder) []Step {

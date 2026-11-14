@@ -256,6 +256,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
         const items: readonly OverflowMenuEntry[] = [
           {
             label: "Herunterladen",
+            description: "Speichert die Datei auf Ihrem Gerät.",
             href: staffDocumentsService.downloadUrl(staffId, doc.id),
             external: true,
             onClick: () => undefined,
@@ -264,6 +265,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
           {
             label: "Löschen",
             destructive: true,
+            description: "Löscht das Dokument, moto fragt vorher nach.",
             onClick: () => {
               deleteErrors.clear();
               setDeleteTarget(doc);
@@ -307,7 +309,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
                 setUploadCategory(value as StaffDocumentCategory)
               }
               disabled={visibleCategories.length === 0}
-              controlSize="compact"
+              controlSize="dense"
               className="w-56"
             />
           </div>
@@ -341,7 +343,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
               value={filter}
               options={filterItems}
               onChange={(value) => setFilter(value as CategoryFilter)}
-              controlSize="compact"
+              controlSize="dense"
               className="w-56"
             />
           </div>

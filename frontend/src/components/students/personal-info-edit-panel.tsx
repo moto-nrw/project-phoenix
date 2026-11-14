@@ -66,7 +66,10 @@ import {
   ParentVisibilityLegend,
 } from "~/components/ui/visibility-badge";
 import { Textarea } from "~/components/ui/textarea";
-import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
+import {
+  PARENT_VISIBLE_DEFAULT_HINT,
+  PARENT_VISIBLE_HINTS,
+} from "~/lib/parent-visible-fields";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PersonalInfoEditPanel" });
@@ -671,6 +674,7 @@ export function PersonalInfoEditPanel({
         type="button"
         variant="outline"
         size="md"
+        noTooltip="Abbrechen verwirft nur die Eingaben, ohne etwas zu speichern."
         onClick={handleCancel}
         disabled={isSaving}
       >
@@ -682,6 +686,12 @@ export function PersonalInfoEditPanel({
         size="md"
         onClick={() => void handleSave()}
         disabled={isSaving || privacyConsentStatus !== "ready"}
+        tooltip="Speichert die geänderten Angaben des Kindes."
+        disabledReason={
+          privacyConsentStatus === "error"
+            ? "Laden Sie zuerst die Einwilligung neu."
+            : undefined
+        }
       >
         {isSaving ? "Wird gespeichert…" : "Speichern"}
       </Button>
@@ -715,6 +725,7 @@ export function PersonalInfoEditPanel({
               type="button"
               variant="primary"
               size="compact"
+              tooltip="Lädt die Laufgemeinschaft neu und verwirft Ihre Änderungen daran."
               onClick={() => {
                 errors.clear();
                 refreshFromRemote();
@@ -753,6 +764,7 @@ export function PersonalInfoEditPanel({
                 type="button"
                 variant="outline"
                 size="compact"
+                noTooltip="Abbrechen schließt nur die Frage, gespeichert wird nichts."
                 onClick={() => {
                   // Dismissing the question is a NO: drop the conflicts with
                   // it, so the next save asks again instead of widening the
@@ -768,6 +780,12 @@ export function PersonalInfoEditPanel({
                 variant="primary"
                 size="compact"
                 disabled={isSaving || companionsStale}
+                tooltip="Ergänzt „Anderes Kind“ im Heimweg des verknüpften Kindes und speichert."
+                disabledReason={
+                  companionsStale
+                    ? "Laden Sie zuerst die Laufgemeinschaft neu."
+                    : undefined
+                }
                 onClick={() => {
                   // Same reason as in handleSave — the confirmed retry
                   // re-sends the very list that went stale.
@@ -790,7 +808,7 @@ export function PersonalInfoEditPanel({
           }
         />
       ) : null}
-      <ParentVisibilityLegend />
+      <ParentVisibilityLegend hint={PARENT_VISIBLE_DEFAULT_HINT} />
       <TextInput
         id="modal-student-first-name"
         label="Vorname"
@@ -1057,7 +1075,7 @@ function DateInput({
       </div>
       <ISODatePicker
         id={id}
-        controlSize="md"
+        controlSize="compact"
         // The API returns the birthday as a full timestamp here; ISODatePicker
         // takes the calendar day off it, which is what displayValue did.
         value={value ?? ""}

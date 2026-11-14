@@ -3,9 +3,9 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 )
 
 // StaffPermissionHolders lists the staff whose account holds a permission in

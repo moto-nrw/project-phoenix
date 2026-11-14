@@ -7,43 +7,44 @@ import (
 	"net/http"
 	"time"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	emailWebhooksHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/webhooks"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	emailWebhooksHTTP "github.com/moto-ogs/project-phoenix/modules/delivery/http/webhooks"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
-	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
-	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
-	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
-	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
-	platformAnnouncementsHTTP "github.com/moto-nrw/project-phoenix/modules/communication/http/platformannouncements"
-	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
-	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
-	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
-	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
+	requestFeedCompose "github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed/compose"
+	requestFeedHTTP "github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed/http"
+	communicationModule "github.com/moto-ogs/project-phoenix/modules/communication"
+	announcementAPI "github.com/moto-ogs/project-phoenix/modules/communication/http/parentannouncements"
+	messagingAPI "github.com/moto-ogs/project-phoenix/modules/communication/http/parentmessages"
+	platformAnnouncementsHTTP "github.com/moto-ogs/project-phoenix/modules/communication/http/platformannouncements"
+	sseAPI "github.com/moto-ogs/project-phoenix/modules/delivery/http/sse"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/modules/emergencysnapshot"
+	emergencyAPI "github.com/moto-ogs/project-phoenix/modules/emergencysnapshot/http"
+	feedbackModule "github.com/moto-ogs/project-phoenix/modules/feedback"
+	filestorageModule "github.com/moto-ogs/project-phoenix/modules/filestorage"
+	filestoreAPI "github.com/moto-ogs/project-phoenix/modules/filestorage/http/files"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	meAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/me"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
+	mealplanModule "github.com/moto-ogs/project-phoenix/modules/mealplan"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	birthdaysAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/birthdays"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	schoolSetupCompose "github.com/moto-ogs/project-phoenix/modules/schoolsetup/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	statisticsAPI "github.com/moto-ogs/project-phoenix/modules/statistics/http"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
+	remindersHTTP "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/http"
 	"github.com/spf13/viper"
 )
 
@@ -107,7 +108,7 @@ func renderEmailWebhookFailure(w http.ResponseWriter, r *http.Request, err error
 }
 
 // mountModuleRoutes mounts the route groups modules serve themselves.
-func mountModuleRoutes(tenant chi.Router, settings settingsCompose.SettingsService) error {
+func mountModuleRoutes(tenant chi.Router, settings settingsCompose.SettingsService, caller *owners.CallerRows, answers enrollmentOwner.StudentAnswers) error {
 	schoolSetup, err := newSchoolSetupRoute(schoolSetupCompose.Dependencies{
 		Settings: SchoolSetupSettings{Settings: settings},
 	})
@@ -121,7 +122,7 @@ func mountModuleRoutes(tenant chi.Router, settings settingsCompose.SettingsServi
 	for _, module := range []moduleRoute{schoolSetup, staffOnboarding} {
 		tenant.Mount(module.pattern, module.router)
 	}
-	return nil
+	return mountSchoolSearch(tenant, caller, answers)
 }
 
 // mountPeopleRoutes serves the people directory, guardians, statistics,

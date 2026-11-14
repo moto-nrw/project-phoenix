@@ -1167,6 +1167,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":51,"participants":2}]}`)
 			return
 		}
+		if r.URL.Path == "/api/holiday-weeks/home-school-children" {
+			// The demo school's child at another school's week, assigned to
+			// its file (#6679).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"child_id":61,"week_id":52,"student_id":71}]}`)
+			return
+		}
 		if r.URL.Path == "/api/holiday-weeks/51/participants" {
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"participants":[]}}`)
 			return
@@ -1785,6 +1791,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.URL.Path == "/parent/me/calendar" {
+			// The parent's Elterncafé invitation it answers date by date (#6987).
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"events":[{"title":%q,"recipient_id":"81"}]}}`, seedParentCafeTitle)
+			return
+		}
 		if r.URL.Path == "/traeger/holiday-periods/criteria" {
 			// The criteria of the allocation as stored (#4700).
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"criteria":[{"id":71},{"id":72},{"id":73},{"id":74}],"periods":[]}}`)
@@ -2097,6 +2108,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		case "/traeger/auth/login":
 			// The Träger-Portal sign-in of the holiday period step (#4659).
 			_, _ = fmt.Fprint(w, `{"status":"authenticated","access_token":"traeger-token","refresh_token":"traeger-refresh"}`)
+
+		case "/traeger/billing-families/children":
+			// The children's debtor numbers (#7007): no family to prepare.
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
 
 		case "/traeger/schools/":
 			// The Träger's two schools the operator created above.

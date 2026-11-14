@@ -373,6 +373,26 @@ interface SettingsFieldProps {
   // Defaults to the tenant reveal endpoint; the operator page passes a
   // school-bound function so reveal hits the operator endpoint instead.
   readonly revealFn?: (key: string) => Promise<string | null>;
+  /** Heading level of the setting's name: one below its category card. */
+  readonly labelLevel?: 3 | 4;
+  /**
+   * Asks before „Zurücksetzen“ throws away an own text (a letter's sender or
+   * footer): the reset saves at once and has no undo.
+   */
+  readonly confirmTextReset?: boolean;
+  /** Text areas hold plain text that prints as typed, not Markdown. */
+  readonly plainTextareas?: boolean;
+  /**
+   * The category already says that its values hold for all schools: the
+   * field leaves that line out and keeps only who set the value.
+   */
+  readonly traegerOnlyStated?: boolean;
+}
+
+/** The first line of a text, cut after 60 characters. */
+function firstLine(text: string): string {
+  const line = text.trim().split("\n")[0]?.trim() ?? "";
+  return line.length > 60 ? `${line.slice(0, 60).trimEnd()} …` : line;
 }
 
 interface PendingSettingSave {
@@ -392,7 +412,13 @@ export function SettingsField({
   onBookingAuthorityEnable,
   audience = "admin",
   revealFn,
+  labelLevel = 4,
+  confirmTextReset = false,
+  plainTextareas = false,
+  traegerOnlyStated = false,
 }: SettingsFieldProps) {
+  const LabelHeading = labelLevel === 3 ? "h3" : "h4";
+  const [confirmingTextReset, setConfirmingTextReset] = useState(false);
   const { success: toastSuccess } = useToast();
   const [localValue, setLocalValue] = useState<unknown>(setting.value);
   const [isDirty, setIsDirty] = useState(false);
@@ -448,7 +474,10 @@ export function SettingsField({
   const latestDeleteRef = useRef<() => void>(() => undefined);
   const settingObject = `die Einstellung „${setting.label}“`;
   const restoresTraegerValue = resetRestoresTraegerValue(setting, audience);
-  const originNote = settingOriginNote(setting, audience);
+  const originNote =
+    traegerOnlyStated && setting.source !== "traeger"
+      ? null
+      : settingOriginNote(setting, audience);
   const legalActivationTextKey =
     ENROLLMENT_LEGAL_TOGGLE_TO_TEXT_KEY[setting.key] ?? null;
   const legalActivationTextSetting = legalActivationTextKey
@@ -1056,11 +1085,22 @@ export function SettingsField({
       setPendingShortening({ days, value: setting.default, reset: true });
       return;
     }
+    if (
+      confirmTextReset &&
+      (setting.type === "text" || setting.type === "textarea") &&
+      typeof localValue === "string" &&
+      localValue.trim() !== ""
+    ) {
+      setConfirmingTextReset(true);
+      return;
+    }
     await performReset();
   }, [
     audience,
+    confirmTextReset,
     deletesRoomHistory,
     historyDeletionErrors,
+    localValue,
     performReset,
     setting,
   ]);
@@ -1134,9 +1174,11 @@ export function SettingsField({
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h4 className="text-sm font-medium text-gray-900">{setting.label}</h4>
+          <LabelHeading className="text-sm font-medium text-gray-900">
+            {setting.label}
+          </LabelHeading>
           {showsStandardBadge(setting, audience) && (
-            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
+            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">
               Standard
             </span>
           )}
@@ -1150,7 +1192,7 @@ export function SettingsField({
           <p className="mt-0.5 text-sm text-gray-500">{setting.description}</p>
         )}
         {originNote && (
-          <p className="mt-0.5 text-xs text-gray-500">{originNote}</p>
+          <p className="mt-0.5 text-sm text-gray-500">{originNote}</p>
         )}
         {setting.access_policy === "shared" && audience === "operator" && (
           <p className="mt-0.5 text-xs text-gray-400 italic">
@@ -1200,6 +1242,7 @@ export function SettingsField({
               revealFn,
               hint ? hintId : undefined,
               handlePresetPick,
+              plainTextareas,
             )}
 
         {offersReset(setting, audience, deletesRoomHistory) && (
@@ -1223,7 +1266,9 @@ export function SettingsField({
             }
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-            <span className="hidden sm:inline">Zurücksetzen</span>
+            {/* The word stays on a phone too: a bare arrow next to a text
+                field does not say that it throws the own text away. */}
+            <span>Zurücksetzen</span>
           </Button>
         )}
       </div>
@@ -1289,6 +1334,29 @@ export function SettingsField({
           <p className="text-sm text-gray-600">{activeConfirmConfig.body}</p>
         </ConfirmationModal>
       )}
+
+      <ConfirmationModal
+        isOpen={confirmingTextReset}
+        onClose={() => setConfirmingTextReset(false)}
+        onConfirm={() => {
+          setConfirmingTextReset(false);
+          void performReset();
+        }}
+        title={`„${setting.label}“ zurücksetzen?`}
+        confirmText="Zurücksetzen"
+        cancelText="Abbrechen"
+        confirmVariant="danger"
+      >
+        <p className="text-sm text-gray-600">
+          Ihr Text wird gelöscht und gleich gespeichert. Danach gilt wieder der
+          Standard.
+        </p>
+        {typeof localValue === "string" && localValue.trim() ? (
+          <p className="mt-2 text-sm text-gray-900">
+            Ihr Text beginnt mit: „{firstLine(localValue)}“
+          </p>
+        ) : null}
+      </ConfirmationModal>
 
       <ConfirmationModal
         isOpen={pendingShortening !== null}
@@ -1881,7 +1949,7 @@ function renderEnrollmentLegalTextEditor(
         onClick={onEdit}
         disabled={!writable}
         className="shrink-0"
-        tooltip="Öffnet den Rechtstext für Eltern zum Bearbeiten."
+        tooltip="Öffnet den Rechtstext für Eltern zum Ändern."
       >
         <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
         <span>{isAGB ? "AGB überarbeiten" : "Rechtstext bearbeiten"}</span>
@@ -2083,6 +2151,7 @@ function renderField(
   revealFn?: (key: string) => Promise<string | null>,
   errorId?: string,
   onPresetPick?: (value: unknown) => Promise<void>,
+  plainTextareas = false,
 ) {
   const disabled = !setting.writable;
 
@@ -2189,6 +2258,7 @@ function renderField(
           }
           rows={exampleRows(setting.placeholder)}
           errorId={errorId}
+          plainText={plainTextareas}
         />
       );
     case "password":

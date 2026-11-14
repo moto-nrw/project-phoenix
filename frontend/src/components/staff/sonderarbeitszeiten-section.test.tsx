@@ -140,9 +140,12 @@ describe("SonderarbeitszeitenSection", () => {
       }),
     );
 
+    // Über den zugänglichen Namen: die sichtbare Beschreibung (#6643) gehört
+    // nicht dazu.
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
     expect(
-      screen.getAllByRole("menuitem").map((item) => item.textContent),
-    ).toEqual(["Löschen"]);
+      screen.getByRole("menuitem", { name: "Löschen" }),
+    ).toBeInTheDocument();
   });
 
   it("hides every write action without the edit permission", () => {

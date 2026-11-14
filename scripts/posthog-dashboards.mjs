@@ -532,9 +532,11 @@ limit 15`);
  * Dead clicks (events) and rage clicks (PostHog's heatmap data; autocapture
  * is off in the project, so there is no `$rageclick` event) per page of the
  * given portals, with the heatmap link. The heatmap rows carry no surface,
- * so they are matched to the portal through their browser session. The
- * heatmap behind the link is per route template and mixes portals that share
- * one (`/`, `/messages`).
+ * so they are matched to the portal through their browser session: a session
+ * belongs to a portal once it opened one of its pages. Reading only page
+ * views keeps that lookup cheap; across all events of the parents portal it
+ * hit PostHog's execution time limit. The heatmap behind the link is per
+ * route template and mixes portals that share one (`/`, `/messages`).
  */
 function frictionTable(projectId, deployment, surfaces, days = 30) {
   const origin = heatmapOrigin(deployment);
@@ -549,21 +551,22 @@ select
 from (
   select properties.$pathname as Seite, countIf(event = '$pageview') as Aufrufe, countIf(event = '$dead_click') as Dead
   from events
-  where ${where}
-    and properties.surface in ${sqlList(surfaces)}
-    and event in ('$pageview', '$dead_click')
+  where event in ('$pageview', '$dead_click')
     and timestamp > now() - interval ${days} day
+    and ${where}
+    and properties.surface in ${sqlList(surfaces)}
   group by Seite
 ) as e
 left join (
   select replaceOne(current_url, ${sqlString(origin)}, '') as Seite, count() as Rage
   from heatmaps
-  where startsWith(current_url, ${sqlString(`${origin}/`)})${deployment === 'production' ? ` and ${ON_WORKDAY}` : ''}
-    and type = 'rageclick'
+  where type = 'rageclick'
     and timestamp > now() - interval ${days} day
+    and startsWith(current_url, ${sqlString(`${origin}/`)})${deployment === 'production' ? ` and ${ON_WORKDAY}` : ''}
     and session_id in (
       select $session_id from events
-      where ${where} and properties.surface in ${sqlList(surfaces)} and timestamp > now() - interval ${days} day
+      where event = '$pageview' and timestamp > now() - interval ${days} day
+        and ${where} and properties.surface in ${sqlList(surfaces)}
     )
   group by Seite
 ) as r on e.Seite = r.Seite
@@ -955,16 +958,16 @@ order by Woche desc`),
     },
     {
       name: 'Nutzungsanalyse: Demo',
-      description: 'Was Interessenten in der öffentlichen Demo ansehen, ausprobieren und wo sie aussteigen, bis zum Klick auf „Kostenlos starten“. Nur deployment = demo, Demo-Zugänge statt Personen. Eine Sitzung endet auch beim Neuladen oder in einem neuen Tab. „Kostenlos starten“ führt auf das Formular moto-ogs.de/start (?src=demo); seine Schritte und Absendungen misst Umami auf der Website (Events start-form-*), nicht PostHog.',
+      description: 'Was Interessenten in der öffentlichen Demo ansehen, ausprobieren und wo sie aussteigen, bis zum Klick auf „Termin buchen“. Nur deployment = demo, Demo-Zugänge statt Personen. Eine Sitzung endet auch beim Neuladen oder in einem neuen Tab. „Termin buchen“ öffnet den Terminkalender in HubSpot; gebuchte Termine stehen dort, nicht in PostHog. Ältere Klicks desselben Ereignisses kamen vom früheren Knopf „Kostenlos starten“.',
       insights: [
         {
-          name: 'Demo-Funnel: Einstieg bis Kostenlos starten',
-          description: 'Folgt einem Demo-Zugang vom Einstieg über den Rollenwechsel bis „Kostenlos starten“, letzte 30 Tage. Das ist die Konversion der Demo.',
+          name: 'Demo-Funnel: Einstieg bis Termin buchen',
+          description: 'Folgt einem Demo-Zugang vom Einstieg über den Rollenwechsel bis „Termin buchen“, letzte 30 Tage. Das ist die Konversion der Demo.',
           ...funnel('demo', {
             series: [
               series('demo_entered', 'Eingestiegen'),
               series('demo_role_switched', 'Rolle gewechselt'),
-              series('demo_start_clicked', 'Kostenlos starten'),
+              series('demo_start_clicked', 'Termin buchen'),
             ],
           }),
         },
@@ -977,7 +980,7 @@ select
   count() as Sitzungen,
   round(100 * count() / sum(count()) over (), 1) as ${quoted('Anteil in Prozent')},
   round(avg(Seiten), 1) as ${quoted('Seiten (Mittel)')},
-  countIf(Gestartet = 1) as ${quoted('davon Kostenlos starten')}
+  countIf(Gestartet = 1) as ${quoted('davon „Termin buchen“ geklickt')}
 from (
   select
     properties.$session_id as Sitzung,
@@ -1019,8 +1022,8 @@ join (
 order by Rolle, Sitzungen desc`),
         },
         {
-          name: 'Demo-Verhalten: Funktionen vor „Kostenlos starten“',
-          description: 'Letzte 30 Tage. Welcher Anteil der Sitzungen mit und ohne Klick auf „Kostenlos starten“ einen Funktionsbereich gesehen hat. Ein großer Abstand deutet auf eine Funktion, die überzeugt. Wenige Klicks bedeuten große Zufallsschwankung.',
+          name: 'Demo-Verhalten: Funktionen vor „Termin buchen“',
+          description: 'Letzte 30 Tage. Welcher Anteil der Sitzungen mit und ohne Klick auf „Termin buchen“ einen Funktionsbereich gesehen hat. Ein großer Abstand deutet auf eine Funktion, die überzeugt. Wenige Klicks bedeuten große Zufallsschwankung.',
           ...hogql('demo', (where) => `
 select
   Funktion,
@@ -1109,7 +1112,7 @@ select
   coalesce(properties.src, 'ohne') as Quelle,
   countIf(event = 'demo_entered') as Einstiege,
   countIf(event = 'demo_role_switched') as Rollenwechsel,
-  countIf(event = 'demo_start_clicked') as \`Kostenlos starten\`
+  countIf(event = 'demo_start_clicked') as \`Termin buchen\`
 from events
 where ${where}
   and event in ('demo_entered', 'demo_role_switched', 'demo_start_clicked')
@@ -1125,7 +1128,7 @@ order by Einstiege desc`),
               series('demo_started', 'Demo-Schule bereitgestellt'),
               series('demo_entered', 'Eingestiegen'),
               series('demo_role_switched', 'Rolle gewechselt'),
-              series('demo_start_clicked', 'Kostenlos starten'),
+              series('demo_start_clicked', 'Termin buchen'),
             ],
           }),
         },
@@ -1145,7 +1148,7 @@ from (
   union all
   select 5, 'Rolle gewechselt', countIf(event = 'demo_role_switched') from events where ${where} and timestamp > now() - interval 30 day
   union all
-  select 6, 'Kostenlos starten', countIf(event = 'demo_start_clicked') from events where ${where} and timestamp > now() - interval 30 day
+  select 6, 'Termin buchen', countIf(event = 'demo_start_clicked') from events where ${where} and timestamp > now() - interval 30 day
 )
 order by Nr`),
         },
@@ -1226,7 +1229,11 @@ export function posthogClient({ apiKey, request = fetch }) {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await response.text();
-    if (!response.ok) throw new Error(`PostHog ${method} ${path}: ${response.status} ${text.slice(0, 500)}`);
+    if (!response.ok) {
+      const error = new Error(`PostHog ${method} ${path}: ${response.status} ${text.slice(0, 500)}`);
+      error.status = response.status;
+      throw error;
+    }
     return text ? JSON.parse(text) : null;
   };
 }
@@ -1317,15 +1324,40 @@ export async function sync(api, projectId, definitions, { dryRun = false } = {})
   return log;
 }
 
-/** Runs every insight query once; a query PostHog rejects fails the run. */
+/**
+ * PostHog's answer when a query ran into its execution time limit. Load on
+ * PostHog's side decides it as much as the query does, so `check` tries such
+ * a query once more; every other error fails at once.
+ */
+export const isQueryTimeout = (error) => error?.status === 504 && /max execution time/i.test(error.message);
+
+/** Attempts per query in `check`: one more only after a timeout (`isQueryTimeout`). */
+const QUERY_ATTEMPTS = 2;
+
+/**
+ * Runs every insight query; a query PostHog rejects fails the run. A query
+ * that times out twice fails too, and one that passed on its second attempt
+ * says so in the log.
+ */
 export async function check(api, projectId, definitions) {
   const log = [];
   let failed = false;
   for (const definition of definitions) {
     for (const insight of definition.insights) {
       try {
-        const result = await api('POST', `/api/projects/${projectId}/query/`, { query: insight.query.source });
-        log.push(`ok   ${insight.name}: ${result.results?.length ?? 0} rows`);
+        let result;
+        let attempt = 1;
+        for (;;) {
+          try {
+            result = await api('POST', `/api/projects/${projectId}/query/`, { query: insight.query.source });
+            break;
+          } catch (error) {
+            if (attempt >= QUERY_ATTEMPTS || !isQueryTimeout(error)) throw error;
+            attempt++;
+          }
+        }
+        const retried = attempt > 1 ? ' (retried after a timeout)' : '';
+        log.push(`ok   ${insight.name}: ${result.results?.length ?? 0} rows${retried}`);
       } catch (error) {
         failed = true;
         log.push(`FAIL ${insight.name}: ${error.message}`);

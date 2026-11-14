@@ -19,6 +19,7 @@ import type { StaffOfferingRequestHistoryEntry } from "~/lib/offering-request-re
 import {
   careSummary,
   careTypeLabel,
+  ParentsSawBadge,
 } from "~/components/students/care-request-review-item";
 import { datesSummary } from "~/components/students/excused-request-review-item";
 import {
@@ -97,11 +98,14 @@ function CareHistoryCard({
           {entries.map((entry) => (
             <p
               key={`${entry.label}-${entry.new}`}
-              className="text-sm text-gray-700"
+              className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-700"
             >
-              {showDiff
-                ? `${entry.label}: ${entry.old || "–"} → ${entry.new}`
-                : `${entry.label}: ${entry.new}`}
+              <span>
+                {showDiff
+                  ? `${entry.label}: ${entry.old || "–"} → ${entry.new}`
+                  : `${entry.label}: ${entry.new}`}
+              </span>
+              {showDiff && <ParentsSawBadge entry={entry} />}
             </p>
           ))}
         </ReviewDiffPanel>
@@ -206,7 +210,13 @@ export function RequestHistoryItem({
   onCorrect?: () => void;
 }>) {
   const action = onCorrect ? (
-    <Button type="button" variant="ghost" size="md" onClick={onCorrect}>
+    <Button
+      type="button"
+      variant="ghost"
+      size="md"
+      tooltip="Öffnet ein Fenster, in dem Sie die Entscheidung ändern."
+      onClick={onCorrect}
+    >
       Entscheidung korrigieren
     </Button>
   ) : undefined;

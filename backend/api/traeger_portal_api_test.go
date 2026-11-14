@@ -21,19 +21,19 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // traegerPortalHandler is the /traeger router with the mailbox its second
@@ -85,6 +85,13 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 // give no care on days.
 func traegerPortalRouterWithDays(t *testing.T, db *bun.DB, identity TraegerPortalIdentity, unit tenant.UnitOfWork, days owners.HolidayTestSchoolCalendar) http.Handler {
 	t.Helper()
+	return testpkg.SessionVerifier(traegerPortalRoutes(t, db, identity, unit, days))
+}
+
+// traegerPortalRoutes is the /traeger router before the session verifier, so
+// a test can mount the serving root's family check between the two.
+func traegerPortalRoutes(t *testing.T, db *bun.DB, identity TraegerPortalIdentity, unit tenant.UnitOfWork, days owners.HolidayTestSchoolCalendar) http.Handler {
+	t.Helper()
 	database := testpkg.NewDatabase(t, db)
 	organizations, err := owners.NewOrganizationTenancy(database)
 	require.NoError(t, err)
@@ -100,7 +107,7 @@ func traegerPortalRouterWithDays(t *testing.T, db *bun.DB, identity TraegerPorta
 	require.NoError(t, err)
 	portal, err := NewTraegerPortalHTTP(identity, organizations, owners.MustNewPeopleDirectory(database), membership,
 		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog}, settings, testHealthCipher(), days,
-		holidayTraegerMail{delivery: delivery.Module}, newHolidayOfficeTraeger(organizations))
+		holidayTraegerMail{delivery: delivery.Module}, holidayMailStates{mails: delivery.TraegerMails}, newHolidayOfficeTraeger(organizations))
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
@@ -122,7 +129,7 @@ func traegerPortalRouterWithDays(t *testing.T, db *bun.DB, identity TraegerPorta
 		owners.HolidayClosureMail{Delivery: delivery.Module, TraegerMails: delivery.TraegerMails}, days, closureTestHolidays{}, slog.Default())
 	mountCareContractRoutes(router, organizations, settings, schoolSettings.Settings, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, audit.DataAccessLog,
 		owners.NewCareContractNoticeAddressees(owners.MustNewPeopleDirectory(database), identity), owners.CareContractTestHolidays{}, "http://parents.localhost:3000")
-	return testpkg.SessionVerifier(router)
+	return router
 }
 
 func traegerOrganization(t *testing.T, db *bun.DB, name string, active bool) int64 {
@@ -151,7 +158,10 @@ type traegerLoginAnswer struct {
 	ChallengeToken string `json:"challenge_token"`
 	MaskedEmail    string `json:"masked_email"`
 	OrganizationID int64  `json:"organization_id"`
-	Organizations  []struct {
+	// The remember-device offer of the code step (#6955).
+	TrustedDeviceEnabled *bool `json:"trusted_device_enabled"`
+	TrustedDeviceDays    *int  `json:"trusted_device_days"`
+	Organizations        []struct {
 		ID   int64  `json:"id"`
 		Name string `json:"name"`
 	} `json:"organizations"`
@@ -555,4 +565,28 @@ func (closureTestHolidays) ValidHolidayRegion(string) bool { return true }
 
 func (closureTestHolidays) ListHolidays(context.Context, string, string, string) ([]schoolcalendar.Holiday, error) {
 	return nil, nil
+}
+
+// A browser's refresh names its client address, so the refresh is audited. A
+// Träger session is kept at no school: its refresh is filed like its sign-in,
+// at the account's default school.
+func TestTraegerSessionRefreshesWithAClientAddress(t *testing.T) {
+	t.Parallel()
+	db, router, identity, unit := newTraegerPortal(t)
+	password := testpkg.NewTestPassword()
+	organization := traegerOrganization(t, db, "Träger Refresh Adresse", true)
+	account := traegerAccount(t, db, password)
+	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleAdministration)
+	code, answer := traegerSignIn(t, router, account.Email, password, 0)
+	require.Equal(t, http.StatusOK, code)
+	ctx := tenant.WithUnitOfWork(context.Background(), unit)
+
+	access, _, err := identity.RefreshTokenWithAudit(ctx, answer.RefreshToken, "", "192.0.2.10", "tests")
+	require.NoError(t, err)
+	assert.Equal(t, float64(organization), traegerTokenClaims(t, access)["org_id"])
+
+	var filed []int64
+	require.NoError(t, db.NewRaw(`SELECT tenant_id FROM audit.auth_events WHERE account_id = ? AND event_type = 'token_refresh'`,
+		account.ID).Scan(context.Background(), &filed))
+	assert.Equal(t, []int64{testpkg.Tenant(t)}, filed, "the refresh is in the ledger of the account's school")
 }

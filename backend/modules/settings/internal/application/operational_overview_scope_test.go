@@ -13,17 +13,17 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	configRepository "github.com/moto-nrw/project-phoenix/modules/settings/internal/adapters/configpostgres"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	configRepository "github.com/moto-ogs/project-phoenix/modules/settings/internal/adapters/configpostgres"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	// Registers the real setting definitions — the decision resolves the key
 	// against the production registry, not a test stand-in.
-	_ "github.com/moto-nrw/project-phoenix/modules/settings/internal/defaults"
+	_ "github.com/moto-ogs/project-phoenix/modules/settings/internal/defaults"
 )
 
 // overviewStaff stands in for the caller's staff identity. The staff lookup

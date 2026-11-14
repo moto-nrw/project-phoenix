@@ -7,7 +7,7 @@
 // Aktionen“ des UI-Kits: eine Karte, weiße Zeilen, eine bündige Spalte mit
 // gleichrangigen Knöpfen.
 
-import { Download, History } from "lucide-react";
+import { Download } from "lucide-react";
 import { useState } from "react";
 import {
   formatService,
@@ -15,7 +15,10 @@ import {
 } from "~/components/traeger/care-contract-format";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/data-field";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   StatusBadge,
@@ -32,6 +35,7 @@ import {
   downloadCareContractVersion,
   type Weekday,
 } from "~/lib/traeger-care-contracts-api";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 
 const logger = createLogger({ component: "CareContractVersions" });
 
@@ -213,7 +217,7 @@ export function CareContractVersions({
   return (
     <SectionCard
       title="Versionen"
-      icon={History}
+      concept={changeHistoryConcept}
       titleBadge={
         versions.length > 1 ? (
           <StatusBadge label={`${versions.length} Versionen`} tone="gray" />
@@ -233,9 +237,10 @@ export function CareContractVersions({
               .find((earlier) => earlier.status !== "ersetzt"),
           );
           return (
-            <li
+            <ResponsiveActionRow
               key={version.number}
-              className="py-4 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-start"
+              align="start"
+              className="block gap-[normal] py-4"
             >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -256,6 +261,8 @@ export function CareContractVersions({
                     ? ` · ${changed.size === 1 ? "1 Tag" : `${changed.size} Tage`} geändert`
                     : null}
                 </p>
+                {/* Every version lists its days, also the only one: the
+                    card is the contract's history, read on its own. */}
                 <div className="mt-3">
                   <DataGrid>
                     {serviceDays(version.services, [...changed]).map((day) => (
@@ -288,13 +295,14 @@ export function CareContractVersions({
                   size="compact"
                   aria-label={`PDF von Version ${version.number} herunterladen`}
                   disabled={loading !== null}
+                  tooltip="Lädt den Vertrag in dieser Version als PDF herunter."
                   onClick={() => void download(version.number)}
                 >
                   <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />
                   {loading === version.number ? "Wird geladen …" : "PDF"}
                 </Button>
               </div>
-            </li>
+            </ResponsiveActionRow>
           );
         })}
       </ResponsiveActionList>

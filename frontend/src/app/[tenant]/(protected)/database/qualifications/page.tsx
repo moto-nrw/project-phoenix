@@ -162,6 +162,7 @@ export default function QualificationsPage() {
       render: (row) => (
         <ButtonLink
           href={tenantPath(`/staff/${row.staffId}?tab=stammdaten`)}
+          tooltip="Öffnet die Stammdaten der Person mit ihren Nachweisen."
           variant="ghost"
           size="compact"
         >
@@ -237,6 +238,7 @@ export default function QualificationsPage() {
         <>
           <ButtonLink
             href={tenantPath("/database/qualification-types")}
+            tooltip="Öffnet die Liste der Nachweisarten zum Ändern."
             variant="outline"
             size="md"
           >
@@ -253,6 +255,8 @@ export default function QualificationsPage() {
                     { kind: "header", label: "Herunterladen" },
                     {
                       label: "Für Excel herunterladen",
+                      description:
+                        "Speichert die gefilterte Liste als Datei auf Ihrem Gerät.",
                       icon: <FileSpreadsheet className="h-4 w-4" aria-hidden />,
                       onClick: () =>
                         downloadBlob(

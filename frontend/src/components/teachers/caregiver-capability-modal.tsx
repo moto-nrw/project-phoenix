@@ -356,12 +356,19 @@ export function CaregiverCapabilityModal({
             }}
             variant="outline"
             size="md"
+            tooltip="Zeigt wieder die Übersicht mit dem neuen Stand der Zuordnungen."
           >
             Zurück zur Übersicht
           </Button>
         ) : (
           <>
-            <Button type="button" onClick={onClose} variant="outline" size="md">
+            <Button
+              type="button"
+              onClick={onClose}
+              variant="outline"
+              size="md"
+              noTooltip="Schließen schließt nur den Dialog."
+            >
               Schließen
             </Button>
             {canDisable ? (
@@ -369,8 +376,14 @@ export function CaregiverCapabilityModal({
                 type="button"
                 onClick={() => void handleDisable()}
                 disabled={saving || loading || state?.disableBlocked}
+                disabledReason={
+                  !saving && !loading && state?.disableBlocked
+                    ? "Lösen Sie zuerst die offenen Zuordnungen auf."
+                    : undefined
+                }
                 variant="outline_danger"
                 size="md"
+                tooltip="Nimmt dem Konto sofort den Zugriff auf die Betreuung, ohne E-Mail."
               >
                 Betreuung deaktivieren
               </Button>
@@ -382,6 +395,7 @@ export function CaregiverCapabilityModal({
                 disabled={saving || loading}
                 variant="primary"
                 size="md"
+                tooltip="Gibt dem Konto sofort Zugriff auf die Betreuung, ohne E-Mail."
               >
                 {saving ? "Wird gespeichert..." : "Betreuung aktivieren"}
               </Button>
@@ -410,7 +424,6 @@ export function CaregiverCapabilityModal({
                 size={18}
               />
             }
-            accentColor={state.isActiveCaregiver ? "green" : "gray"}
           >
             <DataGrid>
               <DataField label="Status">{getRoleSummary(state)}</DataField>
@@ -434,7 +447,6 @@ export function CaregiverCapabilityModal({
                   size={18}
                 />
               }
-              accentColor="orange"
             >
               <p className="mb-3 text-xs text-gray-600">
                 Für dieses Konto existiert noch kein Personalprofil. Bitte Name
@@ -481,7 +493,6 @@ export function CaregiverCapabilityModal({
                   size={18}
                 />
               }
-              accentColor="amber"
             >
               <p className="mb-2 text-xs text-gray-600">
                 Die Betreuung kann erst deaktiviert werden, wenn folgende
@@ -507,6 +518,7 @@ export function CaregiverCapabilityModal({
                   onClick={() => setStep("resolve")}
                   variant="warning"
                   size="md"
+                  tooltip="Zeigt die Zuordnungen, die Sie übertragen oder entfernen können."
                 >
                   Zuordnungen auflösen
                 </Button>

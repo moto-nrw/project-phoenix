@@ -139,6 +139,11 @@ export interface BillingDocument {
   readonly number: string;
   readonly issuedOn: string | null;
   readonly registrationId: string;
+  /**
+   * The child of the registration a holiday invoice per child bills
+   * (#7007); empty for an invoice of the whole registration.
+   */
+  readonly registrationChildId: string;
   readonly recipientFirstName: string;
   readonly recipientLastName: string;
   readonly recipientEmail: string;
@@ -276,6 +281,7 @@ interface BackendDocument {
   number: string;
   issued_on: string | null;
   registration_id: number;
+  registration_child_id?: number;
   recipient_first_name: string;
   recipient_last_name: string;
   recipient_email: string;
@@ -416,6 +422,9 @@ function documentFromBackend(document: BackendDocument): BillingDocument {
     number: document.number,
     issuedOn: document.issued_on,
     registrationId: String(document.registration_id),
+    registrationChildId: document.registration_child_id
+      ? String(document.registration_child_id)
+      : "",
     recipientFirstName: document.recipient_first_name,
     recipientLastName: document.recipient_last_name,
     recipientEmail: document.recipient_email,

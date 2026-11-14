@@ -4,14 +4,14 @@ import { Eye } from "lucide-react";
 
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Tooltip } from "~/components/ui/tooltip";
+import { TINT_CLASSES } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
-import { PARENT_VISIBLE_DEFAULT_HINT } from "~/lib/parent-visible-fields";
 
 const AUDIENCES = {
   parents: {
     label: "Für Eltern sichtbar",
     tone: "blue",
-    compactClass: "bg-moto-blue-soft text-moto-blue-strong",
+    compactClass: `${TINT_CLASSES.blue.surface} ${TINT_CLASSES.blue.text}`,
   },
   ogs: {
     label: "Für die OGS sichtbar",
@@ -30,13 +30,14 @@ const AUDIENCES = {
  * heading. Both stay legible without color — the icon and the text do the work,
  * the tint is decoration.
  *
- * Which fields qualify is NOT decided here; it lives in
- * `~/lib/parent-visible-fields` next to the backend structs it mirrors.
+ * Which fields qualify, and the tooltip that says so, is NOT decided here:
+ * the caller passes `hint`, from `~/lib/parent-visible-fields` next to the
+ * backend structs it mirrors (#6582).
  */
 export function VisibilityBadge({
   audience = "parents",
   label,
-  hint = PARENT_VISIBLE_DEFAULT_HINT,
+  hint,
   compact = false,
   className,
   bubbleClassName,
@@ -44,8 +45,8 @@ export function VisibilityBadge({
   audience?: keyof typeof AUDIENCES;
   /** Übersetzter Text für das Elternportal; sonst der deutsche Standardtext. */
   label?: string;
-  /** Tooltip text — pass one of `PARENT_VISIBLE_HINTS`. */
-  hint?: string;
+  /** Tooltip text, e.g. one of `PARENT_VISIBLE_HINTS`. */
+  hint: string;
   /** Icon-only variant for inline form labels. */
   compact?: boolean;
   className?: string;
@@ -84,13 +85,18 @@ export function VisibilityBadge({
  * already in its own text, so the legend does not repeat it.
  */
 export function ParentVisibilityLegend({
+  hint,
   className,
-}: Readonly<{ className?: string }>) {
+}: Readonly<{
+  /** Tooltip of the marker, e.g. `PARENT_VISIBLE_DEFAULT_HINT`. */
+  hint: string;
+  className?: string;
+}>) {
   return (
     // Inline flow rather than flex, so a narrow container wraps the sentence
     // around the marker instead of stranding it on a line of its own.
     <p className={cn("text-xs leading-relaxed text-gray-500", className)}>
-      <VisibilityBadge className="mr-1.5" />
+      <VisibilityBadge hint={hint} className="mr-1.5" />
       Nicht gekennzeichnete Angaben bleiben intern.
     </p>
   );

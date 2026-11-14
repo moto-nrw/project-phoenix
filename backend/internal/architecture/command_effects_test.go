@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
-	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/internal/gitfixture"
 )
 
 // The public loader/check boundary must see runtime edges hidden by root glue.
@@ -125,7 +125,7 @@ func TestCommandEffectsCannotExpandExceptionAtPRBase(t *testing.T) {
 	writeFile(t, filepath.Join(project, commandEffectInventory), `{"schema_version":1,"entries":[{
  "port":"enrollment.Writer.Record","binding":"roots.binding.Record","target":"foreign.Ledger.Record","target_owner":"foreign",
  "effect":"mutation","classification":"E1","adr":"0067","reason":"Existing E1 cannot authorize a new protocol."}]}`)
-	if err := CompareCommandEffects(project, base); err == nil || !strings.Contains(err.Error(), "exception") {
+	if err := CompareCommandEffects(project, base, nil); err == nil || !strings.Contains(err.Error(), "exception") {
 		t.Fatalf("exception grew without new ADR: %v", err)
 	}
 }
@@ -344,7 +344,7 @@ func TestCommandEffectsCompareChangedEffectsAndEvidenceWithBase(t *testing.T) {
 			if tc.approval != "" {
 				writeFile(t, filepath.Join(project, "docs", "adr", "0089-fixture.md"), "# Reviewed boundary\n")
 			}
-			err := CompareCommandEffects(project, base)
+			err := CompareCommandEffects(project, base, nil)
 			if tc.want == "" {
 				if err != nil {
 					t.Fatal(err)
@@ -443,7 +443,7 @@ func TestCommandEffectsBootstrapIsBoundToNewImplementationDecision(t *testing.T)
 				writeFile(t, filepath.Join(project, commandEffectDecision), document+"\n## Implementation addendum 2026-10-23 (#4739)\n")
 			}
 			writeFile(t, filename, `{"schema_version":1,"entries":[{"port":"enrollment.Writer.Record","binding":"roots.binding.Record","target":"foreign.Ledger.Record","target_owner":"foreign","effect":"mutation","classification":"E1","adr":"0067","approval_adr":"0083","reason":"Reviewed initial E1 boundary."}]}`)
-			err := CompareCommandEffects(project, base)
+			err := CompareCommandEffects(project, base, nil)
 			if (err == nil) != tc.allowed {
 				t.Fatalf("bootstrap allowed=%t, error=%v", tc.allowed, err)
 			}
@@ -654,7 +654,7 @@ func TestCommandEffectsDomainExpansionApprovalCannotBeReused(t *testing.T) {
 				candidate = strings.Replace(candidate, `"approval_adr":"0083"`, `"approval_adr":"0083:domains"`, 1)
 			}
 			writeFile(t, filename, `{"schema_version":1,"entries":[`+candidate+`]}`)
-			err := CompareCommandEffects(project, base)
+			err := CompareCommandEffects(project, base, nil)
 			if (err == nil) != tc.allowed {
 				t.Fatalf("domain expansion allowed=%t, error=%v", tc.allowed, err)
 			}
@@ -749,7 +749,7 @@ func TestCommandEffectsDomainExpansionReviewsExistingPortProvidersNotNewPorts(t 
 				provider = strings.Replace(provider, "enrollment.Writer.Record", "enrollment.NewWriter.Record", 1)
 			}
 			writeFile(t, filename, `{"schema_version":1,"entries":[`+entry+`,`+provider+`]}`)
-			err := CompareCommandEffects(project, base)
+			err := CompareCommandEffects(project, base, nil)
 			if (err == nil) == newPort {
 				t.Fatalf("newPort=%t: %v", newPort, err)
 			}
@@ -870,7 +870,7 @@ func TestCommandEffectsDomainExpansionReviewsNewUnresolvedEvidenceNotNewPorts(t 
 				provider = strings.Replace(provider, "enrollment.Writer.Record", "enrollment.NewWriter.Record", 1)
 			}
 			writeFile(t, filename, `{"schema_version":1,"entries":[`+entry+`,`+provider+`]}`)
-			err := CompareCommandEffects(project, base)
+			err := CompareCommandEffects(project, base, nil)
 			if (err == nil) == newPort {
 				t.Fatalf("newPort=%t: %v", newPort, err)
 			}
@@ -901,7 +901,7 @@ func TestCommandEffectsDomainExpansionKeepsAllReviewedEffectsForABinding(t *test
 				provider = strings.Replace(provider, "enrollment.Writer.Record", "enrollment.NewWriter.Record", 1)
 			}
 			writeFile(t, filename, `{"schema_version":1,"entries":[`+entry+`,`+other+`,`+provider+`]}`)
-			err := CompareCommandEffects(project, base)
+			err := CompareCommandEffects(project, base, nil)
 			if (err == nil) == newPort {
 				t.Fatalf("newPort=%t: %v", newPort, err)
 			}
@@ -938,7 +938,7 @@ func TestCommandEffectsKnownDebtStillNeedsNewApproval(t *testing.T) {
 	writeFile(t, filepath.Join(project, commandEffectInventory), `{"schema_version":1,"entries":[{
  "port":"enrollment.Writer.Record","binding":"roots.binding.Record","target":"foreign.Ledger.Record","target_owner":"foreign",
  "effect":"mutation","classification":"debt","adr":"0083","reason":"Known coordinator debt does not itself grant a new exception."}]}`)
-	err := CompareCommandEffects(project, base)
+	err := CompareCommandEffects(project, base, nil)
 	if err == nil || !strings.Contains(err.Error(), "new exception needs approval_adr") {
 		t.Fatalf("new debt passed without approval: %v", err)
 	}

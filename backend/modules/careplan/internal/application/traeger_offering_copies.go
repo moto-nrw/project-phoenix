@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // Field states of a copy, the same as Enrollment's for a Träger phase.

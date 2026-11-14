@@ -4,8 +4,8 @@ status: accepted
 
 # Ferienbeitrag entsteht in der Elternabrechnung und wird bei der Bestätigung festgehalten
 
-Entscheidung vom 25.10.2026 zu [#4664](https://github.com/moto-nrw/project-phoenix/issues/4664),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 25.10.2026 zu [#4664](https://github.com/moto-ogs/project-phoenix/issues/4664),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 29, 61, 63 und 69. Sie ist der erste Bau-Schnitt des Owners
 Elternabrechnung aus
 [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)
@@ -232,7 +232,9 @@ Anmeldung. Für Ferienanmeldungen eines Zeitraums gilt jetzt:
    Beträge in seiner Vorschau, und die Freigabe prüft ohnehin die geprüfte
    Vorschau. Das Bestätigen und das Ändern der Debitorennummer nehmen
    dieselben Sperren.
-5. **Ein Brief je Anmeldung.** Rechnung und Brief bleiben je Anmeldung. Die
+5. **Ein Brief je Anmeldung.** Rechnung und Brief bleiben je Anmeldung
+   (führt der Träger die Debitorennummer je Kind, je Kind der Anmeldung:
+   ADR 0119, Nachtrag #7007). Die
    Ermäßigung steht auf der Rechnung des Kindes, das sie bekommt. Ein Brief
    nennt nie Kinder oder Eltern einer anderen Anmeldung; zwei Anmeldungen
    können von getrennt lebenden Eltern kommen.

@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -300,6 +300,31 @@ func TestLettermintAPIBounceKeepsTheAddress(t *testing.T) {
 	assert.True(t, events[0].KeepsAddress)
 	assert.False(t, events[0].Reroute)
 	assert.False(t, events[1].KeepsAddress, "a complaint names the address on its own")
+}
+
+// The Team API names the block in the event's metadata, as in #6998. A global or
+// domain block puts the address on the school's list even when only the
+// reconciliation reads it.
+func TestLettermintAPIGlobalDomainBlockMarksTheAddress(t *testing.T) {
+	t.Parallel()
+	client := lettermintAPIClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":[
+			{"event":"suppressed","timestamp":"2026-11-13T09:00:00Z","metadata":` + lettermintIssueSuppression + `},
+			{"event":"suppressed","timestamp":"2026-11-13T10:00:00Z","metadata":{"reason":"hard_bounce","scope":"team","suppression_type":"email"}},
+			{"event":"suppressed","timestamp":"2026-11-13T11:00:00Z","metadata":null}]}`))
+	})
+
+	events, err := client.MessageEvents(context.Background(), "m-1")
+
+	require.NoError(t, err)
+	require.Len(t, events, 3)
+	assert.Equal(t, domain.EmailDeliveryFailed, events[0].State)
+	assert.False(t, events[0].KeepsAddress, "the block names the address, not a blocklist")
+	assert.False(t, events[0].Reroute)
+	assert.Equal(t, "manual global domain gmai.com", events[0].Diagnostic)
+	assert.Equal(t, domain.EmailDeliverySuppressed, events[1].State, "the team's block stays with the provider's list")
+	assert.True(t, events[1].Reroute)
+	assert.Equal(t, domain.EmailDeliverySuppressed, events[2].State)
 }
 
 func TestLettermintSuppressionActiveMatchesTheExactAddressOnly(t *testing.T) {

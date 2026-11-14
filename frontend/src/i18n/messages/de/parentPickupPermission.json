@@ -37,5 +37,6 @@
     "none": "Wie immer",
     "hint": "Nur Personen, die Sie bei den Kontakten eingetragen haben.",
     "manageLink": "Neue Person bei den Kontakten eintragen"
-  }
+  },
+  "proofPdfTooltip": "Speichert den Nachweis als PDF auf diesem Gerät."
 }

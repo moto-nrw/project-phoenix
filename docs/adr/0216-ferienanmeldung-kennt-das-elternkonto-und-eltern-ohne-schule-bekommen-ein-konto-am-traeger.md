@@ -4,7 +4,7 @@ status: accepted
 
 # Ferienanmeldung kennt das Elternkonto, und Eltern ohne Schule bekommen ein Konto am Träger
 
-Entscheidung vom 11.11.2026 zu [#6673](https://github.com/moto-nrw/project-phoenix/issues/6673).
+Entscheidung vom 11.11.2026 zu [#6673](https://github.com/moto-ogs/project-phoenix/issues/6673).
 Sie ändert [ADR 0110](0110-oeffentliche-ferienanmeldung-schreibt-in-der-traeger-transaktion.md)
 (Folgen: „die Anmeldung kennt kein Elternkonto“),
 [ADR 0113](0113-vorbefuellung-der-ferienanmeldung-liest-im-elternportal.md)
@@ -149,3 +149,39 @@ Feriengasts (ADR 0120) haben nichts davon.
 - Das Zurücksetzen des Passworts führt ein Konto mit Zugang am Träger zum
   Elternportal.
 - `docs/agents/contracts.md` nennt die neue Art der Sitzung.
+
+## Nachtrag 2026-11-14: Anmeldung mit Code für Eltern (#7051)
+
+Punkt 7 hielt fest, dass die Eltern-Sitzung keinem zweiten Faktor folgt.
+Das gilt nicht mehr. Eltern schalten die Anmeldung mit Code per E-Mail
+freiwillig ein, nach dem Muster des Caterers (ADR 0077, Nachtrag #4497).
+
+1. **Freiwillig, für alle Eltern.** Keine Schule und kein Träger kann den
+   Code verlangen, auch nicht für einzelne Vorgänge wie Bankverbindung oder
+   Vertrag. Dafür gäbe es einen Schritt-Faktor je Vorgang; das bleibt eine
+   eigene Entscheidung, wenn ein Vorgang ihn braucht.
+2. **Der Faktor gehört dem Konto.** Es ist derselbe Code per E-Mail wie an
+   Schule und Träger. Ein Konto, das ihn aus seiner Arbeit an einer Schule
+   hat, wird auch im Eltern-Portal gefragt; Ausschalten im Eltern-Portal
+   schaltet ihn für das Konto aus, und eine Schule oder ein Träger, die ihn
+   verlangen, fordern bei der nächsten Anmeldung dort die Einrichtung.
+3. **Ein gemerktes Gerät gilt für das Eltern-Konto im Eltern-Portal**, nicht
+   je Schule: Die Eltern-Sitzung nennt keine Schule. Das Gerät trägt
+   `parent_portal`, nennt weder Schule noch Träger und gilt weder im
+   Caterer-Portal noch umgekehrt. Beide Sitzungsarten (Schule und Träger)
+   lesen dieselben Geräte.
+4. **Zurücksetzen macht das moto-Team**, über das vorhandene Zurücksetzen
+   eines Kontos an einer Schule des Kontos (Operator-Portal, Konten, Grund
+   im Audit, Hinweis-Mail). Eltern wenden sich an ihre Schule. Eine Schule
+   setzt nicht selbst zurück: Ein Eltern-Konto gehört oft zu mehreren
+   Schulen, und das Zurücksetzen gilt für das ganze Konto (#6862). Ein
+   Konto ohne Schule (nur Zugang am Träger) kann den Code deshalb nicht
+   einschalten; die Einstellungen sagen das.
+5. **Prüfung der Sitzung.** Ausstellen und Erneuern verlangen den Nachweis,
+   solange das Konto den Faktor hat. Die Prüfung bei jedem Seitenaufruf liest
+   ihn nicht (Budget `identity.session_validate.parent`): Eine Sitzung von
+   vor dem Einschalten endet bei ihrer nächsten Erneuerung, spätestens nach
+   der Lebensdauer des Zugangstokens.
+6. **Sprache.** Code-Mail und Hinweis auf ein gemerktes Gerät gehen in der
+   Sprache, die Eltern im Portal gewählt haben.
+

@@ -244,7 +244,7 @@ async function renderPhase() {
   // Seitengerüsts; der Angebotsfilter steht, sobald die Phase geladen ist.
   await waitFor(() => {
     expect(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     ).toBeVisible();
   });
 }
@@ -352,7 +352,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
       await renderPhase();
 
       expect(
-        screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+        screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
       ).toBeVisible();
       expect(
         screen.queryByRole("link", { name: "Elternansicht öffnen" }),
@@ -371,7 +371,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     );
     expect(screen.getByRole("button", { name: "Alle Status" })).toBeVisible();
     expect(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     ).toHaveTextContent("2 Angebote");
     expect(screen.getAllByText("OGS Ganztag").length).toBeGreaterThan(0);
     expect(screen.getByText("Mo, Mi, Fr")).toBeVisible();
@@ -382,7 +382,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
       ),
     ).toBeVisible();
     fireEvent.click(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     );
     const offeringMenu = screen.getByRole("listbox", {
       name: /Berücksichtigte Angebote/,
@@ -407,7 +407,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     await renderPhase();
 
     fireEvent.click(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     );
     fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
 
@@ -441,7 +441,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     await renderPhase();
 
     fireEvent.click(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     );
     fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
 
@@ -454,7 +454,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     // Während die Auswertung neu lädt, ist der Angebotsfilter deaktiviert und
     // schließt sein Menü. Danach lässt sich die letzte Option erneut öffnen.
     fireEvent.click(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     );
     fireEvent.click(screen.getByRole("option", { name: /Kurzbetreuung/ }));
 
@@ -464,7 +464,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
       );
     });
     expect(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     ).toHaveTextContent("Keine Angebote");
 
     fireEvent.click(
@@ -636,7 +636,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     );
     fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
 
@@ -760,7 +760,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
       `${catalogText("general.unavailable", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
     );
     fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
     await waitFor(() =>
@@ -798,7 +798,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
         }),
       );
       fireEvent.click(
-        screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+        screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
       );
       fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
       expect(await screen.findByText("Aktuell Muster")).toBeInTheDocument();

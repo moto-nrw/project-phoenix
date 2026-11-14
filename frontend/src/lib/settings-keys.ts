@@ -45,6 +45,9 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // Aufsicht“ in the sidebar for five minutes after the school switched them
   // off, or hide them after it switched them back on.
   "operations.child_search_only_navigation",
+  // simple_staff_navigation (#6956) decides the navigation of every staff
+  // member who does not lead the school, also without config:read.
+  "operations.simple_staff_navigation",
   // Approved-child offering corrections consume this through tenant shell
   // metadata so staff without config:read never see a save action that the
   // authoritative enrollment service will reject.

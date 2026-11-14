@@ -1,9 +1,9 @@
 package api
 
 import (
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
 )
 
 // The Stammdaten decision and the cross-kind parent-request commands are

@@ -1,6 +1,12 @@
 {
   "codes": [
     {
+      "code": "rooms.archived",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "rooms.archived"
+    },
+    {
       "code": "rooms.color_already_in_use",
       "class": "business_rejection",
       "parameters": [],
@@ -17,6 +23,24 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "room_not_released"
+    },
+    {
+      "code": "rooms.required_by_care_offering",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "rooms.required_by_care_offering"
+    },
+    {
+      "code": "rooms.session_running",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "rooms.session_running"
+    },
+    {
+      "code": "rooms.still_planned",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "rooms.still_planned"
     }
   ]
 }

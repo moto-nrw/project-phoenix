@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // The behaviour suites in this directory were written against the retained
@@ -31,7 +31,7 @@ func (s *fixtureOwnedAuthService) Login(ctx context.Context, email, password str
 }
 
 func (s *fixtureOwnedAuthService) LoginParent(ctx context.Context, email, password string) (string, string, error) {
-	return s.sessions().LoginParentWithAudit(ctx, email, password, "", "")
+	return parentPasswordLogin(ctx, s.sessions(), email, password)
 }
 
 func (s *fixtureOwnedAuthService) RefreshToken(ctx context.Context, refreshToken string) (string, string, error) {

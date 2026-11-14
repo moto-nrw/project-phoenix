@@ -26,7 +26,7 @@ import {
   holidayCareWindow,
   type HolidayCareDay,
 } from "~/lib/holiday-care";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 
 interface HolidayCareChipProps {
   readonly day: HolidayCareDay;

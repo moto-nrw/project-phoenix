@@ -3,7 +3,7 @@ package facilities
 import (
 	"context"
 
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 // FindRoomNames names the rooms by ID; a nil row stays nil, and a nil

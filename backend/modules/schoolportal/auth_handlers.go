@@ -10,10 +10,10 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // LoginRequest is the body shape for POST /school/auth/login. TenantSlug is
@@ -221,6 +221,44 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.JSON(w, r, portalauth.TokenResponse{AccessToken: accessToken, RefreshToken: refreshToken})
+}
+
+// listTrustedDevices answers the Lehrkraft's remembered devices at the school
+// of the session. A device the tenant portal remembered for the same account
+// at the same school is the same row: each portal has its own host and
+// cookie jar, so the list shows what can open either at this school.
+func (rs *Resource) listTrustedDevices(w http.ResponseWriter, r *http.Request) {
+	claims, ok := rs.deviceClaims(w, r)
+	if !ok {
+		return
+	}
+	portalauth.ListTrustedDevices(w, r, func(ctx context.Context) ([]identityaccess.AccountTrustedDevice, error) {
+		return rs.MFAService.ListTrustedDevices(ctx, int64(claims.ID), claims.TenantID)
+	}, portalauth.RefuseMFA)
+}
+
+// revokeTrustedDevice forgets one remembered device of the Lehrkraft at the
+// school of the session; the next sign-in on it asks for the code again.
+func (rs *Resource) revokeTrustedDevice(w http.ResponseWriter, r *http.Request) {
+	claims, ok := rs.deviceClaims(w, r)
+	if !ok {
+		return
+	}
+	portalauth.RevokeTrustedDevice(w, r, func(ctx context.Context, deviceID int64) error {
+		return rs.MFAService.RevokeTrustedDevice(ctx, int64(claims.ID), claims.TenantID, deviceID)
+	}, portalauth.RefuseMFA)
+}
+
+func (rs *Resource) deviceClaims(w http.ResponseWriter, r *http.Request) (sessiontoken.AppClaims, bool) {
+	if !common.RequireDependency(w, r, rs.MFAService.devicesComplete(), errMFAServiceUnavailable) {
+		return sessiontoken.AppClaims{}, false
+	}
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 || claims.TenantID <= 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return sessiontoken.AppClaims{}, false
+	}
+	return claims, true
 }
 
 func (rs *Resource) requireMFA(w http.ResponseWriter, r *http.Request) bool {

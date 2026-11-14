@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 	var groupThreads []map[string]any
 	var pickupStatements []map[string]any
 	var pickupSignatures []map[string]any
+	var cafeAnswers []map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
@@ -53,6 +55,11 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 		case r.URL.Path == "/api/calendar/appointments":
 			appointments = append(appointments, decode())
+			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+		case r.URL.Path == "/parent/me/calendar":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"events":[{"title":"Laternenfest","recipient_id":"80"},{"title":"Elterncafé in der OGS","recipient_id":"81"}]}}`)
+		case r.URL.Path == "/parent/me/calendar/recipients/81/response":
+			cafeAnswers = append(cafeAnswers, decode())
 			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 		case r.URL.Path == "/parent/auth/login":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"access_token":"parent-token"}}`)
@@ -159,6 +166,8 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/api/calendar/appointments", "/api/calendar/appointments", "/api/calendar/appointments",
 		"/api/calendar/appointments", "/api/calendar/appointments", "/api/calendar/appointments",
 		"/api/calendar/appointments", "/api/calendar/appointments",
+		// The parent answers the Elterncafé, one date apart (#6987).
+		"/parent/me/calendar", "/parent/me/calendar/recipients/81/response", "/parent/me/calendar/recipients/81/response",
 	}, paths)
 
 	require.Len(t, childMessages, 6)
@@ -210,6 +219,19 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		map[string]any{"type": "parents_by_group", "id": float64(7)},
 		map[string]any{"type": "all_staff"},
 	}, appointments[0]["targets"])
+	cafe := appointments[8]
+	assert.Equal(t, "rsvp_required", cafe["delivery_mode"])
+	recurrence, ok := cafe["recurrence"].(map[string]any)
+	require.True(t, ok, "the Elterncafé is a weekly series")
+	assert.Equal(t, "weekly", recurrence["frequency"])
+	assert.Equal(t, float64(4), recurrence["occurrence_count"])
+	firstCafe, err := parseSeedDate(cafe["start_date"].(string))
+	require.NoError(t, err)
+	assert.Equal(t, []any{strings.ToLower(firstCafe.Weekday().String())}, recurrence["weekdays"])
+	assert.Equal(t, []map[string]any{
+		{"status": "accepted"},
+		{"status": "declined", "occurrence_date": firstCafe.AddDays(7).String()},
+	}, cafeAnswers, "the series answer first, then the second date on its own")
 	require.Len(t, pickupStatements, 3)
 	assert.Equal(t, "pickup_permission", pickupStatements[0]["kind"])
 	assert.Equal(t, "Gisela Hahn", pickupStatements[0]["person_name"])

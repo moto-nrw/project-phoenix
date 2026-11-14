@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type StaffRoomSupervision struct{ StaffID, RoomID int64 }
@@ -16,12 +16,14 @@ type LiveGroupFilter struct {
 	Limit, Offset      int
 	DeviceManagedOnly  bool
 	LastActivityBefore *time.Time
-	IDs                []int64
-	RoomID             *int64
-	DeviceID           *int64
-	ActivityGroupIDs   []int64
-	OpenOnly           bool
-	From, Until        *time.Time
+	// WithoutOpenVisitsOnly keeps only sessions with no child checked in.
+	WithoutOpenVisitsOnly bool
+	IDs                   []int64
+	RoomID                *int64
+	DeviceID              *int64
+	ActivityGroupIDs      []int64
+	OpenOnly              bool
+	From, Until           *time.Time
 }
 
 // SupervisedLiveGroupQuery answers which room sessions a staff member runs.

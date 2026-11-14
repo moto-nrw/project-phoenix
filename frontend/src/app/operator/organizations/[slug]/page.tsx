@@ -1017,8 +1017,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
             <MFAAdminOverrideModal
               isOpen={true}
               onClose={() => setMfaResetMember(null)}
-              scope="traeger"
-              organizationId={organization.id}
+              target={{ kind: "traeger", organizationId: organization.id }}
               accountId={mfaResetMember.accountId}
               accountLabel={mfaResetMember.email}
             />

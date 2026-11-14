@@ -19,5 +19,9 @@
   "loadObject": "das Anzeigen des Abo-Links",
   "rotateObject": "das Erneuern des Abo-Links",
   "alreadyActive": "Ihr Abo-Link ist bereits aktiv. Aus Sicherheitsgründen wird er nicht erneut angezeigt. Wenn Sie ihn nicht mehr haben, erstellen Sie einen neuen Link; der bisherige gilt dann nicht mehr.",
-  "createNew": "Neuen Abo-Link erstellen"
+  "createNew": "Neuen Abo-Link erstellen",
+  "showLinkHint": "Zeigt den Link, mit dem Ihr Kalender die Termine abonniert.",
+  "subscribeHint": "Öffnet Ihre Kalender-App, um die Termine zu abonnieren.",
+  "rotateHint": "Erstellt sofort einen neuen Link, der bisherige gilt dann nicht mehr.",
+  "copyLinkHint": "Kopiert den Link, damit Sie ihn in Ihrem Kalender einfügen können."
 }

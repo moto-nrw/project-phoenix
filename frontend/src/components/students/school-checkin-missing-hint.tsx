@@ -63,6 +63,7 @@ export function SchoolCheckinMissingHint({
               type="button"
               variant="surface"
               size="compact"
+              tooltip="Filtert die Liste auf die Kinder mit diesem Status."
               onClick={() => onShowStatus(status)}
             >
               Nur „{STATUS_FILTER_LABELS[status]}“ zeigen
@@ -72,6 +73,7 @@ export function SchoolCheckinMissingHint({
             type="button"
             variant="ghost"
             size="compact"
+            tooltip="Blendet diesen Hinweis aus, die Kinder bleiben unverändert."
             onClick={onDismiss}
           >
             Ausblenden

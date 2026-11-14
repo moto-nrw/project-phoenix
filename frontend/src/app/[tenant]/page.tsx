@@ -32,7 +32,10 @@ import { parentsPortalLoginUrl } from "~/lib/parent-url";
 import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { isSchoolPortalHandoffPath } from "~/lib/redirect-utils";
 import { hasSessionAccess } from "~/lib/session-access";
-import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
+import {
+  clearSessionErrorFromUrl,
+  useSessionExpiredNotice,
+} from "~/lib/login-session-notice";
 import { login as loginApi } from "~/lib/mfa-api";
 import {
   isPasskeySupported,
@@ -95,21 +98,6 @@ const WRONG_PORTAL_COPY = {
   },
 } as const;
 
-function clearSessionErrorFromUrl() {
-  const url = new URL(window.location.href);
-  const hadSessionError =
-    url.searchParams.get("error") === "SessionRequired" ||
-    url.searchParams.get("error") === "SessionExpired";
-
-  if (!hadSessionError) return;
-
-  url.searchParams.delete("error");
-  url.searchParams.delete("callbackUrl");
-
-  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
-  window.history.replaceState({}, "", nextUrl);
-}
-
 interface MFAStep {
   challengeToken: string;
   maskedEmail: string;
@@ -129,8 +117,6 @@ interface MFAEnrollmentStep {
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // Ein Hinweis, kein Fehler: die Sitzung ist abgelaufen (aus der URL).
-  const [sessionExpired, setSessionExpired] = useState(false);
   // Fehler laufen über den gemeinsamen Weg (#2517): Katalogtext je Code im
   // Fehlerkasten des Formulars, Feldfehler am Feld.
   const formRef = useRef<HTMLFormElement>(null);
@@ -151,6 +137,8 @@ function LoginForm() {
   const router = useTenantRouter();
   const { tenantSlug, tenant } = useTenant();
   const searchParams = useSearchParams();
+  const [sessionExpired, setSessionExpired] =
+    useSessionExpiredNotice(searchParams);
   const { data: session, status, update } = useSession();
   const loginTitle = tenant?.name?.trim() ? tenant.name : "Willkommen bei moto";
   const tenantLoginImageUrl = tenant?.settings?.loginImageUrl;
@@ -219,29 +207,6 @@ function LoginForm() {
 
     void checkAndRedirect();
   }, [status, session, enrollmentStep]);
-
-  // Check for session errors in URL, but suppress after a deliberate logout.
-  // NextAuth's useSession({ required: true }) races the logout navigation and
-  // can redirect here with ?error=SessionRequired before the page unloads.
-  useEffect(() => {
-    const urlError = searchParams.get("error");
-    if (urlError === "SessionRequired" || urlError === "SessionExpired") {
-      let deliberate = false;
-      try {
-        deliberate = sessionStorage.getItem(DELIBERATE_LOGOUT_KEY) === "1";
-        sessionStorage.removeItem(DELIBERATE_LOGOUT_KEY);
-      } catch {
-        // sessionStorage unavailable
-      }
-      if (deliberate) {
-        // Clean up NextAuth's error/callbackUrl params from the URL
-        clearSessionErrorFromUrl();
-      } else {
-        setSessionExpired(true);
-        clearSessionErrorFromUrl();
-      }
-    }
-  }, [searchParams]);
 
   const isCheckingAuth = checkingAuth || status === "loading";
   const isSmartRedirecting =

@@ -9,8 +9,8 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The billing runs, number ranges and invoices (#4668, ADR 0119). The
@@ -111,20 +111,23 @@ type documentRow struct {
 	IssuedOn              calendar.Date `bun:"issued_on,type:date"`
 	HolidayPeriodID       int64         `bun:"holiday_period_id"`
 	HolidayRegistrationID int64         `bun:"holiday_registration_id"`
-	RecipientFirstName    string        `bun:"recipient_first_name"`
-	RecipientLastName     string        `bun:"recipient_last_name"`
-	RecipientEmail        string        `bun:"recipient_email"`
-	RecipientStreet       *string       `bun:"recipient_address_street"`
-	RecipientPostalCode   *string       `bun:"recipient_address_postal_code"`
-	RecipientCity         *string       `bun:"recipient_address_city"`
-	DebtorNumber          *string       `bun:"debtor_number"`
-	ServiceFrom           calendar.Date `bun:"service_from,type:date"`
-	ServiceUntil          calendar.Date `bun:"service_until,type:date"`
-	TotalCents            int64         `bun:"total_cents"`
-	Kind                  string        `bun:"kind"`
-	DocumentKind          string        `bun:"document_kind"`
-	ReferenceDocumentID   *int64        `bun:"reference_document_id"`
-	Reason                string        `bun:"reason"`
+	// HolidayRegistrationChildID is the child a holiday invoice per child
+	// bills (#7007); NULL on an invoice of the whole registration.
+	HolidayRegistrationChildID *int64        `bun:"holiday_registration_child_id"`
+	RecipientFirstName         string        `bun:"recipient_first_name"`
+	RecipientLastName          string        `bun:"recipient_last_name"`
+	RecipientEmail             string        `bun:"recipient_email"`
+	RecipientStreet            *string       `bun:"recipient_address_street"`
+	RecipientPostalCode        *string       `bun:"recipient_address_postal_code"`
+	RecipientCity              *string       `bun:"recipient_address_city"`
+	DebtorNumber               *string       `bun:"debtor_number"`
+	ServiceFrom                calendar.Date `bun:"service_from,type:date"`
+	ServiceUntil               calendar.Date `bun:"service_until,type:date"`
+	TotalCents                 int64         `bun:"total_cents"`
+	Kind                       string        `bun:"kind"`
+	DocumentKind               string        `bun:"document_kind"`
+	ReferenceDocumentID        *int64        `bun:"reference_document_id"`
+	Reason                     string        `bun:"reason"`
 	// ReferenceNumber is the number of the referenced document, read with
 	// the row (#4690).
 	ReferenceNumber string `bun:"reference_number,scanonly"`
@@ -278,29 +281,59 @@ func (s *Store) PeriodContributions(ctx context.Context, organizationID, periodI
 }
 
 // IssuedRegistrations names the registrations of the period an invoice of
-// the service bills: an invoice that is not cancelled (#4690).
+// the service bills: an invoice that is not cancelled (#4690), of the
+// registration or of one of its children (#7007).
 func (s *Store) IssuedRegistrations(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]bool, error) {
-	db, err := traegerDB(ctx, organizationID)
+	invoices, err := s.IssuedInvoices(ctx, organizationID, service, periodID)
 	if err != nil {
 		return nil, err
 	}
-	var ids []int64
-	if err := db.NewSelect().TableExpr("parent_billing.documents AS document").Column("document.holiday_registration_id").
-		Where("document.organization_id = ?", organizationID).Where("document.service = ?", service).
-		Where("document.holiday_period_id = ?", periodID).Where("document.kind = ?", parentbilling.DocumentInvoice).
-		Where(notCancelledSQL).
-		Scan(ctx, &ids); err != nil {
-		return nil, err
-	}
-	issued := make(map[int64]bool, len(ids))
-	for _, id := range ids {
-		issued[id] = true
+	issued := make(map[int64]bool, len(invoices))
+	for key := range invoices {
+		issued[key.RegistrationID] = true
 	}
 	return issued, nil
 }
 
+// IssuedInvoices names the invoices of the period of the service that are
+// not cancelled, by registration and child (#7007).
+func (s *Store) IssuedInvoices(ctx context.Context, organizationID int64, service string, periodID int64) (map[parentbilling.HolidayInvoiceKey]bool, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []invoiceKeyRow
+	if err := db.NewSelect().TableExpr("parent_billing.documents AS document").
+		Column("document.holiday_registration_id", "document.holiday_registration_child_id").
+		Where("document.organization_id = ?", organizationID).Where("document.service = ?", service).
+		Where("document.holiday_period_id = ?", periodID).Where("document.kind = ?", parentbilling.DocumentInvoice).
+		Where(notCancelledSQL).
+		Scan(ctx, &rows); err != nil {
+		return nil, err
+	}
+	issued := make(map[parentbilling.HolidayInvoiceKey]bool, len(rows))
+	for _, row := range rows {
+		issued[row.key()] = true
+	}
+	return issued, nil
+}
+
+// invoiceKeyRow is the registration and the child of a holiday invoice.
+type invoiceKeyRow struct {
+	HolidayRegistrationID      int64  `bun:"holiday_registration_id"`
+	HolidayRegistrationChildID *int64 `bun:"holiday_registration_child_id"`
+}
+
+func (r invoiceKeyRow) key() parentbilling.HolidayInvoiceKey {
+	key := parentbilling.HolidayInvoiceKey{RegistrationID: r.HolidayRegistrationID}
+	if r.HolidayRegistrationChildID != nil {
+		key.ChildID = *r.HolidayRegistrationChildID
+	}
+	return key
+}
+
 // IssuedContributions names the registrations of the period that an
-// invoice of the service bills, each with what the invoice billed: the sum
+// invoice of the service bills, each with what its invoices billed: the sum
 // of its positions without the corrections of the run and the sum of its
 // cost takeover positions (#5662). A cancelled invoice bills nothing.
 func (s *Store) IssuedContributions(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]parentbilling.IssuedContribution, error) {
@@ -309,12 +342,12 @@ func (s *Store) IssuedContributions(ctx context.Context, organizationID int64, s
 		return nil, err
 	}
 	var rows []struct {
-		RegistrationID    int64 `bun:"holiday_registration_id"`
+		invoiceKeyRow
 		TotalCents        int64 `bun:"total_cents"`
 		CostTakeoverCents int64 `bun:"cost_takeover_cents"`
 	}
 	if err := db.NewSelect().TableExpr("parent_billing.documents AS document").
-		ColumnExpr("document.holiday_registration_id").
+		ColumnExpr("document.holiday_registration_id, document.holiday_registration_child_id").
 		ColumnExpr(`COALESCE((SELECT sum(position.amount_cents) FROM parent_billing.document_positions AS position
 			WHERE position.organization_id = document.organization_id AND position.document_id = document.id
 				AND position.kind <> 'correction'), 0) AS total_cents`).
@@ -327,9 +360,16 @@ func (s *Store) IssuedContributions(ctx context.Context, organizationID int64, s
 		Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
+	// An invoice per child bills a part of the registration (#7007).
 	issued := make(map[int64]parentbilling.IssuedContribution, len(rows))
 	for _, row := range rows {
-		issued[row.RegistrationID] = parentbilling.IssuedContribution{TotalCents: row.TotalCents, CostTakeoverCents: row.CostTakeoverCents}
+		billed := issued[row.HolidayRegistrationID]
+		billed.TotalCents += row.TotalCents
+		billed.CostTakeoverCents += row.CostTakeoverCents
+		if key := row.key(); key.ChildID != 0 {
+			billed.Children = append(billed.Children, key.ChildID)
+		}
+		issued[row.HolidayRegistrationID] = billed
 	}
 	return issued, nil
 }
@@ -616,6 +656,9 @@ func (s *Store) selectDocuments(ctx context.Context, organizationID int64, where
 		if row.DebtorNumber != nil {
 			documents[i].DebtorNumber = *row.DebtorNumber
 		}
+		if row.HolidayRegistrationChildID != nil {
+			documents[i].RegistrationChildID = *row.HolidayRegistrationChildID
+		}
 		documents[i].FamilyEmail = textOf(row.FamilyEmail)
 		documents[i].RecipientKind, documents[i].RecipientSecondName = textOf(row.RecipientKind), textOf(row.RecipientSecondName)
 		documents[i].Payment = row.snapshot().payment()
@@ -634,6 +677,10 @@ func issuedDocumentRow(organizationID int64, run parentbilling.BillingRun, year 
 		RecipientEmail: document.RecipientEmail, ServiceFrom: document.ServiceFrom, ServiceUntil: document.ServiceUntil,
 		TotalCents: document.TotalCents, Kind: document.Kind, ReferenceDocumentID: document.ReferenceDocumentID,
 		Reason: document.Reason,
+	}
+	if document.RegistrationChildID != 0 {
+		child := document.RegistrationChildID
+		row.HolidayRegistrationChildID = &child
 	}
 	if row.Kind == "" {
 		row.Kind = parentbilling.DocumentInvoice

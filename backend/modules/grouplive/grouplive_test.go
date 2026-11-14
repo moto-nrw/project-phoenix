@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
 )
 
 const today Date = "2026-08-21"
@@ -35,6 +35,8 @@ type fakes struct {
 	arrivals           func(context.Context, []int64, Date) (map[int64]Arrival, error)
 	pickups            func(context.Context, []int64, Date) (map[int64]Pickup, error)
 	timetable          func(context.Context, []int64, Date) (map[int64]bool, error)
+	activities         func(context.Context, []int64, Date) (map[int64][]PlannedActivity, error)
+	activitiesEnabled  func(context.Context) (bool, error)
 	decide             func(DayInputs) DayDecision
 	atSchool           func(AtSchoolInputs) bool
 	careDayEnd         func(context.Context) (string, error)
@@ -195,6 +197,13 @@ func (f *fakes) TimetablePlannedStudentIDs(ctx context.Context, ids []int64, dat
 	return f.timetable(ctx, ids, date)
 }
 
+func (f *fakes) PlannedActivities(ctx context.Context, ids []int64, date Date) (map[int64][]PlannedActivity, error) {
+	if f.activities == nil {
+		return map[int64][]PlannedActivity{}, nil
+	}
+	return f.activities(ctx, ids, date)
+}
+
 func (f *fakes) DecideDay(inputs DayInputs) DayDecision {
 	if f.decide == nil {
 		return DayDecision{Reason: DayReasonNoPlan}
@@ -240,6 +249,13 @@ func (f *fakes) StudentPhotosEnabled(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 	return f.photosEnabled(ctx)
+}
+
+func (f *fakes) StudentCardActivitiesEnabled(ctx context.Context) (bool, error) {
+	if f.activitiesEnabled == nil {
+		return false, nil
+	}
+	return f.activitiesEnabled(ctx)
 }
 
 func (f *fakes) TrackingIndicatorLabels(ctx context.Context) ([]string, error) {

@@ -1,6 +1,6 @@
 package defaults
 
-import config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+import config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 
 var studentPhotosDefinitions = []config.Definition{
 	{
@@ -17,5 +17,20 @@ var studentPhotosDefinitions = []config.Definition{
 		// matches the visible "Kinder" copy throughout the photo feature.
 		Category:  "kinder",
 		SortOrder: 50,
+	},
+	{
+		Key:   config.KeyStudentCardActivitiesEnabled,
+		Label: "Angebote auf der Kinderkarte",
+		// #6487: staff open their group and see at once which offerings a
+		// child has today between its arrival and pickup. Off until a
+		// school switches it on.
+		Description:     "Zeigt auf den Kinderkarten unter „Gruppen“ die Angebote, die ein Kind heute hat. Zum Beispiel: 14:00–15:00 Töpfer-AG.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "kinder",
+		SortOrder:       40,
 	},
 }

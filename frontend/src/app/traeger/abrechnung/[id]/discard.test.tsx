@@ -130,7 +130,7 @@ describe("discarding an empty holiday run", () => {
 
     expect(
       await screen.findByRole("button", { name: "Lauf freigeben" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.queryByRole("button", { name: "Leeren Lauf verwerfen" }),
     ).toBeNull();

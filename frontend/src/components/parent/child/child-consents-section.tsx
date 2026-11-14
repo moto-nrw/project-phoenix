@@ -176,6 +176,7 @@ export function ChildConsentsSection({
                       size="compact"
                       className="mt-1"
                       aria-label={t("withdrawButton")}
+                      tooltip={t("withdrawTooltip")}
                       onClick={() => {
                         actionErrors.clear();
                         setSuccessfulAction(null);
@@ -196,6 +197,7 @@ export function ChildConsentsSection({
                       size="compact"
                       className="mt-1"
                       aria-label={t("grantButton")}
+                      tooltip={t("grantTooltip")}
                       onClick={() => {
                         actionErrors.clear();
                         setSuccessfulAction(null);

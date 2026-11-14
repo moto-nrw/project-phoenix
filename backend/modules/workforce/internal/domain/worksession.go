@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/openingbalance"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/openingbalance"
 )
 
 var ErrInvalidWorkSession = errors.New("invalid work session input")

@@ -50,7 +50,8 @@
     "offeredByTraeger": "Offered by {traeger}",
     "careLine": "Care {from} to {to}",
     "registrationLine": "Registration until {date}",
-    "registrationRangeLine": "Registration {from} to {to}"
+    "registrationRangeLine": "Registration {from} to {to}",
+    "registerTooltip": "Opens the registration for this holiday offer."
   },
   "childrenLoading": "Loading children",
   "noChildren": "No child is linked to your account yet. Your school's {careTerm} can set this up.",

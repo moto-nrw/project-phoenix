@@ -334,7 +334,7 @@ export function RolloverForm({
           <div className="grid gap-3 sm:grid-cols-2">
             <ISODatePicker
               id="rollover-service-start"
-              controlSize="md"
+              controlSize="compact"
               label="Betreuung von"
               ariaLabel="Betreuung von"
               value={draft.service_start_date}
@@ -348,7 +348,7 @@ export function RolloverForm({
             />
             <ISODatePicker
               id="rollover-service-end"
-              controlSize="md"
+              controlSize="compact"
               label="Betreuung bis"
               ariaLabel="Betreuung bis"
               min={draft.service_start_date || undefined}
@@ -430,6 +430,7 @@ export function RolloverForm({
             size="md"
             onClick={onCancel}
             disabled={submitting}
+            noTooltip="Abbrechen schließt das Formular, ohne eine Phase anzulegen."
           >
             Abbrechen
           </Button>
@@ -438,6 +439,7 @@ export function RolloverForm({
             variant="primary"
             size="md"
             disabled={submitting}
+            tooltip="Legt die neue Phase an und schickt den Familien sofort eine E-Mail."
           >
             {submitting ? "Wird erstellt…" : "Anschlussphase erstellen"}
           </Button>

@@ -6,7 +6,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // seedTraegerHolidaySchools verifies that the Träger hosts the published

@@ -8,19 +8,21 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 	"github.com/uptrace/bun"
 )
 
 type submittedOfferingRow struct {
 	bun.BaseModel  `bun:"table:enrollment.request_child_offering_selections,alias:submitted_offering"`
-	ID             int64     `bun:"id,pk,autoincrement"`
-	TenantID       int64     `bun:"tenant_id"`
-	RequestChildID int64     `bun:"request_child_id"`
-	CareOfferingID int64     `bun:"care_offering_id"`
-	SelectedDays   []string  `bun:"selected_days,type:jsonb,nullzero"`
-	Notes          *string   `bun:"notes"`
-	CreatedAt      time.Time `bun:"created_at,nullzero,default:current_timestamp"`
+	ID             int64    `bun:"id,pk,autoincrement"`
+	TenantID       int64    `bun:"tenant_id"`
+	RequestChildID int64    `bun:"request_child_id"`
+	CareOfferingID int64    `bun:"care_offering_id"`
+	SelectedDays   []string `bun:"selected_days,type:jsonb,nullzero"`
+	Notes          *string  `bun:"notes"`
+	// Terms is written once with the choice; the tenant role holds no UPDATE.
+	Terms     *enrollment.OfferingTerms `bun:"offering_terms,type:jsonb,nullzero"`
+	CreatedAt time.Time                 `bun:"created_at,nullzero,default:current_timestamp"`
 }
 
 func (r *Store) SubmittedOfferingChoices(ctx context.Context, childIDs []int64) ([]enrollment.SubmittedOfferingChoice, error) {
@@ -42,7 +44,7 @@ func (r *Store) SubmittedOfferingChoices(ctx context.Context, childIDs []int64) 
 	for _, row := range rows {
 		choices = append(choices, enrollment.SubmittedOfferingChoice{
 			ID: row.ID, TenantID: row.TenantID, RequestChildID: row.RequestChildID,
-			CareOfferingID: row.CareOfferingID, SelectedDays: row.SelectedDays, Notes: row.Notes, CreatedAt: row.CreatedAt,
+			CareOfferingID: row.CareOfferingID, SelectedDays: row.SelectedDays, Notes: row.Notes, Terms: row.Terms, CreatedAt: row.CreatedAt,
 		})
 	}
 	return choices, nil
@@ -69,7 +71,10 @@ func (r *Store) RecordSubmittedOfferingChoices(ctx context.Context, childID int6
 }
 
 func recordSubmittedOfferingChoice(ctx context.Context, db bun.IDB, tenantID, childID int64, choice enrollment.SubmittedOfferingChoice) error {
-	row := &submittedOfferingRow{TenantID: tenantID, RequestChildID: childID, CareOfferingID: choice.CareOfferingID, SelectedDays: choice.SelectedDays, Notes: choice.Notes}
+	row := &submittedOfferingRow{
+		TenantID: tenantID, RequestChildID: childID, CareOfferingID: choice.CareOfferingID,
+		SelectedDays: choice.SelectedDays, Notes: choice.Notes, Terms: choice.Terms,
+	}
 	var stored submittedOfferingRow
 	err := db.NewInsert().Model(row).
 		On("CONFLICT (tenant_id, request_child_id, care_offering_id) DO NOTHING").

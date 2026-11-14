@@ -1,7 +1,9 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
+
+import { CONTROL_PART } from "./control-geometry";
 
 // Segmented single-choice control: a small, fixed set of mutually exclusive
 // options rendered as one control.
@@ -23,7 +25,7 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 //              item's brand tone. Use when each option carries its own meaning
 //              (Vor Ort = green, Homeoffice = blue, Abwesend = red).
 //
-// Tones map to LOCATION_COLORS (lib/location-helper.ts) — never generic
+// Tones come from the kit palette (kit-palette.ts) — never generic
 // Tailwind hues.
 
 // Not exported: callers reach it through the exported SegmentedControlItem,
@@ -82,6 +84,7 @@ export function SegmentedControl<T extends string>({
   variant = "joined",
   fullWidth = false,
   wrap = false,
+  minSegmentWidth = 100,
   iconOnly = false,
   ariaLabel,
   ariaDescribedBy,
@@ -96,6 +99,11 @@ export function SegmentedControl<T extends string>({
   readonly fullWidth?: boolean;
   /** With fullWidth, move whole segments to another row when space is narrow. */
   readonly wrap?: boolean;
+  /**
+   * With wrap, the narrowest a segment gets before it moves to another row,
+   * in px: wider for labels of one long word such as „Debitorennummer“.
+   */
+  readonly minSegmentWidth?: number;
   /**
    * Square symbol segments instead of words, for a well-known pair such as
    * Kacheln/Liste (#3834). Every item needs an `icon`.
@@ -114,20 +122,20 @@ export function SegmentedControl<T extends string>({
   // stimmig aussieht.
   //
   // Segment 32 px + Spur-Innenrand 4 px = 40 px Gesamthöhe — dieselbe
-  // Bedienhöhe wie jeder Knopf in der Kopfkarte (CONTROL_HEIGHT in
-  // tenant-page.tsx). Das `!` ist nötig, weil die Kopfkarte ihre Höhe per
-  // Nachfahren-Selektor auf alle Knöpfe legt und die Spur des Umschalters
-  // sonst auf 48 px wüchse. Unter sm 36-px-Segmente, also 44 px gesamt —
-  // dieselbe Touch-Höhe wie die Nachbarn.
+  // Bedienhöhe wie jeder Knopf in der Kopfkarte (`HEAD_CONTROL_HEIGHT`).
+  // Die Segmente tragen `CONTROL_PART`, deshalb legt die Kopfkarte ihre
+  // Höhe nicht auf sie, sondern die Spur kommt mit ihnen auf die
+  // Bedienhöhe. Unter sm 36-px-Segmente, also 44 px gesamt — dieselbe
+  // Touch-Höhe wie die Nachbarn.
   // Bei voller Breite ist das die Mindesthöhe: umgebrochene Beschriftungen
   // dürfen die Segmente gemeinsam höher machen, statt aus ihnen zu ragen.
   // Schriftgröße `text-sm`, nicht `text-xs`: ein Bedienelement ist kein
   // Kleingedrucktes (Typo-Boden, TENANT-PAGE-SPEC).
   const height =
     fullWidth && !iconOnly
-      ? "h-auto! min-h-8 py-1 max-sm:min-h-9"
-      : "h-8! max-sm:h-9!";
-  const base = `flex ${height} ${iconOnly ? "w-9" : "min-w-[84px] px-3"} items-center justify-center text-sm font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none`;
+      ? "h-auto min-h-8 py-1 max-sm:min-h-9 pointer-coarse:min-h-9"
+      : "h-8 max-sm:h-9 pointer-coarse:h-9";
+  const base = `relative flex ${height} ${iconOnly ? "w-9" : "min-w-[84px] px-3"} items-center justify-center pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-1 pointer-coarse:after:content-[''] text-sm font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none`;
 
   // Die frühere „pills"-Fassung (runde, einzeln getönte Pillen ohne Spur) ist
   // aufgegangen: sie war 32 px hoch, die andere 36, und beide standen im
@@ -147,10 +155,11 @@ export function SegmentedControl<T extends string>({
             <button
               key={item.value}
               type="button"
+              {...CONTROL_PART}
               aria-pressed={active}
               disabled={item.disabled}
               onClick={() => onChange(item.value)}
-              className={`${base} rounded-md ${active ? activePill.className : "text-gray-500 hover:text-gray-900"}`}
+              className={`${base} rounded-md ${active ? activePill.className : "text-gray-600 hover:text-gray-900"}`}
               style={active ? activePill.style : undefined}
             >
               {item.label}
@@ -174,9 +183,14 @@ export function SegmentedControl<T extends string>({
       role="group"
       aria-label={ariaLabel}
       aria-describedby={ariaDescribedBy}
+      style={
+        fullWidth && wrap
+          ? ({ "--segment-min": `${minSegmentWidth}px` } as CSSProperties)
+          : undefined
+      }
       className={
         fullWidth
-          ? `grid w-full ${wrap ? "grid-cols-[repeat(auto-fit,minmax(100px,1fr))]" : "auto-cols-fr grid-flow-col"} gap-1 rounded-lg bg-gray-100 p-1 ${className}`
+          ? `grid w-full ${wrap ? "grid-cols-[repeat(auto-fit,minmax(var(--segment-min),1fr))]" : "auto-cols-fr grid-flow-col"} gap-1 rounded-lg bg-gray-100 p-1 ${className}`
           : `inline-grid auto-cols-fr grid-flow-col gap-1 rounded-lg bg-gray-100 p-1 ${className}`
       }
     >
@@ -187,13 +201,14 @@ export function SegmentedControl<T extends string>({
             <button
               key={item.value}
               type="button"
+              {...CONTROL_PART}
               aria-pressed={active}
               disabled={item.disabled}
               onClick={() => onChange(item.value)}
               className={`${base} rounded-md ${
                 active
                   ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
+                  : "text-gray-600 hover:text-gray-900"
               }`}
             >
               {item.label}
@@ -204,6 +219,7 @@ export function SegmentedControl<T extends string>({
           <button
             key={item.value}
             type="button"
+            {...CONTROL_PART}
             aria-pressed={active}
             disabled={item.disabled}
             onClick={() => onChange(item.value)}
@@ -212,7 +228,7 @@ export function SegmentedControl<T extends string>({
             className={`${base} rounded-md ${
               active
                 ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                : "text-gray-600 hover:text-gray-900"
             }`}
           >
             {iconOnly ? item.icon : item.label}

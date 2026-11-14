@@ -1,7 +1,7 @@
 import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
-/** `/traeger/invite` (#4650): Einladung aus der Mail annehmen. */
+/** `/traeger/invite` (#4650, #4693): Einladung aus der Mail annehmen, mit Namen. */
 export function traegerInvitationTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.traegerInvitation,
@@ -18,6 +18,7 @@ export function traegerInvitationTopic(): HelpTopic {
     steps: [
       "Öffnen Sie die E-Mail `Einladung ins Träger-Portal von moto`.",
       "Wählen Sie `Einladung annehmen`.",
+      "Tragen Sie bei `Ihr Name` Ihren Namen ein. Personen im Träger-Büro sehen ihn im Exportprotokoll und im Verlauf jeder Rechnung.",
       "Haben Sie noch kein moto-Konto? Tragen Sie ein `Neues Passwort` ein und wiederholen Sie es.",
       "Haben Sie schon ein moto-Konto? Tragen Sie das Passwort dieses Kontos ein.",
       "Wählen Sie `Einladung annehmen`.",
@@ -31,11 +32,12 @@ export function traegerInvitationTopic(): HelpTopic {
     notes: [
       "Mit derselben E-Mail-Adresse und demselben Passwort melden Sie sich später an.",
       "Ein Konto in einer Schule brauchen Sie dafür nicht.",
+      "Ihren Namen ändern Sie später im Profil-Menü unter `Konto`.",
     ],
     troubleshootingDetails: [
       "moto sagt, die Einladung sei abgelaufen? Bitten Sie das Träger-Büro oder das moto-Team um eine neue Einladung.",
       "Sie kennen das Passwort Ihres vorhandenen moto-Kontos nicht mehr? Wählen Sie in der Anmeldung des Träger-Portals `Passwort vergessen?`.",
     ],
-    related: [HELP_TOPICS.traegerLogin],
+    related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.traegerProfile],
   };
 }

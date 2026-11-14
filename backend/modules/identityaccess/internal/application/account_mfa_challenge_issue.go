@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // The issuance of an e-mail code: a challenge row, its mail in the outbox and
@@ -65,7 +65,7 @@ func (f *AccountMFAFlows) startChallenge(ctx context.Context, accountID, tenantI
 		CreatedAt: createdAt, UpdatedAt: createdAt,
 	}, domain.MFACodeMailFor(
 		account.Email, "", account.ID, false, plainCode, domain.MFAChallengeTTL, ip, enabled, days,
-	), credentialGeneration)
+	).ForPortal(scope, account.PortalLocale), credentialGeneration)
 	if err != nil {
 		return "", fmt.Errorf("prepare email challenge: %w", err)
 	}

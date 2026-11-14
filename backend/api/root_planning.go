@@ -1,11 +1,11 @@
 package api
 
 import (
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
 )
 
 // FacilitiesYard are the yard and WC views of Facilities over the room

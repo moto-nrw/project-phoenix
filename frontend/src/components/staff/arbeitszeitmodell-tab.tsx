@@ -1,9 +1,20 @@
 "use client";
 import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { StatCard } from "~/components/ui/stat-card";
+import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
+import { MISSING_TARGET_OWNER } from "~/components/staff/missing-target-notice";
+import { useStaffHasTarget } from "~/lib/hooks/use-staff-has-target";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -19,7 +30,6 @@ import {
 } from "~/components/ui/page-skeletons";
 import { Radio } from "~/components/ui/radio";
 import { SectionCard } from "~/components/ui/section-card";
-import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useApiFormError,
@@ -43,16 +53,24 @@ import {
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
 import { useInvalidateMatching, useSWRAuth } from "~/lib/swr";
+import { workTimeModelKeys } from "~/lib/swr/staff-keys";
 import { formatDuration } from "~/lib/time-tracking-helpers";
 
-import {
-  formatDecimalHours,
-  isStaleAfterModelSave,
-  parseDecimalHours,
-} from "./arbeitszeit-hours";
+import { isStaleAfterModelSave } from "./arbeitszeit-hours";
 import { SonderarbeitszeitenSection } from "./sonderarbeitszeiten-section";
-import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import {
+  draftFromPattern,
+  patternEntries,
+  validatePatternDraft,
+  WEEK_BADGE_LETTERS,
+  WORK_DAYS,
+} from "./work-time-pattern-draft";
+import { dayLabels, WorkTimePatternEditor } from "./work-time-pattern-editor";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import {
+  CatalogManageLink,
+  useCatalogRefreshOnFocus,
+} from "~/components/database/catalog/catalog-manage-link";
 import { SectionLabel } from "~/components/ui/section-label";
 
 export {
@@ -63,29 +81,7 @@ export {
 
 const logger = createLogger({ component: "ArbeitszeitmodellTab" });
 
-const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr"] as const;
-const dayNames = [
-  "Montag",
-  "Dienstag",
-  "Mittwoch",
-  "Donnerstag",
-  "Freitag",
-] as const;
-const WORK_DAYS: readonly number[] = [0, 1, 2, 3, 4];
-const ROTATION_OPTIONS = [
-  { value: 1, label: "Standard (1 Woche)" },
-  { value: 2, label: "A/B-Wochen (2 Wochen)" },
-  { value: 3, label: "3-Wochen-Rotation" },
-  { value: 4, label: "4-Wochen-Rotation" },
-] as const;
-const WEEK_BADGE_LETTERS = ["A", "B", "C", "D"] as const;
 const PREVIEW_WEEKS = 4;
-type EditableScheduleEntry = {
-  weekIndex: number;
-  dayOfWeek: number;
-  targetMinutes: number;
-  startTime?: string;
-};
 
 // Arbeitszeitmodell tab. Shows the staff member's contractual Soll-Stunden,
 // which can either come from a tenant-level template (mode=template) or
@@ -103,6 +99,10 @@ export function ArbeitszeitmodellTab({
   readonly canEdit: boolean;
 }) {
   const [editing, setEditing] = useState(false);
+  // Gilt in diesem Monat ein Soll? Dieselbe Regel, nach der das Stundenkonto
+  // rechnet (#6887); null solange unbekannt.
+  // Den Reiter sieht nur die Leitung; sie darf Zeitkonten lesen.
+  const hasTarget = useStaffHasTarget(staffId, berlinTodayISO(), canEdit);
 
   const {
     data: schedule,
@@ -185,18 +185,40 @@ export function ArbeitszeitmodellTab({
     );
   }
 
+  // Ein leerer regulärer Plan schließt Sonderarbeitszeiten nicht aus.
+  // Nur der aufgelöste Sollstatus begründet die Warnung (#6887).
+  const scheduleEmpty = !schedule.model && schedule.entries.length === 0;
+  const missingTargetText = `Ohne Soll zählen Krankheit, Urlaub und Fortbildung 0 Stunden. Gearbeitete Zeit zählt ganz als Plus. ${
+    canEdit
+      ? "Tragen Sie mit „Bearbeiten“ die Wochenstunden aus dem Arbeitsvertrag ein."
+      : MISSING_TARGET_OWNER
+  }`;
+
   return (
     <div className="space-y-5">
+      {hasTarget === false && !scheduleEmpty ? (
+        <Alert
+          type="warning"
+          announce="off"
+          message={`In diesem Monat gilt kein Soll. ${missingTargetText}`}
+        />
+      ) : null}
       <SectionCard
         title={
-          schedule.mode === "template" && schedule.model
-            ? schedule.model.name
-            : "Eigenes Modell"
+          scheduleEmpty
+            ? "Arbeitszeitmodell"
+            : schedule.mode === "template" && schedule.model
+              ? schedule.model.name
+              : "Eigenes Modell"
         }
         headingLevel={3}
-        description={`${weeksLabel} · Schnitt ${formatDuration(
-          Math.round(averagePerWeek),
-        )} / Woche`}
+        description={
+          scheduleEmpty
+            ? undefined
+            : `${weeksLabel} · Schnitt ${formatDuration(
+                Math.round(averagePerWeek),
+              )} / Woche`
+        }
         action={
           canEdit ? (
             <Button
@@ -204,56 +226,75 @@ export function ArbeitszeitmodellTab({
               variant="outline"
               size="md"
               onClick={() => setEditing(true)}
+              tooltip="Öffnet das Arbeitszeitmodell dieser Person zum Ändern."
             >
               Bearbeiten
             </Button>
           ) : undefined
         }
       >
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {schedule.weeklyTotals.map((total, idx) => (
-            <div key={WEEK_BADGE_LETTERS[idx] ?? `week-${idx}`}>
-              {/* Eigene Hülle: `h-full` der Kachel soll sich nicht auf die Höhe
+        {scheduleEmpty ? (
+          <EmptyState
+            variant="compact"
+            title={
+              hasTarget === false
+                ? "Kein Soll hinterlegt"
+                : "Kein reguläres Arbeitszeitmodell"
+            }
+            description={
+              hasTarget === false
+                ? missingTargetText
+                : canEdit
+                  ? "Tragen Sie mit „Bearbeiten“ die Wochenstunden aus dem Arbeitsvertrag ein."
+                  : "Das Arbeitszeitmodell trägt die Leitung ein."
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {schedule.weeklyTotals.map((total, idx) => (
+              <div key={WEEK_BADGE_LETTERS[idx] ?? `week-${idx}`}>
+                {/* Eigene Hülle: `h-full` der Kachel soll sich nicht auf die Höhe
                   samt Tageszeile darunter beziehen. */}
-              <div>
-                <StatCard
-                  label={`Woche ${WEEK_BADGE_LETTERS[idx] ?? idx + 1}`}
-                  value={formatDuration(total)}
-                  tone="neutral"
-                />
-              </div>
-              <div className="mt-3 grid grid-cols-5 gap-1 text-center text-xs">
-                {WORK_DAYS.map((d) => {
-                  const entry = schedule.entries.find(
-                    (e) => e.weekIndex === idx && e.dayOfWeek === d,
-                  );
-                  const minutes = entry?.targetMinutes ?? 0;
-                  return (
-                    <div key={d} className="space-y-0.5">
-                      <div className="text-xs text-gray-500">
-                        {dayLabels[d]}
-                      </div>
-                      <div
-                        className={`tabular-nums ${
-                          minutes > 0
-                            ? "font-medium text-gray-700"
-                            : "text-gray-300"
-                        }`}
-                      >
-                        {minutes > 0 ? formatDuration(minutes) : "–"}
-                      </div>
-                      {minutes > 0 && entry?.startTime && (
-                        <div className="text-xs text-gray-400 tabular-nums">
-                          ab {entry.startTime}
+                <div>
+                  <StatCard
+                    label={`Woche ${WEEK_BADGE_LETTERS[idx] ?? idx + 1}`}
+                    value={formatDuration(total)}
+                    tone="neutral"
+                  />
+                </div>
+                <div className="mt-3 grid grid-cols-5 gap-1 text-center text-xs">
+                  {WORK_DAYS.map((d) => {
+                    const entry = schedule.entries.find(
+                      (e) => e.weekIndex === idx && e.dayOfWeek === d,
+                    );
+                    const minutes = entry?.targetMinutes ?? 0;
+                    return (
+                      <div key={d} className="space-y-0.5">
+                        <div className="text-xs text-gray-500">
+                          {dayLabels[d]}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        <div
+                          className={`tabular-nums ${
+                            minutes > 0
+                              ? "font-medium text-gray-700"
+                              : "text-gray-300"
+                          }`}
+                        >
+                          {minutes > 0 ? formatDuration(minutes) : "–"}
+                        </div>
+                        {minutes > 0 && entry?.startTime && (
+                          <div className="text-xs text-gray-400 tabular-nums">
+                            ab {entry.startTime}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </SectionCard>
 
       <SonderarbeitszeitenSection staffId={staffId} canEdit={canEdit} />
@@ -430,61 +471,23 @@ function ArbeitszeitmodellEditor({
   const [selectedModelId, setSelectedModelId] = useState<string>(
     schedule.model?.id ?? "",
   );
-  const [rotationLength, setRotationLength] = useState<number>(
-    schedule.rotationLength,
+  const [draft, setDraft] = useState(() =>
+    draftFromPattern(schedule.rotationLength, schedule.entries),
   );
-  const [customEntries, setCustomEntries] = useState<EditableScheduleEntry[]>(
-    () => initialiseCustomEntries(schedule),
-  );
-  const [decimalHourInputs, setDecimalHourInputs] = useState<
-    Record<string, string>
-  >(() => initialiseDecimalHourInputs(schedule));
-  const [invalidDecimalHourInputs, setInvalidDecimalHourInputs] = useState<
-    Set<string>
-  >(() => new Set());
-  const [activeWeekTab, setActiveWeekTab] = useState(0);
   const [saveAsTemplateName, setSaveAsTemplateName] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const { data: templates } = useSWRAuth("work-time-models", () =>
-    workTimeModelService.list(),
+  const { data: templates, mutate: reloadTemplates } = useSWRAuth(
+    workTimeModelKeys.picker(),
+    () => workTimeModelService.list(),
   );
-
-  // Reshape custom entries when the rotation_length toggle changes so the
-  // edit grid is always exactly rotation × WORK_DAYS slots.
-  useEffect(() => {
-    setCustomEntries((prev) => {
-      const next: typeof prev = [];
-      for (let w = 0; w < rotationLength; w++) {
-        for (const d of WORK_DAYS) {
-          const existing = prev.find(
-            (e) => e.weekIndex === w && e.dayOfWeek === d,
-          );
-          next.push({
-            weekIndex: w,
-            dayOfWeek: d,
-            targetMinutes: existing?.targetMinutes ?? 0,
-            startTime: existing?.startTime,
-          });
-        }
-      }
-      return next;
-    });
-    setInvalidDecimalHourInputs(
-      (prev) =>
-        new Set(
-          [...prev].filter((key) => Number(key.split(":")[0]) < rotationLength),
-        ),
-    );
-    setDecimalHourInputs((prev) =>
-      Object.fromEntries(
-        Object.entries(prev).filter(
-          ([key]) => Number(key.split(":")[0]) < rotationLength,
-        ),
-      ),
-    );
-    setActiveWeekTab((curr) => Math.min(curr, rotationLength - 1));
-  }, [rotationLength]);
+  // Eine nebenan auf der Katalogseite angelegte Vorlage steht ohne Neuladen
+  // zur Wahl.
+  const refreshTemplates = useCallback(
+    () => void reloadTemplates(),
+    [reloadTemplates],
+  );
+  useCatalogRefreshOnFocus(refreshTemplates, mode === "template");
 
   const handleSave = async () => {
     setSaving(true);
@@ -497,41 +500,13 @@ function ArbeitszeitmodellEditor({
       }
 
       if (mode === "custom") {
-        if (invalidDecimalHourInputs.size > 0) {
-          formErrors.invalid("Bitte korrigieren Sie die markierten Stunden.");
+        // Ein leeres Modell oder eine leere Rotationswoche sähe nach dem
+        // Speichern kaputt aus und erzeugte jede n-te Woche Minusstunden.
+        const invalid = validatePatternDraft(draft);
+        if (invalid) {
+          formErrors.invalid(invalid);
           setSaving(false);
           return;
-        }
-
-        // Reject empty schedules: a rotation with zero target minutes
-        // across all weeks would silently save and then look broken in
-        // the read view. Catching this client-side beats waiting for a
-        // 400 from the backend.
-        const totalMinutes = customEntries.reduce(
-          (sum, e) => sum + e.targetMinutes,
-          0,
-        );
-        if (totalMinutes === 0) {
-          formErrors.invalid(
-            "Das Modell hat noch keine Stunden. Bitte tragen Sie mindestens einen Tag ein.",
-          );
-          setSaving(false);
-          return;
-        }
-        // Each week of the rotation should itself be non-empty,
-        // otherwise the rotation has a "blank" week that produces
-        // surprising Saldo gaps every Nth week.
-        for (let w = 0; w < rotationLength; w++) {
-          const weekTotal = customEntries
-            .filter((e) => e.weekIndex === w)
-            .reduce((sum, e) => sum + e.targetMinutes, 0);
-          if (weekTotal === 0) {
-            formErrors.invalid(
-              `Woche ${WEEK_BADGE_LETTERS[w] ?? w + 1} hat noch keine Stunden. Bitte tragen Sie mindestens einen Tag ein.`,
-            );
-            setSaving(false);
-            return;
-          }
         }
       }
 
@@ -540,15 +515,8 @@ function ArbeitszeitmodellEditor({
           ? { mode: "template", modelId: selectedModelId }
           : {
               mode: "custom",
-              rotationLength,
-              entries: customEntries
-                .filter((e) => e.targetMinutes > 0)
-                .map((e) => ({
-                  weekIndex: e.weekIndex,
-                  dayOfWeek: e.dayOfWeek,
-                  targetMinutes: e.targetMinutes,
-                  ...(e.startTime ? { startTime: e.startTime } : {}),
-                })),
+              rotationLength: draft.rotationLength,
+              entries: patternEntries(draft),
               ...(saveAsTemplateName.trim()
                 ? { saveAsTemplate: saveAsTemplateName.trim() }
                 : {}),
@@ -576,70 +544,6 @@ function ArbeitszeitmodellEditor({
     latestSave.current = handleSave;
   });
 
-  const updateEntry = (
-    weekIndex: number,
-    dayOfWeek: number,
-    minutes: number,
-  ) => {
-    const clamped = Math.max(0, Math.min(720, minutes));
-    setCustomEntries((prev) =>
-      prev.map((e) =>
-        e.weekIndex === weekIndex && e.dayOfWeek === dayOfWeek
-          ? { ...e, targetMinutes: clamped }
-          : e,
-      ),
-    );
-  };
-
-  const updateDecimalHours = (
-    weekIndex: number,
-    dayOfWeek: number,
-    value: string,
-  ) => {
-    const key = entryKey(weekIndex, dayOfWeek);
-    setDecimalHourInputs((prev) => ({ ...prev, [key]: value }));
-
-    const result = parseDecimalHours(value);
-    setInvalidDecimalHourInputs((prev) => {
-      const next = new Set(prev);
-      if (result.status === "invalid") next.add(key);
-      else next.delete(key);
-      return next;
-    });
-
-    if (result.status === "empty") {
-      updateEntry(weekIndex, dayOfWeek, 0);
-    } else if (result.status === "valid") {
-      updateEntry(weekIndex, dayOfWeek, result.minutes);
-    } else {
-      updateEntry(weekIndex, dayOfWeek, 0);
-    }
-  };
-
-  const updateEntryStartTime = (
-    weekIndex: number,
-    dayOfWeek: number,
-    startTime: string,
-  ) => {
-    setCustomEntries((prev) =>
-      prev.map((e) =>
-        e.weekIndex === weekIndex && e.dayOfWeek === dayOfWeek
-          ? { ...e, startTime: startTime || undefined }
-          : e,
-      ),
-    );
-  };
-
-  const totalForWeek = (weekIndex: number) =>
-    customEntries
-      .filter((e) => e.weekIndex === weekIndex)
-      .reduce((sum, e) => sum + e.targetMinutes, 0);
-
-  const rotationTotal = customEntries.reduce(
-    (sum, entry) => sum + entry.targetMinutes,
-    0,
-  );
-
   return (
     <div className="space-y-5">
       <FormErrorAlert message={formErrors.error} />
@@ -649,25 +553,25 @@ function ArbeitszeitmodellEditor({
       {mode === "template" ? (
         <TemplateSelector
           templates={templates ?? []}
+          boundId={schedule.model?.id ?? null}
           selectedId={selectedModelId}
           onSelect={setSelectedModelId}
         />
       ) : (
-        <CustomEditor
-          rotationLength={rotationLength}
-          onRotationChange={setRotationLength}
-          activeWeekTab={activeWeekTab}
-          onActiveWeekTabChange={setActiveWeekTab}
-          entries={customEntries}
-          decimalHourInputs={decimalHourInputs}
-          invalidDecimalHourInputs={invalidDecimalHourInputs}
-          onDecimalHoursChange={updateDecimalHours}
-          onStartTimeChange={updateEntryStartTime}
-          totalForWeek={totalForWeek}
-          rotationTotal={rotationTotal}
-          saveAsTemplateName={saveAsTemplateName}
-          onSaveAsTemplateNameChange={setSaveAsTemplateName}
-        />
+        <WorkTimePatternEditor draft={draft} onChange={setDraft}>
+          <div className="border-t border-gray-100 pt-4">
+            <Input
+              id="arbeitszeitmodell-save-as-input"
+              label="Optional als Vorlage speichern"
+              type="text"
+              controlSize="compact"
+              value={saveAsTemplateName}
+              onChange={(e) => setSaveAsTemplateName(e.target.value)}
+              placeholder="z. B. Teilzeit 30h A/B"
+              hint="Leer lassen, um nur das Modell dieser Person zu ändern."
+            />
+          </div>
+        </WorkTimePatternEditor>
       )}
 
       <EditActions
@@ -747,21 +651,41 @@ function ModeChoice({
   );
 }
 
+function ManageTemplatesLink() {
+  return (
+    <CatalogManageLink
+      href="/database/work-time-models"
+      label="Arbeitszeitmodelle verwalten"
+    />
+  );
+}
+
 function TemplateSelector({
-  templates,
+  templates: allTemplates,
+  boundId,
   selectedId,
   onSelect,
 }: {
   readonly templates: WorkTimeModel[];
+  /** Die Vorlage, die die Person schon nutzt; sie bleibt wählbar (#6891). */
+  readonly boundId: string | null;
   readonly selectedId: string;
   readonly onSelect: (id: string) => void;
 }) {
+  // Eine archivierte Vorlage wird nicht neu zugewiesen. Wer sie schon nutzt,
+  // sieht sie weiter, damit das Speichern die Zuordnung nicht verliert.
+  const templates = allTemplates.filter(
+    (t) => t.archivedAt === null || t.id === boundId,
+  );
   if (templates.length === 0) {
     return (
-      <InsetPanel as="p" padding="compact" className="text-xs text-gray-500">
-        Es gibt noch keine Vorlagen. Wählen Sie „Eigenes Modell“ und speichern
-        Sie das Modell dort als Vorlage.
-      </InsetPanel>
+      <div className="space-y-2">
+        <InsetPanel as="p" padding="compact" className="text-xs text-gray-500">
+          Es gibt noch keine Vorlagen. Legen Sie eine unter „Arbeitszeitmodelle“
+          an. Oder speichern Sie ein eigenes Modell als Vorlage.
+        </InsetPanel>
+        <ManageTemplatesLink />
+      </div>
     );
   }
   const selected = templates.find((t) => t.id === selectedId);
@@ -776,15 +700,17 @@ function TemplateSelector({
           { value: "", label: "Bitte wählen…" },
           ...templates.map((t) => ({
             value: t.id,
-            label:
-              t.rotationLength > 1
-                ? `${t.name} (${t.rotationLength} Wochen)`
-                : t.name,
+            label: [
+              t.name,
+              t.rotationLength > 1 ? ` (${t.rotationLength} Wochen)` : "",
+              t.archivedAt === null ? "" : " (nicht mehr angeboten)",
+            ].join(""),
           })),
         ]}
         placeholder="Bitte wählen…"
       />
       {selected && <TemplatePreviewBlock model={selected} />}
+      <ManageTemplatesLink />
     </div>
   );
 }
@@ -834,231 +760,6 @@ function TemplatePreviewBlock({ model }: { readonly model: WorkTimeModel }) {
       </div>
     </InsetPanel>
   );
-}
-
-function CustomEditor({
-  rotationLength,
-  onRotationChange,
-  activeWeekTab,
-  onActiveWeekTabChange,
-  entries,
-  decimalHourInputs,
-  invalidDecimalHourInputs,
-  onDecimalHoursChange,
-  onStartTimeChange,
-  totalForWeek,
-  rotationTotal,
-  saveAsTemplateName,
-  onSaveAsTemplateNameChange,
-}: {
-  readonly rotationLength: number;
-  readonly onRotationChange: (next: number) => void;
-  readonly activeWeekTab: number;
-  readonly onActiveWeekTabChange: (next: number) => void;
-  readonly entries: Array<{
-    weekIndex: number;
-    dayOfWeek: number;
-    targetMinutes: number;
-    startTime?: string;
-  }>;
-  readonly decimalHourInputs: Readonly<Record<string, string>>;
-  readonly invalidDecimalHourInputs: ReadonlySet<string>;
-  readonly onDecimalHoursChange: (
-    weekIndex: number,
-    dayOfWeek: number,
-    value: string,
-  ) => void;
-  readonly onStartTimeChange: (
-    weekIndex: number,
-    dayOfWeek: number,
-    startTime: string,
-  ) => void;
-  readonly totalForWeek: (weekIndex: number) => number;
-  readonly rotationTotal: number;
-  readonly saveAsTemplateName: string;
-  readonly onSaveAsTemplateNameChange: (next: string) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <CustomSelect
-        label="Rotation"
-        id="arbeitszeitmodell-rotation-select"
-        value={String(rotationLength)}
-        onChange={(next) => onRotationChange(Number.parseInt(next, 10))}
-        options={ROTATION_OPTIONS.map((opt) => ({
-          value: String(opt.value),
-          label: opt.label,
-        }))}
-      />
-
-      {rotationLength > 1 && (
-        <SegmentedControl
-          ariaLabel="Woche der Rotation"
-          fullWidth
-          items={Array.from({ length: rotationLength }, (_, w) => ({
-            value: String(w),
-            label: `Woche ${WEEK_BADGE_LETTERS[w] ?? w + 1}`,
-          }))}
-          value={String(activeWeekTab)}
-          onChange={(next) => onActiveWeekTabChange(Number(next))}
-        />
-      )}
-
-      <p className="text-xs text-gray-500">
-        Dezimalstunden mit Komma oder Punkt eingeben. Die Dauer wird auf die
-        nächste volle Minute gerundet, halbe Minuten werden aufgerundet.
-      </p>
-
-      <div className="space-y-2">
-        {WORK_DAYS.map((d) => {
-          const entry = entries.find(
-            (e) => e.weekIndex === activeWeekTab && e.dayOfWeek === d,
-          );
-          const minutes = entry?.targetMinutes ?? 0;
-          const startTime = entry?.startTime ?? "";
-          const key = entryKey(activeWeekTab, d);
-          const decimalHours = decimalHourInputs[key] ?? "";
-          const isInvalid = invalidDecimalHourInputs.has(key);
-          const durationId = `arbeitszeitmodell-duration-${activeWeekTab}-${d}`;
-          const errorId = `arbeitszeitmodell-error-${activeWeekTab}-${d}`;
-          const startId = `arbeitszeitmodell-start-${activeWeekTab}-${d}`;
-          return (
-            <div
-              key={d}
-              className="flex flex-wrap items-center gap-2 py-1 sm:gap-3"
-            >
-              <span className="w-10 shrink-0 text-sm font-medium text-gray-600">
-                {dayLabels[d]}
-              </span>
-              <div className="w-28">
-                <Input
-                  aria-label={`Dezimalstunden ${dayNames[d]}`}
-                  aria-describedby={
-                    isInvalid ? `${durationId} ${errorId}` : durationId
-                  }
-                  aria-invalid={isInvalid || undefined}
-                  type="text"
-                  inputMode="decimal"
-                  autoComplete="off"
-                  controlSize="compact"
-                  value={decimalHours}
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) =>
-                    onDecimalHoursChange(activeWeekTab, d, e.target.value)
-                  }
-                  placeholder="z. B. 4,45"
-                  className="text-center tabular-nums"
-                />
-                <FieldErrorHint
-                  id={errorId}
-                  message={isInvalid ? "Bitte 0 bis 12 eingeben." : undefined}
-                  live
-                />
-              </div>
-              <span className="text-xs text-gray-400">Dezimalstd.</span>
-              <div className="flex items-center gap-1 text-xs text-gray-500">
-                <label htmlFor={startId}>Start</label>
-                <div className="w-28">
-                  <Input
-                    id={startId}
-                    type="time"
-                    controlSize="compact"
-                    value={startTime}
-                    disabled={minutes <= 0}
-                    onChange={(e) =>
-                      onStartTimeChange(activeWeekTab, d, e.target.value)
-                    }
-                    className="tabular-nums disabled:cursor-not-allowed"
-                  />
-                </div>
-              </div>
-              <span
-                id={durationId}
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-                className="ml-auto text-xs text-gray-500 tabular-nums"
-              >
-                {isInvalid
-                  ? "Ungültiger Wert"
-                  : `${formatDuration(minutes)} (${minutes} min)`}
-              </span>
-            </div>
-          );
-        })}
-        <div className="flex items-center justify-between border-t border-gray-100 pt-2 text-xs">
-          <span className="text-gray-500">
-            Wochensoll Woche{" "}
-            {WEEK_BADGE_LETTERS[activeWeekTab] ?? activeWeekTab + 1}
-          </span>
-          <span className="font-bold text-gray-700 tabular-nums">
-            {formatDuration(totalForWeek(activeWeekTab))}
-          </span>
-        </div>
-        {rotationLength > 1 && (
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-500">
-              Rotation ({rotationLength} Wochen)
-            </span>
-            <span className="font-bold text-gray-700 tabular-nums">
-              {formatDuration(rotationTotal)} gesamt · Ø{" "}
-              {formatDuration(Math.round(rotationTotal / rotationLength))} /
-              Woche
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="border-t border-gray-100 pt-4">
-        <Input
-          id="arbeitszeitmodell-save-as-input"
-          label="Optional als Vorlage speichern"
-          type="text"
-          controlSize="compact"
-          value={saveAsTemplateName}
-          onChange={(e) => onSaveAsTemplateNameChange(e.target.value)}
-          placeholder="z. B. Teilzeit 30h A/B"
-          hint="Leer lassen, um nur das Modell dieser Person zu ändern."
-        />
-      </div>
-    </div>
-  );
-}
-
-function entryKey(weekIndex: number, dayOfWeek: number): string {
-  return `${weekIndex}:${dayOfWeek}`;
-}
-
-function initialiseDecimalHourInputs(
-  schedule: StaffSchedule,
-): Record<string, string> {
-  return Object.fromEntries(
-    initialiseCustomEntries(schedule).map((entry) => [
-      entryKey(entry.weekIndex, entry.dayOfWeek),
-      entry.targetMinutes > 0 ? formatDecimalHours(entry.targetMinutes) : "",
-    ]),
-  );
-}
-
-function initialiseCustomEntries(
-  schedule: StaffSchedule,
-): EditableScheduleEntry[] {
-  const length = Math.max(1, schedule.rotationLength);
-  const out: EditableScheduleEntry[] = [];
-  for (let w = 0; w < length; w++) {
-    for (const d of WORK_DAYS) {
-      const entry = schedule.entries.find(
-        (e) => e.weekIndex === w && e.dayOfWeek === d,
-      );
-      out.push({
-        weekIndex: w,
-        dayOfWeek: d,
-        targetMinutes: entry?.targetMinutes ?? 0,
-        startTime: entry?.startTime,
-      });
-    }
-  }
-  return out;
 }
 
 function getISOWeek(date: Date): number {

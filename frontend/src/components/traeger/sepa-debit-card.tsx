@@ -11,6 +11,11 @@ import { DownloadIcon, LandmarkIcon } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import {
+  HandoverMenu,
+  recipientOfFormat,
+  useFinanceHandover,
+} from "~/components/traeger/finance-export-handover";
+import {
   SEPA_DEBIT_LEFT_LABELS,
   SEPA_SEQUENCE_BADGES,
   collectDatesText,
@@ -23,7 +28,10 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -56,6 +64,10 @@ const STEPS = [
   "Im Online-Banking hochladen",
   "Hier bestätigen",
 ] as const;
+
+/** Why the file and its confirmation wait while the Träger has no account. */
+const ACCOUNT_MISSING_REASON =
+  "Legen Sie zuerst eine Bankverbindung des Trägers als Standard fest.";
 
 /** The mandate page of a family. */
 function mandateHref(debit: SepaDebit): string {
@@ -177,6 +189,23 @@ export function SepaDebitCard({
     void reload();
   }, [reload]);
 
+  const handoverRun = {
+    pathKind: kind,
+    runId,
+    label: title === "Lastschrift" ? "diesem Lauf" : title,
+  };
+  // Handover of the file to the recipient of the Träger (ADR 0218): a file
+  // that arrived counts like a download for the confirmation below.
+  const handover = useFinanceHandover((arrived) => {
+    if (arrived) {
+      setDownloaded({
+        key: runKey,
+        messageId: messageIdOfDebitFile(arrived.fileName),
+      });
+    }
+    void reload();
+  });
+
   const download = async () => {
     setDownloading(true);
     try {
@@ -270,21 +299,45 @@ export function SepaDebitCard({
         }
         actions={
           pending ? (
-            <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row">
+            <div className="flex w-full max-w-full flex-col flex-wrap gap-2 min-[480px]:w-auto min-[480px]:flex-row">
               <Button
                 type="button"
                 variant="outline"
                 size="md"
                 disabled={fileBlocked || !downloadedId || downloading}
+                disabledReason={
+                  fileBlocked
+                    ? ACCOUNT_MISSING_REASON
+                    : !downloadedId
+                      ? "Laden Sie zuerst die Datei herunter."
+                      : undefined
+                }
+                tooltip="Vermerkt die Lastschriften als eingereicht. moto fragt vorher nach."
                 onClick={() => setConfirming(true)}
               >
                 Bei der Bank eingereicht
               </Button>
+              {fileBlocked ? null : (
+                <HandoverMenu
+                  run={handoverRun}
+                  size="md"
+                  recipients={handover.recipients}
+                  recipientHidden={handover.recipientHidden}
+                  formats={["pain008"]}
+                  busy={downloading || handover.running !== null}
+                  running={handover.running !== null}
+                  onHandOver={(format) =>
+                    handover.handOver(format, handoverRun)
+                  }
+                />
+              )}
               <Button
                 type="button"
                 variant="primary"
                 size="md"
                 disabled={fileBlocked}
+                disabledReason={ACCOUNT_MISSING_REASON}
+                tooltip="Lädt die Lastschriftdatei (SEPA) für Ihr Online-Banking herunter."
                 className="gap-2"
                 isLoading={downloading}
                 loadingText="Wird erstellt …"
@@ -299,6 +352,7 @@ export function SepaDebitCard({
       >
         <div className="flex flex-col gap-5">
           {control}
+          {handover.notice}
           {fileBlocked ? (
             <Alert
               type="warning"
@@ -309,6 +363,7 @@ export function SepaDebitCard({
                   href={traegerPath("/traeger/einstellungen/abrechnung")}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Einstellungen der Abrechnung mit den Bankverbindungen."
                 >
                   Bankverbindung öffnen
                 </ButtonLink>
@@ -323,8 +378,10 @@ export function SepaDebitCard({
           ) : null}
           {pending && !downloadedId ? (
             <p className="text-sm text-gray-600">
-              Laden Sie zuerst die Datei herunter. Danach können Sie das
-              Einreichen bestätigen.
+              {recipientOfFormat(handover.recipients, "pain008")?.ready ||
+              handover.recipientHidden
+                ? "Laden Sie zuerst die Datei herunter oder übergeben Sie sie. Danach können Sie das Einreichen bestätigen."
+                : "Laden Sie zuerst die Datei herunter. Danach können Sie das Einreichen bestätigen."}
             </p>
           ) : null}
           {pending ? (
@@ -377,6 +434,7 @@ export function SepaDebitCard({
         </div>
       </SectionCard>
       {run.left.length > 0 ? <SepaDebitsLeftCard left={run.left} /> : null}
+      {handover.dialog}
       <ConfirmationModal
         isOpen={confirming}
         title="Datei bei der Bank eingereicht?"
@@ -417,10 +475,7 @@ function SepaDebitsLeftCard({
     >
       <ResponsiveActionList>
         {left.map((debit) => (
-          <li
-            key={debit.id}
-            className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-          >
+          <ResponsiveActionRow key={debit.id}>
             <div className="min-w-0">
               <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
                 <span className="font-semibold text-gray-900">
@@ -443,11 +498,12 @@ function SepaDebitsLeftCard({
                 variant="surface"
                 size="compact"
                 aria-label={`Mandat prüfen: ${debit.recipientName}`}
+                tooltip="Öffnet das Mandat dieser Familie, damit Sie es klären."
               >
                 Mandat prüfen
               </ButtonLink>
             </div>
-          </li>
+          </ResponsiveActionRow>
         ))}
       </ResponsiveActionList>
     </SectionCard>

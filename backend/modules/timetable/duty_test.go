@@ -3,7 +3,7 @@ package timetable_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -85,5 +85,17 @@ func TestOnlyDutiesCarryNoChildren(t *testing.T) {
 	assert.False(t, timetable.GroupTypeHasChildren(timetable.GroupTypeDuty))
 	for _, kind := range []string{timetable.GroupTypeActivity, timetable.GroupTypeCare, timetable.GroupTypeExternal} {
 		assert.True(t, timetable.GroupTypeHasChildren(kind), kind)
+	}
+}
+
+// TestOfferingTypes pins what counts as an offering a child books (#6487):
+// AG and Extern, never Betreuung or Dienst.
+func TestOfferingTypes(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{timetable.GroupTypeActivity, timetable.GroupTypeExternal} {
+		assert.True(t, timetable.IsOfferingType(kind), kind)
+	}
+	for _, kind := range []string{timetable.GroupTypeCare, timetable.GroupTypeDuty, ""} {
+		assert.False(t, timetable.IsOfferingType(kind), kind)
 	}
 }

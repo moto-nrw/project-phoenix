@@ -53,6 +53,12 @@ export function BulkApprovalPanel({
         variant="primary"
         size="md"
         disabled={blocked}
+        tooltip="Gibt alle ausgewählten Anfragen frei, moto fragt vorher nach."
+        disabledReason={
+          count < 2
+            ? "Wählen Sie mindestens zwei Anfragen aus."
+            : "Tragen Sie zuerst eine gemeinsame Begründung ein."
+        }
         onClick={open}
       >
         {count} {count === 1 ? "Anfrage" : "Anfragen"} freigeben

@@ -90,7 +90,8 @@ type TemplateRosterMaintenance struct {
 	// resync cannot use.
 	InvalidOfferings []RosterMaintenanceOffering
 	// DynamicTargetsManual is true when a Klasse/Jahrgang/Gruppe target
-	// exists; children joining it later are not added to existing occurrences.
+	// exists; new children reach only occurrences created afterwards, while a
+	// Klasse or Gruppe change follows on existing ones (#6841).
 	DynamicTargetsManual bool
 	// CareOfferingsDisabled is true when configured offerings exist but the
 	// school switched Betreuungsangebote off.

@@ -1,54 +1,44 @@
 package parent
 
 import (
+	"context"
 	"net/http"
-	"strings"
 
-	"github.com/go-chi/render"
-	validation "github.com/go-ozzo/ozzo-validation"
-	"github.com/go-ozzo/ozzo-validation/is"
+	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
-// LoginRequest is the body shape for POST /parent/auth/login.
-type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+// mountSignIn mounts the owner's public sign-in routes. A sign-in proved the
+// address: its holiday registrations join the account (ADR 0216). The
+// workflow logs a failure; the sign-in stands.
+func (rs *Resource) mountSignIn(r chi.Router) {
+	if rs.Auth.Routes == nil {
+		r.Post("/login", func(w http.ResponseWriter, r *http.Request) {
+			common.RequireDependency(w, r, false, errLoginUnavailable)
+		})
+		return
+	}
+	rs.Auth.Routes.MountSignIn(r, rs.claimHolidayRegistrations)
 }
 
-// Bind normalizes + validates the request.
-func (req *LoginRequest) Bind(_ *http.Request) error {
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Email, validation.Required, is.Email),
-		validation.Field(&req.Password, validation.Required),
-	)
+func (rs *Resource) claimHolidayRegistrations(ctx context.Context, email string) {
+	if rs.ParentService != nil && email != "" {
+		rs.ParentService.ClaimHolidayRegistrationsAfterSignIn(ctx, email)
+	}
 }
 
-// login signs a guardian in to a parent-scope session. Accounts without
-// guardian access at any school are refused.
-func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
-	req := &LoginRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+// mountSecondFactor mounts the session's routes of its second factor
+// (#7051); the credential checks sit behind the auth rate limit.
+func (rs *Resource) mountSecondFactor(r chi.Router, authRateLimiter func(http.Handler) http.Handler) {
+	if rs.Auth.Routes == nil {
 		return
 	}
-	if !common.RequireDependency(w, r, rs.Auth.Login != nil, errLoginUnavailable) {
-		return
-	}
-	client := portalauth.ClientOf(r)
-	accessToken, refreshToken, err := rs.Auth.Login(r.Context(), req.Email, req.Password, client.IP, client.UserAgent)
-	if err != nil {
-		portalauth.Render(w, r, err, portalauth.ParentLoginRules, portalauth.LoginRules)
-		return
-	}
-	// The sign-in proved the address: its holiday registrations join the
-	// account (ADR 0216). The workflow logs a failure; the sign-in stands.
-	if rs.ParentService != nil {
-		rs.ParentService.ClaimHolidayRegistrationsAfterSignIn(r.Context(), req.Email)
-	}
-	common.Respond(w, r, http.StatusOK, portalauth.TokenResponse{AccessToken: accessToken, RefreshToken: refreshToken}, "Login successful")
+	rs.Auth.Routes.MountSession(r)
+	r.Group(func(r chi.Router) {
+		if authRateLimiter != nil {
+			r.Use(authRateLimiter)
+		}
+		rs.Auth.Routes.MountCredentialChecks(r)
+	})
 }

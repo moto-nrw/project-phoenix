@@ -5,7 +5,7 @@ status: accepted
 # Schulferien gehören dem Schulkalender, der Ferienhinweis dem Betreuungsplan
 
 Entscheidung vom 2026-10-31 für
-[#5345](https://github.com/moto-nrw/project-phoenix/issues/5345). Sie fügt
+[#5345](https://github.com/moto-ogs/project-phoenix/issues/5345). Sie fügt
 keinen Owner und keine Policy-Regel über Owner-Grenzen hinzu. Sie weist zwei
 Tabellen dem bestehenden Owner `school-calendar` zu, registriert dessen neues
 Adapter-Paket `internal/adapters/openholidays`, nimmt eine administrative

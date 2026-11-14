@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/internal/ports"
 )
 
 // Service joins the caller's transaction or opens a school unit of work for

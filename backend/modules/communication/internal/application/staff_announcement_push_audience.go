@@ -56,3 +56,15 @@ func (s *service) filterAnnouncementPushAudience(ctx context.Context, announceme
 	}
 	return accountIDs, nil
 }
+
+// recordAnnouncementRecipients keeps the children this publication reaches
+// (#6988). It runs in the publish transaction before the push and the
+// e-mails, so statistics, the recipient list, the feed, the letter status
+// and every later reminder follow the children the announcement went to,
+// not whoever the targets reach on the day someone looks.
+func (s *service) recordAnnouncementRecipients(ctx context.Context, a *StaffParentAnnouncement) error {
+	if err := s.repo.RecordRecipients(ctx, a.GetTenantID(), a.ID); err != nil {
+		return fmt.Errorf("announcement: record recipients: %w", err)
+	}
+	return nil
+}

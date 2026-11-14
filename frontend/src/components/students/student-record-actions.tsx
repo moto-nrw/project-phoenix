@@ -4,7 +4,7 @@ import { LogOut, Trash2, Undo2, XCircle } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuItem } from "~/components/ui/page-header/types";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import {
@@ -122,6 +122,8 @@ export function StudentRecordActions({
     if (canResumeCare(student as Student)) {
       items.push({
         label: "Wieder aufnehmen",
+        description:
+          "Öffnet die Wiederaufnahme, Gruppe, Angebote und Zeiten planen Sie neu.",
         icon: <Undo2 className="size-4" aria-hidden />,
         onClick: () => setResumeOpen(true),
       });
@@ -129,12 +131,16 @@ export function StudentRecordActions({
   } else {
     items.push({
       label: plannedExit ? "Ende ändern" : "Betreuung beenden",
+      description: plannedExit
+        ? "Verschiebt den letzten Betreuungstag, moto fragt vorher nach."
+        : "Legt den letzten Betreuungstag fest, moto fragt vorher nach.",
       icon: <LogOut className="size-4" aria-hidden />,
       onClick: () => setCareExitOpen(true),
     });
     if (plannedExit) {
       items.push({
         label: "Ende stornieren",
+        description: "Nimmt das geplante Ende zurück, moto fragt vorher nach.",
         icon: <XCircle className="size-4" aria-hidden />,
         disabled: cancellingExit,
         onClick: () => setCancelExitOpen(true),
@@ -143,6 +149,8 @@ export function StudentRecordActions({
   }
   items.push({
     label: "Löschen",
+    description:
+      "Löscht das Kind auch aus der Eltern-App, moto fragt vorher nach.",
     icon: <Trash2 className="size-4" aria-hidden />,
     destructive: true,
     onClick: () => setDeleteOpen(true),

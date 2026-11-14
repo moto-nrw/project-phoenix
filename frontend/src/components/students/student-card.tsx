@@ -5,7 +5,7 @@ import { ParentAttentionBadge } from "~/components/students/parent-attention-bad
 import { useParentAttentionEnabled } from "~/lib/hooks/use-parent-attention";
 import { useDataPrefetchIntent } from "~/components/ui/data-prefetch-intent";
 import type { ReactNode } from "react";
-import { TILE_CARD_SURFACE } from "~/components/ui/tile-card";
+import { tileCardSurface } from "~/components/ui/tile-card";
 import {
   Clock,
   AlertTriangle,
@@ -30,11 +30,8 @@ import {
   type StudentDayTimes,
   type StudentTimeStatus,
 } from "~/lib/student-time-status";
-import {
-  GROUP_ROOM_SHADES,
-  LOCATION_COLORS,
-  MOTO_COLOR_PALETTE,
-} from "~/lib/location-helper";
+import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import type { StudentCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -45,6 +42,7 @@ import {
   type DepartureMode,
 } from "~/lib/departure-plan";
 import { SpinnerIcon } from "~/components/ui/icons";
+import type { PlannedActivity } from "~/lib/student-helpers";
 
 /**
  * What changed for today only (#3946): the Gehzeit, the Abholart (#3945) or
@@ -111,6 +109,11 @@ interface StudentCardProps {
   readonly checkinMode?: boolean;
   /** Required when checkinMode is true — drives the tap-strip colour + copy. */
   readonly checkinState?: StudentCheckinState;
+  /**
+   * The room a tap checks the child into (#6953). Names it on the strip of an
+   * absent child, so the target is visible where the tap happens.
+   */
+  readonly checkinTargetName?: string | null;
   /** Render spinner inside the tap-strip and disable the button while the API call is in flight. */
   readonly isCheckinPending?: boolean;
   /** Click handler for check-in mode. Ignored when checkinMode is false. */
@@ -189,6 +192,7 @@ export function StudentCard({
   trackingIndicators,
   checkinMode = false,
   checkinState = "unknown",
+  checkinTargetName = null,
   isCheckinPending = false,
   onCheckinClick,
   checkinSelectMode = false,
@@ -210,7 +214,11 @@ export function StudentCard({
 
   // Pull a Tap-Strip preset for the bottom action area in checkinMode.
   // The strip carries the colour signal; the card body stays neutral white.
-  const tapStrip = checkinMode ? TAP_STRIP_STYLES[checkinState] : null;
+  const baseTapStrip = checkinMode ? TAP_STRIP_STYLES[checkinState] : null;
+  const tapStrip =
+    baseTapStrip?.action === "anmelden" && checkinTargetName
+      ? { ...baseTapStrip, copy: `In ${checkinTargetName} anmelden` }
+      : baseTapStrip;
   // The button's label replaces its content for screen readers, so the
   // one-day change must be part of it (#3946).
   const dayChange = dayHomeChange
@@ -266,7 +274,7 @@ export function StudentCard({
       data-checkin-selected={isSelectedCard || undefined}
       data-day-home-change={dayChangeKind}
       style={selectedRingStyle}
-      className={`${TILE_CARD_SURFACE} flex cursor-pointer flex-col disabled:cursor-wait disabled:opacity-70 ${parentAttentionEnabled ? "h-full" : ""}`}
+      className={`${tileCardSurface({ padding: "none" })} flex cursor-pointer flex-col disabled:cursor-wait disabled:opacity-70 ${parentAttentionEnabled ? "h-full" : ""}`}
     >
       <div
         className={`relative ${hasTapStrip || dayChangeLabel ? "p-3 pb-0 sm:p-5 sm:pb-0" : "p-3 sm:p-5"}`}
@@ -451,12 +459,22 @@ export function StudentInfoRow({
   children,
   wrap = false,
   variant = "card",
+  prominent = false,
 }: Readonly<{
   icon: ReactNode;
   children: ReactNode;
   wrap?: boolean;
   variant?: StudentRowVariant;
+  /**
+   * Auf der Kinderkarte groß und fett (#6487): Ankunft und Gehzeit müssen
+   * beim ersten Blick sitzen. Nur für die Kartenzeile.
+   */
+  prominent?: boolean;
 }>) {
+  const emphasized = prominent && variant === "card";
+  const textClass = emphasized
+    ? "text-sm font-semibold text-gray-900"
+    : `${variant === "card" ? "text-xs text-gray-500" : "text-sm text-gray-700"} font-medium`;
   return (
     <div
       className={`flex gap-1.5 ${variant === "card" ? "mt-1" : ""} ${wrap ? "items-start" : "items-center"}`}
@@ -464,10 +482,15 @@ export function StudentInfoRow({
       {/* The one-line phone list (#3834) has no room for the icon; the
           coloured text still carries the state. */}
       {variant === "compact" ? null : (
-        <span className="flex-shrink-0">{icon}</span>
+        <span
+          className={`flex-shrink-0 ${emphasized ? `[&_svg]:size-4 ${wrap ? "mt-0.5" : ""}` : ""}`}
+        >
+          {icon}
+        </span>
       )}
       <span
-        className={`${variant === "card" ? "text-xs text-gray-500" : "text-sm text-gray-700"} font-medium ${
+        data-prominent={emphasized || undefined}
+        className={`${textClass} ${
           // A table cell wraps a long value ("Kommt heute nicht (kein Plan
           // für heute)") instead of widening the whole table (#3834).
           wrap || variant === "cell"
@@ -568,6 +591,7 @@ function TimeStatusRow({
   kind,
   day,
   variant = "card",
+  prominent = false,
 }: Readonly<{
   label: string;
   plannedTime?: string;
@@ -578,6 +602,7 @@ function TimeStatusRow({
   kind: "arrival" | "pickup";
   day?: StudentDayTimes;
   variant?: StudentRowVariant;
+  prominent?: boolean;
 }>) {
   const status = getStudentTimeStatus({
     plannedTime,
@@ -591,7 +616,11 @@ function TimeStatusRow({
     const fallbackIcon =
       kind === "arrival" ? <ArrivalTimeIcon /> : <PickupTimeIcon />;
     return (
-      <StudentInfoRow icon={fallbackIcon} variant={variant}>
+      <StudentInfoRow
+        icon={fallbackIcon}
+        variant={variant}
+        prominent={prominent}
+      >
         {variant === "card" ? `${label}: –` : "–"}
       </StudentInfoRow>
     );
@@ -624,14 +653,19 @@ function TimeStatusRow({
   // Ortsetikett oder eine Notiz ließ sonst nur „Ankunftszeit: 08:…" übrig
   // (#3893).
   return (
-    <StudentInfoRow icon={icon} variant={variant} wrap={variant === "card"}>
+    <StudentInfoRow
+      icon={icon}
+      variant={variant}
+      wrap={variant === "card"}
+      prominent={prominent}
+    >
       {status.textColor ? (
         <span style={{ color: status.textColor }}>{fullText}</span>
       ) : (
         fullText
       )}
       {notes && variant !== "compact" && (
-        <span className="ml-1 text-gray-500">({notes})</span>
+        <span className="ml-1 font-normal text-gray-500">({notes})</span>
       )}
     </StudentInfoRow>
   );
@@ -645,6 +679,7 @@ export function PickupTimeRow({
   now,
   day,
   variant = "card",
+  prominent = false,
 }: Readonly<{
   pickupTime?: string;
   actualTime?: string;
@@ -655,12 +690,18 @@ export function PickupTimeRow({
   /** The whole day; without a check-in the pickup cannot be late (#3373). */
   day?: StudentDayTimes;
   variant?: StudentRowVariant;
+  /** Groß und fett auf der Kinderkarte (#6487). */
+  prominent?: boolean;
 }>) {
   const rowNow = useRowClock(now);
 
   if (isException && !pickupTime && !actualTime) {
     return (
-      <StudentInfoRow icon={<AbsenceIcon />} variant={variant}>
+      <StudentInfoRow
+        icon={<AbsenceIcon />}
+        variant={variant}
+        prominent={prominent}
+      >
         {notes || "Abwesend"}
       </StudentInfoRow>
     );
@@ -677,6 +718,7 @@ export function PickupTimeRow({
       kind="pickup"
       day={day}
       variant={variant}
+      prominent={prominent}
     />
   );
 }
@@ -768,6 +810,7 @@ export function ArrivalTimeRow({
   absentWording = "Kommt heute nicht",
   day,
   variant = "card",
+  prominent = false,
 }: Readonly<{
   arrivalTime?: string;
   actualTime?: string;
@@ -781,12 +824,18 @@ export function ArrivalTimeRow({
   /** The whole day; arrival not before pickup means no care time (#3373). */
   day?: StudentDayTimes;
   variant?: StudentRowVariant;
+  /** Groß und fett auf der Kinderkarte (#6487). */
+  prominent?: boolean;
 }>) {
   const rowNow = useRowClock(now);
 
   if (isAbsent) {
     return (
-      <StudentInfoRow icon={<AbsenceIcon />} variant={variant}>
+      <StudentInfoRow
+        icon={<AbsenceIcon />}
+        variant={variant}
+        prominent={prominent}
+      >
         {notes ? `${absentWording} (${notes})` : absentWording}
       </StudentInfoRow>
     );
@@ -794,7 +843,11 @@ export function ArrivalTimeRow({
 
   if (isException && !arrivalTime && !actualTime) {
     return (
-      <StudentInfoRow icon={<AbsenceIcon />} variant={variant}>
+      <StudentInfoRow
+        icon={<AbsenceIcon />}
+        variant={variant}
+        prominent={prominent}
+      >
         {notes ? `${absentWording} (${notes})` : absentWording}
       </StudentInfoRow>
     );
@@ -811,6 +864,34 @@ export function ArrivalTimeRow({
       kind="arrival"
       day={day}
       variant={variant}
+      prominent={prominent}
     />
+  );
+}
+
+/**
+ * Heutige Angebote eines Kindes auf der Kinderkarte (#6487), zwischen Ankunft
+ * und Gehzeit: „14:00–15:00 Töpfer-AG“. Leise neben den fetten Zeiten, damit
+ * Kommen und Gehen zuerst ins Auge fallen. Ohne Angebote rendert sie nichts.
+ */
+export function PlannedActivityRows({
+  activities,
+}: Readonly<{ activities?: readonly PlannedActivity[] }>) {
+  if (!activities?.length) return null;
+  return (
+    <ul aria-label="Angebote heute">
+      {activities.map((activity) => (
+        <li key={`${activity.start_time}-${activity.title}`}>
+          {/* Ein langer Titel bricht um statt abgeschnitten zu werden:
+              Auf schmalen Karten bliebe sonst nur „14:00–15:00 Töpf…“. */}
+          <StudentInfoRow icon={<ActivityIcon />} wrap>
+            <span className="tabular-nums">
+              {activity.start_time}–{activity.end_time}
+            </span>{" "}
+            {activity.title}
+          </StudentInfoRow>
+        </li>
+      ))}
+    </ul>
   );
 }

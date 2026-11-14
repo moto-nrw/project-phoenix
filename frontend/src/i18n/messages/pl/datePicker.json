@@ -9,6 +9,10 @@
     "selectTime": "Wybierz godzinę",
     "hour": "Godzina",
     "minute": "Minuta",
-    "minimum": "Najwcześniej {time}"
-  }
+    "minimum": "Najwcześniej {time}",
+    "selectTimeHint": "Otwiera wybór godziny."
+  },
+  "clearHint": "Czyści pole, żaden dzień nie jest wtedy wybrany.",
+  "previousMonthHint": "Przechodzi w kalendarzu o miesiąc wstecz.",
+  "nextMonthHint": "Przechodzi w kalendarzu o miesiąc dalej."
 }

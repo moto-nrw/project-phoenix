@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 )
 
 // Erklärungen (#3430): the guardian side. A guardian with

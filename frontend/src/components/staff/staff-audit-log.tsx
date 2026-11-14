@@ -431,7 +431,7 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
             onChange={setFrom}
             max={to || undefined}
             calendarLayout="popover"
-            controlSize="md"
+            controlSize="compact"
             className="w-44"
           />
         </div>
@@ -443,7 +443,7 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
             onChange={setTo}
             min={from || undefined}
             calendarLayout="popover"
-            controlSize="md"
+            controlSize="compact"
             className="w-44"
           />
         </div>
@@ -481,6 +481,7 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
             variant="outline"
             onClick={loadMore}
             disabled={isLoading}
+            tooltip="Hängt ältere Einträge des Protokolls unten an die Liste an."
           >
             Weitere Einträge laden
           </Button>

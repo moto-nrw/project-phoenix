@@ -68,3 +68,30 @@ export const WithError: Story = {
     error: "Bitte einen Namen eintragen.",
   },
 };
+
+const FOOTER = (
+  <>
+    <Button type="button" variant="outline" size="md">
+      Abbrechen
+    </Button>
+    <Button type="button" variant="primary" size="md">
+      Speichern
+    </Button>
+  </>
+);
+
+/** Save running: X, backdrop and footer are locked. */
+export const Pending: Story = {
+  args: {
+    footer: FOOTER,
+    pending: { pending: true, run: async () => undefined },
+  },
+};
+
+export const CenteredWithFooter: Story = {
+  args: { footer: FOOTER, mobilePosition: "center" },
+};
+
+export const WithErrorAndFooter: Story = {
+  args: { footer: FOOTER, error: "Bitte einen Namen eintragen." },
+};

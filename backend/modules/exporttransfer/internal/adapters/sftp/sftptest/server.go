@@ -18,6 +18,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"errors"
+	"io"
 	"net"
 	"net/netip"
 	"strconv"
@@ -63,6 +64,51 @@ var errAuthRejected = errors.New("password rejected")
 // Start boots the server and stops it when the test ends.
 func Start(t *testing.T) Server {
 	t.Helper()
+	return start(t, modePlain)
+}
+
+// StartEchoing starts a counterpart that accepts the login and refuses every
+// upload with an SFTP error whose text repeats the password it received: the
+// case of a hostile or broken counterpart that echoes credentials back.
+func StartEchoing(t *testing.T) Server {
+	t.Helper()
+	return start(t, modeEcho)
+}
+
+// StartDroppingRename starts a counterpart that takes the upload and drops
+// the connection when the client renames it into place: the client never
+// learns whether the file arrived.
+func StartDroppingRename(t *testing.T) Server {
+	t.Helper()
+	return start(t, modeDropRename)
+}
+
+// StartRefusingRename starts a counterpart that takes the upload and
+// answers the rename with an SFTP failure status.
+func StartRefusingRename(t *testing.T) Server {
+	t.Helper()
+	return start(t, modeRefuseRename)
+}
+
+// StartDenyingRename starts a counterpart that takes the upload and denies
+// the rename (permission denied).
+func StartDenyingRename(t *testing.T) Server {
+	t.Helper()
+	return start(t, modeDenyRename)
+}
+
+type mode int
+
+const (
+	modePlain mode = iota
+	modeEcho
+	modeDropRename
+	modeRefuseRename
+	modeDenyRename
+)
+
+func start(t *testing.T, serve mode) Server {
+	t.Helper()
 
 	password := rand.Text()
 	config := &ssh.ServerConfig{
@@ -97,7 +143,7 @@ func Start(t *testing.T) Server {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
-	go acceptLoop(listener, config)
+	go acceptLoop(listener, config, password, serve)
 
 	addr, ok := listener.Addr().(*net.TCPAddr)
 	require.True(t, ok)
@@ -132,17 +178,17 @@ type AllowLoopbackPolicy struct{}
 
 func (AllowLoopbackPolicy) Allow(addr netip.Addr) bool { return addr.IsLoopback() }
 
-func acceptLoop(listener net.Listener, config *ssh.ServerConfig) {
+func acceptLoop(listener net.Listener, config *ssh.ServerConfig, password string, serve mode) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			return // listener closed by cleanup
 		}
-		go serveConn(conn, config)
+		go serveConn(conn, config, password, serve)
 	}
 }
 
-func serveConn(conn net.Conn, config *ssh.ServerConfig) {
+func serveConn(conn net.Conn, config *ssh.ServerConfig, password string, serve mode) {
 	defer func() { _ = conn.Close() }()
 
 	sshConn, chans, reqs, err := ssh.NewServerConn(conn, config)
@@ -163,6 +209,20 @@ func serveConn(conn net.Conn, config *ssh.ServerConfig) {
 		}
 		go answerSubsystemRequests(requests)
 
+		if serve != modePlain {
+			handlers := droppingHandlers(conn, serve)
+			if serve == modeEcho {
+				echoing := echoingHandler{password: password}
+				handlers = pkgsftp.Handlers{FileGet: echoing, FilePut: echoing, FileCmd: echoing, FileList: echoing}
+			}
+			server := pkgsftp.NewRequestServer(channel, handlers)
+			go func() {
+				_ = server.Serve()
+				_ = server.Close()
+				_ = channel.Close()
+			}()
+			continue
+		}
 		server, err := pkgsftp.NewServer(channel)
 		if err != nil {
 			return
@@ -176,6 +236,48 @@ func serveConn(conn net.Conn, config *ssh.ServerConfig) {
 			_ = channel.Close()
 		}()
 	}
+}
+
+// echoingHandler refuses every request with the received password in the
+// error text.
+type echoingHandler struct{ password string }
+
+func (h echoingHandler) refusal() error {
+	return errors.New("refused for credential " + h.password)
+}
+
+func (h echoingHandler) Fileread(*pkgsftp.Request) (io.ReaderAt, error)  { return nil, h.refusal() }
+func (h echoingHandler) Filewrite(*pkgsftp.Request) (io.WriterAt, error) { return nil, h.refusal() }
+func (h echoingHandler) Filecmd(*pkgsftp.Request) error                  { return h.refusal() }
+func (h echoingHandler) Filelist(*pkgsftp.Request) (pkgsftp.ListerAt, error) {
+	return nil, h.refusal()
+}
+
+// droppingHandlers keep files in memory and refuse a rename: with drop they
+// close the connection before any answer.
+func droppingHandlers(conn net.Conn, serve mode) pkgsftp.Handlers {
+	memory := pkgsftp.InMemHandler()
+	memory.FileCmd = droppingCmd{next: memory.FileCmd, conn: conn, serve: serve}
+	return memory
+}
+
+type droppingCmd struct {
+	next  pkgsftp.FileCmder
+	conn  net.Conn
+	serve mode
+}
+
+func (d droppingCmd) Filecmd(request *pkgsftp.Request) error {
+	if request.Method == "Rename" || request.Method == "PosixRename" {
+		switch d.serve {
+		case modeDropRename:
+			_ = d.conn.Close()
+		case modeDenyRename:
+			return pkgsftp.ErrSSHFxPermissionDenied
+		}
+		return errors.New("rename refused")
+	}
+	return d.next.Filecmd(request)
 }
 
 // answerSubsystemRequests accepts exactly the "sftp" subsystem. The payload is

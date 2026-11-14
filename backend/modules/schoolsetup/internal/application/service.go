@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
+	"github.com/moto-ogs/project-phoenix/modules/schoolsetup"
 )
 
 // Service implements schoolsetup.Service. SetDismissed is the store's,

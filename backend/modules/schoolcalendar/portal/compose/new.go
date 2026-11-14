@@ -5,10 +5,10 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/adapters/tokens"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/adapters/tokens"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
 type Config = application.Config

@@ -3,7 +3,7 @@ package authorize
 import (
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/internal/clientip"
+	"github.com/moto-ogs/project-phoenix/internal/clientip"
 )
 
 // ParseClientAddress parses the client address an audited operation carries.

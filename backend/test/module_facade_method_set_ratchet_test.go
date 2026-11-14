@@ -83,14 +83,14 @@ var moduleFacadeMethodSetAllowlist = map[string]int{
 	"modules/devicefleet/devicefleet.go:DeviceQuery":                                                  14,
 	"modules/devicefleet/devicefleet.go:Query":                                                        18,
 	"modules/enrollment/decisions.go:Decisions":                                                       18,
-	"modules/enrollment/enrollment.go:Owner":                                                          141,
+	"modules/enrollment/enrollment.go:Owner":                                                          140,
 	"modules/enrollment/enrollmenttest/careplan_contract.go:PublicDecisions":                          18,
 	"modules/enrollment/holiday_registration_review.go:HolidayRegistrationReview":                     14,
 	"modules/filestorage/filestorage.go:Capability":                                                   17,
-	"modules/identityaccess/account_authentication.go:AccountAuthentication":                          18,
+	"modules/identityaccess/account_authentication.go:AccountAuthentication":                          17,
 	"modules/identityaccess/account_lifecycle.go:AccountLifecycle":                                    22,
 	"modules/identityaccess/account_mfa.go:AccountMFA":                                                29,
-	"modules/identityaccess/identityaccess.go:Owner":                                                  262,
+	"modules/identityaccess/identityaccess.go:Owner":                                                  260,
 	"modules/identityaccess/role_administration.go:RoleAdministration":                                25,
 	"modules/mealplan/mealplan.go:Capability":                                                         20,
 	"modules/organizationtenancy/organizationtenancy.go:Capability":                                   40,
@@ -213,7 +213,7 @@ func moduleFacadeMethodSetScan(backendRoot string) (map[string]int, error) {
 
 // moduleFacadeModulePath is the backend's module path; first-party imports
 // below it are type-checked from source.
-const moduleFacadeModulePath = "github.com/moto-nrw/project-phoenix"
+const moduleFacadeModulePath = "github.com/moto-ogs/project-phoenix"
 
 // moduleFacadeImporter type-checks first-party packages from source with the
 // standard library alone (the test-support role may not import

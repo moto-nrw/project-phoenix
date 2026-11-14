@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
+	"github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/ports"
 )
 
 func (s *service) loadBatchPresence(ctx context.Context, cfg batchConfig, recipients []reminder.BatchScope, caregivers bool, in *batchInputs) error {

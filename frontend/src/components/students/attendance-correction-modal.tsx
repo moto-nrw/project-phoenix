@@ -198,6 +198,7 @@ export function AttendanceCorrectionModal({
             size="md"
             onClick={onClose}
             disabled={saving}
+            noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
           >
             Abbrechen
           </Button>
@@ -207,6 +208,7 @@ export function AttendanceCorrectionModal({
             size="md"
             onClick={() => void handleSubmit()}
             disabled={saving}
+            tooltip="Ändert den Eintrag und speichert Ihren Namen, die Uhrzeit und den Grund."
           >
             {saving ? "Wird gespeichert …" : "Speichern"}
           </Button>

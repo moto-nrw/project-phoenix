@@ -9,7 +9,7 @@ import (
 
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -284,7 +284,7 @@ func TestFetchLatestMFACode_MessageAppearsOnSecondPoll(t *testing.T) {
 	srv := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/api/v1/messages":
+		case "/api/v1/search":
 			n := atomic.AddInt32(&pollCount, 1)
 			if n < 2 {
 				// First poll: nothing yet.
@@ -312,6 +312,36 @@ func TestFetchLatestMFACode_MessageAppearsOnSecondPoll(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "555555", code)
 	assert.GreaterOrEqual(t, atomic.LoadInt32(&pollCount), int32(2))
+}
+
+// The code is searched among the recipient's sign-in mails, so the mail of a
+// second seed at the same time cannot push it out of the result (#6962).
+func TestFetchLatestMFACode_SearchesTheRecipientsCodeMails(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	var query string
+	srv := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/search":
+			query = r.URL.Query().Get("query")
+			_ = json.NewEncoder(w).Encode(mailpitMessageList{
+				Total:    1,
+				Messages: []mailpitMessageSummary{{ID: "mfa", To: []mailpitAddress{{Address: "op@test.de"}}, Subject: mfaEmailSubject, Created: now}},
+			})
+		case "/api/v1/message/mfa":
+			_ = json.NewEncoder(w).Encode(mailpitMessageDetail{ID: "mfa", Text: "Ihr Code: 313131"})
+		default:
+			testpkg.HTTPNotFound(w, r)
+		}
+	})
+	defer srv.Close()
+
+	code, err := fetchLatestMFACodeAt(context.Background(), srv.URL, " OP@test.de ", now.Add(-time.Second))
+	require.NoError(t, err)
+	assert.Equal(t, "313131", code)
+	assert.Equal(t, `to:"op@test.de" subject:"`+mfaEmailSubject+`"`, query)
 }
 
 func TestFetchLatestMFACode_IgnoresNewerNonMFAMail(t *testing.T) {

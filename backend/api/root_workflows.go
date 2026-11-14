@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
-	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/workflows/gradetransition"
+	gradetransitioncompose "github.com/moto-ogs/project-phoenix/workflows/gradetransition/compose"
 )
 
 // buildGradeTransition binds the school-year rollover workflow (#2711),
@@ -28,8 +28,8 @@ func buildGradeTransition(
 	workflow, err := owners.NewGradeTransition(gradetransitioncompose.Dependencies{
 		DB: db.Pool(), Structure: structure, Presence: presence, Directory: persons, Membership: membership, Rosters: owner.RosterReconciler,
 		LockRecurrenceWrites:  owner.RecurrenceLock.LockRecurrenceWrites,
-		ResyncOfferingRosters: resyncOfferingRosters,
-		Logger:                env.Logger.With("workflow", "grade_transition"), Audit: audit.Command, ClassListEntryRecord: GradeTransitionClassListRecord,
+		ResyncOfferingRosters: resyncOfferingRosters, FollowClassChanges: gradeTransitionClassChanges(owner.CohortRosters),
+		Logger: env.Logger.With("workflow", "grade_transition"), Audit: audit.Command, ClassListEntryRecord: GradeTransitionClassListRecord,
 		Clock: env.Now,
 	})
 	if err != nil {

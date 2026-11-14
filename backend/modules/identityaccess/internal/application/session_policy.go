@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // renewal names what a binding serves. A sign-in or switch mints; a refresh
@@ -120,6 +120,11 @@ type sessionPolicy struct {
 	// keptAt names the school a renewed session is kept at; a refusal there
 	// ends the session at refresh and validation alike.
 	keptAt func(s *AccountAuthentication, b sessionBinding) successorTenant
+}
+
+// keptAtNoSchool keeps a session that names a Träger and no school.
+func keptAtNoSchool(*AccountAuthentication, sessionBinding) successorTenant {
+	return func(context.Context, int64, domain.AccountSession) (int64, error) { return 0, nil }
 }
 
 // guard is the eligibility a session mints or renews under: the facts under
@@ -294,9 +299,7 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 		claims: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, account domain.LoginAccount, _ heldFacts) (*domain.AccountClaimsPayload, error) {
 			return s.traegerClaims(ctx, account, b.orgID)
 		},
-		keptAt: func(*AccountAuthentication, sessionBinding) successorTenant {
-			return func(context.Context, int64, domain.AccountSession) (int64, error) { return 0, nil }
-		},
+		keptAt: keptAtNoSchool,
 	},
 	// A Träger school session has no mapping at its school; its facts are
 	// the Träger's instead (ADR 0084 section 5).
@@ -478,11 +481,8 @@ func tokenSchool(s *AccountAuthentication, b sessionBinding) successorTenant {
 // came through (#4654), a parent session at a Träger its Träger (ADR 0216);
 // a session of every other kind names none.
 func sameTraeger(kind domain.SessionKind, orgID int64, session domain.AccountSession) bool {
-	namesTraeger := func(k domain.SessionKind) bool {
-		return k == domain.SessionKindTraegerSchool || k == domain.SessionKindTraegerParent || k == domain.SessionKind(domain.PortalOrg.Name)
-	}
 	stored := session.SessionKind()
-	if namesTraeger(kind) || namesTraeger(stored) {
+	if kind.NamesTraeger() || stored.NamesTraeger() {
 		return kind == stored && session.OrganizationID == orgID
 	}
 	return true

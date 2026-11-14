@@ -185,6 +185,7 @@ export function AnnouncementReminderDialog({
                 variant="outline_danger"
                 size="md"
                 onClick={() => setConfirmRemove(true)}
+                tooltip="Löscht die geplante Erinnerung, moto fragt vorher nach."
                 disabled={pending !== null}
                 className="w-full sm:mr-auto sm:w-auto"
               >
@@ -200,6 +201,7 @@ export function AnnouncementReminderDialog({
                 size="md"
                 onClick={onClose}
                 disabled={pending !== null}
+                noTooltip="Schließt das Fenster ohne Änderung, das Wort sagt es."
                 className="flex-1 sm:flex-none"
               >
                 Abbrechen
@@ -209,6 +211,7 @@ export function AnnouncementReminderDialog({
                 size="md"
                 onClick={() => void submit(false)}
                 disabled={pending !== null}
+                tooltip="Plant die Erinnerung zur gewählten Zeit an alle Empfänger."
                 className="flex-1 sm:flex-none"
               >
                 {pending === "save" ? "Wird gespeichert…" : "Speichern"}

@@ -8,17 +8,20 @@ import {
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { usePhoneViewport } from "~/test/helpers/viewport";
 import germanMessages from "~/i18n/messages/de/holidayRegistration.json";
 import { ApiError } from "~/lib/api-error";
 import type {
   HolidayAddressRequirement,
   HolidayForm,
   HolidayFormField,
+  HolidayHealthRequirement,
 } from "~/lib/traeger-holiday-form-api";
 
-const { mockSave, mockSavedAddress } = vi.hoisted(() => ({
+const { mockSave, mockSavedAddress, mockSavedHealth } = vi.hoisted(() => ({
   mockSave: vi.fn(),
   mockSavedAddress: vi.fn(),
+  mockSavedHealth: vi.fn(),
 }));
 
 vi.mock("~/lib/traeger-holiday-form-api", async (importOriginal) => ({
@@ -28,8 +31,10 @@ vi.mock("~/lib/traeger-holiday-form-api", async (importOriginal) => ({
     fields: HolidayFormField[],
     _blocks: unknown,
     address: HolidayAddressRequirement,
+    health: HolidayHealthRequirement,
   ) => {
     mockSavedAddress(address);
+    mockSavedHealth(health);
     return mockSave(periodId, fields);
   },
 }));
@@ -59,6 +64,7 @@ function form(fields: HolidayFormField[] = []): HolidayForm {
     version: 1,
     fields,
     addressRequirement: "off",
+    healthRequirement: "optional",
     createdAt: "2026-10-01T08:00:00Z",
     template: TEMPLATE,
   };
@@ -101,6 +107,7 @@ describe("HolidayFormEditor (#5198)", () => {
   beforeEach(() => {
     mockSave.mockReset();
     mockSavedAddress.mockReset();
+    mockSavedHealth.mockReset();
   });
 
   it("switches the address block and saves it with the next version (#5625)", async () => {
@@ -116,7 +123,8 @@ describe("HolidayFormEditor (#5198)", () => {
     const save = screen.getByRole("button", {
       name: "Als neue Version speichern",
     });
-    const off = screen.getByRole("button", { name: "Nicht abfragen" });
+    const block = within(screen.getByRole("region", { name: "Anschrift" }));
+    const off = block.getByRole("button", { name: "Nicht abfragen" });
     expect(off).toHaveAttribute("aria-pressed", "true");
     expect(save).toBeDisabled();
     expect(
@@ -124,12 +132,12 @@ describe("HolidayFormEditor (#5198)", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText("Allgemeine Fragen und Infos")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Freiwillig" }));
+    fireEvent.click(block.getByRole("button", { name: "Freiwillig" }));
     expect(
       screen.getByText(germanMessages.addressTitleOptional),
     ).toBeInTheDocument();
     expect(screen.getByText("Straße und Hausnummer")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Pflicht" }));
+    fireEvent.click(block.getByRole("button", { name: "Pflicht" }));
     expect(screen.getByText("Straße und Hausnummer *")).toBeInTheDocument();
     expect(save).toBeEnabled();
 
@@ -138,6 +146,59 @@ describe("HolidayFormEditor (#5198)", () => {
     expect(mockSavedAddress).toHaveBeenCalledWith("required");
     expect(onSaved).toHaveBeenCalledWith(
       expect.objectContaining({ version: 2, addressRequirement: "required" }),
+    );
+  });
+
+  it("requires allergies and medication with the next version (#6686)", async () => {
+    mockSave.mockImplementation((_id: string, fields: HolidayFormField[]) =>
+      Promise.resolve({
+        ...form(),
+        version: 2,
+        fields,
+        healthRequirement: "required",
+      }),
+    );
+    const onSaved = renderEditor();
+    const save = screen.getByRole("button", {
+      name: "Als neue Version speichern",
+    });
+    const block = within(screen.getByRole("region", { name: "Gesundheit" }));
+    expect(block.getByRole("button", { name: "Freiwillig" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByText("Allergien")).toBeInTheDocument();
+    expect(
+      screen.getByText("Gesundheitsangaben (wenn angegeben) *"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(block.getByRole("button", { name: "Pflicht" }));
+    expect(
+      screen.getByText("Allergien: Nein, keine / Ja *"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Medikamente: Nein, keine / Ja *"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Gesundheitsangaben *")).toBeInTheDocument();
+    expect(save).toBeEnabled();
+
+    fireEvent.click(save);
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(mockSavedHealth).toHaveBeenCalledWith("required");
+    expect(mockSavedAddress).toHaveBeenCalledWith("off");
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ version: 2, healthRequirement: "required" }),
+    );
+  });
+
+  it("names own questions that repeat required health fields (#6686)", () => {
+    renderEditor(form(TEMPLATE));
+    const block = within(screen.getByRole("region", { name: "Gesundheit" }));
+    expect(block.queryByRole("alert")).not.toBeInTheDocument();
+    expect(block.getByText(/Eltern können Allergien/)).toBeInTheDocument();
+    fireEvent.click(block.getByRole("button", { name: "Pflicht" }));
+    expect(block.getByRole("alert")).toHaveTextContent(
+      "Allergien und Medikamente fragt das Formular schon ab. Diese eigenen Fragen fragen es noch einmal: „Lebensmittelunverträglichkeiten“. Entfernen Sie sie, sonst antworten Eltern doppelt.",
     );
   });
 
@@ -199,7 +260,7 @@ describe("HolidayFormEditor (#5198)", () => {
     expect(
       screen.getAllByText("Lebensmittelunverträglichkeiten").length,
     ).toBeGreaterThan(0);
-    expect(insert).toBeDisabled();
+    expect(insert).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText("Alle Fragen der Standardvorlage sind im Formular."),
     ).toBeInTheDocument();
@@ -603,5 +664,55 @@ describe("HolidayFormEditor (#5198)", () => {
     expect(
       screen.getByRole("button", { name: "Als neue Version speichern" }),
     ).toBeDisabled();
+  });
+});
+
+describe("HolidayFormEditor on a phone", () => {
+  usePhoneViewport();
+  beforeEach(() => {
+    mockSave.mockReset();
+  });
+
+  // The long form stays walkable: each question folds to its head with a
+  // summary; a new one opens, and so does one the check marks.
+  it("folds the questions to their heads and opens a new one", () => {
+    renderEditor(form(TEMPLATE));
+
+    expect(
+      screen.getByText(
+        "Mehrzeiliger Text · freiwillig · pro Kind · Gesundheitsangabe",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "Frage im Elternformular" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Frage 1 ausklappen" }));
+    expect(questionInputs().map((input) => input.value)).toEqual([
+      "Lebensmittelunverträglichkeiten",
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /Frage hinzufügen/ }));
+    expect(questionInputs()).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: "Frage 3 einklappen" }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("opens a folded question the check marks", () => {
+    renderEditor(form(TEMPLATE));
+    fireEvent.click(screen.getByRole("button", { name: /Frage hinzufügen/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Frage 3 einklappen" }));
+    expect(
+      screen.queryByRole("textbox", { name: "Frage im Elternformular" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    );
+
+    expect(questionInputs()).toHaveLength(1);
+    expect(questionInputs()[0]).toHaveAttribute("aria-invalid", "true");
+    expect(mockSave).not.toHaveBeenCalled();
   });
 });

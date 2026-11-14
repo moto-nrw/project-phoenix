@@ -178,7 +178,7 @@ Next writes its `.next`, lock, `next-env.d.ts` and TypeScript changes
 only there. Local env files are not copied. Changing suite or ports therefore
 never reuses another run's compilation, and the native dev loop can keep running
 in the same worktree without losing its warm cache or generated files
-([#5371](https://github.com/moto-nrw/project-phoenix/issues/5371)). Source edits
+([#5371](https://github.com/moto-ogs/project-phoenix/issues/5371)). Source edits
 made after startup take effect on the next run, not in the current snapshot.
 Readiness compiles the tenant login page, not just a health endpoint, before
 browser action timeouts begin. Retries, assertions and test timeouts are unchanged.
@@ -646,7 +646,8 @@ maintenance jobs `migrate` and `bank-data-rekey` receive the privileged DSN. Rea
 before changing deployment environments or maintenance jobs.
 
 CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, `PRODUCTION_SSH_*`, and `DEMO_SSH_*` secrets;
-failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable. The
+deploy and rollback failure mails go through Lettermint with the `LETTERMINT_CI_TOKEN`
+secret to the recipients in the `DEPLOY_NOTIFY_EMAILS` repository variable. The
 PostHog dashboards use `POSTHOG_READ_API_KEY` (repository) and
 `POSTHOG_PERSONAL_API_KEY` (environment `posthog`); see
 [Nutzungsanalyse](../operations/nutzungsanalyse.md#dashboards-3604).
@@ -813,10 +814,18 @@ it on the affected database:
 2. `REINDEX INDEX CONCURRENTLY <index>;` for each one.
 3. `ALTER COLLATION public.german_name REFRESH VERSION;`
 
-Pin the postgres image to an exact alpine tag (`17.x-alpine3.yy`) or digest
-before relying on it: the floating `17-alpine` tag is rebuilt on alpine
-updates and can change the ICU version without a visible change in the
-compose file.
+The postgres image is pinned to an exact alpine tag and its index digest
+(`postgres:17.x-alpine3.yy@sha256:…`). The floating `17-alpine` tag is
+rebuilt on alpine and minor updates and can change the ICU version or
+PostgreSQL behavior without a visible change in the compose file; on
+2026-11-12, 17.12 turned every pull request red overnight (#6916).
+`environments/production.compose.yml` holds the pin; CI workflows, the other
+compose files and the script tests repeat it, and `TestToolchainPinsRatchet`
+fails when one of them differs. Dependabot proposes updates in
+`environments/`; complete such a pull request with every other reference in
+the same branch. Before merging an update, compare `icu-libs` of the old and
+new image (`docker run --rm IMAGE apk info -v | grep '^icu-libs-'`); a
+changed ICU version needs the reindex above after the deploy.
 
 ## Product screenshots (marketing images)
 
@@ -912,7 +921,7 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   attaches the output as the artifact `product-screenshots-<version>` (7 days)
   and as `product-screenshots-<version>.zip` to the GitHub release `v<version>`,
   plus the same file as `product-screenshots.zip`: the newest images are always
-  at `https://github.com/moto-nrw/project-phoenix/releases/latest/download/product-screenshots.zip`
+  at `https://github.com/moto-ogs/project-phoenix/releases/latest/download/product-screenshots.zip`
   (PyrePortal does the same for the kiosk). A rerun of the same version replaces
   both ZIPs. Pull requests into `main` that
   touch the pipeline run the capture without the release asset; pull requests

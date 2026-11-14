@@ -3,7 +3,7 @@ package presence
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // getCrossTenantStudents returns students visiting from other tenants.

@@ -6,9 +6,11 @@ import {
   ON_WORKDAY,
   POSTHOG_HOST,
   SCHOOL_BREAKDOWN,
+  check,
   dashboards,
   featureExpression,
   featureOfPage,
+  isQueryTimeout,
   missingPath,
   posthogClient,
   publicHolidays,
@@ -205,6 +207,17 @@ test('friction tables link the heatmap and read rage clicks from the heatmap dat
   assert.match(table, /properties\.surface in \('ogs'\)/);
 });
 
+test('friction tables find the sessions of a portal through its page views, not through every event', () => {
+  const tables = insights.filter((insight) => / Wo klicken /.test(insight.name));
+  assert.equal(tables.length, 4);
+  for (const insight of tables) {
+    const sessions = /session_id in \(\s*select \$session_id from events\s*where ([\s\S]*?)\n\s*\)/.exec(insight.query.source.query)?.[1];
+    assert.ok(sessions, `${insight.name}: rage clicks are matched to the portal through the session`);
+    assert.match(sessions, /^event = '\$pageview' and timestamp > now\(\) - interval 30 day\b/, insight.name);
+    assert.match(sessions, /properties\.surface in \(/, insight.name);
+  }
+});
+
 test('the client only calls the EU API and needs a key', async () => {
   assert.throws(() => posthogClient({ apiKey: '' }), /POSTHOG_PERSONAL_API_KEY/);
   const calls = [];
@@ -219,6 +232,48 @@ test('the client only calls the EU API and needs a key', async () => {
   assert.equal(calls[0].url, `${POSTHOG_HOST}/api/projects/`);
   assert.equal(POSTHOG_HOST, 'https://eu.posthog.com');
   assert.equal(calls[0].init.headers.Authorization, 'Bearer test-key');
+});
+
+const TIMEOUT_BODY = '{"type":"server_error","code":"error","detail":"Query has hit the max execution time before completing."}';
+
+/** PostHog client whose query endpoint answers each call with the next status of `statuses`, then 200. */
+function queryEndpoint(statuses, body = TIMEOUT_BODY) {
+  const calls = [];
+  const api = posthogClient({
+    apiKey: 'test-key',
+    request: async (url) => {
+      calls.push(url);
+      const status = statuses[calls.length - 1] ?? 200;
+      return new Response(status === 200 ? '{"results":[[1]]}' : body, { status });
+    },
+  });
+  return { api, calls };
+}
+
+const oneInsight = [{ name: 'D', insights: [{ name: 'Tabelle', query: { source: { kind: 'HogQLQuery', query: 'select 1' } } }] }];
+
+test('check tries a query once more after PostHog hit its execution time limit', async () => {
+  const endpoint = queryEndpoint([504]);
+  const result = await check(endpoint.api, '1', oneInsight);
+  assert.deepEqual(result, { log: ['ok   Tabelle: 1 rows (retried after a timeout)'], failed: false });
+  assert.equal(endpoint.calls.length, 2);
+});
+
+test('check fails a query that times out twice and never retries other errors', async () => {
+  const twice = queryEndpoint([504, 504, 200]);
+  const timedOut = await check(twice.api, '1', oneInsight);
+  assert.equal(timedOut.failed, true);
+  assert.match(timedOut.log[0], /^FAIL Tabelle: PostHog POST \/api\/projects\/1\/query\/: 504 .*max execution time/);
+  assert.equal(twice.calls.length, 2);
+
+  for (const [status, body] of [[400, '{"detail":"Unknown column"}'], [504, 'Gateway Timeout'], [500, TIMEOUT_BODY]]) {
+    const endpoint = queryEndpoint([status, 200], body);
+    const result = await check(endpoint.api, '1', oneInsight);
+    assert.equal(result.failed, true, `${status} ${body}`);
+    assert.match(result.log[0], new RegExp(`^FAIL Tabelle: .*: ${status} `));
+    assert.equal(endpoint.calls.length, 1, `${status} ${body} is not retried`);
+  }
+  assert.equal(isQueryTimeout(new Error('504 max execution time')), false, 'needs the HTTP status, not just the text');
 });
 
 /** In-memory PostHog: dashboards and insights, with the list endpoints. */

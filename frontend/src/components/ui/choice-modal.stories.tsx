@@ -48,3 +48,10 @@ export const Closed: Story = {
     isOpen: false,
   },
 };
+
+export const WithError: Story = {
+  args: {
+    description: "Bitte wählen Sie, wie die Änderung angewendet werden soll.",
+    error: "Die Änderung konnte nicht gespeichert werden.",
+  },
+};

@@ -10,19 +10,25 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 )
 
 // AdminAbsenceWrites are the manager's absence writes on a staff member's
-// behalf that may cascade a sick report into the plans (#1843). The root
-// binds the shift-plan-sync workflow's entry (#4825).
+// behalf that may cascade an absence into the plans (#1843), the approval of
+// a request among them (#6847). The root binds the shift-plan-sync
+// workflow's entry (#4825).
 type AdminAbsenceWrites interface {
+	ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforce.StaffAbsenceResponse, error)
 	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
 	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
+	// AbsencePlanGaps and SyncAbsencePlan serve the take-over of absences
+	// whose plan effect predates #6847 (#7021).
+	AbsencePlanGaps(ctx context.Context) ([]workforce.AbsencePlanGap, error)
+	SyncAbsencePlan(ctx context.Context, absenceID, actorStaffID int64, actorAccountID *int64) (bool, error)
 }
 
 // StaffAdminResource serves the workforce half of /api/staff.
@@ -183,6 +189,11 @@ func (rs *StaffAdminResource) RegisterStaffRoutes(r chi.Router, withTx common.Mi
 func (rs *StaffAdminResource) registerOverviewRoutes(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/dashboard-summary", rs.getDashboardSummary)
 	r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/overview", rs.getTimeTrackingOverview)
+	// The Vollständigkeit of /payroll (#6890), which config:manage opens: how
+	// many staff have no Soll in the month. Counts only, like the personnel
+	// numbers there; the names stay behind time_tracking:manage.
+	r.With(common.RequiresAnyPermission(permissions.TimeTrackingManage, permissions.ConfigManage), withTx).
+		Get("/time-tracking/target-coverage", rs.getTargetCoverage)
 }
 
 // registerPersonnelRoutes serves the Personalnummer (#1417) and the
@@ -303,6 +314,12 @@ func (rs *StaffAdminResource) registerAbsenceRoutes(r chi.Router, withTx common.
 	r.With(vacation, withTx).Post("/absences/{absenceId}/approve", rs.approveAbsence)
 	r.With(vacation, withTx).Post("/absences/{absenceId}/deny", rs.denyAbsence)
 	r.With(vacation, withTx).Post("/absences/{absenceId}/question", rs.questionAbsence)
+	// Absences in force whose shifts and blocks still lack their effect, and
+	// the take-over of one of them (#7021). Both permissions cascade absences
+	// into the plans (approval, booking), so either reaches them. One absence
+	// per request keeps the locks of two absences out of one transaction.
+	r.With(either, withTx).Get("/absences/plan-gaps", rs.listAbsencePlanGaps)
+	r.With(either, withTx).Post("/absences/{absenceId}/plan-sync", rs.syncAbsencePlan)
 
 	// The vacation quota belongs to the time-tracking tier, not to the
 	// personnel record: reading is vacation:approve or time_tracking:manage,

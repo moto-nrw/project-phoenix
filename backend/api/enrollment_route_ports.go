@@ -3,10 +3,10 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	parentAPI "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // parentEnrollmentForms binds the parents portal's form flow to the

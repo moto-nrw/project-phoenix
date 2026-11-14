@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuItem } from "~/components/ui/page-header/types";
 import type { TenantPageProps } from "~/components/ui/tenant-page";
 import { hasEffectiveAdminScope, isCaregiver } from "~/lib/auth-utils";
 import { useUserContext } from "~/lib/hooks/use-user-context";
@@ -122,6 +122,7 @@ export function useChildScopeTabs({
   if (enabled && showGroupEntry && !openCareGroupMode) {
     menuItems.push({
       label: "Zur Gruppenseite",
+      description: "Öffnet die Gruppenseite mit den Kindern je Gruppe.",
       icon: <MotoConceptIcon concept={groupsConcept} size={16} />,
       href: tenantPath("/ogs-groups"),
       onClick: noop,
@@ -130,6 +131,7 @@ export function useChildScopeTabs({
   if (enabled && showStaffEntries && !isBinaryMode) {
     menuItems.push({
       label: "Zur Aufsicht",
+      description: "Öffnet die Seite für die Aufsicht in den Räumen.",
       icon: <MotoConceptIcon concept={supervisionConcept} size={16} />,
       href: tenantPath("/active-supervisions"),
       onClick: noop,

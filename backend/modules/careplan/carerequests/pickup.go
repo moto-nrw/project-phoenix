@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 var (

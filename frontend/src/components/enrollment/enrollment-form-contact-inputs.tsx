@@ -154,6 +154,7 @@ export function PhoneListInput({
               size="icon"
               onClick={() => update(phones.filter((_, i) => i !== idx))}
               aria-label={tr("structured.removeNumber")}
+              tooltip={tr("buttonHints.removePhone")}
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -170,6 +171,7 @@ export function PhoneListInput({
             { phone_number: "", phone_type: "mobile" } satisfies PhoneEntry,
           ])
         }
+        tooltip={tr("buttonHints.addPhone")}
         className="mt-3 gap-2"
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
@@ -314,6 +316,7 @@ export function ContactListInput({
                 variant="outline_danger"
                 size="md"
                 onClick={() => update(contacts.filter((_, i) => i !== idx))}
+                tooltip={tr("buttonHints.removeContact")}
                 className="gap-2"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -328,6 +331,7 @@ export function ContactListInput({
         variant="surface"
         size="md"
         onClick={() => update([...contacts, blankContact()])}
+        tooltip={tr("buttonHints.addContact")}
         className="mt-3 gap-2"
       >
         <Plus className="h-4 w-4" aria-hidden="true" />

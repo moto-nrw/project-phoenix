@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/require"
 )

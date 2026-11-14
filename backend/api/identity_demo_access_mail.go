@@ -1,7 +1,7 @@
 package api
 
 import (
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 )
 
 // The two mails of the public demo (#3465), bound to the transactional Delivery outbox:

@@ -1,6 +1,6 @@
 package presenceprojectionhttp
 
-import "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+import "github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
 
 func sortExportResponses(students []StudentResponse, mode string) {
 	testResource(ResourceConfig{}).sortExportResponses(students, mode)

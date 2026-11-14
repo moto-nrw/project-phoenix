@@ -12,7 +12,10 @@ import { ChevronDown, ChevronUp, TriangleAlert } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Tooltip } from "~/components/ui/tooltip";
@@ -176,6 +179,7 @@ export function OfferingGapHints({
                         aria-label={`Regeltermin anlegen: „${gap.offering.name}“`}
                         onClick={() => onCreateSeries(gap)}
                         disabled={busyOfferingId === gap.offering.id}
+                        tooltip="Öffnet einen neuen Regeltermin, passend zu diesem Angebot ausgefüllt."
                       >
                         Regeltermin anlegen
                       </Button>
@@ -187,6 +191,7 @@ export function OfferingGapHints({
                       aria-label={`Kein Regeltermin nötig: „${gap.offering.name}“`}
                       onClick={() => void decide(gap, true)}
                       disabled={busyOfferingId === gap.offering.id}
+                      tooltip="Blendet den Hinweis in diesem Zeitraum sofort für alle aus."
                     >
                       Kein Regeltermin nötig
                     </Button>
@@ -204,6 +209,7 @@ export function OfferingGapHints({
               aria-expanded={expanded}
               aria-controls={openListId}
               onClick={() => setExpanded((current) => !current)}
+              noTooltip="Zeigt nur mehr oder weniger Zeilen, an den Angeboten ändert sich nichts."
             >
               {expanded ? (
                 <>
@@ -238,6 +244,7 @@ export function OfferingGapHints({
                   aria-label={`Hinweis wieder zeigen: „${gap.offering.name}“`}
                   onClick={() => void decide(gap, false)}
                   disabled={busyOfferingId === gap.offering.id}
+                  tooltip="Zeigt den Hinweis sofort wieder für alle in der Liste oben."
                 >
                   Hinweis wieder zeigen
                 </Button>
@@ -264,7 +271,7 @@ function OfferingGapRow({
 }>) {
   const classes = summarizeGapClasses(gap.schoolClasses);
   return (
-    <li className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center">
+    <ResponsiveActionRow>
       <div className="min-w-0">
         <p className="text-sm font-semibold text-gray-900">
           „{gap.offering.name}“
@@ -284,6 +291,6 @@ function OfferingGapRow({
           {children}
         </div>
       ) : null}
-    </li>
+    </ResponsiveActionRow>
   );
 }

@@ -366,7 +366,7 @@ func (c SessionClaims) SessionKind() (SessionKind, bool) {
 		return "", false
 	}
 	namesTraeger := c.ViaTraeger
-	if portal.Name == PortalParent.Name {
+	if portal.OrgNamesSession {
 		namesTraeger = c.OrgID > 0
 	}
 	return SessionKindOf(portal, namesTraeger), true

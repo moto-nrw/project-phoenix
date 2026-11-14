@@ -1,14 +1,13 @@
 "use client";
 
 import { ActionHint } from "./action-hint";
-import type { PrefetchResource } from "./data-prefetch-intent";
 import {
   buttonStyles,
   type ButtonSize,
   type ButtonVariant,
 } from "./button-styles";
-import Link from "next/link.js";
-import { useLinkIntentPrefetch } from "./use-link-intent-prefetch";
+import { iconOnlyMarker } from "./control-geometry";
+import NavigationLink, { type NavigationLinkProps } from "./navigation-link";
 import { cn } from "~/lib/utils";
 
 export function buttonClassName({
@@ -25,16 +24,9 @@ export function buttonClassName({
   return cn(buttonStyles({ variant, size, className, touchTarget }));
 }
 
-// Die kurze Brücke vermeidet, dass ButtonLink den Portal-Anbieter lädt.
-declare global {
-  interface Window {
-    m?: (href: string) => void;
-  }
-}
-
 /**
  * What a click does (#6643). Either `tooltip` or `noTooltip`, never both;
- * `ui-kit/button-needs-tooltip` requires one of them in its paths.
+ * `ui-kit/button-needs-tooltip` requires one of them outside its exemptions.
  */
 type ButtonExplanation =
   | {
@@ -86,21 +78,14 @@ type ButtonLinkBlock =
       readonly disabledReason: string;
     };
 
-type ButtonLinkProps = Omit<
-  React.ComponentProps<typeof Link>,
-  "className" | "href"
-> &
+type ButtonLinkProps = Omit<NavigationLinkProps, "className"> &
   ButtonExplanation &
   ButtonLinkBlock & {
-    readonly href: string;
-    readonly resources?: readonly PrefetchResource[];
+    readonly ref?: React.Ref<HTMLAnchorElement>;
     readonly variant?: ButtonVariant;
     readonly size?: ButtonSize;
     readonly className?: string;
   };
-type ButtonLinkNavigationEvent = Parameters<
-  NonNullable<ButtonLinkProps["onNavigate"]>
->[0];
 
 export function Button({
   children,
@@ -122,7 +107,7 @@ export function Button({
   const button = (
     <button
       type="submit"
-      data-icon-only={size === "icon" ? "" : undefined}
+      {...iconOnlyMarker(size === "icon")}
       className={buttonClassName({ variant, size, className, touchTarget })}
       {...(blocked ? withoutActivation(props) : props)}
       {...(blocked && BLOCKED_ACTIVATION_PROPS)}
@@ -181,8 +166,8 @@ const ACTIVATION_HANDLERS = [
 // Aktivierungsereignisse in der Bubbling-Phase selbst abgebrochen: Der Grund
 // bleibt erreichbar, aber weder der Aufrufer noch ein klickbarer Vorfahr
 // erhält in dieser Phase die Aktion. Capture-Handler des Aufrufers werden
-// oben entfernt.
-const BLOCKED_ACTIVATION_PROPS = Object.fromEntries(
+// oben entfernt. Der Auslöser von `OverflowMenu` nutzt dieselbe Sperre.
+export const BLOCKED_ACTIVATION_PROPS = Object.fromEntries(
   ACTIVATION_HANDLERS.filter((name) => !name.endsWith("Capture")).map(
     (name) => [name, blockActivation],
   ),
@@ -210,29 +195,24 @@ function withHint(
   );
 }
 
-/** A navigation link styled by the same shared button variants as actions. */
+/**
+ * Ein `NavigationLink` in Button-Optik: Vorladen und Fortschritt wie jeder
+ * interne Link des Kits (#6570).
+ */
 export function ButtonLink({
   variant = "primary",
   size = "base",
   className = "",
-  resources,
   tooltip,
   noTooltip: _noTooltip,
   disabled,
   disabledReason,
-  ...props
+  ...linkProps
 }: Readonly<ButtonLinkProps>) {
-  const blocked = Boolean(disabled);
-  const intentProps = useLinkIntentPrefetch({
-    ...props,
-    // Ein gesperrter Link lädt sein Ziel nicht vor.
-    ...(blocked && { prefetch: false }),
-    resources,
-  });
-  if (blocked) {
+  if (disabled) {
     return withHint(
       <BlockedLink
-        {...props}
+        {...linkProps}
         className={buttonClassName({ variant, size, className })}
         iconOnly={size === "icon"}
       />,
@@ -241,25 +221,14 @@ export function ButtonLink({
     );
   }
   const link = (
-    <Link
+    <NavigationLink
+      {...linkProps}
+      className={buttonClassName({ variant, size, className })}
       // Kennzeichen für die Bedienhöhe der Kopfkarte (`TenantPage`): sie
       // erfasst Knöpfe über `button`, Links in Button-Optik über dieses
       // Attribut (#5531).
-      className={buttonClassName({ variant, size, className })}
-      {...props}
       data-button-link=""
-      data-icon-only={size === "icon" ? "" : undefined}
-      {...intentProps}
-      onNavigate={(event: ButtonLinkNavigationEvent) => {
-        let cancelled: boolean | undefined;
-        props.onNavigate?.({
-          preventDefault() {
-            cancelled = true;
-            event.preventDefault();
-          },
-        });
-        if (!cancelled) window.m?.(props.href);
-      }}
+      {...iconOnlyMarker(size === "icon")}
     />
   );
   return withHint(link, tooltip, false);
@@ -285,9 +254,10 @@ function BlockedLink({
   legacyBehavior: _legacyBehavior,
   onNavigate: _onNavigate,
   transitionTypes: _transitionTypes,
+  resources: _resources,
   ...props
 }: Readonly<
-  Omit<ButtonLinkProps, "variant" | "size" | "resources" | "disabledReason"> & {
+  Omit<ButtonLinkProps, "variant" | "size" | "disabled" | "disabledReason"> & {
     readonly className: string;
     readonly iconOnly: boolean;
   }
@@ -301,7 +271,7 @@ function BlockedLink({
       aria-disabled="true"
       className={className}
       data-button-link=""
-      data-icon-only={iconOnly ? "" : undefined}
+      {...iconOnlyMarker(iconOnly)}
     >
       {children}
     </a>

@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 )
 
 func RequireActiveGroupRead() Middleware   { return RequiresPermission(permissions.GroupsRead) }
@@ -13,6 +13,10 @@ func RequireActiveGroupUpdate() Middleware { return RequiresPermission(permissio
 func RequireActiveGroupDelete() Middleware { return RequiresPermission(permissions.GroupsDelete) }
 func RequireActiveGroupAssign() Middleware { return RequiresPermission(permissions.GroupsAssign) }
 func RequireVisitUpdate() Middleware       { return RequiresPermission(permissions.VisitsUpdate) }
+
+// RequireSchoolCheckin guards the app's check-in into a room or activity
+// (#6953), which also needs RequireVisitUpdate for the placement.
+func RequireSchoolCheckin() Middleware { return RequiresPermission(permissions.UsersCheckin) }
 
 // CanReadStudentAbsence reports users:read. Sick and excused status need it
 // like in the child list and group view (ADR 0091); a guest reads the active

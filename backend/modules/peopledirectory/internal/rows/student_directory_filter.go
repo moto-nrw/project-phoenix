@@ -1,7 +1,7 @@
 package users
 
 import (
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Care-status windows of the staff directory: the two sides of the enrolment

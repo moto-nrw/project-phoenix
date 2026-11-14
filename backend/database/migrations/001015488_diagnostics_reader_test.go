@@ -2,11 +2,10 @@ package migrations
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -269,25 +268,4 @@ func TestDiagnosticsReaderRejectsPreexistingElevatedRole(t *testing.T) {
 	require.NoError(t, err)
 	_, err = tx.ExecContext(t.Context(), strings.ReplaceAll(diagnosticsReaderUpSQL, "phoenix_diagnostics", role))
 	require.ErrorContains(t, err, "must be an unprivileged NOLOGIN group")
-}
-
-func TestDiagnosticsReaderRunbookEvidenceQueries(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	doc, err := os.ReadFile("../../../docs/operations/diagnose-lesezugang-3840.md")
-	require.NoError(t, err)
-	_, evidence, found := strings.Cut(string(doc), "## Inhaltsfreier produktiver Rechtenachweis")
-	require.True(t, found)
-	_, sql, found := strings.Cut(evidence, "```sql\n")
-	require.True(t, found)
-	sql, _, found = strings.Cut(sql, "```")
-	require.True(t, found)
-	tx, err := db.BeginTx(t.Context(), nil)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, tx.Rollback()) }()
-	login := bun.Ident(fmt.Sprintf("diagnostics_runbook_%d", testpkg.Tenant(t)))
-	_, err = tx.ExecContext(t.Context(), `CREATE ROLE ? LOGIN NOINHERIT; GRANT phoenix_diagnostics TO ?; SET LOCAL SESSION AUTHORIZATION ?`, login, login, login)
-	require.NoError(t, err)
-	_, err = tx.ExecContext(t.Context(), sql)
-	require.NoError(t, err, "run the published evidence SQL as a personal non-superuser session")
 }

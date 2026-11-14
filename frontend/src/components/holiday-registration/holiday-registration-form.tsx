@@ -23,6 +23,7 @@ import {
   submitHolidayRegistration,
 } from "~/lib/holiday-registration-api";
 import { HolidayRegistrationPlacements } from "./holiday-registration-placements";
+import { holidayRegistrationStatusPath } from "~/lib/holiday-registration-status-api";
 import { createLogger } from "~/lib/logger";
 import { isFieldVisible } from "~/lib/enrollment-field-visibility";
 import {
@@ -48,6 +49,12 @@ import {
   KnownChildPicker,
   SecondGuardianCard,
 } from "./holiday-registration-sections";
+import {
+  fromAccount,
+  isNamedRelationshipType,
+  withEditedContacts,
+  withKnownContacts,
+} from "./holiday-registration-prefill";
 import { HolidayQuestions } from "./holiday-registration-questions";
 import { HolidayRegistrationCriteria } from "./holiday-registration-criteria";
 import { HolidayRegistrationDeclaration } from "./holiday-registration-declaration";
@@ -107,6 +114,7 @@ export function HolidayRegistrationForm({
   const [placements, setPlacements] = useState<
     readonly HolidayReceiptPlacement[]
   >([]);
+  const [statusToken, setStatusToken] = useState("");
   const fieldError = (name: string) => errorPath.fieldError(name) ?? undefined;
   const accountFieldsetRef = useRef<HTMLFieldSetElement>(null);
   const [accountError, setAccountError] = useState<string | undefined>();
@@ -150,7 +158,7 @@ export function HolidayRegistrationForm({
     }
     setSubmitting(true);
     try {
-      const placed = await submitHolidayRegistration(
+      const receipt = await submitHolidayRegistration(
         token,
         payloadFromDraft(draft, offer, captchaToken),
       );
@@ -160,7 +168,8 @@ export function HolidayRegistrationForm({
           { clear: true },
         );
       }
-      setPlacements(placed ?? []);
+      setPlacements(receipt?.placements ?? []);
+      setStatusToken(receipt?.statusToken ?? "");
       setStep("done");
       window.scrollTo({ top: 0 });
     } catch (err) {
@@ -230,15 +239,40 @@ export function HolidayRegistrationForm({
               })}
             />
           ) : null}
-          {parentAccount === "signed-in" ? (
-            <ButtonLink
-              href={parentPath("/parents/ferienanmeldungen")}
-              variant="primary"
-              size="md"
-              className="max-sm:w-full"
-            >
-              {t("doneToRegistrations")}
-            </ButtonLink>
+          {statusToken || parentAccount === "signed-in" ? (
+            <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center">
+              {statusToken ? (
+                // Der Stand der Anmeldung über den geheimen Link, den auch
+                // die Eingangsmail trägt (#6676).
+                <ButtonLink
+                  href={parentPath(holidayRegistrationStatusPath(statusToken))}
+                  variant={
+                    parentAccount === "signed-in" ? "outline" : "primary"
+                  }
+                  size="md"
+                  className="max-sm:w-full"
+                  tooltip={t("doneToStatusHint")}
+                >
+                  {t("doneToStatus")}
+                </ButtonLink>
+              ) : null}
+              {parentAccount === "signed-in" ? (
+                <ButtonLink
+                  href={parentPath("/parents/ferienanmeldungen")}
+                  variant="primary"
+                  size="md"
+                  className="max-sm:w-full"
+                  tooltip={t("doneToRegistrationsHint")}
+                >
+                  {t("doneToRegistrations")}
+                </ButtonLink>
+              ) : null}
+            </div>
+          ) : null}
+          {statusToken ? (
+            <p className="text-sm leading-6 text-gray-600">
+              {t("doneStatusHint")}
+            </p>
           ) : null}
         </div>
       </SectionCard>
@@ -307,6 +341,11 @@ export function HolidayRegistrationForm({
   );
   const setGuardian = (patch: Partial<RegistrationDraft["guardian"]>) =>
     setDraft({ ...draft, guardian: { ...draft.guardian, ...patch } });
+  // Each field says while it holds the value of the account (#6682).
+  const accountHint = (value: string, known: string | undefined) =>
+    fromAccount(value, known) ? t("fromAccountHint") : undefined;
+  const relationshipLabel = (type: string) =>
+    isNamedRelationshipType(type) ? t(`relationshipTypes.${type}`) : "";
 
   return (
     <form
@@ -340,7 +379,13 @@ export function HolidayRegistrationForm({
               draft={draft}
               offer={offer}
               onToggle={(known) =>
-                setDraft(toggleKnownChild(draft, known, offer))
+                setDraft(
+                  withKnownContacts(
+                    toggleKnownChild(draft, known, offer),
+                    family,
+                    relationshipLabel,
+                  ),
+                )
               }
             />
           ) : null}
@@ -363,10 +408,16 @@ export function HolidayRegistrationForm({
                 })
               }
               onRemove={() =>
-                setDraft({
-                  ...draft,
-                  children: draft.children.filter((_, i) => i !== index),
-                })
+                setDraft(
+                  withKnownContacts(
+                    {
+                      ...draft,
+                      children: draft.children.filter((_, i) => i !== index),
+                    },
+                    family,
+                    relationshipLabel,
+                  ),
+                )
               }
             />
           ))}
@@ -381,6 +432,7 @@ export function HolidayRegistrationForm({
                   children: [...draft.children, emptyChild()],
                 })
               }
+              tooltip={t("addChildHint")}
             >
               {t("addChild")}
             </Button>
@@ -397,6 +449,10 @@ export function HolidayRegistrationForm({
             autoComplete="given-name"
             maxLength={100}
             value={draft.guardian.firstName}
+            hint={accountHint(
+              draft.guardian.firstName,
+              family?.guardian.firstName,
+            )}
             error={fieldError("guardian.first_name")}
             onChange={(event) => setGuardian({ firstName: event.target.value })}
           />
@@ -407,6 +463,10 @@ export function HolidayRegistrationForm({
             autoComplete="family-name"
             maxLength={100}
             value={draft.guardian.lastName}
+            hint={accountHint(
+              draft.guardian.lastName,
+              family?.guardian.lastName,
+            )}
             error={fieldError("guardian.last_name")}
             onChange={(event) => setGuardian({ lastName: event.target.value })}
           />
@@ -418,6 +478,7 @@ export function HolidayRegistrationForm({
             autoComplete="email"
             maxLength={254}
             value={draft.guardian.email}
+            hint={accountHint(draft.guardian.email, family?.guardian.email)}
             error={fieldError("guardian.email")}
             onChange={(event) => setGuardian({ email: event.target.value })}
           />
@@ -429,6 +490,7 @@ export function HolidayRegistrationForm({
             autoComplete="tel"
             maxLength={40}
             value={draft.guardian.phone}
+            hint={accountHint(draft.guardian.phone, family?.guardian.phone)}
             error={fieldError("guardian.phone")}
             onChange={(event) => setGuardian({ phone: event.target.value })}
           />
@@ -439,6 +501,7 @@ export function HolidayRegistrationForm({
         <GuardianAddressCard
           address={draft.guardianAddress}
           required={offer.form.addressRequirement === "required"}
+          known={family?.guardian.address}
           fieldError={fieldError}
           onChange={(guardianAddress) =>
             setDraft({ ...draft, guardianAddress })
@@ -448,6 +511,7 @@ export function HolidayRegistrationForm({
 
       <SecondGuardianCard
         guardian={draft.secondGuardian}
+        known={draft.secondGuardianPrefill?.values}
         fieldError={fieldError}
         onChange={(secondGuardian) => setDraft({ ...draft, secondGuardian })}
       />
@@ -482,7 +546,7 @@ export function HolidayRegistrationForm({
         contacts={draft.contacts}
         max={MAX_CONTACTS}
         fieldError={fieldError}
-        onChange={(contacts) => setDraft({ ...draft, contacts })}
+        onChange={(contacts) => setDraft(withEditedContacts(draft, contacts))}
       />
 
       <HolidayRegistrationLegal
@@ -506,7 +570,13 @@ export function HolidayRegistrationForm({
         onChange={(patch) => setDraft({ ...draft, ...patch })}
       />
 
-      <Button type="submit" variant="primary" size="md" className="w-full">
+      <Button
+        type="submit"
+        variant="primary"
+        size="md"
+        className="w-full"
+        tooltip={t("toSummaryHint")}
+      >
         {t("toSummary")}
       </Button>
     </form>

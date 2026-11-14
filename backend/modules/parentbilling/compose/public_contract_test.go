@@ -7,11 +7,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // confirmedRegistration is Enrollment's side of the port: it confirms the
@@ -85,6 +85,11 @@ func (s settingsDouble) DebtorNumberFormat(context.Context, int64) (parentbillin
 	return parentbilling.DebtorNumberFormat{}, nil
 }
 
+// DebtorNumberScope keeps the number per payer, the default (#7007).
+func (s settingsDouble) DebtorNumberScope(context.Context, int64) (string, error) {
+	return parentbilling.DebtorNumberScopePayer, nil
+}
+
 func (s settingsDouble) HolidayChain(context.Context, int64) (parentbilling.HolidayChainSettings, error) {
 	return parentbilling.HolidayChainSettings{
 		SiblingRank: parentbilling.SiblingRankHighestContribution, CostTakeoverOrder: parentbilling.CostTakeoverAfterDiscount,
@@ -134,7 +139,7 @@ func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) 
 		if err != nil {
 			return err
 		}
-		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true, 0, "", ""); err != nil {
+		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true, 0, "", "", nil); err != nil {
 			return err
 		}
 		if err = rules.DeleteContributionRule(txCtx, organization, exemption.ID); err != nil {

@@ -1,6 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { releaseFakeTimers } from "~/test/clock";
 import "@testing-library/jest-dom/vitest";
 import enMessages from "~/i18n/messages/en.generated";
 import type { ErrorCode } from "~/lib/error-codes.generated";
@@ -15,7 +14,7 @@ const LOGIN_OBJECT = enMessages.parentLogin.errorObject;
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   redirect: vi.fn(),
-  signIn: vi.fn(),
+  login: vi.fn(),
   signOut: vi.fn(),
   useSession: vi.fn(),
   searchParamsGet: vi.fn((_key: string) => null as string | null),
@@ -35,10 +34,21 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next-auth/react", () => ({
-  signIn: mocks.signIn,
   signOut: mocks.signOut,
   useSession: mocks.useSession,
 }));
+
+// The page signs in through the parents BFF (#7051); the transport has its
+// own tests.
+vi.mock("~/lib/portal-password-login", () => ({
+  portalPasswordLogin: mocks.login,
+}));
+
+/** A refusal of the parents BFF, as the transport throws it. */
+async function refusal(status: number, code: ErrorCode) {
+  const { ApiError } = await import("~/lib/api-error");
+  return new ApiError("refused", status, { code });
+}
 
 // parentPath() reads NEXT_PUBLIC_PARENTS_HOSTNAME and throws when it is unset,
 // which no unit-test env provides. The path mapping itself is covered by
@@ -85,6 +95,23 @@ vi.mock("next-intl", async () => {
     t.raw = (key: string) => {
       const value = resolve(`${prefix}${key}`);
       return typeof value === "string" ? value : `${prefix}${key}`;
+    };
+    // Mirror next-intl's `t.rich`: a tag hands its chunk to its function.
+    t.rich = (key: string, values: Record<string, unknown> = {}) => {
+      const plain = Object.fromEntries(
+        Object.entries(values).filter(([, v]) => typeof v !== "function"),
+      );
+      const text = t(key, plain);
+      return text
+        .split(/(<\w+>[^<]*<\/\w+>)/)
+        .filter(Boolean)
+        .map((part) => {
+          const match = /^<(\w+)>([^<]*)<\/\w+>$/.exec(part);
+          const render = match ? values[match[1] ?? ""] : undefined;
+          return typeof render === "function"
+            ? (render as (chunk: string) => unknown)(match?.[2] ?? "")
+            : part;
+        });
     };
     return t;
   };
@@ -289,83 +316,69 @@ describe("ParentLoginPage i18n", () => {
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
-  it("leaves the redirect to the session and never pushes a second navigation", async () => {
-    // Two concurrent navigations to the same target left the App Router state
-    // as a pending thenable, and Next's conditional `use(state)` then rendered
-    // a different number of hooks ("Rendered more hooks than during the
-    // previous render") — the portal died right after login until a reload.
-    mocks.signIn.mockResolvedValue({ error: null });
-
-    render(<ParentLoginPage />);
-
+  async function fillAndSubmit(email = "parent@example.com") {
     fireEvent.change(screen.getByLabelText("Email address"), {
-      target: { value: "parent@example.com" },
+      target: { value: email },
     });
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "password123" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-
-    await vi.waitFor(() => {
-      expect(mocks.signIn).toHaveBeenCalledWith("parent-credentials", {
-        redirect: false,
-        email: "parent@example.com",
-        password: "password123",
-      });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     });
+  }
 
+  it("enters the portal once the BFF installed the session, without a router push", async () => {
+    // Two concurrent navigations to the same target left the App Router state
+    // as a pending thenable; the page leaves by a full load instead.
+    mocks.login.mockResolvedValue({ status: "authenticated" });
+
+    render(<ParentLoginPage />);
+    await fillAndSubmit();
+
+    expect(mocks.login).toHaveBeenCalledWith(
+      "parent",
+      "parent@example.com",
+      "password123",
+    );
+    await vi.waitFor(() => expect(window.location.pathname).toBe("/parents"));
     expect(mocks.push).not.toHaveBeenCalled();
-    // The form stays locked until the session-driven redirect navigates away.
+    // The form stays locked until the page has left.
     expect(
       screen.getByRole("button", { name: "Signing in..." }),
     ).toBeDisabled();
   });
 
-  it("releases the form when the session never arrives after a successful login", async () => {
-    // NextAuth holt die Session per fetchData(), das jeden Fetch-Fehler
-    // schluckt und null liefert. signIn meldet dann ok, status bleibt aber
-    // "unauthenticated" und der Redirect feuert nie — ohne Watchdog bliebe das
-    // Formular dauerhaft gesperrt und ohne Fehlermeldung zurück.
-    vi.useFakeTimers();
-    mocks.signIn.mockResolvedValue({ error: null });
+  // The sign-in with a code (#7051): the password leads to the code step in
+  // the parent's language, with the two answers of every portal.
+  it("asks for the mailed code when the account has the second factor", async () => {
+    mocks.login.mockResolvedValue({
+      status: "mfa_required",
+      challengeToken: "challenge",
+      maskedEmail: "p***@example.com",
+      trustedDeviceEnabled: true,
+      trustedDeviceDays: 90,
+    });
 
-    try {
-      render(<ParentLoginPage />);
+    render(<ParentLoginPage />);
+    await fillAndSubmit();
 
-      fireEvent.change(screen.getByLabelText("Email address"), {
-        target: { value: "parent@example.com" },
-      });
-      fireEvent.change(screen.getByLabelText("Password"), {
-        target: { value: "password123" },
-      });
-      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(
+      await screen.findByRole("heading", { name: "Enter code" }),
+    ).toBeVisible();
+    expect(screen.getByText("p***@example.com")).toBeVisible();
+    expect(screen.getByText("Should moto remember this device?")).toBeVisible();
+    expect(screen.getByText("Yes, remember and sign in")).toBeVisible();
+    expect(screen.getByText("No, just sign in")).toBeVisible();
+    expect(
+      screen.getByText(
+        "No code on this device for 90 days. Only for your own device.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("Code-Eingabe")).not.toBeInTheDocument();
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0);
-      });
-
-      expect(
-        screen.getByRole("button", { name: "Signing in..." }),
-      ).toBeDisabled();
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(10_000);
-      });
-
-      expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
-      expect(
-        screen.getByRole("button", { name: "Forgot your password?" }),
-      ).toBeEnabled();
-      await vi.waitFor(() =>
-        expect(
-          screen.getByText(enCatalogText("general.unavailable", LOGIN_OBJECT)),
-        ).toBeVisible(),
-      );
-      expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
-      expect(mocks.push).not.toHaveBeenCalled();
-    } finally {
-      releaseFakeTimers();
-    }
+    fireEvent.click(screen.getByRole("button", { name: "Back to sign-in" }));
+    expect(screen.getByLabelText("Password")).toHaveValue("");
   });
 
   it("opens the password reset modal with localized parent copy", () => {
@@ -463,10 +476,7 @@ describe("ParentLoginPage i18n", () => {
     // here only AFTER accepting the password, so naming the reason leaks
     // nothing and saves the user a pointless password reset.
     it("names the reason when a staff account lands here", async () => {
-      mocks.signIn.mockResolvedValue({
-        error: "CredentialsSignin",
-        code: "care.not_a_guardian",
-      });
+      mocks.login.mockRejectedValue(await refusal(403, "care.not_a_guardian"));
 
       await submitLogin();
 
@@ -485,10 +495,7 @@ describe("ParentLoginPage i18n", () => {
     // None of the guardian's schools booked Eltern-App (#4895): the page
     // says who decides, in the parent's language, instead of an error.
     it("explains a parents portal the school does not use", async () => {
-      mocks.signIn.mockResolvedValue({
-        error: "CredentialsSignin",
-        code: "module.not_booked",
-      });
+      mocks.login.mockRejectedValue(await refusal(403, "module.not_booked"));
 
       await submitLogin();
 
@@ -503,16 +510,15 @@ describe("ParentLoginPage i18n", () => {
     });
 
     it("keeps a wrong password generic and offers no staff link", async () => {
-      mocks.signIn.mockResolvedValue({
-        error: "CredentialsSignin",
-        code: "identity.invalid_credentials",
-      });
+      mocks.login.mockRejectedValue(
+        await refusal(401, "care.invalid_credentials"),
+      );
 
       await submitLogin();
 
       expect(
         await screen.findByText(
-          enCatalogText("identity.invalid_credentials", LOGIN_OBJECT),
+          enCatalogText("care.invalid_credentials", LOGIN_OBJECT),
         ),
       ).toBeInTheDocument();
       expect(
@@ -538,10 +544,9 @@ describe("ParentLoginPage i18n", () => {
     }
 
     it("names a switched-off account by its code", async () => {
-      mocks.signIn.mockResolvedValue({
-        error: "CredentialsSignin",
-        code: "identity.session_account_inactive",
-      });
+      mocks.login.mockRejectedValue(
+        await refusal(401, "identity.session_account_inactive"),
+      );
 
       await submitLogin();
 
@@ -552,26 +557,8 @@ describe("ParentLoginPage i18n", () => {
       ).toBeInTheDocument();
     });
 
-    it("reads Auth.js's own refusal without a backend code as wrong credentials", async () => {
-      mocks.signIn.mockResolvedValue({
-        error: "CredentialsSignin",
-        code: "credentials",
-      });
-
-      await submitLogin();
-
-      expect(
-        await screen.findByText(
-          enCatalogText("identity.invalid_credentials", LOGIN_OBJECT),
-        ),
-      ).toBeInTheDocument();
-    });
-
     it("keeps its own sentence for too many attempts", async () => {
-      mocks.signIn.mockResolvedValue({
-        error: "CredentialsSignin",
-        code: "rate_limited",
-      });
+      mocks.login.mockRejectedValue(await refusal(429, "general.unavailable"));
 
       await submitLogin();
 
@@ -581,9 +568,9 @@ describe("ParentLoginPage i18n", () => {
     });
 
     it("never shows the text of a thrown sign-in error", async () => {
-      mocks.signIn
+      mocks.login
         .mockRejectedValueOnce(new Error("Failed to fetch secret detail"))
-        .mockResolvedValue({ error: null });
+        .mockResolvedValue({ status: "authenticated" });
 
       await submitLogin();
 
@@ -597,22 +584,21 @@ describe("ParentLoginPage i18n", () => {
       await act(async () => {
         fireEvent.click(screen.getByRole("button", { name: "Try again" }));
       });
-      expect(mocks.signIn).toHaveBeenCalledTimes(2);
-      expect(mocks.signIn).toHaveBeenLastCalledWith("parent-credentials", {
-        redirect: false,
-        email: "parent@example.com",
-        password: "password123",
-      });
+      expect(mocks.login).toHaveBeenCalledTimes(2);
+      expect(mocks.login).toHaveBeenLastCalledWith(
+        "parent",
+        "parent@example.com",
+        "password123",
+      );
     });
 
     it("keeps the session-expired notice until an error replaces it", async () => {
       mocks.searchParamsGet.mockImplementation((key: string) =>
         key === "error" ? "SessionExpired" : null,
       );
-      mocks.signIn.mockResolvedValue({
-        error: "CredentialsSignin",
-        code: "identity.invalid_credentials",
-      });
+      mocks.login.mockRejectedValue(
+        await refusal(401, "identity.invalid_credentials"),
+      );
 
       render(<ParentLoginPage />);
       expect(

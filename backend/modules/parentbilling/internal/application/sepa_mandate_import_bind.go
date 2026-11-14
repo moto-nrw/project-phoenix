@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"hash/fnv"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // What binds an import to the stored mandates and to the preview the office
@@ -82,14 +82,22 @@ func (m *SEPAMandates) openAccount(organizationID int64, entry parentbilling.Sea
 // a monthly run (#5916). It covers no bank data beyond the masked IBAN.
 func importFingerprint(mapping parentbilling.SEPAMandateImportMapping, creditorID string, candidates []importCandidate) string {
 	rows := make([]parentbilling.SEPAMandateImportRow, len(candidates))
+	// Where each number goes, the family or the child (#7007): a change of
+	// the Träger's scope since the preview changes the confirmation.
+	destinations := make([]string, len(candidates))
 	for i, candidate := range candidates {
 		rows[i] = candidate.row
+		destinations[i] = "family\x1e" + candidate.family
+		if candidate.perChild {
+			destinations[i] = "child\x1e" + importChildKey(candidate)
+		}
 	}
 	state, err := json.Marshal(struct {
-		Mapping  parentbilling.SEPAMandateImportMapping `json:"mapping"`
-		Creditor string                                 `json:"creditor"`
-		Rows     []parentbilling.SEPAMandateImportRow   `json:"rows"`
-	}{mapping, creditorID, rows})
+		Mapping      parentbilling.SEPAMandateImportMapping `json:"mapping"`
+		Creditor     string                                 `json:"creditor"`
+		Rows         []parentbilling.SEPAMandateImportRow   `json:"rows"`
+		Destinations []string                               `json:"destinations"`
+	}{mapping, creditorID, rows, destinations})
 	if err != nil {
 		// Every value above marshals; a failure leaves no fingerprint an
 		// import could match.

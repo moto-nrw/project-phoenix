@@ -65,11 +65,13 @@ const preview: ImportResult = {
     ready: 1,
     clarify: 0,
     duplicate: 0,
+    same_mandate: 0,
     conflict: 0,
     invalid: 0,
     imported: 0,
     debtorNumbers: 0,
     debtorConflicts: 0,
+    withoutMandate: 0,
   },
   rows: [
     {
@@ -90,6 +92,7 @@ const preview: ImportResult = {
       hints: [],
       debtorNumber: "",
       debtorNumberStatus: "",
+      sameMandateLine: null,
     },
   ],
 };
@@ -128,7 +131,10 @@ function importButton() {
 
 function expectNoImport() {
   const button = importButton();
-  if (button) expect(button).toBeDisabled();
+  // Blocked with a reason (#6761): `aria-disabled`, natively off while it loads.
+  if (button && !button.hasAttribute("disabled")) {
+    expect(button).toHaveAttribute("aria-disabled", "true");
+  }
   expect(api.applySepaImport).not.toHaveBeenCalled();
 }
 

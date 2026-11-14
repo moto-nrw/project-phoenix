@@ -91,9 +91,14 @@ import {
   ParentShellProvider,
   SchoolShellProvider,
   CatererShellProvider,
+  endTraegerSession,
   useShellAuth,
 } from "./shell-auth-context";
+import { installSessionEndBarrier } from "./session-end-state";
+import { portalAuthPath, portalLoginPath } from "./portal-paths";
 import { sidebarMemoryKey } from "./sidebar-memory";
+import { ApiError } from "./api-error";
+import { errorLogFields } from "./error-log";
 
 describe("TeacherShellProvider", () => {
   beforeEach(() => {
@@ -481,6 +486,41 @@ describe("TeacherShellProvider", () => {
     expect(mockSignOut).not.toHaveBeenCalled();
     expect(mockClearSessionCache).not.toHaveBeenCalled();
 
+    vi.unstubAllGlobals();
+  });
+
+  // Sentry FRONTEND-1E: a stalled logout route timed out as a raw
+  // DOMException, which the display classed as a crash without retry.
+  it("shows a logout timeout as an unreachable service with retry", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockRejectedValue(
+          new DOMException("signal timed out", "TimeoutError"),
+        ),
+    );
+    mockUseSession.mockReturnValue({
+      data: { user: { name: "User", email: "user@example.com", roles: [] } },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    await expect(result.current.logout()).rejects.toThrow();
+    expect(mockShowLogoutError).toHaveBeenCalledTimes(1);
+    const [shown, options] = mockShowLogoutError.mock.calls[0] as [
+      unknown,
+      { retry?: unknown },
+    ];
+    expect(shown).toBeInstanceOf(ApiError);
+    expect(shown).toMatchObject({
+      code: "general.unavailable",
+      noResponse: true,
+    });
+    expect(errorLogFields(shown).error_class).toBe("unavailable");
+    expect(options.retry).toEqual(expect.any(Function));
+    expect(mockSignOut).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
 
@@ -1090,4 +1130,67 @@ describe("a hosted portal's logout opens its own login", () => {
       expect(window.location.assign).toHaveBeenCalledWith(`${prefix}/login`);
     },
   );
+});
+
+describe("endTraegerSession (#6955)", () => {
+  const begin = vi.fn();
+  const fail = vi.fn();
+
+  beforeEach(() => {
+    begin.mockReset().mockReturnValue({ fail });
+    fail.mockReset();
+    mockSignOut.mockReset().mockResolvedValue(undefined);
+    mockClearSessionCache.mockReset();
+    installSessionEndBarrier({
+      beginSessionEnd: begin,
+      fetchThroughSessionBarrier: (send, input, init) => send(input, init),
+    });
+    vi.spyOn(window.location, "assign").mockImplementation(() => undefined);
+    localStorage.setItem("supervision-last-session", "Gruppe Sonne");
+  });
+
+  afterEach(() => {
+    localStorage.removeItem("supervision-last-session");
+  });
+
+  it("revokes the session on the server, clears the account's data and holds late requests", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    await endTraegerSession();
+
+    expect(begin).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      portalAuthPath("traeger", "logout"),
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(localStorage.getItem("supervision-last-session")).toBeNull();
+    expect(mockClearSessionCache).toHaveBeenCalled();
+    expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    expect(window.location.assign).toHaveBeenCalledWith(
+      portalLoginPath("traeger"),
+    );
+    expect(fail).not.toHaveBeenCalled();
+  });
+
+  it("keeps the session and its data when the server cannot revoke it", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ status: 500, code: "general.server", detail: "x" }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/problem+json" },
+        },
+      ),
+    );
+
+    await expect(endTraegerSession()).rejects.toThrow();
+
+    expect(fail).toHaveBeenCalledTimes(1);
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(localStorage.getItem("supervision-last-session")).toBe(
+      "Gruppe Sonne",
+    );
+  });
 });

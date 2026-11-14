@@ -178,6 +178,7 @@ export function RequestReviewCard({
   reasonError,
   busy,
   approveDisabled,
+  approveDisabledReason,
   approveReasonRequired = false,
   decisionDisabledReason,
   onApprove,
@@ -219,6 +220,8 @@ export function RequestReviewCard({
    * umsetzbar ist, muss abgelehnt werden können.
    */
   approveDisabled?: boolean;
+  /** Warum „Freigeben“ gesperrt ist; erscheint an der Schaltfläche (#6766). */
+  approveDisabledReason?: string;
   /**
    * Verlangt die Schule eine Begründung, bevor freigegeben werden darf
    * (operations.parent_request_reason_policy, #2267)? Ablehnen verlangt sie
@@ -427,6 +430,7 @@ export function RequestReviewCard({
                   variant="outline"
                   size="md"
                   disabled={busy}
+                  tooltip="Lehnt die Anfrage sofort ab, die Eltern sehen Ihre Begründung."
                   onClick={onReject}
                 >
                   Ablehnen
@@ -436,6 +440,10 @@ export function RequestReviewCard({
                   variant="primary"
                   size="md"
                   disabled={busy === true || approveDisabled === true}
+                  tooltip="Übernimmt die Änderung beim Kind, die Eltern sehen die Entscheidung."
+                  disabledReason={
+                    approveDisabled === true ? approveDisabledReason : undefined
+                  }
                   onClick={() => {
                     if (approveReasonRequired && (reason ?? "").trim() === "") {
                       setApproveReasonMissing(true);

@@ -19,6 +19,9 @@
   "api/traeger/holiday-periods/[id]/registrations/known-children": [
     "GET traeger /traeger/holiday-periods/id%2F1/registrations/known-children"
   ],
+  "api/traeger/holiday-periods/[id]/registrations/mail-problems": [
+    "GET traeger /traeger/holiday-periods/id%2F1/registrations/mail-problems"
+  ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]": [
     "GET traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1"
   ],
@@ -33,6 +36,9 @@
   ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/details": [
     "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/details"
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/child-debtor-numbers": [
+    "PUT traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/child-debtor-numbers"
   ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/confirm": [
     "POST traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/confirm"

@@ -7,16 +7,16 @@ import (
 	"log/slog"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
-	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
+	reminderCompose "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/compose"
+	reminderPorts "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/ports"
 )
 
 // RemindersTestModule is the reminder query over the test database.

@@ -19,7 +19,10 @@ import {
   MessageAttachments,
   type MessageAttachmentLabels,
 } from "~/components/ui/message-attachments";
-import type { MessageAttachment } from "~/lib/message-attachments";
+import {
+  fetchMessageAttachmentFile,
+  type MessageAttachment,
+} from "~/lib/message-attachments";
 
 /** One chat message bubble. */
 export function ChatBubble({
@@ -116,6 +119,7 @@ export function ChatBubble({
             attachments={attachments}
             downloadUrl={attachmentUrl}
             align={own ? "end" : "start"}
+            loadFile={fetchMessageAttachmentFile}
             labels={attachmentLabels}
           />
         </div>
@@ -196,6 +200,13 @@ export function ChatBubble({
  * thread to deep-link a "request created" pill to the Änderungsanfragen queue
  * (admin-only; the parent view never passes it).
  */
+/** Call to action of an event line; `description` says what a click does. */
+export interface ChatEventAction {
+  readonly label: string;
+  readonly description: string;
+  readonly onClick: () => void;
+}
+
 export function ChatEventCard({
   body,
   createdAt,
@@ -205,7 +216,7 @@ export function ChatEventCard({
   body: string;
   createdAt: string;
   locale?: string;
-  action?: { label: string; onClick: () => void };
+  action?: ChatEventAction;
 }>) {
   return (
     <InsetPanel
@@ -223,6 +234,7 @@ export function ChatEventCard({
           variant="primary"
           size="compact"
           onClick={action.onClick}
+          tooltip={action.description}
           className="ml-auto gap-1"
         >
           {action.label}

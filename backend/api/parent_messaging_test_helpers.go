@@ -5,14 +5,14 @@ package api
 import (
 	"context"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	guardianLinkView "github.com/moto-ogs/project-phoenix/modules/guardianlinkview/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewMessageableGuardianRepository binds the recipient lookup to the native

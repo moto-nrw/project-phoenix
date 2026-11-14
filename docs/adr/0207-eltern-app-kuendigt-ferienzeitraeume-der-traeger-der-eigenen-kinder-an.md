@@ -4,7 +4,7 @@ status: accepted
 
 # Eltern-App kündigt Ferienzeiträume der Träger der eigenen Kinder an
 
-Entscheidung vom 11.11.2026 zu [#6671](https://github.com/moto-nrw/project-phoenix/issues/6671).
+Entscheidung vom 11.11.2026 zu [#6671](https://github.com/moto-ogs/project-phoenix/issues/6671).
 Sie baut auf
 [ADR 0110](0110-oeffentliche-ferienanmeldung-schreibt-in-der-traeger-transaktion.md)
 und [ADR 0113](0113-vorbefuellung-der-ferienanmeldung-liest-im-elternportal.md)

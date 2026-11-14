@@ -3,7 +3,7 @@ package httpadapter
 import (
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestMain gives every test in this binary its own tenant (#2419), so parallel

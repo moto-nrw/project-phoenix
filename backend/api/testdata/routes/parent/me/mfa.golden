@@ -1,0 +1,6 @@
+DELETE /parent/me/mfa/trusted-devices/{deviceId}
+GET /parent/me/mfa
+GET /parent/me/mfa/trusted-devices
+POST /parent/me/mfa/confirm
+POST /parent/me/mfa/disable
+POST /parent/me/mfa/start

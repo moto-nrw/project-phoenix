@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 func (s *AccountAuthentication) loginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, targetTenantSlug string) (*domain.LoginResult, error) {
@@ -314,9 +314,9 @@ func (s *AccountAuthentication) HasSchoolPortalAccess(ctx context.Context, accou
 	return s.hasSchoolPortalRoleAtTenant(ctx, accountID, tenantID)
 }
 
-// FindSchoolPortalTenant is findSchoolPortalTenantForAccount for the
-// retained password-reset flow, which routes school-portal accounts to the
-// school reset link.
+// findSchoolPortalTenant is the first live school at which the account
+// holds a school-portal role: the password reset routes such an account to
+// the school reset link.
 func (s *AccountAuthentication) findSchoolPortalTenant(ctx context.Context, accountID int64) (bool, int64, error) {
 	return s.findSchoolPortalTenantForAccount(ctx, accountID, false)
 }

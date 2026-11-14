@@ -73,8 +73,14 @@ describe("SchoolCheckinSelectionBar", () => {
 
   it("disables the bulk actions while nothing is selected", () => {
     renderBar({ selectionActive: true, selectedCount: 0 });
-    expect(screen.getByRole("button", { name: /Anmelden/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Abmelden/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Anmelden/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /Abmelden/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(screen.getByRole("button", { name: "Aufheben" })).toBeDisabled();
     expect(
       screen.getByRole("region", { name: "An- und Abmelde-Modus" }),
@@ -180,15 +186,21 @@ describe("SchoolCheckinSelectionBar", () => {
     });
 
     it.each([
-      ["every child is marked already", { allSelected: true }, false],
-      ["no child can be marked", { count: 0 }, false],
-      ["a batch is running", {}, true],
-    ])("is disabled when %s", (_, override, isRunning) => {
+      ["every child is marked already", { allSelected: true }],
+      ["no child can be marked", { count: 0 }],
+    ])("is disabled when %s", (_, override) => {
       renderBar({
         selectionActive: true,
-        isRunning,
+        isRunning: false,
         selectAll: { ...selectAll, ...override },
       });
+      expect(
+        screen.getByRole("button", { name: /^Alle \d+ auswählen$/ }),
+      ).toHaveAttribute("aria-disabled", "true");
+    });
+
+    it("is disabled when a batch is running", () => {
+      renderBar({ selectionActive: true, isRunning: true, selectAll });
       expect(
         screen.getByRole("button", { name: /^Alle \d+ auswählen$/ }),
       ).toBeDisabled();

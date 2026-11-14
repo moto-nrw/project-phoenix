@@ -24,7 +24,20 @@ import {
   type BillingCorrectionTarget,
 } from "~/components/traeger/billing-correction-modal";
 import { BillingCarriedCorrectionsCard } from "~/components/traeger/billing-carried-corrections-card";
-import { BillingCostTakeoverCard } from "~/components/traeger/billing-cost-takeover-card";
+import {
+  debitHints,
+  debitOpenPoints,
+  debitsHaltRelease,
+  holidayDebitItems,
+} from "~/components/traeger/care-debit-hints";
+import {
+  type OpenPoint,
+  ReleaseOpenPoints,
+} from "~/components/traeger/release-open-points";
+import {
+  BillingCostTakeoverCard,
+  runCostTakeovers,
+} from "~/components/traeger/billing-cost-takeover-card";
 import { BillingRunOverviewCard } from "~/components/traeger/billing-run-overview-card";
 import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
 import { BillingMailCard } from "~/components/traeger/billing-mail-card";
@@ -32,6 +45,7 @@ import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
   isEmptyBillingRun,
+  numberPatternPreview,
 } from "~/components/traeger/billing-format";
 import { runDueDatesText } from "~/components/traeger/billing-payment-format";
 import { HolidayDebitHintsCard } from "~/components/traeger/care-run-review-lazy";
@@ -44,7 +58,6 @@ import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { runDocumentKindLabel } from "~/components/traeger/run-document-kind";
@@ -56,7 +69,8 @@ import {
 } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
-import { formatDate } from "~/lib/date-helpers";
+import { billingConcept } from "~/lib/concepts/billing";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
@@ -70,6 +84,7 @@ import {
   startBillingRun,
 } from "~/lib/traeger-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 // The direct debit file of a released run (#4697) loads with the run.
 const SepaDebitCard = dynamic(
@@ -88,7 +103,24 @@ function runDescription(run: BillingRunDetail): string {
   if (run.status === "released") {
     return "Die Rechnungen sind ausgestellt und lassen sich nicht mehr ändern.";
   }
-  return "Vorschau mit allen bestätigten Anmeldungen ohne gültige Rechnung. Eine stornierte Rechnung wird hier neu ausgestellt, mit ihren Korrekturen als Vorschlag. Neue Bestätigungen kommen bis zur Freigabe dazu.";
+  // The re-issue of a cancelled invoice is explained by its own card.
+  return "Vorschau aller bestätigten Anmeldungen ohne gültige Rechnung. Neue Bestätigungen kommen bis zur Freigabe dazu.";
+}
+
+/** Why „Lauf freigeben“ is blocked, in the order the warnings show. */
+function releaseBlockReason(run: BillingRunDetail): string | undefined {
+  if (run.previewCount === 0) {
+    return run.unbilled > 0
+      ? "Noch keine Rechnung: Den Anmeldungen fehlt ein festgehaltener Beitrag."
+      : "Der Lauf hat keine Rechnung zum Freigeben.";
+  }
+  if (run.legalRemedyMissing) {
+    return "Tragen Sie zuerst die Rechtsbehelfsbelehrung in der Vorlage „Bescheid“ ein.";
+  }
+  if (!run.numberRangeSet) {
+    return "Legen Sie zuerst das Muster der Rechnungsnummern fest.";
+  }
+  return undefined;
 }
 
 /** „3 Rechnungen mit Betrag haben keine Debitorennummer.“ */
@@ -241,13 +273,76 @@ export default function TraegerBillingRunPage() {
     run.previewCount > 0 &&
     !run.legalRemedyMissing;
   const paymentTextGaps = preview ? run.paymentTextMissingDebtorNumbers : 0;
+  // What the preview still asks to check, repeated where the release is
+  // decided: numbers are final afterwards.
+  const runDebitHints = preview
+    ? debitHints(holidayDebitItems(run.documents))
+    : [];
+  // The early debit is fixed by a later due date, the rest at the mandates.
+  const earlyPoints = debitOpenPoints(
+    runDebitHints.filter((hint) => hint.dueTooSoon),
+  );
+  const mandatePoints = debitOpenPoints(
+    runDebitHints.filter((hint) => !hint.dueTooSoon),
+  );
+  // The release refuses a direct debit without mandate: no button for it.
+  const releaseHalted = debitsHaltRelease(runDebitHints);
+  const carriedCount = preview
+    ? run.documents.reduce(
+        (sum, document) =>
+          sum +
+          document.children.reduce(
+            (inner, child) => inner + child.carriedCorrections.length,
+            0,
+          ),
+        0,
+      )
+    : 0;
+  // A carried correction already counts in its new invoice: a fact of the
+  // summary, not an open point that turns the release into a warning.
+  const openPoints: OpenPoint[] = [
+    ...earlyPoints.map((text) => ({
+      text,
+      action: run ? (
+        <ButtonLink
+          href={traegerPath(`/traeger/abrechnung/${run.id}/faelligkeiten`)}
+          variant="ghost_tone"
+          size="compact"
+          tooltip="Öffnet die Fälligkeiten der Rechnungen dieses Laufs zum Ändern."
+        >
+          Fälligkeiten ändern
+        </ButtonLink>
+      ) : undefined,
+    })),
+    ...mandatePoints.map((text) => ({ text })),
+  ];
+  // Belongs to the invoice sum it is part of, not to the cost bearers'.
+  const carriedNote =
+    carriedCount === 0
+      ? ""
+      : carriedCount === 1
+        ? " (darin 1 übernommene Korrektur aus einer stornierten Rechnung)"
+        : ` (darin ${carriedCount} übernommene Korrekturen aus stornierten Rechnungen)`;
+  const releaseWarns = paymentTextGaps > 0 || openPoints.length > 0;
+  // The run sum is what the families pay; cost bearers pay their share
+  // apart, so the summary names both.
+  const takeoverCents = run
+    ? runCostTakeovers(run).reduce((sum, takeover) => sum + takeover.cents, 0)
+    : 0;
+  const sumLabel = [
+    corrections.length > 0 ? "Summe nach Storno und Gutschrift" : "Summe",
+    takeoverCents > 0 ? "für Familien" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <TenantPage
       title={run?.periodName ?? "Abrechnungslauf"}
+      leading={<ConceptIconTile concept={holidayWeeksConcept} size="page" />}
       back
       backHref={traegerPath("/traeger/abrechnung")}
-      backLabel="Zurück zur Abrechnung"
+      backLabel="Zurück zu den Abrechnungsläufen"
       stats={
         run ? (
           <HolidayHeadFacts>
@@ -255,17 +350,6 @@ export default function TraegerBillingRunPage() {
               label={BILLING_RUN_STATUS_LABELS[run.status]}
               tone={BILLING_RUN_STATUS_TONES[run.status]}
             />
-            {canOpenPeriod ? (
-              <NavigationLink
-                href={traegerPath(
-                  `/traeger/ferien/${encodeURIComponent(run.holidayPeriodId)}`,
-                )}
-                className="inline-flex items-center gap-1.5 font-medium text-gray-900 underline-offset-2 hover:underline"
-              >
-                <MotoConceptIcon concept={holidayWeeksConcept} size={16} />
-                Zum Ferienzeitraum
-              </NavigationLink>
-            ) : null}
             {discarded ? (
               <span>
                 Verworfen am{" "}
@@ -276,35 +360,62 @@ export default function TraegerBillingRunPage() {
         ) : null
       }
       statsLoading={!run && !pageLoad.error}
+      // The cross-link stands with the actions, as „Zur Abrechnung“ does on
+      // the registrations; the status line carries only facts.
       actions={
-        empty ? (
-          <Button
-            type="button"
-            variant="outline_danger"
-            size="md"
-            onClick={() => setConfirmingDiscard(true)}
-          >
-            Leeren Lauf verwerfen
-          </Button>
-        ) : discarded ? (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => void reissue()}
-          >
-            Neuen Lauf starten
-          </Button>
-        ) : preview ? (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            disabled={!canRelease}
-            onClick={() => setConfirmingRelease(true)}
-          >
-            Lauf freigeben
-          </Button>
+        (run && canOpenPeriod) || preview || discarded ? (
+          <>
+            {run && canOpenPeriod ? (
+              <ButtonLink
+                href={traegerPath(
+                  `/traeger/ferien/${encodeURIComponent(run.holidayPeriodId)}`,
+                )}
+                variant="outline"
+                size="md"
+                tooltip="Öffnet den Ferienzeitraum, zu dem dieser Lauf gehört."
+              >
+                <MotoConceptIcon
+                  concept={holidayWeeksConcept}
+                  size={18}
+                  className="mr-2"
+                />
+                Zum Ferienzeitraum
+              </ButtonLink>
+            ) : null}
+            {empty ? (
+              <Button
+                type="button"
+                variant="outline_danger"
+                size="md"
+                tooltip="moto fragt vorher nach, dann ist der Ferienzeitraum frei für einen neuen Lauf."
+                onClick={() => setConfirmingDiscard(true)}
+              >
+                Leeren Lauf verwerfen
+              </Button>
+            ) : discarded ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                tooltip="Öffnet den offenen Lauf dieses Ferienzeitraums oder startet einen neuen."
+                onClick={() => void reissue()}
+              >
+                Neuen Lauf starten
+              </Button>
+            ) : preview ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                disabled={!canRelease}
+                disabledReason={releaseBlockReason(run)}
+                tooltip="moto fragt vorher nach, dann sind alle Rechnungen mit Nummer festgeschrieben."
+                onClick={() => setConfirmingRelease(true)}
+              >
+                Lauf freigeben
+              </Button>
+            ) : null}
+          </>
         ) : undefined
       }
       error={pageLoad.error}
@@ -351,18 +462,26 @@ export default function TraegerBillingRunPage() {
               isOpen={confirmingRelease}
               title="Lauf freigeben?"
               confirmText={
-                paymentTextGaps > 0 ? "Trotzdem freigeben" : "Freigeben"
+                releaseWarns && !releaseHalted
+                  ? "Trotzdem freigeben"
+                  : "Freigeben"
               }
-              confirmVariant={paymentTextGaps > 0 ? "warning" : "primary"}
+              confirmVariant={
+                releaseWarns && !releaseHalted ? "warning" : "primary"
+              }
+              isConfirmDisabled={releaseHalted}
               isConfirmLoading={releasing}
               loadingText="Wird freigegeben …"
               onClose={() => setConfirmingRelease(false)}
               onConfirm={() => void release()}
             >
               <p className="text-sm text-gray-700">
-                {run.previewCount} Rechnung(en) über{" "}
-                {formatEuro(run.previewCents)} bekommen ihre Nummer. Danach
-                lassen sie sich nicht mehr ändern.
+                {run.previewCount === 1
+                  ? `1 Rechnung über ${formatEuro(run.previewCents)}${carriedNote} bekommt ihre Nummer. Danach lässt sie sich nicht mehr ändern.`
+                  : `${run.previewCount} Rechnungen über ${formatEuro(run.previewCents)}${carriedNote} bekommen ihre Nummer. Danach lassen sie sich nicht mehr ändern.`}
+                {takeoverCents > 0
+                  ? ` Kostenträger übernehmen zusätzlich ${formatEuro(takeoverCents)}.`
+                  : ""}
               </p>
               {paymentTextGaps > 0 ? (
                 <Alert
@@ -371,6 +490,7 @@ export default function TraegerBillingRunPage() {
                   message={`${invoicesWithoutDebtorNumber(paymentTextGaps)} Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext.`}
                 />
               ) : null}
+              <ReleaseOpenPoints points={openPoints} />
             </ConfirmationModal>
           </>
         ) : null
@@ -419,6 +539,7 @@ export default function TraegerBillingRunPage() {
       ) : run ? (
         <>
           <SectionCard
+            leading={<ConceptIconTile concept={billingConcept} />}
             title="Abrechnungslauf"
             description={runDescription(run)}
             actions={
@@ -429,6 +550,7 @@ export default function TraegerBillingRunPage() {
                   )}
                   variant="outline"
                   size="md"
+                  tooltip="Öffnet die Fälligkeiten der Rechnungen dieses Laufs zum Ändern."
                 >
                   Fälligkeiten ändern
                 </ButtonLink>
@@ -440,17 +562,19 @@ export default function TraegerBillingRunPage() {
                 {formatDateRange(run.serviceFrom, run.serviceUntil)}
               </DataField>
               <DataField label="Rechnungen">{run.previewCount}</DataField>
-              <DataField
-                label={
-                  corrections.length > 0
-                    ? "Summe nach Storno und Gutschrift"
-                    : "Summe"
-                }
-              >
+              <DataField label={sumLabel}>
                 <span className="tabular-nums">
                   {formatEuro(run.previewCents)}
                 </span>
               </DataField>
+              {takeoverCents > 0 ? (
+                <DataField label="Kostenübernahme">
+                  <span className="tabular-nums">
+                    {formatEuro(takeoverCents)}
+                  </span>{" "}
+                  zahlen Kostenträger
+                </DataField>
+              ) : null}
               {corrections.length > 0 ? (
                 <DataField label="Storno und Gutschrift">
                   {corrections.length === 1
@@ -481,7 +605,18 @@ export default function TraegerBillingRunPage() {
                 {run.issuedOn ? (
                   `Ausgestellt am ${formatDate(run.issuedOn)}`
                 ) : run.numberRangeSet ? (
-                  <span className="font-mono">{run.numberPattern}</span>
+                  <>
+                    <span className="text-gray-600">z.&nbsp;B. </span>
+                    <span className="font-mono">
+                      {numberPatternPreview(
+                        run.numberPattern,
+                        berlinTodayISO(),
+                      )}
+                    </span>{" "}
+                    <span className="text-gray-600">
+                      (die Rechnungsnummer kommt mit der Freigabe)
+                    </span>
+                  </>
                 ) : (
                   "Noch kein Muster"
                 )}
@@ -492,7 +627,7 @@ export default function TraegerBillingRunPage() {
             <Alert
               type="warning"
               title="Rechtsbehelfsbelehrung fehlt"
-              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Bescheid“ fehlt die Rechtsbehelfsbelehrung. Wer das Recht „Einstellungen“ hat, muss sie eintragen. Danach können Sie freigeben."
+              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Gebührenbescheid“ fehlt die Rechtsbehelfsbelehrung. Wer die Rolle „Verwaltung“ hat, muss sie eintragen. Danach können Sie freigeben."
               action={
                 <ButtonLink
                   href={traegerPath(
@@ -500,6 +635,7 @@ export default function TraegerBillingRunPage() {
                   )}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Vorlage „Bescheid“ in den Einstellungen."
                 >
                   Vorlage öffnen
                 </ButtonLink>
@@ -515,6 +651,7 @@ export default function TraegerBillingRunPage() {
                   href={traegerPath("/traeger/einstellungen/abrechnung")}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Einstellungen für das Muster der Rechnungsnummern."
                 >
                   Abrechnungsvorgaben öffnen
                 </ButtonLink>
@@ -538,11 +675,20 @@ export default function TraegerBillingRunPage() {
               }
             />
           ) : null}
-          {preview ? <HolidayDebitHintsCard documents={run.documents} /> : null}
+          {preview ? (
+            <HolidayDebitHintsCard
+              documents={run.documents}
+              dueDatesHref={`/traeger/abrechnung/${run.id}/faelligkeiten`}
+            />
+          ) : null}
           {preview && run.unbilled > 0 ? (
             <Alert
               type="info"
-              message={`${run.unbilled} bestätigte Anmeldung(en) haben keinen festgehaltenen Beitrag und kommen nicht in diesen Lauf.`}
+              message={
+                run.unbilled === 1
+                  ? "1 bestätigte Anmeldung hat keinen festgehaltenen Beitrag und kommt nicht in diesen Lauf."
+                  : `${run.unbilled} bestätigte Anmeldungen haben keinen festgehaltenen Beitrag und kommen nicht in diesen Lauf.`
+              }
             />
           ) : null}
           {run.status === "released" ? (

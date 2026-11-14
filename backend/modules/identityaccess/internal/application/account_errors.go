@@ -3,8 +3,8 @@ package application
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 var errAccountAuthenticationUnavailable = identityaccess.ErrAccountAuthenticationUnavailable
@@ -57,6 +57,9 @@ var authenticationSentinels = []struct {
 	{identityaccess.ErrMFARateLimited, identityaccess.ErrMFARateLimited},
 	{identityaccess.ErrMFANotEnrolled, identityaccess.ErrMFANotEnrolled},
 	{identityaccess.ErrMFAAlreadyEnrolled, identityaccess.ErrMFAAlreadyEnrolled},
+	{identityaccess.ErrParentMFANotEnabled, identityaccess.ErrParentMFANotEnabled},
+	{identityaccess.ErrParentMFANeedsSchool, identityaccess.ErrParentMFANeedsSchool},
+	{identityaccess.ErrAccountMFAUnavailable, identityaccess.ErrAccountMFAUnavailable},
 	{identityaccess.ErrMFAPermissionDenied, identityaccess.ErrMFAPermissionDenied},
 	{identityaccess.ErrMFAInvalidOverride, identityaccess.ErrMFAInvalidOverride},
 	{identityaccess.ErrMFAUnsupportedScope, identityaccess.ErrMFAUnsupportedScope},

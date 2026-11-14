@@ -1294,6 +1294,9 @@ describe("useEventForm Wochennotiz-only series save (#6141)", () => {
       }),
     );
     expect(apis.countEditedInWindow).not.toHaveBeenCalled();
+    expect(apis.updateTemplate.mock.calls[0]?.[1]).not.toHaveProperty(
+      "replan_future",
+    );
     expect(apis.replanWeek).not.toHaveBeenCalled();
     expect(result.current.lostEdits).toBeNull();
     expect(onClose).toHaveBeenCalled();
@@ -1320,7 +1323,12 @@ describe("useEventForm Wochennotiz-only series save (#6141)", () => {
     await act(async () => {
       await result.current.confirmLostEdits();
     });
-    expect(apis.replanWeek).toHaveBeenCalled();
+    // #6838: the server rebuilds the occurrences inside the update.
+    expect(apis.updateTemplate).toHaveBeenCalledWith(
+      "9",
+      expect.objectContaining({ replan_future: true }),
+    );
+    expect(apis.replanWeek).not.toHaveBeenCalled();
   });
 
   it("still warns when the closing-day answer differs from the stored series flag", async () => {
@@ -1384,6 +1392,9 @@ describe("useEventForm Wochennotiz-only series save (#6141)", () => {
       expect.objectContaining({ notes: "Neu" }),
     );
     expect(apis.countEditedInWindow).not.toHaveBeenCalled();
+    expect(apis.updateTemplate.mock.calls[0]?.[1]).not.toHaveProperty(
+      "replan_future",
+    );
     expect(apis.replanWeek).not.toHaveBeenCalled();
     expect(result.current.lostEdits).toBeNull();
     expect(onClose).toHaveBeenCalled();
@@ -1413,6 +1424,9 @@ describe("useEventForm Wochennotiz-only series save (#6141)", () => {
       }),
     );
     expect(apis.countEditedInWindow).not.toHaveBeenCalled();
+    expect(apis.updateTemplate.mock.calls[0]?.[1]).not.toHaveProperty(
+      "replan_future",
+    );
     expect(apis.replanWeek).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
   });

@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { NotificationBadge } from "~/components/ui/notification-badge";
+import { COUNTER_TONE } from "~/lib/counter-tones";
 import type { ParentAttention } from "~/lib/parent-attention";
 import { useStudentParentAttention } from "~/lib/hooks/use-parent-attention";
 
@@ -75,7 +76,7 @@ export function ParentAttentionBadge({
         >
           <NotificationBadge
             count={attention.total}
-            tone="parents"
+            tone={COUNTER_TONE.parents}
             ariaLabel=""
           />
         </Button>

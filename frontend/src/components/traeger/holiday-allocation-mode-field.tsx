@@ -121,6 +121,7 @@ export function HolidayAllocationModeField({
               variant="outline"
               size="md"
               className="shrink-0 gap-2"
+              tooltip="Öffnet die Kriterien. Sie gelten für alle Ferien Ihres Trägers."
             >
               <ListChecks className="h-4 w-4" aria-hidden="true" />
               Kriterien festlegen

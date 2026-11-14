@@ -1,6 +1,7 @@
 "use client";
 
 import { staff as staffKeys } from "~/lib/swr/staff";
+import { timetableKeys } from "~/lib/swr/portal-keys";
 import { useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import type { KeyedMutator } from "~/lib/swr";
@@ -35,6 +36,7 @@ import {
 export const PLAN_CACHE_KEY_PREFIXES = [
   "dienstplan-overview-",
   "dienstplan-shifts-",
+  timetableKeys.absencePlanGaps,
   VERTRETUNG_WEEK_KEY_PREFIX,
   VERTRETUNG_GAPS_KEY_PREFIX,
   "staff-pending-absences-",
@@ -179,7 +181,8 @@ export function useDienstplanData(
     isLoading: shiftTypesLoading,
     mutate: mutateShiftTypes,
   } = useSWRAuth<ShiftType[]>("dienstplan-shift-types", () =>
-    shiftTypeService.getShiftTypes(),
+    // Auch entfernte Dienstarten: geplante Dienste tragen sie weiter (#6845).
+    shiftTypeService.getShiftTypes({ includeArchived: true }),
   );
 
   const typesById = useMemo(

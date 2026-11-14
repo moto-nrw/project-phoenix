@@ -54,5 +54,9 @@
   "weekNotRegistered": "i paregjistruar",
   "weekCountsLabel": "Numri i drekave për ditë",
   "weekCount": "{count, plural, one {# fëmijë} other {# fëmijë}}",
-  "weekClosed": "pa vakt"
+  "weekClosed": "pa vakt",
+  "changeDescription": "Hap regjistrimin e këtij fëmije. Prindërit i shohin ndryshimet në portalin e prindërve",
+  "changeTooltip": "Hap një dritare për të regjistruar ose çregjistruar një fëmijë.",
+  "changePastReason": "Ditët e kaluara nuk mund të ndryshohen më.",
+  "changeClosedReason": "Në ditët e mbyllura nuk ka regjistrim për të ndryshuar."
 }

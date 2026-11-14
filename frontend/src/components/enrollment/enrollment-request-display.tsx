@@ -13,6 +13,10 @@ import {
 } from "~/components/ui/detail-modal-components";
 import { EnrollmentRequestUploadList } from "~/components/enrollment/admin-enrollment-upload-list";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
+import {
+  offeringTermsChanged,
+  submittedTermsMessage,
+} from "~/components/enrollment/offering-term-changes";
 import type {
   AdminRequestChild,
   AdminRequestChildOffering,
@@ -188,6 +192,15 @@ export function ChildOfferings({
                 ) : null}
               </div>
               <OfferingAttributePills offering={o} />
+              {offeringTermsChanged(o) ? (
+                <Alert
+                  type="warning"
+                  size="compact"
+                  announce="off"
+                  message={submittedTermsMessage(o)}
+                  className="mt-2"
+                />
+              ) : null}
             </li>
           );
         })}

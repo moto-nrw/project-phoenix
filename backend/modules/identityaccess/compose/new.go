@@ -7,12 +7,12 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	internalports "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application"
+	internalports "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	identityBindingPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type Observation = internalports.Observation
@@ -112,7 +112,7 @@ func New(dependencies Dependencies) (identityaccess.Owner, error) {
 		PasswordReset: resets, SchoolInvitation: invitations, AccountProvisioning: provisioning, AccountAdministration: administration, OperatorProvisioning: operatorProvisioning,
 		OperatorMFAFlows: flows.Operator, OperatorPasskeyFlows: flows.OperatorPasskey, AccountPasskeyFlows: flows.AccountPasskey, AccountMFACapability: application.NewAccountMFACapability(flows.Capability),
 		SignInDataRetention: application.NewSignInDataRetention(store, application.InvitationLogger(dependencies.Invitations), runAdmin), AccountRetention: application.NewAccountRetention(store, attach, runAdmin, dependencies.RemoveErasedAvatarFile, application.InvitationLogger(dependencies.Invitations)),
-		SchoolInvitationMaintenance: application.NewSchoolInvitationMaintenance(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform), TraegerAccounts: traegerAccounts, Demo: demoAccess, CatererFlows: caterers,
+		SchoolInvitationMaintenance: application.NewSchoolInvitationMaintenance(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform), TraegerAccounts: traegerAccounts, Demo: demoAccess, CatererFlows: caterers, ParentFlows: application.ComposeParentAccess(auth, dependencies.Sessions, flows.Account, runtime),
 	}, nil
 }
 

@@ -31,7 +31,10 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { FramedList } from "~/components/ui/framed-list";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
@@ -53,6 +56,8 @@ import {
   type TraegerDocumentRelease,
 } from "~/lib/traeger-documents-api";
 import { traegerPath } from "~/lib/traeger-url";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { EyeOff } from "lucide-react";
 
 const logger = createLogger({ component: "TraegerDocumentPage" });
 
@@ -151,6 +156,7 @@ export default function TraegerDocumentPage() {
   return (
     <TenantPage
       title={document?.title ?? "Dokument"}
+      leading={<ConceptIconTile concept={documentsConcept} size="page" />}
       back
       backHref={traegerPath("/traeger/dokumente")}
       backLabel="Zurück zu den Dokumenten"
@@ -191,6 +197,7 @@ export default function TraegerDocumentPage() {
               variant="outline"
               size="md"
               className="gap-2"
+              tooltip="Speichert das Dokument als Datei auf Ihrem Gerät."
               onClick={() => void download()}
               isLoading={downloading}
               loadingText="Wird geladen …"
@@ -204,6 +211,7 @@ export default function TraegerDocumentPage() {
                 variant="primary"
                 size="md"
                 className="gap-2"
+                tooltip="Öffnet die Freigabe für Schulen oder Eltern, Eltern bekommen dann eine Nachricht."
                 onClick={() => setReleasing(true)}
               >
                 <ShareNetworkIcon className="h-4 w-4" aria-hidden="true" />
@@ -219,7 +227,8 @@ export default function TraegerDocumentPage() {
                 items={[
                   {
                     label: "Dokument löschen",
-                    description: "Alle Freigaben enden, die Datei ist weg.",
+                    description:
+                      "moto fragt vorher nach, dann enden alle Freigaben und die Datei ist weg.",
                     icon: <TrashIcon className="size-4" aria-hidden="true" />,
                     destructive: true,
                     onClick: () => {
@@ -371,6 +380,8 @@ export default function TraegerDocumentPage() {
         >
           {document.releases.length === 0 ? (
             <EmptyState
+              tone="neutral"
+              icon={<EyeOff aria-hidden="true" />}
               title="Noch nicht freigegeben."
               description={
                 canManage
@@ -381,10 +392,7 @@ export default function TraegerDocumentPage() {
           ) : (
             <ResponsiveActionList>
               {document.releases.map((release) => (
-                <li
-                  key={release.id}
-                  className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-                >
+                <ResponsiveActionRow key={release.id}>
                   <div className="flex min-w-0 items-center gap-3">
                     <MotoConceptIcon
                       concept={
@@ -411,6 +419,7 @@ export default function TraegerDocumentPage() {
                         variant="outline_danger"
                         size="compact"
                         aria-label={`Freigabe zurücknehmen: ${releaseAudienceLabel(release, names)}`}
+                        tooltip="moto fragt vorher nach, dann sehen diese Personen das Dokument nicht mehr."
                         onClick={() => {
                           revokeErrors.clear();
                           setPending(release);
@@ -420,7 +429,7 @@ export default function TraegerDocumentPage() {
                       </Button>
                     </div>
                   ) : null}
-                </li>
+                </ResponsiveActionRow>
               ))}
             </ResponsiveActionList>
           )}

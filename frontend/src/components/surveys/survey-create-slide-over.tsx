@@ -125,6 +125,7 @@ export function SurveyCreateSlideOver({
             size="md"
             onClick={onClose}
             disabled={saving}
+            noTooltip="Abbrechen schließt das Formular und legt keine Umfrage an."
           >
             Abbrechen
           </Button>
@@ -135,6 +136,7 @@ export function SurveyCreateSlideOver({
             onClick={() => void saveDraft()}
             isLoading={saving}
             loadingText="Wird gespeichert…"
+            tooltip="Speichert die Umfrage als Entwurf, noch niemand bekommt sie."
           >
             Als Entwurf speichern
           </Button>

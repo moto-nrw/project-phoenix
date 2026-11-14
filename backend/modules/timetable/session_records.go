@@ -3,7 +3,7 @@ package timetable
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SessionRecords is the native read and command seam for retained session consumers.

@@ -49,7 +49,7 @@ export function SchoolPeriodSelect({
       ariaLabel={ariaLabel}
       placeholder="Nach Schulstunde"
       disabled={disabled}
-      controlSize="compact"
+      controlSize="dense"
       className="text-xs"
     />
   );

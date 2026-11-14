@@ -9,6 +9,8 @@ import (
 var (
 	ErrCancelled = errors.New("delivery provider cancelled the intent")
 	ErrDeferred  = errors.New("delivery provider deferred the intent")
+	// ErrThrottled refines ErrDeferred: the mail server asked to send later.
+	ErrThrottled = errors.New("delivery provider throttled the intent")
 	ErrPermanent = errors.New("delivery provider rejected the intent permanently")
 	// ErrRecipientRejected refines ErrPermanent: the server refused this address.
 	ErrRecipientRejected   = errors.New("delivery provider rejected the recipient permanently")

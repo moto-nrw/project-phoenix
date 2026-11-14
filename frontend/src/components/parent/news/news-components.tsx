@@ -762,6 +762,7 @@ function PollOptionList({
           disabled={saving}
           onClick={() => poll.toggle(child, selected[0]!)}
           className="mt-2"
+          tooltip={t("newsPollClearTooltip")}
         >
           {t("newsPollClear")}
         </Button>
@@ -1257,8 +1258,12 @@ export function NewsDetailModal({
                 });
               }}
               disabled={!poll.canSave || poll.saving}
+              disabledReason={
+                poll.canSave ? undefined : t("newsPollSaveDisabledReason")
+              }
               isLoading={poll.saving}
               loadingText={t("newsPollSaving")}
+              tooltip={t("newsPollSaveTooltip")}
             >
               {t("newsPollSave")}
             </Button>
@@ -1272,6 +1277,7 @@ export function NewsDetailModal({
               disabled={busy}
               isLoading={busy}
               loadingText={t("newsAcknowledgeSaving")}
+              tooltip={t("newsReadAndConfirmTooltip")}
             >
               <Check className="h-4 w-4" aria-hidden="true" />
               {t("newsReadAndConfirm")}
@@ -1284,6 +1290,13 @@ export function NewsDetailModal({
             className="order-2 sm:order-1"
             onClick={onClose}
             disabled={actionInProgress}
+            // Nur eine geänderte, nicht gespeicherte Umfrage-Antwort geht
+            // beim Schließen verloren; sonst sagt das Wort alles.
+            tooltip={
+              isPoll(item) && poll.canSave
+                ? t("newsCloseUnsavedTooltip")
+                : undefined
+            }
           >
             {t("newsClose")}
           </Button>

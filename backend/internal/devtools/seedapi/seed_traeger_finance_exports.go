@@ -24,11 +24,14 @@ func seedHolidayRunDownloads(client *Client, auth AuthRef, runID, costBearerID i
 			return fmt.Errorf("download the list of the cost bearer: %w", err)
 		}
 	}
-	return seedSollstellung(client, auth, runID)
+	if err := seedSollstellung(client, auth, runID); err != nil {
+		return err
+	}
+	return seedExportHandover(client, auth, runID)
 }
 
 // seedSollstellung maps the columns of the Sollstellung as a Kämmerei asks
-// for them (#4693) and downloads the Sollstellung of the released holiday
+// for them (#4693), with a credit column and a booking text (#7008), and downloads the Sollstellung of the released holiday
 // run once, so the export page and the protocol show a file with its number
 // and the invoice its history.
 func seedSollstellung(client *Client, auth AuthRef, runID int64) error {
@@ -39,8 +42,10 @@ func seedSollstellung(client *Client, auth AuthRef, runID int64) error {
 			{"field": "invoice_date", "header": "Belegdatum"},
 			{"field": "due_on", "header": "Fällig"},
 			{"field": "amount", "header": "Betrag"},
+			{"field": "credit_amount", "header": "Gutschrift"},
 			{"field": "recipient_name", "header": "Name"},
 			{"field": "document_kind", "header": "Belegart"},
+			{"field": "booking_text", "header": "Buchungstext", "value": "SKB {Monat} {Kind}"},
 			{"field": "constant", "header": "Buchungskreis", "value": "1000"},
 		},
 		"delimiter": ";", "decimal_separator": ",", "date_format": "dd.mm.yyyy", "encoding": "utf-8-bom",

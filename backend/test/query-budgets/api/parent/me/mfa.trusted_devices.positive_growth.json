@@ -1,0 +1,7 @@
+{
+  "scenario": "api.parent.me.mfa.trusted_devices.positive_growth",
+  "max": 8,
+  "exact": true,
+  "description": "GET /parent/me/mfa/trusted-devices (#7051): composed parents second factor behind ParentSessionChain, signed parent JWT, production request memos; exact N3/N8 parents-portal device DTOs, excluding caterer, school, foreign-account and expired rows. Flat in the number of devices.",
+  "route": "GET /parent/me/mfa/trusted-devices"
+}

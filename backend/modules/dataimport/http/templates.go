@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 func (rs *Resource) downloadTemplate(w http.ResponseWriter, r *http.Request, kind dataimport.TemplateKind, filename string) {

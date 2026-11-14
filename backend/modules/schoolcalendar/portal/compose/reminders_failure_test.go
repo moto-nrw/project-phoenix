@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	calendarSvc "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	calendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

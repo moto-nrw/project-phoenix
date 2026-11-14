@@ -34,7 +34,8 @@ import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { childrenConcept } from "~/lib/concepts/children";
 import { formatDate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
-import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getAccessibleTextColor } from "~/lib/kit-palette";
 import { createLogger } from "~/lib/logger";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import {
@@ -134,11 +135,21 @@ function OverrunFigure({
   children,
 }: Readonly<{ value: number; children?: ReactNode }>) {
   return (
+    // One line: hours and minutes split over two lines read as two values.
     <span
-      className="text-sm font-semibold tabular-nums"
+      className="text-sm font-semibold whitespace-nowrap tabular-nums"
       style={value > 0 ? OVERRUN_TEXT : undefined}
     >
       {children ?? value}
+    </span>
+  );
+}
+
+/** Eine Anzahl (Kinder, Tage): dunkel, das Rot gehört der zusätzlichen Zeit. */
+function CountFigure({ value }: Readonly<{ value: number }>) {
+  return (
+    <span className="text-sm font-semibold whitespace-nowrap text-gray-900 tabular-nums">
+      {value}
     </span>
   );
 }
@@ -150,9 +161,9 @@ function DaysCell({
   const total = overrunDays + unbookedDays;
   return (
     <span className="inline-flex flex-col items-end">
-      <OverrunFigure value={total} />
+      <CountFigure value={total} />
       {unbookedDays > 0 ? (
-        <span className="text-xs text-gray-500">
+        <span className="text-sm whitespace-nowrap text-gray-500">
           davon {unbookedDays} ohne Buchung
         </span>
       ) : null}
@@ -181,20 +192,20 @@ function schoolColumns(
             {school.schoolName}
           </NavigationLink>
           {school.dataFrom > to ? (
-            <span className="block text-xs text-gray-500">
+            <span className="block text-sm text-gray-500">
               Keine Check-ins mehr gespeichert
             </span>
           ) : school.comparedDays === 0 && school.uncomparedDays === 0 ? (
-            <span className="block text-xs text-gray-500">
+            <span className="block text-sm text-gray-500">
               Keine Check-ins im Zeitraum
             </span>
           ) : school.dataFrom > from ? (
-            <span className="block text-xs text-gray-500">
+            <span className="block text-sm text-gray-500">
               Check-ins erst ab {formatDate(school.dataFrom)} gespeichert
             </span>
           ) : null}
           {school.uncomparedDays > 0 ? (
-            <span className="block text-xs text-gray-500">
+            <span className="block text-sm text-gray-500">
               {school.uncomparedDays === 1
                 ? "1 Tag nicht verglichen: ohne Plan oder ohne Auschecken"
                 : `${school.uncomparedDays} Tage nicht verglichen: ohne Plan oder ohne Auschecken`}
@@ -211,7 +222,7 @@ function schoolColumns(
       align: "right",
       render: (school) =>
         schoolHasFigures(school, to) ? (
-          <OverrunFigure value={school.figures.children} />
+          <CountFigure value={school.figures.children} />
         ) : (
           <NoData />
         ),
@@ -364,7 +375,7 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
       <StatCard
         label="Kinder"
         value={noData ? "–" : total.children}
-        tone={!noData && total.children > 0 ? "red" : "neutral"}
+        tone="neutral"
         hint={
           noData
             ? noDataTitle(evaluation)
@@ -377,7 +388,7 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
       <StatCard
         label="Tage"
         value={noData ? "–" : days}
-        tone={!noData && days > 0 ? "red" : "neutral"}
+        tone="neutral"
         hint={
           noData
             ? "Ohne verglichene Check-ins zählt moto keine Tage."
@@ -390,6 +401,8 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
       <div className="col-span-2 lg:col-span-1">
         <StatCard
           label="Zusätzliche Zeit"
+          // Each number keeps its unit; a narrow tile breaks only between
+          // hours and minutes instead of running into the symbol.
           value={noData ? "–" : formatExtraTime(total.extraMinutes)}
           tone={!noData && total.extraMinutes > 0 ? "red" : "neutral"}
           hint={`Zählt ab ${evaluation.toleranceMinutes || 15} Minuten früher oder später.`}
@@ -552,7 +565,11 @@ export default function TraegerZeitvergleichPage() {
     >
       {evaluation ? <Figures evaluation={evaluation} /> : null}
       <DataTable
-        heading={{ title: "Je Schule", count: evaluation?.schools.length }}
+        heading={{
+          title: "Je Schule",
+          count: evaluation?.schools.length,
+          level: 2,
+        }}
         columns={columns}
         rows={[...(evaluation?.schools ?? [])]}
         getRowKey={(school) => school.schoolId}
@@ -564,7 +581,11 @@ export default function TraegerZeitvergleichPage() {
       />
       {canSeeNames ? (
         <DataTable
-          heading={{ title: "Kinder", count: evaluation?.children.length }}
+          heading={{
+            title: "Kinder",
+            count: evaluation?.children.length,
+            level: 2,
+          }}
           columns={CHILD_COLUMNS}
           rows={[...(evaluation?.children ?? [])]}
           getRowKey={(child) => `${child.schoolId}-${child.studentId}`}

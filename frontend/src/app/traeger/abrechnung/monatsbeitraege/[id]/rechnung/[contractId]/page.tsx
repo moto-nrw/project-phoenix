@@ -6,6 +6,7 @@
 // Laufs Formulare und Verlauf nicht lädt. Nach der Ausstellung zeigt sie
 // die Rechnung mit ihren Änderungen und ändert nichts mehr.
 
+import { ChevronDown } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { formatMonth } from "~/components/traeger/care-billing-format";
@@ -177,7 +178,14 @@ function CareInvoiceAmendPage() {
           <OverflowMenu
             ariaLabel="Rechnung ändern"
             triggerButton={{ variant: "primary", size: "md" }}
-            triggerContent="Ändern"
+            // The arrow says that a menu opens, as on the download menus.
+            triggerClassName="gap-2 whitespace-nowrap"
+            triggerContent={
+              <>
+                Ändern
+                <ChevronDown className="h-4 w-4" aria-hidden />
+              </>
+            }
             items={menu.map((entry) => ({
               label: entry.label,
               description: entry.description,
@@ -200,6 +208,7 @@ function CareInvoiceAmendPage() {
                   href={`${runHref}/schreiben`}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Schreiben des Laufs, dort stornieren Sie Rechnungen."
                 >
                   Zu den Schreiben
                 </ButtonLink>
@@ -232,6 +241,7 @@ function CareInvoiceAmendPage() {
                   href={traegerPath("/traeger/einstellungen/abrechnung")}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Einstellungen der Abrechnung, dort schalten Sie das Ändern ein."
                 >
                   Zu den Einstellungen
                 </ButtonLink>

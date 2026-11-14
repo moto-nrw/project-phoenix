@@ -202,14 +202,19 @@ describe("useGlobalSSE: own supervision family (#5017)", () => {
     );
   });
 
-  it.each(["staffing_deviation_changed", "instance_cancelled"] as const)(
-    "%s refreshes the supervision aggregate with its planned blocks",
-    (type) => {
+  it.each([
+    ["staffing_deviation_changed", { source: "instance_update" }],
+    ["staffing_deviation_changed", { source: "instance_delete" }],
+    ["instance_cancelled", {}],
+  ] satisfies [SSEEvent["type"], SSEEvent["data"]][])(
+    "%s (%o) refreshes planned blocks and group-card offerings",
+    (type, data) => {
       renderConnected();
-      fire(event(type));
+      fire(event(type, data));
       act(() => vi.advanceTimersByTime(MAX_FLUSH_WAIT_MS));
       expect(matchedKeys()).toEqual([
         "school-a:account-7:active-supervision-dashboard-0-224",
+        "school-a:account-7:ogs-students-3",
         "school-a:account-7:timetable-week-2026-09-07",
         "school-a:account-7:booking-leftovers-4",
       ]);

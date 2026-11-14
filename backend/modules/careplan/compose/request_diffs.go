@@ -4,9 +4,9 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
 )
 
 func NewRequestDiffs(people ports.RequestDiffPeople, arrivals ports.RequestDiffArrivals, pickups ports.RequestDiffPickups, logger *slog.Logger) (carerequests.Diffs, error) {

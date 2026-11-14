@@ -67,6 +67,7 @@ export function CatalogColorField(props: {
             onClick={() => onChange(null)}
             variant="link"
             size="md"
+            tooltip="Stellt wieder die Standardfarbe ein."
           >
             Zurücksetzen
           </Button>

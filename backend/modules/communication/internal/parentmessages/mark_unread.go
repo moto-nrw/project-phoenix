@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // MarkUnread marks the conversation unread for the whole team (#3654). Every

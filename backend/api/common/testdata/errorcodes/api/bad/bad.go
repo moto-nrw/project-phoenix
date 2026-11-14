@@ -3,8 +3,8 @@ package bad
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/sample"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/sample"
 )
 
 const localCode = "care.announcement_stale"

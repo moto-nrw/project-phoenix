@@ -35,7 +35,8 @@ import {
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
-import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getAccessibleTextColor } from "~/lib/kit-palette";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentCareTimesSection" });

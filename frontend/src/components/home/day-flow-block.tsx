@@ -19,6 +19,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { useDayPlanHref, useDayPlanLabel } from "~/lib/hooks/use-day-plan-href";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
+  dayPlanLinkTooltip,
   HomeCardLink,
   HomeMoreRow,
   upcomingFirst,
@@ -50,6 +51,7 @@ export function DayFlowBlock() {
   // führt der Weiterlink in den Betreuungsplan im Planungsbereich.
   const dayPlanHref = useDayPlanHref();
   const dayPlanLabel = useDayPlanLabel();
+  const dayPlanTooltip = dayPlanLinkTooltip(dayPlanHref);
   const { data, error, isLoading, mutate } = useSWRAuth<
     PlannedTimetableInstance[]
   >(
@@ -92,6 +94,7 @@ export function DayFlowBlock() {
         <HomeCardLink
           href={dayPlanHref}
           label={`Ablauf des Tages: ${dayPlanLabel}`}
+          tooltip={dayPlanTooltip}
         >
           {dayPlanLabel}
         </HomeCardLink>

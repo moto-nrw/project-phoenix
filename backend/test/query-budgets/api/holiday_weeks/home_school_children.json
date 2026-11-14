@@ -1,0 +1,7 @@
+{
+  "scenario": "api.holiday_weeks.home_school_children",
+  "max": 5,
+  "exact": true,
+  "description": "modules/enrollment — GET /api/holiday-weeks/home-school-children (#6679):\nthe home school and the schools of its Träger for the names of the hosting\nschools, the tenant binding, one statement over the confirmed bookings of\nthe school's children in weeks other schools host and one read of the\nschool's children born on their dates of birth. Flat in the number of\nweeks and children.",
+  "route": "GET /api/holiday-weeks/home-school-children"
+}

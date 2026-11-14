@@ -191,6 +191,32 @@ describe("OverflowMenu", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  it("names why a blocked trigger does not open (#6757)", () => {
+    const onRowClick = vi.fn();
+    render(
+      // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Probe für einen klickbaren Vorfahren
+      <div onClick={onRowClick}>
+        <OverflowMenu
+          disabled
+          disabledReason="Es gibt noch nichts zum Exportieren."
+          items={[{ label: "Export", onClick: () => undefined }]}
+        />
+      </div>,
+    );
+
+    const trigger = screen.getByRole("button", { name: /Weitere Aktionen/i });
+    expect(trigger).toBeEnabled();
+    expect(trigger).toHaveAttribute("aria-disabled", "true");
+    expect(trigger).toHaveAccessibleDescription(
+      "Es gibt noch nichts zum Exportieren.",
+    );
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("menu")).toBeNull();
+    // Wie am gesperrten Button erreicht der Klick keinen Vorfahren.
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
   it("closes on Escape", () => {
     render(
       <OverflowMenu items={[{ label: "Export", onClick: () => undefined }]} />,
@@ -647,6 +673,28 @@ describe("OverflowMenu", () => {
     expect(entry).toHaveAccessibleDescription(
       "Findet nur an diesem Tag statt.",
     );
+  });
+
+  it("shows the line of a link entry and describes the entry by it", () => {
+    render(
+      <OverflowMenu
+        items={[
+          {
+            label: "Einladung zurücknehmen",
+            description: "moto fragt vorher nach.",
+            href: "/einladungen",
+            onClick: vi.fn(),
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+
+    const entry = screen.getByRole("menuitem", {
+      name: "Einladung zurücknehmen",
+    });
+    expect(entry).toHaveAccessibleDescription("moto fragt vorher nach.");
+    expect(screen.getByText("moto fragt vorher nach.")).toBeVisible();
   });
 
   it("draws the trigger as a kit button and keeps its menu semantics", () => {

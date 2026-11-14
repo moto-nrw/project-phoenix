@@ -8,7 +8,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // The corrections a reissued invoice carries over (#5663, ADR 0119 addendum).
@@ -18,23 +18,25 @@ import (
 // of the run. Its credits are only named: they are documents of their own.
 
 // replacedInvoices is what a preview takes from the cancelled invoices it
-// replaces, by registration.
+// replaces, by registration and child of an invoice per child (#7007).
 type replacedInvoices struct {
-	corrections map[int64][]parentbilling.BillingCarriedCorrection
-	credits     map[int64][]parentbilling.BillingDocumentLink
+	corrections map[parentbilling.HolidayInvoiceKey][]parentbilling.BillingCarriedCorrection
+	credits     map[parentbilling.HolidayInvoiceKey][]parentbilling.BillingDocumentLink
 }
 
 // replacedInvoices reads the proposals and the credits of the cancelled
 // invoices. It reads nothing when the run replaces none.
-func (b *BillingRuns) replacedInvoices(ctx context.Context, organizationID, runID int64, replaces map[int64]parentbilling.BillingDocumentLink) (replacedInvoices, error) {
+func (b *BillingRuns) replacedInvoices(ctx context.Context, organizationID, runID int64,
+	replaces map[parentbilling.HolidayInvoiceKey]parentbilling.BillingDocumentLink,
+) (replacedInvoices, error) {
 	if len(replaces) == 0 {
 		return replacedInvoices{}, nil
 	}
 	invoiceIDs := make([]int64, 0, len(replaces))
-	registrationOf := make(map[int64]int64, len(replaces))
-	for registrationID, invoice := range replaces {
+	keyOf := make(map[int64]parentbilling.HolidayInvoiceKey, len(replaces))
+	for key, invoice := range replaces {
 		invoiceIDs = append(invoiceIDs, invoice.ID)
-		registrationOf[invoice.ID] = registrationID
+		keyOf[invoice.ID] = key
 	}
 	positions, err := b.store.InvoiceCorrections(ctx, organizationID, invoiceIDs)
 	if err != nil {
@@ -49,23 +51,23 @@ func (b *BillingRuns) replacedInvoices(ctx context.Context, organizationID, runI
 		return replacedInvoices{}, fmt.Errorf("parent billing: read the credits of the cancelled invoices: %w", err)
 	}
 	result := replacedInvoices{
-		corrections: map[int64][]parentbilling.BillingCarriedCorrection{},
-		credits:     map[int64][]parentbilling.BillingDocumentLink{},
+		corrections: map[parentbilling.HolidayInvoiceKey][]parentbilling.BillingCarriedCorrection{},
+		credits:     map[parentbilling.HolidayInvoiceKey][]parentbilling.BillingDocumentLink{},
 	}
 	for _, position := range positions {
 		if dismissed[position.PositionID] {
 			continue
 		}
-		registrationID := registrationOf[position.SourceDocumentID]
-		position.SourceNumber = replaces[registrationID].Number
-		result.corrections[registrationID] = append(result.corrections[registrationID], position)
+		key := keyOf[position.SourceDocumentID]
+		position.SourceNumber = replaces[key].Number
+		result.corrections[key] = append(result.corrections[key], position)
 	}
 	for _, document := range referencing {
 		if document.Kind != parentbilling.DocumentCredit || document.ReferenceDocumentID == nil || document.IssuedOn == nil {
 			continue
 		}
-		registrationID := registrationOf[*document.ReferenceDocumentID]
-		result.credits[registrationID] = append(result.credits[registrationID], parentbilling.BillingDocumentLink{
+		key := keyOf[*document.ReferenceDocumentID]
+		result.credits[key] = append(result.credits[key], parentbilling.BillingDocumentLink{
 			ID: document.ID, RunID: document.RunID, Kind: document.Kind, Number: document.Number,
 			IssuedOn: *document.IssuedOn, TotalCents: document.TotalCents, Reason: document.Reason,
 		})

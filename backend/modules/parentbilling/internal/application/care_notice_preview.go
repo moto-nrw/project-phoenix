@@ -8,8 +8,8 @@ import (
 	"hash/fnv"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // noticePreview is the preview of a calculated notice run: the drafts, the
@@ -298,7 +298,8 @@ func appendNew[T any](list, entries []T) []T {
 // those of a monthly invoice (#4689): the family's deviation, else the terms
 // of the monthly care.
 func (n *CareFeeNotices) withPayments(ctx context.Context, organizationID int64, notices []parentbilling.CareNotice, issuedOn calendar.Date) error {
-	payments, err := readInvoicePayments(ctx, n.billing.store, organizationID, 0, 0)
+	// A notice names no debtor number: the payer's terms are enough.
+	payments, err := readInvoicePayments(ctx, n.billing.store, organizationID, 0, 0, parentbilling.DebtorNumberScopePayer, false)
 	if err != nil {
 		return err
 	}

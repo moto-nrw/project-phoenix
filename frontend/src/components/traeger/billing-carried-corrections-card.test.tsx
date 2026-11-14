@@ -57,6 +57,7 @@ function documentOf(
     number: "",
     issuedOn: null,
     registrationId: "3",
+    registrationChildId: "",
     recipientFirstName: "Sabine",
     recipientLastName: "Muster",
     recipientEmail: "sabine@example.org",

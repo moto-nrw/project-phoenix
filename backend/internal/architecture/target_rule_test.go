@@ -138,7 +138,7 @@ func TestTargetOnlyRuleRejectsTransitionMarkersAndIssues(t *testing.T) {
 		}
 	}
 	err := targetOnlyFixture(t, func(document map[string]any) {
-		document["rules"].([]any)[0].(map[string]any)["issue"] = "https://github.com/moto-nrw/project-phoenix/issues/2729"
+		document["rules"].([]any)[0].(map[string]any)["issue"] = "https://github.com/moto-ogs/project-phoenix/issues/2729"
 	})
 	if err == nil || !strings.Contains(err.Error(), "carries issue") {
 		t.Fatalf("rule issue accepted: %v", err)
@@ -152,7 +152,7 @@ func TestTargetOnlyRuleAppliesFromItsEpoch(t *testing.T) {
 		"foreign application":  addFixtureRule(map[string]any{"id": "alpha.application.beta-application", "source_owner": "alpha", "source_role": "application", "target_owner": "beta", "target_role": "application"}),
 		"platform into domain": addFixtureRule(map[string]any{"id": "runtime.application.alpha-public", "source_owner": "runtime", "source_role": "application", "target_owner": "alpha", "target_role": "public"}),
 		"issue": func(document map[string]any) {
-			document["rules"].([]any)[0].(map[string]any)["issue"] = "https://github.com/moto-nrw/project-phoenix/issues/2729"
+			document["rules"].([]any)[0].(map[string]any)["issue"] = "https://github.com/moto-ogs/project-phoenix/issues/2729"
 		},
 		"marker": func(document map[string]any) {
 			document["rules"].([]any)[0].(map[string]any)["description"] = "Compatibility permission until #2675."

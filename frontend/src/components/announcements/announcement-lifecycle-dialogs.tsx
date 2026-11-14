@@ -6,7 +6,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuItem } from "~/components/ui/page-header/types";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -280,6 +280,7 @@ export function buildAnnouncementMenuItems(
     items.push({
       // moto schule sagt Senden: die Lehrkraft schickt einen Brief ab.
       label: handlers.classLetterAuthor ? "Senden" : "Veröffentlichen",
+      description: "Geht nach Ihrer Bestätigung sofort an die gewählten Eltern",
       icon: <Send className="size-4" aria-hidden />,
       onClick: handlers.onPublish,
     });
@@ -294,6 +295,7 @@ export function buildAnnouncementMenuItems(
   ) {
     items.push({
       label: "Bearbeiten",
+      description: "Öffnet den Entwurf zum Ändern",
       icon: <Pencil className="size-4" aria-hidden />,
       onClick: handlers.onEdit,
     });
@@ -309,6 +311,8 @@ export function buildAnnouncementMenuItems(
       label: announcement.reminder_at
         ? "Erinnerung ändern"
         : "Erinnerung planen",
+      description:
+        "Legt fest, wann moto den Eintrag allen Empfängern noch einmal schickt",
       icon: <BellRing className="size-4" aria-hidden />,
       onClick: handlers.onReminder,
     });
@@ -316,6 +320,8 @@ export function buildAnnouncementMenuItems(
   if (!announcement.system_kind && announcement.status === "published") {
     items.push({
       label: "Zurückziehen",
+      description:
+        "Macht den Eintrag wieder zum Entwurf, moto fragt vorher nach",
       icon: <Undo2 className="size-4" aria-hidden />,
       onClick: handlers.onUnpublish,
     });
@@ -323,6 +329,7 @@ export function buildAnnouncementMenuItems(
   if (!announcement.system_kind) {
     items.push({
       label: "Löschen",
+      description: "Löscht den Eintrag, moto fragt vorher nach",
       icon: <Trash2 className="size-4" aria-hidden />,
       destructive: true,
       onClick: handlers.onDelete,
@@ -334,6 +341,7 @@ export function buildAnnouncementMenuItems(
 function viewItem(onView: () => void): OverflowMenuItem {
   return {
     label: "Anzeigen",
+    description: "Öffnet die Seite mit Text und Empfängern des Eintrags",
     icon: <MotoConceptIcon concept={reportsConcept} size={16} />,
     onClick: onView,
   };

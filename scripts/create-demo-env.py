@@ -49,8 +49,7 @@ def main():
         # belong here too. The encrypted file is authoritative once it exists;
         # keep this list in sync with it.
         "CORS_ALLOWED_ORIGINS": "https://demo.moto-app.de,https://*.demo.moto-app.de,"
-                                "https://moto-ogs.de,https://www.moto-ogs.de,https://staging.moto-ogs.de,"
-                                "https://moto.nrw,https://www.moto.nrw",
+                                "https://moto-ogs.de,https://www.moto-ogs.de,https://staging.moto-ogs.de",
         # SENTRY_DSN stays the staging value: backend events of all environments go
         # to one project and filter apart by APP_ENV.
         "NEXT_PUBLIC_SENTRY_DSN": "",

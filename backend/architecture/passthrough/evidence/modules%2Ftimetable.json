@@ -2340,6 +2340,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (r TimetableInstanceStaffReads) FindByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to calendar.Date) ([]*timetable.InstanceStaff, error) {\n\tif len(staffIDs) == 0 {\n\t\treturn []*timetable.InstanceStaff{}, nil\n\t}\n\tfromDay, toDay := from.String(), to.String()\n\tvalues, err := r.staff.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{StaffIDs: staffIDs, FromDate: \u0026fromDay, ToDate: \u0026toDay, OrderByActivityDateTime: true})\n\treturn instanceStaffPointers(values, err, \"find by staff ids and date range\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/timetable/internal/application/TimetableInstanceStaffReads.FindByStaffIDsAndDateRange",
+      "owner": "modules/timetable"
+    },
+    {
+      "build": "production",
       "evidence": "func (r TimetableInstanceStaffReads) ListBySickAbsence(ctx context.Context, absenceID int64) ([]*timetable.InstanceStaff, error) {\n\tvalues, err := r.staff.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{SickAbsenceID: \u0026absenceID})\n\treturn instanceStaffPointers(values, err, \"list with options\")\n}",
       "form": "unclassified-evidence",
       "id": "modules/timetable/internal/application/TimetableInstanceStaffReads.ListBySickAbsence",

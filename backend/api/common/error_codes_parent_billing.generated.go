@@ -52,6 +52,7 @@ const CodeParentBillingCareTariffMonthBilled = "parent_billing.care_tariff_month
 const CodeParentBillingCareTariffNotFound = "parent_billing.care_tariff_not_found"
 const CodeParentBillingCareVersionsOverlap = "parent_billing.care_versions_overlap"
 const CodeParentBillingCarriedCorrectionNotFound = "parent_billing.carried_correction_not_found"
+const CodeParentBillingChildNotFound = "parent_billing.child_not_found"
 const CodeParentBillingContributionRuleInvalid = "parent_billing.contribution_rule_invalid"
 const CodeParentBillingContributionRuleNotFound = "parent_billing.contribution_rule_not_found"
 const CodeParentBillingContributionRuleOverlap = "parent_billing.contribution_rule_overlap"
@@ -72,9 +73,15 @@ const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked
 const CodeParentBillingDirectDebitWithoutMandate = "parent_billing.direct_debit_without_mandate"
 const CodeParentBillingDocumentKindInvalid = "parent_billing.document_kind_invalid"
 const CodeParentBillingDueDatesInvalid = "parent_billing.due_dates_invalid"
+const CodeParentBillingExportAlreadyHandedOver = "parent_billing.export_already_handed_over"
 const CodeParentBillingExportFileNumberStartLocked = "parent_billing.export_file_number_start_locked"
+const CodeParentBillingExportFormatsInvalid = "parent_billing.export_formats_invalid"
 const CodeParentBillingExportInvoiceNotFound = "parent_billing.export_invoice_not_found"
 const CodeParentBillingExportMappingInvalid = "parent_billing.export_mapping_invalid"
+const CodeParentBillingExportRecipientInvalid = "parent_billing.export_recipient_invalid"
+const CodeParentBillingExportRecipientNameTaken = "parent_billing.export_recipient_name_taken"
+const CodeParentBillingExportRecipientNotFound = "parent_billing.export_recipient_not_found"
+const CodeParentBillingExportRecipientNotReady = "parent_billing.export_recipient_not_ready"
 const CodeParentBillingExportRunEmpty = "parent_billing.export_run_empty"
 const CodeParentBillingExportRunNotFound = "parent_billing.export_run_not_found"
 const CodeParentBillingFamilyBillingInvalid = "parent_billing.family_billing_invalid"
@@ -176,6 +183,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCareTariffNotFound, "business_rejection"},
 	{CodeParentBillingCareVersionsOverlap, "business_rejection"},
 	{CodeParentBillingCarriedCorrectionNotFound, "business_rejection"},
+	{CodeParentBillingChildNotFound, "business_rejection"},
 	{CodeParentBillingContributionRuleInvalid, "input"},
 	{CodeParentBillingContributionRuleNotFound, "business_rejection"},
 	{CodeParentBillingContributionRuleOverlap, "business_rejection"},
@@ -196,9 +204,15 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingDirectDebitWithoutMandate, "business_rejection"},
 	{CodeParentBillingDocumentKindInvalid, "input"},
 	{CodeParentBillingDueDatesInvalid, "input"},
+	{CodeParentBillingExportAlreadyHandedOver, "business_rejection"},
 	{CodeParentBillingExportFileNumberStartLocked, "business_rejection"},
+	{CodeParentBillingExportFormatsInvalid, "input"},
 	{CodeParentBillingExportInvoiceNotFound, "business_rejection"},
 	{CodeParentBillingExportMappingInvalid, "input"},
+	{CodeParentBillingExportRecipientInvalid, "input"},
+	{CodeParentBillingExportRecipientNameTaken, "business_rejection"},
+	{CodeParentBillingExportRecipientNotFound, "business_rejection"},
+	{CodeParentBillingExportRecipientNotReady, "business_rejection"},
 	{CodeParentBillingExportRunEmpty, "business_rejection"},
 	{CodeParentBillingExportRunNotFound, "business_rejection"},
 	{CodeParentBillingFamilyBillingInvalid, "input"},

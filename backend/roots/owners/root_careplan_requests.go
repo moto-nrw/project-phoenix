@@ -4,20 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // CarePlanRequests are the parent request queues of Care Plan: the
@@ -35,6 +35,10 @@ type CarePlanRequests struct {
 	ParentRequests  parentrequests.Coordinator
 	Documents       careplan.StudentDocuments
 	AccidentReports careplan.StudentAccidentReports
+	// PickupChangeTeam tells the child's team about an approved one-day
+	// pickup time and serves its unread markers (#6855); nil without
+	// Delivery's notifications.
+	PickupChangeTeam careplan.PickupChangeTeam
 }
 
 // NewRequestShareVisibility builds People Directory's sharing rules over the
@@ -54,7 +58,8 @@ func BuildCarePlanRequests(
 	persons peopledirectory.Capability, people PeopleRows, schedules CarePlanSchedules, offerings CarePlanOfferings,
 	enrollment EnrollmentRows, timetableOwner timetable.Capability, settings settingsCompose.BatchSettingsService,
 	audit AuditOwner, services PeopleServices, emitter eventContract.Emitter, caller *CallerRows,
-	reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string, absences deliveryCompose.AbsenceNotifier, documentPermissions carePlanCompose.StudentDocumentPermissions,
+	reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string, absences deliveryCompose.AbsenceNotifier, pickupReach careplan.PickupChangeTeamReach, documentPermissions carePlanCompose.StudentDocumentPermissions,
+	cohorts timetable.CohortRosters,
 ) (CarePlanRequests, error) {
 	shares, err := NewRequestShareVisibility(db)
 	if err != nil {
@@ -70,14 +75,13 @@ func BuildCarePlanRequests(
 		NewParentStudentGuardianReads(people.StudentGuardians),
 		NewParentGuardianPolicy(), pickupPermissions,
 	)
-	requests := CarePlanRequests{
-		CareRequests: NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-			carePlan, persons, schedules.Arrivals, schedules.Pickups, NewLoggedStudentPresence(db, env.Logger),
-			schedules.AutoExcusal, carePlan, caller, emitter, hub,
-			reviews, permissions, events, env.Logger.With("service", "care-requests"), services.StudentAudit,
-			WithRequestShareVisibility(shares), WithCareRequestToday(env.Today), WithPickupPermissions(pickupPermissions), WithPickupPermissionApprovals(pickupPermissionApprovals),
-		),
-	}
+	requests := CarePlanRequests{PickupChangeTeam: newPickupChangeTeam(pickupReach, env)}
+	requests.CareRequests = NewCareScheduleRequestServiceWithPickupChangesAndPolicy(requests.PickupChangeTeam,
+		carePlan, persons, schedules.Arrivals, schedules.Pickups, NewLoggedStudentPresence(db, env.Logger),
+		schedules.AutoExcusal, carePlan, caller, emitter, hub,
+		reviews, permissions, events, env.Logger.With("service", "care-requests"), services.StudentAudit,
+		WithRequestShareVisibility(shares), WithCareRequestToday(env.Today), WithPickupPermissions(pickupPermissions), WithPickupPermissionApprovals(pickupPermissionApprovals),
+	)
 	if requests.OfferingChanges, err = buildOfferingChanges(db, env, carePlan, people, enrollment, timetableOwner, settings, offerings, reviews, permissions, emitter, shares); err != nil {
 		return CarePlanRequests{}, err
 	}
@@ -98,7 +102,17 @@ func BuildCarePlanRequests(
 	); err != nil {
 		return CarePlanRequests{}, fmt.Errorf("compose excused absence requests: %w", err)
 	}
-	return buildCarePlanDecisions(db, env, hub, carePlan, persons, people, services, emitter, caller, reviews, permissions, shares, audit, requests, documentPermissions)
+	return buildCarePlanDecisions(db, env, hub, carePlan, persons, people, services, emitter, caller, reviews, permissions, shares, audit, requests, documentPermissions,
+		NewMasterDataClassChanges(offerings.Bookings, cohorts))
+}
+
+// newPickupChangeTeam builds Care Plan's notice to the child's team over the
+// root's reach; without one there is nobody to tell.
+func newPickupChangeTeam(reach careplan.PickupChangeTeamReach, env RootEnvironment) careplan.PickupChangeTeam {
+	if reach == nil {
+		return nil
+	}
+	return carePlanCompose.NewPickupChangeTeam(reach, StudentDirectoryReader(), env.Observe.CarePlan, nil)
 }
 
 // buildOfferingChanges binds the offering-change review over Enrollment's
@@ -139,6 +153,7 @@ func buildCarePlanDecisions(
 	persons peopledirectory.Capability, people PeopleRows, services PeopleServices, emitter eventContract.Emitter,
 	caller *CallerRows, reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string,
 	shares eventContract.ShareVisibilityResolver, audit AuditOwner, requests CarePlanRequests, documentPermissions carePlanCompose.StudentDocumentPermissions,
+	classChanges carePlanCompose.MasterDataClassChanges,
 ) (CarePlanRequests, error) {
 	deps, err := StudentDocumentDependencies(carePlan, people.Students, caller, audit.Persistence.StudentFieldEdit, audit.Persistence.DataAccessLog, documentPermissions)
 	if err != nil {
@@ -154,7 +169,7 @@ func buildCarePlanDecisions(
 	if requests.MasterData, err = NewMasterDataDecisions(
 		carePlan, persons, people.Students, people.Persons,
 		services.StudentAudit, ParentRequestWriteScope(reviews, permissions),
-		emitter, hub, events, shares, env.Logger.With("service", "master-data-review"), env.Today,
+		emitter, hub, events, shares, env.Logger.With("service", "master-data-review"), env.Today, classChanges,
 	); err != nil {
 		return CarePlanRequests{}, fmt.Errorf("compose master data decisions: %w", err)
 	}

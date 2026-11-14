@@ -402,11 +402,6 @@
     },
     {
       "decision": "0090",
-      "id": "api/calendarPeriodUsage.UsageCounts",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "api/capabilityError.Error",
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
@@ -676,9 +671,19 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0075",
+      "id": "api/groupLiveSettings.StudentCardActivitiesEnabled",
+      "reason": "ADR 0075 consumer-port adapter (#6487): binds the live-group projection Settings port to the tenant setting operations.student_card_activities_enabled, the same shape as StudentPhotosEnabled."
+    },
+    {
       "decision": "0090",
       "id": "api/groupLiveSettings.StudentPhotosEnabled",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0075",
+      "id": "api/groupStudentsInClassDay.InClassStillHolds",
+      "reason": "#5710: Consumer-port adapter that reads the school's care day end and applies the day-planning owner's rule for „Im Unterricht“, so the group student list ends the status like the staff views (ADR 0075 consumer-port adapter form)."
     },
     {
       "decision": "0214",
@@ -841,6 +846,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0090",
+      "id": "api/parentBillingActorNames.TraegerActorNames",
+      "reason": "#4693: consumer-port adapter of the Elternabrechnung onto the names of the Träger memberships of Organisation \u0026 Tenancy; it maps the list onto the map the port names."
+    },
+    {
       "decision": "0119",
       "id": "api/parentBillingBillingRegistrations.HolidayBillingPeriod",
       "reason": "ADR 0119 (#4668): Consumer-port adapter of the billing run's holiday periods; it reads the period of the session's Träger through Enrollment in the caller's Träger transaction and keeps its name and the days of its first and last week."
@@ -934,6 +944,11 @@
       "decision": "0158",
       "id": "api/parentBillingSettings.CareMonthRule",
       "reason": "ADR 0158 (#4684): Consumer-port adapter of the Elternabrechnung's settings port; it reads the month rule of the Träger through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed text into the port's answer."
+    },
+    {
+      "decision": "0121",
+      "id": "api/parentBillingSettings.DebtorNumberScope",
+      "reason": "ADR 0121 addendum (#5621), extended by #7007: Consumer-port adapter of the Elternabrechnung's settings port; it reads whom the Träger's debtor numbers name through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed text into the port's scope, the payer for any value it does not know."
     },
     {
       "decision": "0115",
@@ -1773,11 +1788,6 @@
     {
       "decision": "0090",
       "id": "roots/owners/EducationCaregivers.ListActiveCaregivers",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "roots/owners/EducationRooms.FindRoom",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -2739,6 +2749,11 @@
       "decision": "0090",
       "id": "roots/owners/TraegerBueroDirectory.DeactivateTraegerMembership",
       "reason": "#4650: root binding of the Organisation \u0026 Tenancy membership command to the Identity \u0026 Access port, dropping the result the port does not name and failing closed when unbound."
+    },
+    {
+      "decision": "0090",
+      "id": "roots/owners/TraegerBueroDirectory.NameTraegerMember",
+      "reason": "#4693: root binding of the Organisation \u0026 Tenancy name command to the Identity \u0026 Access port, translating a missing active membership into ErrTraegerMemberNotFound and failing closed when unbound."
     },
     {
       "decision": "0126",
@@ -4939,6 +4954,16 @@
       "decision": "0111",
       "id": "roots/owners/pickupApprovalAdapter.ValidatePickupPerson",
       "reason": "Bounded forwarding debt for the approval-time eligibility check; ADR 0111 records its transaction boundary."
+    },
+    {
+      "decision": "0075",
+      "id": "roots/owners/pickupChangeTeamReach.NotifyPickupChanged",
+      "reason": "ADR 0075 owner-edge translation (#6855): maps Care Plan's device notice of a changed pickup time onto the root's shared staff push with the Delivery type, the school of the request and a per-decision idempotency key; no decision or SQL."
+    },
+    {
+      "decision": "0075",
+      "id": "roots/owners/pickupChangeTeamReach.ResponsibleAccountIDs",
+      "reason": "ADR 0075 owner-edge translation (#6855): asks Delivery's responsibility rule for the child's staff under the pickup change type, excluding the deciding account, and fails closed when unbound; no decision or SQL."
     },
     {
       "decision": "0090",

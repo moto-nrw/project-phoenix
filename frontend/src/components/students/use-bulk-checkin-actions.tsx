@@ -178,6 +178,7 @@ export function useBulkCheckinActions(
               variant="outline"
               size="md"
               onClick={() => setPendingBulkCheckout(null)}
+              noTooltip="Schließt die Frage, kein Kind wird abgemeldet."
             >
               Abbrechen
             </Button>
@@ -186,6 +187,7 @@ export function useBulkCheckinActions(
               variant="surface"
               size="md"
               onClick={() => confirmBulkCheckout("class")}
+              tooltip="Meldet die Kinder sofort ab, weil sie zum Unterricht gehen."
             >
               {pendingBulkCheckout?.students.length === 1
                 ? "Geht zum Unterricht"
@@ -196,6 +198,7 @@ export function useBulkCheckinActions(
               variant="danger"
               size="md"
               onClick={() => confirmBulkCheckout()}
+              tooltip="Meldet die Kinder sofort ab, weil sie nach Hause gehen."
             >
               {pendingBulkCheckout?.students.length === 1
                 ? "Geht nach Hause"
@@ -263,6 +266,7 @@ export function useBulkCheckinActions(
               variant="outline"
               size="md"
               onClick={() => setBulkFailures(null)}
+              noTooltip="Schließt die Meldung, die Kinder bleiben ausgewählt."
             >
               Schließen
             </Button>
@@ -280,6 +284,11 @@ export function useBulkCheckinActions(
                 setBulkFailures(null);
                 void executeBulk(action, failedStudents, reason);
               }}
+              tooltip={
+                bulkFailures?.action === "in"
+                  ? "Meldet die übrigen Kinder sofort noch einmal an."
+                  : "Meldet die übrigen Kinder sofort noch einmal ab."
+              }
             >
               Erneut versuchen
             </Button>

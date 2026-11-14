@@ -22,6 +22,10 @@ import {
   CompTimePreviewPanel,
   useCompTimePreview,
 } from "~/components/staff/comp-time-preview";
+import {
+  MissingTargetDialogNotice,
+  type MissingTargetHint,
+} from "~/components/staff/missing-target-notice";
 import type { SickReportStaff } from "~/components/staff/sick-report-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -543,6 +547,7 @@ export function AbsenceBookingModal({
   onClose,
   onSaved,
   initialDate,
+  targetHint,
 }: {
   readonly staff: SickReportStaff;
   readonly types: readonly AbsenceType[];
@@ -551,6 +556,9 @@ export function AbsenceBookingModal({
   readonly onSaved: RefreshAfterWrite;
   /** Vorbelegter Tag, z. B. ein vergangener Tag ohne Eintrag (#3258). */
   readonly initialDate?: string;
+  /** Warnt, wenn die Person kein Soll hat (#6887); nur mit
+   *  `time_tracking:manage`. */
+  readonly targetHint?: MissingTargetHint;
 }) {
   const toast = useToast();
   const options = useMemo(() => bookingOptions(types), [types]);
@@ -685,6 +693,32 @@ export function AbsenceBookingModal({
     (customTypeId !== null &&
       (allowanceLoading || allowanceFailed || customBlocked)) ||
     (isCompTime && (previewLoading || (isOverdraft && !overdraftConfirmed)));
+  // Der Grund am gesperrten Knopf; beim Speichern bleibt er nativ gesperrt.
+  const quotaPending =
+    (selected?.kind === "quota" && loading) ||
+    (customTypeId !== null && allowanceLoading) ||
+    (isCompTime && previewLoading);
+  const quotaFailed =
+    (selected?.kind === "quota" && failed) ||
+    (customTypeId !== null && allowanceFailed);
+  const blockedReason = saving
+    ? undefined
+    : !selected
+      ? "Wählen Sie zuerst eine Art aus."
+      : !dateStart || !effectiveEnd
+        ? "Wählen Sie zuerst den Zeitraum aus."
+        : effectiveEnd < dateStart
+          ? "Das Ende muss nach dem Beginn liegen."
+          : quotaPending
+            ? "moto rechnet die verfügbaren Tage noch aus."
+            : quotaFailed
+              ? "Laden Sie zuerst die verfügbaren Tage oben neu."
+              : (selected.kind === "quota" && shortfall !== undefined) ||
+                  (customTypeId !== null && customBlocked)
+                ? "Ändern Sie zuerst den Anspruch, die Tage reichen nicht."
+                : isOverdraft && !overdraftConfirmed
+                  ? "Bestätigen Sie zuerst das Minus im Stundenkonto."
+                  : undefined;
 
   const save = async () => {
     if (disabled || !selected) return;
@@ -737,6 +771,7 @@ export function AbsenceBookingModal({
             size="md"
             onClick={onClose}
             disabled={saving}
+            noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
           >
             Abbrechen
           </Button>
@@ -746,8 +781,10 @@ export function AbsenceBookingModal({
             size="md"
             onClick={() => void save()}
             disabled={disabled}
+            disabledReason={blockedReason}
             isLoading={saving}
             loadingText="Wird eingetragen…"
+            tooltip="Trägt die Abwesenheit sofort ein, ohne Antrag."
           >
             Eintragen
           </Button>
@@ -804,6 +841,17 @@ export function AbsenceBookingModal({
         ) : null}
         {selected ? (
           <p className="text-sm text-gray-600">{effectLine(selected.kind)}</p>
+        ) : null}
+        {/* Freizeitausgleich schreibt ohnehin nichts gut; nur die übrigen
+            Arten verlieren ohne Soll ihre Gutschrift (#6887). */}
+        {targetHint && !isCompTime ? (
+          <MissingTargetDialogNotice
+            staffId={staff.id}
+            staffName={`${staff.firstName} ${staff.lastName}`}
+            date={dateStart}
+            entryLabel="Die Abwesenheit"
+            canSetTarget={targetHint.canSetTarget}
+          />
         ) : null}
         {selected?.kind === "quota" && projections.length > 0 ? (
           <QuotaSummary label={selected.label} projections={projections} />

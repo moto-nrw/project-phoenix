@@ -108,6 +108,18 @@ export function studentSearchTopic(
           "Wählen Sie `Aufheben`, um alle Kreuze zu entfernen.",
         ],
       },
+      {
+        // #6954: der Filter steht im Filterfeld unter `Anmeldung`, nur mit
+        // Zugriff auf die Angaben der Kinderakte und nur bei eigenen
+        // Ja/Nein- oder Auswahlfragen der Online-Anmeldung.
+        title: "Nach Angaben aus der Anmeldung filtern",
+        steps: [
+          "Wählen Sie rechts neben der Suche das Filtersymbol.",
+          "Wählen Sie unter `Anmeldung` bei `Angabe aus der Anmeldung` eine Antwort, zum Beispiel eine Frage mit `Ja`.",
+          "Die Zahl in Klammern nennt, wie viele Kinder die Liste dann zeigt. Kinder, die die Schule verlassen haben, zählen nicht.",
+          "`Alle Angaben` hebt den Filter wieder auf.",
+        ],
+      },
     ],
     result:
       "Sie sehen jetzt die Angaben des Kindes. Über dem Namen steht `Zurück zur Kinderübersicht`. Damit kommen Sie zur Liste zurück.",
@@ -117,11 +129,13 @@ export function studentSearchTopic(
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
       "Fehlen `Gruppen` und `Aktuelle Aufsicht` in der Navigation? Dann wählen Sie in `Alle Kinder` oben `Meine Gruppe` oder `Meine Aufsicht`.",
       "Einige Bereiche brauchen zusätzliche Rechte: `Betreuungsplan`, `Dokumente` und `Änderungsprotokoll`. Fehlt ein Bereich? Fragen Sie Ihre Leitung.",
+      "Fehlt im Filter `Anmeldung`? Den Filter sehen nur Mitarbeitende, die auch die Angaben aus der Anmeldung beim Kind sehen. Er erscheint erst, wenn die Online-Anmeldung eigene Fragen mit Ja/Nein oder zur Auswahl hat.",
       ...(presenceDifference ? [presenceDifference] : []),
     ],
     ...(transitNotes.length > 0 ? { notes: transitNotes } : {}),
     troubleshooting: HELP_TOPICS.missingChildOrGroup,
     related: [
+      HELP_TOPICS.schoolSearch,
       HELP_TOPICS.editStudent,
       HELP_TOPICS.webAttendance,
       HELP_TOPICS.absences,

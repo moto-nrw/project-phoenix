@@ -1,6 +1,6 @@
 package application
 
-import "github.com/moto-nrw/project-phoenix/modules/enrollment"
+import "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 // RequestReads is the per-account read state of the admin queue (#3778); nil
 // when the composition bound none. The owner keeps it; the decision flow only

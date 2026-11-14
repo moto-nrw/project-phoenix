@@ -15,12 +15,12 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/internal/application/importservice"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	importService "github.com/moto-ogs/project-phoenix/modules/dataimport/internal/application/importservice"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Chunk executor of the class-list import (#5827, ADR 0067 addendum of
@@ -376,53 +376,88 @@ func (c faultConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	return &faultConn{Conn: conn, connector: c}, nil
 }
 
+// cellFaultConnector opens the connections of a testpkg.CellPool: each
+// statement follows the rules of the cell that issued it, a *faultConnector
+// the cell's handle carries as its plan (testpkg.CellPlan).
+type cellFaultConnector struct {
+	driver.Connector
+}
+
+func (c cellFaultConnector) Connect(ctx context.Context) (driver.Conn, error) {
+	conn, err := c.Connector.Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &faultConn{Conn: conn, cells: true}, nil
+}
+
 type faultConn struct {
 	driver.Conn
 	connector faultConnector
+	cells     bool // on a CellPool: the rules are the plan of the issuing cell
 }
 
-func (c *faultConn) fail(query string) error {
-	if c.connector.decide != nil {
-		return c.connector.decide(query)
+// rules are the fault rules for the step of ctx.
+func (c *faultConn) rules(ctx context.Context) (faultConnector, error) {
+	if !c.cells {
+		return c.connector, nil
 	}
-	if second := c.connector; second.armed2 != nil && strings.HasPrefix(strings.TrimSpace(query), second.prefix2) && second.armed2.CompareAndSwap(true, false) {
+	if rules, ok := testpkg.CellPlan(ctx).(*faultConnector); ok {
+		return *rules, nil
+	}
+	return faultConnector{}, testpkg.ErrStatementOutsideCell
+}
+
+func (c *faultConn) fail(ctx context.Context, query string) error {
+	rules, err := c.rules(ctx)
+	if err != nil {
+		return err
+	}
+	if rules.decide != nil {
+		return rules.decide(query)
+	}
+	if second := rules; second.armed2 != nil && strings.HasPrefix(strings.TrimSpace(query), second.prefix2) && second.armed2.CompareAndSwap(true, false) {
 		return second.err2
 	}
-	if !c.connector.armed.Load() || !strings.HasPrefix(strings.TrimSpace(query), c.connector.prefix) {
+	if !rules.armed.Load() || !strings.HasPrefix(strings.TrimSpace(query), rules.prefix) {
 		return nil
 	}
-	if c.connector.matches != nil && c.connector.matches.Add(1) < max(c.connector.nth, 1) {
+	if rules.matches != nil && rules.matches.Add(1) < max(rules.nth, 1) {
 		return nil
 	}
-	if !c.connector.armed.CompareAndSwap(true, false) {
+	if !rules.armed.CompareAndSwap(true, false) {
 		return nil
 	}
-	if c.connector.err != nil {
-		return c.connector.err
+	if rules.err != nil {
+		return rules.err
 	}
 	return driver.ErrBadConn
 }
 
 func (c *faultConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	if err := c.fail(query); err != nil {
+	if err := c.fail(ctx, query); err != nil {
 		return nil, err
 	}
 	return c.Conn.(driver.ExecerContext).ExecContext(ctx, query, args)
 }
 
 func (c *faultConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
-	if err := c.fail(query); err != nil {
+	if err := c.fail(ctx, query); err != nil {
 		return nil, err
 	}
 	return c.Conn.(driver.QueryerContext).QueryContext(ctx, query, args)
 }
 
 func (c *faultConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
+	rules, err := c.rules(ctx)
+	if err != nil {
+		return nil, err
+	}
 	tx, err := c.Conn.(driver.ConnBeginTx).BeginTx(ctx, opts)
-	if err != nil || (c.connector.rollback == nil && c.connector.commit == nil) {
+	if err != nil || (rules.rollback == nil && rules.commit == nil) {
 		return tx, err
 	}
-	return faultTx{Tx: tx, rollback: c.connector.rollback, commit: c.connector.commit}, nil
+	return faultTx{Tx: tx, rollback: rules.rollback, commit: rules.commit}, nil
 }
 
 // faultTx reports an injected failure of ROLLBACK after it really rolled

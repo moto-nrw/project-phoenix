@@ -53,5 +53,10 @@
   "newsLetterBindingHint": "Ky e-mail është vetëm për informim. Vlen konfirmimi këtu në portalin e prindërve. Mjafton një person kujdestar për çdo fëmijë.",
   "newsErrorObjectAnswer": "përgjigjja",
   "newsErrorObjectConfirmation": "konfirmimi i leximit",
-  "newsErrorObjectAttachments": "lista e skedarëve"
+  "newsErrorObjectAttachments": "lista e skedarëve",
+  "newsPollClearTooltip": "Heq zgjedhjen, dërgohet vetëm me „Ruaj përgjigjen”.",
+  "newsPollSaveTooltip": "Dërgon menjëherë përgjigjen tuaj te shkolla.",
+  "newsPollSaveDisabledReason": "Fillimisht zgjidhni një përgjigje ose ndryshoni zgjedhjen.",
+  "newsReadAndConfirmTooltip": "I konfirmon menjëherë shkollës që e keni lexuar mesazhin.",
+  "newsCloseUnsavedTooltip": "Mbyll sondazhin, zgjedhja juaj e re humbet."
 }

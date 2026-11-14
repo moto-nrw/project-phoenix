@@ -5,5 +5,6 @@
   "appInstallTitle": "moto als App hinzufügen",
   "appInstallDescription": "Installieren Sie moto nicht über Samsung Internet. Öffnen Sie moto dafür in Chrome.",
   "appInstallGenericDescription": "Fügen Sie moto zum Startbildschirm Ihres Handys hinzu. Dann öffnen Sie moto wie eine App.",
-  "appInstallGuide": "Anleitung öffnen"
+  "appInstallGuide": "Anleitung öffnen",
+  "appInstallGuideTooltip": "Öffnet die Anleitung für moto auf dem Startbildschirm."
 }

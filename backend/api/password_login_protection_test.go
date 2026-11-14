@@ -14,12 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	accountHTTP "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
-	operatorHTTP "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentHTTP "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	accountHTTP "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account"
+	operatorHTTP "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentHTTP "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 func TestPasswordFailuresLockAccountAcrossPortals(t *testing.T) {
@@ -33,8 +33,9 @@ func TestPasswordFailuresLockAccountAcrossPortals(t *testing.T) {
 	require.NoError(t, err)
 	module, err := NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
+	parents := module.Auth.(identityaccess.ParentPortalAccess).Parents()
 	for range 5 {
-		_, _, err = module.Auth.LoginParentWithAudit(t.Context(), account.Email, testpkg.NewTestPassword(), "", "")
+		_, err = parents.LoginParent(t.Context(), identityaccess.ParentLoginRequest{Email: account.Email, Password: testpkg.NewTestPassword()})
 		require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials)
 	}
 	result, err := module.Auth.LoginWithMFAGate(t.Context(), account.Email, password, "", "", "", "")
@@ -84,7 +85,7 @@ func passwordLoginFixture(t *testing.T, portal string) (*bun.DB, int64, func(str
 			_, err := module.Auth.LoginOperatorWithMFAGate(t.Context(), email, value, "", "", "")
 			return err
 		case "parent":
-			_, _, err := module.Auth.LoginParentWithAudit(t.Context(), email, value, "", "")
+			_, err := module.Auth.(identityaccess.ParentPortalAccess).Parents().LoginParent(t.Context(), identityaccess.ParentLoginRequest{Email: email, Password: value})
 			return err
 		case "school":
 			_, err := module.Auth.LoginSchoolWithMFAGate(t.Context(), email, value, "", "", "")

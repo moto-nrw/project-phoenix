@@ -159,7 +159,17 @@ const logger = createLogger({ component: "EnrollmentForm" });
 // nothing else, so the reuse picker must not offer anything else either.
 const ENROLLED_CHILD_STATUSES = new Set(["active", "pending"]);
 
-interface Props {
+/**
+ * A caller that renames the submit button also says what its click does;
+ * without both the button sends a new enrollment (#6643).
+ */
+type SubmitCopy =
+  | { readonly submitLabel?: undefined; readonly submitTooltip?: undefined }
+  | { readonly submitLabel: string; readonly submitTooltip: string };
+
+type Props = SubmitCopy & PropsBase;
+
+interface PropsBase {
   readonly phaseID?: string;
   readonly gradeLevelMax: number;
   readonly onSubmitted: (statusURL: string) => void;
@@ -207,7 +217,6 @@ interface Props {
    * bookings and the current year's wish. Callers must lock child structure.
    */
   readonly restrictToOfferings?: boolean;
-  readonly submitLabel?: string;
   /**
    * ADMIN ONLY (#2186). Renders offerings the child's grade level rules out
    * as disabled entries with the reason, instead of omitting them. Parents
@@ -252,6 +261,7 @@ export function EnrollmentForm({
   lockChildStructure = false,
   restrictToOfferings = false,
   submitLabel,
+  submitTooltip,
   showBlockedOfferings = false,
   offeringBookingStats,
   withoutSignature = false,
@@ -278,6 +288,8 @@ export function EnrollmentForm({
             openLabel: (label) => tr("attachments.openLabel", { label }),
             downloadLabel: (label) =>
               tr("attachments.downloadLabel", { label }),
+            openHint: tr("attachments.openHint"),
+            downloadHint: tr("attachments.downloadHint"),
             popupBlocked: tr("attachments.popupBlocked"),
             errorObject: tr("attachments.errorObject"),
           },
@@ -539,6 +551,26 @@ export function EnrollmentForm({
   const captchaRef = useRef<TurnstileInstance>(undefined);
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaRequired = !skipCaptcha && captchaConfig?.enabled === true;
+  // A failed attempt used up its captcha response, so "Wiederholen" waits
+  // for the next one instead of sending without it (#6739).
+  const [retryPending, setRetryPending] = useState(false);
+  const captchaSectionRef = useRef<HTMLElement>(null);
+  const retrySubmit = () => {
+    setRetryPending(true);
+    // A challenge the parent has to answer sits below the form: show it,
+    // or "Wiederholen" seems to do nothing.
+    if (captchaRequired) {
+      captchaSectionRef.current?.scrollIntoView?.({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  };
+  useEffect(() => {
+    if (!retryPending || (captchaRequired && !captchaToken)) return;
+    setRetryPending(false);
+    formRef.current?.requestSubmit();
+  }, [retryPending, captchaRequired, captchaToken]);
   // Which legal block text the parent is currently viewing in the modal.
   const [openLegalDoc, setOpenLegalDoc] = useState<PublicLegalBlock | null>(
     null,
@@ -823,8 +855,19 @@ export function EnrollmentForm({
   const signatureRequired =
     Boolean(schema?.core_requirements?.signature) && !withoutSignature;
 
+  // Why the submit button is blocked; while sending it stays natively
+  // disabled without a reason (#5608).
+  const submitBlockedReason = submitting
+    ? undefined
+    : previewMode
+      ? tr("buttonHints.previewSubmit")
+      : captchaRequired && !captchaConfig.site_key
+        ? tr("buttonHints.captchaUnavailable")
+        : tr("buttonHints.captchaPending");
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setRetryPending(false);
     formError.clear();
     setChildOfferingErrors({});
     setOfferingDayErrors({});
@@ -951,7 +994,7 @@ export function EnrollmentForm({
       // sees now, not the draft of the failed attempt.
       const presentation = await formError.show(err, {
         object: tr("errorObject"),
-        retry: () => formRef.current?.requestSubmit(),
+        retry: retrySubmit,
       });
       if (
         presentation &&
@@ -1015,6 +1058,7 @@ export function EnrollmentForm({
                 variant="surface"
                 size="md"
                 onClick={addGuardian}
+                tooltip={tr("buttonHints.addGuardian")}
                 className="w-full gap-1.5 whitespace-nowrap sm:w-auto sm:shrink-0"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -1091,6 +1135,7 @@ export function EnrollmentForm({
                     variant="ghost_danger"
                     size="compact"
                     onClick={() => removeGuardian(i)}
+                    tooltip={tr("buttonHints.removeGuardian")}
                   >
                     {tr("actions.remove")}
                   </Button>
@@ -1215,6 +1260,7 @@ export function EnrollmentForm({
                 variant="surface"
                 size="md"
                 onClick={addChild}
+                tooltip={tr("buttonHints.addChild")}
                 className="w-full gap-1.5 whitespace-nowrap sm:w-auto sm:shrink-0"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -1393,6 +1439,7 @@ export function EnrollmentForm({
                       variant="ghost_danger"
                       size="compact"
                       onClick={() => removeChild(i)}
+                      tooltip={tr("buttonHints.removeChild")}
                     >
                       {tr("actions.remove")}
                     </Button>
@@ -1845,7 +1892,7 @@ export function EnrollmentForm({
           isOpen={openLegalDoc !== null}
           onClose={() => setOpenLegalDoc(null)}
           title={openLegalDoc?.title ?? ""}
-          widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
+          size="lg"
         >
           <div className="max-h-[60vh] overflow-y-auto text-sm text-gray-700">
             <LegalMarkdown text={openLegalDoc?.text ?? ""} />
@@ -1857,7 +1904,11 @@ export function EnrollmentForm({
           above blocks the form: failing closed beats letting bots through.
           The hidden input sends the token with the form. */}
         {captchaRequired && captchaConfig.site_key && (
-          <section aria-labelledby="captcha-heading" className="space-y-2">
+          <section
+            ref={captchaSectionRef}
+            aria-labelledby="captcha-heading"
+            className="space-y-2"
+          >
             <h2 id="captcha-heading" className="sr-only">
               Sicherheitsprüfung
             </h2>
@@ -1881,6 +1932,8 @@ export function EnrollmentForm({
             previewMode ||
             (captchaRequired && (!captchaConfig.site_key || !captchaToken))
           }
+          disabledReason={submitBlockedReason}
+          tooltip={submitTooltip ?? tr("buttonHints.submit")}
           className="w-full disabled:cursor-not-allowed"
         >
           {previewMode
@@ -2348,6 +2401,8 @@ function ExistingChildrenPanel({
                 size="compact"
                 onClick={() => onAdopt(c)}
                 disabled={used}
+                disabledReason={tr("buttonHints.adopted")}
+                tooltip={tr("buttonHints.adopt")}
                 className="shrink-0"
               >
                 {used ? tr("structured.adopted") : tr("structured.adopt")}

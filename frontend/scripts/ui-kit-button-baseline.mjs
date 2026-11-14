@@ -16,13 +16,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/segmented-control.tsx",
-    lines: [147, 187, 204],
+    lines: [155, 201, 219],
     reason: "SegmentedControl: Wertauswahl, kein Knopf",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/toggle-chip.tsx",
-    lines: [38],
+    lines: [40],
     reason: "ToggleChip: Schalter (aria-pressed), kein Knopf",
   },
   {
@@ -39,38 +39,32 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/ui/page-header/NavigationTabs.tsx",
-    lines: [197],
-    reason: "Reiter: Auslöser des mobilen Reiter-Menüs",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [457],
+    lines: [393],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/planning/plan-block.tsx",
-    lines: [213],
+    lines: [210],
     reason: "Planungsblock im Raster: Kachel, kein Knopf",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/portal-bottom-nav.tsx",
-    lines: [393, 432],
+    lines: [401, 440],
     reason: "Navigationszeilen im „Mehr“-Blatt der unteren Leiste",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/guardians/guardian-picker-panel.tsx",
-    lines: [323],
+    lines: [326],
     reason: "Trefferzeile der Erziehungsberechtigten-Suche: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-message-modal.tsx",
-    lines: [393],
+    lines: [396],
     reason: "Elternteil in der Empfängerliste wählen: Auswahlzeile",
   },
   {
@@ -82,13 +76,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/files/files-page.tsx",
-    lines: [158],
+    lines: [157],
     reason: "Ordner-Navigation (aria-current), Navigationszeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/help/help-view.tsx",
-    lines: [1052],
+    lines: [1057],
     reason: "Artikel-Navigation der Hilfe (aria-current), Navigationszeile",
   },
   {
@@ -100,14 +94,14 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [817, 850, 950, 1131],
+    lines: [830, 867, 973, 1161],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
   {
     rule: "no-button-override",
     file: "src/components/parent/calendar/parent-calendar-page.tsx",
-    lines: [524, 776],
+    lines: [587, 856],
     reason:
       "Termin-Zeilen und Monats-Chips im Elternkalender, optisch Listeneinträge (#5529: nicht angleichen)",
   },
@@ -120,31 +114,31 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1067],
+    lines: [1101],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1567],
+    lines: [1583],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/companion-picker.tsx",
-    lines: [403],
+    lines: [406],
     reason: "Suchtreffer zum Auswählen: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/parent-messages-card.tsx",
-    lines: [144],
+    lines: [145],
     reason: "Nachrichtenzeile, öffnet den Verlauf: Navigationszeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/planned-status-days-modal.tsx",
-    lines: [1073],
+    lines: [1107],
     reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
   },
   {
@@ -156,12 +150,6 @@ export const buttonRatchetAllowlist = [
   // #5608: Seit die Regel `moto-content-surface`, Farben per `style` und
   // `label`/`span` mit `cursor-pointer` erkennt, sieht sie diese Kacheln und
   // Felder. Sie sind keine Knöpfe im Sinn von #5529.
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/ui/tile-card.tsx",
-    lines: [94, 149],
-    reason: "TileCard selbst: der Kit-Baustein für klickbare Kacheln",
-  },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/color-swatch-input.tsx",
@@ -184,13 +172,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1524],
+    lines: [1540],
     reason: "Statustag-Karte, öffnet das Entfernen: Kachel",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1016],
+    lines: [1050],
     reason: "Termin-Block in der Wochenansicht: Kalenderzelle",
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder

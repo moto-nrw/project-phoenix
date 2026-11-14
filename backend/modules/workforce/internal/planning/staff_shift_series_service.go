@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 var (
@@ -400,9 +400,9 @@ func indexSeriesShifts(existing []*workforce.ShiftRecord, seriesID int64) (map[c
 	return byDate, owned
 }
 
-// seriesCandidate is the occurrence of d. sickAbsenceID names the sick report
-// covering d as a full sick day, zero when the staff member is not sick then.
-func seriesCandidate(series *StaffShiftSeries, d calendar.Date, sickAbsenceID int64) *workforce.ShiftRecord {
+// seriesCandidate is the occurrence of d. stamp names the absence covering d
+// as a full absence day, the zero stamp when the staff member works then.
+func seriesCandidate(series *StaffShiftSeries, d calendar.Date, stamp absenceStamp) *workforce.ShiftRecord {
 	seriesID := series.ID
 	occurrenceDate := d
 	candidate := &workforce.ShiftRecord{
@@ -417,8 +417,8 @@ func seriesCandidate(series *StaffShiftSeries, d calendar.Date, sickAbsenceID in
 		SeriesOccurrenceDate: &occurrenceDate,
 		CreatedBy:            series.CreatedBy,
 	}
-	if sickAbsenceID > 0 {
-		applySickReport(candidate, sickAbsenceID)
+	if stamp.absenceID > 0 {
+		applySickReport(candidate, stamp)
 	}
 	return candidate
 }
@@ -517,10 +517,7 @@ func (s *staffShiftSeriesService) ensureShiftTypeActive(ctx context.Context, id 
 	if err != nil {
 		return err
 	}
-	if !shiftType.IsActive {
-		return ErrShiftTypeInactive
-	}
-	return nil
+	return shiftTypeOfferable(shiftType)
 }
 
 func (s *staffShiftSeriesService) loadSeries(ctx context.Context, id int64) (*StaffShiftSeries, error) {

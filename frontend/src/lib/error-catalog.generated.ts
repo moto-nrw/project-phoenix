@@ -13,6 +13,12 @@ export const ERROR_CATALOG = {
       server:
         "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
     },
+    portalClasses: {
+      traeger: {
+        permission:
+          "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Leitung Ihres Träger-Büros.",
+      },
+    },
     actions: {
       retry: "Wiederholen",
       copyRequestId: "Vorgangskennung kopieren",
@@ -28,6 +34,8 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "billing.invalid_key_day":
         "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage.",
+      "calendar.occurrence_unavailable":
+        "Diesen Termin gibt es nicht mehr, er wurde vielleicht abgesagt. Bitte laden Sie den Kalender neu.",
       "care_contract.application_not_found":
         "Diese Anmeldung gibt es nicht mehr oder sie ist nicht angenommen. Bitte laden Sie die Seite neu.",
       "care_contract.change_contract_not_active":
@@ -315,6 +323,10 @@ export const ERROR_CATALOG = {
         "Für dieses Kind ist kein Betreuungsangebot gebucht. Die Familie muss zuerst ein Angebot ergänzen.",
       "enrollment.approval_data_invalid":
         "Die Angaben dieser Anmeldung sind unvollständig. Bitte korrigieren Sie die Daten des Kindes.",
+      "enrollment.approval_offering_terms_changed":
+        "Ein Angebot hat sich seit der Anmeldung geändert. Öffnen Sie die Anmeldung und bestätigen Sie die neuen Angaben.",
+      "enrollment.approval_staff_profile_required":
+        "Diese Anmeldung enthält Abhol- oder Bringzeiten. Freigeben kann sie nur jemand mit Personalprofil.",
       "enrollment.captcha_failed":
         "Die Sicherheitsabfrage hat nicht geklappt. Bitte versuchen Sie es noch einmal.",
       "enrollment.captcha_required":
@@ -513,6 +525,8 @@ export const ERROR_CATALOG = {
         "Diesen Anmeldelink gibt es nicht. Bitte nutzen Sie den Link, den Sie vom Träger bekommen haben.",
       "enrollment.holiday_registration_state_conflict":
         "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
+      "enrollment.holiday_registration_status_not_found":
+        "Diesen Link zu einer Ferienanmeldung gibt es nicht. Bitte nutzen Sie den Link aus Ihrer E-Mail.",
       "enrollment.holiday_week_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen. Ein gebuchtes Zeitmodell können Sie archivieren. Dann kann es niemand mehr neu buchen.",
       "enrollment.holiday_week_day_limit":
@@ -554,6 +568,8 @@ export const ERROR_CATALOG = {
         "Für eine Einschränkung nach Klasse oder Klassenstufe muss die passende Abfrage eingeschaltet sein. Bitte schalten Sie sie in den Einstellungen ein.",
       "enrollment.phase_has_effective_bookings":
         "Für diese Anmeldephase sind noch Kinder gebucht. Deshalb kann sie nicht gelöscht werden. Wählen Sie stattdessen „Deaktivieren“ oder beenden Sie zuerst die Buchungen.",
+      "enrollment.phase_has_requests":
+        "Zu dieser Anmeldephase gibt es Anmeldungen. Deshalb kann sie nicht gelöscht werden. Wählen Sie stattdessen „Deaktivieren“.",
       "enrollment.phase_name_exists":
         "Es gibt schon eine Anmeldephase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
       "enrollment.phase_name_required":
@@ -688,6 +704,8 @@ export const ERROR_CATALOG = {
         "Dieses Konto gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "identity.account_not_in_school":
         "Dieses Konto gehört nicht zu dieser Schule. Bitte laden Sie die Seite neu.",
+      "identity.account_shared_across_schools":
+        "Dieses Konto gehört auch zu einer anderen Schule oder einem Träger. Deshalb können Sie das hier nicht ändern. Bitte wenden Sie sich an das moto-Team.",
       "identity.caterer_address_taken":
         "Diese E-Mail-Adresse gehört schon zu einem anderen moto-Konto. Bitte nehmen Sie eine andere Adresse.",
       "identity.caterer_without_school":
@@ -971,6 +989,8 @@ export const ERROR_CATALOG = {
         "Ein Vertrag hat an einem Tag zwei gültige Fassungen. Bitte melden Sie das dem Support. Der Lauf rechnet diesen Monat nicht ab.",
       "parent_billing.carried_correction_not_found":
         "Diese Korrektur wird in diesem Lauf nicht mehr vorgeschlagen. Bitte laden Sie die Seite neu.",
+      "parent_billing.child_not_found":
+        "Dieses Kind gehört nicht zu dieser Familie. Bitte laden Sie die Liste „Familien“ neu.",
       "parent_billing.contribution_rule_invalid":
         "Bitte prüfen Sie die markierten Felder.",
       "parent_billing.contribution_rule_not_found":
@@ -1011,12 +1031,24 @@ export const ERROR_CATALOG = {
         "Diese Dokumentart gibt es für diese Leistung nicht. Bitte wählen Sie eine aus der Liste.",
       "parent_billing.due_dates_invalid":
         "Die Fälligkeiten konnten nicht gespeichert werden. Bitte prüfen Sie die Daten.",
+      "parent_billing.export_already_handed_over":
+        "Diese Datei ist schon beim Empfänger oder noch unterwegs. Es wurde keine neue Datei erstellt.",
       "parent_billing.export_file_number_start_locked":
         "Die Dateinummern laufen schon. Die erste Nummer lässt sich nicht mehr ändern.",
+      "parent_billing.export_formats_invalid":
+        "Die Zuordnung wurde nicht gespeichert. Bitte laden Sie die Seite neu und versuchen Sie es noch einmal.",
       "parent_billing.export_invoice_not_found":
         "Diese Rechnung gibt es nicht. Laden Sie die Seite neu.",
       "parent_billing.export_mapping_invalid":
         "Die Feldzuordnung ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.export_recipient_invalid":
+        "Der Empfänger wurde nicht gespeichert. Bitte prüfen Sie die markierten Angaben.",
+      "parent_billing.export_recipient_name_taken":
+        "Einen Empfänger mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
+      "parent_billing.export_recipient_not_found":
+        "Diesen Empfänger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.export_recipient_not_ready":
+        "Diese Datei hat keinen bereiten Empfänger. Bitte ordnen Sie ihr unter „Empfänger der Exporte“ einen zu. Es wurde keine Datei erstellt.",
       "parent_billing.export_run_empty":
         "In diesem Lauf gibt es keine Rechnung. Es gibt keine Datei zum Herunterladen.",
       "parent_billing.export_run_not_found":
@@ -1131,6 +1163,8 @@ export const ERROR_CATALOG = {
         "Der Raum {room_name}: {current_occupancy} von {max_capacity} Plätzen sind belegt. Freie Plätze: {free_slots}. Es sollen {incoming_students} Kinder dazukommen.",
       "presence.statistics_range_invalid":
         "Der Zeitraum passt nicht. Er darf höchstens ein Jahr lang sein und nicht in der Zukunft enden.",
+      "presence.visit_overlap":
+        "Das Kind war ab {conflicting_from} Uhr in einem anderen Raum. Die Zeiten dürfen sich nicht überschneiden.",
       "provisioning.caregiver_capability_blocked":
         "Die Betreuungsrolle kann noch nicht entfernt werden, weil die Person noch eingeplant ist. Bitte lösen Sie diese Zuordnungen zuerst.",
       "provisioning.device_active_session":
@@ -1165,6 +1199,8 @@ export const ERROR_CATALOG = {
         "Diesen Träger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "provisioning.organization_slug_taken":
         "Diesen Slug hat schon ein anderer Träger. Bitte wählen Sie einen anderen.",
+      "provisioning.person_has_active_profile":
+        "Diese Person ist noch als Kind oder Mitarbeitende an der Schule angelegt. Das Kind löscht die Schule beim Kind. Mitarbeitende lassen sich erst nach ihrem Austritt löschen.",
       "provisioning.person_has_supervisions":
         "Diese Person führt gerade eine Aufsicht. Bitte beenden Sie die Aufsicht zuerst.",
       "provisioning.person_not_found":
@@ -1205,12 +1241,20 @@ export const ERROR_CATALOG = {
         "Aus dieser Phase gibt es schon eine Anschlussphase. Bitte löschen Sie zuerst die bestehende Anschlussphase.",
       "rollover.source_not_found":
         "Die Ausgangsphase gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "rooms.archived":
+        "Dieser Raum ist archiviert. Sie können ihn nicht mehr ändern.",
       "rooms.color_already_in_use":
         "Diese Farbe hat schon ein anderer Raum. Bitte wählen Sie eine andere Farbe.",
       "rooms.not_found":
         "Diesen Raum gibt es nicht mehr. Bitte wählen Sie ihn in der Liste neu aus.",
       "rooms.not_released":
         "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum.",
+      "rooms.required_by_care_offering":
+        "Ein Betreuungsangebot braucht diesen Raum noch. Wählen Sie dort zuerst einen anderen Raum.",
+      "rooms.session_running":
+        "In diesem Raum läuft gerade eine Aktivität. Beenden Sie sie zuerst.",
+      "rooms.still_planned":
+        "Dieser Raum wird noch genutzt. Verlegen Sie zuerst Aktivitäten, Termine, Gruppen und Geräte in einen anderen Raum.",
       "school.parent_conference_change_closed":
         "Bis 24 Stunden vor dem Termin können Sie buchen, umbuchen oder absagen. Danach wenden Sie sich bitte direkt an die Lehrkraft.",
       "school.parent_conference_slot_taken":
@@ -1299,6 +1343,8 @@ export const ERROR_CATALOG = {
         "Bitte wählen Sie höchstens 500 Kinder auf einmal aus.",
       "students.care_offerings_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "students.care_request_plan_changed":
+        "Der Betreuungsplan wurde gerade geändert. Bitte laden Sie die Seite neu. Prüfen Sie die Anfrage dann noch einmal.",
       "students.care_resume_alumnus":
         "Dieses Kind wurde beim Schuljahreswechsel abgemeldet. Sie finden es unter Schuljahreswechsel, Bereich Abgänge.",
       "students.care_resume_missing":
@@ -1385,6 +1431,8 @@ export const ERROR_CATALOG = {
         "Für das Kind gibt es keine gültige Anmeldung mehr. Bitte lehnen Sie {object} ab.",
       "students.partial_absence_conflict":
         "Das Kind ist an einem gewählten Tag schon ab einer Uhrzeit entschuldigt. Entfernen Sie zuerst die Teilentschuldigung unter „Entschuldigen“ und „Ab Uhrzeit“.",
+      "students.person_has_active_profile":
+        "Diese Person ist noch als Kind oder Mitarbeitende angelegt. Löschen Sie das Kind direkt beim Kind. Mitarbeitende lassen sich erst nach ihrem Austritt löschen.",
       "students.photo_consent_required":
         "Für ein Foto fehlt die Einwilligung der Eltern. Bitte bestätigen Sie zuerst die Einwilligung.",
       "students.photo_consent_withdrawn":
@@ -1423,6 +1471,8 @@ export const ERROR_CATALOG = {
         "Ein eigener Wert ist hier nicht möglich. Bitte wählen Sie einen Wunsch oder „Keine Änderung“.",
       "students.status_day_conflict":
         "An einigen Tagen gibt es schon einen Eintrag. Diese Tage wurden nicht geändert.",
+      "students.status_day_occupied":
+        "Für heute ist eine Klassenfahrt eingetragen. Heben Sie zuerst die Klassenfahrt auf.",
       "substitutions.invalid_period":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "substitutions.invalid_target":
@@ -1457,6 +1507,8 @@ export const ERROR_CATALOG = {
         "{object} überschneidet sich mit anderen Zeiträumen. Bitte prüfen Sie die Termine.",
       "timetable.calendar_period_roster_conflict":
         "Der Zeitraum lässt sich nicht löschen. Sonst wären Kinder oder Personal doppelt eingeteilt. Bitte passen Sie zuerst die Regeltermine an.",
+      "timetable.calendar_period_shift_series_conflict":
+        "Der Zeitraum lässt sich nicht löschen. Schichtserien im Dienstplan nutzen ihn noch. Bitte beenden Sie diese Serien zuerst.",
       "timetable.calendar_period_week_cycle_anchor_missing":
         "Bitte wählen Sie das Startdatum der Wiederholung.",
       "timetable.closing_day_end_before_start":
@@ -1771,6 +1823,8 @@ export const ERROR_CATALOG = {
         "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team.",
       "traeger.school_not_found":
         "Diese Schule gehört nicht zu Ihrem Träger. Bitte laden Sie die Seite neu.",
+      "traeger.school_requires_code":
+        "Diese Schule verlangt zum Öffnen einen Code aus Ihrer E-Mail.",
       "traeger.second_factor_required":
         "Zum Öffnen einer Schule brauchen Sie einen zweiten Anmeldenachweis. Bitte melden Sie sich im Träger-Portal neu an.",
       "traeger.shared_document_not_found":
@@ -1895,6 +1949,8 @@ export const ERROR_CATALOG = {
         "Die Serie liegt außerhalb des Kalenderzeitraums. Bitte prüfen Sie „Gültig ab“ und „Gültig bis“.",
       "workforce.shift_series_week_cycle_missing":
         "Dieser Kalenderzeitraum hat keine Woche A und B. Bitte wählen Sie „Jede Woche“.",
+      "workforce.shift_type_archived":
+        "Diese Dienstart wurde entfernt. Bitte wählen Sie eine andere.",
       "workforce.shift_type_inactive":
         "Diese Dienstart ist ausgeschaltet. Bitte wählen Sie eine andere.",
       "workforce.staff_profile_missing":
@@ -1923,6 +1979,8 @@ export const ERROR_CATALOG = {
         "Urlaub können Sie nur ab heute beantragen. Bitte wählen Sie ein anderes Datum.",
       "workforce.work_session_overlap":
         "Die Zeit überschneidet sich mit einem anderen Eintrag an diesem Tag. Bitte prüfen Sie Beginn und Ende.",
+      "workforce.work_time_model_archived":
+        "Diese Vorlage wird nicht mehr angeboten. Bitte wählen Sie eine andere Vorlage.",
     },
   },
   en: {
@@ -1934,6 +1992,12 @@ export const ERROR_CATALOG = {
       unavailable: "{object} is unavailable right now. Please try again.",
       server: "{object} could not be processed. Please try again later.",
     },
+    portalClasses: {
+      traeger: {
+        permission:
+          "You cannot access {object}. Please contact the head of your Träger office.",
+      },
+    },
     actions: {
       retry: "Try again",
       copyRequestId: "Copy request ID",
@@ -1942,6 +2006,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Please check this field.",
     },
     codes: {
+      "calendar.occurrence_unavailable":
+        "This date no longer exists. It may have been cancelled. Please reload the calendar.",
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
       "care_contract.change_contract_not_active":
@@ -2168,6 +2234,8 @@ export const ERROR_CATALOG = {
       "communication.survey_not_open": "This survey no longer accepts answers.",
       "display.manage_forbidden":
         "You can view info displays, but cannot change them. Please contact your school management.",
+      "enrollment.approval_staff_profile_required":
+        "This registration contains pickup or arrival times. Only someone with a staff profile can approve it.",
       "enrollment.captcha_failed":
         "The security check did not work. Please try again.",
       "enrollment.captcha_required": "Please complete the security check.",
@@ -2288,6 +2356,8 @@ export const ERROR_CATALOG = {
         "This registration link does not exist. Please use the link you received from the provider.",
       "enrollment.holiday_registration_state_conflict":
         "This is not possible for this registration right now. Please reload the page.",
+      "enrollment.holiday_registration_status_not_found":
+        "This link to a holiday registration does not exist. Please use the link from your email.",
       "enrollment.holiday_week_booked":
         "This week already has registrations. That is why the week and its booked time models cannot be removed. You can archive a booked time model instead. Then nobody can book it any more.",
       "enrollment.holiday_week_day_limit":
@@ -2460,12 +2530,24 @@ export const ERROR_CATALOG = {
         "The debtor number has {min_digits} to {max_digits} digits, for example {example}.",
       "parent_billing.debtor_number_digits":
         "The debtor number has {digits} digits, for example {example}.",
+      "parent_billing.export_already_handed_over":
+        "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_formats_invalid":
+        "The assignment was not saved. Please reload the page and try again.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_recipient_invalid":
+        "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_name_taken":
+        "A recipient with this name already exists. Please choose another name.",
+      "parent_billing.export_recipient_not_found":
+        "This recipient no longer exists. Please reload the page.",
+      "parent_billing.export_recipient_not_ready":
+        "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -2498,6 +2580,8 @@ export const ERROR_CATALOG = {
         "The mandate text has changed. Please read and confirm it again.",
       "parent_billing.sollstellung_revenue_account_missing":
         "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings.",
+      "provisioning.person_has_active_profile":
+        "This person is still registered as a child or staff member at the school. The school must delete the child or record the staff member's exit first.",
       "school.parent_conference_change_closed":
         "You can book, change or cancel up to 24 hours before the meeting. After that, please contact the teacher directly.",
       "school.parent_conference_slot_taken":
@@ -2522,6 +2606,8 @@ export const ERROR_CATALOG = {
         "{object} has been changed in the meantime. Please check your details again.",
       "students.care_offerings_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "students.care_request_plan_changed":
+        "The care plan has just changed. Please reload the page. Then check the request again.",
       "students.change_request_stale":
         "{object} has been changed in the meantime. Please reload the page.",
       "students.export_selection_too_large":
@@ -2538,6 +2624,8 @@ export const ERROR_CATALOG = {
         "The child no longer has a valid enrollment. Please decline {object}.",
       "students.partial_absence_conflict":
         "The child is already excused from a certain time on a chosen day. First remove that partial excusal under “Entschuldigen” and “Ab Uhrzeit”.",
+      "students.person_has_active_profile":
+        "This person is still registered as a child or staff member. Please delete the child or record the staff member's exit first.",
       "students.pickup_permission_contact_gone":
         "{object} could not be changed. Please check the current state.",
       "students.pickup_proof_not_found":
@@ -2548,6 +2636,8 @@ export const ERROR_CATALOG = {
         "The parents set this time. Only someone with a staff profile can change it.",
       "students.status_day_conflict":
         "Some days already have an entry. These days were not changed.",
+      "students.status_day_occupied":
+        "A class trip is entered for today. Remove the class trip first.",
       "substitutions.last_supervisor":
         "You are the only supervisor. Hand the supervision over to someone or end the activity.",
       "timetable.closing_day_notice_changed":
@@ -2613,6 +2703,8 @@ export const ERROR_CATALOG = {
         "Your account has no access to the Träger portal. Please contact the moto team.",
       "traeger.school_not_found":
         "This school does not belong to your Träger. Please reload the page.",
+      "traeger.school_requires_code":
+        "This school asks for a code from your e-mail before it opens.",
       "traeger.second_factor_required":
         "To open a school you need a second sign-in factor. Please sign in to the Träger portal again.",
       "traeger.shared_document_not_found":
@@ -2630,6 +2722,12 @@ export const ERROR_CATALOG = {
       unavailable: "{object} сейчас недоступен. Повторите попытку.",
       server: "Не удалось обработать: {object}. Повторите попытку позже.",
     },
+    portalClasses: {
+      traeger: {
+        permission:
+          "У вас нет доступа к: {object}. Обратитесь к руководству вашего офиса Träger.",
+      },
+    },
     actions: {
       retry: "Повторить",
       copyRequestId: "Скопировать номер запроса",
@@ -2638,6 +2736,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Проверьте это поле.",
     },
     codes: {
+      "calendar.occurrence_unavailable":
+        "Этой даты больше нет. Возможно, её отменили. Пожалуйста, обновите календарь.",
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
       "care_contract.change_contract_not_active":
@@ -2845,6 +2945,8 @@ export const ERROR_CATALOG = {
       "communication.survey_not_open": "Этот опрос больше не принимает ответы.",
       "display.manage_forbidden":
         "Вы можете просматривать информационные экраны, но не изменять их. Обратитесь к руководству школы.",
+      "enrollment.approval_staff_profile_required":
+        "В этой заявке указано время прихода или ухода. Одобрить её может только сотрудник с профилем персонала.",
       "enrollment.captcha_failed":
         "Проверка безопасности не пройдена. Попробуйте ещё раз.",
       "enrollment.captcha_required": "Пройдите проверку безопасности.",
@@ -2944,6 +3046,8 @@ export const ERROR_CATALOG = {
         "Пожалуйста, проверьте отмеченные поля.",
       "enrollment.holiday_registration_not_found":
         "Такой ссылки для записи нет. Пожалуйста, используйте ссылку, которую вы получили от организатора.",
+      "enrollment.holiday_registration_status_not_found":
+        "Такой ссылки на запись на каникулы нет. Пожалуйста, используйте ссылку из письма.",
       "enrollment.holiday_week_no_care_day":
         "{date} присмотра нет ({name}). Эту неделю нельзя забронировать.",
       "enrollment.holiday_wish_missing":
@@ -3103,12 +3207,24 @@ export const ERROR_CATALOG = {
         "Номер дебитора состоит из {min_digits}–{max_digits} цифр, например {example}.",
       "parent_billing.debtor_number_digits":
         "Номер дебитора состоит из {digits} цифр, например {example}.",
+      "parent_billing.export_already_handed_over":
+        "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_formats_invalid":
+        "The assignment was not saved. Please reload the page and try again.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_recipient_invalid":
+        "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_name_taken":
+        "A recipient with this name already exists. Please choose another name.",
+      "parent_billing.export_recipient_not_found":
+        "This recipient no longer exists. Please reload the page.",
+      "parent_billing.export_recipient_not_ready":
+        "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -3149,6 +3265,8 @@ export const ERROR_CATALOG = {
         "Данные изменились: {object}. Проверьте свои данные ещё раз.",
       "students.care_offerings_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "students.care_request_plan_changed":
+        "План присмотра только что изменился. Обновите страницу. Затем проверьте запрос ещё раз.",
       "students.change_request_stale":
         "Данные изменились: {object}. Обновите страницу.",
       "students.export_selection_too_large":
@@ -3174,6 +3292,8 @@ export const ERROR_CATALOG = {
         "Это время установили родители. Изменить его может только сотрудник с профилем персонала.",
       "students.status_day_conflict":
         "На некоторые дни уже есть запись. Эти дни не изменены.",
+      "students.status_day_occupied":
+        "На сегодня внесена классная поездка. Сначала отмените классную поездку.",
       "substitutions.last_supervisor":
         "Вы единственный, кто ведёт присмотр. Передайте присмотр другому человеку или завершите занятие.",
       "timetable.closing_day_notice_not_found":
@@ -3203,6 +3323,12 @@ export const ERROR_CATALOG = {
       unavailable: "{object} nuk është i disponueshëm tani. Provoni përsëri.",
       server: "Nuk u përpunua: {object}. Provoni përsëri më vonë.",
     },
+    portalClasses: {
+      traeger: {
+        permission:
+          "Nuk keni qasje te: {object}. Kontaktoni drejtuesin e zyrës suaj Träger.",
+      },
+    },
     actions: {
       retry: "Provo përsëri",
       copyRequestId: "Kopjo numrin e kërkesës",
@@ -3211,6 +3337,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Kontrolloni këtë fushë.",
     },
     codes: {
+      "calendar.occurrence_unavailable":
+        "Kjo datë nuk ekziston më. Mund të jetë anuluar. Ju lutemi rifreskoni kalendarin.",
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
       "care_contract.change_contract_not_active":
@@ -3420,6 +3548,8 @@ export const ERROR_CATALOG = {
       "communication.survey_not_open": "Ky sondazh nuk pranon më përgjigje.",
       "display.manage_forbidden":
         "Mund t’i shikoni ekranet informuese, por nuk mund t’i ndryshoni. Ju lutemi kontaktoni drejtuesit e shkollës.",
+      "enrollment.approval_staff_profile_required":
+        "Ky regjistrim përmban orare marrjeje ose sjelljeje. Vetëm dikush me profil stafi mund ta miratojë.",
       "enrollment.captcha_failed":
         "Kontrolli i sigurisë nuk funksionoi. Ju lutemi provoni përsëri.",
       "enrollment.captcha_required":
@@ -3528,6 +3658,8 @@ export const ERROR_CATALOG = {
         "Ju lutemi kontrolloni fushat e shënuara.",
       "enrollment.holiday_registration_not_found":
         "Kjo lidhje regjistrimi nuk ekziston. Ju lutemi përdorni lidhjen që morët nga organizatori.",
+      "enrollment.holiday_registration_status_not_found":
+        "Kjo lidhje për regjistrimin e pushimeve nuk ekziston. Ju lutemi përdorni lidhjen nga emaili juaj.",
       "enrollment.holiday_week_no_care_day":
         "Më {date} nuk ka kujdes ({name}). Kjo javë nuk mund të rezervohet.",
       "enrollment.holiday_wish_missing":
@@ -3690,12 +3822,24 @@ export const ERROR_CATALOG = {
         "Numri i debitorit ka {min_digits} deri {max_digits} shifra, për shembull {example}.",
       "parent_billing.debtor_number_digits":
         "Numri i debitorit ka {digits} shifra, për shembull {example}.",
+      "parent_billing.export_already_handed_over":
+        "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_formats_invalid":
+        "The assignment was not saved. Please reload the page and try again.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_recipient_invalid":
+        "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_name_taken":
+        "A recipient with this name already exists. Please choose another name.",
+      "parent_billing.export_recipient_not_found":
+        "This recipient no longer exists. Please reload the page.",
+      "parent_billing.export_recipient_not_ready":
+        "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -3736,6 +3880,8 @@ export const ERROR_CATALOG = {
         "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
       "students.care_offerings_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "students.care_request_plan_changed":
+        "Plani i kujdesit sapo ndryshoi. Ju lutemi rifreskoni faqen. Pastaj kontrolloni sërish kërkesën.",
       "students.change_request_stale":
         "Ndërkohë është ndryshuar: {object}. Ju lutemi ringarkoni faqen.",
       "students.export_selection_too_large":
@@ -3762,6 +3908,8 @@ export const ERROR_CATALOG = {
         "Këtë orë e kanë vendosur prindërit. Vetëm dikush me profil stafi mund ta ndryshojë.",
       "students.status_day_conflict":
         "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
+      "students.status_day_occupied":
+        "Për sot është regjistruar një ekskursion klase. Hiqni fillimisht ekskursionin e klasës.",
       "substitutions.last_supervisor":
         "Jeni i vetmi mbikëqyrës. Ia dorëzoni mbikëqyrjen dikujt tjetër ose përfundoni aktivitetin.",
       "timetable.closing_day_notice_not_found":
@@ -3791,6 +3939,12 @@ export const ERROR_CATALOG = {
       unavailable: "{object} jest teraz niedostępne. Spróbuj ponownie.",
       server: "Nie udało się przetworzyć: {object}. Spróbuj ponownie później.",
     },
+    portalClasses: {
+      traeger: {
+        permission:
+          "Nie masz dostępu do: {object}. Skontaktuj się z kierownictwem biura Träger.",
+      },
+    },
     actions: {
       retry: "Spróbuj ponownie",
       copyRequestId: "Kopiuj numer zgłoszenia",
@@ -3799,6 +3953,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Sprawdź to pole.",
     },
     codes: {
+      "calendar.occurrence_unavailable":
+        "Tego terminu już nie ma. Mógł zostać odwołany. Proszę odświeżyć kalendarz.",
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
       "care_contract.change_contract_not_active":
@@ -4008,6 +4164,8 @@ export const ERROR_CATALOG = {
         "Ta ankieta nie przyjmuje już odpowiedzi.",
       "display.manage_forbidden":
         "Możesz przeglądać ekrany informacyjne, ale nie możesz ich zmieniać. Skontaktuj się z dyrekcją szkoły.",
+      "enrollment.approval_staff_profile_required":
+        "To zgłoszenie zawiera godziny odbioru lub przyprowadzenia. Zatwierdzić je może tylko osoba z profilem pracownika.",
       "enrollment.captcha_failed":
         "Weryfikacja bezpieczeństwa nie powiodła się. Spróbuj ponownie.",
       "enrollment.captcha_required": "Potwierdź weryfikację bezpieczeństwa.",
@@ -4105,6 +4263,8 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_registration_invalid": "Sprawdź zaznaczone pola.",
       "enrollment.holiday_registration_not_found":
         "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
+      "enrollment.holiday_registration_status_not_found":
+        "Ten link do zgłoszenia na ferie nie istnieje. Użyj linku z e-maila.",
       "enrollment.holiday_week_no_care_day":
         "W dniu {date} nie ma opieki ({name}). Tego tygodnia nie można zarezerwować.",
       "enrollment.holiday_wish_missing":
@@ -4265,12 +4425,24 @@ export const ERROR_CATALOG = {
         "Numer dłużnika ma od {min_digits} do {max_digits} cyfr, na przykład {example}.",
       "parent_billing.debtor_number_digits":
         "Numer dłużnika ma {digits} cyfr, na przykład {example}.",
+      "parent_billing.export_already_handed_over":
+        "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_formats_invalid":
+        "The assignment was not saved. Please reload the page and try again.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_recipient_invalid":
+        "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_name_taken":
+        "A recipient with this name already exists. Please choose another name.",
+      "parent_billing.export_recipient_not_found":
+        "This recipient no longer exists. Please reload the page.",
+      "parent_billing.export_recipient_not_ready":
+        "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -4311,6 +4483,8 @@ export const ERROR_CATALOG = {
         "W międzyczasie zmieniono: {object}. Sprawdź ponownie swoje dane.",
       "students.care_offerings_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "students.care_request_plan_changed":
+        "Plan opieki właśnie się zmienił. Odśwież stronę. Następnie sprawdź wniosek jeszcze raz.",
       "students.change_request_stale":
         "W międzyczasie zmieniono: {object}. Odśwież stronę.",
       "students.export_selection_too_large":
@@ -4336,6 +4510,8 @@ export const ERROR_CATALOG = {
         "Ten czas ustawili rodzice. Zmienić go może tylko osoba z profilem pracownika.",
       "students.status_day_conflict":
         "Niektóre dni mają już wpis. Tych dni nie zmieniono.",
+      "students.status_day_occupied":
+        "Na dziś wpisana jest wycieczka klasowa. Najpierw usuń wycieczkę klasową.",
       "substitutions.last_supervisor":
         "Jesteś jedyną osobą sprawującą opiekę. Przekaż opiekę innej osobie lub zakończ zajęcia.",
       "timetable.closing_day_notice_not_found":
@@ -4365,6 +4541,12 @@ export const ERROR_CATALOG = {
       unavailable: "{object} şu anda kullanılamıyor. Yeniden deneyin.",
       server: "{object} işlenemedi. Daha sonra yeniden deneyin.",
     },
+    portalClasses: {
+      traeger: {
+        permission:
+          "{object} için erişim izniniz yok. Träger ofisinizin yöneticisiyle iletişime geçin.",
+      },
+    },
     actions: {
       retry: "Yeniden dene",
       copyRequestId: "İstek numarasını kopyala",
@@ -4373,6 +4555,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Bu alanı kontrol edin.",
     },
     codes: {
+      "calendar.occurrence_unavailable":
+        "Bu tarih artık yok. İptal edilmiş olabilir. Lütfen takvimi yeniden yükleyin.",
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
       "care_contract.change_contract_not_active":
@@ -4582,6 +4766,8 @@ export const ERROR_CATALOG = {
       "communication.survey_not_open": "Bu anket artık yanıt kabul etmiyor.",
       "display.manage_forbidden":
         "Bilgi ekranlarını görüntüleyebilirsiniz, ancak değiştiremezsiniz. Lütfen okul yönetimine başvurun.",
+      "enrollment.approval_staff_profile_required":
+        "Bu kayıtta alma veya getirme saatleri var. Yalnızca personel profili olan biri onaylayabilir.",
       "enrollment.captcha_failed":
         "Güvenlik doğrulaması başarısız oldu. Lütfen tekrar deneyin.",
       "enrollment.captcha_required":
@@ -4686,6 +4872,8 @@ export const ERROR_CATALOG = {
         "Lütfen işaretli alanları kontrol edin.",
       "enrollment.holiday_registration_not_found":
         "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
+      "enrollment.holiday_registration_status_not_found":
+        "Bu tatil kaydı bağlantısı mevcut değil. Lütfen e-postanızdaki bağlantıyı kullanın.",
       "enrollment.holiday_week_no_care_day":
         "{date} tarihinde bakım yok ({name}). Bu hafta rezerve edilemez.",
       "enrollment.holiday_wish_missing":
@@ -4845,12 +5033,24 @@ export const ERROR_CATALOG = {
         "Borçlu numarası {min_digits} ile {max_digits} arasında rakamdan oluşur, örneğin {example}.",
       "parent_billing.debtor_number_digits":
         "Borçlu numarası {digits} rakamdan oluşur, örneğin {example}.",
+      "parent_billing.export_already_handed_over":
+        "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_formats_invalid":
+        "The assignment was not saved. Please reload the page and try again.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_recipient_invalid":
+        "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_name_taken":
+        "A recipient with this name already exists. Please choose another name.",
+      "parent_billing.export_recipient_not_found":
+        "This recipient no longer exists. Please reload the page.",
+      "parent_billing.export_recipient_not_ready":
+        "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -4891,6 +5091,8 @@ export const ERROR_CATALOG = {
         "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
       "students.care_offerings_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "students.care_request_plan_changed":
+        "Bakım planı az önce değişti. Lütfen sayfayı yenileyin. Ardından talebi tekrar kontrol edin.",
       "students.change_request_stale":
         "{object} bu arada değiştirildi. Lütfen sayfayı yenileyin.",
       "students.export_selection_too_large":
@@ -4917,6 +5119,8 @@ export const ERROR_CATALOG = {
         "Bu saati veliler belirledi. Yalnızca personel profili olan biri değiştirebilir.",
       "students.status_day_conflict":
         "Bazı günlerde zaten bir kayıt var. Bu günler değiştirilmedi.",
+      "students.status_day_occupied":
+        "Bugün için bir sınıf gezisi girilmiş. Önce sınıf gezisini kaldırın.",
       "substitutions.last_supervisor":
         "Gözetimi yapan tek kişi sizsiniz. Gözetimi başka birine devredin veya etkinliği bitirin.",
       "timetable.closing_day_notice_not_found":
@@ -4946,6 +5150,12 @@ export const ERROR_CATALOG = {
       unavailable: "{object} зараз недоступний. Спробуйте ще раз.",
       server: "Не вдалося обробити: {object}. Спробуйте пізніше.",
     },
+    portalClasses: {
+      traeger: {
+        permission:
+          "У вас немає доступу до: {object}. Зверніться до керівництва вашого офісу Träger.",
+      },
+    },
     actions: {
       retry: "Спробувати ще раз",
       copyRequestId: "Скопіювати номер запиту",
@@ -4954,6 +5164,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Перевірте це поле.",
     },
     codes: {
+      "calendar.occurrence_unavailable":
+        "Цієї дати більше немає. Можливо, її скасували. Будь ласка, оновіть календар.",
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
       "care_contract.change_contract_not_active":
@@ -5161,6 +5373,8 @@ export const ERROR_CATALOG = {
         "Це опитування більше не приймає відповіді.",
       "display.manage_forbidden":
         "Ви можете переглядати інформаційні екрани, але не змінювати їх. Зверніться до керівництва школи.",
+      "enrollment.approval_staff_profile_required":
+        "У цій заявці вказано час приходу або забирання. Схвалити її може лише працівник із профілем персоналу.",
       "enrollment.captcha_failed":
         "Перевірка безпеки не вдалася. Спробуйте ще раз.",
       "enrollment.captcha_required": "Пройдіть перевірку безпеки.",
@@ -5259,6 +5473,8 @@ export const ERROR_CATALOG = {
         "Будь ласка, перевірте позначені поля.",
       "enrollment.holiday_registration_not_found":
         "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
+      "enrollment.holiday_registration_status_not_found":
+        "Такого посилання на запис на канікули немає. Будь ласка, скористайтеся посиланням з листа.",
       "enrollment.holiday_week_no_care_day":
         "{date} догляду немає ({name}). Цей тиждень не можна забронювати.",
       "enrollment.holiday_wish_missing":
@@ -5418,12 +5634,24 @@ export const ERROR_CATALOG = {
         "Номер дебітора має від {min_digits} до {max_digits} цифр, наприклад {example}.",
       "parent_billing.debtor_number_digits":
         "Номер дебітора має {digits} цифр, наприклад {example}.",
+      "parent_billing.export_already_handed_over":
+        "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_formats_invalid":
+        "The assignment was not saved. Please reload the page and try again.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_recipient_invalid":
+        "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_name_taken":
+        "A recipient with this name already exists. Please choose another name.",
+      "parent_billing.export_recipient_not_found":
+        "This recipient no longer exists. Please reload the page.",
+      "parent_billing.export_recipient_not_ready":
+        "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -5464,6 +5692,8 @@ export const ERROR_CATALOG = {
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",
       "students.care_offerings_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "students.care_request_plan_changed":
+        "План догляду щойно змінився. Оновіть сторінку. Потім ще раз перевірте запит.",
       "students.change_request_stale":
         "Дані змінилися: {object}. Оновіть сторінку.",
       "students.export_selection_too_large":
@@ -5489,6 +5719,8 @@ export const ERROR_CATALOG = {
         "Цей час встановили батьки. Змінити його може лише працівник із профілем персоналу.",
       "students.status_day_conflict":
         "На деякі дні вже є запис. Ці дні не змінено.",
+      "students.status_day_occupied":
+        "На сьогодні внесено класну поїздку. Спочатку скасуйте класну поїздку.",
       "substitutions.last_supervisor":
         "Ви єдина особа, що здійснює нагляд. Передайте нагляд іншій особі або завершіть заняття.",
       "timetable.closing_day_notice_not_found":

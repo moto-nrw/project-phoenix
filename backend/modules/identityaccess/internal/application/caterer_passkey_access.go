@@ -4,8 +4,8 @@ import (
 	"context"
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // The caterer's passkeys (#4497): the registration, gated by a mailed code
@@ -70,7 +70,7 @@ func (c *CatererAccess) finishPasskeyLogin(ctx context.Context, request identity
 	if err != nil {
 		return identityaccess.PasskeyLoginResult{}, err
 	}
-	session, err := c.mintProvenSession(ctx, accountID, nil, request.IPAddress, request.UserAgent)
+	session, err := c.voluntary().proven(ctx, accountID, mintProof{kind: proofPasskey}, request.IPAddress, request.UserAgent)
 	if err != nil {
 		return identityaccess.PasskeyLoginResult{}, err
 	}

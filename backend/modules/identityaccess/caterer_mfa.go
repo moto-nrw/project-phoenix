@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"time"
 )
 
 // The caterer's second factor (#4497, ADR 0077 point 7). It is voluntary:
@@ -40,64 +39,21 @@ const (
 	CatererLoginMFARequired   = LoginStatusMFARequired
 )
 
-// CatererLoginRequest is a caterer's password sign-in. TrustedDeviceCookie
-// is the remember-device cookie the browser sent, or empty.
-type CatererLoginRequest struct {
-	Email               string
-	Password            string
-	IPAddress           string
-	UserAgent           string
-	TrustedDeviceCookie string
-}
-
-// CatererLoginResult is either the session pair or, for a caterer with the
-// second factor switched on, the challenge of the code mailed to it.
-type CatererLoginResult struct {
-	Status            CatererLoginStatus
-	AccessToken       string
-	RefreshToken      string
-	ChallengeToken    string
-	MaskedEmail       string
-	TrustedDeviceDays int
-}
-
-// CatererMFAVerification redeems the mailed code of a caterer sign-in.
-type CatererMFAVerification struct {
-	ChallengeToken string
-	Code           string
-	RememberDevice bool
-	IPAddress      string
-	UserAgent      string
-}
-
-// CatererSession is a session pair proven by a second factor. A remembered
-// device adds its signed cookie; an empty cookie remembers none.
-type CatererSession struct {
-	AccessToken            string
-	RefreshToken           string
-	TrustedDeviceCookie    string
-	TrustedDeviceExpiresAt time.Time
-}
+// The caterer portal's sign-in and second-factor shapes are the voluntary
+// factor's.
+type (
+	CatererLoginRequest    = VoluntaryLoginRequest
+	CatererLoginResult     = VoluntaryLoginResult
+	CatererMFAVerification = VoluntaryMFAVerification
+	CatererSession         = VoluntarySession
+	CatererMFAChallenge    = VoluntaryMFAChallenge
+	CatererMFAConfirmation = VoluntaryMFAConfirmation
+)
 
 // CatererMFAState is what the caterer's account page shows.
 type CatererMFAState struct {
 	Enabled     bool
 	MaskedEmail string
-}
-
-// CatererMFAChallenge names the code mailed to switch the second factor on.
-type CatererMFAChallenge struct {
-	ChallengeToken string
-	MaskedEmail    string
-}
-
-// CatererMFAConfirmation switches the second factor on with the mailed code.
-type CatererMFAConfirmation struct {
-	AccountID      int64
-	ChallengeToken string
-	Code           string
-	IPAddress      string
-	UserAgent      string
 }
 
 // CatererPasskeyRegistrationStart starts a passkey registration on the

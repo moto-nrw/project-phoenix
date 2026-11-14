@@ -215,7 +215,9 @@ export async function fetchHolidayContribution(
 /**
  * Confirms the registration and freezes its contribution, with the debtor
  * number of the family (#5621); an empty one confirms without. A cost
- * bearer pays instead of the family (#5627).
+ * bearer pays instead of the family (#5627). childDebtorNumbers are the
+ * numbers of the children instead, when the Träger keeps one per child
+ * (#7007).
  */
 export async function confirmHolidayRegistration(
   periodId: string,
@@ -224,6 +226,7 @@ export async function confirmHolidayRegistration(
   debtorNumber = "",
   costBearerId?: string,
   familyDebtorNumber?: FamilyDebtorNumberChoice,
+  childDebtorNumbers?: readonly HolidayChildDebtorNumberInput[],
 ): Promise<HolidayContribution> {
   const confirmation = await traegerRequest<{
     contribution: BackendContribution;
@@ -235,6 +238,9 @@ export async function confirmHolidayRegistration(
       ...(costBearerId ? { cost_bearer_id: Number(costBearerId) } : {}),
       ...(familyDebtorNumber
         ? { family_debtor_number: familyDebtorNumber }
+        : {}),
+      ...(childDebtorNumbers
+        ? { child_debtor_numbers: childNumbersToBackend(childDebtorNumbers) }
         : {}),
     },
   });
@@ -288,18 +294,93 @@ export async function changeHolidayDebtorNumber(
  */
 export type FamilyDebtorNumberChoice = "keep" | "replace";
 
+/** A child of a registration with its debtor number (#7007). */
+export interface HolidayChildDebtorNumber {
+  readonly childId: string;
+  readonly firstName: string;
+  readonly lastName: string;
+  /** "" without a number. */
+  readonly debtorNumber: string;
+}
+
+/** The number the office enters for a child; "" removes it (#7007). */
+export interface HolidayChildDebtorNumberInput {
+  readonly childId: string;
+  readonly debtorNumber: string;
+}
+
 /**
- * The debtor number the family of the registration already has at the
- * Träger (#6692), which the confirmation proposes; "" without one.
+ * The debtor numbers the confirmation proposes: the family's (#6692), or,
+ * when the Träger keeps the number per child, each child's (#7007); then
+ * `debtorNumber` is the first child's. `children` is empty with a number per
+ * payer.
+ */
+export interface HolidayFamilyDebtorNumbers {
+  readonly debtorNumber: string;
+  readonly children: readonly HolidayChildDebtorNumber[];
+}
+
+interface BackendChildDebtorNumber {
+  child_id: number;
+  first_name: string;
+  last_name: string;
+  debtor_number: string;
+}
+
+function childNumberFromBackend(
+  child: BackendChildDebtorNumber,
+): HolidayChildDebtorNumber {
+  return {
+    childId: String(child.child_id),
+    firstName: child.first_name,
+    lastName: child.last_name,
+    debtorNumber: child.debtor_number,
+  };
+}
+
+function childNumbersToBackend(
+  numbers: readonly HolidayChildDebtorNumberInput[],
+): { child_id: number; debtor_number: string }[] {
+  return numbers.map((number) => ({
+    child_id: Number(number.childId),
+    debtor_number: number.debtorNumber,
+  }));
+}
+
+/**
+ * The debtor numbers the family of the registration and its children
+ * already have at the Träger, which the confirmation proposes.
  */
 export async function fetchHolidayFamilyDebtorNumber(
   periodId: string,
   registrationId: string,
-): Promise<string> {
-  const family = await traegerRequest<{ debtor_number?: string }>(
-    `${registrationPath(periodId, registrationId)}/family-debtor-number`,
-  );
-  return family.debtor_number ?? "";
+): Promise<HolidayFamilyDebtorNumbers> {
+  const family = await traegerRequest<{
+    debtor_number?: string;
+    children?: BackendChildDebtorNumber[] | null;
+  }>(`${registrationPath(periodId, registrationId)}/family-debtor-number`);
+  return {
+    debtorNumber: family.debtor_number ?? "",
+    children: (family.children ?? []).map(childNumberFromBackend),
+  };
+}
+
+/**
+ * Changes the debtor numbers of the children of a confirmed registration
+ * (#7007); answers the children named with their numbers.
+ */
+export async function setHolidayChildDebtorNumbers(
+  periodId: string,
+  registrationId: string,
+  numbers: readonly HolidayChildDebtorNumberInput[],
+): Promise<readonly HolidayChildDebtorNumber[]> {
+  const saved = await traegerRequest<{
+    children?: BackendChildDebtorNumber[] | null;
+  }>(`${registrationPath(periodId, registrationId)}/child-debtor-numbers`, {
+    method: "PUT",
+    body: { children: childNumbersToBackend(numbers) },
+  });
+  return (saved.children ?? []).map(childNumberFromBackend);
 }
 
 /** Both numbers of a refusal because the family has another number. */

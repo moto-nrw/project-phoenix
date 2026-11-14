@@ -27,7 +27,10 @@ import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { Button, ButtonLink } from "~/components/ui/button";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
@@ -172,6 +175,7 @@ function SchoolVacationHintList({
             aria-label={`Termine absagen: ${hint.name}`}
             onClick={() => onCancel(hint)}
             disabled={busy === hint.startDate}
+            tooltip="Öffnet ein Fenster, um die Termine in diesen Ferien abzusagen."
           >
             Termine absagen
           </Button>
@@ -181,6 +185,7 @@ function SchoolVacationHintList({
             variant="surface"
             size={size}
             aria-label={`Termine absagen: ${hint.name}`}
+            tooltip="Öffnet den Betreuungsplan, um die Termine in diesen Ferien abzusagen."
           >
             Termine absagen
           </ButtonLink>
@@ -191,6 +196,7 @@ function SchoolVacationHintList({
             variant="surface"
             size={size}
             aria-label={`Schließtage eintragen: ${hint.name}`}
+            tooltip="Öffnet Schuljahr und Kalender, um Schließtage einzutragen."
           >
             Schließtage eintragen
           </ButtonLink>
@@ -202,6 +208,7 @@ function SchoolVacationHintList({
           aria-label={`Betreuung ist geplant: ${hint.name}`}
           onClick={() => void confirmCare(hint)}
           disabled={busy === hint.startDate}
+          tooltip="Bestätigt sofort für die ganze Schule, dass in diesen Ferien Betreuung ist."
         >
           Betreuung ist geplant
         </Button>
@@ -237,10 +244,7 @@ function SchoolVacationHintList({
       >
         <ResponsiveActionList>
           {hints.map((hint) => (
-            <li
-              key={`${hint.startDate}-${hint.endDate}`}
-              className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-            >
+            <ResponsiveActionRow key={`${hint.startDate}-${hint.endDate}`}>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">
                   {hint.name}
@@ -252,7 +256,7 @@ function SchoolVacationHintList({
               <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
                 {actions(hint, true)}
               </div>
-            </li>
+            </ResponsiveActionRow>
           ))}
         </ResponsiveActionList>
       </SectionCard>

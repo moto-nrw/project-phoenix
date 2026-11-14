@@ -106,7 +106,9 @@ export function RenewalBanners({
                 ? t("renewalTermsReadAria", {
                     title: String(values?.title ?? ""),
                   })
-                : t("renewalTermsRead")
+                : key === "buttonHints.details"
+                  ? t("buttonHints.termsRead")
+                  : t("renewalTermsRead")
             }
           />
           <DocumentAttachmentList attachments={block.attachments} />
@@ -116,7 +118,12 @@ export function RenewalBanners({
   ) : null;
 
   const adjustLink = adjustHref ? (
-    <ButtonLink href={adjustHref} variant="surface" size="md">
+    <ButtonLink
+      href={adjustHref}
+      variant="surface"
+      size="md"
+      tooltip={t("buttonHints.adjust")}
+    >
       {t("renewalAdjust")}
     </ButtonLink>
   ) : null;
@@ -133,6 +140,7 @@ export function RenewalBanners({
               onClick={() => void handleConfirm()}
               disabled={confirmingRenewal}
               size="md"
+              tooltip={t("buttonHints.confirmRenewal")}
             >
               {confirmingRenewal ? t("confirming") : t("confirmEnrollment")}
             </Button>
@@ -143,6 +151,7 @@ export function RenewalBanners({
               disabled={withdrawingAll}
               variant="surface"
               size="md"
+              tooltip={t("buttonHints.declineRenewal")}
             >
               {withdrawingAll ? t("declining") : t("declineEnrollment")}
             </Button>
@@ -174,6 +183,7 @@ export function RenewalBanners({
                 onClick={() => void handleConfirm()}
                 disabled={confirmingRenewal}
                 size="md"
+                tooltip={t("buttonHints.confirmTerms")}
               >
                 {confirmingRenewal ? t("confirming") : t("confirmTerms")}
               </Button>
@@ -187,6 +197,7 @@ export function RenewalBanners({
                   disabled={withdrawingAll}
                   variant="surface"
                   size="md"
+                  tooltip={t("buttonHints.unsubscribe")}
                 >
                   {withdrawingAll ? t("unsubscribing") : t("unsubscribe")}
                 </Button>
@@ -206,7 +217,7 @@ export function RenewalBanners({
         title={openBlock?.title ?? ""}
         closeLabel={t("modalClose")}
         backdropLabel={t("modalBackdropClose")}
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
+        size="lg"
       >
         <div className="max-h-[60vh] overflow-y-auto text-sm text-gray-700">
           <LegalMarkdown text={openBlock?.text ?? ""} />

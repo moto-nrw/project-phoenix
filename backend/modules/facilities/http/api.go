@@ -16,7 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 type Middleware = func(http.Handler) http.Handler
@@ -127,6 +127,7 @@ func (rs *Resource) Router() chi.Router {
 		protected.With(rs.runtime.Permission(rs.runtime.Create), withTx).Post("/", rs.createRoom)
 		protected.With(rs.runtime.Permission(rs.runtime.Update), withTx).Put("/{id}", rs.updateRoom)
 		protected.With(rs.runtime.Permission(rs.runtime.Delete), withTx).Delete("/{id}", rs.deleteRoom)
+		protected.With(rs.runtime.Permission(rs.runtime.Delete), withTx).Get("/{id}/removal-impact", rs.roomRemovalImpact)
 		protected.With(rs.runtime.Permission(rs.runtime.Read), withTx).Get("/buildings", rs.getBuildingList)
 		protected.With(rs.runtime.Permission(rs.runtime.Read), withTx).Get("/categories", rs.getCategoryList)
 		protected.With(rs.runtime.Permission(rs.runtime.Read), withTx).Get("/available", rs.getAvailableRooms)
@@ -155,22 +156,23 @@ func (req *RoomRequest) Bind(_ *http.Request) error {
 }
 
 type RoomResponse struct {
-	ID              int64     `json:"id"`
-	Name            string    `json:"name"`
-	Building        string    `json:"building,omitempty"`
-	Floor           *int      `json:"floor,omitempty"`
-	Capacity        *int      `json:"capacity,omitempty"`
-	Category        *string   `json:"category,omitempty"`
-	Color           *string   `json:"color,omitempty"`
-	IsOccupied      bool      `json:"is_occupied"`
-	GroupName       *string   `json:"group_name,omitempty"`
-	CategoryName    *string   `json:"category_name,omitempty"`
-	StudentCount    int       `json:"student_count"`
-	SupervisorNames *string   `json:"supervisor_names,omitempty"`
-	IsSystem        bool      `json:"is_system"`
-	IsOpenRoom      bool      `json:"is_open_room"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID              int64      `json:"id"`
+	Name            string     `json:"name"`
+	Building        string     `json:"building,omitempty"`
+	Floor           *int       `json:"floor,omitempty"`
+	Capacity        *int       `json:"capacity,omitempty"`
+	Category        *string    `json:"category,omitempty"`
+	Color           *string    `json:"color,omitempty"`
+	IsOccupied      bool       `json:"is_occupied"`
+	GroupName       *string    `json:"group_name,omitempty"`
+	CategoryName    *string    `json:"category_name,omitempty"`
+	StudentCount    int        `json:"student_count"`
+	SupervisorNames *string    `json:"supervisor_names,omitempty"`
+	IsSystem        bool       `json:"is_system"`
+	IsOpenRoom      bool       `json:"is_open_room"`
+	ArchivedAt      *time.Time `json:"archived_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 func newRoomResponse(view RoomView) RoomResponse {
@@ -179,7 +181,7 @@ func newRoomResponse(view RoomView) RoomResponse {
 		Capacity: view.Capacity, Category: view.Category, Color: view.Color,
 		IsOccupied: view.IsOccupied, GroupName: view.GroupName, CategoryName: view.CategoryName,
 		StudentCount: view.StudentCount, SupervisorNames: view.SupervisorNames,
-		IsSystem: view.IsSystem, IsOpenRoom: view.IsOpenRoom,
+		IsSystem: view.IsSystem, IsOpenRoom: view.IsOpenRoom, ArchivedAt: view.ArchivedAt,
 		CreatedAt: view.CreatedAt, UpdatedAt: view.UpdatedAt,
 	}
 }
@@ -292,23 +294,6 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rs.runtime.Success(w, r, http.StatusOK, simpleRoomResponse(room), "Room updated successfully")
-}
-
-func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
-	id, err := rs.runtime.ParseID(r)
-	if err != nil {
-		rs.runtime.Failure(w, r, FailureInvalid, errors.New("invalid room ID"), "invalid_request")
-		return
-	}
-	if err := rs.rooms.DeleteRoom(r.Context(), id); err != nil {
-		if rs.runtime.ConstraintFailed(err) {
-			rs.runtime.Failure(w, r, FailureConflict, errors.New("raum kann nicht gelöscht werden: Raum wird noch von Gruppen verwendet"), "conflict")
-			return
-		}
-		rs.failure(w, r, err)
-		return
-	}
-	rs.runtime.NoContent(w, r)
 }
 
 func (rs *Resource) getRoomsByCategory(w http.ResponseWriter, r *http.Request) {
@@ -508,7 +493,8 @@ func classifyFailure(err error) (FailureKind, string) {
 		kind = FailureForbidden
 	case errors.Is(err, facilities.ErrDuplicateRoom), errors.Is(err, facilities.ErrDuplicateToiletRoom),
 		errors.Is(err, facilities.ErrRoomColorAlreadyInUse), errors.Is(err, facilities.ErrRoomInUse),
-		errors.Is(err, facilities.ErrRoomRequiredByOffering):
+		errors.Is(err, facilities.ErrRoomRequiredByOffering), errors.Is(err, facilities.ErrRoomStillPlanned),
+		errors.Is(err, facilities.ErrRoomArchived):
 		kind = FailureConflict
 	}
 	return kind, code

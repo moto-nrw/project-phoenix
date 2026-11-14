@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
-	carePlanBindingPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	parentModels "github.com/moto-ogs/project-phoenix/modules/careplan/internal/rows"
+	carePlanBindingPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
 )
 
 // WithSchools returns the repositories with the school names and the school

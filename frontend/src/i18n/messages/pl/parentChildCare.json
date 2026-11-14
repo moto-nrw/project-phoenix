@@ -39,7 +39,11 @@
     "requestSentPartlyTitle": "Zgłoszone i wysłana prośba",
     "requestSentPartlyBody": "Wolne dni są zgłoszone. Na pozostałe dni {careTerm} sprawdzi Państwa zgłoszenie. Do tego czasu obowiązuje jej wpis.",
     "errorObject": "zgłoszenie nieobecności",
-    "submitting": "Zgłaszanie …"
+    "submitting": "Zgłaszanie …",
+    "submitDirectTooltip": "Od razu zgłasza nieobecność Państwa dziecka. {careTerm} widzi to od razu.",
+    "submitRequestTooltip": "Od razu wysyła nieobecność jako prośbę. {careTerm} musi potwierdzić.",
+    "submitTooltip": "Od razu wysyła zgłoszenie nieobecności do {careTerm}.",
+    "submitBlocked": "{careTerm} nie przyjmuje tu teraz zgłoszeń nieobecności."
   },
   "summary": {
     "none": "Brak zwolnienia",
@@ -75,6 +79,7 @@
     "cutoffHint": "Godzinę odbioru na dziś możesz zmienić do {time}.",
     "cutoffClosed": "Na dziś zmiany są możliwe tylko do {time}. Skontaktuj się z {careTerm}. Inne dni możesz nadal zmieniać.",
     "cutoffClosedGeneric": "Na dziś zmiana nie jest już możliwa. Skontaktuj się z {careTerm}. Inne dni możesz nadal zmieniać.",
+    "careDayEnded": "Opieka na dziś już się skończyła. Nie można już zmienić godziny odbioru na dziś. Inne dni można nadal zmieniać.",
     "reset": "Cofnij zmianę",
     "resetTitle": "Cofnąć zmianę?",
     "resetDescription": "Inna godzina odbioru na dzień {date} zostanie usunięta. Znów obowiązuje stały plan tygodnia.",
@@ -105,18 +110,24 @@
     "statusApprovedChange": "Potwierdzono, zmiana obowiązuje.",
     "errorStaffConflictGeneric": "{careTerm} wpisała już zmianę na ten dzień. Proszę skontaktować się z zespołem.",
     "submitting": "Wysyłanie …",
-    "savingEdit": "Zapisywanie …"
+    "savingEdit": "Zapisywanie …",
+    "resetTooltip": "Usuwa Państwa zmianę na ten dzień. moto najpierw zapyta.",
+    "saveEditTooltip": "Zmienia Państwa otwartą prośbę. {careTerm} musi ją jeszcze potwierdzić.",
+    "submitTooltip": "Od razu wysyła prośbę do {careTerm} do potwierdzenia.",
+    "disabledBlocked": "{careTerm} nie przyjmuje tu zmian odbioru.",
+    "alreadyHomeBlocked": "Państwa dziecko jest dziś już w domu.",
+    "cutoffBlocked": "Czas na zmiany na dziś już minął.",
+    "staffSetBlocked": "{careTerm} już ustaliła ten dzień.",
+    "loadBlocked": "Brakuje dotychczasowych godzin. Proszę odświeżyć stronę."
   },
   "actions": {
     "sick": {
       "label": "Zgłoszenie choroby",
-      "shortLabel": "Zgłoszenie choroby",
-      "hint": "Zgłoś chorobę dziecka na jeden dzień lub kilka dni"
+      "shortLabel": "Zgłoszenie choroby"
     },
     "pickup": {
       "label": "Zmień godzinę odbioru na jeden dzień",
-      "shortLabel": "Zmień godzinę odbioru",
-      "hint": "Zmień godzinę odbioru na jeden wybrany dzień"
+      "shortLabel": "Zmień godzinę odbioru"
     }
   },
   "request": {
@@ -125,5 +136,6 @@
   },
   "requiredHint": "Pola oznaczone * są wymagane.",
   "timeFormatHint": "Godzina w formacie 15:30",
-  "timeExample": "np. 15:30"
+  "timeExample": "np. 15:30",
+  "requestEditTooltip": "Otwiera Państwa otwartą prośbę do zmiany."
 }

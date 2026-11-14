@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	careStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog"
+	careStudentsHTTP "github.com/moto-ogs/project-phoenix/modules/careplan/http"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // staffPickupSignatures binds the Audit Platform's signature ledger to the

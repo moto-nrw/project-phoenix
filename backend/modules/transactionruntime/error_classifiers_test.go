@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 	"github.com/stretchr/testify/assert"
 )
 

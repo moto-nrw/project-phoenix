@@ -182,6 +182,7 @@ export default function TraegerJahresbescheidePage() {
           variant="primary"
           size="md"
           disabled={!data}
+          tooltip="Öffnet ein Fenster, um einen Jahreslauf für Jahr und Schulen zu starten."
           onClick={() => setStarting(true)}
         >
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -199,7 +200,7 @@ export default function TraegerJahresbescheidePage() {
             suggestedYear={data.list.suggestedYear}
             onClose={() => setStarting(false)}
             onStart={startCareNoticeRun}
-            onStarted={(run) => {
+            onStarted={(run: CareNoticeRun) => {
               setStarting(false);
               openRun(run);
             }}

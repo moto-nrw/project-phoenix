@@ -1,5 +1,9 @@
 {
+  "archived": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "color_already_in_use": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-  "not_released": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "not_released": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "required_by_care_offering": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "session_running": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "still_planned": "{object} değiştirilemedi. Güncel durumu kontrol edin."
 }

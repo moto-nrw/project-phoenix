@@ -25,6 +25,7 @@ import { RosterDeviationTodos } from "~/components/home/roster-deviation-todos";
 import { SchoolVacationHintsCore } from "~/components/timetable/school-vacation-hints-core";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { Button } from "~/components/ui/button";
+import { ICON_ONLY } from "~/components/ui/control-geometry";
 import { EmptyState } from "~/components/ui/empty-state";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -78,6 +79,10 @@ import { UserContextProvider } from "~/lib/usercontext-context";
 import { DashboardSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "HomePage" });
+
+/** „Anpassen“ und „Bausteine hinzufügen“ öffnen dasselbe Anpassen (#6755). */
+const EDIT_HOME_TOOLTIP =
+  "Zeigt die Bausteine zum Verschieben, Hinzufügen und Entfernen.";
 
 // Alles, was aus den Betriebszahlen (/analytics) lebt. Steht keiner dieser
 // Bausteine auf der Fläche, wird die Abfrage gar nicht erst gestellt (#2875).
@@ -470,6 +475,7 @@ function HomeContent() {
               size="md"
               disabled={saving}
               onClick={cancelEditing}
+              tooltip="Verwirft Ihre Änderungen an der Startseite."
             >
               Abbrechen
             </Button>
@@ -479,6 +485,7 @@ function HomeContent() {
               size="md"
               disabled={saving}
               onClick={save}
+              tooltip="Speichert die neue Anordnung Ihrer Startseite."
             >
               Fertig
             </Button>
@@ -486,14 +493,15 @@ function HomeContent() {
         ) : (
           // Auf allen Breiten nur das Symbol (#4346): als Textknopf war
           // „Anpassen" größer als alles, wofür man die Startseite öffnet.
-          // Name und Tooltip sagen „Anpassen". Die Kopfkarte gibt dem
+          // Der Name sagt „Anpassen", der Tooltip die Folge (#6755). Die Kopfkarte gibt dem
           // Symbolknopf dieselbe Höhe wie „Abbrechen" und „Fertig".
-          // `data-icon-only` an der Hülle hält ihn unter sm in der
-          // Titelzeile; die Blase steht rechtsbündig, weil der Knopf am
-          // rechten Rand sitzt. Zeigen, Fokus oder Antippen laden das
-          // Anpassen schon vor dem Klick (#6469).
+          // Die Blase steht rechtsbündig, weil der Knopf am rechten Rand
+          // sitzt. Zeigen, Fokus oder Antippen laden das Anpassen schon vor
+          // dem Klick (#6469); die Hülle trägt das, weil ein gesperrter Knopf
+          // keine Zeiger-Ereignisse meldet. Als reines Symbol (`ICON_ONLY`)
+          // bleibt sie unter sm in der Titelzeile.
           <div
-            data-icon-only=""
+            {...ICON_ONLY}
             onPointerEnter={preloadHomeBoardEditor}
             onPointerDown={preloadHomeBoardEditor}
             onFocus={preloadHomeBoardEditor}
@@ -503,7 +511,7 @@ function HomeContent() {
               variant="outline"
               size="icon"
               aria-label="Anpassen"
-              tooltip="Anpassen"
+              tooltip={EDIT_HOME_TOOLTIP}
               disabled={!homeLayoutReady}
               onClick={startEditing}
             >
@@ -565,6 +573,7 @@ function HomeContent() {
                 onPointerEnter={preloadHomeBoardEditor}
                 onFocus={preloadHomeBoardEditor}
                 onClick={startEditing}
+                tooltip={EDIT_HOME_TOOLTIP}
               >
                 Bausteine hinzufügen
               </Button>

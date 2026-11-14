@@ -45,7 +45,11 @@ import {
   type SeriesRule,
 } from "~/lib/shift-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
-import type { ShiftType } from "~/lib/shift-type-helpers";
+import {
+  isShiftTypeOffered,
+  shiftTypeOptionLabel,
+  type ShiftType,
+} from "~/lib/shift-type-helpers";
 import {
   latestISODate,
   materializedRecurrenceDates,
@@ -496,11 +500,8 @@ export function ShiftEditModal({
       { value: "", label: "Keine Dienstart" },
     ];
     for (const type of shiftTypes) {
-      if (type.isActive || type.id === shift?.shiftTypeId) {
-        opts.push({
-          value: type.id,
-          label: type.isActive ? type.name : `${type.name} (inaktiv)`,
-        });
+      if (isShiftTypeOffered(type) || type.id === shift?.shiftTypeId) {
+        opts.push({ value: type.id, label: shiftTypeOptionLabel(type) });
       }
     }
     return opts;
@@ -1000,6 +1001,7 @@ export function ShiftEditModal({
           formErrors.clear();
         }}
         disabled={isSaving}
+        tooltip="Zeigt wieder nur diesen Tag, Änderungen an der Serie entfallen."
       >
         Zurück
       </Button>
@@ -1013,6 +1015,10 @@ export function ShiftEditModal({
         disabled={
           isSaving || !timesValid || !breakValid || seriesWeekdays.length === 0
         }
+        disabledReason={
+          timeBlockedReason(timesValid, breakValid) ?? WEEKDAY_BLOCKED_REASON
+        }
+        tooltip="Ändert die Serie ab diesem Termin, frühestens ab morgen."
       >
         Serie speichern
       </Button>
@@ -1020,7 +1026,13 @@ export function ShiftEditModal({
   );
 
   const footer = seriesNotice ? (
-    <Button type="button" variant="primary" size="md" onClick={onClose}>
+    <Button
+      type="button"
+      variant="primary"
+      size="md"
+      onClick={onClose}
+      noTooltip="Schließt nur das Fenster, die Serie ist schon gespeichert."
+    >
       Schließen
     </Button>
   ) : seriesEditOpen ? (
@@ -1035,6 +1047,11 @@ export function ShiftEditModal({
           className="sm:mr-auto"
           onClick={handleDeleteClick}
           disabled={isSaving || isDeleting}
+          tooltip={
+            isSeriesRow
+              ? "Löscht die Schicht oder die Serie ab hier, moto fragt vorher nach."
+              : "Löscht die Schicht, moto fragt vorher nach."
+          }
         >
           Schicht löschen
         </Button>
@@ -1045,6 +1062,7 @@ export function ShiftEditModal({
         size="md"
         onClick={onClose}
         disabled={isSaving || isDeleting}
+        noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
       >
         Abbrechen
       </Button>
@@ -1058,6 +1076,22 @@ export function ShiftEditModal({
         disabled={
           isSaving || isDeleting || !timesValid || !breakValid || !seriesValid
         }
+        disabledReason={
+          isDeleting
+            ? undefined
+            : (timeBlockedReason(timesValid, breakValid) ??
+              (weekdays.length === 0
+                ? WEEKDAY_BLOCKED_REASON
+                : "Wählen Sie zuerst einen Planungszeitraum aus."))
+        }
+        tooltip={submitTooltip({
+          mode,
+          repeatEnabled,
+          asksScope:
+            isSeriesRow &&
+            !cancelled &&
+            cancelled === (shift?.cancelled ?? false),
+        })}
       >
         {submitLabel(mode, repeatEnabled)}
       </Button>
@@ -1142,6 +1176,7 @@ export function ShiftEditModal({
                         size="compact"
                         onClick={openSeriesEdit}
                         disabled={seriesRule === null || isSaving || isDeleting}
+                        tooltip="Öffnet die Regel der ganzen Serie zum Ändern."
                       >
                         Serie bearbeiten
                       </Button>
@@ -1352,6 +1387,7 @@ export function ShiftEditModal({
                                     variant="ghost"
                                     size="icon"
                                     aria-label={`Vertretung ${index + 1} entfernen`}
+                                    tooltip="Nimmt die Vertretung heraus, das gilt erst nach dem Speichern."
                                     onClick={() => removeReplacement(index)}
                                   >
                                     <X className="h-4 w-4" aria-hidden="true" />
@@ -1405,6 +1441,8 @@ export function ShiftEditModal({
                             size="md"
                             onClick={addReplacement}
                             disabled={replacementStaffOptions.length <= 1}
+                            disabledReason="Es gibt keine andere Person für eine Vertretung."
+                            tooltip="Fügt Felder für eine weitere Ersatzperson hinzu."
                           >
                             + Vertretung hinzufügen
                           </Button>
@@ -1637,6 +1675,39 @@ function describeSeriesRule(rule: SeriesRule): string {
 function submitLabel(mode: ShiftEditMode, repeatEnabled: boolean): string {
   if (mode === "edit") return "Änderungen speichern";
   return repeatEnabled ? "Serie anlegen" : "Schicht anlegen";
+}
+
+const WEEKDAY_BLOCKED_REASON =
+  "Wählen Sie zuerst mindestens einen Wochentag aus.";
+
+/** Warum Beginn, Ende oder Pause das Speichern sperren (#6643). */
+function timeBlockedReason(
+  timesValid: boolean,
+  breakValid: boolean,
+): string | undefined {
+  if (!timesValid) return "Prüfen Sie zuerst Beginn und Ende.";
+  if (!breakValid) return "Prüfen Sie zuerst die Pause.";
+  return undefined;
+}
+
+function submitTooltip({
+  mode,
+  repeatEnabled,
+  asksScope,
+}: {
+  readonly mode: ShiftEditMode;
+  readonly repeatEnabled: boolean;
+  /** Eine Serienschicht fragt beim Speichern nach dem Umfang. */
+  readonly asksScope: boolean;
+}): string {
+  if (mode === "create") {
+    return repeatEnabled
+      ? "Legt die Schicht an jedem gewählten Wochentag des Zeitraums an."
+      : "Trägt die Schicht an diesem Tag in den Dienstplan ein.";
+  }
+  return asksScope
+    ? "Speichert die Änderung, moto fragt vorher nach, für welche Wochen."
+    : "Speichert die Änderung an dieser Schicht.";
 }
 
 function Field({

@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 
-	boundaryBinding "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	boundaryBinding "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application/rotation"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // The account-authentication flows (#3251) need facts other owners hold and
