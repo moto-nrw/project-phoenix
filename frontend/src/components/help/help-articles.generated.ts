@@ -970,6 +970,7 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
         steps: [
           "Nutzen Sie die Leiste unten, um häufige Bereiche zu öffnen.",
           "Wählen Sie `Mehr`, um die übrigen Bereiche zu sehen.",
+          "Dort stehen dieselben Gruppen wie in der Seitenleiste. Tippen Sie auf eine Gruppe, um sie auf- oder zuzuklappen.",
           "Öffnen Sie oben rechts Ihr Profil, um Ihre Angaben anzusehen oder sich abzumelden.",
         ],
       },
