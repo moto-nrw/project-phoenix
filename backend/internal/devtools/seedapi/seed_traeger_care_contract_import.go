@@ -1,12 +1,40 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
+
+// seedTraegerCareContractImportStep takes over existing contracts of the
+// seeded school from a file (#4723). It runs after the contracts of the
+// applications are signed and billed: an imported contract is active at once,
+// and the steps before read the active contracts of the school to decide
+// which draft is signed on paper and which month is billed first.
+type seedTraegerCareContractImportStep struct{}
+
+func (seedTraegerCareContractImportStep) Name() string {
+	return "Importing existing Träger care contracts"
+}
+
+func (seedTraegerCareContractImportStep) Run(_ context.Context, rt *Runtime) error {
+	if rt == nil || rt.Client == nil || rt.Bootstrap == nil || rt.Bootstrap.AdminEmail == "" || rt.Bootstrap.AdminPassword == "" {
+		return fmt.Errorf("the Träger care contract import seed prerequisites are not available")
+	}
+	auth, err := seedTraegerSession(rt)
+	if err != nil {
+		return err
+	}
+	imported, err := seedImportedCareContracts(rt.Client, auth, rt.Bootstrap.SchoolID)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("  Träger care contract import: %d contracts taken over\n", imported)
+	return nil
+}
 
 // seedImportTries bounds the modules the seed offers the import: the first
 // whose phase still runs next month takes the file.
@@ -15,15 +43,18 @@ const seedImportTries = 6
 // seedImportedCareContracts takes over three children with their existing
 // contracts from a CSV export of another program (#4723), so the demo shows
 // imported contracts and the import log. The contracts start next month, so
-// no monthly run of the seed bills them. A repeated seed finds the children
-// again and takes over nothing.
-func seedImportedCareContracts(client *Client, auth AuthRef) (int, error) {
+// no monthly run of the seed bills them. They belong to the seeded school,
+// like every contract of this step, so a school seeded later leaves those
+// of the other demo schools alone. A repeated seed finds the children again
+// and takes over nothing.
+func seedImportedCareContracts(client *Client, auth AuthRef, school int64) (int, error) {
 	raw, err := client.GetWithAuth(auth, "/traeger/contract-templates/")
 	if err != nil {
 		return 0, fmt.Errorf("read the contract templates for the import: %w", err)
 	}
 	var templates struct {
 		Data []struct {
+			SchoolID     int64           `json:"school_id"`
 			SchoolName   string          `json:"school_name"`
 			OfferingName string          `json:"offering_name"`
 			Active       bool            `json:"active"`
@@ -37,7 +68,7 @@ func seedImportedCareContracts(client *Client, auth AuthRef) (int, error) {
 	start := calendar.NewDate(today.Year(), today.Month()+1, 1).Format("02.01.2006")
 	tries := 0
 	for _, offering := range templates.Data {
-		if !offering.Active || len(offering.Template) == 0 || string(offering.Template) == "null" {
+		if offering.SchoolID != school || !offering.Active || len(offering.Template) == 0 || string(offering.Template) == "null" {
 			continue
 		}
 		if tries++; tries > seedImportTries {

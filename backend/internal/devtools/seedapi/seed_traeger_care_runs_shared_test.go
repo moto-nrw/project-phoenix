@@ -130,14 +130,21 @@ func TestSeedFirstActiveMonthReadsTheContractsOfTheSeededSchool(t *testing.T) {
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		query = r.URL.RawQuery
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, `{"data":{"contracts":[{"effective_from":"2026-10-15"},{"effective_from":"2026-11-01"}]}}`)
+		_, _ = fmt.Fprint(w, `{"data":{"contracts":[{"effective_from":"2026-12-01"},{"effective_from":"2026-10-15"},{"effective_from":"2026-11-01"}]}}`)
 	})
 	defer srv.Close()
 
-	first, err := seedFirstActiveMonth(newTestClient(srv.URL, false), AuthRef{Kind: AuthBearer, Token: "traeger"}, 65)
+	client, auth := newTestClient(srv.URL, false), AuthRef{Kind: AuthBearer, Token: "traeger"}
+	first, err := seedFirstActiveMonth(client, auth, 65, calendar.NewDate(2026, 11, 1))
 	require.NoError(t, err)
 	assert.Equal(t, calendar.NewDate(2026, 10, 1), first)
 	assert.Equal(t, "status=aktiv&school_id=65", query)
+
+	// A contract that begins after the current month, such as an imported
+	// one (#4723), has no month to bill: alone it gives no first month.
+	first, err = seedFirstActiveMonth(client, auth, 65, calendar.NewDate(2026, 9, 1))
+	require.NoError(t, err)
+	assert.True(t, first.IsZero())
 }
 
 // While another school's notice run of the year is open, the seeded school

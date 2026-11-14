@@ -70,7 +70,7 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 	// The Worker concludes the contracts of Weg b on its own tick (#4680);
 	// a contract already active bills its first month, the others bill once
 	// it is concluded.
-	first, err := seedFirstActiveMonth(rt.Client, auth, school)
+	first, err := seedFirstActiveMonth(rt.Client, auth, school, current)
 	if err != nil {
 		return err
 	}
@@ -134,8 +134,10 @@ func seedCareRuns(client *Client, auth AuthRef, school int64, first, current cal
 }
 
 // seedFirstActiveMonth is the month of the earliest effective date of an
-// active contract of the school; zero without one.
-func seedFirstActiveMonth(client *Client, auth AuthRef, school int64) (calendar.Date, error) {
+// active contract of the school that is in force by the end of the current
+// month; zero without one. A contract that begins later, such as an imported
+// one (#4723), has no month to bill yet.
+func seedFirstActiveMonth(client *Client, auth AuthRef, school int64, current calendar.Date) (calendar.Date, error) {
 	raw, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/contracts/?status=aktiv&school_id=%d", school))
 	if err != nil {
 		return "", fmt.Errorf("read the active contracts: %w", err)
@@ -151,7 +153,11 @@ func seedFirstActiveMonth(client *Client, auth AuthRef, school int64) (calendar.
 		return "", fmt.Errorf("read the active contracts: %w", err)
 	}
 	var first calendar.Date
+	next := calendar.NewDate(current.Year(), current.Month()+1, 1)
 	for _, contract := range envelope.Data.Contracts {
+		if !contract.EffectiveFrom.Before(next) {
+			continue
+		}
 		if first.IsZero() || contract.EffectiveFrom.Before(first) {
 			first = contract.EffectiveFrom
 		}
