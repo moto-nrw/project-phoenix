@@ -434,8 +434,12 @@ export function Header() {
                 variant="ghost"
                 size="icon"
                 onClick={toggleSidebar}
-                title={sidebarToggleLabel}
                 aria-label={sidebarToggleLabel}
+                tooltip={
+                  sidebarCollapsed
+                    ? "Zeigt die Seitenleiste wieder breit, mit allen Namen."
+                    : "Klappt die Seitenleiste zu schmalen Symbolen ein."
+                }
                 aria-expanded={!sidebarCollapsed}
                 aria-keyshortcuts="Control+B Meta+B"
                 // -ml-4 zieht den Button aus dem Header-Padding (lg:px-8)

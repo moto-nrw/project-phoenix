@@ -370,12 +370,28 @@ function absenceReportMenu(
   if (child.unreported) {
     return [
       { kind: "header", label: "Meldung eintragen" },
-      { label: statusLabel("sick"), onClick: () => onEnter("sick") },
-      { label: statusLabel("excused"), onClick: () => onEnter("excused") },
+      {
+        label: statusLabel("sick"),
+        description: "Trägt das Kind sofort als krank ein, die OGS sieht es.",
+        onClick: () => onEnter("sick"),
+      },
+      {
+        label: statusLabel("excused"),
+        description:
+          "Trägt das Kind sofort als entschuldigt ein, die OGS sieht es.",
+        onClick: () => onEnter("excused"),
+      },
     ];
   }
   if (child.status_by_school) {
-    return [{ label: "Meldung zurücknehmen", onClick: onWithdraw }];
+    return [
+      {
+        label: "Meldung zurücknehmen",
+        description:
+          "Nimmt die Meldung der Schule zurück, moto fragt vorher nach.",
+        onClick: onWithdraw,
+      },
+    ];
   }
   return [];
 }
@@ -447,6 +463,7 @@ function ClassDayOverviewActions() {
         variant="surface"
         size="icon"
         aria-label="Vorheriger Tag"
+        tooltip="Zeigt die Übersicht für den Tag davor."
         onClick={() => shiftDay(-1)}
         className="shrink-0"
       >
@@ -466,6 +483,7 @@ function ClassDayOverviewActions() {
         variant="surface"
         size="icon"
         aria-label="Nächster Tag"
+        tooltip="Zeigt die Übersicht für den nächsten Tag."
         onClick={() => shiftDay(1)}
         className="shrink-0"
       >
@@ -735,6 +753,7 @@ function ClassDayOverviewContent({
                                 )}
                                 variant="ghost"
                                 size="compact"
+                                noTooltip="Klappt nur die offene Liste zu, sonst ändert sich nichts."
                               >
                                 Liste schließen
                               </ButtonLink>

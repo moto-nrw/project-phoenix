@@ -13,6 +13,7 @@
   "contactData": "Kontaktdaten",
   "soon": "Bald",
   "refresh": "Daten aktualisieren",
+  "refreshTooltip": "Holt den neuesten Stand aller Daten auf dieser Seite.",
   "closeMenu": "Menü schließen",
   "profileMenu": "Profilmenü von {name}",
   "profile": "Profil",

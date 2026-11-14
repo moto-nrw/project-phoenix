@@ -101,7 +101,11 @@ export function MyGroupBlock() {
       leading={<HomeCardIcon concept={groupsConcept} />}
       inlineActions
       actions={
-        <HomeCardLink href={href} label="Meine Gruppe heute: zur Gruppe">
+        <HomeCardLink
+          href={href}
+          label="Meine Gruppe heute: zur Gruppe"
+          tooltip="Öffnet die Seite Ihrer Gruppe."
+        >
           Zur Gruppe
         </HomeCardLink>
       }

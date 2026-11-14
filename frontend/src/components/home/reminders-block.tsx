@@ -1,5 +1,6 @@
 "use client";
 
+import { REMINDERS_LINK_TOOLTIP } from "~/components/home/home-link-tooltips";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ListRow } from "~/components/ui/list-row";
@@ -50,6 +51,7 @@ export function RemindersBlock() {
         <HomeCardLink
           href={tenantPath("/reminders")}
           label="Erinnerungen: alle ansehen"
+          tooltip={REMINDERS_LINK_TOOLTIP}
         >
           Alle ansehen
         </HomeCardLink>

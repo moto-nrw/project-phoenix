@@ -9,6 +9,10 @@ import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types"
 
 const logger = createLogger({ component: "HomeStartOwnBlock" });
 
+/** Erklärung am Starten-Knopf, gleich in „Mein Tag“ und der Jetzt-Zone (#6777). */
+export const START_OWN_BLOCK_TOOLTIP =
+  "Startet Ihre Aufsicht für diesen Block und öffnet sie.";
+
 /**
  * Einen eigenen Block starten und direkt in seine Kinderliste springen
  * (#2180). „Mein Tag" und die Jetzt-Zone starten auf demselben Weg: zwei
