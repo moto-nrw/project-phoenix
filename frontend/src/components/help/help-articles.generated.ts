@@ -2286,7 +2286,7 @@ export const emailDeliveryTopic = function emailDeliveryTopic(): HelpTopic {
       {
         title: "Einen Elternbrief neu senden",
         description:
-          "Das geht für Mails, die nicht ankamen. Gesperrte Adressen und gestoppte Personen bekommen keine neue Mail.",
+          "Das geht für Mails, die nicht ankamen. Gesperrte Adressen, gestoppte Personen und Familien ohne Kind in Betreuung bekommen keine neue Mail.",
         steps: [
           "Öffnen Sie den Elternbrief und sehen Sie sich den Status an.",
           "Steht bei einer Person `Adresse prüfen`? Prüfen Sie zuerst die Adresse wie unten beschrieben.",
