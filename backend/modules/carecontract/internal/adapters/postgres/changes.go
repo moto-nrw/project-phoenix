@@ -13,14 +13,15 @@ import (
 )
 
 // ChangeContract reads the school, the child and the status of a contract
-// of the Träger (#5979). The filter on organization_id holds without the
+// of the Träger (#5979). A contract from an import file (#4723) names no
+// application child: 0. The filter on organization_id holds without the
 // Träger policy too; a contract of another Träger is not found.
 func (Store) ChangeContract(ctx context.Context, organizationID, contractID int64) (ports.ChangeContract, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return ports.ChangeContract{}, err
 	}
-	return scanChangeContract(ctx, db.NewRaw(`SELECT id, school_id, request_child_id, student_id, status FROM care_contract.contracts
+	return scanChangeContract(ctx, db.NewRaw(`SELECT id, school_id, COALESCE(request_child_id, 0) AS request_child_id, student_id, status FROM care_contract.contracts
 		WHERE organization_id = ? AND id = ?`, organizationID, contractID))
 }
 
@@ -32,7 +33,7 @@ func (Store) LockChangeContract(ctx context.Context, organizationID, contractID 
 	if err != nil {
 		return ports.ChangeContract{}, err
 	}
-	return scanChangeContract(ctx, db.NewRaw(`SELECT id, school_id, request_child_id, student_id, status FROM care_contract.contracts
+	return scanChangeContract(ctx, db.NewRaw(`SELECT id, school_id, COALESCE(request_child_id, 0) AS request_child_id, student_id, status FROM care_contract.contracts
 		WHERE organization_id = ? AND id = ? FOR UPDATE`, organizationID, contractID))
 }
 

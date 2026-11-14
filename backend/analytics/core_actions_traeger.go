@@ -221,6 +221,10 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	// The paper contract (#4679) is recorded by the office, no core action.
 	{http.MethodPost, "/traeger/contracts/{id}/paper-signature"}:            notCaptured,
 	{http.MethodPut, "/traeger/contract-templates/{schoolId}/{offeringId}"}: notCaptured,
+	// The import of existing contracts (#4723) belongs to the Träger, not
+	// to a school; the preview stores nothing.
+	{http.MethodPost, "/traeger/contract-imports/"}:        notCaptured,
+	{http.MethodPost, "/traeger/contract-imports/preview"}: notCaptured,
 	// Withdrawal and termination (#4682): the Träger-Büro records a
 	// declaration it received and sets the end of an extraordinary
 	// termination it checked; the parents' own one in the parents portal.

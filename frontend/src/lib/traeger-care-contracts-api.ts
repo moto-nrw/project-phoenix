@@ -192,7 +192,7 @@ type ContractVersionStatus =
   "beantragt" | "wirksam" | "abgeloest" | "abgelehnt" | "ersetzt";
 
 /** Where a version came from: the conclusion or an approved change. */
-type ContractVersionSource = "abschluss" | "buchungsaenderung";
+type ContractVersionSource = "abschluss" | "buchungsaenderung" | "import";
 
 export interface ContractVersion {
   readonly number: number;

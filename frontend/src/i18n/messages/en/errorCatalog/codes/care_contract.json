@@ -23,5 +23,8 @@
   "special_termination_closed": "This contract has no special termination. Please choose the regular termination.",
   "template_invalid": "Please check the marked fields.",
   "withdrawal_closed": "The withdrawal period is over. You can still terminate the contract.",
-  "withdrawal_notice_required": "Please confirm that you have read the cancellation policy."
+  "withdrawal_notice_required": "Please confirm that you have read the cancellation policy.",
+  "import_file_invalid": "{object} could not be saved. Please check your entries.",
+  "import_file_too_large": "{object} could not be saved. Please check your entries.",
+  "import_changed": "{object} could not be changed. Please check its current status."
 }

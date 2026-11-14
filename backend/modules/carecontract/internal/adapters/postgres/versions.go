@@ -64,7 +64,8 @@ func versionsOf(rows []versionRow) ([]carecontract.Version, error) {
 	return versions, nil
 }
 
-// AmendableContracts reads every active contract with its effective
+// AmendableContracts reads every active contract from an application (a
+// contract from an import file follows no bookings, #4723) with its effective
 // versions by effective date, the start of version 1, which a fixed term
 // counts from even when a later change goes before it, and its next version
 // number.
@@ -89,7 +90,7 @@ func (Store) AmendableContracts(ctx context.Context, organizationID int64) ([]po
 		FROM care_contract.contracts AS c
 		JOIN care_contract.contract_versions AS v ON v.organization_id = c.organization_id AND v.contract_id = c.id
 			AND v.status = ?
-		WHERE c.organization_id = ? AND c.status = ?
+		WHERE c.organization_id = ? AND c.status = ? AND c.request_child_id IS NOT NULL
 		ORDER BY c.school_id, c.id`, carecontract.VersionEffective, organizationID, carecontract.StatusActive).Scan(ctx, &heads); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read active contracts: %w", err)
 	}

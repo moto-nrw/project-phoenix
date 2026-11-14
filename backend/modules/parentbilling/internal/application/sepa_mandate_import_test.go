@@ -161,19 +161,19 @@ func TestParseImportDateReadsGermanAndISODates(t *testing.T) {
 	t.Parallel()
 	for value, want := range map[string]calendar.Date{"01.02.2024": calendar.NewDate(2024, 2, 1),
 		"1.2.2024": calendar.NewDate(2024, 2, 1), "01/02/2024": calendar.NewDate(2024, 2, 1), "2024-02-01": calendar.NewDate(2024, 2, 1)} {
-		got, ok := parseImportDate(value)
+		got, ok := calendar.ParseFileDate(value)
 		require.True(t, ok, value)
 		assert.Equal(t, want, got, value)
 	}
 	// OGS Connect writes the time of day after the date (#7009).
 	for value, want := range map[string]calendar.Date{"01.02.2024 14:05": calendar.NewDate(2024, 2, 1),
 		"1.2.2024 7:05:09": calendar.NewDate(2024, 2, 1), "2024-02-01T00:00": calendar.NewDate(2024, 2, 1)} {
-		got, ok := parseImportDate(value)
+		got, ok := calendar.ParseFileDate(value)
 		require.True(t, ok, value)
 		assert.Equal(t, want, got, value)
 	}
 	for _, value := range []string{"01.02.24", "31.02.2024", "gestern", "2024-13-01", "01.02.2024 25", "01.02.2024 14:05 Uhr"} {
-		_, ok := parseImportDate(value)
+		_, ok := calendar.ParseFileDate(value)
 		assert.False(t, ok, value)
 	}
 }

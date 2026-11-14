@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.care_contract_imports",
+  "max": 2,
+  "exact": true,
+  "description": "modules/carecontract — GET /traeger/contract-imports (#4723):\nthe selects: the Träger binding of the Träger transaction and the import entries of\nthe contract trail, grouped into imports. Flat in the number of imports and contracts.",
+  "route": "GET /traeger/contract-imports/"
+}

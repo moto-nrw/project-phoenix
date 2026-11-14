@@ -23,5 +23,8 @@
   "special_termination_closed": "Dieser Vertrag sieht keine Sonderkündigung vor. Bitte wählen Sie die normale Kündigung.",
   "template_invalid": "Bitte prüfen Sie die markierten Felder.",
   "withdrawal_closed": "Die Widerrufsfrist ist vorbei. Sie können den Vertrag noch kündigen.",
-  "withdrawal_notice_required": "Bitte bestätigen Sie, dass Sie die Widerrufsbelehrung gelesen haben."
+  "withdrawal_notice_required": "Bitte bestätigen Sie, dass Sie die Widerrufsbelehrung gelesen haben.",
+  "import_file_invalid": "Die Datei lässt sich nicht lesen. Bitte wählen Sie eine CSV-Datei mit Überschriften in der ersten Zeile.",
+  "import_file_too_large": "Die Datei ist zu groß. Erlaubt sind 2 MB und 5.000 Zeilen.",
+  "import_changed": "Seit der Vorschau hat sich etwas geändert. Bitte prüfen Sie die Vorschau noch einmal und übernehmen Sie dann."
 }

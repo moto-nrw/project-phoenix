@@ -23,5 +23,8 @@
   "special_termination_closed": "Bu sözleşmede özel fesih yok. Lütfen normal feshi seçin.",
   "template_invalid": "Please check the marked fields.",
   "withdrawal_closed": "Cayma süresi doldu. Sözleşmeyi hâlâ feshedebilirsiniz.",
-  "withdrawal_notice_required": "Lütfen cayma hakkı bilgilendirmesini okuduğunuzu onaylayın."
+  "withdrawal_notice_required": "Lütfen cayma hakkı bilgilendirmesini okuduğunuzu onaylayın.",
+  "import_file_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "import_file_too_large": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "import_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin."
 }

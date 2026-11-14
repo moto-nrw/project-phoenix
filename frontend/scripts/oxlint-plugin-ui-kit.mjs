@@ -6045,6 +6045,7 @@ const TOOLTIP_SCOPE = [
   "src/app/traeger/uebersicht/page.tsx",
   "src/app/traeger/vertraege/page.tsx",
   "src/app/traeger/vertraege/[id]/page.tsx",
+  "src/app/traeger/vertraege/import/page.tsx",
   "src/components/traeger/booking-accounts-cards.tsx",
   // Träger-Abrechnung, Seiten (#6746).
   "src/app/traeger/abrechnung/page.tsx",
@@ -6196,6 +6197,9 @@ const TOOLTIP_SCOPE = [
   "src/components/traeger/care-contract-notice-modal.tsx",
   "src/components/traeger/care-contract-paper-modal.tsx",
   "src/components/traeger/care-contract-signature-card.tsx",
+  "src/components/traeger/care-contract-import-log-card.tsx",
+  "src/components/traeger/care-contract-import-mapping-card.tsx",
+  "src/components/traeger/care-contract-import-preview-card.tsx",
   "src/components/traeger/care-contract-versions.tsx",
   "src/components/traeger/care-invoice-amendments.tsx",
   "src/components/traeger/care-letters-card.tsx",

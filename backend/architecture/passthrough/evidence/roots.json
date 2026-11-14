@@ -2151,6 +2151,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (n CareContractDebtorNumbers) DebtorNumberScope(ctx context.Context, organizationID int64) (string, error) {\n\tscope, err := n.Numbers.DebtorNumberScope(ctx, organizationID)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\tswitch scope {\n\tcase parentbilling.DebtorNumberScopePayer:\n\t\treturn carecontract.ContractDebtorNumberPerPayer, nil\n\tcase parentbilling.DebtorNumberScopeChild:\n\t\treturn carecontract.ContractDebtorNumberPerChild, nil\n\t}\n\treturn \"\", fmt.Errorf(\"care contract: unknown scope of the debtor numbers %q\", scope)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/CareContractDebtorNumbers.DebtorNumberScope",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (n CareContractDocumentNotices) EnqueueContractDocumentNotice(ctx context.Context, notice carecontract.ContractDocumentNotice) error {\n\tpayload, err := json.Marshal(notice)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"contract document notice payload: %w\", err)\n\t}\n\t_, err = n.Delivery.EnqueueDeferredPush(ctx, deliveryContract.DeferredPushIntent{OrganizationID: notice.OrganizationID, Template: carecontract.PushKindContractDocument, IdempotencyKey: contractDocumentNoticeKey(notice.ContractID, notice.RecipientEmail), Payload: payload, Related: deliveryContract.RelatedEntity{Type: carecontract.PushRelatedContractDocument, ID: notice.ContractID}})\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/CareContractDocumentNotices.EnqueueContractDocumentNotice",

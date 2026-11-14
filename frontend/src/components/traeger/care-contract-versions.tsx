@@ -39,6 +39,13 @@ import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 
 const logger = createLogger({ component: "CareContractVersions" });
 
+/** Woher eine Version kommt, in einem Wort für die Liste. */
+const VERSION_SOURCE_LABELS: Record<ContractVersion["source"], string> = {
+  abschluss: "Vertragsabschluss",
+  buchungsaenderung: "Änderung der Betreuung",
+  import: "Aus einer Datei importiert",
+};
+
 /** Where a version stands on a day, for its badge. */
 export type VersionPhase =
   | "current"
@@ -254,9 +261,7 @@ export function CareContractVersions({
                 </div>
                 <p className="mt-1 text-sm text-gray-600">
                   {formatValidity(version)} ·{" "}
-                  {version.source === "buchungsaenderung"
-                    ? "Änderung der Betreuung"
-                    : "Vertragsabschluss"}
+                  {VERSION_SOURCE_LABELS[version.source]}
                   {changed.size > 0
                     ? ` · ${changed.size === 1 ? "1 Tag" : `${changed.size} Tage`} geändert`
                     : null}

@@ -1536,6 +1536,11 @@
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
     {
+      "decision": "0088",
+      "id": "roots/owners/CareContractDebtorNumbers.DebtorNumberScope",
+      "reason": "Consumer-port adapter of the Betreuungsvertrag (#4723): it reads at the Elternabrechnung whom the debtor numbers of the Träger name, in the Träger transaction of an import of contracts, and maps the scope into the Betreuungsvertrag's words; an unknown scope is an error."
+    },
+    {
       "decision": "0126",
       "id": "roots/owners/CareContractDocumentNotices.EnqueueContractDocumentNotice",
       "reason": "ADR 0126 (#5941): Consumer-port adapter of the Betreuungsvertrag onto Delivery; it encodes the push of a sent contract as a deferred push of the Träger with its own kind, related type and a key of the contract and the hashed address."

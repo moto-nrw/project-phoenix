@@ -275,6 +275,7 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/vertraege",
   "/vertraege/:id",
   "/vertraege/bedingungen",
+  "/vertraege/import",
   "/zeitvergleich",
 ] as const;
 

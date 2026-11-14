@@ -87,6 +87,11 @@ func NewSEPAMandates(contracts parentbilling.CareContracts, cipher parentbilling
 	return application.NewSEPAMandates(postgres.NewStore(), contracts, cipher, formats, calendar.TodayDate)
 }
 
+// NewContractImportNumbers builds the debtor numbers of an import of care contracts (#4723) over the format of the Träger's numbers the root binds.
+func NewContractImportNumbers(formats parentbilling.DebtorNumberFormats) parentbilling.ContractImportNumbers {
+	return application.NewContractImportNumbers(postgres.NewStore(), formats, calendar.TodayDate)
+}
+
 // NewSEPAExportFields opens the sealed IBAN, account holder and mandate text for the return export of a Träger (#3838, #6412); only the administrative export CLI binds it, never HTTP.
 func NewSEPAExportFields(cipher parentbilling.BankDataCipher) parentbilling.SEPAExportFields {
 	return application.NewSEPAExportFields(cipher)

@@ -10980,7 +10980,8 @@ export const traegerBriefkopfTopic =
  * Vertrag gilt, Vertragsbedingungen je Angebot festlegen, Entwürfe aus
  * angenommenen Anmeldungen erstellen, prüfen und senden; die Unterschrift
  * der Eltern und den Papiervertrag erfassen; Versionen nach einer Änderung;
- * Kündigung und Widerruf (#4682); Änderungswünsche der Eltern freigeben (#5979).
+ * Kündigung und Widerruf (#4682); Änderungswünsche der Eltern freigeben (#5979);
+ * Kinder und bestehende Verträge aus einer Datei importieren (#4723).
  */
 export const traegerCareContractsTopic =
   function traegerCareContractsTopic(): HelpTopic {
@@ -11075,6 +11076,24 @@ export const traegerCareContractsTopic =
           ],
         },
         {
+          title: "Kinder und bestehende Verträge importieren",
+          description:
+            "Haben Sie Kinder und Verträge schon in einem anderen Programm, zum Beispiel OGS Connect? Dann übernehmen Sie alle auf einmal aus einer CSV-Datei. Jeder Vertrag gilt sofort als abgeschlossen. Die Eltern bekommen keine Mail. moto bewahrt die Datei nicht auf.",
+          steps: [
+            "Tragen Sie zuerst die `Vertragsbedingungen` für jedes Modul ein. Ohne Bedingungen übernimmt moto keinen Vertrag für das Modul.",
+            "Speichern Sie die Kinder im anderen Programm als CSV-Datei. Die erste Zeile enthält die Überschriften, jede weitere Zeile ein Kind.",
+            "Wählen Sie in der Navigation `Verträge` und oben `Verträge importieren`.",
+            "Sie kennen den Aufbau noch nicht? Wählen Sie `Beispieldatei`. Sie zeigt alle Spalten, die moto von selbst erkennt.",
+            "Ziehen Sie die Datei in das Feld oder wählen Sie `Datei wählen`.",
+            "Prüfen Sie unter `Spalten zuordnen`, aus welcher Spalte jedes Feld kommt. Pflicht sind Vorname und Nachname des Kindes, der `Vertragsbeginn` und der `Nachname der Eltern`.",
+            "Hat Ihre Datei keine Spalte für die Schule oder das Modul? Dann wählen Sie `Schule für alle Zeilen` und `Modul für alle Zeilen`.",
+            "Steht die `Debitorennummer` in der Datei? Ordnen Sie die Spalte zu. moto trägt die Nummer beim Zahler oder beim Kind ein, je nach Ihrer Einstellung. Dafür braucht die Zeile die `E-Mail der Eltern`.",
+            "Prüfen Sie die Zeilen unter `Prüfen und übernehmen`. `Bereit` übernimmt moto. `Schon vorhanden` heißt: Das Kind hat an der Schule schon einen Vertrag. Bei `Fehlerhaft` steht der Grund in der Spalte `Hinweis`.",
+            "Wählen Sie unten `übernehmen`. Die Verträge stehen danach in der Liste mit dem Status `Aktiv`.",
+            "Fehler in der Datei? Korrigieren Sie die Datei und laden Sie sie noch einmal. moto legt kein Kind doppelt an.",
+          ],
+        },
+        {
           title: "Änderungswunsch der Eltern freigeben",
           steps: [
             "Die Eltern beantragen in der Eltern-App andere Tage oder Module. Sie oder die Schule entscheiden.",
@@ -11113,6 +11132,7 @@ export const traegerCareContractsTopic =
       result:
         "Die Eltern bekommen den Vertrag als PDF per Mail. Haben sie ein Konto in der Eltern-App, liegt er dort auch unter `Dokumente`. Wer dort `Neues Dokument vom Träger` eingeschaltet hat, bekommt dazu eine Nachricht aufs Handy. Gilt der Vertrag bei der Annahme, ist sein Status `Aktiv`. Sonst wird er `Versendet`: Der Versand ist beauftragt. Ob die Mail gesendet wurde, sehen Sie unter `Versand`.",
       notes: [
+        "Ein importierter Vertrag endet mit dem Schuljahr seines Moduls, wenn die Datei kein früheres Ende nennt. Er ist mit keinem Kind aus den `Kinderdaten` der Schule verknüpft: moto gleicht Kinder nicht über den Namen ab. Unter `Versionen` steht bei ihm `Aus einer Datei importiert`.",
         "Die Suche und die Filter gelten für alle Verträge. Mit `Weitere Verträge laden` zeigen Sie ältere Treffer an.",
         "Beim ersten Senden hält moto das PDF fest. Ändern Sie danach Bedingungen oder Brieftext, bleibt der versendete Vertrag gleich.",
         "Unter `Versand` sehen Sie, ob die Mail gesendet wurde. Mit `Versand aktualisieren` prüfen Sie den neuen Stand. Mit `Erneut senden` geht dasselbe PDF noch einmal an die Eltern; moto fragt vorher. Bei einem aktiven Vertrag steht `Erneut senden` im Menü mit den drei Punkten oben rechts. Eine zweite Nachricht aufs Handy gibt es dabei nicht. Nur eine korrigierte Mail-Adresse bekommt eine eigene Nachricht.",
@@ -11139,6 +11159,10 @@ export const traegerCareContractsTopic =
         "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
       ],
       troubleshootingDetails: [
+        "Beim Import steht `Für das Modul fehlen die Vertragsbedingungen`? Tragen Sie unter `Vertragsbedingungen` Laufzeit und Frist für das Modul ein. Wählen Sie danach im Import `Erneut prüfen` oder laden Sie die Datei noch einmal.",
+        "Beim Import steht `Dieses Modul gibt es an der Schule nicht`? Der Name in der Datei muss so heißen wie das Angebot der Schule. Ändern Sie den Namen in der Datei, oder wählen Sie `Modul für alle Zeilen`.",
+        "Beim Import steht `Debitorennummer nicht übernommen`? In der Zeile fehlt die E-Mail der Eltern. Tragen Sie die Nummer später unter `Abrechnung` im Reiter `Familien` ein.",
+        "Ein importierter Vertrag hat das falsche Modul oder den falschen Beginn? Tragen Sie für ihn eine Kündigung ein, korrigieren Sie die Datei und laden Sie die Zeile neu.",
         "In `Vertrag beenden` steht `Die Mitteilung zum Vertragsende ging nicht raus`? Der Hinweis nennt den Grund: Der Vertrag ist mit keinem Kind aus den `Kinderdaten` der Schule verknüpft. Oder keine Adresse des Vertrags gehört noch einer Bezugsperson, die für das Kind handeln darf. Bei älteren Entscheidungen kennt moto den Grund nicht. Die Entscheidung gilt trotzdem. Schicken Sie den Eltern die Mitteilung per Brief. Sie steht darunter als `Mitteilung zum Vertragsende (nicht verschickt)`.",
         "`Vertragsende festlegen` oder `Grund nicht anerkennen` meldet, dass kein Ende mehr offen ist? Eine andere Person hat schon entschieden. Laden Sie die Seite neu. Die Entscheidung steht in `Vertrag beenden`.",
         "Bei einem Änderungswunsch fehlt `Freigeben`? Die Eltern melden damit die ganze Betreuung ab. Das ist eine Kündigung. Tragen Sie sie unter `Vertrag beenden` ein, oder lehnen Sie den Wunsch ab.",
@@ -13602,7 +13626,7 @@ export const traegerSepaMandatesTopic =
             "Haben Sie die Mandate schon in einem anderen Programm, zum Beispiel OGS Connect? Dann übernehmen Sie alle auf einmal aus einer CSV-Datei. Referenz und Datum der Unterschrift bleiben gleich. moto bewahrt die Datei nicht auf.",
           steps: [
             "Speichern Sie die Mandate im anderen Programm als CSV-Datei. Die erste Zeile enthält die Überschriften.",
-            "Aus OGS Connect nehmen Sie den Export der Stammdaten. Er hat eine Zeile je Kind. moto schlägt dort die Spalte `Debitor-Nr.` als Zahler vor. Dafür muss moto die Debitorennummern schon kennen, zum Beispiel aus dem Reiter `Familien`.",
+            "Aus OGS Connect nehmen Sie den Export der Stammdaten. Er hat eine Zeile je Kind. moto schlägt dort die Spalte `Debitor-Nr.` als Zahler vor. Dafür muss moto die Debitorennummern schon kennen, zum Beispiel aus `Verträge importieren` oder aus dem Reiter `Familien`.",
             "Öffnen Sie unter `Abrechnung` den Reiter `Lastschrift` und wählen Sie `Mandate importieren`.",
             "Ziehen Sie die Datei in das Feld oder wählen Sie `Datei wählen`.",
             "Prüfen Sie unter `Spalten zuordnen`, aus welcher Spalte jedes Feld kommt. moto schlägt passende Spalten vor.",

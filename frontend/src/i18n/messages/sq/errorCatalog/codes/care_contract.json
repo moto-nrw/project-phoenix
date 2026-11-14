@@ -23,5 +23,8 @@
   "special_termination_closed": "Kjo kontratë nuk parashikon ndërprerje të veçantë. Ju lutemi zgjidhni ndërprerjen e zakonshme.",
   "template_invalid": "Please check the marked fields.",
   "withdrawal_closed": "Afati i tërheqjes ka mbaruar. Ju mund ta ndërprisni ende kontratën.",
-  "withdrawal_notice_required": "Ju lutemi konfirmoni që e keni lexuar udhëzimin për të drejtën e tërheqjes."
+  "withdrawal_notice_required": "Ju lutemi konfirmoni që e keni lexuar udhëzimin për të drejtën e tërheqjes.",
+  "import_file_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "import_file_too_large": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "import_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }

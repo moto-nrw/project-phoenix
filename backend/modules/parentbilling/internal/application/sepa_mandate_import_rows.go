@@ -204,7 +204,7 @@ func (c *importCheck) readDate(row *parentbilling.SEPAMandateImportRow, cells []
 		}
 		return nil
 	}
-	date, ok := parseImportDate(value)
+	date, ok := calendar.ParseFileDate(value)
 	switch {
 	case !ok:
 		addProblem(row, field, parentbilling.ImportProblemInvalid)

@@ -11,6 +11,27 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.CareContractDebtorNumbers.DebtorNumberScope",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/carecontract.ContractDebtorNumbers.DebtorNumberScope",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentbilling ContractImportNumbers.DebtorNumberScope: reads parent_billing.debtor_number_scope of the Träger, its value or the default, in the Träger transaction of the import (#4723, #7007).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-ogs/project-phoenix/modules/parentbilling.ContractImportNumbers.DebtorNumberScope",
+      "target_owner": "parent-billing"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.CareContractDebtorNumbers.DecideImportedDebtorNumbers",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/carecontract.ContractDebtorNumbers.DecideImportedDebtorNumbers",
+      "reason": "Guarded target record command (#4723); participates in the caller's Träger transaction after the Betreuungsvertrag stored the contracts of an import file. Target modules/parentbilling ContractImportNumbers keeps the format check (#6675), the scope per payer or per child (#7007), the rule that a stored number is never overwritten and that disagreeing rows take over none, and the read/save trail of each number; failures propagate to the caller unit. No separate commit, scope switch or combined protocol.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-ogs/project-phoenix/modules/parentbilling.ContractImportNumbers.DecideContractImportNumbers",
+      "target_owner": "parent-billing"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.CareContractDocumentNotices.EnqueueContractDocumentNotice",
       "classification": "platform",
