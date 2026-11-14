@@ -193,6 +193,11 @@ async function loginToTraeger(
   await code.fill(await localMFACode(credentials.email, notBefore));
   if (step === "einrichtung") {
     await page.getByRole("button", { name: "Weiter zum Dashboard" }).click();
+  } else {
+    const confirmOnce = page.getByRole("button", {
+      name: /^Nur dieses Mal bestätigen/,
+    });
+    if (await confirmOnce.isVisible()) await confirmOnce.click();
   }
   await page.waitForURL(leftLogin, { timeout: 30_000 });
 }

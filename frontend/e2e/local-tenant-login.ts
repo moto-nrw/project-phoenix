@@ -228,6 +228,12 @@ async function loginThroughUI(
     await input.fill(code);
     if (enrollment) {
       await page.getByRole("button", { name: "Weiter zum Dashboard" }).click();
+    } else {
+      // Schools that allow remembered devices require an explicit choice.
+      const confirmOnce = page.getByRole("button", {
+        name: /^Nur dieses Mal bestätigen/,
+      });
+      if (await confirmOnce.isVisible()) await confirmOnce.click();
     }
   }
   // The email field disappears at the MFA step too. Only a real session proves
