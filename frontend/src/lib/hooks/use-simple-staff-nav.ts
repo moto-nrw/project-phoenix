@@ -1,10 +1,9 @@
 "use client";
 
 import type { Session } from "next-auth";
-import { useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 import { leadsSchool } from "~/lib/auth-utils";
-import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import {
   useSimpleStaffNavigationSetting,
   useTenantSlugSafe,
@@ -17,6 +16,26 @@ const SIMPLE_STAFF_NAV_SHOW_SIMPLE_LABEL = "Weniger Seiten anzeigen";
 const STORAGE_PREFIX = "simple-staff-nav-show-all";
 const SHOW_ALL = "1";
 
+// Failed writes are newer than the persisted value and must be shared by
+// every menu in this document, including menus mounted after the choice.
+const memoryValues = new Map<string, boolean>();
+const getServerSnapshot = () => false;
+
+function readShowAll(key: string): boolean {
+  const memory = memoryValues.get(key);
+  if (memory !== undefined) return memory;
+  try {
+    return globalThis.localStorage.getItem(key) === SHOW_ALL;
+  } catch {
+    return false;
+  }
+}
+
+function subscribe(onStoreChange: () => void) {
+  globalThis.addEventListener("storage", onStoreChange);
+  return () => globalThis.removeEventListener("storage", onStoreChange);
+}
+
 function writeShowAll(key: string, showAll: boolean) {
   try {
     if (showAll) {
@@ -24,9 +43,11 @@ function writeShowAll(key: string, showAll: boolean) {
     } else {
       globalThis.localStorage.removeItem(key);
     }
+    memoryValues.delete(key);
   } catch {
     // Ohne Speicher (privater Modus, volle Quota) gilt die Wahl nur, bis die
     // Seite neu lädt.
+    memoryValues.set(key, showAll);
   }
   // `storage` feuert nur in anderen Tabs. Seitenleiste und mobile Leiste
   // derselben Seite sollen sofort folgen, deshalb auch hier.
@@ -65,7 +86,15 @@ export function useSimpleStaffNav(session: Session | null): SimpleStaffNav {
   const available =
     schoolSetting && Boolean(accountId) && !leadsSchool(session);
   const key = `${STORAGE_PREFIX}:${tenantSlug ?? ""}:${accountId ?? ""}`;
-  const showAll = useLocalStorageValue(key, available) === SHOW_ALL;
+  const getSnapshot = useCallback(
+    () => available && readShowAll(key),
+    [available, key],
+  );
+  const showAll = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
+  );
 
   const showAllPages = useCallback(() => writeShowAll(key, true), [key]);
   const showSimplePages = useCallback(() => writeShowAll(key, false), [key]);

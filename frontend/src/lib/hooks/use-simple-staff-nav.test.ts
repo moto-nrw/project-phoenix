@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import type { Session } from "next-auth";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const tenant = vi.hoisted(() => ({ simpleNavigation: true }));
 
@@ -25,6 +25,10 @@ describe("useSimpleStaffNav (#6956)", () => {
   beforeEach(() => {
     tenant.simpleNavigation = true;
     globalThis.localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("shows the simple navigation to staff who do not lead the school", () => {
@@ -72,4 +76,69 @@ describe("useSimpleStaffNav (#6956)", () => {
     expect(first.result.current.active).toBe(true);
     expect(second.result.current.active).toBe(true);
   });
+
+  it.each([
+    { failure: "full storage", stored: false, blockReads: false },
+    { failure: "failed removal", stored: true, blockReads: false },
+    { failure: "blocked storage", stored: false, blockReads: true },
+  ])(
+    "shares the choice despite $failure",
+    ({ failure, stored, blockReads }) => {
+      const accountId = `storage-${failure}`;
+      const key = `simple-staff-nav-show-all:burbach:${accountId}`;
+      if (stored) globalThis.localStorage.setItem(key, "1");
+      const throwStorageError = () => {
+        throw new Error("Storage unavailable");
+      };
+      vi.spyOn(globalThis.localStorage, "setItem").mockImplementation(
+        throwStorageError,
+      );
+      vi.spyOn(globalThis.localStorage, "removeItem").mockImplementation(
+        throwStorageError,
+      );
+      if (blockReads) {
+        vi.spyOn(globalThis.localStorage, "getItem").mockImplementation(
+          throwStorageError,
+        );
+      }
+
+      const first = renderHook(() =>
+        useSimpleStaffNav(staffSession(accountId)),
+      );
+      const second = renderHook(() =>
+        useSimpleStaffNav(staffSession(accountId)),
+      );
+      expect(first.result.current.active).toBe(!stored);
+
+      act(() => first.result.current.toggle());
+      expect(first.result.current.active).toBe(stored);
+      expect(second.result.current.active).toBe(stored);
+
+      // A newly mounted menu also sees the unpersisted choice.
+      const remounted = renderHook(() =>
+        useSimpleStaffNav(staffSession(accountId)),
+      );
+      expect(remounted.result.current.active).toBe(stored);
+      const colleague = renderHook(() =>
+        useSimpleStaffNav(staffSession("other")),
+      );
+      expect(colleague.result.current.active).toBe(true);
+
+      act(() => second.result.current.toggle());
+      expect(first.result.current.active).toBe(!stored);
+      expect(second.result.current.active).toBe(!stored);
+      expect(remounted.result.current.active).toBe(!stored);
+
+      // Once storage recovers, successful writes clear the fallback so changes
+      // from another tab can be read again.
+      vi.restoreAllMocks();
+      act(() => first.result.current.showSimplePages());
+      act(() => {
+        globalThis.localStorage.setItem(key, "1");
+        globalThis.dispatchEvent(new StorageEvent("storage", { key }));
+      });
+      expect(first.result.current.active).toBe(false);
+      expect(second.result.current.active).toBe(false);
+    },
+  );
 });
