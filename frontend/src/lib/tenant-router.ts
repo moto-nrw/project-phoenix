@@ -39,11 +39,11 @@ export function useTenantRouter() {
       // confirmation instead of running immediately. With no guard registered
       // attemptNavigation returns false and we navigate as normal. back/forward
       // are already covered by the guard's popstate handling, so they stay bare.
-      push: (path: string) => {
+      push: (path: string, options?: { scroll?: boolean }) => {
         const full = `${prefix}${path}`;
-        if (!attemptNavigation(() => router.push(full), full)) {
-          router.push(full);
-        }
+        const navigate = () =>
+          options ? router.push(full, options) : router.push(full);
+        if (!attemptNavigation(navigate, full)) navigate();
       },
       replace: (path: string) => {
         const full = `${prefix}${path}`;

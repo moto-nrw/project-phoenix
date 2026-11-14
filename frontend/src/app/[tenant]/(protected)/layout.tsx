@@ -1,5 +1,6 @@
 "use client";
 
+import { ParentAttentionOverlayProvider } from "~/lib/parent-attention-overlay";
 import { TenantDataPrefetch } from "~/components/tenant/tenant-data-prefetch";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { SessionEndBarrier } from "~/components/auth/session-end-barrier";
@@ -19,8 +20,10 @@ import { SchoolSearchProvider } from "~/components/search/school-search-trigger"
 
 export default function ProtectedLayout({
   children,
+  parentAttention,
 }: {
   readonly children: React.ReactNode;
+  readonly parentAttention: React.ReactNode;
 }) {
   useSettingsCacheBridge();
   return (
@@ -37,7 +40,12 @@ export default function ProtectedLayout({
                   {/* Seiten nicht gebuchter Module erklären sich im Gerüst
                     (#4894); der Rückweg des Gerüsts führt in die Schule. */}
                   <TenantPagePathProvider>
-                    <NotBookedPageProvider>{children}</NotBookedPageProvider>
+                    <NotBookedPageProvider>
+                      <ParentAttentionOverlayProvider>
+                        {children}
+                        {parentAttention}
+                      </ParentAttentionOverlayProvider>
+                    </NotBookedPageProvider>
                   </TenantPagePathProvider>
                 </AppShell>
               </TenantDataPrefetch>

@@ -1,23 +1,12 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useState } from "react";
-
 import { Button } from "~/components/ui/button";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { COUNTER_TONE } from "~/lib/counter-tones";
+import { useParentAttentionOverlay } from "~/lib/parent-attention-overlay";
+import { useTenantRouter } from "~/lib/tenant-router";
 import type { ParentAttention } from "~/lib/parent-attention";
 import { useStudentParentAttention } from "~/lib/hooks/use-parent-attention";
-
-// Der Dialog lädt erst beim ersten Öffnen: die Kacheln einer Gruppe tragen
-// sonst die Anfragenliste mit, ohne dass jemand sie öffnet.
-const ParentAttentionDialog = dynamic(
-  () =>
-    import("~/components/students/parent-attention-dialog").then(
-      (module) => module.ParentAttentionDialog,
-    ),
-  { ssr: false },
-);
 
 /** Vorlesetext der Zahl: was neu ist, für welches Kind. */
 export function parentAttentionLabel(
@@ -57,9 +46,8 @@ export function ParentAttentionBadge({
   className?: string;
 }>) {
   const attention = useStudentParentAttention(studentId);
-  // Die Zahlen beim Öffnen: der Dialog behält seine Teile, auch wenn die Zahl
-  // während der Arbeit darin sinkt.
-  const [openedWith, setOpenedWith] = useState<ParentAttention | null>(null);
+  const { select } = useParentAttentionOverlay();
+  const router = useTenantRouter();
 
   return (
     <>
@@ -72,7 +60,13 @@ export function ParentAttentionBadge({
           aria-label={parentAttentionLabel(attention, studentName)}
           tooltip="Öffnet neue Nachrichten und offene Anfragen der Eltern."
           data-parent-attention={attention.total}
-          onClick={() => setOpenedWith(attention)}
+          onClick={() => {
+            select({ studentId, studentName, attention });
+            router.push(
+              `/parent-attention/${encodeURIComponent(studentId)}${window.location.search}`,
+              { scroll: false },
+            );
+          }}
         >
           <NotificationBadge
             count={attention.total}
@@ -80,15 +74,6 @@ export function ParentAttentionBadge({
             ariaLabel=""
           />
         </Button>
-      ) : null}
-      {openedWith ? (
-        <ParentAttentionDialog
-          studentId={studentId}
-          studentName={studentName}
-          attention={openedWith}
-          isOpen
-          onClose={() => setOpenedWith(null)}
-        />
       ) : null}
     </>
   );

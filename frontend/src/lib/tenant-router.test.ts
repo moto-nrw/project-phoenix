@@ -52,6 +52,15 @@ import { useTenantRouter } from "./tenant-router";
 // ============================================================================
 
 describe("useTenantRouter", () => {
+  it("forwards scroll preservation for a route overlay", () => {
+    mockUseTenantSlugSafe.mockReturnValue("school-a");
+    const { result } = renderHook(() => useTenantRouter());
+    result.current.push("/parent-attention/7", { scroll: false });
+    expect(mockPush).toHaveBeenCalledWith("/school-a/parent-attention/7", {
+      scroll: false,
+    });
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseTenantRoutingModeSafe.mockReturnValue("path");

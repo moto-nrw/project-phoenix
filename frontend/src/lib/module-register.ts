@@ -58,6 +58,7 @@ export const PAGE_MODULES: Readonly<Record<string, ModuleScope>> = {
   // Der Anfragen-Eingang mischt Eltern-App und Online-Anmeldung; offene
   // Anfragen schließt die Schule auch ohne beide ab (wie im Backend).
   "/anfragen": BASIS,
+  "/parent-attention": BASIS,
 
   // Eltern
   "/messages": "eltern_app",

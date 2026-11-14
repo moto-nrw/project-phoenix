@@ -79,6 +79,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/messages/groups/:groupThreadId",
   "/ogs-groups",
   "/ogs-groups/overview",
+  "/parent-attention/:studentId",
   "/parent-announcements",
   // Objektansicht einer Elternmitteilung (#3115): nur die Route, nie der
   // Titel — die Kennung bleibt als :id stehen.
