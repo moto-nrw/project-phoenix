@@ -27,7 +27,10 @@ func CalendarReminderDelivery(source CalendarReminderSource) ports.DeliveryDepen
 			}
 			result := make(map[int64]ports.GuardianAudience, len(values))
 			for id, value := range values {
-				audience := ports.GuardianAudience{GuardianIDs: value.GuardianIDs, StudentsByGuardian: value.StudentsByGuardian, Profiles: make(map[int64]*ports.GuardianProfile, len(value.Profiles))}
+				audience := ports.GuardianAudience{GuardianIDs: value.GuardianIDs, StudentsByGuardian: value.StudentsByGuardian, Profiles: make(map[int64]*ports.GuardianProfile, len(value.Profiles)), Answers: make(map[int64]ports.GuardianAnswer, len(value.Answers))}
+				for profileID, answer := range value.Answers {
+					audience.Answers[profileID] = ports.GuardianAnswer{Status: answer.Status, OccurrenceResponses: answer.OccurrenceResponses}
+				}
 				for profileID, profile := range value.Profiles {
 					if profile == nil {
 						continue

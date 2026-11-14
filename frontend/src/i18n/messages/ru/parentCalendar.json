@@ -46,6 +46,8 @@
   "changeAnswer": "Изменить ответ",
   "acceptedOn": "Подтверждено на {date}.",
   "declinedOn": "Отклонено на {date}.",
+  "noReminder": "Без напоминания",
+  "noReminderDetail": "Напоминание не придёт.",
   "errorObjectOverview": "ответы",
   "responses": {
     "title": "Ответы",

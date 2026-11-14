@@ -1,10 +1,5 @@
 package identityaccess
 
-import (
-	"encoding/json"
-	"time"
-)
-
 // PasskeyRPName is the relying-party name the authenticators show for the
 // passkeys of both portals.
 const PasskeyRPName = "moto"
@@ -23,36 +18,3 @@ var (
 	// unconsumed, unexpired ceremony with that ID and purpose.
 	ErrAccountPasskeySessionNotFound = notFoundError("account passkey session not found")
 )
-
-// AccountPasskeyCredential is one registered WebAuthn credential of a
-// school-portal account.
-type AccountPasskeyCredential struct {
-	ID             int64
-	AccountID      int64
-	UserHandle     []byte
-	CredentialID   []byte
-	CredentialJSON json.RawMessage
-	Name           string
-	LastUsedAt     *time.Time
-	RevokedAt      *time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-}
-
-// AccountPasskeySession is the server-side state of one school-portal
-// ceremony. AccountID is nil for a discoverable login, which learns the
-// account only from the assertion; TenantID names the school whose portal
-// started the ceremony.
-type AccountPasskeySession struct {
-	ID             string
-	AccountID      *int64
-	TenantID       *int64
-	Purpose        string
-	RPID           string
-	ExpectedOrigin string
-	SessionJSON    json.RawMessage
-	ExpiresAt      time.Time
-	ConsumedAt     *time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-}

@@ -93,4 +93,19 @@ func TestPasskeySessionValidate(t *testing.T) {
 			assert.EqualError(t, session.Validate(), tt.want)
 		})
 	}
+
+	operatorTests := map[string]struct {
+		mutate func(*OperatorPasskeySession)
+		want   string
+	}{
+		"unknown purpose": {func(s *OperatorPasskeySession) { s.Purpose = "recovery" }, "unsupported operator passkey session purpose"},
+		"missing expiry":  {func(s *OperatorPasskeySession) { s.ExpiresAt = time.Time{} }, "expires_at is required"},
+	}
+	for name, tt := range operatorTests {
+		t.Run("operator "+name, func(t *testing.T) {
+			session := operator
+			tt.mutate(&session)
+			assert.EqualError(t, session.Validate(), tt.want)
+		})
+	}
 }

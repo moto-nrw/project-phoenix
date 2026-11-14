@@ -14,6 +14,7 @@ import {
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import {
+  BellSlashIcon,
   BuildingsIcon,
   CalendarDotsIcon,
   CaretLeftIcon,
@@ -649,7 +650,7 @@ function CalendarListEvent({
           </div>
         </div>
       ) : answered ? (
-        <p className="flex items-center gap-1.5 px-3 pb-2.5 text-sm font-medium text-gray-600">
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-3 pb-2.5 text-sm font-medium text-gray-600">
           <CheckCircleIcon
             size={16}
             weight="bold"
@@ -660,6 +661,12 @@ function CalendarListEvent({
           {answerDiffersFromSeries(event) ? (
             <span className="font-normal text-gray-500">
               · {t("onlyThisDate")}
+            </span>
+          ) : null}
+          {state === "declined" ? (
+            <span className="flex basis-full items-center gap-1 ps-5.5 text-xs font-normal text-gray-500">
+              <BellSlashIcon size={14} aria-hidden="true" />
+              {t("noReminder")}
             </span>
           ) : null}
         </p>
@@ -1049,10 +1056,23 @@ function CalendarEventDetails({
 
       <div className="space-y-4 px-4 py-3">
         {status ? (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <StatusBadge label={status.label} tone={status.tone} />
-            {!event.cancelled && answerDiffersFromSeries(event) ? (
-              <StatusBadge label={t("onlyThisDate")} tone="gray" />
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <StatusBadge label={status.label} tone={status.tone} />
+              {!event.cancelled && answerDiffersFromSeries(event) ? (
+                <StatusBadge label={t("onlyThisDate")} tone="gray" />
+              ) : null}
+            </div>
+            {/* Eine Absage unterdrückt die Erinnerung (#7014). */}
+            {eventState(event) === "declined" ? (
+              <p className="flex items-center gap-1.5 text-sm text-gray-600">
+                <BellSlashIcon
+                  size={16}
+                  className="shrink-0 text-gray-500"
+                  aria-hidden="true"
+                />
+                {t("noReminderDetail")}
+              </p>
             ) : null}
           </div>
         ) : null}

@@ -7,53 +7,8 @@
 import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 import type { SettingsSchema } from "./settings-api";
 import { filenameFromDisposition } from "./file-download";
+import { signInAnswer, type SignInAnswer } from "./sign-in-answer";
 import { type TraegerRole, traegerRoles } from "./traeger-roles";
-
-/** A Träger the person can open, offered when they belong to several. */
-export interface TraegerChoice {
-  readonly id: string;
-  readonly name: string;
-}
-
-export type TraegerLoginResult =
-  | {
-      readonly status: "authenticated";
-    }
-  | {
-      readonly status: "organization_selection_required";
-      readonly organizations: readonly TraegerChoice[];
-    }
-  | {
-      /** The account has a second factor: a code was mailed (#4651). */
-      readonly status: "mfa_required";
-      readonly challengeToken: string;
-      readonly maskedEmail: string;
-      readonly organizationId: string;
-      /**
-       * Whether this sign-in may remember the device (#6955). Missing or
-       * unreadable means no: the code step then offers nothing to remember.
-       */
-      readonly trustedDeviceEnabled: boolean;
-      readonly trustedDeviceDays?: number;
-    }
-  | {
-      /** The account sets up its second factor first. */
-      readonly status: "mfa_enrollment_required";
-      readonly enrollmentToken: string;
-      readonly maskedEmail: string;
-      readonly organizationId: string;
-    };
-
-interface BackendLoginResponse {
-  status?: string;
-  access_token?: string;
-  challenge_token?: string;
-  masked_email?: string;
-  organization_id?: number;
-  organizations?: { id: number; name: string }[];
-  trusted_device_enabled?: boolean;
-  trusted_device_days?: number;
-}
 
 export interface TraegerSchool {
   readonly id: string;
@@ -249,7 +204,7 @@ export async function traegerLogin(input: {
   readonly organizationId?: string;
   /** Asks for the code even on a remembered device (#6955). */
   readonly ignoreTrustedDevice?: boolean;
-}): Promise<TraegerLoginResult> {
+}): Promise<SignInAnswer> {
   const body: Record<string, unknown> = {
     email: input.email,
     password: input.password,
@@ -273,37 +228,7 @@ export async function traegerLogin(input: {
     );
   }
 
-  const result = (data ?? {}) as BackendLoginResponse;
-  if (result.status === "organization_selection_required") {
-    return {
-      status: "organization_selection_required",
-      organizations: (result.organizations ?? []).map((organization) => ({
-        id: String(organization.id),
-        name: organization.name,
-      })),
-    };
-  }
-  if (result.status === "mfa_required" && result.challenge_token) {
-    return {
-      status: "mfa_required",
-      challengeToken: result.challenge_token,
-      maskedEmail: result.masked_email ?? "",
-      organizationId: String(result.organization_id ?? ""),
-      trustedDeviceEnabled: result.trusted_device_enabled ?? false,
-      trustedDeviceDays: result.trusted_device_days,
-    };
-  }
-  if (result.status === "mfa_enrollment_required" && result.access_token) {
-    return {
-      status: "mfa_enrollment_required",
-      enrollmentToken: result.access_token,
-      maskedEmail: result.masked_email ?? "",
-      organizationId: String(result.organization_id ?? ""),
-    };
-  }
-  if (result.status !== "authenticated")
-    throw apiErrorFromBody("Invalid login response", 502, data);
-  return { status: "authenticated" };
+  return signInAnswer("traeger", data);
 }
 
 /** The schools of the signed-in person's Träger. */

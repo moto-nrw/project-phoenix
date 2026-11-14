@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator routes are not tenant-scoped
 import { redirect, useRouter } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -13,6 +13,8 @@ import {
   PASSKEY_LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { signOutStaleSession } from "~/lib/login-session-notice";
+import type { MFAStep } from "~/lib/sign-in-answer";
 import { AuthShell, OperatorBrand } from "~/components/auth/auth-shell";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
@@ -32,13 +34,6 @@ import { passkeysConcept } from "~/lib/concepts/passkeys";
 import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "OperatorLoginPage" });
-
-interface MFAStep {
-  challengeToken: string;
-  maskedEmail: string;
-  trustedDeviceEnabled: boolean;
-  trustedDeviceDays: number;
-}
 
 interface MFAEnrollmentStep {
   // enrollmentToken is the narrow-scope JWT issued by operator login when
@@ -62,8 +57,6 @@ export default function OperatorLoginPage() {
   const [passkeySupported, setPasskeySupported] = useState(false);
   const router = useRouter();
   const { data: session, status, update } = useSession();
-  // Ref prevents re-triggering signOut (not in effect deps → no loop).
-  // Separate state controls the loading spinner for the UI.
   const cleanupStartedRef = useRef(false);
   const [isCleaningUp, setIsCleaningUp] = useState(false);
 
@@ -83,33 +76,16 @@ export default function OperatorLoginPage() {
     );
   }, []);
 
-  // Redirect if already authenticated as operator, or clear stale sessions
   useEffect(() => {
-    const check = async () => {
-      // Clear stale sessions with errors before checking redirect.
-      // Uses a ref guard so a failed signOut doesn't re-trigger the effect.
-      if (
-        status === "authenticated" &&
-        session?.error &&
-        !cleanupStartedRef.current
-      ) {
-        cleanupStartedRef.current = true;
-        setIsCleaningUp(true);
-        try {
-          await signOut({ redirect: false });
-        } catch (err) {
-          // Nothing is shown: no one asked for this cleanup (no error
-          // without a user action, #2501), and the login form still works.
-          logger.warn("stale_session_cleanup_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          cleanupStartedRef.current = false;
-        }
-        setIsCleaningUp(false);
-        return;
-      }
-    };
-    void check();
+    const cleanup = signOutStaleSession({
+      status,
+      session,
+      started: cleanupStartedRef,
+      logger,
+    });
+    if (!cleanup) return;
+    setIsCleaningUp(true);
+    void cleanup.then(() => setIsCleaningUp(false));
   }, [status, session]);
 
   // No browser session carries a token (#4991, #5005); a stripped session
@@ -157,22 +133,13 @@ export default function OperatorLoginPage() {
       const response = await loginApi("operator", { email, password });
 
       if (response.status === "mfa_required") {
-        setMfaStep({
-          challengeToken: response.challenge_token,
-          maskedEmail: response.masked_email,
-          trustedDeviceEnabled: response.trusted_device_enabled ?? true,
-          trustedDeviceDays: response.trusted_device_days ?? 90,
-        });
+        setMfaStep(response);
         return;
       }
 
       if (response.status === "mfa_enrollment_required") {
-        // Post-#1430: response carries an enrollment-scoped JWT in
-        // access_token (no refresh_token). It only authorizes the
-        // operator enrollment routes; the real session is minted by
-        // /operator/auth/mfa/enroll/confirm.
         setEnrollmentStep({
-          enrollmentToken: response.access_token,
+          enrollmentToken: response.enrollmentToken,
           email,
         });
         return;

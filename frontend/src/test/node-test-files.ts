@@ -342,6 +342,7 @@ export const nodeLogicTestFiles = [
   "src/lib/school-parent-letters.test.ts",
   "src/lib/school/route-wrapper.test.ts",
   "src/lib/settings-api.test.ts",
+  "src/lib/sign-in-answer.test.ts",
   "src/lib/student-api.school-checkin.test.ts",
   "src/lib/student-arrival-api.test.ts",
   "src/lib/swr/compare.test.ts",

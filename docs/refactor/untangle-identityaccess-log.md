@@ -16,6 +16,10 @@ not is not tied, and everything depends on what changes less.
 1. Backend: portal facts and the voluntary factor (fixes A to E).
 2. Backend: mail copy table and second-factor machinery (fixes F to K).
 3. Frontend: sign-in and second-factor screens (fixes L to P).
+4. Backend follow-ups: the passkey record surface (J1) and the four small
+   items of the final round (fix T).
+5. Frontend follow-ups: one reading of the sign-in answer (N1) and one
+   stale-session sign-out (O1).
 
 ## Fix A: a portal fact decides, not a portal name (done, PR 1)
 
@@ -147,11 +151,21 @@ session it mints (`mint`) and its refusal for a factor that is not on.
   `Enroll`, `Disable` and `IssueTrustedDevice` beside their `…Operator…`
   names. Each holds an administrative transaction, and
   `test/transaction_boundaries.json` accepts no renamed site.
-- J1 open. The public-typed passkey record methods
-  (`internal/ports/records.go`, `AccountPasskeyQuery` and its siblings)
-  serve only `integration/{account,operator}_passkey_test.go`. Removing
-  them means rewriting 618 test lines against the domain errors; that is a
-  change of its own.
+- J1 done (PR 4). The owner no longer serves passkey rows: the public-typed
+  record methods (`ListActiveAccountPasskeys` to
+  `ConsumeAccountPasskeySession` and the operator's seven), the record ports
+  `AccountPasskeyQuery`, `…Command`, `…Records` and their operator siblings,
+  the two embedded engine fields and the public row types
+  (`AccountPasskeyCredential`, `AccountPasskeySession`, the operator's two,
+  `PasskeySessionPurpose*`) are gone. The ceremonies keep the domain-typed
+  record service they always ran on (`application.AccountPasskey`,
+  `OperatorPasskey`). The tests drive the real ceremonies with a software
+  authenticator (`behavior/passkey_authenticator_test.go`); see Tests, PR 4.
+  Not possible: an observer option on the root's auth test module
+  (`api.NewAuthTestModule`). Its body is command-effect evidence of 14
+  care-plan exception bindings, and a changed exception binding needs an
+  approval ADR. The stable operation names are asserted on the record
+  service instead.
 - K1 kept. `AccountMFAFlows.IssueTrustedDevice` reads its prepared policy
   from a context key. Passing the policy as a parameter moves the
   administrative transaction into a new function, which the transaction
@@ -196,17 +210,33 @@ Paths are relative to `frontend/src/`.
   four functions and the account page put them together again. The page
   now calls `emailCodeFactorApi("/api/caterer/account/mfa")` like the
   parents' settings.
-- N1 open. The sign-in answer is mapped three times (`mfa-api.ts` with the
-  pages of tenant, school and operator, `portal-password-login.ts`,
-  `traeger-api.ts`) and `MFAStep` is declared per page. The defaults differ
-  by wire family on purpose (the caterer's answer omits a false flag), and
-  the page tests mock the wire shape, so one mapping changes three test
-  suites. A change of its own.
-- O1 done in part. Clearing the session error from the address and the
-  „Sitzung abgelaufen“ notice existed four times (tenant, school, Träger,
-  caterer). Now `clearSessionErrorFromUrl` and `useSessionExpiredNotice`
-  (`lib/login-session-notice.ts`). Open: signing a stale session out on
-  the login pages (three identical copies, two that differ).
+- N1 done (PR 5). `lib/sign-in-answer.ts` reads the answer of every
+  portal's password step (`signInAnswer`) and declares the one `MFAStep`;
+  the six login pages keep the answer as their code step. The wire
+  differences are a table per portal, not code: a missing
+  `trusted_device_enabled` means „remember“ for tenant, school and operator
+  (pointer field) and „nothing to remember“ for the caterer (`omitempty`), the parents portal
+  and the Träger-Portal; only the Träger-Portal refuses an answer it cannot
+  read (502). The caterer's invitation page uses the same `MFAStep`. Kept: three transports. `traegerLogin` names the Träger and asks
+  for the code on a remembered device, `portalPasswordLogin` builds its
+  refusal from the response, `mfa-api` from the parsed body; they differ in
+  what they send and throw, not in what they read. Kept: the default of 90
+  days stays in `MFAChallengeForm`; the pages' own `?? 90` repeated it.
+- O1 done (PR 3 and 5). Clearing the session error from the address and
+  the „Sitzung abgelaufen“ notice existed four times (tenant, school,
+  Träger, caterer). Now `clearSessionErrorFromUrl` and
+  `useSessionExpiredNotice` (`lib/login-session-notice.ts`). Signing a stale
+  session out existed on all six login pages; now `signOutStaleSession`
+  beside them. It answers null at once when there is nothing to end, so a
+  page still reaches its form in the tick it did before. The differences
+  that are real stay with their page: operator and parents show their
+  waiting state while the sign-out runs, because their form is locked for
+  as long as the session carries an error, and the parents page says so
+  with „Wiederholen“ when the sign-out fails (`onFailure`). Not real: the
+  Träger page started the sign-out without waiting and the three log names;
+  one name now, `stale_session_signout_failed`, and the debug line
+  `clearing_stale_session` of tenant and school is gone. Kept: the operator
+  page reads `SessionExpired` itself; it has no deliberate-logout flag.
 - P1 done. `MFAAdminOverrideModal` took `scope` and three optional ids, one
   of which each scope needed, checked by a throw at click time. It takes one
   `target` now (`{kind, …id}`); a target without its id does not compile.
@@ -230,13 +260,42 @@ only small items.
   `schoollessAudit`; `traegerLoginAudit` was the same code and is gone.
   Test: `TestTraegerSessionRefreshesWithAClientAddress` (fails on the old
   rule).
-- Open, small: the realm of a remembered device is derived three ways (the
-  context keys, `DeviceBinding`, the three flags of the device mail), a
-  `DeviceBinding.Realm()` would be the one place; `Portal.TrustedDevice` is
-  true for every portal since #7051 and #6955 and decides nothing (a test
-  pins it to the token gates); „the schools a caterer supplies now“ is read
-  by the same three calls in `caterer_session.go` and `caterer_access.go`;
-  `CatererAccess.tenantless` repeats the factor's `bind`.
+
+## Fix T: the four small items of the final round (done, PR 4)
+
+- T1 done. The realm of a remembered device was read three ways: from the
+  context keys, from `DeviceBinding` and from three comparisons in the
+  device mail. `DeviceBinding.Realm()` (`internal/domain/account_mfa.go`) is
+  the one reading of a binding; the device mail takes its three flags and
+  its language from it. Kept: the mail keeps three flags, because
+  `identityaccess.TrustedDeviceMail` is the public contract Delivery renders
+  and the public package cannot name the domain's realm. Kept: the context
+  still carries the Träger through the public `WithTraegerDevice`, which the
+  Träger portal binds; `deviceBinding` stays the one place that turns a
+  context into a binding.
+- T2 done. `Portal.TrustedDevice` was true for every portal. The field and
+  its two branches are gone (`mfaChallengeResult`, `challengeDeviceHint`);
+  `Portal.Device` says whose devices a portal remembers. No test named the
+  field: `TestPortalTableMatchesTheTokenGates` compares claims, shapes,
+  `Challenge` and `Enrollment`, so nothing was dropped or rewritten.
+- T3 done. „The schools a caterer supplies now“ (caterer of the account, its
+  supplies, narrowed to live schools) is `AccountAuthentication.suppliedSchools`.
+  The successor school of a refresh (`catererSessionSchool`) and the caterer
+  portal (`CatererAccess.catererSchools`, inside its global identity read)
+  call it; `findCaterer` is gone. Both read through the same store.
+- T4 done. `CatererAccess.tenantless` marked the context by hand, which the
+  factor's `bind` already does for its portal. It now calls
+  `voluntary().bind`.
+- Kept: `changePasswordInTx` (`caterer_password.go`) reads the caterer and its supplies without
+  the live-school filter. It only needs a school to file a refused password
+  at, reads the supplies after the password check inside the login lock, and
+  `suppliedSchools` would move that read ahead of the check.
+- Kept: `withoutSchoolLedger` asks the context for a Träger. The Träger
+  routes bind `WithTraegerDevice` without the ledger mark.
+- Registers: 63 `platform` bindings of the command-effects register changed
+  their digest (the functions on their path changed); each carries a
+  re-review sentence. No exception binding, no pass-through and no
+  transaction site changed.
 
 ## Special cases that stay
 
@@ -291,3 +350,74 @@ PR 3:
 - `lib/personal-storage.test.ts`: the inventory names
   `login-session-notice.ts` as the reader of the logout flag in place of the
   four login pages.
+
+PR 4:
+
+- `integration/account_passkey_test.go` and `operator_passkey_test.go`
+  (618 lines) called the removed record methods. Their behaviors moved to
+  `behavior/account_passkey_ceremonies_test.go` and
+  `operator_passkey_ceremonies_test.go`, which register and sign in through
+  the public ceremonies against Postgres:
+  - credential lifecycle (identity and time of a new credential, listing
+    order, another holder's credential not listed, use recorded with the
+    new credential state, a credential only under its own user handle,
+    revocation by its holder only, a revoked passkey never verifies):
+    `Test…PasskeyCredentialLifecycle`.
+  - a credential ID once platform-wide, and the rollback of consumption and
+    insert with a retry of the same ceremony:
+    `Test…PasskeyRegistrationRollsBackWhenTheCredentialIsTaken`. The old
+    test injected a failure after each write into its own transaction; the
+    new one fails the second write in the flow's transaction, which rolls
+    the first back too.
+  - a ceremony once, only for its purpose, only before it expires, and now
+    also only for the identity that started it:
+    `Test…PasskeySessionIsConsumedOnce`.
+  - rows visible from every tenant context, the school of a ceremony taken
+    from its row: `Test…PasskeyRecordsAreVisibleFromEveryTenantContext`
+    (the account test now also proves the refusal at a foreign school).
+  - a passkey revoked during a login is not updated: the old test called
+    the use on a revoked row; `Test…PasskeyRevokedDuringALoginIsNotUpdated`
+    commits a revocation while the login waits for the row.
+  - what the store calls active (a credential only under its own handle
+    and only until revoked, no use or second revocation of a revoked one,
+    a ceremony row written and consumed once, the rows each statement
+    reports): `Test…PasskeyStoreServesActiveCredentialsOnly` and
+    `Test…PasskeyStoreConsumesACeremonyOnce`
+    (`internal/adapters/postgres`). The ceremonies cannot show these alone:
+    the WebAuthn library refuses a foreign handle or a missing credential
+    before the store's filter would.
+  - a record the domain refuses never reaches the store:
+    `Test…PasskeyRecordsValidateBeforeTheStore`; the operator session's
+    refusals joined `TestPasskeySessionValidate`.
+  - stable operation names, rows and error class:
+    `Test…PasskeyRecordsObserveStableOperations`
+    (`internal/application`), on the record service with a store double,
+    now for all seven operations. The statement count of one was a constant
+    of the store, not a measurement.
+  - dropped: the texts of the public wrappers („identity access: create
+    account passkey: …“) left with the wrappers; the validation they
+    wrapped is asserted in `internal/domain/passkey_test.go`. A second
+    insert of one ceremony ID cannot happen through a flow that draws the
+    ID.
+- `integration/{account,operator}_passkey_runtime_evidence_test.go` removed
+  (353 lines). They measured the removed record methods for the cutover of
+  #2724, ran only with `PHX_TEST_RUNTIME_EVIDENCE=1` and have no evidence
+  file; their two contract assertions (replay refused, duplicate refused)
+  are in the tests above.
+- `inbound/account/behaviortest/identity_lists_growth_query_budget_test.go`:
+  the passkey rows of the budget fixture come from
+  `testpkg.CreateTestAccountPasskey`; statements, budget and assertions are
+  unchanged.
+- Added `TestDeviceBindingNamesOneRealm`.
+
+PR 5:
+
+- No existing test changed: the page tests of tenant, operator and caterer
+  mock the wire, those of school, parents and Träger their transport, and
+  all pass as they were.
+- Added `lib/login-session-notice.test.ts`: nothing to end answers at
+  once, a stale session is signed out once, a failed sign-out is reported
+  and can be tried again.
+- Added `lib/sign-in-answer.test.ts`: the code step of every portal, the
+  two wire families of a missing remember-device field, the setup step, the
+  Träger's choice and its refusal of an unreadable answer.

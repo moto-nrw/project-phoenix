@@ -89,11 +89,13 @@ func (s *preparation) reminderDispatchAudience(ctx context.Context, appointmentI
 	return audiences[appointmentID], true, nil
 }
 
-func reminderAccountProfiles(recipients ports.GuardianAudience, accountID int64) map[int64]struct{} {
+// reminderAccountProfiles lists the account's profiles that are still owed the
+// reminder: a guardian who declined the date since the scan is left out (#7014).
+func reminderAccountProfiles(recipients ports.GuardianAudience, accountID int64, occurrence appointments.Date) map[int64]struct{} {
 	reachableSet := make(map[int64]struct{}, len(recipients.GuardianIDs))
 	for _, profileID := range recipients.GuardianIDs {
 		profile, ok := recipients.Profiles[profileID]
-		if ok && profile.AccountID != nil && *profile.AccountID == accountID {
+		if ok && profile.AccountID != nil && *profile.AccountID == accountID && !recipients.DeclinedOn(profileID, occurrence) {
 			reachableSet[profileID] = struct{}{}
 		}
 	}
@@ -101,7 +103,7 @@ func reminderAccountProfiles(recipients ports.GuardianAudience, accountID int64)
 }
 
 func (s *preparation) claimReminderDispatchProfiles(ctx context.Context, current *appointments.Appointment, delivery reminderPushDelivery, recipients ports.GuardianAudience, revised bool) ([]int64, error) {
-	reachableSet := reminderAccountProfiles(recipients, delivery.accountID)
+	reachableSet := reminderAccountProfiles(recipients, delivery.accountID, delivery.occurrence)
 	var profileIDs []int64
 	for _, profileID := range delivery.profileIDs {
 		if _, ok := reachableSet[profileID]; !ok {

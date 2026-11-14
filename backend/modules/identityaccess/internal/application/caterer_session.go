@@ -24,23 +24,9 @@ import (
 // the caterer supplies. A caterer without a live supplied school has
 // nothing left to see (ADR 0077).
 func (s *AccountAuthentication) catererSessionSchool(ctx context.Context, accountID int64, current domain.AccountSession) (int64, error) {
-	if s.caterers == nil {
-		return 0, domain.ErrAccountNotCaterer
-	}
-	caterer, isCaterer, _, err := s.caterers.FindCatererOfAccount(ctx, accountID)
+	_, schools, err := s.suppliedSchools(ctx, accountID)
 	if err != nil {
-		return 0, fmt.Errorf("find caterer: %w", err)
-	}
-	if !isCaterer {
-		return 0, domain.ErrAccountNotCaterer
-	}
-	schools, _, err := s.caterers.ListCatererSchools(ctx, caterer.ID)
-	if err != nil {
-		return 0, fmt.Errorf("list caterer schools: %w", err)
-	}
-	schools, err = s.liveSchoolIDs(ctx, schools)
-	if err != nil {
-		return 0, fmt.Errorf("resolve caterer schools: %w", err)
+		return 0, err
 	}
 	if len(schools) == 0 {
 		return 0, identityaccess.ErrCatererWithoutSchool
@@ -49,6 +35,31 @@ func (s *AccountAuthentication) catererSessionSchool(ctx context.Context, accoun
 		return current.TenantID, nil
 	}
 	return schools[0], nil
+}
+
+// suppliedSchools names the caterer of an account and the schools it
+// supplies now. School liveness belongs to Organisation & Tenancy, so the
+// linked schools are resolved in bulk.
+func (s *AccountAuthentication) suppliedSchools(ctx context.Context, accountID int64) (domain.Caterer, []int64, error) {
+	if s.caterers == nil {
+		return domain.Caterer{}, nil, domain.ErrAccountNotCaterer
+	}
+	caterer, isCaterer, _, err := s.caterers.FindCatererOfAccount(ctx, accountID)
+	if err != nil {
+		return domain.Caterer{}, nil, fmt.Errorf("find caterer: %w", err)
+	}
+	if !isCaterer {
+		return domain.Caterer{}, nil, domain.ErrAccountNotCaterer
+	}
+	schools, _, err := s.caterers.ListCatererSchools(ctx, caterer.ID)
+	if err != nil {
+		return domain.Caterer{}, nil, fmt.Errorf("list caterer schools: %w", err)
+	}
+	schools, err = s.liveSchoolIDs(ctx, schools)
+	if err != nil {
+		return domain.Caterer{}, nil, fmt.Errorf("resolve caterer schools: %w", err)
+	}
+	return caterer, schools, nil
 }
 
 // isCatererAccount reports whether the account belongs to a caterer, read
