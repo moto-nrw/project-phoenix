@@ -493,7 +493,7 @@ func TestPayerOfNumberNamesOnlyAnUnambiguousPayer(t *testing.T) {
 	_, problem = payers.payerOfNumber(&importCandidate{}, "10 0003")
 	assert.Equal(t, parentbilling.ImportProblemPayerUnknown, problem, "a number without a contract names no payer")
 
-	payers.addNumber("10 0002", numberPayer{payer: eva})
+	payers.addNumber("10 0002", numberPayer{key: eva.family, payer: eva})
 	_, problem = payers.payerOfNumber(&importCandidate{}, "10 0002")
 	assert.Equal(t, parentbilling.ImportProblemPayerAmbiguous, problem)
 }

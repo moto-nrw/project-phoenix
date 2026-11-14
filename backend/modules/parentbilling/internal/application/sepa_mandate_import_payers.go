@@ -19,6 +19,7 @@ import (
 // numberPayer is the payer a stored debtor number names, with the stored
 // number whose read the trail records.
 type numberPayer struct {
+	key    string
 	payer  importPayer
 	family *parentbilling.FamilyBilling
 	child  *parentbilling.ChildDebtorNumber
@@ -26,7 +27,8 @@ type numberPayer struct {
 
 // indexPayerNumbers indexes the payers by the debtor numbers of the scope
 // of the Träger. A number that names no contract the import can name
-// stays out; a number of two payers is ambiguous.
+// names no payer; a number of two stored families or children is ambiguous,
+// even if either has no eligible contract.
 func (m *SEPAMandates) indexPayerNumbers(ctx context.Context, organizationID int64, payers *importPayers) error {
 	format, err := debtorNumberFormatOf(ctx, m.formats, organizationID)
 	if err != nil {
@@ -56,9 +58,11 @@ func (m *SEPAMandates) indexPayerNumbers(ctx context.Context, organizationID int
 // indexChildNumbers names the contract of each child by its number.
 func (p importPayers) indexChildNumbers(children []parentbilling.ChildDebtorNumber) {
 	for i := range children {
-		if payer, ok := p.byChild[children[i].Key()]; ok && children[i].DebtorNumber != "" {
+		if children[i].DebtorNumber != "" {
+			key := children[i].Key()
+			payer := p.byChild[key]
 			payer.ofChild = true
-			p.addNumber(children[i].DebtorNumber, numberPayer{payer: payer, child: &children[i]})
+			p.addNumber(children[i].DebtorNumber, numberPayer{key: key, payer: payer, child: &children[i]})
 		}
 	}
 }
@@ -66,15 +70,16 @@ func (p importPayers) indexChildNumbers(children []parentbilling.ChildDebtorNumb
 // indexFamilyNumbers names the contract of each family by its number.
 func (p importPayers) indexFamilyNumbers(families []parentbilling.FamilyBilling) {
 	for i := range families {
-		if payer, ok := p.byFamily[families[i].FamilyEmail]; ok && families[i].DebtorNumber != "" {
-			p.addNumber(families[i].DebtorNumber, numberPayer{payer: payer, family: &families[i]})
+		if families[i].DebtorNumber != "" {
+			key := families[i].FamilyEmail
+			p.addNumber(families[i].DebtorNumber, numberPayer{key: key, payer: p.byFamily[key], family: &families[i]})
 		}
 	}
 }
 
 // addNumber names the payer of a number; a second payer makes it ambiguous.
 func (p importPayers) addNumber(number string, payer numberPayer) {
-	if current, ok := p.byNumber[number]; ok && current.payer.contractID != payer.payer.contractID {
+	if current, ok := p.byNumber[number]; ok && current.key != payer.key {
 		p.ambiguous[number] = true
 		return
 	}
@@ -92,7 +97,7 @@ func (p importPayers) payerOfNumber(candidate *importCandidate, value string) (i
 		return importPayer{}, parentbilling.ImportProblemPayerAmbiguous
 	}
 	payer, ok := p.byNumber[number]
-	if !ok {
+	if !ok || payer.payer.contractID == 0 {
 		return importPayer{}, parentbilling.ImportProblemPayerUnknown
 	}
 	candidate.payerNumber = number

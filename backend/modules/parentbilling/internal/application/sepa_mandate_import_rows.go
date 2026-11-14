@@ -460,11 +460,14 @@ type fileMandate struct {
 	line                           int
 	family, iban, holder, creditor string
 	signedOn                       calendar.Date
+	sequence                       string
+	lastCollectedOn                *calendar.Date
 }
 
 func fileMandateOf(candidate *importCandidate) fileMandate {
 	mandate := fileMandate{line: candidate.row.Line, family: candidate.family, iban: candidate.iban,
-		holder: candidate.row.AccountHolder, creditor: candidate.creditorID}
+		holder: candidate.row.AccountHolder, creditor: candidate.creditorID,
+		sequence: candidate.row.Sequence, lastCollectedOn: candidate.row.LastCollectedOn}
 	if candidate.row.SignedOn != nil {
 		mandate.signedOn = *candidate.row.SignedOn
 	}
@@ -472,11 +475,18 @@ func fileMandateOf(candidate *importCandidate) fileMandate {
 }
 
 // repeatedBy tells whether a later row names the same mandate: the same
-// family, account, holder, creditor and signing date. Anything else under
-// the reference stays a conflict.
+// family, account, holder, creditor, signing date and collection history.
+// Anything else under the reference stays a conflict.
 func (m fileMandate) repeatedBy(candidate *importCandidate) bool {
 	other := fileMandateOf(candidate)
-	other.line = m.line
+	// Compare optional collection dates by value, not their row-local pointers.
+	if (m.lastCollectedOn == nil) != (other.lastCollectedOn == nil) {
+		return false
+	}
+	if m.lastCollectedOn != nil && *m.lastCollectedOn != *other.lastCollectedOn {
+		return false
+	}
+	other.line, other.lastCollectedOn = m.line, m.lastCollectedOn
 	return m.family != "" && other == m
 }
 
