@@ -22,11 +22,11 @@ func init() {
 // emailFamilyDepartureUpSQL (#5960):
 //
 //   - platform.delivery_guardian_contacts gets child_in_care: the person has a
-//     child at the school whose membership is pending or active. A child whose
-//     last care day passed (inactive) or who left with the grade transition
-//     (alumnus) no longer counts, the same set the student retention treats as
-//     ended. The column is appended, so CREATE OR REPLACE keeps the view's
-//     dependents.
+//     child at the school whose membership is pending or active and whose last
+//     care day has not passed in Berlin. This also excludes children before the
+//     next status tick marks them inactive. Inactive and alumnus never count.
+//     The column is appended, so CREATE OR REPLACE keeps the view's dependents.
+//     The CTE is inlined so callers' school filters reach the guardian profiles.
 //   - platform.delivery_known_email_addresses counts a guardian's address only
 //     while the guardian has a child in care, now with the account's address
 //     too. An account's school membership alone no longer holds the address when
@@ -36,14 +36,16 @@ func init() {
 const emailFamilyDepartureUpSQL = `
 		CREATE OR REPLACE VIEW platform.delivery_guardian_contacts
 		WITH (security_invoker = true, security_barrier = true) AS
-		WITH guardian AS (
+		WITH guardian AS NOT MATERIALIZED (
 			SELECT profile.tenant_id, profile.id, profile.email, profile.account_id, profile.emails_stopped_at,
 				EXISTS (SELECT 1 FROM users.student_guardian_relationships AS link
 					INNER JOIN users.student_school_memberships AS membership
 						ON membership.tenant_id = link.tenant_id AND membership.student_profile_id = link.student_id
 						AND membership.deleted_at IS NULL
 					WHERE link.tenant_id = profile.tenant_id AND link.guardian_profile_id = profile.id
-						AND membership.status IN ('pending', 'active')) AS child_in_care
+						AND membership.status IN ('pending', 'active')
+						AND (membership.enrolled_until IS NULL
+							OR membership.enrolled_until >= (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date)) AS child_in_care
 			FROM users.guardian_profiles AS profile)
 		SELECT guardian.tenant_id, guardian.id AS guardian_profile_id, 'profile'::text AS source,
 			LOWER(TRIM(guardian.email)) AS address, guardian.emails_stopped_at, guardian.child_in_care
