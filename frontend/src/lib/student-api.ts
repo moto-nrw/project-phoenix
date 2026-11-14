@@ -14,6 +14,7 @@ import { encodeMultiValueParam } from "./multi-value-param";
 import { sessionFetch } from "./session-cache";
 import type {
   CareOfferingOption,
+  EnrollmentAnswerFilter,
   PrivacyConsent,
   Student,
   StudentPage,
@@ -53,6 +54,11 @@ export interface StudentFilters {
    * are not signed off for it (#4571). Needs `locationState: "present"`.
    */
   careOfferingId?: string;
+  /**
+   * Keeps the children with one answer to a question of the registration
+   * form, "<question key>=<answer value>" (#6954). Needs users:read.
+   */
+  enrollmentAnswer?: string;
   page?: number;
   pageSize?: number;
   /** Adds today's effective pickup time (`pickup_time`) to every row. */
@@ -81,6 +87,7 @@ const QUERY_KEYS: Record<
   photoConsent: "photo_consent",
   pickupStatus: "pickup_status",
   careOfferingId: "care_offering_id",
+  enrollmentAnswer: "enrollment_answer",
   page: "page",
   pageSize: "page_size",
   includePickupTimes: "include_pickup_times",
@@ -133,6 +140,15 @@ export async function fetchSchoolClasses(): Promise<string[]> {
 /** One child with access flags, feature flags and privacy consent. */
 export async function fetchStudent(id: string): Promise<Student> {
   return bffJson<Student>(`/api/students/${encodeURIComponent(id)}`);
+}
+
+/** The registration questions the child list can filter by (#6954). */
+export async function fetchEnrollmentAnswerFilters(): Promise<
+  EnrollmentAnswerFilter[]
+> {
+  return bffJson<EnrollmentAnswerFilter[]>(
+    "/api/students/enrollment-answer-filters",
+  );
 }
 
 /** The school's active care offerings that count as care (#4571). */

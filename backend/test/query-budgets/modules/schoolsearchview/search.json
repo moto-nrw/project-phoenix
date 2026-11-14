@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.schoolsearchview.search",
+  "max": 2,
+  "exact": true,
+  "description": "modules/schoolsearchview — one school search (ADR 0231, #6954) with every kind\nopen: one statement for children, contact persons with the children of all\ncontact hits, staff, rooms and groups, and one for the children found through\nregistration answers. Flat in the number of children, contacts and hits; the\ntransaction frame of the tenant runtime is not counted."
+}

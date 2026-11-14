@@ -92,6 +92,9 @@ type studentListParams struct {
 	// Zero = off; parseCareOfferingFilter validates it.
 	careOfferingID   int64
 	careOfferingDate calendar.Date
+	// enrollmentAnswer keeps the children with this answer to one of the
+	// school's own registration questions (#6954). nil = off.
+	enrollmentAnswer *enrollmentAnswer
 }
 
 // Values accepted by the care_status query parameter (#2487).
@@ -320,6 +323,7 @@ func (p *studentListParams) canUseGroupOnlyShortcut() bool {
 		p.roomID == 0 &&
 		len(p.studentIDs) == 0 &&
 		p.careStatus == CareStatusAll &&
+		p.enrollmentAnswer == nil &&
 		!p.hasInMemoryFilters()
 }
 

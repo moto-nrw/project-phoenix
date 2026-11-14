@@ -31967,6 +31967,12 @@
           "type": "bigint",
           "udt": "int8",
           "nullable": false
+        },
+        {
+          "name": "search_digits",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
         }
       ],
       "relationships": [
