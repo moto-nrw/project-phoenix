@@ -6461,6 +6461,14 @@ const TOOLTIP_SCOPE = [
   "src/components/rooms/students-in-room-section.tsx",
   "src/components/rooms/transit-students-section.tsx",
   "src/components/statistics/care-time-overruns-section.tsx",
+  // Alltag: erste Schritte, Schul-Aufsicht, Modul- und App-Hinweise (#6778).
+  "src/components/school-setup/school-setup-checklist.tsx",
+  "src/components/school/supervisions/supervisions-view.tsx",
+  "src/components/tenant/module-not-booked-state.tsx",
+  "src/components/tenant/pwa-install-hint.tsx",
+  "src/components/tenant/tenant-busy-page.tsx",
+  "src/components/tenant/tenant-guard.tsx",
+  "src/components/tenant/tenant-switcher.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
