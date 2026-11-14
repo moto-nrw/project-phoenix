@@ -40,6 +40,7 @@ import { hasSessionAccess } from "~/lib/session-access";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
+import { endTraegerSession } from "~/lib/shell-auth-context";
 import {
   clearTraegerSignInWithCode,
   isTraegerSignInWithCodeRequested,
@@ -112,6 +113,9 @@ function LoginForm() {
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const resetFormRef = useRef<HTMLFormElement>(null);
   const resetErrors = useApiFormError(resetFormRef);
+  // Ending a session a sign-in with code is to replace (#6955).
+  const endErrors = useApiFormError();
+  const [endingSession, setEndingSession] = useState(false);
   const latestSubmitRef = useRef<() => void>(() => undefined);
   const isCleaningSessionRef = useRef(false);
   const searchParams = useSearchParams();
@@ -134,12 +138,13 @@ function LoginForm() {
 
   // An existing Träger session goes straight to the school list; a session
   // the backend no longer refreshes is cleared so a new login is not
-  // shadowed by it, and so is one a sign-in with code replaces.
+  // shadowed by it. A session a sign-in with code is to replace stays until
+  // the person ends it with the button below: a page visit alone never
+  // signs out (#6955). The request is read from storage here, since the
+  // effect above may have set it in this same commit.
   useEffect(() => {
     if (status !== "authenticated") return;
-    const replaceSession =
-      hasSessionAccess(session) && isTraegerSignInWithCodeRequested();
-    if ((session?.error || replaceSession) && !isCleaningSessionRef.current) {
+    if (session?.error && !isCleaningSessionRef.current) {
       isCleaningSessionRef.current = true;
       void signOut({ redirect: false }).catch((err: unknown) => {
         isCleaningSessionRef.current = false;
@@ -149,8 +154,9 @@ function LoginForm() {
       });
       return;
     }
-    // The session being replaced must not open the school list meanwhile.
-    if (replaceSession) return;
+    if (hasSessionAccess(session) && isTraegerSignInWithCodeRequested()) {
+      return;
+    }
     // The layout's server snapshot carries no token (#4991) and redirects
     // too; a stripped session (empty token) stays on the form.
     if (
@@ -195,6 +201,8 @@ function LoginForm() {
   const isSubmitting = isLoading || awaitingRedirect;
 
   const completeLogin = async () => {
+    // The sign-in is complete: the next one may use the device again.
+    clearTraegerSignInWithCode();
     clearSessionErrorFromUrl();
     setAwaitingRedirect(true);
     window.location.href = traegerPath("/traeger");
@@ -231,14 +239,6 @@ function LoginForm() {
         organizationId: choices ? (selectedId ?? undefined) : undefined,
         ...(ignoreTrustedDevice && { ignoreTrustedDevice: true }),
       });
-      // The request ends once a sign-in that carried it resolved the
-      // Träger; choosing the Träger first sends it again.
-      if (
-        ignoreTrustedDevice &&
-        result.status !== "organization_selection_required"
-      ) {
-        clearTraegerSignInWithCode();
-      }
       if (result.status === "organization_selection_required") {
         setChoices(result.organizations);
         setSelectedId(result.organizations[0]?.id ?? null);
@@ -296,6 +296,50 @@ function LoginForm() {
     return (
       <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
         <Loading message="Sitzung wird überprüft …" />
+      </AuthShell>
+    );
+  }
+
+  // A school asked for a sign-in with code while a Träger session is still
+  // open (#6955). Only the person ends it: the button runs the portal's
+  // logout (revoke, clear, barrier) and opens this page again without it.
+  if (withCode && hasSessionAccess(session) && session.user.scope === "org") {
+    const endSession = async () => {
+      setEndingSession(true);
+      endErrors.clear();
+      try {
+        await endTraegerSession();
+      } catch (err) {
+        setEndingSession(false);
+        void endErrors.show(err, {
+          object: "die Abmeldung",
+          retry: () => void endSession(),
+        });
+      }
+    };
+    return (
+      <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
+        <div className="space-y-6">
+          {endErrors.error ? (
+            <FormErrorAlert message={endErrors.error} />
+          ) : null}
+          <Alert
+            type="info"
+            message="Die Schule verlangt eine Anmeldung mit Code. Melden Sie sich dafür zuerst ab."
+          />
+          <Button
+            type="button"
+            variant="primary"
+            size="field"
+            className="w-full"
+            isLoading={endingSession}
+            loadingText="Sie werden abgemeldet …"
+            tooltip="Meldet Sie ab. Danach melden Sie sich mit dem Code aus Ihrer E-Mail an."
+            onClick={() => void endSession()}
+          >
+            Abmelden und mit Code anmelden
+          </Button>
+        </div>
       </AuthShell>
     );
   }

@@ -1,13 +1,12 @@
 "use client";
 
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useCallback, useState } from "react";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
-import { portalLoginPath } from "~/lib/portal-paths";
-import { useShellAuthSafe } from "~/lib/shell-auth-context";
+import { endTraegerSession, useShellAuthSafe } from "~/lib/shell-auth-context";
 import { requestTraegerSignInWithCode } from "~/lib/traeger-sign-in-with-code";
 import {
   startTraegerSchoolSession,
@@ -73,13 +72,20 @@ export function useOpenTraegerSchool() {
 
   const signInWithCode = useCallback(async () => {
     requestTraegerSignInWithCode();
+    // The shell's logout reports its own failure; without the shell the
+    // same sequence runs here (revoke, clear, barrier; #5194, #5000, #5399).
     if (shellAuth) {
       await shellAuth.logout();
       return;
     }
-    await signOut({ redirect: false });
-    globalThis.location.assign(portalLoginPath("traeger"));
-  }, [shellAuth]);
+    try {
+      await endTraegerSession();
+    } catch (err) {
+      // A failed revocation keeps the session; the person may try again.
+      void openErrors.show(err, { object: "die Abmeldung" });
+      throw err;
+    }
+  }, [shellAuth, openErrors]);
 
   const open = useCallback(
     async (school: Pick<TraegerSchool, "id" | "subdomain">) => {

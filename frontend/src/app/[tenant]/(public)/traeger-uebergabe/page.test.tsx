@@ -1,10 +1,11 @@
 import { StrictMode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   TRAEGER_HANDOFF_BACK,
   TRAEGER_HANDOFF_FAILED_TITLE,
   TRAEGER_HANDOFF_OPENING,
+  TRAEGER_HANDOFF_SESSION_CHECK_TIMEOUT_MS,
 } from "~/lib/traeger-handoff";
 import TraegerHandoffPage from "./page";
 
@@ -71,6 +72,24 @@ describe("TraegerHandoffPage (#4654)", () => {
       redirect: false,
       traegerHandoff: "handoff-token",
     });
+  });
+
+  it("gives up on a session check that never answers and shows the failure card (#6955)", () => {
+    vi.useFakeTimers();
+    session.status = "loading";
+    open("#token=handoff-token");
+
+    act(() => {
+      vi.advanceTimersByTime(TRAEGER_HANDOFF_SESSION_CHECK_TIMEOUT_MS - 1);
+    });
+    expect(screen.getByText(TRAEGER_HANDOFF_OPENING)).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(screen.getByText(TRAEGER_HANDOFF_FAILED_TITLE)).toBeInTheDocument();
+    expect(signIn).not.toHaveBeenCalled();
+    expect(globalThis.location.hash).toBe("");
   });
 
   it("redeems the hand-off token, removes it from the address and opens the start page", async () => {

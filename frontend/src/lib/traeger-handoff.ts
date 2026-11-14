@@ -22,6 +22,13 @@ export const TRAEGER_HANDOFF_FAILED_TITLE =
 export const TRAEGER_HANDOFF_FAILED_TEXT =
   "Der Link gilt nur kurz und nur einmal. Bitte öffnen Sie die Schule noch einmal im Träger-Portal.";
 export const TRAEGER_HANDOFF_BACK = "Zum Träger-Portal";
+/**
+ * How long the entry page waits for the session check before it gives up
+ * (#6955). Signing in while the check is still open could bring the CSRF
+ * race back, so the page shows its failure card instead and the person opens
+ * the school again from the Träger-Portal.
+ */
+export const TRAEGER_HANDOFF_SESSION_CHECK_TIMEOUT_MS = 8000;
 /** The way back in the school's navigation (#5687). */
 export const TRAEGER_RETURN_LABEL = "Zurück zur Träger-App";
 

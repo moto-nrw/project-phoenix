@@ -189,6 +189,10 @@ describe("TraegerSchoolPage", () => {
       .spyOn(window.location, "assign")
       .mockImplementation(() => undefined);
     const openSpy = vi.spyOn(globalThis, "open").mockReturnValue(null);
+    const revoke = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    localStorage.setItem("supervision-last-session", "Gruppe Sonne");
     renderPage();
 
     fireEvent.click(
@@ -208,11 +212,19 @@ describe("TraegerSchoolPage", () => {
     await vi.waitFor(() =>
       expect(assign).toHaveBeenCalledWith("/traeger/login"),
     );
+    // Without the shell the full portal logout runs: the server revokes
+    // the session before the cookie goes, and the account's data goes too.
+    expect(revoke).toHaveBeenCalledWith(
+      "/api/traeger/auth/logout",
+      expect.objectContaining({ method: "POST" }),
+    );
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    expect(localStorage.getItem("supervision-last-session")).toBeNull();
     expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBe("1");
     sessionStorage.clear();
     assign.mockRestore();
     openSpy.mockRestore();
+    revoke.mockRestore();
   });
 
   it("shows a refused school instead of figures", async () => {

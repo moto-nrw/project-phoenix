@@ -15,6 +15,7 @@ import {
   TRAEGER_HANDOFF_FAILED_TEXT,
   TRAEGER_HANDOFF_FAILED_TITLE,
   TRAEGER_HANDOFF_OPENING,
+  TRAEGER_HANDOFF_SESSION_CHECK_TIMEOUT_MS,
   takeTraegerHandoffToken,
   traegerPortalUrl,
 } from "~/lib/traeger-handoff";
@@ -40,6 +41,21 @@ export default function TraegerHandoffPage() {
   const redemption = useRef<Promise<
     Awaited<ReturnType<typeof signIn>> | undefined
   > | null>(null);
+
+  useEffect(() => {
+    if (sessionChecked) return;
+    const timer = globalThis.setTimeout(() => {
+      if (redemption.current !== null) return;
+      // The token is not redeemed; it leaves the address all the same.
+      takeTraegerHandoffToken();
+      redemption.current = Promise.resolve(undefined);
+      logger.warn("traeger_handoff_session_check_timeout", {
+        timeout_ms: TRAEGER_HANDOFF_SESSION_CHECK_TIMEOUT_MS,
+      });
+      setFailed(true);
+    }, TRAEGER_HANDOFF_SESSION_CHECK_TIMEOUT_MS);
+    return () => globalThis.clearTimeout(timer);
+  }, [sessionChecked]);
 
   useEffect(() => {
     if (!sessionChecked) return;

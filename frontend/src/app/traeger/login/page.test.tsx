@@ -11,19 +11,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
-const { mockLogin, mockSignIn, mockSignOut, mockSession, mockSearchParamsGet } =
-  vi.hoisted(() => ({
-    mockLogin: vi.fn(),
-    mockSignIn: vi.fn(),
-    mockSignOut: vi.fn(),
-    mockSession: {
-      current: { data: null, status: "unauthenticated" } as {
-        data: unknown;
-        status: string;
-      },
+const {
+  mockLogin,
+  mockSignIn,
+  mockSignOut,
+  mockSession,
+  mockSearchParamsGet,
+  mockEndTraegerSession,
+} = vi.hoisted(() => ({
+  mockLogin: vi.fn(),
+  mockSignIn: vi.fn(),
+  mockSignOut: vi.fn(),
+  mockSession: {
+    current: { data: null, status: "unauthenticated" } as {
+      data: unknown;
+      status: string;
     },
-    mockSearchParamsGet: vi.fn((_key: string): string | null => null),
-  }));
+  },
+  mockSearchParamsGet: vi.fn((_key: string): string | null => null),
+  mockEndTraegerSession: vi.fn(),
+}));
 
 vi.mock("next-auth/react", () => ({
   signIn: (...args: unknown[]) => mockSignIn(...args),
@@ -38,6 +45,11 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("~/lib/traeger-api", () => ({
   traegerLogin: (...args: unknown[]) => mockLogin(...args),
+}));
+
+vi.mock("~/lib/shell-auth-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/shell-auth-context")>()),
+  endTraegerSession: () => mockEndTraegerSession() as Promise<void>,
 }));
 
 vi.mock("~/lib/traeger-url", () => ({
@@ -81,6 +93,7 @@ describe("TraegerLoginPage", () => {
     mockLogin.mockReset();
     mockSignIn.mockReset();
     mockSignOut.mockReset().mockResolvedValue(undefined);
+    mockEndTraegerSession.mockReset().mockResolvedValue(undefined);
     mockSession.current = { data: null, status: "unauthenticated" };
     mockSearchParamsGet.mockReturnValue(null);
     fetchMock.mockReset();
@@ -136,7 +149,7 @@ describe("TraegerLoginPage", () => {
     await waitFor(() => expect(navigate).toHaveBeenCalledWith("/traeger"));
   });
 
-  it("asks for the code once when a school refused the remembered device (#6955)", async () => {
+  it("asks for the code until the sign-in completes, also after going back from the code step (#6955)", async () => {
     sessionStorage.setItem("moto.traeger.sign-in-with-code", "1");
     mockLogin.mockResolvedValue({
       status: "mfa_required",
@@ -146,6 +159,8 @@ describe("TraegerLoginPage", () => {
       trustedDeviceEnabled: true,
       trustedDeviceDays: 90,
     });
+    fetchMock.mockResolvedValue(jsonResponse({ status: "authenticated" }));
+    mockSignIn.mockResolvedValue({ error: undefined });
     render(<TraegerLoginPage />);
 
     expect(
@@ -155,9 +170,25 @@ describe("TraegerLoginPage", () => {
     ).toBeInTheDocument();
     submitCredentials();
     await screen.findByRole("heading", { name: "Code-Eingabe" });
-    expect(mockLogin).toHaveBeenCalledWith(
+    expect(mockLogin).toHaveBeenLastCalledWith(
       expect.objectContaining({ ignoreTrustedDevice: true }),
     );
+    expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBe("1");
+
+    // Back to the password: the next attempt still ignores the device.
+    fireEvent.click(screen.getByRole("button", { name: /Zurück/ }));
+    submitCredentials();
+    await screen.findByRole("heading", { name: "Code-Eingabe" });
+    expect(mockLogin).toHaveBeenCalledTimes(2);
+    expect(mockLogin).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ignoreTrustedDevice: true }),
+    );
+
+    await enterCode("123456");
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Nein, nur anmelden/ }),
+    );
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/traeger"));
     expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBeNull();
   });
 
@@ -195,9 +226,10 @@ describe("TraegerLoginPage", () => {
     expect(mockLogin).toHaveBeenCalledWith(
       expect.objectContaining({ ignoreTrustedDevice: true }),
     );
-    expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBeNull();
+    expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBe("1");
     act(() => root.unmount());
     container.remove();
+    sessionStorage.removeItem("moto.traeger.sign-in-with-code");
   });
 
   it("keeps the code request while the person still chooses the Träger (#6955)", async () => {
@@ -237,7 +269,7 @@ describe("TraegerLoginPage", () => {
     sessionStorage.removeItem("moto.traeger.sign-in-with-code");
   });
 
-  it("ends a running Träger session instead of opening the school list when a school asks for the code (#6955)", async () => {
+  it("never signs out on a visit; the person ends the session with the button (#6955)", async () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "mit-code" ? "1" : null,
     );
@@ -245,12 +277,57 @@ describe("TraegerLoginPage", () => {
       data: { user: { scope: "org", token: "access-token" } },
       status: "authenticated",
     };
+    let finish: () => void = () => undefined;
+    mockEndTraegerSession.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
     render(<TraegerLoginPage />);
 
-    await waitFor(() =>
-      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false }),
-    );
+    const end = await screen.findByRole("button", {
+      name: "Abmelden und mit Code anmelden",
+    });
+    expect(
+      screen.getByText(
+        "Die Schule verlangt eine Anmeldung mit Code. Melden Sie sich dafür zuerst ab.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockEndTraegerSession).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBe("1");
+
+    fireEvent.click(end);
+    // The portal's logout: revoke on the server, clear the account's data,
+    // hold late requests (shell-auth-context.test.tsx, endTraegerSession).
+    expect(mockEndTraegerSession).toHaveBeenCalledTimes(1);
+    expect(mockSignOut).not.toHaveBeenCalled();
+    await act(async () => finish());
+    expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBe("1");
+    sessionStorage.removeItem("moto.traeger.sign-in-with-code");
+  });
+
+  it("shows why the session stays when the sign-out fails (#6955)", async () => {
+    sessionStorage.setItem("moto.traeger.sign-in-with-code", "1");
+    mockSession.current = {
+      data: { user: { scope: "org", token: "access-token" } },
+      status: "authenticated",
+    };
+    mockEndTraegerSession.mockRejectedValue(
+      new ApiError("logout failed", 500, { code: "general.server" }),
+    );
+    render(<TraegerLoginPage />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Abmelden und mit Code anmelden",
+      }),
+    );
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Abmelden und mit Code anmelden" }),
+    ).toBeEnabled();
     sessionStorage.removeItem("moto.traeger.sign-in-with-code");
   });
 
