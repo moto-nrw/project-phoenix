@@ -73,12 +73,15 @@ function OptionGroup<T extends string>({
   value,
   onChange,
   disabled,
+  disabledReason,
 }: {
   readonly label: string;
   readonly options: readonly { id: T; label: string }[];
   readonly value: T;
   readonly onChange: (value: T) => void;
   readonly disabled?: boolean;
+  /** Warum die Gruppe gesperrt ist; Pflicht, sobald `disabled` gesetzt ist. */
+  readonly disabledReason?: string;
 }) {
   return (
     <div>
@@ -91,7 +94,9 @@ function OptionGroup<T extends string>({
             size="compact"
             variant={value === option.id && !disabled ? "primary" : "outline"}
             disabled={disabled}
+            disabledReason={disabledReason}
             onClick={() => onChange(option.id)}
+            noTooltip="Wählt nur eine Einstellung für den Export, das Wort nennt sie."
           >
             {option.label}
           </Button>
@@ -99,6 +104,20 @@ function OptionGroup<T extends string>({
       </div>
     </div>
   );
+}
+
+const DATEV_FIXED_REASON =
+  "Eine DATEV-Datei enthält immer die Monatssummen eines Monats.";
+
+/** Warum eine DATEV-Datei noch nicht heruntergeladen werden kann. */
+function datevBlockedReason(state: DatevReportState): string {
+  if (state.status === "failed") {
+    return "Ohne Vorschau der DATEV-Datei bleibt der Export gesperrt.";
+  }
+  if (state.status === "ready") {
+    return "Tragen Sie zuerst die fehlenden Personalnummern ein.";
+  }
+  return "moto lädt noch die Vorschau der DATEV-Datei.";
 }
 
 // Vorab-Bericht für die DATEV-Formate: dieselbe Berechnung wie die Datei,
@@ -354,6 +373,11 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
       activeReportState.report.staffSkipped.length > 0);
   const transferring = transferState.status === "running";
   const exportDisabled = datevBlocked || transferring;
+  // Während der Übertragung bleibt der Knopf nativ gesperrt; nur die
+  // fachliche Sperre der DATEV-Datei nennt einen Grund (#6771).
+  const exportBlockedReason = datevBlocked
+    ? datevBlockedReason(activeReportState)
+    : undefined;
 
   return (
     <Modal
@@ -362,7 +386,13 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
       title="Zeitkonten exportieren"
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" size="md" variant="outline" onClick={onClose}>
+          <Button
+            type="button"
+            size="md"
+            variant="outline"
+            onClick={onClose}
+            noTooltip="Abbrechen schließt den Dialog, ohne etwas zu exportieren."
+          >
             Abbrechen
           </Button>
           <Button
@@ -370,7 +400,13 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
             size="md"
             variant="primary"
             disabled={exportDisabled}
+            disabledReason={transferring ? undefined : exportBlockedReason}
             onClick={delivery === "sftp" ? handleTransfer : handleExport}
+            tooltip={
+              delivery === "sftp"
+                ? "Schickt die Datei sofort an die eingerichtete Gegenstelle."
+                : "Lädt die Datei herunter und schließt den Dialog."
+            }
           >
             {delivery === "sftp"
               ? transferring
@@ -399,6 +435,7 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
           value={datev ? "month" : scope}
           onChange={setScope}
           disabled={datev}
+          disabledReason={DATEV_FIXED_REASON}
         />
         <OptionGroup
           label="Detailgrad"
@@ -409,6 +446,7 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
           value={datev ? "month" : granularity}
           onChange={setGranularity}
           disabled={datev}
+          disabledReason={DATEV_FIXED_REASON}
         />
         <OptionGroup
           label="Dateiformat"
@@ -442,6 +480,7 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
               value={delivery}
               onChange={setDelivery}
               disabled={!sftpStatus.ready}
+              disabledReason="Ein Admin muss die Übertragung zuerst in den Einstellungen fertig einrichten."
             />
             {!sftpStatus.ready && (
               <p className="mt-1.5 text-xs text-gray-500">
@@ -475,6 +514,7 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
             value={timeFormat}
             onChange={setTimeFormat}
             disabled={granularity === "day"}
+            disabledReason="Zeitangaben lassen sich nur bei Monatssummen wählen."
           />
         )}
         {!datev && granularity === "day" && (

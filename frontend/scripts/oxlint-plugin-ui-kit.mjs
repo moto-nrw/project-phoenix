@@ -6334,6 +6334,19 @@ const TOOLTIP_SCOPE = [
   "src/components/enrollment/form-preview.tsx",
   "src/components/enrollment/form-template-builder-sections.tsx",
   "src/components/enrollment/form-template-detail.tsx",
+  // Mitarbeitende: Akte, Stammdaten, Stundenkonto, Zeiterfassung (#6771).
+  "src/components/staff/staff-audit-log.tsx",
+  "src/components/staff/staff-export-button.tsx",
+  "src/components/staff/staff-session-table.tsx",
+  "src/components/staff/staff-time-accounts-table.tsx",
+  "src/components/staff/staff-time-export-modal.tsx",
+  "src/components/staff/stammdaten-section-forms.tsx",
+  "src/components/staff/stammdaten-tab.tsx",
+  "src/components/staff/stundenkonto-panel.tsx",
+  "src/components/staff/zeiterfassung-tab.tsx",
+  "src/components/teachers/caregiver-blocker-resolution-panel.tsx",
+  "src/components/teachers/caregiver-capability-modal.tsx",
+  "src/components/teachers/staff-list.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

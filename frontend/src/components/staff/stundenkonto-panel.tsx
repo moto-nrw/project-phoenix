@@ -139,6 +139,7 @@ export function StundenkontoPanel({
             variant="outline"
             size="compact"
             onClick={() => setActiveModal("payout")}
+            tooltip="Öffnet ein Formular, um ausgezahlte Stunden vom Konto abzuziehen."
           >
             <Banknote className="h-3.5 w-3.5" aria-hidden />
             Auszahlung
@@ -148,6 +149,7 @@ export function StundenkontoPanel({
             variant="outline"
             size="compact"
             onClick={() => setActiveModal("comp_time")}
+            tooltip="Öffnet ein Formular, um Stunden als Freizeitausgleich abzuziehen."
           >
             <Clock4 className="h-3.5 w-3.5" aria-hidden />
             Freizeitausgleich
@@ -158,11 +160,8 @@ export function StundenkontoPanel({
             size="compact"
             onClick={() => setActiveModal("reset")}
             disabled={!canResetClosedPeriod}
-            title={
-              canResetClosedPeriod
-                ? undefined
-                : "Ein Reset ist erst nach dem ersten abgeschlossenen Kontotag möglich."
-            }
+            disabledReason="Zurücksetzen geht erst nach dem ersten abgeschlossenen Kontotag."
+            tooltip="Öffnet ein Formular, um das Konto zu einem Stichtag zurückzusetzen."
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden />
             Zurücksetzen
@@ -173,7 +172,8 @@ export function StundenkontoPanel({
             size="compact"
             onClick={() => setActiveModal("opening")}
             disabled={!canResetClosedPeriod || hasOpening}
-            title={openingDisabledHint()}
+            disabledReason={openingDisabledHint()}
+            tooltip="Öffnet ein Formular für den Stand aus dem bisherigen System."
           >
             <Flag className="h-3.5 w-3.5" aria-hidden />
             Eröffnungssaldo
@@ -221,6 +221,8 @@ export function StundenkontoPanel({
                   items={[
                     {
                       label: "Buchung löschen",
+                      description:
+                        "Löscht die Buchung, moto fragt vorher nach.",
                       icon: <Trash2 className="h-4 w-4" aria-hidden />,
                       destructive: true,
                       onClick: () => setDeleteTarget(adjustment),
@@ -313,6 +315,7 @@ const modalCopy = {
     success: "Die Auszahlung ist gebucht.",
     object: "die Auszahlung",
     submit: "Auszahlen",
+    submitTooltip: "Zieht die Stunden sofort als Auszahlung vom Konto ab.",
   },
   comp_time: {
     title: "Freizeitausgleich gewähren",
@@ -321,6 +324,8 @@ const modalCopy = {
     success: "Der Freizeitausgleich ist gebucht.",
     object: "die Buchung",
     submit: "Gewähren",
+    submitTooltip:
+      "Zieht die Stunden sofort als Freizeitausgleich vom Konto ab.",
   },
 } as const;
 
@@ -407,6 +412,8 @@ function AdjustmentModal({
           submitting={submitting}
           canSubmit={canSubmit}
           submitLabel={copy.submit}
+          submitTooltip={copy.submitTooltip}
+          missingInputReason="Tragen Sie zuerst die Stunden und eine Begründung ein."
           onCancel={onClose}
           onSubmit={handleSubmit}
         />
@@ -530,6 +537,8 @@ function ResetModal({
           submitting={submitting}
           canSubmit={canSubmit}
           submitLabel="Zurücksetzen"
+          submitTooltip="Setzt das Konto sofort zum Stichtag auf den Übertrag."
+          missingInputReason="Tragen Sie zuerst einen gültigen Übertrag und eine Begründung ein."
           onCancel={onClose}
           onSubmit={handleSubmit}
         />
@@ -679,6 +688,8 @@ function OpeningModal({
           submitting={submitting}
           canSubmit={canSubmit}
           submitLabel="Buchen"
+          submitTooltip="Bucht den Stand sofort, das Konto steht dann auf diesem Wert."
+          missingInputReason="Tragen Sie zuerst einen gültigen Stand und eine Begründung ein."
           onCancel={onClose}
           onSubmit={handleSubmit}
         />
@@ -753,12 +764,18 @@ function AdjustmentModalFooter({
   submitting,
   canSubmit,
   submitLabel,
+  submitTooltip,
+  missingInputReason,
   onCancel,
   onSubmit,
 }: {
   readonly submitting: boolean;
   readonly canSubmit: boolean;
   readonly submitLabel: string;
+  /** Was der Klick bucht (#6771). */
+  readonly submitTooltip: string;
+  /** Was im Formular noch fehlt, solange es nicht absendbar ist. */
+  readonly missingInputReason: string;
   readonly onCancel: () => void;
   readonly onSubmit: () => void;
 }) {
@@ -770,6 +787,7 @@ function AdjustmentModalFooter({
         size="md"
         onClick={onCancel}
         disabled={submitting}
+        noTooltip="Abbrechen schließt den Dialog, ohne etwas zu buchen."
       >
         Abbrechen
       </Button>
@@ -779,6 +797,8 @@ function AdjustmentModalFooter({
         size="md"
         onClick={onSubmit}
         disabled={!canSubmit}
+        disabledReason={submitting ? undefined : missingInputReason}
+        tooltip={submitTooltip}
       >
         {submitting ? "…" : submitLabel}
       </Button>
