@@ -94,6 +94,23 @@ jobs:
         working-directory: backend
         run: go test -count=1 -exec true ./... > /dev/null
 
+      # internal/architecture loads the backend and its fixture modules with
+      # go list -export and packages.Load in child processes, with
+      # CGO_ENABLED=0 and the policy build tags. The build above never runs
+      # those compile actions; only running the tests fills them, before the
+      # sweep. Without them the package compiled cold in every pull request:
+      # 225 CPU s instead of 81 for a pull request one commit ahead (locally,
+      # 14.11.2026). The -trimpath of the checker's fixed build environment
+      # keeps the tests' temporary directories out of the action IDs. One
+      # test resolves origin/development, which the depth-1 checkout of a
+      # development push already points at HEAD. A failure is the pull
+      # request's business and must not keep the entry from saving.
+      - name: Run the architecture tests
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        working-directory: backend
+        run: go test -count=1 ./internal/architecture
+
       - name: Drop build cache entries this build did not use
         if: steps.build-cache.outputs.cache-hit != 'true'
         run: scripts/go-cache-sweep.sh sweep "$RUNNER_TEMP/build-cache-marker" ~/.cache/go-build
