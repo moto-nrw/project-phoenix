@@ -314,6 +314,16 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/api.parentBillingSettings.DebtorNumberScope",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.CareBillingSettings.DebtorNumberScope",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: whom the debtor numbers of the session's Träger name (its value of parent_billing.debtor_number_scope or the registry default, #7007), read in its Träger transaction for the preview of a run, the list of families, the mandate import and the confirmation of a holiday registration.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/api.parentBillingCareContracts.Recipients",
       "classification": "query",
       "effect": "query",
@@ -577,6 +587,56 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/api.parentBillingSettings.DebtorNumberScope",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.DebtorNumberFormats.DebtorNumberScope",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: whom the debtor numbers of the session's Träger name (its value of parent_billing.debtor_number_scope or the registry default, #7007), read in its Träger transaction for the preview of a run, the list of families, the mandate import and the confirmation of a holiday registration.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/parentbilling.HolidayBillingSettings.DebtorNumberScope",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.DebtorNumberFormats.DebtorNumberScope",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: whom the debtor numbers of the session's Träger name (its value of parent_billing.debtor_number_scope or the registry default, #7007), read in its Träger transaction for the preview of a run, the list of families, the mandate import and the confirmation of a holiday registration.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/parentbilling.CareBillingSettings.DebtorNumberScope",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.DebtorNumberScopes.DebtorNumberScope",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: whom the debtor numbers of the session's Träger name (its value of parent_billing.debtor_number_scope or the registry default, #7007), read in its Träger transaction for the preview of a run, the list of families, the mandate import and the confirmation of a holiday registration.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/parentbilling.DebtorNumberFormats.DebtorNumberScope",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.DebtorNumberScopes.DebtorNumberScope",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: whom the debtor numbers of the session's Träger name (its value of parent_billing.debtor_number_scope or the registry default, #7007), read in its Träger transaction for the preview of a run, the list of families, the mandate import and the confirmation of a holiday registration.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/parentbilling.HolidayBillingSettings.DebtorNumberScope",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.DebtorNumberScopes.DebtorNumberScope",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: whom the debtor numbers of the session's Träger name (its value of parent_billing.debtor_number_scope or the registry default, #7007), read in its Träger transaction for the preview of a run, the list of families, the mandate import and the confirmation of a holiday registration.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/api.parentBillingActorNames.TraegerActorNames",
       "classification": "query",
       "effect": "query",
@@ -613,7 +673,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.ConfirmedHolidayRegistrations",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrationRecipients with the status filter confirmed: Enrollment checks the period of the session's Träger, reads the confirmed registrations with the postal address of the parent (#5625) and the debtor number of the family (#5621) and appends the list read to the period's audit trail (ADR 0114) in the caller's Träger transaction before the Elternabrechnung builds the preview or issues the invoices of a billing run (ADR 0119).",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrationRecipients with the status filter confirmed: Enrollment checks the period of the session's Träger, reads the confirmed registrations with the postal address of the parent (#5625), the debtor number of the family (#5621) and the date of birth of each child for its own number (#7007) and appends the list read to the period's audit trail (ADR 0114) in the caller's Träger transaction before the Elternabrechnung builds the preview or issues the invoices of a billing run (ADR 0119).",
       "source_owner": "parent-billing",
       "target": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrationRecipients",
       "target_owner": "enrollment"
@@ -707,6 +767,16 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerInts: the two lengths of a debtor number (parent_billing.debtor_number_min_digits and parent_billing.debtor_number_max_digits or the registry defaults), the format of the Träger's debtor numbers, read in its Träger transaction before a debtor number is written or a form names the format (#6675).",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-ogs/project-phoenix/modules/settings/compose.TraegerSettings.TraegerInts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.parentBillingSettings.DebtorNumberScope",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.HolidayBillingSettings.DebtorNumberScope",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: whom the debtor numbers of the session's Träger name (its value of parent_billing.debtor_number_scope or the registry default, #7007), read in its Träger transaction for the preview of a run, the list of families, the mandate import and the confirmation of a holiday registration.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
       "target_owner": "settings-platform"
     },
     {

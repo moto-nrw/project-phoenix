@@ -206,7 +206,7 @@ test.describe("Planung navigation", () => {
     await expect(main.getByText("Gruppenzugriff")).toHaveCount(0);
   });
 
-  test("mobile Mehr drawer lists the Planung group and its pages", async ({
+  test("mobile Mehr drawer expands the Planung group and lists its pages", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -215,6 +215,14 @@ test.describe("Planung navigation", () => {
     // Auf die Mehr-Schublade begrenzt: die eingeklappte Desktop-Seitenleiste
     // bleibt im DOM und trägt dieselben Beschriftungen.
     const drawer = page.getByRole("dialog", { name: "Navigation" });
+
+    const planung = drawer.getByRole("button", {
+      name: "Planung",
+      exact: true,
+    });
+    await expect(planung).toHaveAttribute("aria-expanded", "false");
+    await planung.click();
+    await expect(planung).toHaveAttribute("aria-expanded", "true");
 
     await expect(drawer.getByText("Betreuungsplan")).toBeVisible();
     // exact: "Mein Dienstplan" (Gruppe Team) enthält "Dienstplan" ebenfalls.

@@ -713,6 +713,9 @@ describe("HomePage (Login)", () => {
       await act(async () => {
         fireEvent.change(firstCodeInput, { target: { value: "123456" } });
       });
+      fireEvent.click(
+        screen.getByRole("button", { name: /^Nein, nur anmelden/ }),
+      );
 
       expect(
         await screen.findByText(/Dieses Konto gehört zu moto schule/),

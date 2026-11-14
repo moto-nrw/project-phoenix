@@ -7,8 +7,10 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
-// EraseHolidayRegistrationMails removes a whole bundled mail when any named
-// registration goes. Every kind using the registration lifecycle goes with it.
+// EraseHolidayRegistrationMails removes every mail that hangs at a named
+// registration, whatever its kind, so a new holiday mail cannot outlive the
+// registration (#7000). A mail bundled for several registrations lists them
+// in registration_ids and goes when any of them goes.
 func (s *Store) EraseHolidayRegistrationMails(ctx context.Context, organizationIDs, registrationIDs []int64) (int, error) {
 	db, err := RequireAdminDatabase(ctx)
 	if err != nil {
@@ -24,7 +26,6 @@ func (s *Store) EraseHolidayRegistrationMails(ctx context.Context, organizationI
   USING unnest(?::bigint[], ?::bigint[]) AS erased(organization_id, registration_id)
   WHERE mail.tenant_id IS NULL AND mail.organization_id = erased.organization_id
    AND mail.related_entity_type = 'holiday_registration'
-   AND mail.kind IN ('holiday_registration_received', 'holiday_place_granted', 'holiday_registration_accepted', 'holiday_closure_notice')
-   AND (mail.related_entity_id = erased.registration_id OR (mail.kind = 'holiday_closure_notice'
-    AND mail.payload->'registration_ids' @> to_jsonb(erased.registration_id)))`, pgdialect.Array(organizationIDs), pgdialect.Array(registrationIDs)))
+   AND (mail.related_entity_id = erased.registration_id
+    OR mail.payload->'registration_ids' @> to_jsonb(erased.registration_id))`, pgdialect.Array(organizationIDs), pgdialect.Array(registrationIDs)))
 }

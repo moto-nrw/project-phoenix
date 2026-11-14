@@ -6,6 +6,7 @@
 // hier; moto rät das nie. Übernommen werden nur die bereiten Zeilen.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -100,6 +101,16 @@ function NotesCell({ row }: Readonly<{ row: ImportRow }>) {
   );
 }
 
+/**
+ * Rows without IBAN and reference are children whose family pays without
+ * a mandate (#7009): only number conflicts appear as rows.
+ */
+function withoutMandateText(count: number): string {
+  return count === 1
+    ? "1 Zeile ohne Mandat: Sie hat keine IBAN und keine Mandatsreferenz. moto legt dafür kein Mandat an. Fehlende Debitorennummern werden übernommen, solange es keinen Konflikt gibt. Konflikte sehen Sie mit Zeilennummer unten."
+    : `${count} Zeilen ohne Mandat: Sie haben keine IBAN und keine Mandatsreferenz. moto legt dafür kein Mandat an. Fehlende Debitorennummern werden übernommen, solange es keinen Konflikt gibt. Konflikte sehen Sie mit Zeilennummer unten.`;
+}
+
 export function SepaImportPreviewCard({
   result,
   answers,
@@ -166,7 +177,6 @@ export function SepaImportPreviewCard({
         <span className="text-gray-500 tabular-nums">{row.line}</span>
       ),
       sortValue: (row) => row.line,
-      stacked: "hidden",
     },
     {
       key: "family",
@@ -272,6 +282,13 @@ export function SepaImportPreviewCard({
         </div>
       }
     >
+      {counts.withoutMandate > 0 ? (
+        <Alert
+          type="info"
+          className="mb-4"
+          message={withoutMandateText(counts.withoutMandate)}
+        />
+      ) : null}
       <div ref={filtersRef} className="mb-4">
         <SegmentedControl
           ariaLabel="Zeilen zeigen"

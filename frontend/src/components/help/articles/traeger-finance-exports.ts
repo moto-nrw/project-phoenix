@@ -26,6 +26,8 @@ export function traegerFinanceExportsTopic(): HelpTopic {
           "Wählen Sie oben rechts `Feldzuordnung`.",
           "Wählen Sie bei jeder Spalte den `Inhalt` und tragen Sie den `Spaltennamen` ein.",
           "Mit `Spalte` fügen Sie eine Spalte hinzu. Für einen Wert, der in jeder Zeile gleich ist, wählen Sie `Fester Wert`, etwa ein Konto.",
+          "Für einen Text je Rechnung wählen Sie `Buchungstext`. Schreiben Sie feste Wörter selbst und fügen Sie Platzhalter wie `{Monat}` und `{Kind}` mit einem Klick ein. Aus `SKB {Monat} {Kind}` wird etwa `SKB 10/2026 Lia Müller`.",
+          "Will Ihre Buchhaltung Stornos und Gutschriften in einer eigenen Spalte? Dann wählen Sie `Gutschrift`. Dort steht der Betrag ohne Minus. Die Spalte `Betrag` bleibt bei ihnen leer.",
           "Legen Sie unter `Datei` Trennzeichen, Beträge, Datum, Zeichensatz und Dateinamen fest. `{NR}` im Dateinamen wird zur Dateinummer.",
           "Prüfen Sie die `Vorschau` und wählen Sie `Speichern`.",
         ],

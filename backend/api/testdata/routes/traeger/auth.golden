@@ -1,3 +1,5 @@
+DELETE /traeger/auth/mfa/trusted-devices/{deviceId}
+GET /traeger/auth/mfa/trusted-devices
 POST /traeger/auth/login
 POST /traeger/auth/mfa/enroll/confirm
 POST /traeger/auth/mfa/enroll/start

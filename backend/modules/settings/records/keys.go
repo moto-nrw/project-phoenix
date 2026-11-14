@@ -260,7 +260,11 @@ const (
 	// Whether staff find children through the child search alone (#1321):
 	// "Meine Gruppe" and "Aktuelle Aufsicht" leave the navigation and become
 	// quick filters there. Defaults OFF; the pages stay reachable by link.
-	KeyChildSearchOnlyNavigation       = "operations.child_search_only_navigation"
+	KeyChildSearchOnlyNavigation = "operations.child_search_only_navigation"
+	// Whether staff who do not lead the school see the simple navigation
+	// (#6956): only the pages of the daily care work. Defaults OFF; every
+	// person can show all pages again, and no permission changes.
+	KeySimpleStaffNavigation           = "operations.simple_staff_navigation"
 	KeyTimeTrackingAccountStartDate    = "operations.time_tracking_account_start_date"
 	KeyTimeTrackingEnforcePlannedStart = "operations.time_tracking_enforce_planned_start"
 	// #3825: how many minutes before the planned shift start (Dienstplan)

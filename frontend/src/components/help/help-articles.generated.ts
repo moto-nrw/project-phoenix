@@ -232,6 +232,8 @@ import type { roomsCatalogTopic as authored_roomsCatalogTopic } from "./articles
 
 import type { roomsTopic as authored_roomsTopic } from "./articles/rooms";
 
+import type { schoolSearchTopic as authored_schoolSearchTopic } from "./articles/school-search";
+
 import type { schoolTraegerDocumentsTopic as authored_schoolTraegerDocumentsTopic } from "./articles/school-traeger-documents";
 
 import type { settingsGuideTopic as authored_settingsGuideTopic } from "./articles/settings-guide";
@@ -424,6 +426,7 @@ import {
   loginResult,
   missingMenuDifferences,
   parentAnnouncementSteps,
+  SIMPLE_NAV_DIFFERENCE,
   unavailableNfcTopic,
   unknownNfcTopic,
 } from "./help-article-shared";
@@ -949,10 +952,25 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
         ],
       },
       {
+        // Einstellung „Einfache Seitenleiste für die Betreuung“ (#6956);
+        // Liste: STAFF_NAV_SIMPLE_ENTRIES in lib/staff-navigation.ts.
+        title: "Die einfache Seitenleiste",
+        description:
+          "Ihre OGS kann für die Betreuung eine einfache Seitenleiste einschalten. Dann stehen dort nur die Seiten für den Betreuungsalltag, ohne Überschriften zum Aufklappen.",
+        ordered: false,
+        steps: [
+          "Sie suchen eine Seite, die nicht dabei ist? Wählen Sie ganz unten `Alle Seiten anzeigen`. Auf dem Handy steht der Knopf unter `Mehr`.",
+          "Mit `Weniger Seiten anzeigen` kommen Sie zur einfachen Seitenleiste zurück.",
+          "moto merkt sich Ihre Wahl auf diesem Gerät.",
+          "Wer die OGS leitet, sieht immer alle Seiten. Die Leitung schaltet die einfache Seitenleiste unter `Einstellungen` › `Betrieb` ein.",
+        ],
+      },
+      {
         title: "Auf dem Handy oder Tablet",
         steps: [
           "Nutzen Sie die Leiste unten, um häufige Bereiche zu öffnen.",
           "Wählen Sie `Mehr`, um die übrigen Bereiche zu sehen.",
+          "Dort stehen dieselben Gruppen wie in der Seitenleiste. Tippen Sie auf eine Gruppe, um sie auf- oder zuzuklappen.",
           "Öffnen Sie oben rechts Ihr Profil, um Ihre Angaben anzusehen oder sich abzumelden.",
         ],
       },
@@ -982,6 +1000,7 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
       "Sie wissen, wo Sie die wichtigsten Bereiche und die passende Hilfe finden.",
     differences: [
       "Welche Bereiche Sie sehen, hängt von Ihrer Rolle und den Einstellungen Ihrer OGS ab.",
+      "Sie sehen keine Überschriften wie `Tagesbetrieb` oder `Team`? Dann hat Ihre OGS die einfache Seitenleiste eingeschaltet. Alle Seiten zeigt `Alle Seiten anzeigen` ganz unten.",
       "Unter `Bausteine` fehlt eine Karte? Dann steht sie schon auf Ihrer Startseite. Oder Ihre Rolle oder Ihre OGS sieht sie nicht vor.",
       // Kopfzeile aus BrandTraegerLine (#4656): nur bei einem Träger mit
       // mehreren Schulen, und nur am Computer, wo auch der Schulname steht.
@@ -1252,6 +1271,7 @@ export const carePlanTopic = function carePlanTopic(
     differences: [
       // Live geprueft: die Kopfzeile des Reiters traegt das Kennzeichen.
       "Steht oben rechts `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     notes: [
       // #4766: Filter Gruppe und Person, auch in der Leseansicht.
@@ -1656,6 +1676,7 @@ export const correctWorkTimeTopic = function correctWorkTimeTopic(): HelpTopic {
     differences: [
       "Einen vollständig fehlenden Arbeitstag trägt nur nach, wer die Zeiten des Teams verwalten darf.",
       "Ein abgeschlossener Monat kann nachträgliche Änderungen anzeigen, sein übertragener Saldo bleibt jedoch festgeschrieben.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     troubleshootingDetails: [
       "Der Beginn darf nicht in der Zukunft liegen. Wählen Sie eine Uhrzeit, die schon vorbei ist.",
@@ -2247,6 +2268,7 @@ export const emailDeliveryTopic = function emailDeliveryTopic(): HelpTopic {
           "`Verzögert`: Die Mail kommt später an. Es wird weiter versucht. Bitte senden Sie sie nicht noch einmal.",
           "`Überfällig`: Die Mail ist seit Tagen verzögert. Sie können sie noch einmal senden.",
           "`Nicht zustellbar`: Die Mail kam nicht an.",
+          "`Als unerwünscht gemeldet`: Die Mail kam an. Die Person hat sie danach als unerwünscht gemeldet. Sprechen Sie sie direkt an.",
           "`Nicht gesendet`: Die Mail ging nicht raus. Der Hinweis nennt den Grund. Besteht er nicht mehr, können Sie neu senden.",
           "`Gesperrt`: Diese Adresse ist gesperrt. Eine neue Mail hilft nicht. Der moto-Support muss das klären.",
           "`Stand unklar`: Ob die Adresse gesperrt ist, lässt sich gerade nicht prüfen. Versuchen Sie es später noch einmal.",
@@ -2999,6 +3021,7 @@ export const findStaffTopic = function findStaffTopic(
       "Unter `Ehemalige` können Sie frühere Beschäftigungen nur lesen. Die Personalakte zeigt den Zeitraum, Stammdaten und frühere Arbeitszeiten. Welche Angaben Sie sehen, hängt von Ihren Rechten ab.",
       "Personaldokumente wurden beim Austritt endgültig gelöscht. Sie stehen auch in der früheren Personalakte nicht mehr bereit.",
       "Mit `Zurück zu den Mitarbeitenden` kommen Sie wieder zur Auswahl `Ehemalige`. Eine Wiederaufnahme erfolgt beim Einladen.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     notes: [
       "Hat jemand früher bei Ihnen gearbeitet? Wählen Sie in der Auswahl `Ehemalige`. Die Karte zeigt den Zeitraum in moto. Öffnen Sie die Karte für die früheren Angaben.",
@@ -4382,7 +4405,9 @@ export const loginTopic = function loginTopic(
       "Geben Sie unter `Passwort` Ihr Passwort ein.",
       "Wählen Sie `Anmelden`.",
       "Zeigt moto die `Code-Eingabe`? Öffnen Sie die E-Mail von moto.",
-      "Geben Sie den sechsstelligen Code ein. moto prüft ihn automatisch.",
+      "Geben Sie den sechsstelligen Code ein.",
+      "Ist es Ihr eigenes Gerät? Wählen Sie `Ja, merken und anmelden`. Dort fragt moto dann vorerst keinen Code mehr ab.",
+      "Nutzen mehrere Personen das Gerät, zum Beispiel ein Tablet im Gruppenraum? Wählen Sie `Nein, nur anmelden`.",
     ],
     result: loginResult(presenceMode, groupMode),
     differences: [
@@ -4390,9 +4415,13 @@ export const loginTopic = function loginTopic(
       "Richten Sie die Sicherheitsabfrage erstmals ein? Wählen Sie `Code an meine E-Mail senden`.",
       "Geben Sie danach den sechsstelligen Code ein.",
       "Wenn Sie bereits einen Passkey eingerichtet haben, können Sie `Mit Passkey anmelden` wählen.",
+      "Auf dem Knopf steht eine andere Zahl als 90? Ihre OGS legt fest, wie viele Tage moto ein Gerät merkt.",
+      "Sie sehen keine zwei Knöpfe? Dann merkt Ihre OGS keine Geräte. moto prüft den Code, sobald er vollständig ist.",
     ],
     notes: [
       "Nutzen mehrere Personen das Gerät? Melden Sie sich bei moto ab, wenn Sie fertig sind.",
+      "Gemerkte Geräte stehen in Ihrem `Profil` unter `Meine vertrauten Geräte`. Dort entfernen Sie ein Gerät wieder.",
+      "Ein gemerktes Gerät gilt nur für diese OGS. Arbeiten Sie an mehreren Schulen? Dann merken Sie das Gerät an jeder Schule einmal.",
     ],
     troubleshootingDetails: [
       "Kein Zugriff auf Ihre E-Mails? Wenden Sie sich an Ihre Schulverwaltung. Der zusätzliche Nachweis bleibt bei besonderen Zugriffsrechten Pflicht.",
@@ -4927,6 +4956,7 @@ export const myScheduleTopic = function myScheduleTopic(): HelpTopic {
     ],
     differences: [
       "Das Kalender-Abo ist nur zum Lesen. Änderungen in Ihrem persönlichen Kalender werden nicht an moto übertragen.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     related: [HELP_TOPICS.carePlan, HELP_TOPICS.trackWorkTime],
   };
@@ -5376,6 +5406,7 @@ export const ownAbsenceTopic = function ownAbsenceTopic(): HelpTopic {
       "Ihre OGS kann zusätzliche Abwesenheitsarten anbieten.",
       "Urlaub beantragen Sie in der Karte `Urlaub` und nicht über diese Aktion.",
       "Freizeitausgleich trägt nur ein, wer die Zeiten des Teams verwalten darf.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     notes: [
       "An ganzen Abwesenheitstagen fallen Ihre Schichten aus. Im Betreuungsplan stehen Sie als abwesend.",
@@ -5502,6 +5533,7 @@ export const ownShiftPlanTopic = function ownShiftPlanTopic(): HelpTopic {
       "Auf dem Handy finden Sie `Mein Dienstplan` unten unter `Mehr`. Dort stehen die Schichten als Liste je Tag statt im Wochenraster.",
       "Sie können den Plan hier nur ansehen. Änderungen trägt die Leitung im Dienstplan ein.",
       "Auf dem Handy erscheinen Samstag und Sonntag nur mit einer Schicht. Bei einem Sonntagsdienst kann im Wochenraster auch der Samstag erscheinen.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     troubleshootingDetails: [
       "`Mein Dienstplan` fehlt? Dann plant Ihre OGS die Schichten nicht in moto.",
@@ -7854,6 +7886,74 @@ export const roomsTopic = function roomsTopic(
   };
 } satisfies typeof authored_roomsTopic;
 
+// Die Suche über die ganze Schul-App (#6954, ADR 0231). Was jemand findet,
+// entscheidet der Server nach den Rechten des Kontos; der Artikel nennt nur,
+// was die Person dann anders sieht.
+export const schoolSearchTopic = function schoolSearchTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.schoolSearch,
+    title: "Mit der Suche finden",
+    question: "Wie finde ich schnell ein Kind, eine Familie oder eine Seite?",
+    summary:
+      "Eine Suche findet Kinder, Familien, Team, Räume, Gruppen und Seiten.",
+    group: "einstieg",
+    audience: ["caregiver", "lead"],
+    icon: "ListSearch",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Die Suche öffnen",
+        ordered: false,
+        steps: [
+          "Am Computer: Wählen Sie oben `Überall suchen`. Oder drücken Sie Strg und K. Am Mac drücken Sie ⌘ und K. Das geht auch am Tablet mit Tastatur.",
+          "Am Tablet: Wählen Sie oben neben dem Fragezeichen die Lupe.",
+          "Am Handy: Wählen Sie unten `Mehr` und dann ganz oben `Überall suchen`. Der Reiter `Suchen` unten öffnet dagegen `Alle Kinder`.",
+        ],
+      },
+      {
+        title: "Suchen und öffnen",
+        steps: [
+          "Geben Sie mindestens zwei Zeichen ein.",
+          "Sie können einen Namen, eine Klasse, eine Gruppe, eine Telefonnummer oder eine E-Mail-Adresse eingeben.",
+          "Die Treffer stehen nach Art sortiert: `Kinder`, `Sorgeberechtigte und Kontakte`, `Mitarbeitende`, `Räume`, `Gruppen` und `Seiten`.",
+          "Wählen Sie einen Treffer. Oder wählen Sie ihn mit den Pfeiltasten und drücken Sie Enter.",
+        ],
+      },
+      {
+        // Der Anlass aus #6954: verpasste Anrufe im Büro.
+        title: "Eine Telefonnummer suchen",
+        steps: [
+          "Geben Sie die Nummer so ein, wie Sie sie sehen, oder fügen Sie sie aus einer E-Mail ein. Leerzeichen, Striche, +49 oder eine 0 am Anfang sind egal.",
+          "Steht hinter der Nummer eine Durchwahl, findet moto die Nummer auch ohne sie.",
+          "Auch die letzten Ziffern reichen, mindestens vier ohne Vorwahl 0 oder +49.",
+          "Der Treffer zeigt die Person und das Kind, zu dem sie gehört.",
+          "Wählen Sie den Treffer. moto öffnet beim Kind den Reiter `Erziehungsberechtigte`.",
+        ],
+      },
+      {
+        title: "Nach Angaben aus der Anmeldung suchen",
+        steps: [
+          "Geben Sie einen Begriff aus dem Anmeldeformular ein, zum Beispiel `schwimmen`.",
+          "Sie sehen die Kinder, bei denen die Eltern dazu etwas angegeben haben. Darunter steht die Frage und die Antwort.",
+          "Eine ganze Liste brauchen Sie? Öffnen Sie `Alle Kinder` und wählen Sie das Filtersymbol. Unter `Anmeldung` wählen Sie eine Antwort aus `Angabe aus der Anmeldung`.",
+        ],
+      },
+    ],
+    result:
+      "Sie landen direkt beim Kind, bei der Person, im Raum oder auf der Seite.",
+    differences: [
+      "Sie finden nur, was Sie auch ohne Suche sehen dürfen. Telefonnummern, E-Mail-Adressen, Elternnotizen und Angaben aus der Anmeldung finden nur Konten, die Kontaktdaten sehen dürfen.",
+      "Ein Gruppen-Treffer öffnet `Alle Kinder` mit den Kindern dieser Gruppe.",
+      "Gesundheitsangaben und Notizen aus dem Reiter `Notizen` durchsucht die Suche nicht. Öffnen Sie dafür das Kind.",
+    ],
+    notes: [
+      "Ohne Eingabe zeigt die Suche die Seiten, die Sie öffnen dürfen.",
+      "Brauchen Sie alle Kinder mit einem Namen? Öffnen Sie `Alle Kinder` und suchen Sie dort.",
+    ],
+    related: [HELP_TOPICS.studentSearch, HELP_TOPICS.appOverview],
+  };
+} satisfies typeof authored_schoolSearchTopic;
+
 /**
  * `/dateien`, Karte `Vom Träger` (#4692): Dokumente, die der Träger für die
  * Schule oder die Eltern an ihr freigegeben hat.
@@ -8446,6 +8546,7 @@ export const staffSurveysTopic = function staffSurveysTopic(): HelpTopic {
     differences: [
       "Sehen Sie die Reiter `Alle Umfragen` und `Für Sie`? Dann dürfen Sie Umfragen auch anlegen. Ihre eigenen offenen Umfragen stehen unter `Für Sie`.",
       "Steht dort `Keine offenen Umfragen`? Dann hat Ihre Schule gerade keine Umfrage an das Team.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     image: "/help/screens/umfrage-beantworten.webp",
     imageAlt:
@@ -8729,6 +8830,18 @@ export const studentSearchTopic = function studentSearchTopic(
           "Wählen Sie `Aufheben`, um alle Kreuze zu entfernen.",
         ],
       },
+      {
+        // #6954: der Filter steht im Filterfeld unter `Anmeldung`, nur mit
+        // Zugriff auf die Angaben der Kinderakte und nur bei eigenen
+        // Ja/Nein- oder Auswahlfragen der Online-Anmeldung.
+        title: "Nach Angaben aus der Anmeldung filtern",
+        steps: [
+          "Wählen Sie rechts neben der Suche das Filtersymbol.",
+          "Wählen Sie unter `Anmeldung` bei `Angabe aus der Anmeldung` eine Antwort, zum Beispiel eine Frage mit `Ja`.",
+          "Die Zahl in Klammern nennt, wie viele Kinder die Liste dann zeigt. Kinder, die die Schule verlassen haben, zählen nicht.",
+          "`Alle Angaben` hebt den Filter wieder auf.",
+        ],
+      },
     ],
     result:
       "Sie sehen jetzt die Angaben des Kindes. Über dem Namen steht `Zurück zur Kinderübersicht`. Damit kommen Sie zur Liste zurück.",
@@ -8738,11 +8851,13 @@ export const studentSearchTopic = function studentSearchTopic(
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
       "Fehlen `Gruppen` und `Aktuelle Aufsicht` in der Navigation? Dann wählen Sie in `Alle Kinder` oben `Meine Gruppe` oder `Meine Aufsicht`.",
       "Einige Bereiche brauchen zusätzliche Rechte: `Betreuungsplan`, `Dokumente` und `Änderungsprotokoll`. Fehlt ein Bereich? Fragen Sie Ihre Leitung.",
+      "Fehlt im Filter `Anmeldung`? Den Filter sehen nur Mitarbeitende, die auch die Angaben aus der Anmeldung beim Kind sehen. Er erscheint erst, wenn die Online-Anmeldung eigene Fragen mit Ja/Nein oder zur Auswahl hat.",
       ...(presenceDifference ? [presenceDifference] : []),
     ],
     ...(transitNotes.length > 0 ? { notes: transitNotes } : {}),
     troubleshooting: HELP_TOPICS.missingChildOrGroup,
     related: [
+      HELP_TOPICS.schoolSearch,
       HELP_TOPICS.editStudent,
       HELP_TOPICS.webAttendance,
       HELP_TOPICS.absences,
@@ -9663,14 +9778,19 @@ export const teacherLoginTopic = function teacherLoginTopic(): HelpTopic {
       "Wählen Sie `Anmelden`.",
       "Fragt moto nach einem Code? Öffnen Sie die E-Mail von moto.",
       "Geben Sie den sechsstelligen Code ein.",
+      "Ist es Ihr eigenes Gerät? Wählen Sie `Ja, merken und anmelden`. Dort fragt moto dann vorerst keinen Code mehr ab.",
+      "Nutzen mehrere Personen das Gerät, zum Beispiel ein Rechner im Lehrerzimmer? Wählen Sie `Nein, nur anmelden`.",
     ],
     result: "moto öffnet die `Klassenansicht` mit dem heutigen Tag.",
     notes: [
       "Legen Sie sich die Adresse als Lesezeichen an.",
       "Passwort vergessen? Wählen Sie `Passwort vergessen?` auf der Anmeldeseite.",
+      "Gemerkte Geräte stehen unter `Einstellungen` im Bereich `Vertraute Geräte`. Dort entfernen Sie ein Gerät wieder.",
     ],
     differences: [
       "Oben steht `Willkommen im Schulportal`. So erkennen Sie, dass Sie richtig sind.",
+      "Auf dem Knopf steht eine andere Zahl als 90? Ihre Schule legt fest, wie viele Tage moto ein Gerät merkt.",
+      "Sie sehen keine zwei Knöpfe? Dann merkt Ihre Schule keine Geräte. moto prüft den Code, sobald er vollständig ist.",
       "Für Verwaltung ist ein zweiter Nachweis immer Pflicht. Ebenso für Personalstammdaten, Personaldokumente und Personalfinanzen. Das gilt auch für Einkommensnachweise der Eltern. Ebenso für Gesundheitsdokumente und das Verwalten fremder Arbeitszeiten. Ebenso, wenn Sie Urlaub genehmigen dürfen. Gesundheitshinweise der Kinder allein lösen diese Pflicht nicht aus.",
     ],
     troubleshootingDetails: [
@@ -9954,6 +10074,7 @@ export const teacherSettingsTopic = function teacherSettingsTopic(): HelpTopic {
       "`Fehlt ohne Meldung`: nur für die Schulverwaltung. moto meldet sich, wenn eine Lehrkraft ein Kind als fehlend einträgt und keine Meldung da ist. Im Hinweis steht nur die Zahl der Kinder. Diese Benachrichtigung ist von Anfang an eingeschaltet.",
       "`Nachrichten von Kolleginnen und Kollegen`: neue Nachrichten im Team-Chat der OGS.",
       "Benachrichtigungen kommen erst an, wenn moto schule auf dem Startbildschirm liegt.",
+      "Im Bereich `Vertraute Geräte` stehen die Geräte, die Sie sich beim Anmelden gemerkt haben. Öffnen Sie das Menü am Gerät und wählen Sie `Entfernen`. Dort fragt moto beim nächsten Anmelden wieder nach dem Code.",
     ],
     differences: [
       "Nutzen Sie Samsung Internet? Öffnen Sie moto schule stattdessen in Chrome.",
@@ -10175,6 +10296,7 @@ export const teamChatTopic = function teamChatTopic(): HelpTopic {
       "Nachrichten im Team-Chat können nicht nachträglich geändert oder gelöscht werden.",
       "Der Bereich fehlt? Dann hat Ihre OGS den Team-Chat nicht eingeschaltet.",
       "Neue Mitglieder eines Gruppenchats sehen die Nachrichten ab ihrem Beitritt, nicht die älteren.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     notes: [
       "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie bis zu 5 Dateien an eine Nachricht: Fotos, PDF, Word, Excel oder PowerPoint, je höchstens 10 MB. Ein Foto öffnen Sie mit einem Tipp groß.",
@@ -10240,6 +10362,7 @@ export const trackWorkTimeTopic = function trackWorkTimeTopic(): HelpTopic {
       "Nach der gewählten Pausenlänge läuft die Arbeitszeit automatisch weiter.",
       "Ihr `Ist` ist etwas länger oder kürzer als die gestempelten Zeiten? Dann zählt Ihre OGS eine Wegpackzeit dazu oder rundet. Der Hinweis steht in der Zeile, zum Beispiel `+5 Min. Wegpackzeit`.",
       "Steht unten `Kein Soll hinterlegt`? Dann zählen Krankheit und Urlaub 0 Stunden. Die Monatskarte zeigt diese Tage mit `ohne Soll`. Das Soll trägt die Leitung ein.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     related: [HELP_TOPICS.correctWorkTime, HELP_TOPICS.nfcWorkTime],
   };
@@ -10507,7 +10630,7 @@ export const traegerBillingRunTopic =
             "Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Hat die Familie ein Konto in der Eltern-App mit derselben Mail-Adresse, liegt es auch dort unter `Dokumente`. Familien ohne E-Mail geben Sie das gedruckte Schreiben.",
           steps: [
             "Wählen Sie im freigegebenen Lauf bei `Versand per Mail` den Knopf `An alle Familien senden`. moto schickt nur Mails, die noch nicht gesendet sind.",
-            "Neben jeder Familie steht, was aus der Mail geworden ist. `Gesendet` heißt: Die Mail ist raus. `Zugestellt` heißt: Sie ist angekommen. `Nicht angekommen` und `Nicht zustellbar` heißen: Die Mail kam nicht an.",
+            "Neben jeder Familie steht, was aus der Mail geworden ist. `Gesendet` heißt: Die Mail ist raus. `Zugestellt` heißt: Sie ist angekommen. `Nicht angekommen` und `Nicht zustellbar` heißen: Die Mail kam nicht an. `Als unerwünscht gemeldet` heißt: Die Mail kam an. Die Familie hat sie danach als unerwünscht gemeldet.",
             "Bei `Verzögert` kommt die Mail später an. Warten Sie dann. `Erneut senden` steht erst danach wieder bereit. Spätestens bei `Überfällig` können Sie neu senden.",
             "Bei `Nicht gesendet` und `Abgemeldet` zählt, ob die Sperre noch besteht. Besteht sie, fehlt `Erneut senden`, und der Hinweis sagt, was zu tun ist. Drucken Sie das Schreiben dann und geben Sie es der Familie. Ist sie weg, können Sie neu senden.",
             "Wählen Sie bei dieser Familie `Erneut senden`. Mit `Senden` schicken Sie das Schreiben an eine einzelne Familie.",
@@ -10586,6 +10709,7 @@ export const traegerBillingRunTopic =
             "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offener Forderung` sehen Sie nur Familien, deren Rechnungen noch Geld verlangen. Ob gezahlt wurde, sieht moto nicht. Mit `Ohne Debitorennummer` sehen Sie Familien ohne Nummer. Denselben Filter setzt ein Klick auf `ohne Debitorennummer` oben in der Zeile mit den Zahlen.",
             "Unter `Debitorennummer` steht die Nummer der Familie. Steht auf älteren Rechnungen eine andere, sehen Sie sie darunter. `Nur Ferien` heißt: Die Familie hat keinen Betreuungsvertrag.",
             "Öffnen Sie das Drei-Punkte-Menü neben der Nummer. Wählen Sie `Debitorennummer ändern` oder `Debitorennummer eintragen`. Tragen Sie die Nummer ein und wählen Sie `Speichern`. Ausgestellte Rechnungen behalten ihre Nummer.",
+            "Führt Ihr Träger die Debitorennummer je Kind, heißt die Spalte `Nummern der Kinder`. Dort steht jedes Kind mit seiner Nummer. Familien mit Betreuungsvertrag stehen dann schon vor der ersten Rechnung in der Liste. Im Drei-Punkte-Menü wählen Sie `Nummern der Kinder eintragen` oder `Nummern der Kinder ändern`. Jedes Kind hat ein eigenes Feld. Wählen Sie `Speichern`. Die nächste Monatsrechnung eines Kindes nimmt seine Nummer.",
             "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand. Eine Familie ohne Rechnung öffnet sich nicht.",
             "Wählen Sie ein Dokument, um seinen Abrechnungslauf zu öffnen. Dort stornieren Sie oder schreiben gut.",
           ],
@@ -10599,7 +10723,7 @@ export const traegerBillingRunTopic =
         "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
         "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
         "Logo, Farbe, Absender und Fußzeile im Schreiben kommen aus `Briefkopf und Vorlagen`. Die Ansprechperson kommt aus `Allgemein`, die Bankverbindung aus `Abrechnungsvorgaben`. Als Verwendungszweck steht im Schreiben die Debitorennummer der Rechnung. Hat die Rechnung keine, steht dort die Rechnungsnummer. Einen eigenen Zahlungstext schreiben Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung`.",
-        "Die Rechnung übernimmt die Debitorennummer der Anmeldung. Hat die Anmeldung keine, nimmt sie die Nummer der Familie aus dem Reiter `Familien`. Die Nummer steht im Schreiben unter der Rechnungsnummer und in der Übersicht für die Kämmerei in der Spalte `Debitorennummer`.",
+        "Die Rechnung übernimmt die Debitorennummer der Anmeldung. Hat die Anmeldung keine, nimmt sie die Nummer der Familie aus dem Reiter `Familien`. Führt Ihr Träger die Nummer je Kind, nimmt sie die Nummer des ersten Kindes der Rechnung. Eine Rechnung über mehrere Kinder nennt nur eine Nummer. Das steht vor der Freigabe als Hinweis. Die Nummer steht im Schreiben unter der Rechnungsnummer und in der Übersicht für die Kämmerei in der Spalte `Debitorennummer`.",
         "Storno und Gutschrift bekommen ihre Nummer aus demselben Nummernkreis wie die Rechnungen. In der Aufschlüsselung einer Rechnung steht unter `Verlauf` ihr Storno, ihre Gutschriften und die neue Rechnung.",
         "Sind die Schreiben des Laufs schon erstellt, bekommen Storno und Gutschrift ihr Schreiben sofort. Sie senden es wie die anderen Schreiben unter `Versand per Mail`.",
         "Nach einem Storno lässt sich die Debitorennummer der Anmeldung wieder ändern. Die neue Rechnung übernimmt sie.",
@@ -12117,6 +12241,8 @@ export const traegerFinanceExportsTopic =
             "Wählen Sie oben rechts `Feldzuordnung`.",
             "Wählen Sie bei jeder Spalte den `Inhalt` und tragen Sie den `Spaltennamen` ein.",
             "Mit `Spalte` fügen Sie eine Spalte hinzu. Für einen Wert, der in jeder Zeile gleich ist, wählen Sie `Fester Wert`, etwa ein Konto.",
+            "Für einen Text je Rechnung wählen Sie `Buchungstext`. Schreiben Sie feste Wörter selbst und fügen Sie Platzhalter wie `{Monat}` und `{Kind}` mit einem Klick ein. Aus `SKB {Monat} {Kind}` wird etwa `SKB 10/2026 Lia Müller`.",
+            "Will Ihre Buchhaltung Stornos und Gutschriften in einer eigenen Spalte? Dann wählen Sie `Gutschrift`. Dort steht der Betrag ohne Minus. Die Spalte `Betrag` bleibt bei ihnen leer.",
             "Legen Sie unter `Datei` Trennzeichen, Beträge, Datum, Zeichensatz und Dateinamen fest. `{NR}` im Dateinamen wird zur Dateinummer.",
             "Prüfen Sie die `Vorschau` und wählen Sie `Speichern`.",
           ],
@@ -12702,7 +12828,7 @@ export const traegerHolidayRegistrationReviewTopic =
             "Wählen Sie unter `Wer bezahlt den Beitrag?`: `Die Familie bezahlt`, `Von der Zahlung befreien (Leistungsbezug)` oder `Kosten übernimmt ein Kostenträger`. Beim Kostenträger wählen Sie darunter, welcher bezahlt. Der `Ferienbeitrag` zeigt sofort, was festgehalten wird.",
             "Fragt Ihr Träger die Debitorennummer ab, steht über `Bestätigen` das Feld `Debitorennummer`. Tragen Sie dort die Nummer der Familie bei der Kasse der Gemeinde ein. Ohne Nummer geht `Bestätigen` nicht. Hat Ihr Träger ein Format festgelegt, steht es unter dem Feld, zum Beispiel `Die Nummer hat 5 Ziffern`.",
             "Kennt moto die Nummer der Familie schon, steht unter dem Feld `Bekannte Nummer dieser Familie`. Prüfen Sie die Nummer und wählen Sie `Übernehmen`. Das Feld füllt sich, bestätigt ist aber noch nichts.",
-            "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten. moto merkt sich die Debitorennummer bei der Familie.",
+            "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten. moto merkt sich die Debitorennummer bei der Familie. Führt Ihr Träger die Nummer je Kind, merkt moto sie beim Kind, wenn die Anmeldung nur ein Kind hat und das Kind noch keine Nummer hat. Vorgeschlagen wird dann die Nummer des ersten Kindes.",
             "Weicht die Nummer von der gemerkten ab, fragt moto `Welche Debitorennummer gilt?`. Wählen Sie `Neue Nummer für die Familie merken` oder `Gemerkte Nummer behalten`. Mit Ihrer Auswahl bestätigen Sie die Anmeldung. Bei mehreren Familien nennt moto jede Familie und ihre bisherige Nummer. Ihre Auswahl gilt für alle genannten Familien.",
             "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
           ],
@@ -12834,7 +12960,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "moto löscht die gemerkte Nummer einer Familie ohne Betreuungsvertrag drei Jahre nach dem Ende des Jahres, in dem sie zuletzt gebraucht wurde. Das gilt auch, wenn ein alter Betreuungsvertrag der Familie gelöscht wird. Solange es noch Rechnungen der Familie gibt, bleibt sie. Gibt es einen Löschstopp für Ferienrechnungen, bleibt sie auch.",
       ],
       differences: [
-        "Bei einer Anmeldung steht `E-Mail prüfen`? Die Eingangsbestätigung oder die Annahme-Mail hat die Eltern nicht erreicht. In der Anmeldung steht oben, welche Mail und warum. Prüfen Sie die E-Mail-Adresse unter `Eltern` und rufen Sie die Familie an. Kann moto eine Mail gerade nicht senden, versucht moto es bis zu knapp drei Tage weiter. Erst danach steht dort `E-Mail prüfen`.",
+        "Bei einer Anmeldung steht `Mail prüfen`? Eine Mail zu dieser Anmeldung hat die Eltern nicht erreicht. Oder die Eltern haben sie als unerwünscht gemeldet. In der Anmeldung steht oben, welche Mail und was Sie tun können. Mit `Zu den Eltern` kommen Sie zu Telefon und E-Mail-Adresse. Unter `Mails an die Eltern` sehen Sie jede Mail mit ihrem Stand. Rufen Sie die Familie am besten an. Kam eine Mail nicht an, prüfen Sie die E-Mail-Adresse unter `Eltern`. Ist sie falsch, ändern Sie sie. Eine stornierte Anmeldung können Sie nicht mehr ändern. Kann moto eine Mail gerade nicht senden, versucht moto es bis zu knapp drei Tage weiter. Erst danach steht dort `Mail prüfen`.",
         "In der Liste steht beim Kind `Bekannt an` mit einer Schule? Diese Schule Ihres Trägers führt ein Kind mit gleichem Namen und Geburtsdatum. Die Eltern haben es aber als Feriengast oder an einer anderen Schule angemeldet. In der Anmeldung steht dazu ein Hinweis beim Kind. Prüfen Sie die Schule und wählen Sie dort `Schule ändern`. moto verknüpft nichts von selbst und zeigt keine Daten der Schule.",
         "Beim Kind steht `An der Schule bekannt`? Die Schule aus der Anmeldung führt ein Kind mit gleichem Namen und Geburtsdatum. Sie müssen nichts tun.",
         "Auf dem Handy fehlt der Haken für alle Anmeldungen? Setzen Sie die Haken dort einzeln.",
@@ -13089,7 +13215,7 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
     icon: "Building2",
     requirements: [
       "Sie gehören zum Träger-Büro. Sie haben eine Einladung angenommen, oder das moto-Team hat Ihr Konto zugeordnet.",
-      "Zugriff auf Ihr E-Mail-Postfach. Bei jeder Anmeldung kommt ein Code per E-Mail.",
+      "Zugriff auf Ihr E-Mail-Postfach. Bei der Anmeldung kommt ein Code per E-Mail.",
     ],
     steps: [
       "Öffnen Sie die Adresse des Träger-Portals.",
@@ -13099,7 +13225,9 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
       "Gehören Sie zu mehreren Trägern? Wählen Sie den Träger aus.",
       "Wählen Sie dann `Träger öffnen`.",
       "moto zeigt die `Code-Eingabe`. Öffnen Sie die E-Mail von moto.",
-      "Geben Sie den sechsstelligen Code ein. moto prüft ihn automatisch.",
+      "Geben Sie den sechsstelligen Code ein.",
+      "Ist es Ihr eigenes Gerät? Wählen Sie `Ja, merken und anmelden`. Dort fragt moto dann 90 Tage lang keinen Code ab.",
+      "Nutzen mehrere Personen das Gerät? Wählen Sie `Nein, nur anmelden`.",
     ],
     result: "moto öffnet die Seite `Schulen` mit allen Schulen Ihres Trägers.",
     notes: [
@@ -13110,7 +13238,9 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
       "Oben steht `Willkommen im Träger-Portal`. So erkennen Sie, dass Sie richtig sind.",
       "Haben Sie auch ein Konto in einer OGS? Dann nutzen Sie dasselbe Konto. Ein zweites Passwort brauchen Sie nicht.",
       "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein. Wählen Sie `Weiter zum Dashboard`.",
-      "Der Code ist im Träger-Portal immer Pflicht. moto merkt sich Ihr Gerät hier nicht.",
+      "Der Code ist im Träger-Portal immer Pflicht. Nur auf einem gemerkten Gerät fragt moto ihn 90 Tage lang nicht ab.",
+      "Ein gemerktes Gerät gilt nur für das Träger-Portal und nur für diesen Träger. In einer OGS merken Sie das Gerät dort noch einmal.",
+      "Gemerkte Geräte stehen unter `Konto` bei `Meine vertrauten Geräte`. Dort entfernen Sie ein Gerät wieder.",
       "Am Computer stehen die Bereiche links in der Navigation. Auf dem Handy stehen sie unten. Was dort keinen Platz hat, finden Sie unter `Mehr`.",
       "`Einstellungen` steht unten in der Navigation. Ein Klick darauf zeigt dort die Einstellungen. `Zurück zur App` führt zurück.",
     ],
@@ -13190,6 +13320,7 @@ export const traegerProfileTopic = function traegerProfileTopic(): HelpTopic {
       "Im Protokoll und im Verlauf steht Ihre E-Mail-Adresse nie. Sie sehen sie im Profil-Menü unter Ihrem Namen und unter `Konto` bei `Anmeldung`.",
       "Ihren Namen geben Sie schon beim Annehmen der Einladung an.",
       "Wer die Rolle `Leitung` hat, kann Namen auch unter `Mitglieder und Rollen` eintragen.",
+      "Unter `Meine vertrauten Geräte` stehen die Geräte, die Sie sich beim Anmelden gemerkt haben. Öffnen Sie das Menü am Gerät und wählen Sie `Entfernen`. Dort fragt moto beim nächsten Anmelden wieder nach dem Code.",
     ],
     troubleshootingDetails: [
       "Oben rechts steht Ihre E-Mail-Adresse statt eines Namens? Sie haben noch keinen Namen. Tragen Sie ihn unter `Konto` ein.",
@@ -13415,6 +13546,7 @@ export const traegerSepaMandatesTopic =
             "Haben Sie die Mandate schon in einem anderen Programm, zum Beispiel OGS Connect? Dann übernehmen Sie alle auf einmal aus einer CSV-Datei. Referenz und Datum der Unterschrift bleiben gleich. moto bewahrt die Datei nicht auf.",
           steps: [
             "Speichern Sie die Mandate im anderen Programm als CSV-Datei. Die erste Zeile enthält die Überschriften.",
+            "Aus OGS Connect nehmen Sie den Export der Stammdaten. Er hat eine Zeile je Kind. Als Zahler braucht moto dort noch eine Spalte mit E-Mail oder Vertragsnummer.",
             "Öffnen Sie unter `Abrechnung` den Reiter `Lastschrift` und wählen Sie `Mandate importieren`.",
             "Ziehen Sie die Datei in das Feld oder wählen Sie `Datei wählen`.",
             "Prüfen Sie unter `Spalten zuordnen`, aus welcher Spalte jedes Feld kommt. moto schlägt passende Spalten vor.",
@@ -13442,7 +13574,9 @@ export const traegerSepaMandatesTopic =
         "Ob die App Mandate annimmt, sehen Sie unter `Abrechnungsvorgaben` in der Karte `Lastschrift` bei `Mandat in der Eltern-App`. Ohne Gläubiger-ID oder ohne Absender im Briefkopf nimmt die App kein Mandat an.",
         "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",
         "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Bei importierten Mandaten stehen dort auch Dateiname und Zeile. Kontodaten stehen dort nicht.",
+        "Für Zeilen ohne IBAN und ohne Mandatsreferenz legt moto kein Mandat an. Die Vorschau zählt sie als „ohne Mandat“. Das sind meist Kinder, deren Familie ohne Lastschrift zahlt. Eine fehlende Debitorennummer übernimmt moto trotzdem, solange es keinen Konflikt gibt. Konflikte zeigt die Vorschau mit der Zeilennummer.",
         "Mandate übernimmt moto nur mit dem Stand `Bereit`. Fehlende Debitorennummern können Sie auch bei vorhandenen Mandaten übernehmen. Die Vorschau zählt jede Familie einmal. Unterschiedliche Nummern werden nicht übernommen. Korrigieren Sie die Datei und laden Sie sie noch einmal.",
+        "Führt Ihr Träger die Debitorennummer je Kind, bekommt jedes Kind die Nummer seiner Zeile. Geschwister dürfen verschiedene Nummern haben. Damit moto das Kind erkennt, wählen Sie als Zahler die Vertragsnummer. Mit der E-Mail erkennt moto das Kind nur, wenn die Familie ein Kind mit Vertrag hat.",
         "Ein Mandat aus der Datei, mit dem schon abgebucht wurde, übernimmt moto als Folgelastschrift. Steht die letzte Abbuchung in der Datei, zählen die 36 Monate bis zum Verfall ab diesem Tag. Fehlt sie, zählen sie ab dem Import.",
         "Wissen Sie, dass die letzte Abbuchung lange her ist? Dann tragen Sie das Datum in der Datei ein oder holen ein neues Mandat ein. Ohne Datum geht moto davon aus, dass das Mandat bis kurz vor dem Import genutzt wurde.",
       ],
@@ -13498,6 +13632,7 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
       "Darunter steht `Kontakt für Widerrufe`. Diese Telefonnummer und E-Mail-Adresse nennt die Widerrufsbelehrung jedes Betreuungsvertrags. Ein leeres Feld nimmt die Angabe der Ansprechperson. Die Vorschau zeigt den Satz so, wie Eltern ihn lesen. Nach einer Änderung kopiert die Schule die Widerrufsbelehrung neu ins Anmeldeformular.",
       "Mit `Zurück zur App` oben in der Navigation kommen Sie zur zuletzt geöffneten Seite zurück.",
       "Im Bereich `Ferienbetreuung` legen Sie fest, ob Sie beim Bestätigen einer Ferienanmeldung die Debitorennummer der Familie abfragen. Diese Einstellung gilt nur im Träger-Büro.",
+      "Ebenfalls dort wählen Sie bei `Debitorennummer gilt je`, wen eine Nummer meint. `Zahler (Rechnungsempfänger)` heißt: Jeder Empfänger von Rechnungen hat eine Nummer, Geschwister teilen sie. Zahlen die Eltern getrennt, hat jeder Elternteil seine Nummer. `Kind` heißt: Jedes Kind hat eine eigene Nummer. Wenn Sie umstellen, bleiben alle gespeicherten Nummern erhalten. Ausgestellte Rechnungen behalten ihre Nummer, neue Rechnungen nehmen die Nummer nach der neuen Einstellung.",
       "Hat Ihre Kasse ein festes Format, schalten Sie dort `Debitorennummer: nur Ziffern` ein. Darunter tragen Sie bei `Länge` ein, von wie vielen bis wie vielen Ziffern eine Nummer hat. Für genau 5 Ziffern tragen Sie zweimal 5 ein. Das `Beispiel` zeigt eine passende Nummer.",
       "Das Format gilt für jede Nummer, die Sie danach eintragen: beim Bestätigen, beim Ändern einer Anmeldung und bei den Familien. Gespeicherte Nummern bleiben, wie sie sind.",
       "Ebenfalls unter `Ferienbetreuung` schreiben Sie bei `Zahlungstext im Schreiben` einen eigenen Satz, der um die Zahlung bittet. Erlaubte Platzhalter sind {Betrag}, {Zahlungsfrist}, {Rechnungsnummer} und {Debitorennummer}. Darunter zeigt die `Vorschau des Zahlungstexts` den Satz mit Beispielwerten. Ist das Feld leer, steht im Schreiben der eingebaute Satz.",
@@ -13749,6 +13884,7 @@ export const vacationTopic = function vacationTopic(): HelpTopic {
       "Der Antrag erscheint unter `Meine Anträge`. Dort sehen Sie, ob er offen, genehmigt, abgelehnt oder zur Rückfrage zurückgegeben wurde.",
     differences: [
       "Krankheit, Fortbildung und andere Abwesenheiten melden Sie über `Abwesend` in der Stempeluhr. Dafür stellen Sie keinen Urlaubsantrag.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     notes: [
       "Einen offenen oder zukünftigen genehmigten Antrag können Sie stornieren.",
@@ -13984,6 +14120,7 @@ export const workTimeHintsTopic = function workTimeHintsTopic(): HelpTopic {
     differences: [
       "Im Monat reicht die erste oder letzte Woche über den Monatsrand. `Summe KW` zählt dann die ganze Woche.",
       "Korrigieren Sie einen Tag, prüft moto ihn nach dem Speichern neu. Der Hinweis im Dialog zeigt den bisher gespeicherten Stand.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     related: [
       HELP_TOPICS.trackWorkTime,

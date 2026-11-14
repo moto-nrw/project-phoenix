@@ -26,12 +26,14 @@ func TestReadImportTableReadsEncodingsAndDelimiters(t *testing.T) {
 		encoding, delim   string
 		holder, delimiter string
 	}{
-		"utf-8 semicolon":        {content: header + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller"},
-		"utf-8 with bom":         {content: "\xEF\xBB\xBF" + header + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller"},
-		"windows-1252":           {content: windows, encoding: encodingWindows1252, delim: ";", holder: "Jürgen Müller"},
-		"comma with quotes":      {content: comma, encoding: encodingUTF8, delim: ",", holder: "Müller, Jürgen"},
-		"semicolon chosen":       {content: header + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller", delimiter: ";"},
-		"crlf and an empty line": {content: "Mandatsreferenz;Mandatsdatum;IBAN;Kontoinhaber;E-Mail\r\n\r\n" + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller"},
+		"utf-8 semicolon":              {content: header + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller"},
+		"utf-8 with bom":               {content: "\xEF\xBB\xBF" + header + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller"},
+		"windows-1252":                 {content: windows, encoding: encodingWindows1252, delim: ";", holder: "Jürgen Müller"},
+		"comma with quotes":            {content: comma, encoding: encodingUTF8, delim: ",", holder: "Müller, Jürgen"},
+		"semicolon chosen":             {content: header + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller", delimiter: ";"},
+		"bom and an empty line, comma": {content: "\xEF\xBB\xBF\r\nMandatsreferenz,Mandatsdatum,IBAN,Kontoinhaber,E-Mail\n" + strings.ReplaceAll(row, ";", ","), encoding: encodingUTF8, delim: ",", holder: "Jürgen Müller"},
+		"bom and an empty line, tab":   {content: "\xEF\xBB\xBF\n" + strings.ReplaceAll(header+row, ";", "\t"), encoding: encodingUTF8, delim: "\t", holder: "Jürgen Müller"},
+		"crlf and an empty line":       {content: "Mandatsreferenz;Mandatsdatum;IBAN;Kontoinhaber;E-Mail\r\n\r\n" + row, encoding: encodingUTF8, delim: ";", holder: "Jürgen Müller"},
 	} {
 		table, err := readImportTable([]byte(test.content), test.delimiter)
 		require.NoError(t, err, name)
@@ -64,6 +66,84 @@ func TestReadImportTableRefusesWhatIsNoCSV(t *testing.T) {
 	require.ErrorIs(t, err, parentbilling.ErrImportFileTooLarge)
 }
 
+// ogsConnectMasterData is a file in the layout of the master data export of
+// OGS Connect (#7009), with invented data: a row per child, NUL where a CSV
+// has quotes, padded and empty headers, dates with a time of day and rows
+// of children whose family pays without a mandate.
+const ogsConnectMasterData = "\x00Nachname Kind \x00;\x00 Vorname Kind\x00;\x00\x00;\x00Debitor-Nr.\x00;\x00Kontoinhaber\x00;" +
+	"\x00IBAN\x00;\x00Mandatsreferenz\x00;\x00Unterschriftsdatum\x00;\x00Mandat ist gültig ab\x00;\x00Lastschriftart\x00;\x00\x00\r\n" +
+	"\x00Beispiel\x00;\x00Lia\x00;\x00\x00;\x0070001\x00;\x00Eva \"Evi\" Beispiel\x00;\x00DE89 3704 0044 0532 0130 00\x00;" +
+	"\x00SJR-0001\x00;\x0001.02.2024 14:05\x00;\x0001.03.2024 00:00\x00;\x00CORE/RCUR\x00;\x00\x00\r\n" +
+	"\x00Muster\x00;\x00Ben\x00;\x00\x00;\x0070002\x00;\x00\x00;\x00\x00;\x00\x00;\x00\x00;\x00\x00;\x00\x00;\x00\x00\r\n"
+
+// The master data export of OGS Connect reads without any change to the
+// file: NUL as quotes, the headers trimmed, the two unnamed columns kept
+// apart from the named ones (#7009).
+func TestReadImportTableReadsTheOGSConnectMasterData(t *testing.T) {
+	t.Parallel()
+	table, err := readImportTable([]byte(ogsConnectMasterData), "")
+	require.NoError(t, err)
+	assert.Equal(t, ";", table.delimiter)
+	assert.Equal(t, []string{"Nachname Kind", "Vorname Kind", "", "Debitor-Nr.", "Kontoinhaber", "IBAN", "Mandatsreferenz",
+		"Unterschriftsdatum", "Mandat ist gültig ab", "Lastschriftart", ""}, table.headers)
+	require.Len(t, table.rows, 2)
+	assert.Equal(t, "Eva \"Evi\" Beispiel", table.rows[0][4], "a quote inside a NUL field stays a quote")
+	assert.Equal(t, "01.02.2024 14:05", table.rows[0][7])
+	assert.Equal(t, []int{2, 3}, table.lines)
+
+	mapping := suggestImportMapping(table.headers)
+	assert.Equal(t, "Unterschriftsdatum", mapping.Columns.SignedOn)
+	assert.Equal(t, "Debitor-Nr.", mapping.Columns.DebtorNumber)
+	assert.Equal(t, "Lastschriftart", mapping.Columns.Sequence)
+
+	columns := importColumnIndex{fields: map[string]int{parentbilling.ImportFieldIBAN: 5, parentbilling.ImportFieldReference: 6}}
+	check := newImportCheck(columns, importCreditor, importPayers{}, nil, importToday, nil)
+	candidates := make([]importCandidate, len(table.rows))
+	for i, cells := range table.rows {
+		candidates[i] = check.candidate(cells, table.lines[i])
+	}
+	kept, without := importPreviewRows(candidates)
+	assert.Equal(t, 1, without, "the child whose family pays without a mandate is no mistake")
+	require.Len(t, kept, 1)
+	assert.Equal(t, 2, kept[0].row.Line)
+	assert.Len(t, candidates, 2, "its row still gives its debtor number")
+	assert.Len(t, table.rows, 2, "the file itself stays as read")
+}
+
+// A NUL counts as a quote only where a quote can stand; any other NUL
+// keeps the file refused as no text.
+func TestReadImportTableRefusesANULOutsideTheRoleOfAQuote(t *testing.T) {
+	t.Parallel()
+	for name, content := range map[string]string{
+		"inside a cell":                       "Mandatsreferenz;IBAN\nSJR\x001;DE89370400440532013000\n",
+		"never closed":                        "\x00Mandatsreferenz\x00;\x00IBAN\nSJR-1;x\n",
+		"after the start":                     "Mandatsreferenz;IBAN\nSJR-1;D\x00E\x00\n",
+		"inside a field of another delimiter": "Mandatsreferenz;Notiz\nSJR-1;a,\x00b\x00,c\n",
+		"inside a quoted field":               "Mandatsreferenz;Notiz\nSJR-1;\"a\x00\x00b\"\n",
+		"after a literal quote":               "Mandatsreferenz;Notiz\nx;\"a\"b;\x00value\x00;suffix\"\n",
+		"after a lone carriage return":        "Mandatsreferenz;Notiz\nx;\"a\"\rb;\x00value\x00;suffix\"\n",
+		"a delimiter inside the NUL quotes":   "Mandatsreferenz;Notiz\nSJR-1;\x00a;b\x00\n",
+	} {
+		_, err := readImportTable([]byte(content), "")
+		require.ErrorIs(t, err, parentbilling.ErrImportFileInvalid, name)
+	}
+}
+
+// A sequence beside the SEPA scheme reads as the sequence (#7009).
+func TestImportSequenceIgnoresTheScheme(t *testing.T) {
+	t.Parallel()
+	for value, want := range map[string]string{"CORE/RCUR": parentbilling.SequenceRecurring, "core frst": parentbilling.SequenceFirst,
+		"RCUR": parentbilling.SequenceRecurring} {
+		sequence, _, ok := importSequence(value)
+		require.True(t, ok, value)
+		assert.Equal(t, want, sequence, value)
+	}
+	for _, value := range []string{"CORE", "CORE/B2B"} {
+		_, _, ok := importSequence(value)
+		assert.False(t, ok, value)
+	}
+}
+
 func TestSuggestImportMappingFindsTheUsualHeaders(t *testing.T) {
 	t.Parallel()
 	mapping := suggestImportMapping([]string{"Mandats-Referenz", "Datum der Mandatserteilung", "IBAN", "BIC", "Kontoinhaber",
@@ -83,7 +163,14 @@ func TestParseImportDateReadsGermanAndISODates(t *testing.T) {
 		require.True(t, ok, value)
 		assert.Equal(t, want, got, value)
 	}
-	for _, value := range []string{"01.02.24", "31.02.2024", "gestern", "2024-13-01"} {
+	// OGS Connect writes the time of day after the date (#7009).
+	for value, want := range map[string]calendar.Date{"01.02.2024 14:05": calendar.NewDate(2024, 2, 1),
+		"1.2.2024 7:05:09": calendar.NewDate(2024, 2, 1), "2024-02-01T00:00": calendar.NewDate(2024, 2, 1)} {
+		got, ok := parseImportDate(value)
+		require.True(t, ok, value)
+		assert.Equal(t, want, got, value)
+	}
+	for _, value := range []string{"01.02.24", "31.02.2024", "gestern", "2024-13-01", "01.02.2024 25", "01.02.2024 14:05 Uhr"} {
 		_, ok := parseImportDate(value)
 		assert.False(t, ok, value)
 	}
@@ -329,4 +416,47 @@ func TestContainsIBANFindsAnIBANInsideText(t *testing.T) {
 	for _, value := range []string{"SJR-2026-0001", "Eva Beispiel", "DE89370400440532013001", "OGS-2024-0001"} {
 		assert.False(t, containsIBAN(value), value)
 	}
+}
+
+// Rows of one child through several contracts give its number once, kept
+// until the end of the latest contract (#7007).
+func TestChildNumbersToSetKeepTheLatestContractEnd(t *testing.T) {
+	t.Parallel()
+	child := parentbilling.FamilyChild{FirstName: "Mia", LastName: "Beispiel"}
+	row := func(until calendar.Date) importCandidate {
+		return importCandidate{family: "eva@example.org", child: child, perChild: true, until: until,
+			row: parentbilling.SEPAMandateImportRow{DebtorNumber: "1", DebtorNumberStatus: parentbilling.DebtorNumberNew}}
+	}
+	set := childNumbersToSet([]importCandidate{row(calendar.NewDate(2027, 7, 31)), row(calendar.NewDate(2030, 7, 31))})
+	require.Len(t, set, 1)
+	assert.Equal(t, calendar.NewDate(2030, 7, 31), set[0].LastUsedOn)
+}
+
+// The import keeps a child's number until the end of its latest contract,
+// also one the file does not name (#7007).
+func TestImportPayersKeepTheLatestContractOfAChild(t *testing.T) {
+	t.Parallel()
+	payers := importPayers{byContract: map[int64]importPayer{}, byFamily: map[string]importPayer{}, children: map[string]map[string]bool{},
+		childUntil: map[string]calendar.Date{}}
+	child := parentbilling.FamilyChild{FirstName: "Mia", LastName: "Beispiel"}
+	payers.countChild(importPayer{contractID: 1, family: "eva@example.org", child: child, until: calendar.NewDate(2026, 7, 31)})
+	payers.countChild(importPayer{contractID: 2, family: "eva@example.org", child: child, until: calendar.NewDate(2030, 7, 31)})
+	key := parentbilling.ChildDebtorNumberKey("eva@example.org", parentbilling.ChildKey("Mia", "Beispiel", nil))
+	assert.Equal(t, calendar.NewDate(2030, 7, 31), payers.childUntil[key])
+	assert.Len(t, payers.children["eva@example.org"], 1, "one child with two contracts")
+}
+
+// Every row naming a child keeps its stored number until the latest end of
+// its contracts, also rows whose numbers conflict (#7007).
+func TestChildNumbersToExtendCoverEveryRowOfAChild(t *testing.T) {
+	t.Parallel()
+	child := parentbilling.FamilyChild{FirstName: "Mia", LastName: "Beispiel"}
+	row := func(status string) importCandidate {
+		return importCandidate{family: "eva@example.org", child: child, perChild: true, until: calendar.NewDate(2032, 7, 31),
+			row: parentbilling.SEPAMandateImportRow{DebtorNumberStatus: status}}
+	}
+	extend := childNumbersToExtend([]importCandidate{row(parentbilling.DebtorNumberRowsDiffer), row(parentbilling.DebtorNumberRowsDiffer)})
+	require.Len(t, extend, 1)
+	assert.Equal(t, calendar.NewDate(2032, 7, 31), extend[0].LastUsedOn)
+	assert.Empty(t, extend[0].DebtorNumber, "the number stays as stored")
 }

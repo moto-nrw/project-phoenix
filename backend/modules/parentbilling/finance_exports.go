@@ -61,15 +61,40 @@ const (
 	// SollFieldConstant writes the column's fixed value into every row, for
 	// example an account or a booking key the Kämmerei asks for.
 	SollFieldConstant = "constant"
+	// SollFieldBookingText writes the column's pattern with its
+	// placeholders filled per row, for example "SKB {Monat} {Kind}" (#7008).
+	SollFieldBookingText = "booking_text"
+	// SollFieldCreditAmount writes the amount of a Storno or credit as a
+	// positive number in a column of its own (#7008). A mapping with it
+	// leaves SollFieldAmount empty on those rows; one without it writes
+	// them as before, as a negative amount.
+	SollFieldCreditAmount = "credit_amount"
 )
+
+// Placeholders of a SollFieldBookingText pattern (#7008).
+const (
+	// SollPlaceholderMonth is the month of the service, "10/2026".
+	SollPlaceholderMonth = "{Monat}"
+	// SollPlaceholderChild is the name of the child, of every child of a
+	// holiday invoice joined by a comma.
+	SollPlaceholderChild = "{Kind}"
+	// SollPlaceholderRecipient is the name of the recipient.
+	SollPlaceholderRecipient = "{Empfänger}"
+	// SollPlaceholderInvoiceNumber is the number of the document.
+	SollPlaceholderInvoiceNumber = "{Rechnungsnummer}"
+)
+
+// SollBookingTextPlaceholders are the placeholders a pattern can take.
+var SollBookingTextPlaceholders = []string{SollPlaceholderMonth, SollPlaceholderChild, SollPlaceholderRecipient,
+	SollPlaceholderInvoiceNumber}
 
 // SollstellungFields are the fields in the order the settings offer them.
 var SollstellungFields = []string{
-	SollFieldInvoiceNumber, SollFieldInvoiceDate, SollFieldDueOn, SollFieldAmount, SollFieldDebtorNumber,
+	SollFieldInvoiceNumber, SollFieldInvoiceDate, SollFieldDueOn, SollFieldAmount, SollFieldCreditAmount, SollFieldDebtorNumber,
 	SollFieldRecipientName, SollFieldRecipientStreet, SollFieldRecipientPostal, SollFieldRecipientCity,
 	SollFieldChildName, SollFieldSchoolName, SollFieldServiceFrom, SollFieldServiceUntil, SollFieldPaymentMethod,
 	SollFieldMandateReference, SollFieldDocumentKind, SollFieldFileNumber,
-	SollFieldRevenueAccount, SollFieldCostCenter, SollFieldCostCenter2, SollFieldConstant,
+	SollFieldRevenueAccount, SollFieldCostCenter, SollFieldCostCenter2, SollFieldBookingText, SollFieldConstant,
 }
 
 // SollBookingFields are the fields that split a row by where it books.
@@ -196,7 +221,8 @@ func (e *SollRevenueAccountError) Error() string {
 }
 
 // SollstellungColumn is one column of the file: the field it takes, its
-// header, and the value of a constant column.
+// header, and the value of a constant column or the pattern of a booking
+// text.
 type SollstellungColumn struct {
 	Field  string `json:"field"`
 	Header string `json:"header"`

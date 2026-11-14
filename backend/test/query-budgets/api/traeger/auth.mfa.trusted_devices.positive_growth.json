@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.auth.mfa.trusted_devices.positive_growth",
+  "max": 4,
+  "exact": true,
+  "description": "GET /traeger/auth/mfa/trusted-devices (#6955): composed Träger second factor behind the Träger session chain, signed org JWT from a device sign-in; exact 4/9 device DTOs of the session's Träger, excluding the account's devices at another Träger. Flat in the number of devices.",
+  "route": "GET /traeger/auth/mfa/trusted-devices"
+}

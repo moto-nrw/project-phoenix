@@ -30,13 +30,18 @@ type FamilyStore interface {
 	// a contract for a family that has none.
 	SetFamilyDebtorNumber(ctx context.Context, organizationID, accountID int64, familyEmail, number string, today calendar.Date) (parentbilling.FamilyBilling, error)
 	InsertFamilyBillingEvents(ctx context.Context, organizationID, accountID int64, action string, families []parentbilling.FamilyBilling) error
+	// ChildNumberStore keeps the numbers of the children (#7007).
+	ChildNumberStore
 }
 
 // BillingFamilies serves parentbilling.BillingFamilies (#4691).
 type BillingFamilies struct {
 	store     FamilyStore
 	contracts parentbilling.FamilyContracts
-	formats   parentbilling.DebtorNumberFormats
+	// careContracts names the children of the contracts when the Träger
+	// keeps a number per child (#7007).
+	careContracts parentbilling.CareContracts
+	formats       parentbilling.DebtorNumberFormats
 	// today is the Berlin day a number set in the list is needed from.
 	today func() calendar.Date
 }
@@ -45,14 +50,16 @@ var _ parentbilling.BillingFamilies = (*BillingFamilies)(nil)
 
 // NewBillingFamilies builds the view of the families over the format of the
 // Träger's debtor numbers (#6675); a nil today uses the Berlin day.
-func NewBillingFamilies(store FamilyStore, contracts parentbilling.FamilyContracts, formats parentbilling.DebtorNumberFormats, today func() calendar.Date) *BillingFamilies {
-	if store == nil || contracts == nil || formats == nil {
-		panic("parent billing: the store, the family contracts and the debtor number format are required")
+func NewBillingFamilies(store FamilyStore, contracts parentbilling.FamilyContracts, careContracts parentbilling.CareContracts,
+	formats parentbilling.DebtorNumberFormats, today func() calendar.Date,
+) *BillingFamilies {
+	if store == nil || contracts == nil || careContracts == nil || formats == nil {
+		panic("parent billing: the store, the family contracts, the contracts and the debtor number format are required")
 	}
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &BillingFamilies{store: store, contracts: contracts, formats: formats, today: today}
+	return &BillingFamilies{store: store, contracts: contracts, careContracts: careContracts, formats: formats, today: today}
 }
 
 // ListBillingFamilies lists the families of the Träger by name and records

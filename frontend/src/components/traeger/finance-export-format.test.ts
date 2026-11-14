@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { SollMapping } from "~/lib/traeger-finance-exports-api";
-import { byLabel, sollFileName, sollPreview } from "./finance-export-format";
+import {
+  bookingTextSample,
+  byLabel,
+  sollFileName,
+  sollPreview,
+} from "./finance-export-format";
 import { sollMappingErrors } from "./soll-mapping-editor";
 
 const MAPPING: SollMapping = {
@@ -65,6 +70,50 @@ describe("finance export format", () => {
       "MB-2026-0111;-32,50;4410;KST100;FRUEH",
       "MB-2026-0111;-45,50;4400;KST100;",
     ]);
+  });
+
+  it("previews the credit column and the booking text (#7008)", () => {
+    expect(
+      sollPreview(
+        {
+          ...MAPPING,
+          columns: [
+            { field: "invoice_number", header: "Rechnungsnummer", value: "" },
+            { field: "amount", header: "Rechnungsbetrag", value: "" },
+            { field: "credit_amount", header: "Gutschrift", value: "" },
+            {
+              field: "booking_text",
+              header: "Buchungstext",
+              value: "SKB {Monat} {Kind}",
+            },
+          ],
+        },
+        112,
+      ),
+    ).toEqual([
+      "Rechnungsnummer;Rechnungsbetrag;Gutschrift;Buchungstext",
+      "MB-2026-0110;78,00;;SKB 10/2026 Lia Müller",
+      "MB-2026-0111;;78,00;SKB 10/2026 Lia Müller",
+    ]);
+  });
+
+  it("refuses a placeholder of a booking text it does not know", () => {
+    const columns = [
+      { field: "booking_text" as const, header: "Text", value: "SKB {Name}" },
+    ];
+    expect(sollMappingErrors({ ...MAPPING, columns })).toEqual({
+      "columns.0.value":
+        "{Name} kennt moto nicht. Wählen Sie einen Platzhalter darunter.",
+    });
+    expect(
+      sollMappingErrors({
+        ...MAPPING,
+        columns: [{ ...columns[0]!, value: "SKB {Monat} {Empfänger}" }],
+      }),
+    ).toEqual({});
+    expect(bookingTextSample("{Rechnungsnummer}: {Empfänger}", 1)).toBe(
+      "MB-2026-0111: Eva Müller",
+    );
   });
 
   it("names the file and who downloaded it", () => {

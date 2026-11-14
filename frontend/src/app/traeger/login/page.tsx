@@ -61,6 +61,8 @@ interface MFAStep {
   readonly challengeToken: string;
   readonly maskedEmail: string;
   readonly organizationId: string;
+  readonly trustedDeviceEnabled: boolean;
+  readonly trustedDeviceDays?: number;
 }
 
 interface EnrollmentStep {
@@ -193,6 +195,8 @@ function LoginForm() {
           challengeToken: result.challengeToken,
           maskedEmail: result.maskedEmail,
           organizationId: result.organizationId,
+          trustedDeviceEnabled: result.trustedDeviceEnabled,
+          trustedDeviceDays: result.trustedDeviceDays,
         });
         return;
       }
@@ -250,7 +254,8 @@ function LoginForm() {
           challengeToken={mfaStep.challengeToken}
           maskedEmail={mfaStep.maskedEmail}
           organizationId={mfaStep.organizationId}
-          trustedDeviceEnabled={false}
+          trustedDeviceEnabled={mfaStep.trustedDeviceEnabled}
+          trustedDeviceDays={mfaStep.trustedDeviceDays}
           onSuccess={completeLogin}
           onCancel={backToCredentials}
         />

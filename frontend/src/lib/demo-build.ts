@@ -8,6 +8,13 @@ export function isDemoBuild(): boolean {
   return process.env.NEXT_PUBLIC_APP_ENV === "demo";
 }
 
+/**
+ * Booking calendar behind „Termin buchen“, the same one the website opens.
+ * The demo shows it in a dialog; the proxy lets the demo build frame it.
+ */
+export const DEMO_BOOKING_URL =
+  "https://meetings-eu1.hubspot.com/conrad-reintjes/demo";
+
 // The addresses the seed gives every account and contact of a demo school,
 // e.g. sabine.schneider@demo-ogs-nord.moto-ogs.de.
 const DEMO_SEED_ADDRESS = /@demo-[a-z0-9-]+\.moto-ogs\.de$/i;

@@ -222,6 +222,7 @@ func TrustedDeviceAddedMailContent(message TrustedDeviceMail, origin string) Mai
 			"AddedAt":     message.AddedAt,
 			"TrustedDays": message.TrustedDays,
 			"Caterer":     message.Caterer,
+			"Traeger":     message.Traeger,
 		},
 	}
 }

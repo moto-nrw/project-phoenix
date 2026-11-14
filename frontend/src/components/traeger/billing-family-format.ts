@@ -203,5 +203,10 @@ export function familyMatches(family: BillingFamily, search: string): boolean {
     family.familyEmail,
     family.familyDebtorNumber,
     ...family.debtorNumbers,
+    // The children and their own numbers (#7007).
+    ...(family.children ?? []).flatMap((child) => [
+      `${child.firstName} ${child.lastName}`,
+      child.debtorNumber,
+    ]),
   ].some((value) => value.toLocaleLowerCase("de").includes(needle));
 }

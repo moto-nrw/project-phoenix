@@ -103,4 +103,21 @@ describe("useSidebarGroups", () => {
       "team",
     ]);
   });
+
+  // Seitenleiste und Mehr-Menü (#7048) hängen beide ein und teilen einen
+  // Stand: Was die eine aufklappt, steht in der anderen offen, und keine
+  // überschreibt den Speicher mit einem veralteten Stand.
+  it("keeps every mounted instance on the same state", () => {
+    const sidebar = renderHook(() => useSidebarGroups("/dashboard"));
+    const moreMenu = renderHook(() => useSidebarGroups("/dashboard"));
+
+    act(() => sidebar.result.current.toggleGroup("planung"));
+    expect(moreMenu.result.current.isGroupOpen("planung")).toBe(true);
+
+    act(() => moreMenu.result.current.toggleGroup("tagesbetrieb"));
+    expect(sidebar.result.current.openGroups).toEqual(["planung"]);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]")).toEqual([
+      "planung",
+    ]);
+  });
 });

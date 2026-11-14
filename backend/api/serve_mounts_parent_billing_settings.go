@@ -54,6 +54,20 @@ func (s parentBillingSettings) DebtorNumberFormat(ctx context.Context, organizat
 		lengths[configModels.KeyParentBillingDebtorNumberMaxDigits]), nil
 }
 
+// DebtorNumberScope is the Träger's value of
+// parent_billing.debtor_number_scope or its default (#7007); a value the
+// Elternabrechnung does not know counts as the payer.
+func (s parentBillingSettings) DebtorNumberScope(ctx context.Context, organizationID int64) (string, error) {
+	texts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingDebtorNumberScope})
+	if err != nil {
+		return "", err
+	}
+	if texts[configModels.KeyParentBillingDebtorNumberScope] == parentbilling.DebtorNumberScopeChild {
+		return parentbilling.DebtorNumberScopeChild, nil
+	}
+	return parentbilling.DebtorNumberScopePayer, nil
+}
+
 func (s parentBillingSettings) PaymentText(ctx context.Context, organizationID int64) (string, error) {
 	texts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingPaymentText})
 	if err != nil {

@@ -2109,6 +2109,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			// The Träger-Portal sign-in of the holiday period step (#4659).
 			_, _ = fmt.Fprint(w, `{"status":"authenticated","access_token":"traeger-token","refresh_token":"traeger-refresh"}`)
 
+		case "/traeger/billing-families/children":
+			// The children's debtor numbers (#7007): no family to prepare.
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+
 		case "/traeger/schools/":
 			// The Träger's two schools the operator created above.
 			_ = json.NewEncoder(w).Encode(map[string]any{

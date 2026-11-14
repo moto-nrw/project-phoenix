@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -41,7 +42,9 @@ func readImportTable(content []byte, delimiter string) (importTable, error) {
 	if len(content) > parentbilling.MaxImportFileBytes {
 		return importTable{}, parentbilling.ErrImportFileTooLarge
 	}
-	text, encoding, err := textnorm.DecodeCSVText(content)
+	// A NUL may stand where a CSV has a quote (#7009); read takes it off
+	// each cell and refuses the file for a NUL anywhere else.
+	text, encoding, err := textnorm.DecodeCSVTextWithNULQuotes(content)
 	if err != nil {
 		return importTable{}, parentbilling.ErrImportFileInvalid
 	}
@@ -71,6 +74,13 @@ func (table *importTable) read(reader *csv.Reader) error {
 		}
 		if err != nil {
 			return parentbilling.ErrImportFileInvalid
+		}
+		for i, cell := range record {
+			unquoted, ok := textnorm.UnquoteNULCell(cell)
+			if !ok {
+				return parentbilling.ErrImportFileInvalid
+			}
+			record[i] = unquoted
 		}
 		line, _ := reader.FieldPos(0)
 		switch {
@@ -176,7 +186,7 @@ var importHeaderNames = map[string][]string{
 	parentbilling.ImportFieldLastCollected: {"letztereinzug", "letztelastschrift", "zuletzteingezogen", "letzteeinziehung",
 		"datumletztereinzug", "lastcollection", "lastcollectedon"},
 	parentbilling.ImportFieldDebtorNumber: {"debitorennummer", "kinderdebitorennummer", "debitornummer", "debitor",
-		"debitorennr", "kundennummer", "personenkonto", "debtornumber"},
+		"debitorennr", "debitornr", "kundennummer", "personenkonto", "debtornumber"},
 }
 
 // importHeaderKey folds a header for the comparison: lower case, umlauts
@@ -225,9 +235,17 @@ func containsString(values []string, value string) bool {
 	return false
 }
 
+// importDateTime is a date with a time of day after it, as OGS Connect
+// writes "31.12.2024 14:05" (#7009); the time is dropped.
+var importDateTime = regexp.MustCompile(`^(\S+)[ T]\d{1,2}:\d{2}(:\d{2})?$`)
+
 // parseImportDate reads a German (31.12.2024, 1.2.2024, 31/12/2024) or an
-// ISO date (2024-12-31). A two-digit year is ambiguous and refused.
+// ISO date (2024-12-31), also with a time of day after it. A two-digit year
+// is ambiguous and refused.
 func parseImportDate(value string) (calendar.Date, bool) {
+	if match := importDateTime.FindStringSubmatch(value); match != nil {
+		value = match[1]
+	}
 	if date, err := calendar.ParseDate(value); err == nil {
 		return date, true
 	}
@@ -248,11 +266,28 @@ func parseImportDate(value string) (calendar.Date, bool) {
 	return date, true
 }
 
+// withoutScheme drops the SEPA scheme from a value that names it beside
+// the sequence, as "CORE/RCUR" or "CORE RCUR" (#7009): the scheme of a
+// mandate the import takes over is always CORE.
+func withoutScheme(value string) string {
+	words := strings.FieldsFunc(value, func(r rune) bool { return r == '/' || r == ' ' || r == ',' || r == '-' || r == '|' })
+	if len(words) < 2 {
+		return value
+	}
+	kept := words[:0]
+	for _, word := range words {
+		if !strings.EqualFold(word, "CORE") {
+			kept = append(kept, word)
+		}
+	}
+	return strings.Join(kept, " ")
+}
+
 // importSequence reads the sequence a file names: the SEPA sequence type
 // or its German name. ok is false for a value the import does not know;
 // oneOff marks a one-off mandate the import does not take over.
 func importSequence(value string) (sequence string, oneOff, ok bool) {
-	switch importHeaderKey(value) {
+	switch importHeaderKey(withoutScheme(value)) {
 	case "frst", "first", "erst", "erstlastschrift", "ersteinzug", "neu", "e":
 		return parentbilling.SequenceFirst, false, true
 	case "rcur", "recurring", "folge", "folgelastschrift", "wiederkehrend", "laufend", "f":

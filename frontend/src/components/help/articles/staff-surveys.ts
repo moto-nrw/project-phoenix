@@ -1,5 +1,6 @@
 import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
+import { SIMPLE_NAV_DIFFERENCE } from "../help-article-shared";
 
 /**
  * `/umfragen`: Umfragen der Schule an das Team beantworten (#4781). Ob die
@@ -33,6 +34,7 @@ export function staffSurveysTopic(): HelpTopic {
     differences: [
       "Sehen Sie die Reiter `Alle Umfragen` und `Für Sie`? Dann dürfen Sie Umfragen auch anlegen. Ihre eigenen offenen Umfragen stehen unter `Für Sie`.",
       "Steht dort `Keine offenen Umfragen`? Dann hat Ihre Schule gerade keine Umfrage an das Team.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     image: "/help/screens/umfrage-beantworten.webp",
     imageAlt:

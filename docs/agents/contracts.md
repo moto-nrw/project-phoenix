@@ -859,7 +859,16 @@ Backend paths in this section are relative to `backend/`:
   school's `mfa_mode` and of overrides: login answers `mfa_required` or `mfa_enrollment_required`
   with the resolved `organization_id`, `/traeger/auth/mfa/*` redeems only
   `org`-scope challenges, and mint and refresh refuse a session without
-  `mfa_verified`. No trusted device. The operator reset
+  `mfa_verified`. Since #6955 the portal remembers a device like the caterer
+  portal, without a school: the login reads the `mfa_trust_device` cookie and
+  mints with a device proof, otherwise `mfa_required` carries
+  `trusted_device_enabled` and `trusted_device_days` (registry defaults);
+  `/traeger/auth/mfa/verify` stores a device only on `remember_device: true`.
+  The row names the Träger (`auth.mfa_trusted_devices.organization_id`,
+  `tenant_id` NULL), so it opens neither another Träger, nor the caterer
+  portal, nor a school, and a caterer device (both NULL) never opens the
+  Träger-Portal. `GET /traeger/auth/mfa/trusted-devices` and
+  `DELETE …/{id}` list and revoke the own devices at the session's Träger. The operator reset
   (`DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa`)
   revokes the proof, so the Träger session ends at its next refresh or
   validation.
@@ -920,6 +929,13 @@ Backend paths in this section are relative to `backend/`:
   portal's enrollment token with the school its shape demands. An exchange
   prepares the trusted device (policy and MFA reset generation), mints, then
   stores the device and sets `common.TrustedDeviceCookie`.
+- Remembering a device is the client's explicit choice in every portal
+  (#6955): the code step sends `remember_device: true` only from the button
+  that says so; no request without it stores a device. Each portal lists and
+  revokes the own devices behind its session: `/auth/mfa/trusted-devices`
+  (tenant), `/school/auth/mfa/trusted-devices`, `/traeger/auth/…`,
+  `/caterer/auth/…`, `/operator/auth/…`. The parents portal has no second
+  factor.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/portalauth`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
   the token wire schema in `modules/identityaccess/tokenprimitives/session_wire.go`, and trusted-device settings

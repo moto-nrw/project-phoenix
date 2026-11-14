@@ -21,6 +21,7 @@
   "contribution_rule_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "contribution_rule_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "contribution_rule_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "child_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "cost_bearer_in_use": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "cost_bearer_inactive": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "cost_bearer_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

@@ -500,6 +500,9 @@ func exportIdentityFilterLabels(filters studentExportFilters, planningDate calen
 	if filters.GroupID != "" {
 		labels = append(labels, "Gruppe gefiltert")
 	}
+	if strings.TrimSpace(filters.EnrollmentAnswer) != "" {
+		labels = append(labels, "Angabe aus der Anmeldung gefiltert")
+	}
 	if years := exportYearFilterValues(filters.Year); len(years) > 0 {
 		labels = append(labels, "Stufe: "+strings.Join(years, ", "))
 	}

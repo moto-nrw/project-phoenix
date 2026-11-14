@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Shift-type archive and plan references use the Workforce observer

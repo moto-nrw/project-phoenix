@@ -1,5 +1,6 @@
 import type { HelpTopic, HelpPresenceMode } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
+import { SIMPLE_NAV_DIFFERENCE } from "../help-article-shared";
 
 export function findStaffTopic(presenceMode: HelpPresenceMode): HelpTopic {
   return {
@@ -30,6 +31,7 @@ export function findStaffTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Unter `Ehemalige` können Sie frühere Beschäftigungen nur lesen. Die Personalakte zeigt den Zeitraum, Stammdaten und frühere Arbeitszeiten. Welche Angaben Sie sehen, hängt von Ihren Rechten ab.",
       "Personaldokumente wurden beim Austritt endgültig gelöscht. Sie stehen auch in der früheren Personalakte nicht mehr bereit.",
       "Mit `Zurück zu den Mitarbeitenden` kommen Sie wieder zur Auswahl `Ehemalige`. Eine Wiederaufnahme erfolgt beim Einladen.",
+      SIMPLE_NAV_DIFFERENCE,
     ],
     notes: [
       "Hat jemand früher bei Ihnen gearbeitet? Wählen Sie in der Auswahl `Ehemalige`. Die Karte zeigt den Zeitraum in moto. Öffnen Sie die Karte für die früheren Angaben.",

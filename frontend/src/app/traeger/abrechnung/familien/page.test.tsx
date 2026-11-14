@@ -8,12 +8,19 @@ const { api, mockPush } = vi.hoisted(() => ({
   api: {
     fetchBillingFamilies: vi.fn(),
     setFamilyDebtorNumber: vi.fn(),
-    fetchDebtorNumberFormat: vi.fn(),
+    fetchDebtorNumberSettings: vi.fn(),
+    fetchFamilyChildren: vi.fn(),
+    setChildDebtorNumber: vi.fn(),
   },
   mockPush: vi.fn(),
 }));
 
-vi.mock("~/lib/traeger-billing-families-api", () => api);
+vi.mock("~/lib/traeger-billing-families-api", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("~/lib/traeger-billing-families-api")
+  >()),
+  ...api,
+}));
 vi.mock("~/lib/traeger-url", () => ({
   traegerPath: (path: string) => path.replace(/^\/traeger/, "") || "/",
 }));
@@ -93,12 +100,13 @@ describe("TraegerBillingFamiliesPage", () => {
     api.setFamilyDebtorNumber.mockReset();
     mockPush.mockReset();
     api.fetchBillingFamilies.mockResolvedValue([SCHNEIDER, BERGER]);
-    api.fetchDebtorNumberFormat.mockReset();
-    api.fetchDebtorNumberFormat.mockResolvedValue({
-      digitsOnly: false,
-      minDigits: 0,
-      maxDigits: 0,
+    api.fetchDebtorNumberSettings.mockReset();
+    api.fetchDebtorNumberSettings.mockResolvedValue({
+      format: { digitsOnly: false, minDigits: 0, maxDigits: 0 },
+      scope: "payer",
     });
+    api.fetchFamilyChildren.mockReset();
+    api.setChildDebtorNumber.mockReset();
   });
 
   it("lists every family with who pays and its sums", async () => {
@@ -270,15 +278,16 @@ describe("TraegerBillingFamiliesPage", () => {
 
   it("checks the Träger's format before it saves a number (#6675)", async () => {
     api.fetchBillingFamilies.mockResolvedValue([MAIER]);
-    api.fetchDebtorNumberFormat.mockResolvedValue({
-      digitsOnly: true,
-      minDigits: 5,
-      maxDigits: 5,
+    api.fetchDebtorNumberSettings.mockResolvedValue({
+      format: { digitsOnly: true, minDigits: 5, maxDigits: 5 },
+      scope: "payer",
     });
     renderPage();
 
     await screen.findAllByText("Petra Maier");
-    await waitFor(() => expect(api.fetchDebtorNumberFormat).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(api.fetchDebtorNumberSettings).toHaveBeenCalled(),
+    );
     fireEvent.click(
       screen.getAllByRole("button", {
         name: "Aktionen für Petra Maier",
@@ -301,5 +310,173 @@ describe("TraegerBillingFamiliesPage", () => {
       ),
     ).toBeInTheDocument();
     expect(api.setFamilyDebtorNumber).not.toHaveBeenCalled();
+  });
+  it("shows and sets the number of each child when the Träger keeps one per child (#7007)", async () => {
+    api.fetchDebtorNumberSettings.mockResolvedValue({
+      format: { digitsOnly: false, minDigits: 0, maxDigits: 0 },
+      scope: "child",
+    });
+    api.fetchBillingFamilies.mockResolvedValue([SCHNEIDER]);
+    api.fetchFamilyChildren.mockResolvedValue([
+      {
+        familyEmail: "sabine@example.org",
+        recipientFirstName: "Sabine",
+        recipientLastName: "Schneider",
+        children: [
+          {
+            firstName: "Mia",
+            lastName: "Schneider",
+            birthDate: "2018-03-04",
+            debtorNumber: "60101",
+          },
+          {
+            firstName: "Noah",
+            lastName: "Schneider",
+            birthDate: null,
+            debtorNumber: "",
+          },
+        ],
+      },
+      {
+        familyEmail: "eva@example.org",
+        recipientFirstName: "Eva",
+        recipientLastName: "Neu",
+        children: [
+          {
+            firstName: "Lia",
+            lastName: "Neu",
+            birthDate: null,
+            debtorNumber: "",
+          },
+        ],
+      },
+    ]);
+    api.setChildDebtorNumber.mockResolvedValue({
+      firstName: "Noah",
+      lastName: "Schneider",
+      birthDate: null,
+      debtorNumber: "60102",
+    });
+    renderPage();
+
+    expect((await screen.findAllByText("Eva Neu"))[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Nummern der Kinder")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("60101")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("mit Kind ohne Nummer")[0]).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Aktionen für Sabine Schneider",
+      })[0]!,
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Nummern der Kinder eintragen" }),
+    );
+    expect(
+      await screen.findByLabelText("Mia Schneider, geb. 04.03.2018"),
+    ).toHaveValue("60101");
+    fireEvent.change(screen.getByLabelText("Noah Schneider"), {
+      target: { value: " 60102 " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(api.setChildDebtorNumber).toHaveBeenCalledTimes(1),
+    );
+    expect(api.setChildDebtorNumber).toHaveBeenCalledWith(
+      "sabine@example.org",
+      expect.objectContaining({ firstName: "Noah" }),
+      "60102",
+    );
+  });
+  it("shows the failed read of the scope instead of guessing it (#7007)", async () => {
+    api.fetchDebtorNumberSettings.mockRejectedValue(new Error("offline"));
+    renderPage();
+
+    expect(
+      (await screen.findAllByText(/Einstellungen der Debitorennummer/))[0],
+    ).toBeInTheDocument();
+    expect(api.fetchBillingFamilies).not.toHaveBeenCalled();
+  });
+
+  it("keeps a child saved before a failed save for the retry (#7007)", async () => {
+    api.fetchDebtorNumberSettings.mockResolvedValue({
+      format: { digitsOnly: false, minDigits: 0, maxDigits: 0 },
+      scope: "child",
+    });
+    api.fetchBillingFamilies.mockResolvedValue([SCHNEIDER]);
+    api.fetchFamilyChildren.mockResolvedValue([
+      {
+        familyEmail: "sabine@example.org",
+        recipientFirstName: "Sabine",
+        recipientLastName: "Schneider",
+        children: [
+          {
+            firstName: "Mia",
+            lastName: "Schneider",
+            birthDate: null,
+            debtorNumber: "",
+          },
+          {
+            firstName: "Noah",
+            lastName: "Schneider",
+            birthDate: null,
+            debtorNumber: "",
+          },
+        ],
+      },
+    ]);
+    api.setChildDebtorNumber
+      .mockResolvedValueOnce({
+        firstName: "Mia",
+        lastName: "Schneider",
+        birthDate: null,
+        debtorNumber: "1",
+      })
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue({
+        firstName: "Mia",
+        lastName: "Schneider",
+        birthDate: null,
+        debtorNumber: "",
+      });
+    renderPage();
+
+    await screen.findAllByText("Sabine Schneider");
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Aktionen für Sabine Schneider",
+      })[0]!,
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Nummern der Kinder eintragen" }),
+    );
+    fireEvent.change(await screen.findByLabelText("Mia Schneider"), {
+      target: { value: "1" },
+    });
+    fireEvent.change(screen.getByLabelText("Noah Schneider"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(api.setChildDebtorNumber).toHaveBeenCalledTimes(2),
+    );
+
+    // Mia's number is stored; taking it back out must remove it.
+    fireEvent.change(screen.getByLabelText("Mia Schneider"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Noah Schneider"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(api.setChildDebtorNumber).toHaveBeenCalledTimes(3),
+    );
+    expect(api.setChildDebtorNumber).toHaveBeenLastCalledWith(
+      "sabine@example.org",
+      expect.objectContaining({ firstName: "Mia" }),
+      "",
+    );
   });
 });

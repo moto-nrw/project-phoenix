@@ -52,6 +52,7 @@ const CodeParentBillingCareTariffMonthBilled = "parent_billing.care_tariff_month
 const CodeParentBillingCareTariffNotFound = "parent_billing.care_tariff_not_found"
 const CodeParentBillingCareVersionsOverlap = "parent_billing.care_versions_overlap"
 const CodeParentBillingCarriedCorrectionNotFound = "parent_billing.carried_correction_not_found"
+const CodeParentBillingChildNotFound = "parent_billing.child_not_found"
 const CodeParentBillingContributionRuleInvalid = "parent_billing.contribution_rule_invalid"
 const CodeParentBillingContributionRuleNotFound = "parent_billing.contribution_rule_not_found"
 const CodeParentBillingContributionRuleOverlap = "parent_billing.contribution_rule_overlap"
@@ -182,6 +183,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCareTariffNotFound, "business_rejection"},
 	{CodeParentBillingCareVersionsOverlap, "business_rejection"},
 	{CodeParentBillingCarriedCorrectionNotFound, "business_rejection"},
+	{CodeParentBillingChildNotFound, "business_rejection"},
 	{CodeParentBillingContributionRuleInvalid, "input"},
 	{CodeParentBillingContributionRuleNotFound, "business_rejection"},
 	{CodeParentBillingContributionRuleOverlap, "business_rejection"},

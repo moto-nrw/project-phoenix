@@ -82,9 +82,11 @@ type HolidayReviewStore interface {
 	// wish of a child of a school of the Träger and reports whether the
 	// registration has such a child (#4703).
 	SetHolidayChildWish(ctx context.Context, organizationID, registrationID, childID int64, wish, source string) (bool, error)
-	// ReadHolidayRegistrationIDs reads the IDs of the registrations of a
-	// period, for the state of their mails (#6737).
-	ReadHolidayRegistrationIDs(ctx context.Context, organizationID, periodID int64) ([]int64, error)
+	// ReadHolidayRegistrationMailKeys reads the IDs of the registrations of
+	// a period, or of the one registration when registrationID is not 0,
+	// with the keys of the closing day notices that name each, for the state
+	// of their mails (#6737, #6976).
+	ReadHolidayRegistrationMailKeys(ctx context.Context, organizationID, periodID, registrationID int64) ([]int64, map[int64][]string, error)
 	// AppendHolidayAudit writes one entry; details travel as JSON.
 	AppendHolidayAudit(ctx context.Context, organizationID, periodID, registrationID int64, action string, details any, actorAccountID int64) error
 }
@@ -110,8 +112,8 @@ var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)
 // information (#4722), schoolCalendar names the host schools' days without
 // care (#4702), traeger names the Träger and the host schools in the mail of
 // a booking that moved up (#6437), of a decision by criteria and of the
-// acceptance (#6672), mailStates names the receipt and acceptance mails that
-// did not reach the parents (#6737). A nil today uses the Berlin calendar day. The allocation by criteria shares the
+// acceptance (#6672), mailStates names what became of the mails to the
+// parents (#6737, #6976). A nil today uses the Berlin calendar day. The allocation by criteria shares the
 // review's store, locks and mail (#4700), the files (#6691) its reads.
 func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, mail enrollment.TraegerMailOutbox, traeger enrollment.HolidayTraegerDirectory, schoolCalendar enrollment.HolidaySchoolCalendar, mailStates enrollment.HolidayMailStates) (*HolidayRegistrationReview, *HolidayPlaces, *HolidayAllocation, *HolidayRegistrationRecords) {
 	if store == nil || periods == nil || forms == nil {
@@ -536,7 +538,7 @@ func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollm
 	if detail.Criteria, err = h.detailCriteria(ctx, reviewer.OrganizationID, period, detail); err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
-	if err := h.addMailProblems(ctx, reviewer.OrganizationID, []*enrollment.HolidayRegistrationSummary{&detail.HolidayRegistrationSummary}); err != nil {
+	if err := h.addMails(ctx, reviewer.OrganizationID, period.ID, &detail); err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
 	return detail, nil

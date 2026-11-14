@@ -1,3 +1,5 @@
+DELETE /school/auth/mfa/trusted-devices/{deviceId}
+GET /school/auth/mfa/trusted-devices
 POST /school/auth/login
 POST /school/auth/mfa/enroll/confirm
 POST /school/auth/mfa/enroll/start
