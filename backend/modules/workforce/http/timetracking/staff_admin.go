@@ -35,6 +35,7 @@ type AdminAbsenceWrites interface {
 type StaffAdminResource struct {
 	uploads              common.UploadStorage
 	PersonService        workforce.StaffDirectory
+	traegerKeep          workforce.StaffTraegerKeep
 	StaffDocumentService workforce.StaffDocuments
 	OffboardingCleanup   workforce.DocumentCleanupQueue
 	documentFiles        workforce.StaffDocumentFileRecovery
@@ -73,8 +74,11 @@ type StaffAdminResource struct {
 // resource. Schedules is the Workforce query the schedule views read the
 // assigned template and the running schedule version from.
 type StaffAdminDependencies struct {
-	Uploads            common.UploadStorage
-	Staff              workforce.StaffDirectory
+	Uploads common.UploadStorage
+	Staff   workforce.StaffDirectory
+	// TraegerKeep tells which employments the Träger keeps in its staff
+	// records (#4705); nil reports none, the writes refuse them regardless.
+	TraegerKeep        workforce.StaffTraegerKeep
 	Documents          workforce.StaffDocuments
 	OffboardingCleanup workforce.DocumentCleanupQueue
 	// DocumentFiles removes the stored staff document files; required.
@@ -141,6 +145,7 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 	return &StaffAdminResource{
 		uploads:              deps.Uploads,
 		PersonService:        deps.Staff,
+		traegerKeep:          deps.TraegerKeep,
 		StaffDocumentService: deps.Documents,
 		OffboardingCleanup:   deps.OffboardingCleanup,
 		documentFiles:        deps.DocumentFiles,

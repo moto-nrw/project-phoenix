@@ -409,6 +409,12 @@
       "legacy": "workforce.shift_type_inactive"
     },
     {
+      "code": "workforce.staff_kept_by_traeger",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.staff_kept_by_traeger"
+    },
+    {
       "code": "workforce.staff_profile_missing",
       "class": "business_rejection",
       "parameters": [],
@@ -450,6 +456,54 @@
         "max_days"
       ],
       "legacy": "workforce.target_override_too_long"
+    },
+    {
+      "code": "workforce.traeger_staff_already_linked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.traeger_staff_already_linked"
+    },
+    {
+      "code": "workforce.traeger_staff_link_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.traeger_staff_link_invalid"
+    },
+    {
+      "code": "workforce.traeger_staff_not_released",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.traeger_staff_not_released"
+    },
+    {
+      "code": "workforce.traeger_staff_record_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.traeger_staff_record_not_found"
+    },
+    {
+      "code": "workforce.traeger_staff_release_exists",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.traeger_staff_release_exists"
+    },
+    {
+      "code": "workforce.traeger_staff_release_in_use",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.traeger_staff_release_in_use"
+    },
+    {
+      "code": "workforce.traeger_staff_release_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.traeger_staff_release_invalid"
+    },
+    {
+      "code": "workforce.traeger_staff_release_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.traeger_staff_release_not_found"
     },
     {
       "code": "workforce.vacation_opening_absences_before_cutoff",

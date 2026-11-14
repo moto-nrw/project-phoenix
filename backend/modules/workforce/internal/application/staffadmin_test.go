@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -255,8 +256,22 @@ type adminFixture struct {
 	store    *fakeStore
 	subjects *fakeSubjects
 	audit    *fakeAudit
+	kept     *fakeTraegerKeep
 	warnings []string
 	now      time.Time
+}
+
+// fakeTraegerKeep answers which employments a record of the Träger holds.
+type fakeTraegerKeep struct{ staffIDs []int64 }
+
+func (k *fakeTraegerKeep) KeptStaffIDs(_ context.Context, staffIDs []int64) ([]int64, error) {
+	var kept []int64
+	for _, id := range staffIDs {
+		if slices.Contains(k.staffIDs, id) {
+			kept = append(kept, id)
+		}
+	}
+	return kept, nil
 }
 
 func newAdminFixture() *adminFixture {
@@ -266,6 +281,7 @@ func newAdminFixture() *adminFixture {
 		store:    &fakeStore{log: log},
 		subjects: &fakeSubjects{log: log, subject: domain.StaffSubject{ID: 7, PersonID: 70, FirstName: "Ada", LastName: "L", EmploymentType: ptr(domain.EmploymentTypeFullTime)}},
 		audit:    &fakeAudit{log: log},
+		kept:     &fakeTraegerKeep{},
 		now:      time.Date(2026, 9, 29, 8, 0, 0, 0, time.UTC),
 	}
 	unit := fakeTransaction{log: log, depth: new(int)}
@@ -281,7 +297,7 @@ func newAdminFixture() *adminFixture {
 			}
 			return false
 		},
-	}, clock, func(message string, _ ...any) { fixture.warnings = append(fixture.warnings, message) }, fakeBankCipher{})
+	}, clock, func(message string, _ ...any) { fixture.warnings = append(fixture.warnings, message) }, fakeBankCipher{}, fixture.kept)
 	return fixture
 }
 
@@ -690,4 +706,40 @@ func TestFinancialMaskedReadOpensNothingAndRevealOpensOnlyItsOwnRow(t *testing.T
 		assert.Nil(t, plain.IBAN, name)
 		assert.NotContains(t, err.Error(), "DE89370400440532013000", name)
 	}
+}
+
+// TestSchoolChangesNoValueItsTraegerKeeps pins ADR 0089 section 6 (#4705):
+// once a record of the Träger holds the employment, the school reads that
+// the Träger keeps the bank values and changes neither them nor the
+// personnel number; nothing is audited or written.
+func TestSchoolChangesNoValueItsTraegerKeeps(t *testing.T) {
+	t.Parallel()
+
+	f := newAdminFixture()
+	f.kept.staffIDs = []int64{7}
+
+	masked, err := f.admin.StaffFinancialMasked(t.Context(), 7, 9, "admin")
+	require.NoError(t, err)
+	assert.True(t, masked.KeptByTraeger)
+	assert.Nil(t, masked.IBANMasked)
+
+	_, err = f.admin.RevealStaffFinancial(t.Context(), 7, 9, "admin")
+	require.ErrorIs(t, err, domain.ErrStaffKeptByTraeger)
+	err = f.admin.UpdateStaffFinancial(tenant.WithTenantID(t.Context(), 5), 7, domain.FinancialSection{IBAN: ptr("DE89 3704 0044 0532 0130 00")}, 3, "")
+	require.ErrorIs(t, err, domain.ErrStaffKeptByTraeger)
+	_, err = f.admin.UpdatePersonnelNumber(t.Context(), 7, ptr("4711"), 3, "")
+	require.ErrorIs(t, err, domain.ErrStaffKeptByTraeger)
+
+	assert.Empty(t, f.audit.masterData)
+	assert.Empty(t, f.audit.personnel)
+	assert.NotContains(t, f.log.events, "set personnel number")
+	assert.NotContains(t, f.log.events, "create financial data")
+	assert.Len(t, f.audit.dataAccess, 1, "only the masked read is logged; the refused reveal serves nothing")
+
+	kept, err := f.admin.StaffKeptByTraeger(t.Context(), 7)
+	require.NoError(t, err)
+	assert.True(t, kept)
+	kept, err = f.admin.StaffKeptByTraeger(t.Context(), 8)
+	require.NoError(t, err)
+	assert.False(t, kept)
 }

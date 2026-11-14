@@ -77,5 +77,14 @@
   "payroll_wage_type_name_taken": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "qualification_type_name_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "qualification_type_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-  "work_time_model_archived": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "work_time_model_archived": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "staff_kept_by_traeger": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "traeger_staff_already_linked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "traeger_staff_link_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "traeger_staff_not_released": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "traeger_staff_record_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "traeger_staff_release_exists": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "traeger_staff_release_in_use": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "traeger_staff_release_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "traeger_staff_release_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
 }

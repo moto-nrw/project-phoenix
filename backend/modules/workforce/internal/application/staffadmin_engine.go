@@ -263,6 +263,7 @@ func MapStaffAdminError(err error) error {
 		{domain.ErrStaffPersonnelNumberTaken, workforce.ErrPersonnelNumberTaken},
 		{domain.ErrPersonnelNumberInvalid, workforce.ErrPersonnelNumberInvalid},
 		{domain.ErrStaffStammdatenInvalid, workforce.ErrStaffStammdatenInvalid},
+		{domain.ErrStaffKeptByTraeger, workforce.ErrStaffKeptByTraeger},
 	} {
 		if errors.Is(err, pair.cause) {
 			return &workforce.StaffAdminError{Kind: pair.kind, Cause: err}
@@ -272,4 +273,11 @@ func MapStaffAdminError(err error) error {
 		return missingRecord{notFound}
 	}
 	return mapStaffRecordError(err)
+}
+
+// StaffKeptByTraeger reports whether the Träger keeps the employment in its
+// staff record (#4705).
+func (e StaffAdminEngine) StaffKeptByTraeger(ctx context.Context, staffID int64) (bool, error) {
+	kept, err := e.admin.StaffKeptByTraeger(ctx, staffID)
+	return kept, MapStaffAdminError(err)
 }

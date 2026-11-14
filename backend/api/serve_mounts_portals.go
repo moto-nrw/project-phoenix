@@ -244,8 +244,13 @@ func newSessionTokenAuth() (*sessiontoken.TokenAuth, error) {
 // retention (#4720) of the same composition.
 func newProvisioningConfig(provisioning organizationtenancy.OperatorProvisioning, caregivers provisioningOperatorAPI.SchoolAccountCaregivers) (provisioningOperatorAPI.ProvisioningConfig, error) {
 	audit, err := organizationCompose.BelegRetentionAudit(provisioning.Provisioning)
+	if err != nil {
+		return provisioningOperatorAPI.ProvisioningConfig{}, err
+	}
+	// The release „Personal beim Träger“ (#4705) records on the same audit.
+	staffRelease, err := organizationCompose.TraegerStaffReleaseAudit(provisioning.Provisioning)
 	return provisioningOperatorAPI.ProvisioningConfig{
 		Service: provisioning, CaregiverCapability: caregivers, AppEnv: viper.GetString("app_env"), BelegRetentionAudit: audit,
-		ErasureOrderRecords: provisioning.ErasureOrderRecords,
+		TraegerStaffReleaseAudit: staffRelease, ErasureOrderRecords: provisioning.ErasureOrderRecords,
 	}, err
 }

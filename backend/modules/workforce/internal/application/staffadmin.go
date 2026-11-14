@@ -31,6 +31,8 @@ type StaffAdmin struct {
 	// bank seals and opens IBAN, tax ID and social security number with the
 	// bank ring (#6332, ADR 0183).
 	bank workforce.BankDataCipher
+	// kept tells which employments a record of the Träger holds (#4705).
+	kept ports.TraegerStaffKeep
 }
 
 // NewStaffAdmin composes the administration over the Workforce-owned record
@@ -44,12 +46,13 @@ func NewStaffAdmin(
 	clock ports.Clock,
 	warn func(message string, args ...any),
 	bank workforce.BankDataCipher,
+	kept ports.TraegerStaffKeep,
 ) *StaffAdmin {
-	if records == nil || transaction == nil || subjects == nil || audit == nil || clock == nil || warn == nil || bank == nil ||
+	if records == nil || transaction == nil || subjects == nil || audit == nil || clock == nil || warn == nil || bank == nil || kept == nil ||
 		authority.Allows == nil || authority.Health == "" || authority.Financial == "" || authority.General == "" {
 		panic("workforce staff admin: all dependencies are required")
 	}
-	return &StaffAdmin{records: records, transaction: transaction, subjects: subjects, audit: audit, authority: authority, clock: clock, warn: warn, bank: bank}
+	return &StaffAdmin{records: records, transaction: transaction, subjects: subjects, audit: audit, authority: authority, clock: clock, warn: warn, bank: bank, kept: kept}
 }
 
 // --- personnel number -------------------------------------------------------
@@ -71,6 +74,9 @@ func (a *StaffAdmin) UpdatePersonnelNumber(ctx context.Context, staffID int64, v
 	err = a.transaction.RunWrite(ctx, func(ctx context.Context) error {
 		subject, err := a.subjects.LockStaff(ctx, staffID, false)
 		if err != nil {
+			return err
+		}
+		if err := a.refuseKeptByTraeger(ctx, staffID); err != nil {
 			return err
 		}
 		oldValue, newValue := domain.Deref(subject.PersonnelNumber), domain.Deref(normalized)
@@ -226,17 +232,26 @@ func (a *StaffAdmin) ReplaceStaffQualifications(ctx context.Context, staffID int
 // StaffFinancialMasked serves the masked bank and tax data and logs the read.
 // No data leaves without a successful audit row.
 func (a *StaffAdmin) StaffFinancialMasked(ctx context.Context, staffID, actorAccountID int64, actorRole string) (domain.StaffFinancialMasked, error) {
-	data, err := a.loadFinancialAudited(ctx, staffID, actorAccountID, actorRole, domain.DataAccessFinancialView)
+	var kept bool
+	data, err := a.loadFinancialAudited(ctx, staffID, actorAccountID, actorRole, domain.DataAccessFinancialView, func(ctx context.Context) error {
+		var err error
+		kept, err = a.keptByTraeger(ctx, staffID)
+		return err
+	})
 	if err != nil {
 		return domain.StaffFinancialMasked{}, err
 	}
-	return domain.MaskFinancial(staffID, data), nil
+	masked := domain.MaskFinancial(staffID, data)
+	masked.KeptByTraeger = kept
+	return masked, nil
 }
 
 // RevealStaffFinancial serves the full bank and tax values after the explicit
 // reveal toggle and logs the reveal.
 func (a *StaffAdmin) RevealStaffFinancial(ctx context.Context, staffID, actorAccountID int64, actorRole string) (domain.StaffFinancialData, error) {
-	data, err := a.loadFinancialAudited(ctx, staffID, actorAccountID, actorRole, domain.DataAccessFinancialReveal)
+	data, err := a.loadFinancialAudited(ctx, staffID, actorAccountID, actorRole, domain.DataAccessFinancialReveal, func(ctx context.Context) error {
+		return a.refuseKeptByTraeger(ctx, staffID)
+	})
 	if err != nil {
 		return domain.StaffFinancialData{}, err
 	}
@@ -259,6 +274,9 @@ func (a *StaffAdmin) UpdateStaffFinancial(ctx context.Context, staffID int64, in
 		return err
 	}
 	return a.writeSection(ctx, staffID, changedByAccountID, domain.AuditSectionBankSteuer, note, func(ctx context.Context, _ domain.StaffSubject) ([]domain.FieldChange, func() error, error) {
+		if err := a.refuseKeptByTraeger(ctx, staffID); err != nil {
+			return nil, nil, err
+		}
 		data, err := a.financial(ctx, staffID)
 		if err != nil {
 			return nil, nil, err
@@ -349,13 +367,16 @@ func (a *StaffAdmin) upsertMasterData(ctx context.Context, staffID int64, existi
 // loadFinancialAudited resolves the staff member, loads the financial row (nil
 // when none exists) and writes the data-access log entry. Callers must not
 // serve any value when the returned error is non-nil.
-func (a *StaffAdmin) loadFinancialAudited(ctx context.Context, staffID, actorAccountID int64, actorRole, resource string) (*domain.StaffFinancialData, error) {
+func (a *StaffAdmin) loadFinancialAudited(ctx context.Context, staffID, actorAccountID int64, actorRole, resource string, check func(context.Context) error) (*domain.StaffFinancialData, error) {
 	// Own the audited read through the same RLS query boundary as the record
 	// reads. A later decryption failure must not roll back its access trail.
 	auditCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
 	var data *domain.StaffFinancialData
 	err := a.records.run(auditCtx, "load_financial_audited", func(txCtx context.Context, _ *domain.OperationStats) error {
 		var err error
+		if err := check(txCtx); err != nil {
+			return err
+		}
 		data, err = a.loadFinancialAuditedInTx(txCtx, staffID, actorAccountID, actorRole, resource)
 		return err
 	})
@@ -408,4 +429,39 @@ func (a *StaffAdmin) financial(ctx context.Context, staffID int64) (*domain.Staf
 		return nil, err
 	}
 	return new(domain.StaffFinancialData(row)), nil
+}
+
+// --- Personalstamm of the Träger (#4705) --------------------------------------
+
+// StaffKeptByTraeger reports whether a record of the school's Träger holds
+// the employment: the Träger then keeps its personnel number and its bank
+// and tax values (ADR 0089 section 6).
+func (a *StaffAdmin) StaffKeptByTraeger(ctx context.Context, staffID int64) (bool, error) {
+	var kept bool
+	err := a.records.run(ctx, "staff_kept_by_traeger", func(ctx context.Context, _ *domain.OperationStats) error {
+		if _, err := a.subjects.StaffWithPerson(ctx, staffID); err != nil {
+			return err
+		}
+		var err error
+		kept, err = a.keptByTraeger(ctx, staffID)
+		return err
+	})
+	return kept, err
+}
+
+func (a *StaffAdmin) keptByTraeger(ctx context.Context, staffID int64) (bool, error) {
+	kept, err := a.kept.KeptStaffIDs(ctx, []int64{staffID})
+	return len(kept) > 0, err
+}
+
+// refuseKeptByTraeger refuses a change of a value the Träger keeps.
+func (a *StaffAdmin) refuseKeptByTraeger(ctx context.Context, staffID int64) error {
+	kept, err := a.keptByTraeger(ctx, staffID)
+	if err != nil {
+		return err
+	}
+	if kept {
+		return domain.ErrStaffKeptByTraeger
+	}
+	return nil
 }

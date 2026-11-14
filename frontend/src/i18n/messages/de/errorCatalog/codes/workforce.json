@@ -77,5 +77,14 @@
   "payroll_wage_type_name_taken": "Eine Lohnart mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
   "qualification_type_name_taken": "Es gibt schon eine Nachweisart mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
   "qualification_type_not_found": "Diese Nachweisart gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-  "work_time_model_archived": "Diese Vorlage wird nicht mehr angeboten. Bitte wählen Sie eine andere Vorlage."
+  "work_time_model_archived": "Diese Vorlage wird nicht mehr angeboten. Bitte wählen Sie eine andere Vorlage.",
+  "staff_kept_by_traeger": "Diesen Wert führt der Träger in seiner Personalakte. Bitte wenden Sie sich an die Personalverwaltung des Trägers.",
+  "traeger_staff_already_linked": "Eine dieser Personen hat schon eine Personalakte. Bitte laden Sie die Seite neu.",
+  "traeger_staff_link_invalid": "Die Personen lassen sich so nicht verknüpfen. Bitte prüfen Sie Ihre Auswahl.",
+  "traeger_staff_not_released": "Personal beim Träger ist für Ihren Träger noch nicht freigeschaltet. Das moto-Team schaltet es frei.",
+  "traeger_staff_record_not_found": "Diese Personalakte gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "traeger_staff_release_exists": "Personal beim Träger ist für diesen Träger schon freigeschaltet.",
+  "traeger_staff_release_in_use": "Der Träger führt noch Personalakten. Er muss sie zuerst auflösen.",
+  "traeger_staff_release_invalid": "Bitte wählen Sie eine der beiden Erklärungen des Trägers.",
+  "traeger_staff_release_not_found": "Personal beim Träger ist für diesen Träger nicht freigeschaltet."
 }

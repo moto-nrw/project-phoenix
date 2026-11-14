@@ -77,5 +77,14 @@
   "payroll_wage_type_name_taken": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "qualification_type_name_taken": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "qualification_type_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
-  "work_time_model_archived": "Не удалось изменить: {object}. Проверьте текущее состояние."
+  "work_time_model_archived": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "staff_kept_by_traeger": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "traeger_staff_already_linked": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "traeger_staff_link_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+  "traeger_staff_not_released": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "traeger_staff_record_not_found": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+  "traeger_staff_release_exists": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "traeger_staff_release_in_use": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "traeger_staff_release_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+  "traeger_staff_release_not_found": "Не удалось сохранить: {object}. Проверьте введённые данные."
 }

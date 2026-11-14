@@ -15,6 +15,8 @@ import (
 	provisioningOperatorAPI "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/operator"
 	parentBillingHTTP "github.com/moto-ogs/project-phoenix/modules/parentbilling/http"
 	settingsOperatorAPI "github.com/moto-ogs/project-phoenix/modules/settings/inbound/operator"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/http/traegerstaff"
 	"github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
@@ -158,6 +160,7 @@ func operatorRouter(
 		mountOperatorAnnouncementRoutes(r, announcementRoutes, provisioningRoutes)
 		mountOperatorBillingRoutes(r, billing)
 		mountOperatorBelegRetentionRoutes(r, provisioningRoutes)
+		mountOperatorTraegerStaffReleaseRoutes(r, provisioningRoutes)
 	})
 
 	return r
@@ -355,6 +358,17 @@ func mountOperatorBelegRetentionRoutes(r chi.Router, provisioning *provisioningO
 	r.Post("/organizations/{id}/beleg-retention/suspensions", retention.RecordSuspension)
 	r.Delete("/organizations/{id}/beleg-retention/suspensions/{suspensionId}", retention.LiftSuspension)
 	r.Post("/organizations/{id}/beleg-retention/clarification-reviews", retention.RecordClarificationReview)
+}
+
+// mountOperatorTraegerStaffReleaseRoutes serves the release „Personal beim
+// Träger“ (#4705, ADR 0089 section 2) to the moto team: the state under the
+// operator read audit, the grant with the statement the Träger confirmed and
+// the withdrawal, each with its operator audit entry.
+func mountOperatorTraegerStaffReleaseRoutes(r chi.Router, provisioning *provisioningOperatorAPI.ProvisioningResource) {
+	release := traegerstaff.NewReleaseResource(workforceCompose.NewTraegerStaffReleases(), provisioning.RecordTraegerStaffReleaseChange, operatorIDFromSession)
+	r.Get("/organizations/{id}/staff-release", provisioning.AuditReadAccess(organizationtenancy.ReadTraegerStaffRelease, release.State))
+	r.Post("/organizations/{id}/staff-release", release.Grant)
+	r.Delete("/organizations/{id}/staff-release", release.Withdraw)
 }
 
 // mountOperatorSchoolRoutes registers the /schools subtree, including the

@@ -77,5 +77,14 @@
   "payroll_wage_type_name_taken": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "qualification_type_name_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "qualification_type_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-  "work_time_model_archived": "Не вдалося змінити: {object}. Перевірте поточний стан."
+  "work_time_model_archived": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "staff_kept_by_traeger": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "traeger_staff_already_linked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "traeger_staff_link_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "traeger_staff_not_released": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "traeger_staff_record_not_found": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "traeger_staff_release_exists": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "traeger_staff_release_in_use": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "traeger_staff_release_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "traeger_staff_release_not_found": "Не вдалося зберегти: {object}. Перевірте введені дані."
 }

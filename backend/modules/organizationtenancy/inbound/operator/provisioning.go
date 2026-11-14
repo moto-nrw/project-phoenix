@@ -28,6 +28,7 @@ type ProvisioningResource struct {
 	CaregiverCapabilityService SchoolAccountCaregivers
 	appEnv                     string
 	belegRetentionAudit        organizationtenancy.BelegRetentionChangeAudit
+	traegerStaffReleaseAudit   organizationtenancy.TraegerStaffReleaseChangeAudit
 }
 
 // ProvisioningConfig holds the provisioning routes' dependencies.
@@ -44,6 +45,9 @@ type ProvisioningConfig struct {
 	// BelegRetentionAudit records the changes of the Beleg retention of a
 	// Träger (#4720). Without it those changes answer 500.
 	BelegRetentionAudit organizationtenancy.BelegRetentionChangeAudit
+	// TraegerStaffReleaseAudit records the grants and withdrawals of the
+	// release „Personal beim Träger“ (#4705). Without it they answer 500.
+	TraegerStaffReleaseAudit organizationtenancy.TraegerStaffReleaseChangeAudit
 }
 
 // NewProvisioningResource creates a new provisioning resource.
@@ -53,6 +57,7 @@ func NewProvisioningResource(cfg ProvisioningConfig) *ProvisioningResource {
 		CaregiverCapabilityService: cfg.CaregiverCapability,
 		appEnv:                     cfg.AppEnv,
 		belegRetentionAudit:        cfg.BelegRetentionAudit,
+		traegerStaffReleaseAudit:   cfg.TraegerStaffReleaseAudit,
 	}
 }
 

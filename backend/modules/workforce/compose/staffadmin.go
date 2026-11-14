@@ -56,8 +56,27 @@ func NewStaffAdmin(dependencies StaffAdminDependencies) (*workforce.StaffAdmin, 
 			Health: permissions.StaffDocumentsHealth, Financial: permissions.StaffFinancial, General: permissions.StaffDocuments,
 			Allows: dependencies.Allows,
 		},
-		application.Clock{Time: now}, logger.Warn, dependencies.BankData,
+		application.Clock{Time: now}, logger.Warn, dependencies.BankData, postgres.NewTraegerStaffStore(),
 	), records)), nil
+}
+
+// NewTraegerStaffRecords composes the Personalstamm of the Träger-Portal
+// (#4705, ADR 0089): the Träger tables in the schema workforce, the school's
+// employments and bank rows through the same staff subjects and audit trail
+// as the personnel record, and the bank ring.
+func NewTraegerStaffRecords(dependencies StaffAdminDependencies, collaborators workforce.TraegerStaffPorts) (workforce.TraegerStaffRecords, error) {
+	if dependencies.Subjects == nil || dependencies.Audit == nil || dependencies.BankData == nil ||
+		collaborators.Schools == nil || collaborators.Employments == nil || collaborators.Persons == nil || collaborators.Access == nil || collaborators.Runtime == nil {
+		return nil, errors.New("traeger staff records: staff subjects, audit trail, bank data cipher, schools, employments, persons, access log and runtime are required")
+	}
+	return application.NewTraegerStaff(postgres.NewTraegerStaffStore(), collaborators,
+		application.NewStaffSubjects(dependencies.Subjects), application.NewStaffAudit(dependencies.Audit), dependencies.BankData), nil
+}
+
+// NewTraegerStaffReleases composes the release „Personal beim Träger“ the
+// moto team grants in the Operator portal (ADR 0089 section 2).
+func NewTraegerStaffReleases() workforce.TraegerStaffReleases {
+	return application.NewTraegerStaffReleases(postgres.NewTraegerStaffStore())
 }
 
 // --- documents --------------------------------------------------------------

@@ -174,6 +174,13 @@
       "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/http/traegerstaff",
+      "owner": "workforce",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     }
   ],
   "data_objects": [
@@ -303,6 +310,22 @@
     },
     {
       "name": "users.staff_qualifications",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "workforce.staff_record_changes",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "workforce.staff_record_links",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "workforce.staff_records",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "workforce.staff_releases",
       "write_owner": "workforce"
     }
   ],

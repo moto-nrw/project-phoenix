@@ -97,6 +97,14 @@ type StaffAdminAudit interface {
 type staffAdminEngine interface {
 	StaffRecordAdmin
 	StaffDocuments
+	StaffTraegerKeep
+}
+
+// StaffTraegerKeep tells the school whether its Träger keeps an employment
+// in its staff record (#4705, ADR 0089 section 6): the personnel number and
+// the bank and tax values are then the Träger's, read-only for the school.
+type StaffTraegerKeep interface {
+	StaffKeptByTraeger(ctx context.Context, staffID int64) (bool, error)
 }
 
 // StaffAdmin is the public facade of the personnel-record administration: the
@@ -210,4 +218,8 @@ func (a *StaffAdmin) MarkQueuedStaffDocumentFileCleanupCompleteByFilename(ctx co
 
 func (a *StaffAdmin) ActivateQueuedStaffDocumentFileCleanup(ctx context.Context, storedName string) error {
 	return a.engine.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName)
+}
+
+func (a *StaffAdmin) StaffKeptByTraeger(ctx context.Context, staffID int64) (bool, error) {
+	return a.engine.StaffKeptByTraeger(ctx, staffID)
 }

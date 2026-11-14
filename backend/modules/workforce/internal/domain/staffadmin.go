@@ -515,6 +515,9 @@ type StaffFinancialMasked struct {
 	IBANMasked                 *string
 	TaxIDMasked                *string
 	SocialSecurityNumberMasked *string
+	// KeptByTraeger is true when the Träger keeps the values in its staff
+	// record (#4705); the school then holds none.
+	KeptByTraeger bool
 }
 
 // MaskFinancial masks stored bank and tax data; nil data masks to nothing.
