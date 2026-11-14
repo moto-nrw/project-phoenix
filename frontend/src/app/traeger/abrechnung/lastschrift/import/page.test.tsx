@@ -65,6 +65,7 @@ const preview: ImportResult = {
     ready: 1,
     clarify: 0,
     duplicate: 0,
+    same_mandate: 0,
     conflict: 0,
     invalid: 0,
     imported: 0,
@@ -91,6 +92,7 @@ const preview: ImportResult = {
       hints: [],
       debtorNumber: "",
       debtorNumberStatus: "",
+      sameMandateLine: null,
     },
   ],
 };

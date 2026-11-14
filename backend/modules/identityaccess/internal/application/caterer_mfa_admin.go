@@ -57,7 +57,7 @@ func (c *CatererAccess) operatorResetMFA(ctx context.Context, operatorID, catere
 		return identityaccess.ErrCatererMFAResetReasonRequired
 	}
 	if c.mfa == nil {
-		return errCatererMFAUnavailable
+		return identityaccess.ErrAccountMFAUnavailable
 	}
 	recipient, err := c.catererAccountAddress(ctx, catererID, accountID)
 	if err != nil {

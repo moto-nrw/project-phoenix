@@ -233,7 +233,11 @@ async function loginThroughUI(
       await page.getByRole("button", { name: "Weiter zum Dashboard" }).click();
     } else if (result.trusted_device_enabled !== false) {
       // Match the UI's default and finish MFA without remembering a test device.
-      await page.getByRole("button", { name: /^Nein, nur anmelden/ }).click();
+      await page
+        .getByRole("button", {
+          name: /^(?:Nur dieses Mal bestätigen|Nein, nur anmelden)/,
+        })
+        .click();
     }
   }
   // The email field disappears at the MFA step too. Only a real session proves

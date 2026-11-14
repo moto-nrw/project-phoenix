@@ -29,31 +29,26 @@ func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, acces
 	if err != nil || claims.AccountID <= 0 || claims.ExpiresAt <= now || !domain.SessionScopeMatches(claims.Scope, portal) {
 		return identityaccess.SessionClaims{}, identityaccess.ErrInvalidToken
 	}
-	if named, _ := domain.PortalNamed(portal); !named.Holds(claims.TenantID, claims.OrgID) {
+	named, _ := domain.PortalNamed(portal)
+	if !named.Holds(claims.TenantID, claims.OrgID) {
 		return identityaccess.SessionClaims{}, identityaccess.ErrInvalidToken
 	}
 	refreshClaims, err := s.parseSessionRefresh(refresh, claims, now)
 	if err != nil {
 		return identityaccess.SessionClaims{}, err
 	}
-	var handOff accountHandOff
-	if portal == domain.PortalPlatform.Name {
-		if refreshClaims == nil {
-			err = s.verifyOperatorFamily(ctx, claims)
-		}
-	} else {
-		handOff, err = accountHandOffOf(claims)
+	check := s.accountSessionCheck
+	if named.MFA == domain.MFAOperator {
+		check = s.operatorSessionCheck
 	}
+	inTx, err := check(ctx, claims, refreshClaims)
 	if err != nil {
 		return identityaccess.SessionClaims{}, err
 	}
 	var booked func(context.Context) error
 	err = s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if portal == domain.PortalPlatform.Name {
-			return s.validateOperatorSession(txCtx, claims, refreshClaims)
-		}
 		var err error
-		booked, err = s.validateAccountSessionInTx(txCtx, handOff, claims, refreshClaims)
+		booked, err = inTx(txCtx)
 		return err
 	})
 	if err == nil && booked != nil {
@@ -66,6 +61,31 @@ func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, acces
 		return identityaccess.SessionClaims{}, err
 	}
 	return identityaccess.SessionClaims(claims), nil
+}
+
+// sessionFacts reads what a session rests on inside the validation's
+// transaction and returns the booking read to run after it, if any.
+type sessionFacts func(txCtx context.Context) (booked func(context.Context) error, err error)
+
+func (s *AccountAuthentication) operatorSessionCheck(ctx context.Context, claims domain.SessionClaims, refreshClaims *domain.RefreshClaims) (sessionFacts, error) {
+	if refreshClaims == nil {
+		if err := s.verifyOperatorFamily(ctx, claims); err != nil {
+			return nil, err
+		}
+	}
+	return func(txCtx context.Context) (func(context.Context) error, error) {
+		return nil, s.validateOperatorSession(txCtx, claims, refreshClaims)
+	}, nil
+}
+
+func (s *AccountAuthentication) accountSessionCheck(_ context.Context, claims domain.SessionClaims, refreshClaims *domain.RefreshClaims) (sessionFacts, error) {
+	handOff, err := accountHandOffOf(claims)
+	if err != nil {
+		return nil, err
+	}
+	return func(txCtx context.Context) (func(context.Context) error, error) {
+		return s.validateAccountSessionInTx(txCtx, handOff, claims, refreshClaims)
+	}, nil
 }
 
 // accountHandOff is the session an account access token names: its kind,

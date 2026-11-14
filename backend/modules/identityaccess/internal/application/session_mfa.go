@@ -16,8 +16,9 @@ import (
 // A Träger session minted before the duty or one whose proof an MFA reset
 // revoked is refused at mint, refresh and validation. A caterer or parent
 // session needs its proof once the account has a second factor (#4497,
-// #7051): a session minted before that ends at its next refresh or
-// validation.
+// #7051): a session minted before that ends at its next refresh, and at its
+// next validation where the portal reads the enrollment there
+// (domain.Portal.FactorAtValidation).
 func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID, tenantID int64, scope string, verified bool, r factReads) error {
 	if !s.mfa.Configured() {
 		return nil
@@ -29,13 +30,7 @@ func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID
 		}
 		return nil
 	case domain.MFAAccountChoice:
-		if !r.locked && scope == domain.PortalParent.Name {
-			// The parents portal validates its session on every page view
-			// (#5399), for every parent, and almost none has the factor. A
-			// parent session minted before the switch-on ends at its next
-			// mint or refresh, which read the enrollment under the account
-			// lock; until then its access token lives out its lifetime, as
-			// after a password change (#7051).
+		if portal, _ := domain.PortalOfPersisted(scope); !r.locked && !portal.FactorAtValidation {
 			return nil
 		}
 		return s.requireAccountChoiceSessionMFA(ctx, accountID, verified)
@@ -111,6 +106,8 @@ func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID
 	// that runs after this switch commits finds the new family through it
 	// (#5422); one that ran before left no source family to switch from.
 	session.SwitchedFromFamilyID = domain.SwitchLineage(source)
+	// How the source proved its factor travels with it (#6955).
+	session.MFAByDevice = source.MFAByDevice
 	// A family issued before #5422 cannot escape its transition deadline
 	// by switching on: the new family keeps it (capLegacyLineage).
 	if deadline := legacyDeadline(source); deadline != nil {

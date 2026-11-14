@@ -161,7 +161,7 @@ func (rs *Resource) mfaListTrustedDevices(w http.ResponseWriter, r *http.Request
 	}
 	portalauth.ListTrustedDevices(w, r, func(ctx context.Context) ([]identityaccess.AccountTrustedDevice, error) {
 		return rs.MFAService.ListTrustedDevices(ctx, int64(claims.ID), claims.TenantID)
-	})
+	}, portalauth.RefuseMFA)
 }
 
 // mfaRevokeTrustedDevice deletes one trusted device the user has
@@ -179,7 +179,7 @@ func (rs *Resource) mfaRevokeTrustedDevice(w http.ResponseWriter, r *http.Reques
 	}
 	portalauth.RevokeTrustedDevice(w, r, func(ctx context.Context, deviceID int64) error {
 		return rs.MFAService.RevokeTrustedDevice(ctx, int64(claims.ID), claims.TenantID, deviceID)
-	})
+	}, portalauth.RefuseMFA)
 }
 
 // completeMFAExchange mints the tenant session of a proven second factor

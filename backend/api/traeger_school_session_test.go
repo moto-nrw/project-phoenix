@@ -1,8 +1,9 @@
 // Router-level tests for the Absprung of the Träger-Büro into a school (ADR
 // 0084 section 5, #4654): the hand-off through the Träger-Portal, the OGS
 // session it opens, its re-checks at every refresh and validation, the
-// refusals across Träger and rights, the audit entry, and two schools in two
-// tabs.
+// refusals across Träger and rights, the audit entry, two schools in two
+// tabs, and a school that accepts no second factor proven only by a
+// remembered device (#6955).
 package api
 
 import (
@@ -474,4 +475,87 @@ func TestTraegerSchoolSessionSurvivesAFullSessionCap(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM auth.tokens WHERE account_id = ? AND portal_scope = 'tenant'
 		AND rotated_at IS NULL AND expiry > now()`, account.ID).Scan(context.Background(), &live))
 	assert.Equal(t, 5, live, "the Absprung evicted the oldest other session instead")
+}
+
+// setSchoolTrustedDevices writes the school's own value of
+// security.mfa_trusted_device_enabled as raw JSON; a value of another type
+// makes the typed read fail.
+func setSchoolTrustedDevices(t *testing.T, db *bun.DB, schoolID int64, raw string) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'security.mfa_trusted_device_enabled', ?::jsonb)`, schoolID, raw)
+	require.NoError(t, err)
+}
+
+func TestTraegerAbsprungHonoursASchoolWithoutRememberedDevices(t *testing.T) {
+	t.Parallel()
+	db, portal, identity, unit := newTraegerSchoolSessionPortal(t)
+	password := testpkg.NewTestPassword()
+	organization := traegerOrganization(t, db, "Träger Gerät Absprung", true)
+	allowing := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Gerät erlaubt")
+	refusing := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Gerät aus")
+	unreadable := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Gerät unlesbar")
+	setSchoolTrustedDevices(t, db, refusing, `false`)
+	setSchoolTrustedDevices(t, db, unreadable, `"unreadable"`)
+	account := traegerAccount(t, db, password)
+	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleSchoolAccess)
+	require.NoError(t, enrollMFA(t.Context(), t, db, identity, account.ID))
+
+	_, login := traegerLogin(t, portal, account.Email, password, organization)
+	require.Equal(t, "mfa_required", login.Status)
+	rec := traegerRequest(t, portal, "/traeger/auth/mfa/verify", map[string]any{
+		"challenge_token": login.ChallengeToken, "code": lastTraegerCode(t, portal, account.Email),
+		"organization_id": organization, "remember_device": true,
+	})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var byCode traegerLoginAnswer
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &byCode))
+	cookie := traegerDeviceCookie(rec)
+	require.NotEmpty(t, cookie, "the code step remembered the device")
+	_, byDevice := traegerLoginWithDevice(t, portal, account.Email, password, organization, cookie)
+	require.Equal(t, "authenticated", byDevice.Status, "the remembered device skips the code at the Träger")
+
+	// The refresh of the Träger session keeps how its factor was proven.
+	ctx := tenant.WithUnitOfWork(context.Background(), unit)
+	traegerAccess, _, err := identity.RefreshTokenWithAudit(ctx, byDevice.RefreshToken, "", "", "")
+	require.NoError(t, err)
+
+	code, answer := startTraegerSchoolSession(t, portal, traegerAccess, refusing)
+	assert.Equal(t, http.StatusForbidden, code, "a school without remembered devices asks for the code, also after a refresh")
+	assert.Equal(t, "traeger.school_requires_code", answer.Code)
+	assert.Empty(t, answer.Data.HandoffToken)
+
+	code, answer = startTraegerSchoolSession(t, portal, traegerAccess, unreadable)
+	assert.Equal(t, http.StatusForbidden, code, "an unreadable setting asks for the code as well")
+	assert.Equal(t, "traeger.school_requires_code", answer.Code)
+
+	code, answer = startTraegerSchoolSession(t, portal, traegerAccess, allowing)
+	require.Equal(t, http.StatusCreated, code, answer.Code)
+	require.NotEmpty(t, answer.Data.HandoffToken, "a school that allows remembered devices opens")
+
+	// The school session keeps the mark through its own refresh; its switch
+	// into the refusing school goes back to the Träger-Portal, since the
+	// school may hold no account of the person.
+	_, schoolRefresh, err := identity.RefreshTokenWithAudit(ctx, answer.Data.HandoffToken, "tab-1", "", "")
+	require.NoError(t, err)
+	schoolAccess, _, err := identity.RefreshTokenWithAudit(ctx, schoolRefresh, "tab-1", "", "")
+	require.NoError(t, err)
+	family, _ := traegerTokenClaims(t, schoolAccess)["family_id"].(string)
+	_, _, err = identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, refusing), family, "192.0.2.10", "test")
+	require.ErrorIs(t, err, identityaccess.ErrSchoolRequiresCodeProof, "a refreshed Absprung session keeps its device mark at the switch")
+	_, _, err = identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, unreadable), family, "192.0.2.10", "test")
+	require.ErrorIs(t, err, identityaccess.ErrSchoolRequiresCodeProof, "an unreadable setting refuses the switch as well")
+
+	code, answer = startTraegerSchoolSession(t, portal, byCode.AccessToken, refusing)
+	assert.Equal(t, http.StatusCreated, code, answer.Code)
+	assert.NotEmpty(t, answer.Data.HandoffToken, "a code-proven Träger session opens every school")
+
+	var marks []bool
+	require.NoError(t, db.NewRaw(`SELECT mfa_by_device FROM auth.tokens WHERE account_id = ? AND tenant_id IS NOT NULL ORDER BY id`, account.ID).
+		Scan(context.Background(), &marks))
+	require.GreaterOrEqual(t, len(marks), 2)
+	for _, mark := range marks[:len(marks)-1] {
+		assert.True(t, mark, "every school session from the device-proven Träger session keeps its mark")
+	}
+	assert.False(t, marks[len(marks)-1], "the school session of the code-proven Träger session carries none")
 }

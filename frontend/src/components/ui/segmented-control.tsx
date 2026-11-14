@@ -84,6 +84,7 @@ export function SegmentedControl<T extends string>({
   variant = "joined",
   fullWidth = false,
   wrap = false,
+  minSegmentWidth = 100,
   iconOnly = false,
   ariaLabel,
   ariaDescribedBy,
@@ -98,6 +99,11 @@ export function SegmentedControl<T extends string>({
   readonly fullWidth?: boolean;
   /** With fullWidth, move whole segments to another row when space is narrow. */
   readonly wrap?: boolean;
+  /**
+   * With wrap, the narrowest a segment gets before it moves to another row,
+   * in px: wider for labels of one long word such as „Debitorennummer“.
+   */
+  readonly minSegmentWidth?: number;
   /**
    * Square symbol segments instead of words, for a well-known pair such as
    * Kacheln/Liste (#3834). Every item needs an `icon`.
@@ -177,9 +183,14 @@ export function SegmentedControl<T extends string>({
       role="group"
       aria-label={ariaLabel}
       aria-describedby={ariaDescribedBy}
+      style={
+        fullWidth && wrap
+          ? ({ "--segment-min": `${minSegmentWidth}px` } as CSSProperties)
+          : undefined
+      }
       className={
         fullWidth
-          ? `grid w-full ${wrap ? "grid-cols-[repeat(auto-fit,minmax(100px,1fr))]" : "auto-cols-fr grid-flow-col"} gap-1 rounded-lg bg-gray-100 p-1 ${className}`
+          ? `grid w-full ${wrap ? "grid-cols-[repeat(auto-fit,minmax(var(--segment-min),1fr))]" : "auto-cols-fr grid-flow-col"} gap-1 rounded-lg bg-gray-100 p-1 ${className}`
           : `inline-grid auto-cols-fr grid-flow-col gap-1 rounded-lg bg-gray-100 p-1 ${className}`
       }
     >

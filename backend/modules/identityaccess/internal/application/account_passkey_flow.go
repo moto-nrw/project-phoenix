@@ -550,3 +550,14 @@ func publicPasskeySummaries(values []domain.PasskeyCredentialSummary) []identity
 // passkeyError is MFAError: the ceremony sentinels are translated by the
 // same table, and a gated registration reaches through it.
 func passkeyError(err error) error { return MFAError(err) }
+
+func catererHost(frontendURL string) string {
+	if strings.TrimSpace(frontendURL) == "" {
+		return ""
+	}
+	host, err := domain.OriginHostWithoutPort(frontendURL)
+	if err != nil {
+		return ""
+	}
+	return host
+}

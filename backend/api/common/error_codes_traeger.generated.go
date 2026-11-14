@@ -27,6 +27,7 @@ const CodeTraegerMasterDataInvalid = "traeger.master_data_invalid"
 const CodeTraegerMemberNotFound = "traeger.member_not_found"
 const CodeTraegerNoMembership = "traeger.no_membership"
 const CodeTraegerSchoolNotFound = "traeger.school_not_found"
+const CodeTraegerSchoolRequiresCode = "traeger.school_requires_code"
 const CodeTraegerSecondFactorRequired = "traeger.second_factor_required"
 const CodeTraegerSharedDocumentNotFound = "traeger.shared_document_not_found"
 
@@ -57,6 +58,7 @@ var errorCodeClassesTraeger = []errorCodeClass{
 	{CodeTraegerMemberNotFound, "input"},
 	{CodeTraegerNoMembership, "permission"},
 	{CodeTraegerSchoolNotFound, "permission"},
+	{CodeTraegerSchoolRequiresCode, "permission"},
 	{CodeTraegerSecondFactorRequired, "permission"},
 	{CodeTraegerSharedDocumentNotFound, "input"},
 }

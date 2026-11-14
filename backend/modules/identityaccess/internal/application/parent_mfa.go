@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net"
 
@@ -23,49 +22,29 @@ type ParentAccess struct {
 	factor voluntaryFactor
 }
 
-// voluntary is the parents' voluntary second factor.
 func (p *ParentAccess) voluntary() voluntaryFactor { return p.factor }
-
-// ParentAccessDependencies are the ports the parent flows consume beside the
-// sign-in.
-type ParentAccessDependencies struct {
-	MFA      *AccountMFAFlows
-	Verifier ports.PasswordVerifier
-	Runtime  ports.Runtime
-	Logger   *slog.Logger
-}
-
-func NewParentAccess(auth *AccountAuthentication, deps ParentAccessDependencies) (*ParentAccess, error) {
-	if auth == nil || deps.Verifier == nil || deps.Runtime == nil {
-		return nil, fmt.Errorf("identity access parent access: the sign-in, the password check and the runtime are required")
-	}
-	logger := deps.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	parents := &ParentAccess{auth: auth}
-	parents.factor = voluntaryFactor{
-		portal: domain.PortalParent, auth: auth, mfa: deps.MFA, verifier: deps.Verifier, runtime: deps.Runtime, logger: logger,
-		bind: func(ctx context.Context) context.Context {
-			return identityaccess.WithParentDevice(withoutSchoolLedgerContext(ctx))
-		},
-		member:     parents.signedInParent,
-		notEnabled: identityaccess.ErrParentMFANotEnabled,
-	}
-	return parents, nil
-}
 
 // ComposeParentAccess composes the parents portal's sign-in with its second
 // factor (#7051); without the sessions there is none.
 func ComposeParentAccess(auth *AccountAuthentication, sessions *identityPorts.SessionDependencies, mfa *AccountMFAFlows, runtime ports.Runtime) *identityaccess.ParentAccess {
-	if auth == nil || sessions == nil || sessions.Passwords == nil {
+	if auth == nil || runtime == nil || sessions == nil || sessions.Passwords == nil {
 		return nil
 	}
-	access, err := NewParentAccess(auth, ParentAccessDependencies{MFA: mfa, Verifier: sessions.Passwords, Runtime: runtime, Logger: sessions.Logger})
-	if err != nil {
-		return nil
+	logger := sessions.Logger
+	if logger == nil {
+		logger = slog.Default()
 	}
-	return identityaccess.NewParentAccess(access, access)
+	parents := newParentAccess(auth, mfa, sessions.Passwords, runtime, logger)
+	return identityaccess.NewParentAccess(parents, parents)
+}
+
+func newParentAccess(auth *AccountAuthentication, mfa *AccountMFAFlows, verifier ports.PasswordVerifier, runtime ports.Runtime, logger *slog.Logger) *ParentAccess {
+	parents := &ParentAccess{auth: auth}
+	parents.factor = voluntaryFactor{
+		portal: domain.PortalParent, auth: auth, mfa: mfa, verifier: verifier, runtime: runtime, logger: logger,
+		member: parents.signedInParent, mint: parents.mintProven, notEnabled: identityaccess.ErrParentMFANotEnabled,
+	}
+	return parents
 }
 
 // flow binds the composed unit and translates the refusals like the sign-in.
@@ -88,69 +67,39 @@ func (p *ParentAccess) signedInParent(ctx context.Context, accountID int64) (dom
 // device the parents portal remembered.
 func (p *ParentAccess) LoginParent(ctx context.Context, request identityaccess.ParentLoginRequest) (identityaccess.ParentLoginResult, error) {
 	return runFlow(ctx, p.flow(), func(ctx context.Context) (identityaccess.ParentLoginResult, error) {
-		account, err := p.auth.validateLoginCredentials(ctx, request.Email, request.Password, request.IPAddress, request.UserAgent)
-		if err != nil {
-			return identityaccess.ParentLoginResult{}, err
-		}
-		target, err := p.auth.parentTarget(ctx, account, request.IPAddress, request.UserAgent, true)
-		if err != nil {
-			return identityaccess.ParentLoginResult{}, err
-		}
-		gate, err := p.voluntary().gate(ctx, account, request.TrustedDeviceCookie, request.IPAddress)
-		if err != nil {
-			return identityaccess.ParentLoginResult{}, err
-		}
-		if gate.challenge != nil {
-			return identityaccess.ParentLoginResult{
-				Status: identityaccess.LoginStatusMFARequired, ChallengeToken: gate.challenge.ChallengeToken,
-				MaskedEmail: gate.challenge.MaskedEmail, TrustedDeviceDays: gate.challenge.TrustedDeviceDays,
-			}, nil
-		}
-		minted, err := p.auth.mintParentSession(ctx, account, request.Email, target, gate.proof, request.IPAddress, request.UserAgent)
-		if err != nil {
-			return identityaccess.ParentLoginResult{}, err
-		}
-		return identityaccess.ParentLoginResult{
-			Status: identityaccess.LoginStatusAuthenticated, AccessToken: minted.accessToken, RefreshToken: minted.refreshToken,
-		}, nil
+		return p.login(ctx, request)
 	})
 }
 
-// VerifyParentMFA redeems the mailed code of a sign-in and mints the parent
-// session. A remembered device is prepared before the mint and stored after
-// it.
+func (p *ParentAccess) login(ctx context.Context, request identityaccess.ParentLoginRequest) (identityaccess.ParentLoginResult, error) {
+	account, err := p.auth.validateLoginCredentials(ctx, request.Email, request.Password, request.IPAddress, request.UserAgent)
+	if err != nil {
+		return identityaccess.ParentLoginResult{}, err
+	}
+	target, err := p.auth.parentTarget(ctx, account, request.IPAddress, request.UserAgent, true)
+	if err != nil {
+		return identityaccess.ParentLoginResult{}, err
+	}
+	return p.voluntary().answer(ctx, account, request, func(ctx context.Context, proof mintProof) (mintedSession, error) {
+		return p.auth.mintParentSession(ctx, account, request.Email, target, proof, request.IPAddress, request.UserAgent)
+	})
+}
+
 func (p *ParentAccess) VerifyParentMFA(ctx context.Context, verification identityaccess.ParentMFAVerification) (identityaccess.ParentSession, error) {
 	return runFlow(ctx, p.flow(), func(ctx context.Context) (identityaccess.ParentSession, error) {
-		proof, err := p.voluntary().verifySignIn(ctx, verification.ChallengeToken, verification.Code, verification.RememberDevice, verification.IPAddress, verification.UserAgent)
-		if err != nil {
-			return identityaccess.ParentSession{}, err
-		}
-		session, err := p.mintProvenSession(ctx, proof.challenge, verification.IPAddress, verification.UserAgent)
-		if err != nil {
-			return identityaccess.ParentSession{}, err
-		}
-		session.TrustedDeviceCookie, session.TrustedDeviceExpiresAt = p.voluntary().remember(ctx, proof.challenge.AccountID, proof.device)
-		return session, nil
+		return p.voluntary().redeem(ctx, verification)
 	})
 }
 
-// mintProvenSession mints the parent session of an account that proved its
-// second factor. The portal's refusals are read again: the account may have
-// lost its last guardian school since the password.
-func (p *ParentAccess) mintProvenSession(ctx context.Context, proof identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (identityaccess.ParentSession, error) {
-	account, err := p.auth.authenticatedAccount(ctx, "issue parent tokens", proof.AccountID)
-	if err != nil {
-		return identityaccess.ParentSession{}, err
-	}
+// mintProven mints the parent session of an account that proved its second
+// factor. The portal's refusals are read again: the account may have lost
+// its last guardian school since the password.
+func (p *ParentAccess) mintProven(ctx context.Context, account domain.LoginAccount, proof mintProof, ipAddress, userAgent string) (mintedSession, error) {
 	target, err := p.auth.parentTarget(ctx, account, ipAddress, userAgent, true)
 	if err != nil {
-		return identityaccess.ParentSession{}, err
+		return mintedSession{}, err
 	}
-	minted, err := p.auth.mintParentSession(ctx, account, account.Email, target, challengeProof(&proof), ipAddress, userAgent)
-	if err != nil {
-		return identityaccess.ParentSession{}, err
-	}
-	return identityaccess.ParentSession{AccessToken: minted.accessToken, RefreshToken: minted.refreshToken, Email: account.Email}, nil
+	return p.auth.mintParentSession(ctx, account, account.Email, target, proof, ipAddress, userAgent)
 }
 
 // ResendParentMFA mails a new code. Only a parents-portal challenge is
@@ -199,24 +148,13 @@ func (p *ParentAccess) StartParentMFA(ctx context.Context, accountID int64, ip n
 		if !available {
 			return identityaccess.ParentMFAChallenge{}, identityaccess.ErrParentMFANeedsSchool
 		}
-		token, masked, err := p.voluntary().start(ctx, accountID, ip)
-		if err != nil {
-			return identityaccess.ParentMFAChallenge{}, err
-		}
-		return identityaccess.ParentMFAChallenge{ChallengeToken: token, MaskedEmail: masked}, nil
+		return p.voluntary().start(ctx, accountID, ip)
 	})
 }
 
-// ConfirmParentMFA switches the second factor on with the mailed code and
-// mints a parent session proven by it. Every other session of the account
-// was minted without the factor and ends at its next refresh.
 func (p *ParentAccess) ConfirmParentMFA(ctx context.Context, confirmation identityaccess.ParentMFAConfirmation) (identityaccess.ParentSession, error) {
 	return runFlow(ctx, p.flow(), func(ctx context.Context) (identityaccess.ParentSession, error) {
-		proof, err := p.voluntary().confirm(ctx, confirmation.AccountID, confirmation.ChallengeToken, confirmation.Code)
-		if err != nil {
-			return identityaccess.ParentSession{}, err
-		}
-		return p.mintProvenSession(ctx, proof, confirmation.IPAddress, confirmation.UserAgent)
+		return p.voluntary().enable(ctx, confirmation)
 	})
 }
 

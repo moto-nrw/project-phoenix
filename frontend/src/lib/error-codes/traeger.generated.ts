@@ -26,6 +26,7 @@ export const codes = [
   "traeger.member_not_found",
   "traeger.no_membership",
   "traeger.school_not_found",
+  "traeger.school_requires_code",
   "traeger.second_factor_required",
   "traeger.shared_document_not_found",
 ] as const;
@@ -57,6 +58,7 @@ export const classes = {
   "traeger.member_not_found": "input",
   "traeger.no_membership": "permission",
   "traeger.school_not_found": "permission",
+  "traeger.school_requires_code": "permission",
   "traeger.second_factor_required": "permission",
   "traeger.shared_document_not_found": "input",
 } as const;
@@ -88,6 +90,7 @@ export const parameters = {
   "traeger.member_not_found": [],
   "traeger.no_membership": [],
   "traeger.school_not_found": [],
+  "traeger.school_requires_code": [],
   "traeger.second_factor_required": [],
   "traeger.shared_document_not_found": [],
 } as const;

@@ -30,7 +30,11 @@ type AccountSession struct {
 	Identifier     *string
 	PortalScope    string
 	MFAVerified    bool
-	FamilyID       string
+	// MFAByDevice: only a remembered device proved the second factor
+	// (#6955); a school that switched remembered devices off asks for the
+	// code at an Absprung or a switch.
+	MFAByDevice bool
+	FamilyID    string
 	// SwitchedFromFamilyID names the origin of the session's switch lineage:
 	// the login family a school switch descends from, or the Träger family
 	// of an Absprung. It outlives the origin's rows (#5422).
