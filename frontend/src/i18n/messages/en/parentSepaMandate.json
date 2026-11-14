@@ -69,5 +69,13 @@
   "checkFields": "Please check your details.",
   "privacy": "We store your account details encrypted. Your provider uses the full IBAN only for the collection.",
   "inboxButton": "Direct debit",
-  "inboxActive": "Direct debit given"
+  "inboxActive": "Direct debit given",
+  "inboxButtonTooltip": "Opens the direct debit mandate for this contract.",
+  "revokeTooltip": "Revokes the mandate for this account. moto asks you first.",
+  "revokeConfirmTooltip": "Revokes the mandate right away; no debit from the next invoice on.",
+  "revokeCloseTooltip": "Closes the window; the mandate stays valid.",
+  "downloadTooltip": "Saves the text of the mandate as a file on your device.",
+  "nextTooltip": "Checks your details and shows the text of the mandate.",
+  "backTooltip": "Shows your account details again; the mandate is not given yet.",
+  "grantTooltip": "Gives the mandate right away; your provider may then debit."
 }

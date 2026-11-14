@@ -6234,6 +6234,19 @@ const TOOLTIP_SCOPE = [
   "src/components/parent/child/courses-section.tsx",
   "src/components/parent/child/weekly-schedule-section.tsx",
   "src/components/parent/parent-holiday-registrations-page.tsx",
+  // Elternportal: Startseite, Anfragen, Dokumente, Mittagessen, Lastschrift
+  // (#6780).
+  "src/components/parent/parent-contract-notice-page.tsx",
+  "src/components/parent/parent-documents-page.tsx",
+  "src/components/parent/parent-family-children-card.tsx",
+  "src/components/parent/parent-meal-plan-page.tsx",
+  "src/components/parent/parent-sepa-mandate-entry.tsx",
+  "src/components/parent/parent-sepa-mandate-view.tsx",
+  "src/components/parent/request-edit-modal.tsx",
+  "src/components/parent/request-sharing-control.tsx",
+  "src/components/parent/start/holiday-offers.tsx",
+  "src/components/parent/start/holiday-registration-entries.tsx",
+  "src/components/parent/start/todo-list.tsx",
   // Träger: Betreuungsverträge, Dokumente und Familien (#6762).
   "src/components/traeger/care-contract-change-card.tsx",
   "src/components/traeger/care-contract-change-modal.tsx",

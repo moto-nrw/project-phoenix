@@ -195,6 +195,9 @@ export function ParentFamilyChildrenCard({
                   size="md"
                   isLoading={saving}
                   loadingText={t("sending")}
+                  tooltip={t(
+                    enrollment ? "enrollmentSendTooltip" : "sendTooltip",
+                  )}
                 >
                   {t("send")}
                 </Button>

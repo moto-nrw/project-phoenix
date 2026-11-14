@@ -76,5 +76,21 @@
   "registerWeekDone": "The week is registered.",
   "registerWeekLocked": "The registration deadline for these days has passed; they stay unregistered: {days}.",
   "errorObjectWeekCancel": "the cancellation for the week",
-  "errorObjectWeekRegister": "the registration for the week"
+  "errorObjectWeekRegister": "the registration for the week",
+  "previousWeekTooltip": "Shows the week before.",
+  "nextWeekTooltip": "Shows the week after.",
+  "previousWeekDisabledReason": "This page does not show past weeks.",
+  "lastParticipationWeekReason": "You cannot plan further ahead here yet.",
+  "lastMealPlanWeekReason": "There is no menu further ahead yet.",
+  "editRegularDaysTooltip": "Opens the choice of days on which your child always eats.",
+  "saveRegularDaysTooltip": "Saves the new regular days for your child.",
+  "saveDayTooltip": "Saves the registration for this day.",
+  "registerWeekTooltip": "Registers your child right away for every day of this week still open.",
+  "cancelWeekTooltip": "Cancels your child for this week. moto asks you first.",
+  "cancelWeekConfirmTooltip": "Cancels your child right away for every day still open.",
+  "cancelWeekCloseTooltip": "Closes the window; the registration stays as it is.",
+  "editDayTooltip": "Opens the registration for this day so you can change it.",
+  "registerDayTooltip": "Notes the registration; it only counts once you save.",
+  "unregisterDayTooltip": "Notes the cancellation; it only counts once you save.",
+  "useRegularTooltip": "Sets the day back to the regular days, once you save."
 }

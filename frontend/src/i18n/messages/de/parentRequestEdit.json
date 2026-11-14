@@ -15,5 +15,7 @@
   "saving": "Wird gespeichert …",
   "cancel": "Abbrechen",
   "close": "Fenster schließen",
-  "errorObject": "die Anfrage"
+  "errorObject": "die Anfrage",
+  "closeTooltip": "Schließt das Fenster, die Anfrage bleibt unverändert.",
+  "submitTooltip": "Speichert die geänderte Anfrage, die {careTerm} entscheidet dann darüber."
 }

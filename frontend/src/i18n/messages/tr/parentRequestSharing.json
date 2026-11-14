@@ -12,5 +12,8 @@
   "close": "Pencereyi kapat",
   "errorObjectRecipients": "alıcı listesi",
   "errorObjectSelection": "seçim",
-  "optionsHint": "Talebi yine de gönderebilir ve daha sonra paylaşabilirsiniz."
+  "optionsHint": "Talebi yine de gönderebilir ve daha sonra paylaşabilirsiniz.",
+  "buttonTooltip": "Talebi kimin göreceğini seçtiğiniz bir pencere açar.",
+  "saveTooltip": "Talebi ve yanıtı kimin görebileceğini kaydeder.",
+  "closeTooltip": "Pencereyi kapatır; seçim değişmeden kalır."
 }

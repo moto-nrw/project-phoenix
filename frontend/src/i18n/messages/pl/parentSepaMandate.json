@@ -69,5 +69,13 @@
   "checkFields": "Proszę sprawdzić dane.",
   "privacy": "Dane konta przechowujemy w formie zaszyfrowanej. Pełny IBAN organ prowadzący używa tylko do pobrania.",
   "inboxButton": "Polecenie zapłaty",
-  "inboxActive": "Polecenie zapłaty udzielone"
+  "inboxActive": "Polecenie zapłaty udzielone",
+  "inboxButtonTooltip": "Otwiera mandat do polecenia zapłaty dla tej umowy.",
+  "revokeTooltip": "Odwołuje mandat dla tego konta. moto najpierw zapyta.",
+  "revokeConfirmTooltip": "Od razu odwołuje mandat; od następnej faktury bez obciążeń.",
+  "revokeCloseTooltip": "Zamyka okno; mandat pozostaje ważne.",
+  "downloadTooltip": "Zapisuje tekst mandatu jako plik na Twoim urządzeniu.",
+  "nextTooltip": "Sprawdza Twoje dane i pokazuje tekst mandatu.",
+  "backTooltip": "Ponownie pokazuje dane konta; mandat nie jest jeszcze udzielone.",
+  "grantTooltip": "Od razu udziela mandatu; potem organ prowadzący może pobierać."
 }

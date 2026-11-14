@@ -76,5 +76,21 @@
   "registerWeekDone": "Hafta kaydedildi.",
   "registerWeekLocked": "Bu günler için kayıt süresi doldu, kayıtsız kalıyor: {days}.",
   "errorObjectWeekCancel": "haftalık iptal",
-  "errorObjectWeekRegister": "haftalık kayıt"
+  "errorObjectWeekRegister": "haftalık kayıt",
+  "previousWeekTooltip": "Önceki haftayı gösterir.",
+  "nextWeekTooltip": "Sonraki haftayı gösterir.",
+  "previousWeekDisabledReason": "Bu sayfa geçmiş haftaları göstermez.",
+  "lastParticipationWeekReason": "Burada daha ileriyi henüz planlayamazsınız.",
+  "lastMealPlanWeekReason": "Daha sonrası için henüz yemek listesi yok.",
+  "editRegularDaysTooltip": "Çocuğunuzun her zaman yemek yediği günlerin seçimini açar.",
+  "saveRegularDaysTooltip": "Çocuğunuz için yeni sabit günleri kaydeder.",
+  "saveDayTooltip": "Bu günün kaydını kaydeder.",
+  "registerWeekTooltip": "Çocuğunuzu bu haftanın hâlâ değiştirilebilen tüm günlerine hemen kaydeder.",
+  "cancelWeekTooltip": "Çocuğunuzun bu haftaki kaydını iptal eder. moto önce sorar.",
+  "cancelWeekConfirmTooltip": "Çocuğunuzun hâlâ değiştirilebilen tüm günlerdeki kaydını hemen iptal eder.",
+  "cancelWeekCloseTooltip": "Pencereyi kapatır; kayıt olduğu gibi kalır.",
+  "editDayTooltip": "Bu günün kaydını değiştirmeniz için açar.",
+  "registerDayTooltip": "Kaydı not eder; ancak kaydettikten sonra geçerli olur.",
+  "unregisterDayTooltip": "İptali not eder; ancak kaydettikten sonra geçerli olur.",
+  "useRegularTooltip": "Günü kaydettikten sonra sabit günlere geri döndürür."
 }

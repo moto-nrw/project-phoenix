@@ -15,5 +15,7 @@
   "saving": "Kaydediliyor …",
   "cancel": "İptal",
   "close": "Pencereyi kapat",
-  "errorObject": "talep"
+  "errorObject": "talep",
+  "closeTooltip": "Pencereyi kapatır; talep değişmeden kalır.",
+  "submitTooltip": "Değiştirilen talebi kaydeder; ardından {careTerm} karar verir."
 }

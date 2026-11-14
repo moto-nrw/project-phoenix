@@ -388,8 +388,14 @@ function NoticeForm({
                 size="base"
                 className="w-full sm:w-auto"
                 disabled={sending || choice === null}
+                disabledReason={t("submitDisabledReason")}
                 isLoading={sending}
                 loadingText={t("sending")}
+                tooltip={
+                  choice === "widerruf"
+                    ? t("submitWithdrawalTooltip")
+                    : t("submitTerminationTooltip")
+                }
               >
                 {choice === "widerruf"
                   ? t("submitWithdrawal")
@@ -515,7 +521,12 @@ function NoticeDone({
               {notice.confirmationText}
             </p>
           </figure>
-          <ButtonLink href={DOCUMENTS_HREF} variant="outline" size="md">
+          <ButtonLink
+            href={DOCUMENTS_HREF}
+            variant="outline"
+            size="md"
+            noTooltip="Das Wort nennt das Ziel, der Knopf ändert nichts."
+          >
             {t("back")}
           </ButtonLink>
         </div>

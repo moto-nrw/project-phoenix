@@ -76,5 +76,21 @@
   "registerWeekDone": "Java është regjistruar.",
   "registerWeekLocked": "Afati i regjistrimit për këto ditë ka kaluar, ato mbeten të paregjistruara: {days}.",
   "errorObjectWeekCancel": "anulimin për javën",
-  "errorObjectWeekRegister": "regjistrimin për javën"
+  "errorObjectWeekRegister": "regjistrimin për javën",
+  "previousWeekTooltip": "Tregon javën e mëparshme.",
+  "nextWeekTooltip": "Tregon javën pasardhëse.",
+  "previousWeekDisabledReason": "Kjo faqe nuk tregon javët e kaluara.",
+  "lastParticipationWeekReason": "Më tej përpara ende nuk mund të planifikoni këtu.",
+  "lastMealPlanWeekReason": "Për më tej ende nuk ka menu.",
+  "editRegularDaysTooltip": "Hap zgjedhjen e ditëve kur fëmija juaj ha gjithmonë.",
+  "saveRegularDaysTooltip": "Ruan ditët e reja të rregullta për fëmijën tuaj.",
+  "saveDayTooltip": "Ruan regjistrimin për këtë ditë.",
+  "registerWeekTooltip": "E regjistron fëmijën menjëherë për të gjitha ditët ende të ndryshueshme të kësaj jave.",
+  "cancelWeekTooltip": "E çregjistron fëmijën për këtë javë. moto pyet më parë.",
+  "cancelWeekConfirmTooltip": "E çregjistron fëmijën menjëherë për të gjitha ditët ende të ndryshueshme.",
+  "cancelWeekCloseTooltip": "Mbyll dritaren; regjistrimi mbetet siç është.",
+  "editDayTooltip": "Hap regjistrimin për këtë ditë për ta ndryshuar.",
+  "registerDayTooltip": "Shënon regjistrimin; vlen vetëm pasi ta ruani.",
+  "unregisterDayTooltip": "Shënon çregjistrimin; vlen vetëm pasi ta ruani.",
+  "useRegularTooltip": "E kthen ditën te ditët e rregullta, pasi ta ruani."
 }

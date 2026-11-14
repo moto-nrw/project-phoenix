@@ -76,5 +76,21 @@
   "registerWeekDone": "Записано на всю неделю.",
   "registerWeekLocked": "Срок записи на эти дни истёк, они остаются без записи: {days}.",
   "errorObjectWeekCancel": "отмену на неделю",
-  "errorObjectWeekRegister": "запись на неделю"
+  "errorObjectWeekRegister": "запись на неделю",
+  "previousWeekTooltip": "Показывает предыдущую неделю.",
+  "nextWeekTooltip": "Показывает следующую неделю.",
+  "previousWeekDisabledReason": "Эта страница не показывает прошедшие недели.",
+  "lastParticipationWeekReason": "Дальше вперёд здесь пока планировать нельзя.",
+  "lastMealPlanWeekReason": "На более поздние недели меню ещё нет.",
+  "editRegularDaysTooltip": "Открывает выбор дней, когда ваш ребёнок всегда обедает.",
+  "saveRegularDaysTooltip": "Сохраняет новые постоянные дни для вашего ребёнка.",
+  "saveDayTooltip": "Сохраняет запись на этот день.",
+  "registerWeekTooltip": "Сразу записывает ребёнка на все ещё изменяемые дни этой недели.",
+  "cancelWeekTooltip": "Отменяет запись ребёнка на эту неделю. moto сначала спросит.",
+  "cancelWeekConfirmTooltip": "Сразу отменяет запись на все ещё изменяемые дни.",
+  "cancelWeekCloseTooltip": "Закрывает окно; запись остаётся без изменений.",
+  "editDayTooltip": "Открывает запись на этот день для изменения.",
+  "registerDayTooltip": "Отмечает запись; она действует только после сохранения.",
+  "unregisterDayTooltip": "Отмечает отмену; она действует только после сохранения.",
+  "useRegularTooltip": "Возвращает день к постоянным дням после сохранения."
 }

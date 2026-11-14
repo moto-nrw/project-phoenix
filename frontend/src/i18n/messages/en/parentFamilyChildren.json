@@ -19,5 +19,7 @@
   "enrollmentSaved": "Saved. The number goes into your care contract.",
   "enrollmentClosed": "Your child has been accepted. You can now change the number in your care contract.",
   "linkHint": "You can change the number here until you sign.",
-  "enrollmentHint": "You can change the number here until your child is accepted."
+  "enrollmentHint": "You can change the number here until your child is accepted.",
+  "sendTooltip": "Sends the number to the provider right away for checking.",
+  "enrollmentSendTooltip": "Saves the number for your later care contract."
 }

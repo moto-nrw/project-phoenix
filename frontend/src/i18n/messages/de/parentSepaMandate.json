@@ -69,5 +69,13 @@
   "checkFields": "Bitte prüfen Sie Ihre Angaben.",
   "privacy": "Ihre Kontodaten speichern wir verschlüsselt. Die volle IBAN nutzt Ihr Träger nur für die Abbuchung.",
   "inboxButton": "Lastschrift",
-  "inboxActive": "Lastschrift erteilt"
+  "inboxActive": "Lastschrift erteilt",
+  "inboxButtonTooltip": "Öffnet das Lastschrift-Mandat zu diesem Vertrag.",
+  "revokeTooltip": "Widerruft das Mandat für dieses Konto. moto fragt vorher nach.",
+  "revokeConfirmTooltip": "Widerruft das Mandat sofort, ab der nächsten Rechnung gibt es keine Abbuchung.",
+  "revokeCloseTooltip": "Schließt das Fenster, das Mandat bleibt gültig.",
+  "downloadTooltip": "Speichert den Text des Mandats als Datei auf Ihrem Gerät.",
+  "nextTooltip": "Prüft Ihre Angaben und zeigt den Text des Mandats.",
+  "backTooltip": "Zeigt wieder Ihre Kontodaten, das Mandat ist noch nicht erteilt.",
+  "grantTooltip": "Erteilt das Mandat sofort, danach darf Ihr Träger abbuchen."
 }
