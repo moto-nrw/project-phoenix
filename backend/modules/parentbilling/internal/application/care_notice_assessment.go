@@ -163,7 +163,7 @@ func noticeMonth(notice parentbilling.CareNotice, drafts map[calendar.Date]paren
 		return draft
 	}
 	return parentbilling.CareInvoice{ContractID: notice.ContractID, SchoolID: notice.SchoolID, Recipient: notice.Recipient,
-		FamilyEmail: parentbilling.FamilyKey(notice.Recipient.Email), Service: parentbilling.ServiceCare,
+		FamilyEmail: parentbilling.ContractFamilyKey(notice.Recipient.Email, notice.ContractID), Service: parentbilling.ServiceCare,
 		Positions: []parentbilling.CarePosition{}}
 }
 

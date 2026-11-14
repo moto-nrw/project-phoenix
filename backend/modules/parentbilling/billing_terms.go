@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -305,6 +306,26 @@ func ResolveRecipient(applicant BillingRecipient, family *FamilyBilling) Billing
 // FamilyKey is the key of a family: the mail address of the registration,
 // trimmed and lower case.
 func FamilyKey(email string) string { return strings.ToLower(strings.TrimSpace(email)) }
+
+// contractFamilyPrefix starts the key of a family moto knows only by its
+// contract. No mail address begins with it and carries no "@".
+const contractFamilyPrefix = "contract:"
+
+// ContractFamilyKey is the family of a care contract: the mail address of
+// its party, and for a contract whose party has none, such as a contract
+// imported from a file without mail addresses (ADR 0232), the contract
+// itself. Such a family has one contract; siblings stay apart until a mail
+// address joins them.
+func ContractFamilyKey(email string, contractID int64) string {
+	if key := FamilyKey(email); key != "" || contractID <= 0 {
+		return key
+	}
+	return contractFamilyPrefix + strconv.FormatInt(contractID, 10)
+}
+
+// IsContractFamily tells that a family key names a contract, not a mail
+// address: nobody can be written to under it.
+func IsContractFamily(key string) bool { return strings.HasPrefix(key, contractFamilyPrefix) }
 
 // BillingTerms lets the Abrechnung of a Träger keep the terms of its
 // services, the deviations of its families and the due dates of its runs.

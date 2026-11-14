@@ -58,6 +58,12 @@ export const ERROR_CATALOG = {
         "Dieser Vertrag ist schon unterschrieben oder wartet nicht auf eine Unterschrift. Bitte laden Sie die Seite neu.",
       "care_contract.field_invalid":
         "Einige Angaben stimmen nicht. Bitte prüfen Sie Ihre Eingaben.",
+      "care_contract.import_changed":
+        "Seit der Vorschau hat sich etwas geändert. Bitte prüfen Sie die Vorschau noch einmal und übernehmen Sie dann.",
+      "care_contract.import_file_invalid":
+        "Die Datei lässt sich nicht lesen. Bitte wählen Sie eine CSV-Datei mit Überschriften in der ersten Zeile.",
+      "care_contract.import_file_too_large":
+        "Die Datei ist zu groß. Erlaubt sind 2 MB und 5.000 Zeilen.",
       "care_contract.letterhead_too_long":
         "Absender oder Fußzeile sind zu lang für den Vertrag. Bitte kürzen Sie sie unter „Briefkopf und Vorlagen“.",
       "care_contract.notice_end_not_open":

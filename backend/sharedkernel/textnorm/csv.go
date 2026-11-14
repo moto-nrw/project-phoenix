@@ -2,7 +2,9 @@ package textnorm
 
 import (
 	"bytes"
+	"encoding/csv"
 	"errors"
+	"io"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -96,4 +98,99 @@ func CSVDelimiter(text, chosen string) (rune, error) {
 		}
 	}
 	return best, nil
+}
+
+// CSVTable is a decoded CSV file: how it was read, its trimmed headers and
+// its rows with the line each starts on.
+type CSVTable struct {
+	Encoding  string
+	Delimiter string
+	Headers   []string
+	Rows      [][]string
+	Lines     []int
+}
+
+var (
+	// ErrCSVInvalid reports content that is no readable CSV text with a
+	// header row.
+	ErrCSVInvalid = errors.New("invalid CSV file")
+	// ErrCSVTooManyRows reports a file with more data rows than the caller
+	// takes.
+	ErrCSVTooManyRows = errors.New("too many CSV rows")
+)
+
+// ReadCSVTable decodes an import file and splits it: the first record is
+// the header row, every further record that is not blank is a row. A NUL may
+// stand where a CSV has a quote (#7009); it is taken off each cell and
+// refuses the file anywhere else. Cells are trimmed. chosen is ";", "," or
+// "\t", empty detects the delimiter.
+func ReadCSVTable(content []byte, chosen string, maxRows int) (CSVTable, error) {
+	text, encoding, err := DecodeCSVTextWithNULQuotes(content)
+	if err != nil {
+		return CSVTable{}, ErrCSVInvalid
+	}
+	comma, err := CSVDelimiter(text, chosen)
+	if err != nil {
+		return CSVTable{}, ErrCSVInvalid
+	}
+	reader := csv.NewReader(strings.NewReader(text))
+	reader.Comma, reader.FieldsPerRecord, reader.LazyQuotes, reader.ReuseRecord = comma, -1, true, false
+	table := CSVTable{Encoding: encoding, Delimiter: string(comma)}
+	for {
+		record, err := reader.Read()
+		if errors.Is(err, io.EOF) {
+			return table, nil
+		}
+		if err != nil {
+			return CSVTable{}, ErrCSVInvalid
+		}
+		blank := true
+		for i, cell := range record {
+			unquoted, ok := UnquoteNULCell(cell)
+			if !ok {
+				return CSVTable{}, ErrCSVInvalid
+			}
+			record[i] = strings.TrimSpace(unquoted)
+			blank = blank && record[i] == ""
+		}
+		line, _ := reader.FieldPos(0)
+		switch {
+		case table.Headers == nil:
+			table.Headers = record
+		case blank:
+		case len(table.Rows) == maxRows:
+			return CSVTable{}, ErrCSVTooManyRows
+		default:
+			table.Rows, table.Lines = append(table.Rows, record), append(table.Lines, line)
+		}
+	}
+}
+
+// RepeatedCSVHeader tells whether two columns have the same header: a
+// mapping names a column by its header, so it could not tell them apart.
+// Columns without a header never count.
+func RepeatedCSVHeader(headers []string) bool {
+	seen := map[string]bool{}
+	for _, header := range headers {
+		if header == "" {
+			continue
+		}
+		if seen[header] {
+			return true
+		}
+		seen[header] = true
+	}
+	return false
+}
+
+// HeaderKey folds a header for a comparison: lower case, umlauts spelled
+// out, letters and digits only.
+func HeaderKey(header string) string {
+	folded := strings.NewReplacer("ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss").Replace(strings.ToLower(header))
+	return strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			return r
+		}
+		return -1
+	}, folded)
 }

@@ -9,6 +9,22 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.CareContractDebtorNumbers.DebtorNumberScope",
+      "binding_digest": "bdb1e623dd9e693e0c1191cfb5eb2537",
+      "port": "github.com/moto-ogs/project-phoenix/modules/carecontract.ContractDebtorNumbers.DebtorNumberScope",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-ogs/project-phoenix/modules/parentbilling.ContractImportNumbers.DebtorNumberScope",
+      "target_owner": "parent-billing"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.CareContractDebtorNumbers.DecideImportedDebtorNumbers",
+      "binding_digest": "3eb291455b289e360a9ff3eb199aa68b",
+      "port": "github.com/moto-ogs/project-phoenix/modules/carecontract.ContractDebtorNumbers.DecideImportedDebtorNumbers",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-ogs/project-phoenix/modules/parentbilling.ContractImportNumbers.DecideContractImportNumbers",
+      "target_owner": "parent-billing"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.CareContractDocumentNotices.EnqueueContractDocumentNotice",
       "binding_digest": "ee8511c1bf2291f629d1e22553d6c507",
       "port": "github.com/moto-ogs/project-phoenix/modules/carecontract.DocumentNotices.EnqueueContractDocumentNotice",

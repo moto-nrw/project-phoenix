@@ -40,6 +40,9 @@ const (
 	// SourceBookingChange is a later version made from an approved change of
 	// the booked care.
 	SourceBookingChange = "buchungsaenderung"
+	// SourceImport is the first version of a contract taken over from an
+	// import file (#4723).
+	SourceImport = "import"
 )
 
 // The reasons an amendment run leaves a contract unchanged although its

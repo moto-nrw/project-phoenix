@@ -61,7 +61,7 @@ export function traegerSepaMandatesTopic(): HelpTopic {
           "Haben Sie die Mandate schon in einem anderen Programm, zum Beispiel OGS Connect? Dann übernehmen Sie alle auf einmal aus einer CSV-Datei. Referenz und Datum der Unterschrift bleiben gleich. moto bewahrt die Datei nicht auf.",
         steps: [
           "Speichern Sie die Mandate im anderen Programm als CSV-Datei. Die erste Zeile enthält die Überschriften.",
-          "Aus OGS Connect nehmen Sie den Export der Stammdaten. Er hat eine Zeile je Kind. moto schlägt dort die Spalte `Debitor-Nr.` als Zahler vor. Dafür muss moto die Debitorennummern schon kennen, zum Beispiel aus dem Reiter `Familien`.",
+          "Aus OGS Connect nehmen Sie den Export der Stammdaten. Er hat eine Zeile je Kind. moto schlägt dort die Spalte `Debitor-Nr.` als Zahler vor. Dafür muss moto die Debitorennummern schon kennen, zum Beispiel aus `Verträge importieren` oder aus dem Reiter `Familien`.",
           "Öffnen Sie unter `Abrechnung` den Reiter `Lastschrift` und wählen Sie `Mandate importieren`.",
           "Ziehen Sie die Datei in das Feld oder wählen Sie `Datei wählen`.",
           "Prüfen Sie unter `Spalten zuordnen`, aus welcher Spalte jedes Feld kommt. moto schlägt passende Spalten vor.",

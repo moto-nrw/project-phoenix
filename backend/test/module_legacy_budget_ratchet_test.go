@@ -303,7 +303,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0231: the registration answers constructor of modules/enrollment/compose
 // (+5) and the new school search projection modules/schoolsearchview/compose
 // (+38).
-const moduleComposeBudgetTotal = 13477
+// ADR 0232: the import of existing contracts of modules/carecontract/compose
+// (+6) and its debtor numbers of modules/parentbilling/compose (+5).
+const moduleComposeBudgetTotal = 13488
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC (ADR 0220 adds 13 to modules/careplan/compose), raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -405,7 +407,8 @@ var moduleComposeBudgets = map[string]int{
 	// the test hook of the signing link (+17); ADR 0159: withdrawal and
 	// termination (+35); ADR 0163: the office's decision of the parents' changes (+5);
 	// ADR 0184: the contract retention of the Belege (+4).
-	"modules/carecontract/compose": 175,
+	// ADR 0232: the import of existing contracts and its ports (+6).
+	"modules/carecontract/compose": 181,
 	// Raised by ADR 0158: the monthly contribution constructor (+5);
 	// ADR 0165: the constructor of the monthly letters (+7);
 	// ADR 0167: the constructor of the payment terms (+5);
@@ -421,7 +424,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0191: the constructor of the stored originals of the
 	// Jahresbescheide (+5).
 	// ADR 0218: the handovers of the finance exports (+5).
-	"modules/parentbilling/compose":               129,
+	// ADR 0232: the debtor numbers of an import of care contracts (+5).
+	"modules/parentbilling/compose":               134,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0188: the guardian bank backfill/rekey constructor (+6).

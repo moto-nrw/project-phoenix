@@ -73,7 +73,7 @@ func (f *BillingFamilies) contractChildren(ctx context.Context, organizationID i
 	at := map[string]int{}
 	for _, id := range ids {
 		version, recipient := first[id], recipients[id]
-		family := parentbilling.FamilyKey(recipient.Email)
+		family := parentbilling.ContractFamilyKey(recipient.Email, id)
 		key := parentbilling.ChildKey(version.ChildFirstName, version.ChildLastName, version.ChildBirthDate)
 		if family == "" || key == "" {
 			continue

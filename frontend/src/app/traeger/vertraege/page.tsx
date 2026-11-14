@@ -495,7 +495,7 @@ export default function TraegerVertraegePage() {
   return (
     <TenantPage
       title="Verträge"
-      info="Hier sehen Sie die Betreuungsverträge aus den angenommenen Anmeldungen Ihrer Schulen. moto übernimmt Kind, Eltern, Beginn und die gebuchten Module je Wochentag. Gilt der Vertrag bei der Annahme, entsteht er von selbst, wenn die Eltern im Anmeldeformular den Vertragsbedingungen zugestimmt haben. Sonst prüfen Sie den Entwurf und senden ihn per Mail und in die Eltern-App."
+      info="Hier sehen Sie die Betreuungsverträge aus den angenommenen Anmeldungen Ihrer Schulen und die Verträge, die Sie aus einem anderen Programm importiert haben. moto übernimmt Kind, Eltern, Beginn und die gebuchten Module je Wochentag. Gilt der Vertrag bei der Annahme, entsteht er von selbst, wenn die Eltern im Anmeldeformular den Vertragsbedingungen zugestimmt haben. Sonst prüfen Sie den Entwurf und senden ihn per Mail und in die Eltern-App."
       tabs={careContractTabs("vertraege")}
       stats={
         total > 0 || candidates.length > 0 ? (
@@ -523,17 +523,27 @@ export default function TraegerVertraegePage() {
         setSchoolId("");
       }}
       actions={
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          disabled={!data}
-          tooltip="Öffnet die Auswahl angenommener Kinder, Entwürfe gehen noch nicht an Eltern."
-          onClick={() => setCreating(true)}
-        >
-          <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-          {createLabel}
-        </Button>
+        <>
+          <ButtonLink
+            href={traegerPath("/traeger/vertraege/import")}
+            variant="outline"
+            size="md"
+            tooltip="Öffnet den Import von Kindern und bestehenden Verträgen aus einer CSV-Datei."
+          >
+            Verträge importieren
+          </ButtonLink>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            disabled={!data}
+            tooltip="Öffnet die Auswahl angenommener Kinder, Entwürfe gehen noch nicht an Eltern."
+            onClick={() => setCreating(true)}
+          >
+            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+            {createLabel}
+          </Button>
+        </>
       }
       error={pageLoad.error ?? (!data ? afterWrite.error : null)}
       // A list loads in the shape of its rows.

@@ -67,6 +67,24 @@
       "legacy": "care_contract.field_invalid"
     },
     {
+      "code": "care_contract.import_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_contract.import_changed"
+    },
+    {
+      "code": "care_contract.import_file_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_contract.import_file_invalid"
+    },
+    {
+      "code": "care_contract.import_file_too_large",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_contract.import_file_too_large"
+    },
+    {
       "code": "care_contract.letterhead_too_long",
       "class": "business_rejection",
       "parameters": [],

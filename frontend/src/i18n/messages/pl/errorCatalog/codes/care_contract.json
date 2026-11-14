@@ -23,5 +23,8 @@
   "special_termination_closed": "Ta umowa nie przewiduje wypowiedzenia nadzwyczajnego. Proszę wybrać zwykłe wypowiedzenie.",
   "template_invalid": "Please check the marked fields.",
   "withdrawal_closed": "Termin na odstąpienie od umowy minął. Nadal można wypowiedzieć umowę.",
-  "withdrawal_notice_required": "Potwierdź, że przeczytałeś pouczenie o prawie odstąpienia od umowy."
+  "withdrawal_notice_required": "Potwierdź, że przeczytałeś pouczenie o prawie odstąpienia od umowy.",
+  "import_file_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "import_file_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "import_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

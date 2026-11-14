@@ -14,6 +14,7 @@ import (
 type (
 	ContractPorts = application.ContractPorts
 	IntakePorts   = application.IntakePorts
+	ImportPorts   = application.ImportPorts
 )
 
 // NewContracts builds the contracts of the Träger-Büro; the reads open own units for each school's access log.
@@ -34,6 +35,11 @@ func NewContractChanges(ports carecontract.ChangePorts) carecontract.ContractCha
 // NewIntake builds the creation of contracts from the accepted applications and the offerings' templates.
 func NewIntake(ports IntakePorts) carecontract.Intake {
 	return application.NewIntake(postgres.NewStore(), ports, calendar.TodayDate)
+}
+
+// NewContractImports builds the import of existing contracts from a file (#4723); it opens its own units.
+func NewContractImports(ports ImportPorts) carecontract.ContractImports {
+	return application.NewContractImports(postgres.NewStore(), ports, calendar.TodayDate)
 }
 
 // NewConclusion builds the conclusion at the acceptance (Weg b, #4680); it opens its own units.

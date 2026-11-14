@@ -129,8 +129,9 @@ func (Store) ContractKeys(ctx context.Context, organizationID int64, schoolIDs [
 		SchoolID       int64 `bun:"school_id"`
 		RequestChildID int64 `bun:"request_child_id"`
 	}
+	// A contract from an import file (#4723) has no application child.
 	if err := db.NewRaw(`SELECT school_id, request_child_id FROM care_contract.contracts
-		WHERE organization_id = ? AND school_id = ANY(?)`, organizationID, pgdialect.Array(schoolIDs)).Scan(ctx, &rows); err != nil {
+		WHERE organization_id = ? AND school_id = ANY(?) AND request_child_id IS NOT NULL`, organizationID, pgdialect.Array(schoolIDs)).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: contract keys: %w", err)
 	}
 	keys := make(map[ports.ContractKey]bool, len(rows))
