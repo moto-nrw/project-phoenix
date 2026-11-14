@@ -101,7 +101,7 @@ func (h *HolidayContributions) HolidayFamilyDebtorNumber(ctx context.Context, re
 		return parentbilling.HolidayFamilyDebtorNumber{}, err
 	}
 	if perChild {
-		return h.holidayChildDebtorNumber(ctx, reviewer, registration)
+		return h.holidayChildDebtorNumbers(ctx, reviewer, registration)
 	}
 	family, err := h.store.FamilyBillingOf(ctx, reviewer.OrganizationID, key)
 	if err != nil || family == nil || family.DebtorNumber == "" {
@@ -335,33 +335,6 @@ func validFamilyChoice(choice string) error {
 func (h *HolidayContributions) perChild(ctx context.Context, organizationID int64) (bool, error) {
 	scope, err := debtorNumberScopeOf(ctx, h.settings, organizationID)
 	return scope == parentbilling.DebtorNumberScopeChild, err
-}
-
-// holidayChildDebtorNumber is the number of the first child of the
-// registration, recorded in the trail of the number it shows.
-func (h *HolidayContributions) holidayChildDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer,
-	registration parentbilling.HolidayRegistration,
-) (parentbilling.HolidayFamilyDebtorNumber, error) {
-	if len(registration.Children) == 0 {
-		return parentbilling.HolidayFamilyDebtorNumber{}, nil
-	}
-	child := registration.Children[0]
-	wanted := parentbilling.ChildDebtorNumberKey(registration.GuardianEmail, parentbilling.ChildKey(child.FirstName, child.LastName, &child.BirthDate))
-	numbers, err := h.store.ChildDebtorNumbers(ctx, reviewer.OrganizationID)
-	if err != nil {
-		return parentbilling.HolidayFamilyDebtorNumber{}, err
-	}
-	for _, number := range numbers {
-		if number.Key() != wanted || number.DebtorNumber == "" {
-			continue
-		}
-		if err := h.store.InsertChildDebtorNumberEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingRead,
-			[]parentbilling.ChildDebtorNumber{number}); err != nil {
-			return parentbilling.HolidayFamilyDebtorNumber{}, fmt.Errorf("parent billing: record the read of the child's number: %w", err)
-		}
-		return parentbilling.HolidayFamilyDebtorNumber{DebtorNumber: number.DebtorNumber}, nil
-	}
-	return parentbilling.HolidayFamilyDebtorNumber{}, nil
 }
 
 // rememberChildren gives the number to the only child of each registration

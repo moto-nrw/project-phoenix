@@ -194,10 +194,14 @@ type HolidayContribution struct {
 
 // IssuedContribution is what the issued invoice of a registration billed,
 // without the corrections of its run (#5662): TotalCents the family pays and
-// CostTakeoverCents the cost bearer pays.
+// CostTakeoverCents the cost bearer pays. Children names the children
+// invoices per child bill (#7007), empty when one invoice bills the whole
+// registration: until each child has its invoice, the others bill only their
+// own part of the contribution.
 type IssuedContribution struct {
 	TotalCents        int64
 	CostTakeoverCents int64
+	Children          []int64
 }
 
 // HolidayCancellation is a cancelled registration (#5662).
@@ -491,8 +495,12 @@ type HolidayContributions interface {
 	// the family's from then on (#6692); familyChoice says which applies
 	// when it differs from the number the family has (FamilyDebtorNumberKeep
 	// or FamilyDebtorNumberReplace), without one that is a
-	// FamilyDebtorNumberConflict.
-	ConfirmHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber, familyChoice string) (HolidayConfirmation, error)
+	// FamilyDebtorNumberConflict. childNumbers, when the Träger keeps the
+	// number per child (#7007), are the numbers of the children instead:
+	// each is its child's from then on, and when the Träger asks for a
+	// number, a child without one is a validation error.
+	ConfirmHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption bool,
+		costBearerID int64, debtorNumber, familyChoice string, childNumbers []HolidayChildDebtorNumberInput) (HolidayConfirmation, error)
 	// CancelHolidayRegistration cancels the registration through Enrollment
 	// in the caller's Träger transaction (#5662). In a sibling group it
 	// takes the registration out of the group and computes the frozen
@@ -515,4 +523,11 @@ type HolidayContributions interface {
 	// registration has at the Träger, which the confirmation proposes
 	// (#6692); the read is recorded in the family's trail.
 	HolidayFamilyDebtorNumber(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayFamilyDebtorNumber, error)
+	// SetHolidayChildDebtorNumbers changes the numbers of the children of a
+	// confirmed registration (#7007), as at its confirmation; each change is
+	// recorded in the trail of the number. A child of another registration
+	// is ErrChildNotFound, a registration that is not confirmed
+	// ErrHolidayRegistrationStateConflict.
+	SetHolidayChildDebtorNumbers(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64,
+		numbers []HolidayChildDebtorNumberInput) (HolidayFamilyDebtorNumber, error)
 }

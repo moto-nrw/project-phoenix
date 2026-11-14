@@ -84,12 +84,21 @@ const FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
 ]);
 
 function rowMenuLabel(document: BillingDocument): string {
-  return `Aktionen für die Rechnung an ${recipientName(document)}`;
+  // Siblings with an invoice each share the recipient (#7007).
+  const child = document.registrationChildId ? document.children[0] : undefined;
+  const forChild = child ? ` für ${child.firstName}` : "";
+  return `Aktionen für die Rechnung an ${recipientName(document)}${forChild}`;
 }
 
-/** A draft has no ID yet; its registration names it. */
+/**
+ * A draft has no ID yet; its registration names it, and its child when the
+ * registration has an invoice per child (#7007).
+ */
 function rowKey(document: BillingDocument): string {
-  return document.id || `draft-${document.registrationId}`;
+  return (
+    document.id ||
+    `draft-${document.registrationId}-${document.registrationChildId || "all"}`
+  );
 }
 
 /**
