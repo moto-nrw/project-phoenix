@@ -109,6 +109,11 @@ func (rs *Resource) parseStudentListPlan(r *http.Request) (studentListPlan, rend
 	if err := parseCareOfferingFilter(r, params); err != nil {
 		return studentListPlan{}, common.ErrorInvalidRequest(err)
 	}
+	if err := rs.readEnrollmentAnswerFilter(r, params); errors.Is(err, errEnrollmentAnswerForbidden) {
+		return studentListPlan{}, common.ErrorForbidden(err)
+	} else if err != nil {
+		return studentListPlan{}, common.ErrorInvalidRequest(err)
+	}
 	now := rs.Now()
 	planningDate, isToday, dateErr := resolvePlanningDate(params.date, now)
 	if dateErr != nil {
@@ -311,13 +316,22 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 			return students, totalCount, nil
 		}
 	}
-	if nonEmpty, err := rs.resolveOperationalParticipantFilter(ctx, params); err != nil {
+	if nonEmpty, err := rs.resolveNarrowingFilters(ctx, params); err != nil {
 		return nil, 0, err
 	} else if !nonEmpty {
 		return []*peopleModule.StudentState{}, 0, nil
 	}
 
 	return rs.runStandardStudentQuery(ctx, params)
+}
+
+// resolveNarrowingFilters applies the filters that only narrow the
+// pre-filtered children: the registration answer (#6954) and the running care.
+func (rs *Resource) resolveNarrowingFilters(ctx context.Context, params *studentListParams) (bool, error) {
+	if nonEmpty, err := rs.resolveEnrollmentAnswerFilter(ctx, params); err != nil || !nonEmpty {
+		return nonEmpty, err
+	}
+	return rs.resolveOperationalParticipantFilter(ctx, params)
 }
 
 func (rs *Resource) resolveOperationalParticipantFilter(

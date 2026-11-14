@@ -1,7 +1,7 @@
 "use client";
 
 // Die Dokumentart einer Leistung (#4688): Rechnung, Gebührenbescheid oder
-// (nur Ferien) Bestätigung mit Rechnung. Die Wahl gilt ab der nächsten
+// (nur Ferien) Bestätigung und Rechnung. Die Wahl gilt ab der nächsten
 // Freigabe; ausgestellte Belege behalten ihre Art.
 
 import { useEffect, useId, useRef, useState } from "react";
@@ -35,17 +35,21 @@ const KIND_HINT: Readonly<Record<DocumentKind, string>> = {
 };
 
 const SERVICE_DESCRIPTION = {
-  holiday: "Gilt für die Schreiben der Ferienläufe.",
-  care: "Gilt für die Schreiben der Monatsläufe.",
+  holiday:
+    "Gilt für die Schreiben der Ferienläufe. Nach der Wahl speichern Sie unten.",
+  care: "Gilt für die Schreiben der Monatsläufe. Nach der Wahl speichern Sie unten.",
 } as const;
 
 export function DocumentKindCard({
   service,
   concept,
+  legalRemedyMissing = false,
   onSaved,
 }: Readonly<{
   service: ServiceDocumentKind;
   concept: MotoConcept;
+  /** No Rechtsbehelfsbelehrung yet: the fee notice names its precondition. */
+  legalRemedyMissing?: boolean;
   onSaved: (overview: DocumentKindOverview) => void;
 }>) {
   const [draft, setDraft] = useState<DocumentKind>(service.documentKind);
@@ -101,7 +105,9 @@ export function DocumentKindCard({
         <div
           role="radiogroup"
           aria-label={`Dokumentart für ${BILLING_SERVICE_LABEL[service.service]}`}
-          className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3"
+          // items-start: each tile keeps its own height; a chosen short tile
+          // does not stretch into a tall empty green block.
+          className="grid items-start gap-2 sm:grid-cols-2 xl:grid-cols-3"
         >
           {service.choices.map((kind) => (
             <ChoiceTile
@@ -129,6 +135,11 @@ export function DocumentKindCard({
                   ) : null}
                 </span>
                 <span className="text-sm text-gray-600">{KIND_HINT[kind]}</span>
+                {kind === "fee_notice" && legalRemedyMissing ? (
+                  <span className="text-moto-orange-strong text-sm font-medium">
+                    Braucht eine Rechtsbehelfsbelehrung. Noch keine eingetragen.
+                  </span>
+                ) : null}
               </span>
             </ChoiceTile>
           ))}

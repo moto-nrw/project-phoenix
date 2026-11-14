@@ -28,7 +28,10 @@ func TestEnrolledStudentIDsByNamesAndClassesAnswersLikeTheSingleKeyLookup(t *tes
 	asciiTwin := testpkg.CreateTestStudent(t, db, "  JORG", "grosse ", "2B")
 	otherClass := testpkg.CreateTestStudent(t, db, "Jorg", "Grosse", "3c")
 	deleted := testpkg.CreateTestStudent(t, db, "Geloescht", "Person", "2b")
-	require.NoError(t, module.DeletePerson(ctx, deleted.PersonID))
+	// A deleted person beside a child row: the person deletion refuses it
+	// since #6840, so the fixture writes the legacy state directly.
+	_, err = db.NewRaw(`UPDATE users.persons SET deleted_at = now() WHERE id = ?`, deleted.PersonID).Exec(ctx)
+	require.NoError(t, err)
 	testpkg.CreateTestPerson(t, db, "Ohne", "Kind")
 
 	keys := []peopledirectory.NameAndClass{

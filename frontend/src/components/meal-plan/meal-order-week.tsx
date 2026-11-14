@@ -5,10 +5,8 @@ import { useLocale } from "next-intl";
 import { CalendarRange, FileSpreadsheet, FileText } from "lucide-react";
 
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
-import {
-  EXPORT_FORMAT_LABELS,
-  ExportDialog,
-} from "~/components/ui/export-dialog";
+import { ExportDialog } from "~/components/ui/export-dialog";
+import { EXPORT_FORMAT_LABELS } from "~/components/ui/export-formats";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -167,6 +165,7 @@ export function MealOrderWeek({
         deliveryBusy === format
           ? t("downloadLoading")
           : EXPORT_FORMAT_LABELS[format],
+      description: t("deliveryDownloadDescription"),
       icon:
         format === "pdf" ? (
           <FileText className="h-4 w-4" aria-hidden />
@@ -182,6 +181,7 @@ export function MealOrderWeek({
           { kind: "header", label: t("monthHeader") },
           {
             label: t("monthExport"),
+            description: t("monthExportDescription"),
             icon: <CalendarRange className="h-4 w-4" aria-hidden />,
             onClick: () => setMonthExportOpen(true),
           },
@@ -196,6 +196,7 @@ export function MealOrderWeek({
               monthBusy === format
                 ? t("downloadLoading")
                 : EXPORT_FORMAT_LABELS[format],
+            description: t("monthDownloadDescription"),
             icon:
               format === "pdf" ? (
                 <FileText className="h-4 w-4" aria-hidden />

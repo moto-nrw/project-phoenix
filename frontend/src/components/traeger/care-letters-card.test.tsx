@@ -164,7 +164,7 @@ describe("CareLettersCard (#4684)", () => {
     });
     expect(
       screen.getByRole("button", { name: "An alle senden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText(/Alle Schreiben mit E-Mail-Adresse sind gesendet/),
     ).toBeInTheDocument();

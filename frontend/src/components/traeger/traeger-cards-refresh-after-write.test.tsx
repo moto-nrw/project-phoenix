@@ -215,7 +215,7 @@ describe("Träger cards reload after a confirmed write", () => {
     // Anker: retry left the confirmed rule visible and did not open creation.
     expect(screen.getByText("Befreit")).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "Befreiungsregel hinzufügen" }),
+      screen.getByRole("button", { name: "Befreiungsregel anlegen" }),
     ).toBeVisible();
     expect(screen.queryByRole("dialog")).toBeNull();
   });

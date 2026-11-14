@@ -51,6 +51,13 @@ const (
 	DebtorNumberInvalid = "invalid"
 	// DebtorNumberNoFamily is a row whose family moto does not know.
 	DebtorNumberNoFamily = "no_family"
+	// DebtorNumberNoChild is a row whose child moto cannot tell when the
+	// Träger keeps a number per child (#7007): the payer column names a
+	// family with several children under contract, not the contract.
+	DebtorNumberNoChild = "no_child"
+	// DebtorNumberRowsDiffer is a child whose rows carry different
+	// numbers: the import takes over none of them (#7007).
+	DebtorNumberRowsDiffer = "rows_differ"
 )
 
 // How the payer column names the family of a mandate.
@@ -60,6 +67,11 @@ const (
 	PayerByEmail = "email"
 	// PayerByContract is the number of the Betreuungsvertrag in moto.
 	PayerByContract = "contract_id"
+	// PayerByDebtorNumber is the debtor number moto keeps: the child's when
+	// the Träger keeps one per child, else the family's (#7009). A file
+	// without contract numbers and addresses, such as the master data of
+	// OGS Connect, names its payers so.
+	PayerByDebtorNumber = "debtor_number"
 )
 
 // What the import does with a row.
@@ -72,6 +84,11 @@ const (
 	// ImportRowDuplicate is a mandate the Träger already has with the same
 	// reference, family, date and creditor: a repeated import skips it.
 	ImportRowDuplicate = "duplicate"
+	// ImportRowSameMandate is the mandate of a row before it in the file:
+	// the same family, reference, account, signing date and creditor, as a
+	// file with a row per child repeats it for each sibling (#7009). The
+	// import stores it once; SameMandateLine names that row.
+	ImportRowSameMandate = "same_mandate"
 	// ImportRowConflict contradicts a mandate the Träger has or another row;
 	// it is never overwritten.
 	ImportRowConflict = "conflict"
@@ -83,13 +100,16 @@ const (
 
 // Problems of a row. Each names a field and a code; none repeats a value.
 const (
-	ImportProblemMissing           = "missing"
-	ImportProblemInvalid           = "invalid"
-	ImportProblemFuture            = "future"
-	ImportProblemBeforeSigned      = "before_signed"
-	ImportProblemBICRequired       = "bic_required"
-	ImportProblemTooLong           = "too_long"
-	ImportProblemPayerUnknown      = "payer_unknown"
+	ImportProblemMissing      = "missing"
+	ImportProblemInvalid      = "invalid"
+	ImportProblemFuture       = "future"
+	ImportProblemBeforeSigned = "before_signed"
+	ImportProblemBICRequired  = "bic_required"
+	ImportProblemTooLong      = "too_long"
+	ImportProblemPayerUnknown = "payer_unknown"
+	// ImportProblemPayerAmbiguous is a debtor number moto keeps for more
+	// than one family or child (#7009): the row names no single payer.
+	ImportProblemPayerAmbiguous    = "payer_ambiguous"
 	ImportProblemFamilyUnknown     = "family_unknown"
 	ImportProblemCreditorMismatch  = "creditor_mismatch"
 	ImportProblemReferenceTaken    = "reference_taken"
@@ -212,6 +232,9 @@ type SEPAMandateImportRow struct {
 	// what the import does with it (#4693); empty without the column.
 	DebtorNumber       string `json:"debtor_number,omitempty"`
 	DebtorNumberStatus string `json:"debtor_number_status,omitempty"`
+	// SameMandateLine is the line of the row whose mandate this row repeats
+	// (ImportRowSameMandate, #7009).
+	SameMandateLine int `json:"same_mandate_line,omitempty"`
 }
 
 // SEPAMandateImportCounts counts the rows per status.
@@ -219,10 +242,19 @@ type SEPAMandateImportCounts struct {
 	Ready     int `json:"ready"`
 	Clarify   int `json:"clarify"`
 	Duplicate int `json:"duplicate"`
-	Conflict  int `json:"conflict"`
-	Invalid   int `json:"invalid"`
-	Imported  int `json:"imported"`
-	// DebtorNumbers counts the families whose debtor number the import
+	// SameMandate counts the rows that repeat the mandate of a row before
+	// them (#7009).
+	SameMandate int `json:"same_mandate"`
+	Conflict    int `json:"conflict"`
+	Invalid     int `json:"invalid"`
+	Imported    int `json:"imported"`
+	// WithoutMandate counts the rows without an IBAN and a reference, which
+	// the import skips: a file with a row per child, such as the master
+	// data of OGS Connect, has them for every child without a mandate
+	// (#7009).
+	WithoutMandate int `json:"without_mandate"`
+	// DebtorNumbers counts the families, or the children when the Träger
+	// keeps a number per child (#7007), whose debtor number the import
 	// takes over; DebtorConflicts the rows whose number it leaves.
 	DebtorNumbers   int `json:"debtor_numbers"`
 	DebtorConflicts int `json:"debtor_conflicts"`

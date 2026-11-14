@@ -15,4 +15,19 @@ var childNavigationDefinitions = []config.Definition{
 		Category:        "organisation",
 		SortOrder:       2,
 	},
+	{
+		// #6956: Betreuungskräfte, die wenig mit Technik arbeiten, verlieren
+		// in der vollen Seitenleiste den Überblick. Die Seiten selbst und die
+		// Rechte bleiben unverändert; jede Person kann alle Seiten einblenden.
+		Key:             config.KeySimpleStaffNavigation,
+		Label:           "Einfache Seitenleiste für die Betreuung",
+		Description:     "Wer die Schule nicht leitet, sieht nur die Seiten für den Betreuungsalltag: Startseite, Heute, Gruppen, Alle Kinder, Aktuelle Aufsicht, Räume, Mein Kalender, Zeiterfassung und Hinweise der Leitung. Jede Person kann unten in der Seitenleiste „Alle Seiten anzeigen“ wählen. Die Rechte ändern sich nicht.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "organisation",
+		SortOrder:       3,
+	},
 }

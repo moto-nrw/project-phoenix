@@ -829,7 +829,7 @@ func checkTimetableConflictWiring(t *testing.T, graph *goldenRuntime) {
 	_, _, _, _, _, _, _, _, settings, _, services, schedules, requests, _, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
 	require.NoError(t, err)
 	timetable := newTimetableResource(nil, nil, nil, nil, materialization, lifecycle, planning, nil, services.Users, schedules, nil, settings.Service,
-		requests.CareOfferings, ClassDayViews{}, nil, nil, nil, nil, slog.Default())
+		requests.CareOfferings, ClassDayViews{}, nil, nil, nil, nil, nil, slog.Default())
 	require.NotNil(t, timetable)
 	require.NotNil(t, timetable.ConflictDetection, "api/timetable must hold the owner's conflict detection")
 	assert.Same(t, planning.Planning.ConflictDetection, timetable.ConflictDetection,
@@ -845,8 +845,8 @@ func checkTimetableConflictWiring(t *testing.T, graph *goldenRuntime) {
 	require.Equal(t, http.StatusOK, probe.Code, probe.Body.String())
 }
 
-// The auth limiters' burst follows the per-minute budget (minimum 10), so a
-// school whose staff share one public IP can sign in together.
+// The auth limiters' burst follows the per-minute budget (minimum 10). The
+// login limiter spends it on refused attempts only.
 func TestBuildAuthRateLimitersBurstFollowsLimit(t *testing.T) {
 	t.Parallel()
 
@@ -856,7 +856,7 @@ func TestBuildAuthRateLimitersBurstFollowsLimit(t *testing.T) {
 	}{{"5", 10}, {"30", 30}} {
 		limiters := buildAuthRateLimiters(nil, tc.limit, false)
 		handler := limiters.auth.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusNoContent)
+			w.WriteHeader(http.StatusUnauthorized)
 		}))
 		codes := make([]int, 0, tc.burst+1)
 		for range tc.burst + 1 {
@@ -866,8 +866,65 @@ func TestBuildAuthRateLimitersBurstFollowsLimit(t *testing.T) {
 			handler.ServeHTTP(rr, req)
 			codes = append(codes, rr.Code)
 		}
-		assert.Equal(t, http.StatusNoContent, codes[tc.burst-1], "limit %s: request %d is within the burst", tc.limit, tc.burst)
+		assert.Equal(t, http.StatusUnauthorized, codes[tc.burst-1], "limit %s: request %d is within the burst", tc.limit, tc.burst)
 		assert.Equal(t, http.StatusTooManyRequests, codes[tc.burst], "limit %s: request %d exceeds the burst", tc.limit, tc.burst+1)
+	}
+}
+
+// Parents behind one school network sign in together (#6738): with the
+// default budget, sixty accepted logins and a few mistyped passwords from one
+// address all pass. Guessing from that address still meets the limit, and a
+// mail request spends its token even when accepted.
+func TestAuthRateLimiterLetsOneNetworkSignInTogether(t *testing.T) {
+	t.Parallel()
+
+	limiters := buildAuthRateLimiters(nil, "", false)
+	handler := limiters.auth.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case sendsAuthMail(r):
+			w.WriteHeader(http.StatusAccepted)
+		case r.URL.Query().Get("password") == "wrong":
+			w.WriteHeader(http.StatusUnauthorized)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	status := func(target string) int {
+		req := httptest.NewRequest(http.MethodPost, target, nil)
+		req.RemoteAddr = "203.0.113.7:54321"
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		return rr.Code
+	}
+
+	for parent := range 60 {
+		if parent%10 == 0 {
+			require.Equal(t, http.StatusUnauthorized, status("/parent/auth/login?password=wrong"), "parent %d mistypes once", parent)
+		}
+		require.Equal(t, http.StatusOK, status("/parent/auth/login"), "parent %d signs in", parent)
+	}
+	for range 4 {
+		require.Equal(t, http.StatusAccepted, status("/parent/auth/password-reset"))
+	}
+	assert.Equal(t, http.StatusTooManyRequests, status("/parent/auth/login?password=wrong"), "six refusals and four mails used the burst of ten")
+}
+
+// Every portal's mail-sending auth route spends a token; the other auth
+// routes spend one only when refused.
+func TestSendsAuthMailMatchesThePortalMailRoutes(t *testing.T) {
+	t.Parallel()
+
+	for path, want := range map[string]bool{
+		"/auth/password-reset": true, "/parent/auth/password-reset": true, "/school/password-reset": true,
+		"/traeger/auth/password-reset": true, "/caterer/auth/password-reset": true,
+		"/auth/mfa/resend": true, "/operator/auth/mfa/resend": true, "/school/mfa/resend": true,
+		"/traeger/auth/mfa/resend": true, "/caterer/auth/mfa/resend": true,
+		"/caterer/account/mfa/start": true, "/caterer/auth/passkeys/enrollment/challenge": true,
+		"/traeger/auth/mfa/step-up": true, "/traeger/auth/mfa/step-up/verify": false,
+		"/auth/login": false, "/parent/auth/login": false, "/auth/password-reset/confirm": false,
+		"/auth/mfa/verify": false, "/auth/passkeys/login/verify": false, "/caterer/account/mfa/confirm": false,
+	} {
+		assert.Equal(t, want, sendsAuthMail(httptest.NewRequest(http.MethodPost, path, nil)), path)
 	}
 }
 
@@ -881,8 +938,9 @@ func TestBuildAuthRateLimitersExemptLoopbackOnlyWhenAsked(t *testing.T) {
 		for name, limiter := range map[string]*customMiddleware.RateLimiter{
 			"auth": limiters.auth, "email confirm": limiters.emailConfirm, "invitation": limiters.invitation,
 		} {
+			// A refusal, which every limiter counts, the login limiter too.
 			handler := limiter.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusNoContent)
+				w.WriteHeader(http.StatusUnauthorized)
 			}))
 			last := 0
 			for range 11 { // one more than the burst of 10
@@ -894,7 +952,7 @@ func TestBuildAuthRateLimitersExemptLoopbackOnlyWhenAsked(t *testing.T) {
 			}
 			want := http.StatusTooManyRequests
 			if exempt {
-				want = http.StatusNoContent
+				want = http.StatusUnauthorized
 			}
 			assert.Equal(t, want, last, "%s limiter, exempt=%v", name, exempt)
 		}

@@ -122,9 +122,10 @@
 //                               string literal or template chunk holding a
 //                               CSS hex color (`#83CD2D`, `text-[#4070C8]`,
 //                               a bare `#666`); one literal counts once.
-//                               The token source itself, the web manifest
-//                               and global-error.tsx (no stylesheet at that
-//                               boundary) are exempt by name
+//                               The token source (lib/kit-palette.ts), the
+//                               domain colours in location-helper.ts, the web
+//                               manifest and global-error.tsx (no stylesheet
+//                               at that boundary) are exempt by name
 //                               (HEX_TOKEN_SOURCES). Hard-zero since #3119;
 //                               src/test/ excluded.
 //
@@ -314,26 +315,26 @@ const ROW_ACTION_BASELINE = new Map(
       "aus Zielen entfernen@785",
     ],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
-      "Gericht entfernen@867",
+      "Gericht entfernen@891",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1629",
-      "Entfernen@2042",
+      "Antwort entfernen@1649",
+      "Entfernen@2065",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@2024",
+      "Bedingung löschen@2036",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
       "Entfernen@596",
-      "Telefonnummer entfernen@865",
+      "Telefonnummer entfernen@862",
     ],
     "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1310"],
     "src/components/staff/stammdaten-section-forms.tsx": [
-      "Qualifikation entfernen@477",
+      "Qualifikation entfernen@478",
     ],
     "src/components/students/companion-picker.tsx": ["entfernen@297"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@817",
+      "Erziehungsberechtigte/n entfernen@818",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@810",
@@ -1219,7 +1220,7 @@ const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
   Object.entries({
     // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
     "src/components/students/planned-status-days-modal.tsx": [
-      "Bearbeiten@1334",
+      "Bearbeiten@1370",
     ],
   }),
 );
@@ -1461,8 +1462,8 @@ const FORM_CONTEXT_EXCEPTIONS = new Map(
   Object.entries({
     // Übergabe einer Gruppe: Erklärung und die Gruppe, um die es geht.
     "src/components/groups/group-transfer-modal.tsx": [
-      "InfoSection@228",
-      "DataGrid@242",
+      "InfoSection@245",
+      "DataGrid@259",
     ],
   }),
 );
@@ -1571,7 +1572,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
     // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1535",
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1555",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
@@ -1582,7 +1583,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Termin bearbeiten Termin erstellen@1065",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@604",
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@611",
     ],
     // Seit #5604 gilt die Regel im Schul- und Operator-Portal. Diese Formulare
     // haben keine eigene Objektroute; ein Umbau geht über das Seitengerüst
@@ -1597,7 +1598,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Schule bearbeiten@163",
     ],
     "src/app/school/kalender/page.tsx": [
-      "Schultermin anlegen Schultermin bearbeiten@329",
+      "Schultermin anlegen Schultermin bearbeiten@334",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
       "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@274",
@@ -1606,10 +1607,10 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@1011",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@1031",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@1033",
     ],
     "src/components/files/folder-modal.tsx": [
-      "Ordner bearbeiten Neuer Ordner@149",
+      "Ordner bearbeiten Neuer Ordner@156",
     ],
     "src/components/planning/closing-day-modal.tsx": [
       "Schließtag bearbeiten Schließtag anlegen@154",
@@ -1618,14 +1619,14 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Hinweis bearbeiten Neuer Hinweis@190",
     ],
     "src/components/timetable/calendar-period-modal.tsx": [
-      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@432",
+      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@439",
     ],
     // Kontoaktionen mit eigenem Ablauf (Begründung und Rückfrage bei der
     // Zwei-Faktor-Authentifizierung, Auflösen offener Zuordnungen bei der
     // Betreuung): keine Feldgruppe des Datensatzes, aus dem Kebab der
     // Personalakte geöffnet (#3116).
     "src/components/auth/mfa-admin-override-modal.tsx": [
-      "Zwei-Faktor-Authentifizierung verwalten@387",
+      "Zwei-Faktor-Authentifizierung verwalten@379",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
       "resolve Zuordnungen auflösen: Betreuung verwalten:@337",
@@ -1895,7 +1896,9 @@ function findShortHexColor(text) {
 // Files that define or must emit raw hex by construction. Not a baseline:
 // these do not shrink.
 const HEX_TOKEN_SOURCES = new Set([
-  // Die Quelle der Farbwerte selbst (LOCATION_COLORS, MOTO_COLOR_PALETTE).
+  // The dependency-neutral source of UI colour tokens.
+  "src/lib/kit-palette.ts",
+  // Fachliche Farbwerte, die das Kit nicht kennt: Legacy-Raumfarben (#6573).
   "src/lib/location-helper.ts",
   // Web-App-Manifest: theme_color/background_color sind Hex per Spezifikation.
   "src/lib/favicon-variants.ts",
@@ -1909,7 +1912,7 @@ const noRawStatusHex = {
     type: "problem",
     docs: {
       description:
-        "Status and planning colors come from LOCATION_COLORS / MOTO_COLOR_PALETTE or moto-* classes; no raw hex value outside src/lib/location-helper.ts.",
+        "Status and planning colors come from LOCATION_COLORS / MOTO_COLOR_PALETTE or moto-* classes; no raw hex value outside src/lib/kit-palette.ts and src/lib/location-helper.ts.",
     },
     messages: {
       rawHex:

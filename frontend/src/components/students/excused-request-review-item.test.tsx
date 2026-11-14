@@ -167,7 +167,14 @@ describe("ExcusedRequestReviewItem", () => {
       screen.getByText(/Aktuell ab 13:00 Uhr entschuldigt/),
     ).toBeInTheDocument();
     const approve = screen.getByRole("button", { name: "Freigeben" });
-    expect(approve).toBeDisabled();
+    // Gesperrt mit Grund (#6757): aria-disabled statt disabled, der Klick
+    // entscheidet nichts, und der Knopf nennt, was zuerst fehlt.
+    expect(approve).toHaveAttribute("aria-disabled", "true");
+    expect(approve).toHaveAccessibleDescription(
+      "Bestätigen Sie zuerst unten, dass die Teilentschuldigung ersetzt wird.",
+    );
+    fireEvent.click(approve);
+    expect(mockDecide).not.toHaveBeenCalled();
 
     fireEvent.click(
       screen.getByRole("checkbox", {
@@ -175,6 +182,7 @@ describe("ExcusedRequestReviewItem", () => {
       }),
     );
     expect(approve).toBeEnabled();
+    expect(approve).not.toHaveAttribute("aria-disabled");
     fireEvent.click(approve);
 
     await waitFor(() =>

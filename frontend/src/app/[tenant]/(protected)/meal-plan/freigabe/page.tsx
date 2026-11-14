@@ -311,6 +311,11 @@ export default function MealBillingReleasePage() {
             variant="success"
             size="md"
             onClick={() => setConfirming(true)}
+            tooltip={
+              month.current
+                ? "Gibt den Monat mit den neuen Zahlen frei, moto fragt vorher nach."
+                : "Gibt den Monat zur Abrechnung an den Träger, moto fragt vorher nach."
+            }
           >
             {month.current ? "Erneut freigeben" : "Monat freigeben"}
           </Button>
@@ -334,6 +339,12 @@ export default function MealBillingReleasePage() {
           isConfirmLoading={releasing}
           loadingText="Wird freigegeben …"
           isConfirmDisabled={Boolean(month?.current) && reason.trim() === ""}
+          confirmDisabledReason="Geben Sie zuerst einen Grund ein."
+          confirmTooltip={
+            month?.current
+              ? "Gibt den Monat sofort erneut frei, der Träger sieht die Änderung."
+              : "Gibt den Monat sofort frei, der Träger rechnet ihn dann ab."
+          }
         >
           {month?.current ? (
             <div className="space-y-4">

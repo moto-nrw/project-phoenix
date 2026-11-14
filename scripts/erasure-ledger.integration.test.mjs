@@ -19,7 +19,7 @@ test('external erasure list blocks an older PostgreSQL restore and ID reuse with
   writeFileSync(join(root, '.env'), '');
   writeFileSync(compose, `services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f
     network_mode: none
     environment:
       POSTGRES_PASSWORD: ${password}

@@ -200,6 +200,9 @@ type Enqueued struct {
 var (
 	ErrCancelled = errors.New("delivery: provider cancelled the intent")
 	ErrDeferred  = errors.New("delivery: provider deferred the intent")
+	// ErrThrottled refines ErrDeferred: the mail server asked to send later
+	// (#6737). The worker waits longer the older the mail is.
+	ErrThrottled = errors.New("delivery: provider throttled the intent")
 	// ErrPermanent marks a rejection that no retry can change. The intent
 	// dead-letters on this attempt, so the failure is still reported.
 	ErrPermanent = errors.New("delivery: provider rejected the intent permanently")
@@ -238,6 +241,12 @@ var ErrEmailSuppressionStaysAtProvider = errors.New("delivery: the provider keep
 type Status struct {
 	IdempotencyKey *string
 	ID             int64
+	// Kind is the template of the intent; RelatedID the entity it was
+	// enqueued for, nil without one (#6976).
+	Kind      string
+	RelatedID *int64
+	// CreatedAt is when the intent was enqueued (#6976).
+	CreatedAt      time.Time
 	Transport      Transport
 	State          State
 	Attempts       int

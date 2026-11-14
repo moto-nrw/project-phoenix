@@ -40,10 +40,10 @@ import type {
 import type { Student } from "~/lib/student-helpers";
 import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
 import {
-  countedDayStatus,
   isInClassLocation,
   isNotCheckedInLocation,
 } from "~/lib/location-helper";
+import { countedDayStatus } from "~/lib/presence-status";
 import {
   countCheckedInStudents,
   formatGroupLabelWithAttendance,
@@ -64,11 +64,12 @@ import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
-import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
-import { EmptyStudentResults } from "~/components/ui/empty-student-results";
+import { StudentPresenceBadge } from "@/components/students/presence/student-presence-badge";
+import { EmptyStudentResults } from "~/components/students/empty-student-results";
 import {
   StudentCard,
   PickupTimeRow,
+  PlannedActivityRows,
   ArrivalTimeRow,
   StudentAbsenceRow,
   StudentInfoRow,
@@ -138,7 +139,7 @@ import {
 } from "~/lib/student-time-status";
 import {
   getDayPlanningNotComingLabel,
-  getStudentPresenceBadgePlanning,
+  hasActualAttendance,
 } from "~/lib/day-planning-helper";
 
 import { createLogger } from "~/lib/logger";
@@ -290,6 +291,7 @@ function mapStudentForOgsPage(student: OgsLiveWireStudent): Student {
     day_planning_label: student.day_planning_label,
     pending_excused_note: student.pending_excused_note,
     teacher_hints: student.teacher_hints,
+    planned_activities: student.planned_activities,
     class_handover: student.class_handover,
     actual_arrival_time: student.actual_arrival_time,
     actual_pickup_time: student.actual_pickup_time,
@@ -867,7 +869,7 @@ function OGSGroupPageContent() {
     };
   }, [students]);
 
-  // Prepare filter configurations for PageHeaderWithSearch
+  // Prepare filter configurations for the TenantPage search row
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
       {
@@ -1026,24 +1028,17 @@ function OGSGroupPageContent() {
           (student) => `/students/${student.id}?from=/ogs-groups`,
           photosEnabled,
         ),
-        statusColumn("Aufenthalt", (student) => {
-          const badgePlanning = getStudentPresenceBadgePlanning(student);
-          return (
-            <StudentPresenceBadge
-              student={{
-                ...student,
-                not_arrival_today: badgePlanning.notArrivalToday,
-                not_arrival_reason: badgePlanning.notArrivalReason,
-              }}
-              displayMode="roomName"
-              isGroupRoom={isStudentInGroupRoom(student, currentGroup)}
-              variant="modern"
-              size="md"
-              // „seit“ nennt, wann das Kind zum Unterricht ging (#5710).
-              showLocationSince={isInClassLocation(student.current_location)}
-            />
-          );
-        }),
+        statusColumn("Aufenthalt", (student) => (
+          <StudentPresenceBadge
+            student={student}
+            displayMode="roomName"
+            isGroupRoom={isStudentInGroupRoom(student, currentGroup)}
+            variant="modern"
+            size="md"
+            // „seit“ nennt, wann das Kind zum Unterricht ging (#5710).
+            showLocationSince={isInClassLocation(student.current_location)}
+          />
+        )),
         classColumn({ defaultVisible: false, label: holidayGuestLabel }),
         arrivalColumn(ogsStudentDay),
         pickupColumn(ogsStudentDay),
@@ -1086,7 +1081,7 @@ function OGSGroupPageContent() {
   const selectionScope = `${selectedGroupId ?? ""}|${searchTerm}|${attendanceFilter}`;
 
   // Loading joins the access-unknown state below instead of an early return
-  // before the header, so the real PageHeaderWithSearch (title, tabs,
+  // before the header, so the real TenantPage head (title, tabs,
   // actions) renders immediately and only the student-grid area
   // skeletonizes. Permission/access early-returns below only run once
   // showSkeleton clears.
@@ -1227,15 +1222,7 @@ function OGSGroupPageContent() {
                   }}
                   locationBadge={
                     <StudentPresenceBadge
-                      student={(() => {
-                        const badgePlanning =
-                          getStudentPresenceBadgePlanning(student);
-                        return {
-                          ...student,
-                          not_arrival_today: badgePlanning.notArrivalToday,
-                          not_arrival_reason: badgePlanning.notArrivalReason,
-                        };
-                      })()}
+                      student={student}
                       displayMode="roomName"
                       isGroupRoom={inGroupRoom}
                       variant="modern"
@@ -1309,6 +1296,18 @@ function OGSGroupPageContent() {
                             );
                           }
                           const day = getOgsStudentDay(student, pickupTimes);
+                          const arrivalAbsent =
+                            (student.arrival_is_exception ?? false) &&
+                            !student.arrival_time;
+                          // As in day planning, attendance (including a return
+                          // to class) takes precedence over absence exceptions.
+                          const notHereToday =
+                            !hasActualAttendance(student) &&
+                            !isInClassLocation(student.current_location) &&
+                            (arrivalAbsent ||
+                              ((studentPickup?.isException ?? false) &&
+                                !studentPickup?.pickupTime &&
+                                !student.actual_pickup_time));
                           return (
                             <>
                               <ArrivalTimeRow
@@ -1317,14 +1316,18 @@ function OGSGroupPageContent() {
                                 isException={
                                   student.arrival_is_exception ?? false
                                 }
-                                isAbsent={
-                                  (student.arrival_is_exception ?? false) &&
-                                  !student.arrival_time
-                                }
+                                isAbsent={arrivalAbsent}
                                 notes={student.arrival_notes}
                                 now={now}
                                 day={day}
+                                prominent
                               />
+                              {/* Tagesablauf (#6487): Kommen, Angebote, Gehen. */}
+                              {notHereToday ? null : (
+                                <PlannedActivityRows
+                                  activities={student.planned_activities}
+                                />
+                              )}
                               <PickupTimeRow
                                 pickupTime={studentPickup?.pickupTime}
                                 actualTime={student.actual_pickup_time}
@@ -1341,6 +1344,7 @@ function OGSGroupPageContent() {
                                 }
                                 now={now}
                                 day={day}
+                                prominent
                               />
                             </>
                           );
@@ -1393,6 +1397,7 @@ function OGSGroupPageContent() {
       variant="outline"
       size="md"
       onClick={() => router.push("/ferienwochen")}
+      tooltip={HOLIDAY_WEEKS_TOOLTIP}
     >
       Zu den Ferienwochen
     </Button>
@@ -1426,12 +1431,10 @@ function OGSGroupPageContent() {
             {/* Der An- und Abmelde-Modus ist ab 1024px eine Kopfaktion;
                 darunter tragen ihn die Leiste am unteren Rand (Phone) und
                 der schwebende Knopf (Tablet). */}
-            <div data-icon-only="">
-              <CollectionViewSwitch
-                value={collectionView.view}
-                onChange={changeView}
-              />
-            </div>
+            <CollectionViewSwitch
+              value={collectionView.view}
+              onChange={changeView}
+            />
             {offersCheckinMode && !showTable ? (
               <div className="hidden lg:block">
                 <SchoolCheckinFab
@@ -1567,6 +1570,7 @@ function OGSGroupPageContent() {
                   variant="ghost_tone"
                   size="compact"
                   onClick={() => router.push("/ferienwochen")}
+                  tooltip={HOLIDAY_WEEKS_TOOLTIP}
                 >
                   Zu den Ferienwochen
                 </Button>
@@ -1603,6 +1607,9 @@ function OGSGroupPageContent() {
 }
 
 // Main component with Suspense wrapper
+const HOLIDAY_WEEKS_TOOLTIP =
+  "Öffnet die Ferienwochen, dort steht, welche Feriengäste kommen.";
+
 export default function OGSGroupPage() {
   return (
     <OpenCareModeGuard>

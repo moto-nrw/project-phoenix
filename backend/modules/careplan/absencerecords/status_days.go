@@ -19,6 +19,11 @@ import (
 // ErrSickExcusedConflict rejects a profile patch that leaves both statuses effective.
 var ErrSickExcusedConflict = errors.New("a student cannot be both sick and excused at the same time")
 
+// ErrStatusDayOccupied rejects a profile patch that reports a status on a day
+// a class trip already holds. The status-day write refuses such a day too,
+// with its own conflict listing.
+var ErrStatusDayOccupied = errors.New("the day already carries another student status")
+
 // Broad day statuses. The values are the persisted column values.
 const (
 	StudentStatusDaySick      = excusedrequests.StudentStatusDaySick
@@ -81,6 +86,15 @@ type StudentStatusDay struct {
 	// Note carries an optional free-text reason supplied alongside the
 	// status (currently only parent sick notes set it). Nullable.
 	Note *string `json:"note,omitempty"`
+	// ReportedByAccountID is the account that reported the day, nil for a
+	// device or an automatic run (#6842). It is never serialized.
+	ReportedByAccountID *int64 `json:"-"`
+	// ClearedSource is the source that cleared the day; Source stays the
+	// report's (#6842). Nil while the day stands. It is never serialized.
+	ClearedSource *string `json:"-"`
+	// ClearedByAccountID is the account that cleared the day, nil for a
+	// device or an automatic run (#6842). It is never serialized.
+	ClearedByAccountID *int64 `json:"-"`
 }
 
 // StudentStatusCounts is the effective dashboard absence buckets of one day.

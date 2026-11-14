@@ -14,11 +14,11 @@ import (
 // newWorkTimeModelsResource wires the /api/work-time-models adapter over the Workforce
 // capability. NotifyChanged invalidates the time-account views after a
 // template edit rewrote the assigned staff schedules.
-func newWorkTimeModelsResource(models workforce.Capability, notifyChanged func(context.Context)) *worktimemodelsHTTP.Resource {
-	if models == nil || notifyChanged == nil {
+func newWorkTimeModelsResource(models workforce.Capability, catalog workforce.WorkTimeModelCatalog, notifyChanged func(context.Context)) *worktimemodelsHTTP.Resource {
+	if models == nil || catalog == nil || notifyChanged == nil {
 		panic("work-time-models HTTP composition: all dependencies are required")
 	}
-	return worktimemodelsHTTP.NewResource(models, workTimeModelsRuntime(notifyChanged))
+	return worktimemodelsHTTP.NewResource(models, catalog, workTimeModelsRuntime(notifyChanged))
 }
 
 func workTimeModelsRuntime(notifyChanged func(context.Context)) worktimemodelsHTTP.Runtime {

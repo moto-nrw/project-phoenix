@@ -45,6 +45,7 @@ type TraegerPortalIdentity interface {
 	identityaccess.TraegerAccountLogin
 	identityaccess.AccountMFAChallenges
 	identityaccess.AccountMFAEnrollment
+	identityaccess.AccountTrustedDevices
 	identityaccess.TraegerAccountManagement
 	identityaccess.TraegerRoles
 	identityaccess.TraegerSchoolSessions
@@ -83,8 +84,8 @@ type TraegerAudit struct {
 // #4649) at /traeger: the public sign-in and the Träger route group, which
 // accepts only Träger sessions. Token refresh and logout go through the
 // shared scope-preserving /auth/refresh and /auth/logout.
-func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar, holidayMail enrollment.TraegerMailOutbox, holidayTraeger enrollment.HolidayTraegerDirectory) error {
-	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayMail, holidayTraeger)
+func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar, holidayMail enrollment.TraegerMailOutbox, holidayMails enrollment.HolidayMailStates, holidayTraeger enrollment.HolidayTraegerDirectory) error {
+	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayMail, holidayMails, holidayTraeger)
 	if err != nil {
 		return err
 	}
@@ -102,10 +103,11 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 // holidayMail tells the parents the places the Büro decided on by criteria
 // (#4700), in the Träger transaction of the decision; holidayTraeger names
 // the Träger and the host schools in that mail, like the mail of a booking
-// that moved up (#6437).
-func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar, holidayMail enrollment.TraegerMailOutbox, holidayTraeger enrollment.HolidayTraegerDirectory) (*traegerportal.Resource, error) {
-	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil || holidayCalendar == nil || holidayMail == nil || holidayTraeger == nil {
-		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log, the settings, the host schools' calendar, the holiday mail and the Träger names are required")
+// that moved up (#6437). holidayMails names the receipt and acceptance mails
+// that did not reach the parents (#6737).
+func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar, holidayMail enrollment.TraegerMailOutbox, holidayMails enrollment.HolidayMailStates, holidayTraeger enrollment.HolidayTraegerDirectory) (*traegerportal.Resource, error) {
+	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil || holidayCalendar == nil || holidayMail == nil || holidayMails == nil || holidayTraeger == nil {
+		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log, the settings, the host schools' calendar, the holiday mail, its states and the Träger names are required")
 	}
 	overview, err := traegerViewCompose.New(traegerview.Ports{
 		SchoolIDs: traegerSchoolIDs{organizations: organizations}, Trail: traegerAccessTrail{trail: audit.Trail},
@@ -120,7 +122,7 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	if err != nil {
 		return nil, err
 	}
-	review, places, allocation, records := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayMail, holidayTraeger, holidayCalendar)
+	review, places, allocation, records := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayMail, holidayTraeger, holidayCalendar, holidayMails)
 	_, allocationBilling := parentBillingCompose.NewHolidayContributions(parentBillingHolidayRegistrations{review: review}, parentBillingSettings{settings: settings})
 	decide := newHolidayAllocation(allocationBilling, review, places, allocation)
 	_, wishes := enrollmentCompose.NewHolidayWishes(healthData)
@@ -135,9 +137,12 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	// The names of the Träger-Büro (#4693); a route-sized test identity
 	// without them answers 500 on those routes, the serving root refuses it.
 	profiles, _ := identity.(identityaccess.TraegerMemberProfiles)
+	// The code step in the running Träger session (#7068); a route-sized
+	// test identity without it answers 500 on those routes.
+	stepUp, _ := identity.(identityaccess.TraegerSessionStepUp)
 	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity),
 		portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeTraeger), overviewRoutes, holidayPeriods,
-		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, profiles, overviewRoutes, identity), nil
+		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, profiles, overviewRoutes, identity, stepUp), nil
 }
 
 // TraegerPortalSettings is the Träger level of the settings system as the
@@ -436,10 +441,13 @@ func TraegerPortalAuth(sessions identityaccess.TraegerAccountLogin) traegerporta
 
 // TraegerPortalMFA binds the Träger second factor. The org challenge scope is
 // applied here, so a challenge of another portal is refused before any code
-// is compared. A Träger challenge names no school.
+// is compared. A Träger challenge names no school, and a Träger's remembered
+// device names its Träger and no school: the device calls run without a
+// school and bound to the Träger (identityaccess.WithTraegerDevice, #6955).
 func TraegerPortalMFA(mfa interface {
 	identityaccess.AccountMFAChallenges
 	identityaccess.AccountMFAEnrollment
+	identityaccess.AccountTrustedDevices
 }) traegerportal.MFARuntime {
 	if mfa == nil {
 		return traegerportal.MFARuntime{}
@@ -464,6 +472,21 @@ func TraegerPortalMFA(mfa interface {
 		},
 		Enroll: func(ctx context.Context, proof traegerportal.VerifiedChallenge) error {
 			return mfa.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: proof.AccountID, Scope: identityaccess.MFAChallengeScopeOrg, MFAResetGeneration: proof.MFAResetGeneration})
+		},
+		PrepareTrustedDevice: func(ctx context.Context, accountID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+			return mfa.PrepareTrustedDevice(ctx, accountID, 0, userAgent, ip)
+		},
+		ListTrustedDevices: func(ctx context.Context, accountID, organizationID int64) ([]identityaccess.AccountTrustedDevice, error) {
+			if organizationID <= 0 {
+				return nil, identityaccess.ErrMFAPermissionDenied
+			}
+			return mfa.ListTrustedDevices(identityaccess.WithTraegerDevice(ctx, organizationID), accountID, 0)
+		},
+		RevokeTrustedDevice: func(ctx context.Context, accountID, organizationID, deviceID int64) error {
+			if organizationID <= 0 {
+				return identityaccess.ErrMFAPermissionDenied
+			}
+			return mfa.RevokeTrustedDevice(identityaccess.WithTraegerDevice(ctx, organizationID), accountID, 0, deviceID)
 		},
 	}
 }

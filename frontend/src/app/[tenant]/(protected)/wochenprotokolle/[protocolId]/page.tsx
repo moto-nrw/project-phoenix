@@ -4,6 +4,7 @@ import { SectionLabel } from "~/components/ui/section-label";
 import { useRef, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { RoleGuard } from "~/components/auth/role-guard";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -332,27 +333,41 @@ function HeadActions({
   if (protocol.status === "closed") {
     // A download, not a page: a plain anchor in the kit's button look.
     return (
-      <a
-        href={weekProtocolsService.pdfUrl(protocol.id)}
-        // Kennzeichen der Kopfkarte für ihre Bedienhöhe (wie `ButtonLink`).
-        data-button-link=""
-        className={buttonClassName({
-          variant: "outline",
-          size: "md",
-          className: "",
-        })}
-      >
-        PDF herunterladen
-      </a>
+      <ActionHint text="Speichert das abgeschlossene Protokoll als PDF auf Ihrem Gerät.">
+        <a
+          href={weekProtocolsService.pdfUrl(protocol.id)}
+          // Kennzeichen der Kopfkarte für ihre Bedienhöhe (wie `ButtonLink`).
+          data-button-link=""
+          className={buttonClassName({
+            variant: "outline",
+            size: "md",
+            className: "",
+          })}
+        >
+          PDF herunterladen
+        </a>
+      </ActionHint>
     );
   }
   if (protocol.status !== "draft" || editing) return null;
   return (
     <div className="flex flex-wrap gap-2">
-      <Button type="button" variant="outline" size="md" onClick={onEdit}>
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={onEdit}
+        tooltip="Zeigt Felder für Notizen zu jedem Tag der Woche."
+      >
         Ergänzen
       </Button>
-      <Button type="button" variant="primary" size="md" onClick={onClose}>
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        onClick={onClose}
+        tooltip="Schreibt das Protokoll endgültig fest. moto fragt vorher nach."
+      >
         Abschließen
       </Button>
     </div>

@@ -1,6 +1,5 @@
 "use client";
 
-import { Z_INDEX } from "./overlay-styles";
 import { ChevronDown } from "lucide-react";
 import {
   useCallback,
@@ -16,6 +15,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { foldForSearch } from "~/lib/search-fold";
 import { cn } from "~/lib/utils";
 import {
   selectTriggerClassName,
@@ -23,6 +23,14 @@ import {
 } from "./select-trigger-styles";
 
 import { CheckboxIndicator } from "./checkbox";
+import { MODAL_SCOPE_SELECTOR, SCROLL_AREA_PROPS } from "./overlay-stack";
+import { useAnchoredPanel, useMenuLayer } from "./anchored-panel";
+import {
+  clampPanelStart,
+  PANEL_GAP,
+  PANEL_VIEWPORT_MARGIN,
+  spaceAroundAnchor,
+} from "./panel-geometry";
 
 export interface ListboxDropdownOption<K extends string> {
   readonly value: K;
@@ -47,7 +55,13 @@ const OPTION_IDLE_CLASS = "text-gray-700 hover:bg-gray-50";
 const OPTION_ACTIVE_CLASS = "bg-gray-50 font-medium text-gray-900";
 const OPTION_DISABLED_CLASS = "cursor-not-allowed text-gray-400";
 
-export type ListboxDropdownSize = SelectTriggerSize;
+/**
+ * The size a caller may pick for a select. Without one it is `compact`
+ * (40 px, `ControlSize` in control-geometry.ts). `compact` is not accepted
+ * explicitly: until #6579 it meant 36 px on a select, and a branch written
+ * before would otherwise grow its select silently. It fails to compile now.
+ */
+export type ListboxDropdownSize = Extract<SelectTriggerSize, "dense">;
 
 /**
  * Label and chevron of the kit trigger. `CustomSelect` and `MultiSelect`
@@ -74,7 +88,11 @@ export function ListboxTriggerContent({
         className={cn(
           "min-w-0 flex-1",
           wrap ? "wrap-anywhere whitespace-normal" : "truncate",
-          placeholderShown ? "text-gray-500" : "text-gray-900",
+          // On the red tint of an invalid trigger gray-500 falls just below
+          // 4.5:1; the placeholder darkens there only.
+          placeholderShown
+            ? "text-gray-500 [[aria-invalid=true]_&]:text-gray-600"
+            : "text-gray-900",
         )}
       >
         {label}
@@ -88,11 +106,7 @@ export function ListboxTriggerContent({
 // pulls focus out of everything portaled to document.body, so the field could
 // be clicked but not typed into. Outside a dialog the selector matches nothing
 // and the menu portals to the body as usual.
-const SEARCHABLE_PORTAL_SCOPE = '[data-modal-focus-scope="true"]';
-
-function normalizeSearch(value: string): string {
-  return value.trim().toLocaleLowerCase("de");
-}
+const SEARCHABLE_PORTAL_SCOPE = MODAL_SCOPE_SELECTOR;
 
 /**
  * The search field of `CustomSelect` and `MultiSelect`: filters the options
@@ -106,12 +120,11 @@ export function useListboxSearch<O extends { readonly label: string }>(
   searchPlaceholder: string,
 ) {
   const [query, setQuery] = useState("");
-  const needle = normalizeSearch(query);
+  // Wie `SuggestInput`: „gomez“ findet „Gómez“ (#4949).
+  const needle = foldForSearch(query.trim());
   const visibleOptions =
     enabled && needle
-      ? options.filter((option) =>
-          normalizeSearch(option.label).includes(needle),
-        )
+      ? options.filter((option) => foldForSearch(option.label).includes(needle))
       : options;
   const listboxProps = enabled
     ? {
@@ -163,6 +176,12 @@ interface ListboxDropdownProps<K extends string> {
   readonly id?: string;
   readonly ariaLabel?: string;
   readonly ariaLabelledBy?: string;
+  /**
+   * Name of the option list when the trigger names itself by its value (a
+   * filter chip „Alle Status“ names its list „Status“). Without it the list
+   * takes `ariaLabel` / `ariaLabelledBy` like the trigger.
+   */
+  readonly listboxAriaLabel?: string;
   readonly ariaDescribedBy?: string;
   readonly containerClassName?: string;
   readonly containerStyle?: CSSProperties;
@@ -178,7 +197,7 @@ interface ListboxDropdownProps<K extends string> {
    * height and radius come from the kit; pick `size` instead.
    */
   readonly className?: string;
-  /** Field height: `default` 40 px, `compact` 36 px for dense rows. */
+  /** Field height: 40 px (`compact`) by default, `dense` 36 px for dense rows. */
   readonly size?: ListboxDropdownSize;
   /**
    * Kit-internal only: the caller draws the whole trigger itself (the filter
@@ -191,10 +210,10 @@ interface ListboxDropdownProps<K extends string> {
   /** Horizontal anchor of the portaled menu relative to the trigger. */
   readonly menuAlign?: "start" | "end";
   /**
-   * Stacking level of the portaled menu. The default (`Z_INDEX.menu`) clears
-   * modal overlays; a caller that itself portals higher — the kit calendar
-   * sits at `Z_INDEX.popover` — has to lift the menu above its own surface,
-   * or the menu opens behind it.
+   * Stacking level of the portaled menu. Without it the menu takes the level
+   * of the surface around it (`MenuLayerProvider`): `Z_INDEX.menu` above
+   * dialogs, `Z_INDEX.popoverMenu` inside an `AnchoredPopover`. A caller that
+   * portals higher on its own, like the kit calendar, sets it explicitly.
    */
   readonly menuZIndex?: number;
   readonly disabled?: boolean;
@@ -252,9 +271,7 @@ interface ListboxDropdownProps<K extends string> {
 }
 
 const TYPEAHEAD_RESET_MS = 500;
-const MENU_OFFSET_PX = 4;
 const MENU_MAX_HEIGHT_PX = 288; // matches the previous max-h-72 menu cap
-const MENU_VIEWPORT_MARGIN_PX = 8;
 
 /** Closest ancestor that scrolls vertically (a slide-over or modal body). */
 function scrollParentOf(element: HTMLElement): HTMLElement | null {
@@ -351,17 +368,18 @@ export function ListboxDropdown<K extends string>({
   id,
   ariaLabel,
   ariaLabelledBy,
+  listboxAriaLabel,
   ariaDescribedBy,
   containerClassName = "relative",
   containerStyle,
   portalScopeSelector,
   containerNodeRef,
   className = "",
-  size = "default",
+  size,
   unstyledTrigger = false,
   menuClassName = "",
   menuAlign = "start",
-  menuZIndex = Z_INDEX.menu,
+  menuZIndex: menuZIndexProp,
   disabled = false,
   required = false,
   invalid = false,
@@ -381,6 +399,8 @@ export function ListboxDropdown<K extends string>({
   renderOptionActions,
   renderOption,
 }: ListboxDropdownProps<K>) {
+  const menuLayer = useMenuLayer();
+  const menuZIndex = menuZIndexProp ?? menuLayer;
   const generatedListboxId = useId();
   const listboxId = id ? `${id}-listbox` : generatedListboxId;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -469,41 +489,25 @@ export function ListboxDropdown<K extends string>({
     if (disabled && !wasDisabled) setOpen(false);
   }, [disabled, setOpen]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (event: MouseEvent) => {
-      const target = event.target as Node;
-      // The menu is portaled to document.body, so it is NOT inside
-      // containerRef — a press on an option must not count as outside.
-      if (containerRef.current?.contains(target)) return;
-      if (menuRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open, setOpen]);
-
   const updateMenuPosition = useCallback(() => {
     const trigger = buttonRef.current;
     if (!trigger) return;
     const rect = trigger.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
     const viewportWidth = window.innerWidth;
-    const spaceBelow =
-      viewportHeight - rect.bottom - MENU_OFFSET_PX - MENU_VIEWPORT_MARGIN_PX;
-    const spaceAbove = rect.top - MENU_OFFSET_PX - MENU_VIEWPORT_MARGIN_PX;
+    const space = spaceAroundAnchor(rect, viewportHeight);
     const menuHeight = Math.min(
       menuRef.current?.scrollHeight ?? MENU_MAX_HEIGHT_PX,
       MENU_MAX_HEIGHT_PX,
     );
-    const openUpward = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+    const openUpward = space.below < menuHeight && space.above > space.below;
     // Cap the menu to the space actually available on the chosen side. A hard
     // minimum height could push the menu past the viewport edge in short
     // viewports or with the mobile keyboard open, leaving lower options
     // unreachable; the browser then never gives the ul a scroll region there.
-    const available = Math.max(openUpward ? spaceAbove : spaceBelow, 0);
+    const available = Math.max(openUpward ? space.above : space.below, 0);
     const maxHeight = Math.min(MENU_MAX_HEIGHT_PX, available);
-    const maxWidth = viewportWidth - 2 * MENU_VIEWPORT_MARGIN_PX;
+    const maxWidth = viewportWidth - 2 * PANEL_VIEWPORT_MARGIN;
     // The rendered width, needed to clamp the horizontal anchor: the menu is
     // only as wide as the trigger at minimum, but its content may be wider, so
     // anchoring at the trigger edge alone can push it past the viewport on
@@ -511,10 +515,6 @@ export function ListboxDropdown<K extends string>({
     const menuWidth = Math.min(
       Math.max(menuRef.current?.offsetWidth ?? rect.width, rect.width),
       maxWidth,
-    );
-    const edgeInset = Math.max(
-      viewportWidth - MENU_VIEWPORT_MARGIN_PX - menuWidth,
-      MENU_VIEWPORT_MARGIN_PX,
     );
     const style: CSSProperties = {
       position: "fixed",
@@ -535,53 +535,45 @@ export function ListboxDropdown<K extends string>({
     // Clamp both anchors so the opposite edge stays inside the viewport; the
     // margin floor still wins when the menu is as wide as the viewport allows.
     if (menuAlign === "end") {
-      style.right = Math.min(
-        Math.max(viewportWidth - rect.right, MENU_VIEWPORT_MARGIN_PX),
-        edgeInset,
+      style.right = clampPanelStart(
+        viewportWidth - rect.right,
+        menuWidth,
+        viewportWidth,
       );
     } else {
-      style.left = Math.min(
-        Math.max(rect.left, MENU_VIEWPORT_MARGIN_PX),
-        edgeInset,
-      );
+      style.left = clampPanelStart(rect.left, menuWidth, viewportWidth);
     }
     if (openUpward) {
-      style.bottom = viewportHeight - rect.top + MENU_OFFSET_PX;
+      style.bottom = viewportHeight - rect.top + PANEL_GAP;
     } else {
-      style.top = rect.bottom + MENU_OFFSET_PX;
+      style.top = rect.bottom + PANEL_GAP;
     }
     setMenuStyle(style);
   }, [menuAlign, menuZIndex]);
 
+  // The engine closes the menu on a press outside and moves it with its
+  // trigger; Escape stays with the trigger and the options, which hold the
+  // focus. Scrolls inside the option list do not move the menu: a re-placement
+  // would re-scroll the (possibly hover-moved) focus and undo the open reveal.
+  useAnchoredPanel({
+    open,
+    onClose: () => setOpen(false),
+    anchorRef: containerRef,
+    panelRef: menuRef,
+    closeOnEscape: false,
+    outsidePress: "tap",
+    scroll: "follow",
+    reposition: updateMenuPosition,
+  });
+
   // Layout effect so the first visible frame is already positioned (the menu
-  // renders hidden until menuStyle is set). Scroll listens in capture phase to
-  // catch ancestor scroll containers (modal bodies), not just the window.
-  // Scrolls *inside* the option list are ignored: scrollIntoView on open/keyboard
-  // would otherwise re-fire updateMenuPosition → new menuStyle → a layout
-  // re-scroll of the (possibly hover-moved) focusIndex, undoing the open reveal.
+  // renders hidden until menuStyle is set).
   useLayoutEffect(() => {
     if (!open) {
       setMenuStyle(null);
       return;
     }
-    const handleScroll = (event: Event) => {
-      const target = event.target;
-      if (
-        menuRef.current &&
-        target instanceof Node &&
-        (target === menuRef.current || menuRef.current.contains(target))
-      ) {
-        return;
-      }
-      updateMenuPosition();
-    };
     updateMenuPosition();
-    window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("scroll", handleScroll, true);
-    return () => {
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", handleScroll, true);
-    };
   }, [open, options, updateMenuPosition]);
 
   // A layout change can push the trigger out of the visible area while the
@@ -931,12 +923,12 @@ export function ListboxDropdown<K extends string>({
           : cn(LIST_SCROLL_CLASS, MENU_SURFACE_CLASS, menuClassName)
       }
       // The menu is portaled to document.body, so it sits OUTSIDE the
-      // modal's [data-modal-content] subtree. useScrollLock cancels every
+      // modal's scroll area (SCROLL_AREA_PROPS). The scroll lock cancels every
       // wheel/touchmove outside that subtree, which would make an open
       // menu inside a scroll-locked modal impossible to scroll. Marking
       // the menu as modal content whitelists it in the scroll-lock
       // predicate so its own options can be reached.
-      data-modal-content="true"
+      {...SCROLL_AREA_PROPS}
       // Vaul/Radix dismiss the dialog on a pointerdown whose target is
       // outside the dialog content node. This menu is portaled to
       // document.body, so it is NOT inside that node — without this
@@ -948,12 +940,12 @@ export function ListboxDropdown<K extends string>({
       // guards with menuRef.contains, so it is unaffected.
       onPointerDown={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
-      aria-label={ariaLabel}
+      aria-label={listboxAriaLabel ?? ariaLabel}
       // Points at the field's label element, never at the trigger: a
       // combobox referenced via aria-labelledby contributes its VALUE
       // (accname step 2E), which would name the popup after the current
       // selection instead of the field.
-      aria-labelledby={ariaLabelledBy}
+      aria-labelledby={listboxAriaLabel ? undefined : ariaLabelledBy}
     >
       {options.map((option, index) => {
         // In multi mode "active" means "checked"; the single-select
@@ -1066,8 +1058,10 @@ export function ListboxDropdown<K extends string>({
         // Focus traps (Radix FocusScope in Modal/FormModal) yank DOM focus
         // back from the portaled options to this trigger; activedescendant
         // keeps the highlighted option announced in that trigger-focused mode.
+        // Only a combobox may carry aria-activedescendant (ARIA 1.2); a
+        // button trigger moves DOM focus into the list instead.
         aria-activedescendant={
-          open && focusIndex >= 0
+          triggerRole === "combobox" && open && focusIndex >= 0
             ? `${listboxId}-option-${focusIndex}`
             : undefined
         }
@@ -1081,7 +1075,12 @@ export function ListboxDropdown<K extends string>({
         className={
           unstyledTrigger
             ? className
-            : selectTriggerClassName({ size, invalid, disabled, className })
+            : selectTriggerClassName({
+                size: size ?? "compact",
+                invalid,
+                disabled,
+                className,
+              })
         }
         data-testid={testId}
       >
@@ -1115,7 +1114,8 @@ export function ListboxDropdown<K extends string>({
                   "overflow-hidden",
                   menuClassName,
                 )}
-                data-modal-content="true"
+                data-listbox-panel
+                {...SCROLL_AREA_PROPS}
                 // A pure container: the search field, the listbox and the slot
                 // content carry the semantics, this element only positions
                 // them and keeps the dismissal handlers off the dialog.

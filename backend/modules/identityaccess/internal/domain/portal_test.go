@@ -35,7 +35,7 @@ func TestPublicChallengeScopesNameChallengePortals(t *testing.T) {
 	t.Parallel()
 	public := []string{
 		identityaccess.MFAChallengeScopeTenant, identityaccess.MFAChallengeScopeSchool, identityaccess.MFAChallengeScopeOrg,
-		identityaccess.MFAChallengeScopeCaterer, identityaccess.MFAChallengeScopePlatform,
+		identityaccess.MFAChallengeScopeCaterer, identityaccess.MFAChallengeScopePlatform, identityaccess.MFAChallengeScopeParent,
 	}
 	var challengePortals []string
 	for _, portal := range portals {
@@ -142,7 +142,7 @@ func TestAccountMFAChallengeScopeRefusesOtherPortals(t *testing.T) {
 		assert.Equal(t, portal.Challenge && portal.Persisted, AccountMFAChallengeScope(portal.Name), portal.Name)
 	}
 	assert.False(t, AccountMFAChallengeScope(PortalPlatform.Name))
-	assert.False(t, AccountMFAChallengeScope(PortalParent.Name))
+	assert.True(t, AccountMFAChallengeScope(PortalParent.Name), "the parents portal has its own code (#7051)")
 	assert.False(t, AccountMFAChallengeScope(""))
 	assert.False(t, AccountMFAChallengeScope(PortalScopeUnknown))
 }

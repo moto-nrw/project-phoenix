@@ -9,6 +9,9 @@ export interface PersonForm {
   existingAbsentIds: string[];
   sickAbsenceIds: string[];
   sickLocked: boolean;
+  /** The locking absence is no sick report but a vacation, training or other
+   *  absence from the time tracking (#6847). */
+  lockedByOtherAbsence?: boolean;
   scope: "" | "all" | "selected";
   selectedInstanceIds: string[];
   allDayAbsence: boolean;

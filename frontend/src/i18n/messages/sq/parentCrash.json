@@ -1,5 +1,6 @@
 {
   "title": "Faqja nuk mund të shfaqej",
   "object": "faqja",
-  "home": "Te faqja kryesore"
+  "home": "Te faqja kryesore",
+  "homeTooltip": "Hap faqen kryesore të aplikacionit për prindër."
 }

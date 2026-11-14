@@ -327,11 +327,8 @@ func (d *Decisions) syncApprovedChildClass(ctx context.Context, run *approvedChi
 	if err := d.deps.StudentEnrollment.RenewEnrollmentStudent(ctx, student.ID, enrollmentStudentInput(student)); err != nil {
 		return fmt.Errorf("decision: sync approved child student: %w", err)
 	}
-	if student.SchoolClass == previousSchoolClass {
-		return nil
-	}
-	if err := d.resyncOfferingSourcedTemplates(ctx, d.todayDate()); err != nil {
-		return fmt.Errorf("decision: resync sourced templates after class change: %w", err)
+	if err := d.followRewrittenClass(ctx, student.ID, previousSchoolClass, student.SchoolClass); err != nil {
+		return fmt.Errorf("decision: %w", err)
 	}
 	return nil
 }

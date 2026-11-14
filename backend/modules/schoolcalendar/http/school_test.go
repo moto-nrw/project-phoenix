@@ -53,8 +53,8 @@ func (f *fakeCalendarService) DeleteSchoolAppointment(_ context.Context, appoint
 	return f.school.writeErr
 }
 
-func (f *fakeCalendarService) RespondToSchoolInvitation(ctx context.Context, recipientID int64, status string) error {
-	return f.RespondToStaffInvitation(ctx, recipientID, status)
+func (f *fakeCalendarService) RespondToSchoolInvitation(ctx context.Context, recipientID int64, answer calendarSvc.InvitationAnswer) error {
+	return f.RespondToStaffInvitation(ctx, recipientID, answer)
 }
 
 func (f *fakeCalendarService) SchoolCalendarFeedURL(ctx context.Context) (string, string, error) {

@@ -86,7 +86,7 @@ Formularschema der Schule und haben keinen festen Go-Typ.
   Freigabe liest dort `null` für Antworten und Zustimmungen als `{}`, wie
   schon ein fehlendes `target_school_class`; sonst meldete jeder ältere
   Änderungswunsch einen Konflikt
-  (`modules/enrollment/http/change_request_null_base_snapshot_test.go`).
+  (`modules/enrollment/http/behaviortest/change_request_null_base_snapshot_test.go`).
   Antworten in Änderungswünschen erscheinen in den Antworten der Routen
   ebenfalls als `{}`.
 - Zwei HTTP-Dienstmethoden (`CreateManualApprovedEnrollment`,
@@ -98,5 +98,5 @@ Formularschema der Schule und haben keinen festen Go-Typ.
 - Ein Dekodierfehler einer gespeicherten Spalte nennt Anmeldung oder Kind und
   Spalte.
 - Ein Regressionstest
-  (`modules/enrollment/http/rollover_empty_form_values_test.go`) hält die
+  (`modules/enrollment/http/behaviortest/rollover_empty_form_values_test.go`) hält die
   leere Form am Speicherpfad fest.

@@ -95,6 +95,12 @@ func (tx *fakeTx) RunAdminRetry(ctx context.Context, fn func(context.Context) er
 	return tx.RunAdmin(ctx, fn)
 }
 
+// RunAdminDetached leaves an ambient school unit open and runs fn in an
+// administrative one of its own.
+func (tx *fakeTx) RunAdminDetached(ctx context.Context, fn func(context.Context) error) error {
+	return tx.RunAdmin(context.WithValue(ctx, tenantCtxKey{}, nil), fn)
+}
+
 func (tx *fakeTx) RunTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
 	if active, inTenant := tenantOf(ctx); isAdmin(ctx) || (inTenant && active != tenantID) {
 		return errors.New("ambient transaction has no matching tenant")

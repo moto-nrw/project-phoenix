@@ -192,30 +192,18 @@ func TestRequestGuardiansIsolationRollbackAndRetry(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, count)
 	require.Error(t, testpkg.TenantCommand1(t, ctx, db, module.DeleteRequest, requests[1]))
-	count, err = testpkg.TenantQuery1(t, ctx, db, module.DeletePhaseRequests, phases[1])
+	err = testpkg.WithTenantTx(t, ctx, db, schools[0], func(txCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, module.DeleteRequest(txCtx, requests[0]))
+		return failure
+	})
+	require.ErrorIs(t, err, failure)
+	count, err = testpkg.TenantQuery1(t, ctx, db, module.CountPhaseRequests, phases[0])
+	require.NoError(t, err)
+	require.Equal(t, 1, count, "request deletion must roll back with its caller")
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, module.DeleteRequest, requests[0]))
+	count, err = testpkg.TenantQuery1(t, ctx, db, module.CountPhaseRequests, phases[0])
 	require.NoError(t, err)
 	require.Zero(t, count)
-	for _, operation := range []string{"single request", "phase requests"} {
-		t.Run(operation, func(t *testing.T) {
-			err := testpkg.WithTenantTx(t, ctx, db, schools[0], func(txCtx context.Context, _ bun.Tx) error {
-				if operation == "single request" {
-					require.NoError(t, module.DeleteRequest(txCtx, requests[0]))
-				} else {
-					deleted, deleteErr := module.DeletePhaseRequests(txCtx, phases[0])
-					require.NoError(t, deleteErr)
-					require.Equal(t, 1, deleted)
-				}
-				return failure
-			})
-			require.ErrorIs(t, err, failure)
-			count, err := testpkg.TenantQuery1(t, ctx, db, module.CountPhaseRequests, phases[0])
-			require.NoError(t, err)
-			require.Equal(t, 1, count, "request deletion must roll back with its caller")
-		})
-	}
-	count, err = testpkg.TenantQuery1(t, ctx, db, module.DeletePhaseRequests, phases[0])
-	require.NoError(t, err)
-	require.Equal(t, 1, count)
 	count, err = testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.Ctx(t), schools[1]), db, module.CountPhaseRequests, phases[1])
 	require.NoError(t, err)
 	require.Equal(t, 1, count, "another school's request must survive deletion")

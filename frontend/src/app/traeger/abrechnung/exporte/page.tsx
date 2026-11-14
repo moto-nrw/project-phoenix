@@ -7,8 +7,9 @@
 // bekommt die nächste Dateinummer des Trägers. Nur das Recht
 // „Finanz-Export“ sieht die Seite.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { billingTabs } from "~/components/traeger/billing-family-format";
+import { EXPORT_RECIPIENT_PATH } from "~/components/traeger/export-handover-format";
 import {
   BOOKING_ACCOUNTS_PATH,
   DATEV_SETTINGS_PATH,
@@ -17,6 +18,11 @@ import {
   DatevRefusedNotice,
   DatevRepeatDialog,
 } from "~/components/traeger/finance-export-datev";
+import {
+  type DatevHandoverNotices,
+  HandoverMenu,
+  useFinanceHandover,
+} from "~/components/traeger/finance-export-handover";
 import {
   ExportProtocolTable,
   ExportRunsTable,
@@ -166,6 +172,7 @@ function MorePages({
         size="md"
         isLoading={loading}
         loadingText="Wird geladen …"
+        tooltip="Zeigt weitere Einträge unten in der Liste an."
         onClick={onMore}
       >
         Ältere anzeigen
@@ -180,6 +187,8 @@ export default function TraegerFinanceExportsPage() {
   const [refusal, setRefusal] = useState<DatevRefusal | null>(null);
   const [nothingNew, setNothingNew] = useState<DatevNothingNew | null>(null);
   const [repeat, setRepeat] = useState<ExportRun | null>(null);
+  // „Alle Buchungen erneut“ for the recipient instead of the browser.
+  const [repeatHandover, setRepeatHandover] = useState(false);
   const [loadingMore, setLoadingMore] = useState<"runs" | "protocol" | null>(
     null,
   );
@@ -220,6 +229,37 @@ export default function TraegerFinanceExportsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A DATEV handover that makes no file shows the notices of the download.
+  const runs = data?.runs.items;
+  const datevNotices = useMemo<DatevHandoverNotices>(
+    () => ({
+      onNothingNew: (run, taken) =>
+        setNothingNew({ runLabel: run.label, taken }),
+      onRefused: (run, problems) =>
+        setRefusal({
+          runKind:
+            runs?.find(
+              (item) =>
+                item.pathKind === run.pathKind && item.runId === run.runId,
+            )?.runKind ?? "care",
+          runLabel: run.label,
+          problems,
+        }),
+    }),
+    [runs],
+  );
+
+  // Handover to the recipient of each format (ADR 0218, ADR 0222); a handover reloads
+  // the runs and the protocol like a download.
+  const handover = useFinanceHandover(
+    () => void load(data?.runs.items.length, data?.protocol.items.length),
+    datevNotices,
+  );
+  const openRepeat = (run: ExportRun, toRecipient: boolean) => {
+    setRepeatHandover(toRecipient);
+    setRepeat(run);
+  };
 
   const loadMore = async (list: "runs" | "protocol") => {
     if (!data) return;
@@ -328,9 +368,18 @@ export default function TraegerFinanceExportsPage() {
       actions={
         <>
           <ButtonLink
+            href={traegerPath(EXPORT_RECIPIENT_PATH)}
+            variant="outline"
+            size="md"
+            tooltip="Öffnet die Empfänger, an die moto die Exporte schickt."
+          >
+            Empfänger der Exporte
+          </ButtonLink>
+          <ButtonLink
             href={traegerPath(DATEV_SETTINGS_PATH)}
             variant="outline"
             size="md"
+            tooltip="Öffnet die DATEV-Werte in den Einstellungen."
           >
             DATEV-Werte
           </ButtonLink>
@@ -338,6 +387,7 @@ export default function TraegerFinanceExportsPage() {
             href={traegerPath("/traeger/abrechnung/exporte/feldzuordnung")}
             variant="outline"
             size="md"
+            tooltip="Öffnet die Spalten der Sollstellung für die Kämmerei zum Ändern."
           >
             Feldzuordnung
           </ButtonLink>
@@ -345,6 +395,7 @@ export default function TraegerFinanceExportsPage() {
             href={traegerPath(BOOKING_ACCOUNTS_PATH)}
             variant="outline"
             size="md"
+            tooltip="Öffnet die Erlöskonten und Kostenstellen für DATEV-Datei und Sollstellung."
           >
             Konten und Kostenstellen
           </ButtonLink>
@@ -374,6 +425,7 @@ export default function TraegerFinanceExportsPage() {
       {data ? (
         <>
           <DatevReadinessNotice readiness={data.datev} />
+          {handover.notice}
           {nothingNew ? (
             <DatevNothingNewNotice
               runLabel={nothingNew.runLabel}
@@ -410,7 +462,32 @@ export default function TraegerFinanceExportsPage() {
               downloading={downloading}
               datev={{ ...data.datevRuns, settingsReady: data.datev.ready }}
               onDownload={(format, run) => void download(format, run)}
-              onRepeat={setRepeat}
+              onRepeat={(run) => openRepeat(run, false)}
+              renderRunActions={(run) => (
+                <HandoverMenu
+                  run={run}
+                  recipients={handover.recipients}
+                  formats={
+                    data.datev.ready
+                      ? ["sollstellung", "datev"]
+                      : ["sollstellung"]
+                  }
+                  busy={downloading !== null || handover.running !== null}
+                  running={
+                    handover.isRunning("sollstellung", run) ||
+                    handover.isRunning("datev", run)
+                  }
+                  onHandOver={(format) => handover.handOver(format, run)}
+                  onHandOverAll={
+                    data.datev.ready &&
+                    run.lastDatev &&
+                    (data.datevRuns.runs.get(datevRunKey(run))?.fiscalYears
+                      .length ?? 0) > 0
+                      ? () => openRepeat(run, true)
+                      : undefined
+                  }
+                />
+              )}
             />
           </SectionCard>
           <SectionCard
@@ -431,6 +508,7 @@ export default function TraegerFinanceExportsPage() {
           >
             <ExportProtocolTable entries={data.protocol.items} />
           </SectionCard>
+          {handover.dialog}
           <DatevRepeatDialog
             key={repeat ? datevRunKey(repeat) : "closed"}
             runLabel={repeat?.label ?? null}
@@ -440,13 +518,21 @@ export default function TraegerFinanceExportsPage() {
                   [])
                 : []
             }
+            handover={repeatHandover}
             loading={
-              repeat !== null && downloading === runFileKey("datev", repeat)
+              repeat !== null &&
+              (repeatHandover
+                ? handover.isRunning("datev", repeat)
+                : downloading === runFileKey("datev", repeat))
             }
             onClose={() => setRepeat(null)}
             onConfirm={(fiscalYear) => {
-              if (repeat)
-                void download("datev", repeat, { all: true, fiscalYear });
+              if (!repeat) return;
+              if (repeatHandover) {
+                // The handover asks again itself when the recipient has it.
+                setRepeat(null);
+                handover.handOver("datev", repeat, { all: true, fiscalYear });
+              } else void download("datev", repeat, { all: true, fiscalYear });
             }}
           />
         </>

@@ -41,10 +41,11 @@ type Dependencies struct {
 	StatutoryHolidays func(ctx context.Context, from, to string) (map[string]bool, error)
 }
 
-// WorkTime is the owner composition: its public capability and native shift
-// reads share one application service, transaction runtime and observer.
+// WorkTime is the owner composition; every facet shares one application service.
 type WorkTime interface {
 	workforce.Capability
+	workforce.WorkTimeModelCatalog
+	workforce.ShiftTypeRetirement
 	planning.ShiftReads
 }
 
@@ -61,8 +62,7 @@ func New(dependencies Dependencies) (WorkTime, error) {
 }
 
 func newApplication(dependencies Dependencies) (*application.Service, error) {
-	if dependencies.DB == nil || dependencies.LiveStaffIDs == nil ||
-		dependencies.LockStaffAssignment == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.LiveStaffIDs == nil || dependencies.LockStaffAssignment == nil || dependencies.Observe == nil {
 		return nil, errors.New("workforce compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.DatabaseRuntime(dependencies.DB))

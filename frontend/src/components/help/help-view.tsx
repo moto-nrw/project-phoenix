@@ -250,6 +250,7 @@ function BackToAppLink({
       variant="surface"
       size="md"
       className={cn("gap-2 whitespace-nowrap", className)}
+      tooltip="Verlässt die Hilfe und führt zurück in moto."
     >
       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
       {label}
@@ -332,6 +333,7 @@ function HelpMobileHeader({
           aria-expanded={drawerOpen && drawerMode === "topics"}
           onClick={(event) => onOpenDrawer("topics", event.currentTarget)}
           className="shrink-0"
+          tooltip="Öffnet die Liste aller Themen der Hilfe."
         >
           <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
@@ -350,6 +352,7 @@ function HelpMobileHeader({
             aria-controls={MOBILE_HELP_DRAWER_ID}
             aria-expanded={drawerOpen && drawerMode === "search"}
             onClick={(event) => onOpenDrawer("search", event.currentTarget)}
+            tooltip="Öffnet die Suche über alle Themen der Hilfe."
           >
             <Search className="h-5 w-5" aria-hidden="true" />
           </Button>
@@ -914,6 +917,7 @@ function HelpMobileDrawer({
               size="icon"
               aria-label="Schließen"
               className="shrink-0"
+              tooltip="Schließt die Liste und zeigt wieder die Seite."
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </Button>
@@ -1031,6 +1035,7 @@ function HelpDocumentationShell({
               variant="link"
               size="md"
               onClick={() => onSearchQueryChange("")}
+              tooltip="Leert das Suchfeld und zeigt wieder alle Themen."
             >
               Suche löschen
             </Button>
@@ -1083,6 +1088,7 @@ function HelpDocumentationShell({
           requestAnimationFrame(() => mainContentRef.current?.focus())
         }
         className="fixed start-3 top-3 z-[60] -translate-y-20 focus-visible:translate-y-0"
+        noTooltip="Sprunglink für die Tastatur; eine Blase läge über dem Inhalt."
       >
         Zum Inhalt
       </ButtonLink>
@@ -1149,6 +1155,7 @@ function HelpDocumentationShell({
               variant="primary"
               size="md"
               className="mt-6"
+              tooltip="Öffnet die Übersicht aller Themen der Hilfe."
             >
               Zur Übersicht
             </ButtonLink>

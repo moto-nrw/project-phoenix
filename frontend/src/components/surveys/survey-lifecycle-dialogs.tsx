@@ -14,7 +14,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuItem } from "~/components/ui/page-header/types";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -33,6 +33,23 @@ import { SURVEY_MIN_RESPONSES } from "./survey-questionnaire";
 import { reportsConcept } from "~/lib/concepts/reports";
 
 const logger = createLogger({ component: "SurveyLifecycle" });
+
+/**
+ * Wer bei Veröffentlichen und Erinnern etwas bekommt, für Knopf und Menü.
+ * Mitarbeitende erinnert moto nur per App, und nur wer Benachrichtigungen
+ * zu Umfragen eingeschaltet hat; Eltern per App und E-Mail (#6776).
+ */
+function surveyRecipients(survey: Pick<Survey, "audience">) {
+  return survey.audience === "staff"
+    ? {
+        publish: "an die Mitarbeitenden",
+        remind: "Mitarbeitende ohne Antwort, die Benachrichtigungen erhalten",
+      }
+    : {
+        publish: "an die gewählten Eltern",
+        remind: "Eltern ohne Antwort per App und E-Mail",
+      };
+}
 
 interface DialogProps {
   readonly survey: Survey;
@@ -109,6 +126,7 @@ export function PublishSurveyDialog({ survey, onClose, onDone }: DialogProps) {
       onConfirm={() => void confirm()}
       title="Umfrage veröffentlichen"
       confirmText="Jetzt veröffentlichen"
+      confirmTooltip={`Schickt die Umfrage sofort ${surveyRecipients(survey).publish}.`}
       cancelText="Abbrechen"
       isConfirmLoading={pending}
       loadingText="Wird veröffentlicht …"
@@ -155,6 +173,7 @@ export function CloseSurveyDialog({ survey, onClose, onDone }: DialogProps) {
       onConfirm={() => void confirm()}
       title="Umfrage beenden"
       confirmText="Jetzt beenden"
+      confirmTooltip="Beendet die Umfrage sofort, danach kann niemand mehr teilnehmen."
       cancelText="Abbrechen"
       isConfirmLoading={pending}
       loadingText="Wird beendet …"
@@ -200,6 +219,7 @@ export function RemindSurveyDialog({
       onConfirm={() => void confirm()}
       title="An die Umfrage erinnern"
       confirmText="Erinnerung senden"
+      confirmTooltip={`Erinnert sofort ${surveyRecipients(survey).remind}.`}
       cancelText="Abbrechen"
       isConfirmLoading={pending}
       loadingText="Wird gesendet …"
@@ -232,6 +252,11 @@ export function DeleteSurveyDialog({ survey, onClose, onDone }: DialogProps) {
     <ConfirmDeleteModal
       isOpen
       title="Umfrage löschen"
+      confirmTooltip={
+        withAnswers
+          ? "Löscht die Umfrage mit allen Antworten sofort."
+          : "Löscht den Entwurf sofort."
+      }
       description={
         <>
           Möchten Sie die Umfrage
@@ -287,6 +312,7 @@ export function buildSurveyMenuItems(
     items.push({
       label: "Veröffentlichen",
       icon: <Send className="size-4" aria-hidden />,
+      description: `Schickt die Umfrage ${surveyRecipients(survey).publish}. moto fragt vorher nach`,
       onClick: handlers.onPublish,
     });
   }
@@ -294,6 +320,10 @@ export function buildSurveyMenuItems(
     items.push({
       label: survey.status === "draft" ? "Anzeigen" : "Auswertung anzeigen",
       icon: <MotoConceptIcon concept={reportsConcept} size={16} />,
+      description:
+        survey.status === "draft"
+          ? "Öffnet den Entwurf mit allen Fragen"
+          : "Öffnet die Umfrage mit Teilnahmen und Auswertung",
       onClick: handlers.onView,
     });
   }
@@ -301,6 +331,7 @@ export function buildSurveyMenuItems(
     items.push({
       label: "Bearbeiten",
       icon: <Pencil className="size-4" aria-hidden />,
+      description: "Öffnet den Entwurf zum Ändern",
       onClick: handlers.onEdit,
     });
   }
@@ -309,11 +340,13 @@ export function buildSurveyMenuItems(
       {
         label: "Erinnern",
         icon: <BellRing className="size-4" aria-hidden />,
+        description: `Erinnert ${surveyRecipients(survey).remind}. moto fragt vorher nach`,
         onClick: handlers.onRemind,
       },
       {
         label: "Beenden",
         icon: <Square className="size-4" aria-hidden />,
+        description: "Beendet die Teilnahme für alle. moto fragt vorher nach",
         onClick: handlers.onCloseSurvey,
       },
     );
@@ -322,6 +355,7 @@ export function buildSurveyMenuItems(
     items.push({
       label: "Auswertung als PDF",
       icon: <FileDown className="size-4" aria-hidden />,
+      description: "Lädt die Auswertung als PDF-Datei herunter",
       onClick: handlers.onExport,
     });
   }
@@ -329,6 +363,10 @@ export function buildSurveyMenuItems(
     label: "Löschen",
     icon: <Trash2 className="size-4" aria-hidden />,
     destructive: true,
+    description:
+      survey.status === "draft"
+        ? "Löscht den Entwurf. moto fragt vorher nach"
+        : "Löscht die Umfrage mit allen Antworten. moto fragt vorher nach",
     onClick: handlers.onDelete,
   });
   return items;

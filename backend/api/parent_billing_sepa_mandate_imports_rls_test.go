@@ -69,3 +69,8 @@ type noDebtorNumberFormat struct{}
 func (noDebtorNumberFormat) DebtorNumberFormat(context.Context, int64) (parentbilling.DebtorNumberFormat, error) {
 	return parentbilling.DebtorNumberFormat{}, nil
 }
+
+// DebtorNumberScope keeps the number per payer, the default (#7007).
+func (noDebtorNumberFormat) DebtorNumberScope(context.Context, int64) (string, error) {
+	return parentbilling.DebtorNumberScopePayer, nil
+}

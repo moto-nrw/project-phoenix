@@ -14,7 +14,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -29,6 +29,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { Input } from "~/components/ui/input";
 import { Radio } from "~/components/ui/radio";
 import { SectionCard } from "~/components/ui/section-card";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import {
   DEBTOR_NUMBER_TEXT_CLASS,
   FamilyDebtorNumberConflictDialog,
@@ -59,6 +60,7 @@ import {
   familyDebtorNumberConflictOf,
   type FamilyDebtorNumberChoice,
   type FamilyDebtorNumberConflict,
+  type HolidayChildDebtorNumber,
   type HolidayContribution,
 } from "~/lib/traeger-contributions-api";
 import {
@@ -67,6 +69,15 @@ import {
   type HolidayRegistrationAction,
   type HolidayRegistrationDetail,
 } from "~/lib/traeger-holiday-registrations-api";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import {
+  ChildDebtorNumberInputs,
+  ChildDebtorNumbersField,
+  type ChildNumberValues,
+  childNumberHints,
+  childNumberInputs,
+  storedChildNumbers,
+} from "./holiday-child-debtor-numbers";
 
 const logger = createLogger({ component: "HolidayRegistrationStatusCard" });
 
@@ -79,8 +90,8 @@ function statusText(registration: HolidayRegistrationDetail): string {
       ? "Die Anmeldung ist bestätigt."
       : "Die Anmeldung ist eingegangen und noch nicht bestätigt.";
   const frozen = registration.frozen
-    ? " Sie ist eingefroren. Stornieren und Umbuchen gehen erst nach „Wieder öffnen“."
-    : " Nach dem Anmeldeschluss wird sie von selbst eingefroren.";
+    ? " Sie ist eingefroren. Zum Stornieren oder Umbuchen wählen Sie „Wieder öffnen“."
+    : " Nach dem Anmeldeschluss wird sie eingefroren. Zum Stornieren oder Umbuchen wählen Sie dann „Wieder öffnen“.";
   return confirmed + frozen;
 }
 
@@ -138,11 +149,11 @@ function debtorNumberText(set: boolean, invoiced: boolean): string {
     ? ""
     : " Ohne Nummer steht im Schreiben die Rechnungsnummer als Verwendungszweck.";
   if (!invoiced) {
-    return `Sie steht im Schreiben als Verwendungszweck. Ändern geht, bis die Rechnung ausgestellt ist.${missing}`;
+    return `Sie steht im Schreiben als Verwendungszweck. Ändern können Sie sie, bis die Rechnung ausgestellt ist.${missing}`;
   }
   return set
-    ? "Die Rechnung ist ausgestellt. Sie behält diese Nummer. Ändern geht nicht mehr."
-    : `Die Rechnung ist ohne Debitorennummer ausgestellt. Eintragen geht nicht mehr.${missing}`;
+    ? "Die Rechnung ist ausgestellt. Die Debitorennummer lässt sich nicht mehr ändern."
+    : `Die Rechnung ist ohne Debitorennummer ausgestellt. Eine Nummer lässt sich nicht mehr eintragen.${missing}`;
 }
 
 /**
@@ -254,7 +265,7 @@ function DebtorNumberField({
             name="debtor_number"
             label="Debitorennummer"
             autoComplete="off"
-            controlSize="compact"
+            controlSize="touch"
             inputMode={format.digitsOnly ? "numeric" : undefined}
             maxLength={DEBTOR_NUMBER_MAX_LENGTH}
             value={value}
@@ -313,6 +324,8 @@ function DebtorNumberField({
 type Payer = "family" | "exemption" | "cost_bearer";
 
 const NO_COST_BEARERS: readonly CostBearerChoice[] = [];
+
+const NO_CHILD_NUMBERS: readonly HolidayChildDebtorNumber[] = [];
 
 /**
  * Who pays the contribution a confirmation freezes (#5627): the family,
@@ -384,7 +397,7 @@ function PayerChoice({
                 <span className="block text-sm font-medium text-gray-900">
                   {option.label}
                 </span>
-                <span className="mt-0.5 block text-xs font-normal text-gray-600">
+                <span className="mt-0.5 block text-sm font-normal text-gray-600">
                   {option.description}
                 </span>
               </span>
@@ -426,6 +439,7 @@ export function HolidayRegistrationStatusCard({
   debtorNumberRequired = false,
   debtorNumberFormat = NO_DEBTOR_NUMBER_FORMAT,
   familyDebtorNumber = "",
+  childDebtorNumbers = NO_CHILD_NUMBERS,
   exemption,
   onExemptionChange,
   costBearers = NO_COST_BEARERS,
@@ -435,6 +449,7 @@ export function HolidayRegistrationStatusCard({
   onReload,
   onDebtorNumberChanged,
   canManageBillingSettings = false,
+  billingHref = null,
 }: Readonly<{
   periodId: string;
   registration: HolidayRegistrationDetail;
@@ -451,6 +466,12 @@ export function HolidayRegistrationStatusCard({
    * field; "" for none.
    */
   familyDebtorNumber?: string;
+  /**
+   * The children of the registration with their numbers when the Träger
+   * keeps the number per child (#7007); empty with a number per payer.
+   * Several children get a field each, as each gets an invoice of its own.
+   */
+  childDebtorNumbers?: readonly HolidayChildDebtorNumber[];
   /** The exemption the confirmation applies; the page shows its preview. */
   exemption: boolean;
   onExemptionChange: (exemption: boolean) => void;
@@ -471,6 +492,8 @@ export function HolidayRegistrationStatusCard({
   onDebtorNumberChanged: () => Promise<unknown>;
   /** Das Recht „Abrechnung“ öffnet die Beitragsregeln. */
   canManageBillingSettings?: boolean;
+  /** Where the invoice of the period stands; null without the right. */
+  billingHref?: string | null;
 }>) {
   const [running, setRunning] = useState<
     HolidayRegistrationAction | "confirm" | "cancel" | null
@@ -493,6 +516,21 @@ export function HolidayRegistrationStatusCard({
   const setDebtorNumber = (value: string) =>
     setTypedDebtorNumber({ registrationId: registration.id, value });
   const [editingDebtorNumber, setEditingDebtorNumber] = useState(false);
+  const [editingChildNumbers, setEditingChildNumbers] = useState(false);
+  // With a number per child, several children get a field each (#7007).
+  const perChild = childDebtorNumbers.length > 1;
+  // A cancelled whole-registration invoice keeps its shape after a scope
+  // switch. Its existing number must remain editable for the replacement.
+  const showsRegistrationNumber = !perChild || registration.debtorNumber !== "";
+  const [typedChildNumbers, setTypedChildNumbers] = useState<{
+    readonly registrationId: string;
+    readonly values: ChildNumberValues;
+  } | null>(null);
+  const childNumbers =
+    typedChildNumbers?.registrationId === registration.id
+      ? typedChildNumbers.values
+      : storedChildNumbers(childDebtorNumbers);
+  const childHasNumber = childDebtorNumbers.some((child) => child.debtorNumber);
   const [conflict, setConflict] = useState<FamilyDebtorNumberConflict | null>(
     null,
   );
@@ -528,22 +566,32 @@ export function HolidayRegistrationStatusCard({
   const showsDebtorNumber =
     registration.status === "confirmed" &&
     (debtorNumberRequired ||
-      Boolean(registration.debtorNumber) ||
-      Boolean(familyDebtorNumber));
+      (perChild
+        ? childHasNumber
+        : Boolean(registration.debtorNumber) || Boolean(familyDebtorNumber)));
   // The confirmation asks for the number when the Träger wants it, and
   // offers it when the family already has one (#6692).
-  const asksDebtorNumber = debtorNumberRequired || Boolean(familyDebtorNumber);
+  const asksDebtorNumber =
+    debtorNumberRequired ||
+    (perChild ? childHasNumber : Boolean(familyDebtorNumber));
 
   const confirm = async (choice?: FamilyDebtorNumberChoice) => {
     if (confirmBlocked) return;
     confirmErrors.clear();
-    const hints = debtorNumberHints(
-      debtorNumber,
-      debtorNumberRequired,
-      enteredDebtorNumber === null
-        ? NO_DEBTOR_NUMBER_FORMAT
-        : debtorNumberFormat,
-    );
+    const hints = perChild
+      ? childNumberHints(
+          childDebtorNumbers,
+          childNumbers,
+          debtorNumberRequired,
+          debtorNumberFormat,
+        )
+      : debtorNumberHints(
+          debtorNumber,
+          debtorNumberRequired,
+          enteredDebtorNumber === null
+            ? NO_DEBTOR_NUMBER_FORMAT
+            : debtorNumberFormat,
+        );
     if (hints) {
       confirmErrors.invalid("Bitte prüfen Sie Ihre Angaben.", hints);
       return;
@@ -555,9 +603,12 @@ export function HolidayRegistrationStatusCard({
         registration.id,
         payer === "exemption",
         // An untouched sibling number is inherited under the backend's locks.
-        enteredDebtorNumber?.trim() ?? "",
+        perChild ? "" : (enteredDebtorNumber?.trim() ?? ""),
         payer === "cost_bearer" ? (costBearerId ?? undefined) : undefined,
         choice,
+        perChild && asksDebtorNumber
+          ? childNumberInputs(childDebtorNumbers, childNumbers)
+          : undefined,
       );
       setConflict(null);
     } catch (err) {
@@ -609,6 +660,17 @@ export function HolidayRegistrationStatusCard({
   };
 
   const open = registration.status !== "cancelled";
+  const duplicateChildren = registration.children.filter(
+    (child) => child.duplicateRegistrationIds.length > 0,
+  );
+  const duplicateNames = duplicateChildren.map((child) =>
+    `${child.firstName} ${child.lastName}`.trim(),
+  );
+  const duplicateIds = [
+    ...new Set(
+      duplicateChildren.flatMap((child) => child.duplicateRegistrationIds),
+    ),
+  ];
   const choosesPayer =
     registration.status === "received" &&
     (exemptionAvailable || costBearers.length > 0);
@@ -631,6 +693,7 @@ export function HolidayRegistrationStatusCard({
           isLoading={running === "reopen"}
           loadingText="Öffnet …"
           disabled={running !== null}
+          tooltip="Öffnet die Anmeldung wieder, damit Sie stornieren oder umbuchen können."
           onClick={() => void run("reopen")}
         >
           Wieder öffnen
@@ -642,6 +705,7 @@ export function HolidayRegistrationStatusCard({
             variant="outline_danger"
             size="md"
             disabled={running !== null}
+            tooltip="Storniert die Anmeldung, Nachrückende bekommen eine E-Mail. moto fragt vorher nach."
             onClick={() => setConfirmingCancel(true)}
           >
             Stornieren
@@ -653,18 +717,41 @@ export function HolidayRegistrationStatusCard({
             isLoading={running === "freeze"}
             loadingText="Friert ein …"
             disabled={running !== null}
+            tooltip="Sperrt die Anmeldung sofort gegen Stornieren und Umbuchen."
             onClick={() => void run("freeze")}
           >
             Einfrieren
           </Button>
         </>
       )}
-      {showsDebtorNumber && !invoiced && !editingDebtorNumber ? (
+      {showsDebtorNumber &&
+      perChild &&
+      !editingChildNumbers &&
+      !editingDebtorNumber ? (
         <Button
           type="button"
           variant="outline"
           size="md"
           disabled={running !== null}
+          tooltip="Öffnet je Kind ein Feld für seine Debitorennummer."
+          onClick={() => setEditingChildNumbers(true)}
+        >
+          {childHasNumber
+            ? "Nummern der Kinder ändern"
+            : "Nummern der Kinder eintragen"}
+        </Button>
+      ) : null}
+      {showsDebtorNumber &&
+      showsRegistrationNumber &&
+      !invoiced &&
+      !editingDebtorNumber &&
+      !editingChildNumbers ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          disabled={running !== null}
+          tooltip="Öffnet das Feld für die Debitorennummer dieser Anmeldung."
           onClick={() => setEditingDebtorNumber(true)}
         >
           {registration.debtorNumber
@@ -680,6 +767,7 @@ export function HolidayRegistrationStatusCard({
           isLoading={running === "confirm"}
           loadingText="Bestätigt …"
           disabled={confirmBlocked}
+          tooltip="Bestätigt die Anmeldung und schickt den Eltern sofort die Zusage per E-Mail."
           onClick={() => confirmRef.current?.requestSubmit()}
         >
           Bestätigen
@@ -688,11 +776,24 @@ export function HolidayRegistrationStatusCard({
     </div>
   ) : undefined;
   return (
-    <SectionCard title="Status" footer={actions}>
+    <SectionCard
+      leading={<ConceptIconTile concept={enrollmentsConcept} />}
+      title="Status"
+      footer={actions}
+    >
       <LoadErrorAlert error={afterWrite.error} className="mb-4" />
       <LoadErrorAlert error={debtorAfterWrite.error} className="mb-4" />
       <div className="space-y-4 text-sm text-gray-700">
         <p>{statusText(registration)}</p>
+        {/* The children's cards sit far below on a phone: the status names a
+            possible double registration first, in one line; the child's card
+            holds the way to the other registration. */}
+        {duplicateIds.length > 0 ? (
+          <Alert
+            type="warning"
+            message={`Vielleicht doppelt angemeldet: ${duplicateNames.join(", ")}. Die andere Anmeldung öffnen Sie beim Kind.`}
+          />
+        ) : null}
         {registration.status === "received" ? (
           <p>
             Beim Bestätigen bekommen die Eltern eine E-Mail mit den gebuchten
@@ -744,7 +845,23 @@ export function HolidayRegistrationStatusCard({
             }}
           >
             <FormErrorAlert message={confirmErrors.error} />
-            {asksDebtorNumber ? (
+            {asksDebtorNumber && perChild ? (
+              <ChildDebtorNumberInputs
+                idPrefix="holiday-registration-child-debtor-number"
+                childNumbers={childDebtorNumbers}
+                values={childNumbers}
+                required={debtorNumberRequired}
+                format={debtorNumberFormat}
+                fieldError={confirmErrors.fieldError}
+                onChange={(childId, value) =>
+                  setTypedChildNumbers({
+                    registrationId: registration.id,
+                    values: { ...childNumbers, [childId]: value },
+                  })
+                }
+              />
+            ) : null}
+            {asksDebtorNumber && !perChild ? (
               <div className="sm:max-w-xl">
                 <Input
                   ref={confirmFieldRef}
@@ -753,7 +870,7 @@ export function HolidayRegistrationStatusCard({
                   name="debtor_number"
                   label="Debitorennummer"
                   autoComplete="off"
-                  controlSize="compact"
+                  controlSize="touch"
                   inputMode={
                     debtorNumberFormat.digitsOnly ? "numeric" : undefined
                   }
@@ -782,7 +899,33 @@ export function HolidayRegistrationStatusCard({
             ) : null}
           </form>
         ) : null}
-        {showsDebtorNumber ? (
+        {invoiced && billingHref ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <p>Die Rechnung dieser Anmeldung steht in der Abrechnung.</p>
+            <ButtonLink
+              href={billingHref}
+              variant="outline"
+              size="compact"
+              tooltip="Öffnet die Abrechnung mit der Rechnung dieser Anmeldung."
+            >
+              Zur Abrechnung
+            </ButtonLink>
+          </div>
+        ) : null}
+        {showsDebtorNumber && perChild ? (
+          <ChildDebtorNumbersField
+            periodId={periodId}
+            registrationId={registration.id}
+            childNumbers={childDebtorNumbers}
+            required={debtorNumberRequired}
+            format={debtorNumberFormat}
+            invoiced={invoiced}
+            editing={editingChildNumbers}
+            onEditingChange={setEditingChildNumbers}
+            onChanged={debtorAfterWrite.refresh}
+          />
+        ) : null}
+        {showsDebtorNumber && showsRegistrationNumber ? (
           <DebtorNumberField
             periodId={periodId}
             registrationId={registration.id}
@@ -795,6 +938,12 @@ export function HolidayRegistrationStatusCard({
             onEditingChange={setEditingDebtorNumber}
             onChanged={debtorAfterWrite.refresh}
           />
+        ) : null}
+        {showsDebtorNumber && perChild && showsRegistrationNumber ? (
+          <p>
+            Die Nummer der Anmeldung gilt für eine gemeinsame Rechnung.
+            Rechnungen je Kind nennen die Nummer des Kindes.
+          </p>
         ) : null}
         {choosesPayer ? (
           <PayerChoice
@@ -816,24 +965,52 @@ export function HolidayRegistrationStatusCard({
       <ConfirmationModal
         isOpen={confirmingCancel}
         title="Anmeldung stornieren?"
-        confirmText="Stornieren"
+        confirmText="Anmeldung stornieren"
         confirmVariant="danger"
         isConfirmLoading={running === "cancel"}
         loadingText="Storniert …"
         onClose={() => setConfirmingCancel(false)}
         onConfirm={() => void run("cancel")}
       >
-        <p className="text-sm text-gray-700">
-          Die Kinder dieser Anmeldung sind dann für keine Woche mehr angemeldet.
-          Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Eltern
-          bekommen keine Nachricht von moto.
+        {/* Names what is cancelled, so the decision does not rely on the
+            blurred page behind the dialog. */}
+        <p className="text-sm font-medium text-gray-900">
+          Anmeldung Nr. {registration.id} von{" "}
+          {`${registration.guardianFirstName} ${registration.guardianLastName}`.trim()}
+          {registration.children.length > 0
+            ? `: ${registration.children
+                .map((child) => `${child.firstName} ${child.lastName}`.trim())
+                .join(", ")}`
+            : ""}
         </p>
-        {contribution?.siblings?.length ? (
-          <p className="mt-2 text-sm text-gray-700">
-            Die Anmeldung zählt dann nicht mehr zu den Geschwistern. moto
-            berechnet den Ferienbeitrag der Geschwister neu.
-          </p>
-        ) : null}
+        {/* One consequence per line, so the irreversible step reads at a
+            glance; the way to the invoice stays on the page. */}
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
+          <li>
+            Die Kinder sind dann für keine Woche mehr angemeldet. Das lässt sich
+            nicht rückgängig machen.
+          </li>
+          <li>Eltern bekommen keine Nachricht von moto.</li>
+          {contribution?.siblings?.length ? (
+            <li>
+              Die Anmeldung zählt dann nicht mehr zu den Geschwistern. moto
+              berechnet den Ferienbeitrag der Geschwister neu.
+            </li>
+          ) : null}
+          {contribution?.siblings?.length && contribution.siblingsInvoiced ? (
+            <li>
+              Die schon ausgestellte Rechnung der Geschwister bleibt, wie sie
+              ist. Den neuen Betrag zeigt dann ihre Anmeldung unter „Rechnung
+              prüfen“.
+            </li>
+          ) : null}
+          {invoiced ? (
+            <li>
+              Die Rechnung dieser Anmeldung bleibt bestehen. Soll die Familie
+              nicht zahlen, stornieren Sie sie danach in der Abrechnung.
+            </li>
+          ) : null}
+        </ul>
       </ConfirmationModal>
     </SectionCard>
   );

@@ -24,6 +24,7 @@ import {
   XIcon,
 } from "@phosphor-icons/react/ssr";
 import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
+import { ParentResponseSummary } from "~/components/parent/calendar/parent-response-summary";
 import {
   ParentPage,
   ParentPageHeader,
@@ -64,7 +65,7 @@ import {
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import {
   formatCalendarDate,
   formatLocalizedDate,
@@ -74,6 +75,14 @@ import {
   respondParentCalendar,
   type CalendarEvent,
 } from "~/lib/personal-calendar-api";
+import {
+  answerDiffersFromSeries,
+  applyAnswer,
+  defaultAnswerScope,
+  seriesAnswerReplacesDates,
+  type AnswerScope,
+} from "~/lib/calendar-answers";
+import { AnswerScopeChoice } from "~/components/calendar/answer-scope-choice";
 import { childrenConcept } from "~/lib/concepts/children";
 import { StatusDot } from "~/components/ui/status-dot";
 import { useCareTermTranslations } from "~/lib/care-facility-term";
@@ -95,6 +104,20 @@ function eventState(event: CalendarEvent): EventState {
   if (event.response_status === "accepted") return "accepted";
   if (event.response_status === "declined") return "declined";
   return "info";
+}
+
+/**
+ * Ob die Eltern hier antworten oder ihre Antwort ändern können. Auch eine
+ * schon beantwortete Einladung bleibt änderbar, etwa für einen einzelnen
+ * Termin einer Reihe (#6987).
+ */
+function canAnswer(event: CalendarEvent): boolean {
+  return (
+    event.can_respond &&
+    !event.cancelled &&
+    Boolean(event.recipient_id) &&
+    event.response_status !== "info"
+  );
 }
 
 function eventColors(event: CalendarEvent) {
@@ -284,18 +307,29 @@ export function ParentCalendarPage() {
   // row as a toast, the open details in place).
   const respond = async (
     event: CalendarEvent,
-    status: "accepted" | "declined",
+    status: RespondStatus,
+    occurrenceDate?: string,
   ) => {
     if (!event.recipient_id) return;
     setRespondingId(event.id);
     try {
-      await respondParentCalendar(event.recipient_id, status);
-      const update = (candidate: CalendarEvent) =>
-        candidate.id === event.id
-          ? { ...candidate, response_status: status }
-          : candidate;
-      setEvents((current) => current.map(update));
-      toast.success(status === "accepted" ? t("accepted") : t("declined"));
+      await respondParentCalendar(event.recipient_id, status, occurrenceDate);
+      // An answer for the series covers every date of the invitation; an
+      // answer for one date changes that date only (#6987).
+      const recipientId = event.recipient_id;
+      setEvents((current) =>
+        applyAnswer(current, { recipientId, occurrenceDate, status }),
+      );
+      if (occurrenceDate) {
+        const date = formatShortDay(occurrenceDate, locale);
+        toast.success(
+          status === "accepted"
+            ? t("acceptedOn", { date })
+            : t("declinedOn", { date }),
+        );
+      } else {
+        toast.success(status === "accepted" ? t("accepted") : t("declined"));
+      }
     } catch (err) {
       logger.warn("parent_calendar_respond_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -402,7 +436,8 @@ function CalendarEventList({
   respondingId: string | null;
   onRespond: (
     event: CalendarEvent,
-    status: "accepted" | "declined",
+    status: RespondStatus,
+    occurrenceDate?: string,
   ) => Promise<void>;
 }>) {
   const t = useCareTermTranslations("parentCalendar");
@@ -425,7 +460,9 @@ function CalendarEventList({
                   event={event}
                   locale={locale}
                   responding={respondingId === event.id}
-                  onRespond={(status) => onRespond(event, status)}
+                  onRespond={(status, occurrenceDate) =>
+                    onRespond(event, status, occurrenceDate)
+                  }
                 />
               ))}
             </div>
@@ -437,6 +474,20 @@ function CalendarEventList({
 }
 
 type RespondStatus = "accepted" | "declined";
+/** Mit `occurrenceDate` gilt die Antwort nur für diesen Termin (#6987). */
+type RespondFn = (
+  status: RespondStatus,
+  occurrenceDate?: string,
+) => Promise<void>;
+
+/** „Mi., 25.11.“ in der Sprache des Elternportals. */
+function formatShortDay(dateISO: string, locale: string): string {
+  return formatCalendarDate(dateISO, locale, {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
 type ApiErrorShow = ReturnType<typeof useApiErrorDisplay>["show"];
 
 /**
@@ -444,7 +495,7 @@ type ApiErrorShow = ReturnType<typeof useApiErrorDisplay>["show"];
  * latest `onRespond`, not the one of the failed attempt.
  */
 function useRespondWithError(
-  onRespond: (status: RespondStatus) => Promise<void>,
+  onRespond: RespondFn,
   show: ApiErrorShow,
   before?: () => void,
 ) {
@@ -456,15 +507,20 @@ function useRespondWithError(
     beforeRef.current = before;
   });
   return useCallback(
-    async function run(status: RespondStatus): Promise<void> {
+    async function run(
+      status: RespondStatus,
+      occurrenceDate?: string,
+    ): Promise<boolean> {
       beforeRef.current?.();
       try {
-        await onRespondRef.current(status);
+        await onRespondRef.current(status, occurrenceDate);
+        return true;
       } catch (err) {
         void show(err, {
           object: t("errorObjectResponse"),
-          retry: () => void run(status),
+          retry: () => void run(status, occurrenceDate),
         });
+        return false;
       }
     },
     [show, t],
@@ -480,7 +536,7 @@ function CalendarListEvent({
   event: CalendarEvent;
   locale: string;
   responding: boolean;
-  onRespond: (status: "accepted" | "declined") => Promise<void>;
+  onRespond: RespondFn;
 }>) {
   // A cancelled date names the care of its own school (#6082).
   const t = useCareTermTranslations("parentCalendar", useEventCareTerm(event));
@@ -504,6 +560,13 @@ function CalendarListEvent({
         ? t("answeredDeclined")
         : null;
   const pending = state === "needsResponse";
+  // Die Knöpfe der Zeile beantworten die ganze Reihe, solange sie noch keine
+  // Antwort für einen einzelnen Termin hat. Sonst nur diesen Termin, damit
+  // sie keine Einzelantwort überschreiben (#6987).
+  const rowAnswersSeries =
+    event.recurring === true && defaultAnswerScope(event) === "series";
+  const rowOccurrenceDate =
+    event.recurring && !rowAnswersSeries ? event.occurrence_date : undefined;
 
   return (
     <article
@@ -527,6 +590,7 @@ function CalendarListEvent({
             variant="ghost"
             size="md"
             onClick={toggle}
+            tooltip={t("openEventTooltip")}
             aria-label={`${event.title}, ${eventTime(event, t("allDay"))}`}
             aria-expanded={open}
             aria-controls={open ? panelId : undefined}
@@ -557,7 +621,9 @@ function CalendarListEvent({
       {pending ? (
         <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
           <span className="text-moto-orange-strong text-xs leading-5 font-medium">
-            {t("responseRequired")}
+            {rowAnswersSeries
+              ? t("responseRequiredSeries")
+              : t("responseRequired")}
           </span>
           <div className="ms-auto flex items-center gap-2">
             <Button
@@ -565,7 +631,8 @@ function CalendarListEvent({
               variant="primary"
               size="md"
               isLoading={responding}
-              onClick={() => void respondInRow("accepted")}
+              tooltip={t("acceptTooltip")}
+              onClick={() => void respondInRow("accepted", rowOccurrenceDate)}
             >
               {t("accept")}
             </Button>
@@ -574,7 +641,8 @@ function CalendarListEvent({
               variant="outline_danger"
               size="md"
               disabled={responding}
-              onClick={() => void respondInRow("declined")}
+              tooltip={t("declineTooltip")}
+              onClick={() => void respondInRow("declined", rowOccurrenceDate)}
             >
               {t("decline")}
             </Button>
@@ -589,6 +657,11 @@ function CalendarListEvent({
             aria-hidden="true"
           />
           {answered}
+          {answerDiffersFromSeries(event) ? (
+            <span className="font-normal text-gray-500">
+              · {t("onlyThisDate")}
+            </span>
+          ) : null}
         </p>
       ) : state === "cancelled" ? (
         <p className="px-3 pb-2.5 text-sm font-medium text-gray-600">
@@ -622,7 +695,8 @@ function CalendarMonthPanel({
   onChangeMonth: (offset: number) => void;
   onRespond: (
     event: CalendarEvent,
-    status: "accepted" | "declined",
+    status: RespondStatus,
+    occurrenceDate?: string,
   ) => Promise<void>;
 }>) {
   const t = useCareTermTranslations("parentCalendar");
@@ -644,7 +718,9 @@ function CalendarMonthPanel({
             variant="ghost"
             size="icon"
             aria-label={t("previousMonth")}
+            tooltip={t("previousMonthTooltip")}
             disabled={!canGoBack}
+            disabledReason={t("previousMonthBlocked")}
             onClick={() => onChangeMonth(-1)}
           >
             <CaretLeftIcon size={16} weight="bold" aria-hidden="true" />
@@ -660,7 +736,9 @@ function CalendarMonthPanel({
             variant="ghost"
             size="icon"
             aria-label={t("nextMonth")}
+            tooltip={t("nextMonthTooltip")}
             disabled={!canGoForward}
+            disabledReason={t("nextMonthBlocked")}
             onClick={() => onChangeMonth(1)}
           >
             <CaretRightIcon size={16} weight="bold" aria-hidden="true" />
@@ -713,7 +791,9 @@ function CalendarMonthPanel({
                       event={event}
                       locale={locale}
                       responding={respondingId === event.id}
-                      onRespond={(status) => onRespond(event, status)}
+                      onRespond={(status, occurrenceDate) =>
+                        onRespond(event, status, occurrenceDate)
+                      }
                     />
                   ))}
                   {moreCount > 0 ? (
@@ -760,7 +840,7 @@ function MonthEventButton({
   event: CalendarEvent;
   locale: string;
   responding: boolean;
-  onRespond: (status: "accepted" | "declined") => Promise<void>;
+  onRespond: RespondFn;
 }>) {
   const t = useCareTermTranslations("parentCalendar");
   const colors = eventColors(event);
@@ -779,6 +859,7 @@ function MonthEventButton({
           variant="ghost"
           size="compact"
           onClick={toggle}
+          tooltip={t("openEventTooltip")}
           aria-label={`${event.title}, ${eventTime(event, t("allDay"))}${accessibleStatus}`}
           aria-expanded={open}
           aria-controls={open ? panelId : undefined}
@@ -814,7 +895,7 @@ function CalendarEventPopover({
   event: CalendarEvent;
   locale: string;
   responding: boolean;
-  onRespond: (status: "accepted" | "declined") => Promise<void>;
+  onRespond: RespondFn;
   renderTrigger: EventPopoverTrigger;
 }>) {
   const [open, setOpen] = useState(false);
@@ -872,7 +953,6 @@ function CalendarEventPopover({
                 locale={locale}
                 responding={responding}
                 status={status}
-                state={state}
                 mobile
                 onClose={close}
                 onRespond={onRespond}
@@ -892,6 +972,17 @@ function CalendarEventPopover({
       preferredWidth={380}
       className="overflow-hidden p-0"
       renderTrigger={renderTrigger}
+      // Zusagen und Absagen bleiben unter dem scrollenden Inhalt stehen, auch
+      // wenn Beschreibung und Rückmeldungen die Höhe füllen (#6846).
+      footer={
+        canAnswer(event) ? (
+          <CalendarEventRespond
+            event={event}
+            responding={responding}
+            onRespond={onRespond}
+          />
+        ) : undefined
+      }
     >
       {({ close }) => (
         <CalendarEventDetails
@@ -899,7 +990,7 @@ function CalendarEventPopover({
           locale={locale}
           responding={responding}
           status={status}
-          state={state}
+          withRespond={false}
           onClose={close}
           onRespond={onRespond}
         />
@@ -913,8 +1004,8 @@ function CalendarEventDetails({
   locale,
   responding,
   status,
-  state,
   mobile = false,
+  withRespond = true,
   onClose,
   onRespond,
 }: Readonly<{
@@ -922,23 +1013,13 @@ function CalendarEventDetails({
   locale: string;
   responding: boolean;
   status: { label: string; tone: StatusBadgeTone } | null;
-  state: EventState;
   mobile?: boolean;
+  /** False when the host shows the answer in its own fixed footer. */
+  withRespond?: boolean;
   onClose: () => void;
-  onRespond: (status: "accepted" | "declined") => Promise<void>;
+  onRespond: RespondFn;
 }>) {
   const t = useCareTermTranslations("parentCalendar");
-  // The details are an open popover or drawer, so the error stays inside.
-  const {
-    error: respondError,
-    show: showRespondError,
-    clear: clearRespondError,
-  } = useApiFormError();
-  const respondHere = useRespondWithError(
-    onRespond,
-    showRespondError,
-    clearRespondError,
-  );
 
   return (
     <>
@@ -958,6 +1039,7 @@ function CalendarEventDetails({
           variant="ghost"
           size="icon"
           aria-label={t("close")}
+          tooltip={t("closeTooltip")}
           className="shrink-0"
           onClick={onClose}
         >
@@ -967,7 +1049,12 @@ function CalendarEventDetails({
 
       <div className="space-y-4 px-4 py-3">
         {status ? (
-          <StatusBadge label={status.label} tone={status.tone} />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StatusBadge label={status.label} tone={status.tone} />
+            {!event.cancelled && answerDiffersFromSeries(event) ? (
+              <StatusBadge label={t("onlyThisDate")} tone="gray" />
+            ) : null}
+          </div>
         ) : null}
         <div className="space-y-2.5 text-sm text-gray-700">
           <DetailRow
@@ -999,36 +1086,145 @@ function CalendarEventDetails({
             {event.description}
           </p>
         ) : null}
+        <ParentResponseSummary event={event} />
       </div>
-      {state === "needsResponse" ? (
+      {withRespond && canAnswer(event) ? (
         <div
-          className={`border-t border-gray-100 px-4 py-3 ${mobile ? "pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : ""}`}
+          className={`border-t border-gray-100 ${mobile ? "pb-[env(safe-area-inset-bottom)]" : ""}`}
         >
-          <FormErrorAlert message={respondError} className="mb-3" />
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              isLoading={responding}
-              onClick={() => void respondHere("accepted")}
-            >
-              {t("accept")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline_danger"
-              size="md"
-              disabled={responding}
-              onClick={() => void respondHere("declined")}
-            >
-              {t("decline")}
-            </Button>
-          </div>
+          <CalendarEventRespond
+            event={event}
+            responding={responding}
+            onRespond={onRespond}
+          />
         </div>
       ) : null}
     </>
   );
+}
+
+/**
+ * Zusagen und Absagen einer offenen Einladung, mit dem Hinweis, dass die
+ * Antwort für die ganze Reihe gilt. Der Fehler bleibt in den offenen Details.
+ */
+function CalendarEventRespond({
+  event,
+  responding,
+  onRespond,
+}: Readonly<{
+  event: CalendarEvent;
+  responding: boolean;
+  onRespond: RespondFn;
+}>) {
+  const t = useCareTermTranslations("parentCalendar");
+  const {
+    error: respondError,
+    show: showRespondError,
+    clear: clearRespondError,
+  } = useApiFormError();
+  const respondHere = useRespondWithError(
+    onRespond,
+    showRespondError,
+    clearRespondError,
+  );
+  const locale = useLocale();
+  const [scope, setScope] = useState<AnswerScope>(() =>
+    defaultAnswerScope(event),
+  );
+  // Eine beantwortete Einladung zeigt erst „Antwort ändern“; die Knöpfe
+  // kommen auf Wunsch, etwa für einen einzelnen Termin einer Reihe (#6987).
+  const answered =
+    event.response_status === "accepted" ||
+    event.response_status === "declined";
+  const [changing, setChanging] = useState(false);
+  const occurrenceDate = event.recurring ? event.occurrence_date : undefined;
+  const answer = async (status: RespondStatus) => {
+    const saved = await respondHere(
+      status,
+      occurrenceDate && scope === "occurrence" ? occurrenceDate : undefined,
+    );
+    if (saved) setChanging(false);
+  };
+  if (answered && !changing) {
+    return (
+      <div className="flex justify-end px-4 py-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          tooltip={t("changeAnswerTooltip")}
+          onClick={() => {
+            setScope(defaultAnswerScope(event));
+            setChanging(true);
+          }}
+        >
+          {t("changeAnswer")}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3 px-4 py-3">
+      <FormErrorAlert message={respondError} />
+      {occurrenceDate ? (
+        <AnswerScopeChoice
+          value={scope}
+          onChange={setScope}
+          legend={t("answerScope.legend")}
+          occurrenceLabel={t("answerScope.occurrence", {
+            date: formatShortDay(occurrenceDate, locale),
+          })}
+          seriesLabel={t("answerScope.series")}
+          occurrenceHint={occurrenceScopeHint(event, t)}
+          seriesHint={
+            seriesAnswerReplacesDates(event)
+              ? t("answerScope.seriesHintReplaces")
+              : t("answerScope.seriesHint")
+          }
+        />
+      ) : null}
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          isLoading={responding}
+          tooltip={t("acceptTooltip")}
+          onClick={() => void answer("accepted")}
+        >
+          {t("accept")}
+        </Button>
+        <Button
+          type="button"
+          variant="outline_danger"
+          size="md"
+          disabled={responding}
+          tooltip={t("declineTooltip")}
+          onClick={() => void answer("declined")}
+        >
+          {t("decline")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Was eine Antwort nur für diesen Termin mit den anderen Terminen macht. */
+function occurrenceScopeHint(
+  event: CalendarEvent,
+  t: ReturnType<typeof useCareTermTranslations>,
+): string {
+  const series = event.series_response_status;
+  if (seriesAnswerReplacesDates(event) || series === undefined) {
+    return t("answerScope.occurrenceHintOthers");
+  }
+  if (series === "accepted" || series === "declined") {
+    return t("answerScope.occurrenceHintKeeps", {
+      answer:
+        series === "accepted" ? t("answeredAccepted") : t("answeredDeclined"),
+    });
+  }
+  return t("answerScope.occurrenceHintOpen");
 }
 
 function DetailRow({

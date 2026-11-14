@@ -78,14 +78,14 @@ func seriesToPublic(value domain.StaffShiftSeries) workforce.StaffShiftSeries {
 func shiftTypeToDomain(value workforce.ShiftType) domain.ShiftType {
 	return domain.ShiftType{
 		ID: value.ID, TenantID: value.TenantID, Name: value.Name, Color: value.Color,
-		Description: value.Description, IsActive: value.IsActive, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		Description: value.Description, IsActive: value.IsActive, ArchivedAt: value.ArchivedAt, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 
 func shiftTypeToPublic(value domain.ShiftType) workforce.ShiftType {
 	return workforce.ShiftType{
 		ID: value.ID, TenantID: value.TenantID, Name: value.Name, Color: value.Color,
-		Description: value.Description, IsActive: value.IsActive, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		Description: value.Description, IsActive: value.IsActive, ArchivedAt: value.ArchivedAt, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 

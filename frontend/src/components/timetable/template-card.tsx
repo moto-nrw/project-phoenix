@@ -167,11 +167,14 @@ export function TemplateCard({
               items={[
                 {
                   label: "Bearbeiten",
+                  description: "Öffnet den Regeltermin zum Ändern",
                   onClick: () => onEdit(template),
                 },
                 {
                   label: "Archivieren",
                   icon: <Archive className="h-3.5 w-3.5" aria-hidden />,
+                  description:
+                    "Nimmt den Regeltermin aus der Liste. moto fragt vorher nach",
                   onClick: () => onArchive(template),
                 },
               ]}
@@ -297,6 +300,9 @@ export function TemplateCard({
             variant="primary"
             size="compact"
             className="w-full"
+            // Das Backend trägt alle Regeltermine des Zeitraums ein, nicht
+            // nur diesen (POST /timetable/materialize kennt keinen Regeltermin).
+            tooltip="Trägt die Termine aller Regeltermine im Planungszeitraum ein."
             onClick={() => onApply(template)}
           >
             Termine erzeugen

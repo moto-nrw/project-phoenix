@@ -1,4 +1,4 @@
-package requestreviewhttp
+package requestreviewhttp_test
 
 import (
 	"context"
@@ -7,30 +7,39 @@ import (
 
 	reviewbindings "github.com/moto-ogs/project-phoenix/roots/requestreviewbinding"
 
-	reviewidentity "github.com/moto-ogs/project-phoenix/modules/identityaccess/requestreview"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 
+	requestreviewhttp "github.com/moto-ogs/project-phoenix/modules/requestreview/http"
 	"github.com/stretchr/testify/require"
 )
+
+// principalFacts mirrors Identity & Access's request-review principal field
+// for field; the conversion stops compiling when the principal changes shape.
+type principalFacts struct {
+	Admin        bool
+	UsersUpdate  bool
+	UsersRead    bool
+	UsersAbsence bool
+}
 
 func TestRequestReviewIdentityPreservesEffectivePermissions(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name   string
 		grants []string
-		want   reviewidentity.Principal
+		want   principalFacts
 	}{
-		{"none", nil, reviewidentity.Principal{}},
-		{"write", []string{"users:update"}, reviewidentity.Principal{UsersUpdate: true}},
-		{"absence", []string{"users:absence", "users:read"}, reviewidentity.Principal{UsersRead: true, UsersAbsence: true}},
-		{"resource wildcard", []string{"users:*"}, reviewidentity.Principal{UsersRead: true, UsersUpdate: true, UsersAbsence: true}},
-		{"admin wildcard", []string{"*:*"}, reviewidentity.Principal{Admin: true, UsersRead: true, UsersUpdate: true, UsersAbsence: true}},
-		{"malformed wildcard", []string{"*"}, reviewidentity.Principal{}},
+		{"none", nil, principalFacts{}},
+		{"write", []string{"users:update"}, principalFacts{UsersUpdate: true}},
+		{"absence", []string{"users:absence", "users:read"}, principalFacts{UsersRead: true, UsersAbsence: true}},
+		{"resource wildcard", []string{"users:*"}, principalFacts{UsersRead: true, UsersUpdate: true, UsersAbsence: true}},
+		{"admin wildcard", []string{"*:*"}, principalFacts{Admin: true, UsersRead: true, UsersUpdate: true, UsersAbsence: true}},
+		{"malformed wildcard", []string{"*"}, principalFacts{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.WithValue(context.Background(), sessiontoken.CtxPermissions, tc.grants)
-			require.Equal(t, tc.want, RequestReviewPrincipal(ctx))
-			access, err := reviewbindings.NewAccess(RequestReviewPrincipal, nil)
+			require.Equal(t, tc.want, principalFacts(requestreviewhttp.RequestReviewPrincipal(ctx)))
+			access, err := reviewbindings.NewAccess(requestreviewhttp.RequestReviewPrincipal, nil)
 			require.NoError(t, err)
 			caller, err := access.Caller(ctx)
 			require.NoError(t, err)
@@ -45,20 +54,20 @@ func TestRequestReviewIdentityPreservesEffectivePermissions(t *testing.T) {
 func TestCorrectionAccessDoesNotTreatAdminClaimAsWildcard(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, sessiontoken.AppClaims{IsAdmin: true})
-	require.True(t, RequestReviewPrincipal(ctx).Admin)
-	require.False(t, RequestReviewCorrectionAccess(ctx, nil))
+	require.True(t, requestreviewhttp.RequestReviewPrincipal(ctx).Admin)
+	require.False(t, requestreviewhttp.RequestReviewCorrectionAccess(ctx, nil))
 	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"users:update"})
-	require.False(t, RequestReviewCorrectionAccess(ctx, nil))
-	require.True(t, RequestReviewCorrectionAccess(ctx, func(context.Context) (bool, error) { return true, nil }))
+	require.False(t, requestreviewhttp.RequestReviewCorrectionAccess(ctx, nil))
+	require.True(t, requestreviewhttp.RequestReviewCorrectionAccess(ctx, func(context.Context) (bool, error) { return true, nil }))
 	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"admin:*"})
-	require.True(t, RequestReviewCorrectionAccess(ctx, nil))
+	require.True(t, requestreviewhttp.RequestReviewCorrectionAccess(ctx, nil))
 }
 
 func TestRequestReviewAccessPreservesAbsenceOnlyCapability(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.Background(), sessiontoken.CtxPermissions, []string{"users:read", "users:absence"})
 	for _, level := range []string{"team", "group_leader", "none", "admin"} {
-		access, err := reviewbindings.NewAccess(RequestReviewPrincipal, func(received context.Context) (string, error) {
+		access, err := reviewbindings.NewAccess(requestreviewhttp.RequestReviewPrincipal, func(received context.Context) (string, error) {
 			require.Equal(t, ctx, received)
 			return level, nil
 		})
@@ -71,7 +80,7 @@ func TestRequestReviewAccessPreservesAbsenceOnlyCapability(t *testing.T) {
 		require.False(t, caller.ReviewsWriteQueues, "absence review must not grant access to other queues")
 	}
 	failure := errors.New("review setting unavailable")
-	access, err := reviewbindings.NewAccess(RequestReviewPrincipal, func(context.Context) (string, error) {
+	access, err := reviewbindings.NewAccess(requestreviewhttp.RequestReviewPrincipal, func(context.Context) (string, error) {
 		return "", failure
 	})
 	require.NoError(t, err)

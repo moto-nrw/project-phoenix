@@ -109,6 +109,7 @@ export function NumberRangeCard({
           type="button"
           variant="outline"
           size="md"
+          tooltip="Öffnet ein Fenster für das Muster der Rechnungsnummern."
           onClick={() => setOpen(true)}
         >
           {set ? "Muster ändern" : "Muster festlegen"}
@@ -156,7 +157,7 @@ export function NumberRangeCard({
           }}
         >
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id={`number-range-pattern-${service}`}
             name="pattern"
             label="Muster der Rechnungsnummer"

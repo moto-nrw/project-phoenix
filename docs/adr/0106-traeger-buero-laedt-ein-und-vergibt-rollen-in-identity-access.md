@@ -55,7 +55,8 @@ Diese ADR hält fest, wie das umgesetzt ist und was es in den Registern
    `traeger.last_administrator` abgelehnt. Jeder ändernde Befehl sperrt
    zuerst die Verwaltungs-Rollenzeilen des Trägers (`FOR UPDATE`); zwei
    gleichzeitige Entfernungen warten aufeinander und zählen danach neu.
-6. **Wirkung auf Sitzungen.** Geänderte Rollen erreichen eine Sitzung bei
+6. **Wirkung auf Sitzungen.** (Für entzogene Rollen und das Zugangstoken
+   ersetzt durch den Nachtrag vom 13.11.2026.) Geänderte Rollen erreichen eine Sitzung bei
    ihrer nächsten Erneuerung; der Refresh liest die Rollen ohnehin neu.
    Eine Entfernung beendet die Mitgliedschaft, entzieht die Rollen und
    löscht die Träger-Sitzungen der Person sofort: Kein Refresh gelingt
@@ -123,3 +124,15 @@ Person, ohne dass sie ein Schulkonto braucht.
 - **Register.** `command-effects.json` erhält die Bindung
   `ProvisioningIdentity.InviteTraegerAccount` als Leaf-Mutation. Kein Budget
   steigt.
+
+## Nachtrag 2026-11-13: Entzogene Rollen beenden die Sitzungen (#6850)
+
+Seit #5194 prüft jede Anfrage, ob die Refresh-Familie ihres Zugangstokens
+noch lebt. Abschnitt 6 gilt deshalb so: Fällt bei einer Rollenänderung eine
+Rolle weg, löscht `ChangeTraegerRoles` in derselben Einheit die
+Träger-Sitzungen der Person (`DeleteTraegerAccountSessions`), wie es die
+Entfernung schon tat. Das ausgestellte Zugangstoken mit dem entzogenen Recht
+wird bei der nächsten Anfrage abgelehnt, nicht erst bei seinem Ablauf. Das
+gilt auch für die eigenen Rollen der handelnden Person. Kommen nur Rollen
+hinzu, bleibt die Sitzung bestehen und erhält die neuen Rechte bei ihrer
+nächsten Erneuerung. Die Mail an die Person sagt, dass sie abgemeldet wurde.

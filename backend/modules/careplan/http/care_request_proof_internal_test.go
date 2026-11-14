@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"testing"
@@ -7,6 +7,8 @@ import (
 	carerequests "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 // TestCareRequestProofReport pins the OGS proof of a signed parent request
@@ -19,8 +21,8 @@ func TestCareRequestProofReport(t *testing.T) {
 		FirstName: "Mia", LastName: "Muster",
 		Requested: []carerequests.DiffEntry{{Label: "10.11.2026 · Abholperson", New: "Erika Muster"}},
 	}
-	signature := &PickupSignatureProof{Method: "drawn", SignerName: "Sabine Muster", PNG: []byte{1}, SignedAt: time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC), Intact: true}
-	doc := careRequestProofReport(item, "Ich erlaube, dass Erika Muster das Kind Mia Muster am Dienstag, 10.11.2026 von der OGS abholt.", signature, time.Now())
+	signature := &careplanhttp.PickupSignatureProof{Method: "drawn", SignerName: "Sabine Muster", PNG: []byte{1}, SignedAt: time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC), Intact: true}
+	doc := careplanhttp.CareRequestProofReportForTest(item, "Ich erlaube, dass Erika Muster das Kind Mia Muster am Dienstag, 10.11.2026 von der OGS abholt.", signature, time.Now())
 
 	require.Len(t, doc.Sections, 1)
 	cards := doc.Sections[0].Cards
@@ -36,7 +38,7 @@ func TestCareRequestProofReport(t *testing.T) {
 	assert.Equal(t, "Erika Muster", values["10.11.2026 · Abholperson"])
 	assert.Equal(t, []byte{1}, cards[1].Fields[1].PNG)
 
-	broken := careRequestProofReport(item, "x", nil, time.Now())
+	broken := careplanhttp.CareRequestProofReportForTest(item, "x", nil, time.Now())
 	for _, field := range broken.Sections[0].Cards[0].Fields {
 		if field.Label == "Prüfung" {
 			assert.Contains(t, field.Value, "Achtung")

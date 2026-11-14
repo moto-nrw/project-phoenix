@@ -11,6 +11,7 @@ import {
   fieldsFromDraft,
   type AccidentReportDraft,
 } from "~/components/students/accident-report-form";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -139,18 +140,20 @@ export default function AccidentReportPage() {
       actions={
         report ? (
           // A download, not a page: a plain anchor in the kit's button look.
-          <a
-            href={studentAccidentReportsService.pdfUrl(studentId, reportId)}
-            // Kennzeichen der Kopfkarte für ihre Bedienhöhe (wie `ButtonLink`).
-            data-button-link=""
-            className={buttonClassName({
-              variant: "outline",
-              size: "md",
-              className: "",
-            })}
-          >
-            PDF herunterladen
-          </a>
+          <ActionHint text="Speichert die Unfallanzeige als PDF auf Ihrem Gerät.">
+            <a
+              href={studentAccidentReportsService.pdfUrl(studentId, reportId)}
+              // Kennzeichen der Kopfkarte für ihre Bedienhöhe (wie `ButtonLink`).
+              data-button-link=""
+              className={buttonClassName({
+                variant: "outline",
+                size: "md",
+                className: "",
+              })}
+            >
+              PDF herunterladen
+            </a>
+          </ActionHint>
         ) : undefined
       }
       overlays={
@@ -182,6 +185,7 @@ export default function AccidentReportPage() {
                   href={accidentReportPath(studentId, report.supersededById)}
                   variant="outline"
                   size="compact"
+                  tooltip="Öffnet die korrigierte, neuere Fassung dieser Unfallanzeige."
                 >
                   Korrektur öffnen
                 </ButtonLink>
@@ -235,7 +239,13 @@ function ReportDetails({
       description="Die Angaben folgen dem Vordruck der Unfallkasse."
       action={
         onEdit ? (
-          <Button type="button" variant="outline" size="md" onClick={onEdit}>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onEdit}
+            tooltip="Öffnet die Angaben zum Unfall zum Ändern."
+          >
             Ändern
           </Button>
         ) : undefined
@@ -396,6 +406,7 @@ function SignatureSection({
               variant="outline"
               size="md"
               onClick={onCorrect}
+              tooltip="Öffnet eine Kopie zum Ändern, die bisherige Fassung bleibt erhalten."
             >
               Korrektur anlegen
             </Button>
@@ -410,16 +421,18 @@ function SignatureSection({
               : `Papierexemplar hochgeladen am ${stamp(report.signedAt)}.`}
           </span>
           {document.hasFile && (
-            <a
-              href={studentDocumentsService.downloadUrl(studentId, reportId)}
-              className={buttonClassName({
-                variant: "outline",
-                size: "md",
-                className: "",
-              })}
-            >
-              Papierexemplar herunterladen
-            </a>
+            <ActionHint text="Speichert das unterschriebene Papierexemplar auf Ihrem Gerät.">
+              <a
+                href={studentDocumentsService.downloadUrl(studentId, reportId)}
+                className={buttonClassName({
+                  variant: "outline",
+                  size: "md",
+                  className: "",
+                })}
+              >
+                Papierexemplar herunterladen
+              </a>
+            </ActionHint>
           )}
         </div>
         <p className="mt-3 text-sm text-gray-600">
@@ -463,6 +476,7 @@ function SignatureSection({
                 variant="primary"
                 size="md"
                 disabled={busy}
+                tooltip="Unterschreibt die Unfallanzeige sofort, danach lässt sie sich nicht mehr ändern."
                 onClick={() => {
                   void run(
                     () =>
@@ -489,6 +503,7 @@ function SignatureSection({
                 size="md"
                 className="mt-3"
                 disabled={busy}
+                tooltip="Öffnet die Dateiauswahl, danach gilt die Anzeige sofort als unterschrieben."
                 onClick={() => fileRef.current?.click()}
               >
                 Unterschriebenes Papierexemplar hochladen

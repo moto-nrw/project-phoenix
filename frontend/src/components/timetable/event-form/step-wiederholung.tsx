@@ -95,7 +95,7 @@ export function StepWiederholung({
       <ISODatePicker
         id="event_series_last_day"
         name="end_date"
-        controlSize="md"
+        controlSize="compact"
         value={form.seriesEndDate}
         min={isEditingSeries ? undefined : form.date || undefined}
         max={selectedPeriod?.endDate}
@@ -232,6 +232,7 @@ export function StepWiederholung({
                   className="min-w-[44px]"
                   onClick={() => normalizeLegacyWeekend(iso)}
                   aria-label={`Alten Wochenendtag ${weekdayLabel(iso)} zu Montag ändern`}
+                  tooltip="Verlegt die Serie von diesem Tag auf Montag, sobald Sie speichern."
                 >
                   {weekdayLabel(iso)} zu Mo
                 </Button>

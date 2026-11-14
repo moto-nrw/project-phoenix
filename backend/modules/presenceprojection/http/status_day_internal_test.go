@@ -205,15 +205,15 @@ func (r *StatusDayRepositoryStub) UpsertReported(_ context.Context, _ *absencere
 	return r.upsertErr
 }
 
-func (r *StatusDayRepositoryStub) MarkCleared(_ context.Context, _ int64, _ string, _ calendar.Date, _ time.Time, _ string) error {
+func (r *StatusDayRepositoryStub) MarkCleared(_ context.Context, _ int64, _ string, _ calendar.Date, _ time.Time, _ string, _ *int64) error {
 	return nil
 }
 
-func (r *StatusDayRepositoryStub) MarkClearedByID(_ context.Context, _ int64, _ time.Time, _ string) error {
+func (r *StatusDayRepositoryStub) MarkClearedByID(_ context.Context, _ int64, _ time.Time, _ string, _ *int64) error {
 	return r.clearByIDErr
 }
 
-func (r *StatusDayRepositoryStub) MarkClearedForDates(_ context.Context, _ int64, _ string, _ []calendar.Date, _ time.Time, _ string) error {
+func (r *StatusDayRepositoryStub) MarkClearedForDates(_ context.Context, _ int64, _ string, _ []calendar.Date, _ time.Time, _ string, _ *int64) error {
 	return r.clearForDatesErr
 }
 

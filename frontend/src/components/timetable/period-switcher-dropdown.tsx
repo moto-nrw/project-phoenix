@@ -156,7 +156,7 @@ export function PeriodSwitcherDropdown({
         variant="primary"
         size="compact"
         onClick={onCreate}
-        title="Ohne aktiven Zeitraum können keine regelmäßigen Termine eingetragen werden."
+        tooltip="Öffnet ein Fenster für den ersten Zeitraum, den Regeltermine brauchen."
       >
         Zeitraum anlegen
       </Button>
@@ -224,7 +224,7 @@ export function PeriodSwitcherDropdown({
           aria-haspopup="dialog"
           aria-controls={open ? panelId : undefined}
           className="-ml-2.5 max-w-[240px]"
-          title="Planungszeitraum wechseln"
+          tooltip="Zeigt die Planungszeiträume, um einen anderen zu wählen."
         >
           <StatusDot className="bg-moto-green" decorative />
           <span className="truncate">{triggerLabel}</span>

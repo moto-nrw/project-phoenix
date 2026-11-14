@@ -454,6 +454,7 @@ func (r *announcementRepository) Stats(ctx context.Context, tenantID, announceme
 	}
 	return &communication.PortalAnnouncementStats{
 		TargetCount: value.TargetCount, ReadCount: value.ReadCount, AcknowledgedCount: value.AcknowledgedCount,
+		Recorded: value.Recorded,
 	}, nil
 }
 

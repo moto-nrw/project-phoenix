@@ -47,6 +47,7 @@ interface PeriodUsage {
   studentEnrollmentCount: number;
   supervisorCount: number;
   activityInstanceCount: number;
+  staffShiftSeriesCount: number;
 }
 
 export interface CalendarPeriodsState {
@@ -236,6 +237,7 @@ export function useCalendarPeriods(): CalendarPeriodsState {
       studentEnrollmentCount: usageSource.studentEnrollmentCount ?? 0,
       supervisorCount: usageSource.supervisorCount ?? 0,
       activityInstanceCount: usageSource.activityInstanceCount ?? 0,
+      staffShiftSeriesCount: usageSource.staffShiftSeriesCount ?? 0,
     };
   }, [editing, periods]);
 

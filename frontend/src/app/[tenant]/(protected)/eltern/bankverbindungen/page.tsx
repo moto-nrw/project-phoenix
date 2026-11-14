@@ -241,9 +241,16 @@ function BankverbindungenContent() {
         <OverflowMenu
           ariaLabel="Weitere Aktionen"
           disabled={exportUnavailable}
+          disabledReason={
+            !isLoading && !loadFailed && rows.length === 0
+              ? "Es stehen noch keine Kinder in der Liste."
+              : undefined
+          }
           items={[
             {
               label: "Exportieren",
+              description:
+                "Öffnet den Export aller Bankverbindungen mit ganzer IBAN.",
               icon: <Download className="h-4 w-4" aria-hidden />,
               onClick: () => setExportOpen(true),
               disabled: exportUnavailable,

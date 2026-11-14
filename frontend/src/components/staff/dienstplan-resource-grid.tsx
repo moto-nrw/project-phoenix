@@ -83,9 +83,11 @@ const HEX6_RE = /^#[0-9a-fA-F]{6}$/;
 // needs a label (the Bestandsraster simply omitted the type line there).
 const UNTYPED_SHIFT_LABEL = "Schicht";
 
-// The daily checkout reason the sick cascade stamps on cancelled shifts (#1843);
-// a second derivation source for the "krank" row-header note (Abgleich B2).
+// The change reasons the plan cascade stamps on cancelled shifts: a sick
+// report "Krankheit" (#1843), every other absence "Abwesenheit" (#6847); a
+// second derivation source for the row-header note (Abgleich B2).
 const SICK_CHANGE_REASON = "Krankheit";
+const ABSENCE_CHANGE_REASON = "Abwesenheit";
 
 interface DienstplanResourceGridProps {
   readonly staff: readonly StaffScheduleStaff[];
@@ -140,8 +142,8 @@ interface DienstplanResourceGridProps {
   readonly onOpenPersonWeek?: (staff: StaffScheduleStaff) => void;
 }
 
-// Row-header "krank" note: any absent assignment this week, or a cancelled
-// shift stamped with the sick-cascade reason (Abgleich B2 — covers people
+// Row-header absence note: any absent assignment this week, or a cancelled
+// shift stamped with a plan-cascade reason (Abgleich B2 — covers people
 // without assignments). Full path only; pure so it can be precomputed once per
 // data change instead of on every render (memoized in the component).
 function absenceNoteForStaff(
@@ -163,6 +165,9 @@ function absenceNoteForStaff(
       for (const shift of dayShifts) {
         if (shift.cancelled && shift.changeReason === SICK_CHANGE_REASON) {
           return "krank";
+        }
+        if (shift.cancelled && shift.changeReason === ABSENCE_CHANGE_REASON) {
+          return "abwesend";
         }
       }
     }
@@ -470,6 +475,7 @@ export function DienstplanResourceGrid({
       items.push({
         label: "Wochenraster öffnen",
         icon: <MotoConceptIcon concept={staffPlanConcept} size={18} />,
+        description: "Zeigt die Woche nur dieser Person.",
         onClick: () => onOpenPersonWeek(member),
       });
     }
@@ -480,6 +486,7 @@ export function DienstplanResourceGrid({
       items.push({
         label: "Krank melden",
         icon: <MotoConceptIcon concept={sickConcept} size={18} />,
+        description: "Öffnet ein Fenster für die Krankmeldung.",
         onClick: () => onSickReport(member),
       });
     }
@@ -487,11 +494,14 @@ export function DienstplanResourceGrid({
       items.push({
         label: "Für heute abwesend melden",
         icon: <MotoConceptIcon concept={notArrivalConcept} size={18} />,
+        description:
+          "Öffnet den Vertretungsplan, um eine Vertretung einzutragen.",
         onClick: () => router.push(`/vertretung?d=${absenceEntryDate}`),
       });
       items.push({
         label: "Zeiterfassung öffnen",
         icon: <MotoConceptIcon concept={timeTrackingConcept} size={18} />,
+        description: "Zeigt die erfassten Arbeitszeiten dieser Person.",
         onClick: () => router.push(timeTrackingHref(member)),
       });
     }
@@ -580,6 +590,8 @@ export function DienstplanResourceGrid({
           {
             label: "Verschieben nach",
             icon: <ArrowRightLeft className="h-4 w-4" aria-hidden />,
+            description:
+              "Legt die Schicht auf eine andere Person oder einen anderen Tag.",
             onClick: () => setMoveTarget({ member, shift }),
           },
         ];
@@ -684,12 +696,15 @@ export function DienstplanResourceGrid({
 
   const legendEntries: PlanLegendEntry[] = useMemo(
     () => [
-      ...shiftTypes.map((type) => ({
-        key: `type-${type.id}`,
-        label: type.name,
-        color: type.color,
-        variant: "bar" as const,
-      })),
+      // Entfernte Dienstarten färben nur noch ihre Dienste (#6845).
+      ...shiftTypes
+        .filter((type) => !type.archivedAt)
+        .map((type) => ({
+          key: `type-${type.id}`,
+          label: type.name,
+          color: type.color,
+          variant: "bar" as const,
+        })),
       { key: "state-absent", label: "Abwesend", variant: "hatched" },
       { key: "state-cancelled", label: "Fällt aus", variant: "cancelled" },
       {

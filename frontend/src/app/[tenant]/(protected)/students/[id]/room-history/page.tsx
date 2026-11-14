@@ -85,6 +85,10 @@ const LazyHistoryCharts = dynamic(() => import("./history-charts"), {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/** Erklärung am „Korrigieren“-Knopf, in Karte und Tabelle gleich (#6643). */
+const CORRECTION_TOOLTIP =
+  "Öffnet die Anwesenheit dieses Termins zum Ändern, mit Angabe eines Grundes.";
+
 function formatDateShort(dateKey: string): string {
   const d = new Date(`${dateKey}T00:00:00`);
   const day = d.getDate().toString().padStart(2, "0");
@@ -283,6 +287,7 @@ function DayCard({
                           note: slot.note,
                         })
                       }
+                      tooltip={CORRECTION_TOOLTIP}
                       className="mt-0.5 ml-1"
                     >
                       Korrigieren
@@ -503,6 +508,7 @@ function daySlotRows(
                     note: slot.note,
                   })
                 }
+                tooltip={CORRECTION_TOOLTIP}
                 className="mt-1"
               >
                 Korrigieren
@@ -870,6 +876,8 @@ function StudentRoomHistoryPageContent() {
               items={[
                 {
                   label: "Exportieren",
+                  description:
+                    "Öffnet den Export der Anwesenheit, mit Wahl von Zeitraum und Format.",
                   icon: <Download className="h-4 w-4" aria-hidden />,
                   onClick: () => setExportOpen(true),
                 },

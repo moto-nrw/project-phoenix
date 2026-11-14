@@ -28,10 +28,17 @@ export type ImportField =
   | "last_collected_on"
   | "debtor_number";
 
-export type PayerKey = "email" | "contract_id";
+/** debtor_number: the number moto keeps, per child or per payer (#7009). */
+export type PayerKey = "email" | "contract_id" | "debtor_number";
 
 export type ImportRowStatus =
-  "ready" | "clarify" | "duplicate" | "conflict" | "invalid" | "imported";
+  | "ready"
+  | "clarify"
+  | "duplicate"
+  | "same_mandate"
+  | "conflict"
+  | "invalid"
+  | "imported";
 
 /** Header of the column each field comes from; "" leaves it unmapped. */
 type ImportColumns = Readonly<Record<ImportField, string>>;
@@ -68,17 +75,32 @@ export interface ImportRow {
   readonly hints: readonly string[];
   /** Debtor number of the row for the family (#4693), "" without the column. */
   readonly debtorNumber: string;
+  /**
+   * The line whose mandate a sibling's row repeats (#7009); null for every
+   * other row.
+   */
+  readonly sameMandateLine: number | null;
   readonly debtorNumberStatus: DebtorNumberStatus | "";
 }
 
 /** What the import does with the debtor number of a row (#4693). */
 type DebtorNumberStatus =
-  "new" | "same" | "siblings_differ" | "differs" | "invalid" | "no_family";
+  | "new"
+  | "same"
+  | "siblings_differ"
+  | "differs"
+  | "invalid"
+  | "no_family"
+  // Only when the Träger keeps the number per child (#7007).
+  | "no_child"
+  | "rows_differ";
 
 type ImportCounts = Readonly<
   Record<ImportRowStatus, number> & {
     debtorNumbers: number;
     debtorConflicts: number;
+    /** Rows without IBAN and reference the import skipped (#7009). */
+    withoutMandate: number;
   }
 >;
 
@@ -139,6 +161,7 @@ interface BackendRow {
   hints: string[] | null;
   debtor_number?: string;
   debtor_number_status?: DebtorNumberStatus;
+  same_mandate_line?: number;
 }
 
 interface BackendResult {
@@ -153,6 +176,7 @@ interface BackendResult {
   counts: Record<ImportRowStatus, number> & {
     debtor_numbers?: number;
     debtor_conflicts?: number;
+    without_mandate?: number;
   };
   rows: BackendRow[] | null;
 }
@@ -192,6 +216,7 @@ function mapRow(row: BackendRow): ImportRow {
     hints: row.hints ?? [],
     debtorNumber: row.debtor_number ?? "",
     debtorNumberStatus: row.debtor_number_status ?? "",
+    sameMandateLine: row.same_mandate_line ?? null,
   };
 }
 
@@ -214,6 +239,7 @@ function mapImportResult(result: BackendResult): ImportResult {
       ...result.counts,
       debtorNumbers: result.counts.debtor_numbers ?? 0,
       debtorConflicts: result.counts.debtor_conflicts ?? 0,
+      withoutMandate: result.counts.without_mandate ?? 0,
     },
     rows: (result.rows ?? []).map(mapRow),
   };

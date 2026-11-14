@@ -13,6 +13,7 @@
   "contactData": "Dane kontaktowe",
   "soon": "Wkrótce",
   "refresh": "Odśwież dane",
+  "refreshTooltip": "Pobiera najnowszy stan wszystkich danych na tej stronie.",
   "closeMenu": "Zamknij menu",
   "profileMenu": "Menu profilu: {name}",
   "profile": "Mój profil",
@@ -34,5 +35,6 @@
   "documents": "Dokumenty",
   "privacy": "Prywatność",
   "backToApp": "Powrót do aplikacji",
-  "holidayRegistrations": "Zgłoszenia na ferie"
+  "holidayRegistrations": "Zgłoszenia na ferie",
+  "signIn": "Logowanie"
 }

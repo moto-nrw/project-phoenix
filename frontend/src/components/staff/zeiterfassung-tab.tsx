@@ -105,6 +105,7 @@ export function ZeiterfassungTab({
   initialDate,
   staff,
   canBookAbsences = false,
+  onSetTarget,
 }: {
   readonly staffId: string;
   readonly initialDate?: string;
@@ -112,7 +113,15 @@ export function ZeiterfassungTab({
   // time_tracking:manage, wie das Eintragen im Reiter Abwesenheiten.
   readonly staff?: SickReportStaff;
   readonly canBookAbsences?: boolean;
+  /** Wechselt zum Reiter „Arbeitszeitmodell“, wenn das Soll fehlt (#6887);
+   *  nur gesetzt, wenn der Reiter für die Person sichtbar ist. */
+  readonly onSetTarget?: () => void;
 }) {
+  // Soll-Hinweis der Nachtrag-Dialoge (#6887); den Reiter zum Setzen gibt es
+  // nur, wenn die Seite ihn anbietet.
+  const targetHint = canBookAbsences
+    ? { canSetTarget: onSetTarget !== undefined }
+    : undefined;
   const [backfill, setBackfill] = useState<{
     date: string;
     kind: "absence" | "sick";
@@ -426,7 +435,7 @@ export function ZeiterfassungTab({
       {metricsLoad ? (
         <LoadErrorAlert error={metricsLoad} />
       ) : (
-        <KpiCards metrics={metrics} />
+        <KpiCards metrics={metrics} onSetTarget={onSetTarget} />
       )}
 
       <SectionCard
@@ -447,7 +456,7 @@ export function ZeiterfassungTab({
           onPrev={handlePrev}
           onNext={handleNext}
           onToday={handleGoToday}
-          todayLabel={viewMode === "month" ? "Diesen Monat" : "Diese Woche"}
+          isMonth={viewMode === "month"}
         />
 
         {viewMode === "month" && (
@@ -461,6 +470,7 @@ export function ZeiterfassungTab({
               accountStartsInFuture={accountStartsInFuture}
               accountStartDate={accountStartDate}
               onReopen={() => setShowReopenModal(true)}
+              onSetTarget={onSetTarget}
             />
           </div>
         )}
@@ -485,6 +495,7 @@ export function ZeiterfassungTab({
               </>
             }
             submitLabel="Monat wieder öffnen"
+            submitTooltip="Hebt den Abschluss dieses Monats nur für diese Person auf."
             successMessage="Der Monat ist wieder geöffnet."
             errorObject="das Öffnen des Monats"
             destructive
@@ -571,6 +582,7 @@ export function ZeiterfassungTab({
           staff={staff}
           types={absenceTypes ?? []}
           initialDate={backfill.date}
+          targetHint={targetHint}
           onClose={() => setBackfill(null)}
           onSaved={() => {
             setBackfill(null);
@@ -583,6 +595,7 @@ export function ZeiterfassungTab({
           isOpen
           staff={staff}
           initialDate={backfill.date}
+          targetHint={targetHint}
           onClose={() => setBackfill(null)}
           onCreated={() => {
             // Die Krankmeldung ist gespeichert. Ein fehlgeschlagenes Nachladen
@@ -607,14 +620,15 @@ function RangeNav({
   onPrev,
   onNext,
   onToday,
-  todayLabel,
+  isMonth,
 }: {
   readonly label: string;
   readonly onPrev: () => void;
   readonly onNext: () => void;
   readonly onToday: () => void;
-  readonly todayLabel: string;
+  readonly isMonth: boolean;
 }) {
+  const todayLabel = isMonth ? "Diesen Monat" : "Diese Woche";
   return (
     <div className="flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
       <div className="hidden sm:block" />
@@ -625,6 +639,11 @@ function RangeNav({
           size="icon"
           onClick={onPrev}
           aria-label="Vorheriger Zeitraum"
+          tooltip={
+            isMonth
+              ? "Zeigt die Zeiten des Vormonats."
+              : "Zeigt die Zeiten der Vorwoche."
+          }
         >
           <ChevronLeft className="h-4 w-4" aria-hidden />
         </Button>
@@ -637,6 +656,11 @@ function RangeNav({
           size="icon"
           onClick={onNext}
           aria-label="Nächster Zeitraum"
+          tooltip={
+            isMonth
+              ? "Zeigt die Zeiten des Folgemonats."
+              : "Zeigt die Zeiten der Folgewoche."
+          }
         >
           <ChevronRight className="h-4 w-4" aria-hidden />
         </Button>
@@ -647,6 +671,11 @@ function RangeNav({
           variant="outline"
           size="compact"
           onClick={onToday}
+          tooltip={
+            isMonth
+              ? "Springt zurück zum laufenden Monat."
+              : "Springt zurück zur laufenden Woche."
+          }
         >
           {todayLabel}
         </Button>

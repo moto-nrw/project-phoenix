@@ -1,6 +1,7 @@
 package application
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -84,7 +85,7 @@ func TestPreviewBillsEveryConfirmedFamilyOnceWithItsCorrections(t *testing.T) {
 
 	result := buildPreview(previewInput{
 		run: run, registrations: registrations, contributions: contributions,
-		issued: map[int64]bool{14: true}, corrections: corrections,
+		issued: map[parentbilling.HolidayInvoiceKey]bool{{RegistrationID: 14}: true}, corrections: corrections,
 	})
 
 	require.Len(t, result.documents, 2, "a billed family and a family without a frozen contribution get no draft")
@@ -110,6 +111,72 @@ func TestPreviewBillsEveryConfirmedFamilyOnceWithItsCorrections(t *testing.T) {
 	assert.Equal(t, "Ben", child.FirstName)
 	_, ok = result.child(12, 112)
 	assert.False(t, ok, "a child is found only in its own family")
+}
+
+// With a number per child each child gets an invoice of its own (#7007).
+// A registration keeps the shape of its first invoice: billed as a whole
+// before the switch, it stays one invoice; billed per child, a cancelled
+// child's invoice is issued again for that child alone.
+func TestPreviewBillsEachChildOnAnInvoiceOfItsOwn(t *testing.T) {
+	t.Parallel()
+	week := calendar.NewDate(2027, 1, 4)
+	weekEnd := week.AddDays(4)
+	booked := func(ids ...int64) parentbilling.HolidayContribution {
+		contribution := parentbilling.HolidayContribution{}
+		for _, id := range ids {
+			contribution.Children = append(contribution.Children, parentbilling.HolidayChildContribution{ChildID: id, TotalCents: 4500,
+				Lines: []parentbilling.HolidayContributionLine{{Kind: parentbilling.LineBase, AmountCents: 4500, WeekStartsOn: &week, WeekEndsOn: &weekEnd}}})
+		}
+		return contribution
+	}
+	children := func(ids ...int64) []parentbilling.HolidayBillingChild {
+		list := make([]parentbilling.HolidayBillingChild, len(ids))
+		for i, id := range ids {
+			list[i] = parentbilling.HolidayBillingChild{ID: id, FirstName: fmt.Sprintf("Kind %d", id)}
+		}
+		return list
+	}
+	registrations := []parentbilling.HolidayBillingRegistration{
+		{ID: 11, DebtorNumber: "10 0001", Children: children(111, 112)},
+		{ID: 12, DebtorNumber: "20 0001", Children: children(121)},
+		{ID: 13, Children: children(131, 132)},
+		{ID: 14, Children: children(141, 142)},
+		{ID: 15, Children: children(151, 152)},
+	}
+	contributions := map[int64]parentbilling.HolidayContribution{
+		11: booked(111, 112), 12: booked(121), 13: booked(131, 132), 14: booked(141, 142), 15: booked(151, 152),
+	}
+
+	result := buildPreview(previewInput{
+		run: parentbilling.BillingRun{ID: 30}, registrations: registrations, contributions: contributions, perChild: true,
+		issued: map[parentbilling.HolidayInvoiceKey]bool{{RegistrationID: 13}: true, {RegistrationID: 14, ChildID: 141}: true},
+		replaces: map[parentbilling.HolidayInvoiceKey]parentbilling.BillingDocumentLink{
+			{RegistrationID: 14, ChildID: 142}: {ID: 900, Number: "FE-9"}, {RegistrationID: 15}: {ID: 901, Number: "FE-10"},
+		},
+	})
+
+	type drafted struct {
+		registration, child int64
+		children            int
+		debtor, replaces    string
+	}
+	var got []drafted
+	for _, document := range result.documents {
+		got = append(got, drafted{document.RegistrationID, document.RegistrationChildID, len(document.Children), document.DebtorNumber,
+			document.ReferenceNumber})
+	}
+	assert.Equal(t, []drafted{
+		{11, 111, 1, "", ""}, {11, 112, 1, "", ""},
+		{12, 121, 1, "20 0001", ""},
+		{14, 142, 1, "", "FE-9"},
+		{15, 0, 2, "", "FE-10"},
+	}, got, "siblings split, one child keeps the registration's number, an invoice of the whole stays whole")
+	assert.Zero(t, result.unbilled)
+
+	whole := buildPreview(previewInput{run: parentbilling.BillingRun{ID: 30}, registrations: registrations[:1], contributions: contributions})
+	require.Len(t, whole.documents, 1, "with a number per payer the registration has one invoice")
+	assert.Zero(t, whole.documents[0].RegistrationChildID)
+	assert.Equal(t, "10 0001", whole.documents[0].DebtorNumber)
 }
 
 func TestCorrectionNeedsAChildAnAmountAndAReason(t *testing.T) {

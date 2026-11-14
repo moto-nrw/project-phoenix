@@ -47,6 +47,7 @@ func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID 
 	}
 	if entries.HasEntries {
 		resolver.Schedule = func(d calendar.Date) (int, bool) { return entries.DailyTarget(staff.RotationAnchorDate, d) }
+		resolver.ScheduleCovers = entries.Covers
 	}
 	if entries.HasEntries || staff.WorkTimeModelID == nil {
 		return resolver, nil

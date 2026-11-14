@@ -11,7 +11,10 @@
   "share": "Udostępnij",
   "homeScreen": "Do ekranu początkowego",
   "install": "Zainstaluj aplikację",
+  "installTooltip": "Instaluje moto jako aplikację, urządzenie najpierw zapyta.",
   "addToHome": "Dodaj do ekranu głównego",
   "openInChrome": "Otwórz w Chrome",
-  "close": "Zamknij wskazówkę"
+  "openInChromeTooltip": "Otwiera tę stronę w Chrome, gdzie można zainstalować moto.",
+  "close": "Zamknij wskazówkę",
+  "closeTooltip": "Ukrywa tę wskazówkę na tym urządzeniu na stałe."
 }

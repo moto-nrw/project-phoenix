@@ -4,6 +4,7 @@ package migrations
 
 import (
 	"context"
+	"database/sql/driver"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 func init() {
 	backfillAttemptChecks["PanicRollsBack"] = checkPanicRollsBack
 	backfillAttemptChecks["SamplerStopsOnce"] = checkSamplerStopsOnce
+	backfillAttemptChecks["SamplerFailureRacingStop"] = checkSamplerFailureRacingStop
 }
 
 // A panicking body rolls back before the deferred conn.Close, as RunInTx did:
@@ -27,6 +29,7 @@ func init() {
 func checkPanicRollsBack(t *testing.T, super *bun.DB) {
 	t.Parallel()
 	pool, _ := testpkg.NewStatementFaultPool(t)
+	warmBatchConnections(t, pool)
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	started := time.Now()
@@ -52,6 +55,7 @@ func checkSamplerStopsOnce(t *testing.T, _ *bun.DB) {
 	t.Parallel()
 	for _, failing := range []bool{false, true} {
 		pool, faults := testpkg.NewStatementFaultPool(t)
+		warmBatchConnections(t, pool)
 		hooks := batchAttemptHooks{}
 		if failing {
 			faults.Arm(testpkg.FaultNone, nil)
@@ -74,4 +78,22 @@ func checkSamplerStopsOnce(t *testing.T, _ *bun.DB) {
 			require.NoError(t, err)
 		}
 	}
+}
+
+// A sample that fails while stop cancels the sampler still reports its own
+// failure; only the cancellation stop caused is no sampler failure (#6808).
+func checkSamplerFailureRacingStop(t *testing.T, _ *bun.DB) {
+	t.Parallel()
+	pool, faults := testpkg.NewStatementFaultPool(t)
+	warmBatchConnections(t, pool)
+	faults.Arm(testpkg.FaultNone, nil)
+	faults.AlsoFailStatementWhenCancelled(monitorSamplePrefix, testpkg.InjectedFailure("bad_conn"))
+	// The deadline bounds the held sample should stop never cancel it.
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	stop, _, err := monitorBackfillLocks(ctx, pool, 0)
+	require.NoError(t, err)
+	waitSamplerFailed(t, faults) // the sample took its failure and is held
+	_, err = stop()
+	require.ErrorIs(t, err, driver.ErrBadConn)
 }

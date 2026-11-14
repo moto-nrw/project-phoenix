@@ -47,8 +47,15 @@ function columns(schools: SchoolNames): DataTableColumn<TraegerDocument>[] {
             <span className="block truncate font-medium text-gray-900">
               {document.title}
             </span>
-            <span className="block truncate text-xs text-gray-500">
-              {document.fileName} · {documentFileFacts(document)}
+            {/* On a phone the file name wraps and stays whole; from sm on
+                only the name shortens. Type and size never break. */}
+            <span className="block text-sm text-gray-500 sm:flex sm:min-w-0">
+              <span className="wrap-anywhere sm:truncate">
+                {document.fileName}
+              </span>
+              <span className="whitespace-nowrap sm:shrink-0">
+                &nbsp;· {documentFileFacts(document)}
+              </span>
             </span>
           </span>
         </span>
@@ -61,7 +68,7 @@ function columns(schools: SchoolNames): DataTableColumn<TraegerDocument>[] {
       header: "Freigegeben für",
       render: (document) =>
         document.releases.length === 0 ? (
-          <StatusBadge label="Nicht freigegeben" tone="gray" />
+          <StatusBadge label="Noch niemand" tone="gray" />
         ) : (
           <span className="block space-y-0.5">
             {document.releases.map((release) => (
@@ -141,6 +148,7 @@ export default function TraegerDocumentsPage() {
             variant="primary"
             size="md"
             className="gap-2"
+            tooltip="Fügt ein Dokument hinzu, noch ohne Freigabe für Eltern und Schulen."
             onClick={() => setUploading(true)}
           >
             <UploadSimpleIcon className="h-4 w-4" aria-hidden="true" />

@@ -51,6 +51,7 @@ export function holidayWeeksTopic(): HelpTopic {
       "In der Kinderakte steht unter `Angaben aus der Ferienanmeldung`, was die Eltern angegeben haben: Betreuung, Notfall, Abholung und Gesundheit. Die Stammdaten des Kindes ändern sich nicht.",
       "Ändern Sie an einem eingeplanten Tag die Abholzeit, bleibt Ihre Zeit stehen.",
       "E-Mail-Adressen sehen Sie nicht. Sie bleiben beim Träger.",
+      "Kinder Ihrer OGS, die in den Ferien eine andere OGS betreut, stehen im Reiter `Kinder bei anderen OGS`.",
       "Jeder Abruf und jede Datei wird im Zugriffsprotokoll Ihrer OGS vermerkt.",
     ],
     differences: [
@@ -65,6 +66,7 @@ export function holidayWeeksTopic(): HelpTopic {
     ],
     related: [
       HELP_TOPICS.leadHolidayGuestGroup,
+      HELP_TOPICS.leadHolidayHomeSchoolChildren,
       HELP_TOPICS.leadStatistics,
       HELP_TOPICS.leadExports,
     ],

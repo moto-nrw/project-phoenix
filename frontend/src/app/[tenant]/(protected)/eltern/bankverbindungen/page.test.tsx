@@ -261,7 +261,14 @@ describe("BankverbindungenPage", () => {
     expect(
       await screen.findAllByText("Noch keine Kinder in der Liste"),
     ).toHaveLength(1);
-    expect(actions).toBeDisabled();
+    // Gesperrt mit Grund (#6757): das Kebab bleibt fokussierbar und nennt,
+    // warum es nichts zu exportieren gibt.
+    expect(actions).toHaveAttribute("aria-disabled", "true");
+    expect(actions).toHaveAccessibleDescription(
+      "Es stehen noch keine Kinder in der Liste.",
+    );
+    fireEvent.click(actions);
+    expect(actions).toHaveAttribute("aria-expanded", "false");
   });
 
   it("keeps export available after a failed refetch with retained rows", async () => {

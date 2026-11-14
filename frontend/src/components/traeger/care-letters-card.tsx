@@ -7,6 +7,7 @@
 // Schreiben, auch nur die der Familien ohne E-Mail. Die Mail und das Fach
 // „Dokumente“ der Eltern-App bekommen dieselbe Datei.
 
+import { ChevronDown, Printer } from "lucide-react";
 import { useLayoutEffect, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -119,6 +120,7 @@ export function CareLettersCard({
   const printItems = [
     {
       label: "Alle Schreiben drucken",
+      icon: <Printer className="size-4" aria-hidden />,
       description: "Alle Schreiben, die noch gelten, in einer Datei",
       onClick: () => onPrint(false),
     },
@@ -126,6 +128,7 @@ export function CareLettersCard({
       ? [
           {
             label: "Nur Familien ohne E-Mail",
+            icon: <Printer className="size-4" aria-hidden />,
             description: `${familyCount(summary.withoutEmail)} ohne E-Mail-Adresse`,
             onClick: () => onPrint(true),
           },
@@ -142,7 +145,17 @@ export function CareLettersCard({
           <OverflowMenu
             ariaLabel="Schreiben drucken"
             triggerButton={{ variant: "outline", size: "md" }}
-            triggerContent={printing ? "Wird erstellt …" : "Drucken"}
+            triggerClassName="gap-2 whitespace-nowrap"
+            triggerContent={
+              printing ? (
+                "Wird erstellt …"
+              ) : (
+                <>
+                  Drucken
+                  <ChevronDown className="h-4 w-4" aria-hidden />
+                </>
+              )
+            }
             disabled={printing !== null}
             items={printItems}
           />
@@ -153,6 +166,14 @@ export function CareLettersCard({
             isLoading={sendingAll}
             loadingText="Wird gesendet …"
             disabled={toSend === 0}
+            disabledReason={
+              summary.letters === 0
+                ? "Es gibt noch kein Schreiben zum Senden."
+                : summary.withoutEmail >= summary.notSent && summary.sent === 0
+                  ? "Keine Familie hat eine E-Mail-Adresse. Drucken Sie die Schreiben."
+                  : "Alle Schreiben mit E-Mail-Adresse sind schon gesendet."
+            }
+            tooltip="Sendet allen Familien mit E-Mail-Adresse ihr Schreiben, moto fragt vorher nach."
             onClick={() => setConfirming(true)}
           >
             An alle senden

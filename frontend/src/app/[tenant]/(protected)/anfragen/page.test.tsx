@@ -115,7 +115,7 @@ vi.mock("~/components/staff/staff-absence-request-list", () => ({
   ),
 }));
 
-// NavigationTabs beobachtet seine Scroll-Breite; jsdom kennt ResizeObserver
+// Die Seitenreiter von TenantPage messen ihre Breite; jsdom kennt ResizeObserver
 // nicht (gleiches Muster wie die Master-Detail-Tests).
 class MockResizeObserver {
   observe() {}
@@ -382,7 +382,7 @@ describe("AnfragenPage", () => {
   it("reicht den Suchbegriff serverseitig an die Liste durch", () => {
     render(<AnfragenPage />);
 
-    // PageHeaderWithSearch rendert das Suchfeld doppelt (mobil + Desktop);
+    // Die Suchzeile von TenantPage rendert das Suchfeld doppelt (mobil + Desktop);
     // beide tragen denselben Zustand.
     const [input] = screen.getAllByPlaceholderText("Kind suchen…");
     fireEvent.change(input!, { target: { value: "Emma" } });

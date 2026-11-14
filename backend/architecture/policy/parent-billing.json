@@ -169,6 +169,14 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.child_debtor_number_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.child_debtor_numbers",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.cost_bearers",
       "write_owner": "parent-billing"
     },
@@ -202,6 +210,10 @@
     },
     {
       "name": "parent_billing.export_files",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.export_file_transfers",
       "write_owner": "parent-billing"
     },
     {

@@ -14,11 +14,16 @@ export type ExportRunPathKind = "care-runs" | "holiday-runs" | "notice-months";
 type ExportRunKind = "care" | "holiday" | "notice";
 export type ExportFormat = "sollstellung" | "pain008" | "datev";
 
+/** The outcome of a handover, as the journal and the protocol name it. */
+export type HandoverState =
+  "transferred" | "failed" | "in_progress" | "unknown";
+
 export type SollField =
   | "invoice_number"
   | "invoice_date"
   | "due_on"
   | "amount"
+  | "credit_amount"
   | "debtor_number"
   | "recipient_name"
   | "recipient_street"
@@ -35,7 +40,21 @@ export type SollField =
   | "revenue_account"
   | "cost_center"
   | "cost_center_2"
+  | "booking_text"
   | "constant";
+
+/** Placeholders a booking text fills per row (#7008), as the backend reads them. */
+export const SOLL_BOOKING_TEXT_PLACEHOLDERS = [
+  "{Monat}",
+  "{Kind}",
+  "{Empfänger}",
+  "{Rechnungsnummer}",
+] as const;
+
+/** Whether a column of the field carries a value: a constant or a pattern. */
+function sollColumnKeepsValue(field: SollField): boolean {
+  return field === "constant" || field === "booking_text";
+}
 
 /** Fields that write one row per revenue account and cost centers (#4821). */
 export const SOLL_BOOKING_FIELDS: readonly SollField[] = [
@@ -52,7 +71,7 @@ export type SollEncoding = "utf-8-bom" | "utf-8" | "windows-1252";
 export interface SollColumn {
   readonly field: SollField;
   readonly header: string;
-  /** Only a constant column carries a value. */
+  /** The fixed value of a constant or the pattern of a booking text. */
   readonly value: string;
 }
 
@@ -133,6 +152,18 @@ export interface ExportProtocolEntry {
   readonly exportedByName: string;
   readonly exportedAt: string;
   readonly submittedAt: string | null;
+  /** The handover to the recipient of the Träger (ADR 0218), null for a download. */
+  readonly handover?: ProtocolHandover | null;
+}
+
+/** Where a file of the protocol went and whether it arrived. */
+export interface ProtocolHandover {
+  readonly state: HandoverState;
+  readonly reason: string;
+  /** The recipient at the handover (ADR 0222); empty for an older one. */
+  readonly recipientName: string;
+  readonly targetHost: string;
+  readonly targetDirectory: string;
 }
 
 /** Why a holiday position booked on the cost center of the holiday care. */
@@ -233,6 +264,13 @@ interface BackendEntry {
   exported_by_name?: string | null;
   exported_at: string;
   submitted_at: string | null;
+  handover?: {
+    state: HandoverState;
+    reason?: string;
+    recipient_name?: string;
+    target_host: string;
+    target_directory: string;
+  } | null;
 }
 
 interface BackendCostCenterFallback {
@@ -300,7 +338,7 @@ function mappingToBackend(mapping: SollMapping): BackendMapping {
     columns: mapping.columns.map((column) => ({
       field: column.field,
       header: column.header,
-      ...(column.field === "constant" ? { value: column.value } : {}),
+      ...(sollColumnKeepsValue(column.field) ? { value: column.value } : {}),
     })),
     delimiter: mapping.delimiter,
     decimal_separator: mapping.decimalSeparator,
@@ -355,6 +393,15 @@ function entryFromBackend(entry: BackendEntry): ExportProtocolEntry {
     exportedByName: entry.exported_by_name ?? "",
     exportedAt: entry.exported_at,
     submittedAt: entry.submitted_at,
+    handover: entry.handover
+      ? {
+          state: entry.handover.state,
+          reason: entry.handover.reason ?? "",
+          recipientName: entry.handover.recipient_name ?? "",
+          targetHost: entry.handover.target_host,
+          targetDirectory: entry.handover.target_directory,
+        }
+      : null,
   };
 }
 

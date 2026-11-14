@@ -130,14 +130,30 @@ type BillingPosition struct {
 	CostCenterFallback string           `json:"-"`
 }
 
+// HolidayInvoiceKey names the invoices of a holiday registration that
+// follow one another (invoice, cancellation, the invoice issued again): the
+// registration's, ChildID 0, or one child's (#7007).
+type HolidayInvoiceKey struct {
+	RegistrationID int64
+	ChildID        int64
+}
+
+// InvoiceKey is the key of the invoices the document belongs to.
+func (d BillingDocument) InvoiceKey() HolidayInvoiceKey {
+	return HolidayInvoiceKey{RegistrationID: d.RegistrationID, ChildID: d.RegistrationChildID}
+}
+
 // BillingChild is a child of an invoice with its positions and the history
 // of its corrections. CarriedCorrections are the corrections of a cancelled
 // invoice a draft proposes (#5663); they are positions too. ChildID is zero
 // on an issued invoice once the registration is gone.
 type BillingChild struct {
-	ChildID            int64                      `json:"child_id"`
-	FirstName          string                     `json:"first_name"`
-	LastName           string                     `json:"last_name"`
+	ChildID   int64  `json:"child_id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	// BirthDate finds the debtor number of the child when the Träger keeps
+	// one per child (#7007); the draft alone carries it.
+	BirthDate          calendar.Date              `json:"-"`
 	Positions          []BillingPosition          `json:"positions"`
 	Corrections        []BillingCorrection        `json:"corrections"`
 	CarriedCorrections []BillingCarriedCorrection `json:"carried_corrections"`
@@ -164,6 +180,12 @@ type PostalAddress struct {
 // cancellation, the credits and the replacing invoice of an issued invoice;
 // ReplacedCredits the credits of the cancelled invoice a draft replaces, which
 // it does not carry over (#5663).
+//
+// A holiday invoice bills its registration, or one child of it
+// (RegistrationChildID) when the Träger keeps the debtor number per child
+// (#7007): each child then has an invoice of its own with its number. The
+// first invoice of a registration decides; an invoice issued again, its
+// cancellation and its credits keep the shape of the invoice they follow.
 type BillingDocument struct {
 	ID    int64  `json:"id"`
 	RunID int64  `json:"run_id"`
@@ -179,6 +201,7 @@ type BillingDocument struct {
 	Number              string                `json:"number"`
 	IssuedOn            *calendar.Date        `json:"issued_on"`
 	RegistrationID      int64                 `json:"registration_id"`
+	RegistrationChildID int64                 `json:"registration_child_id"`
 	RecipientFirstName  string                `json:"recipient_first_name"`
 	RecipientLastName   string                `json:"recipient_last_name"`
 	RecipientEmail      string                `json:"recipient_email"`
@@ -277,6 +300,8 @@ type HolidayBillingChild struct {
 	ID        int64
 	FirstName string
 	LastName  string
+	// BirthDate tells the child apart for its own debtor number (#7007).
+	BirthDate calendar.Date
 }
 
 // HolidayBillingRegistration is a confirmed registration with the parent

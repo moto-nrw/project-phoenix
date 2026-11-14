@@ -246,6 +246,12 @@ type UpdateTemplateCommand struct {
 	// Wochennotiz-only save resolved from a capped predecessor (#6141).
 	PropagateNotesToPredecessors bool
 	StartDate                    *calendar.Date
+	// ReplanFuture rebuilds the template's planned occurrences from today
+	// through the end of its planning period in the update's transaction, so
+	// a changed series never leaves stale or duplicate occurrences behind
+	// (#6838). ActorAccountID attributes dropped deviations.
+	ReplanFuture   bool
+	ActorAccountID *int64
 }
 
 // SplitTemplateCommand is "Dieser und alle folgenden" (WP-B3): the update

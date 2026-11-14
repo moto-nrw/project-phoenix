@@ -65,7 +65,7 @@ func (f *AccountMFAFlows) startChallenge(ctx context.Context, accountID, tenantI
 		CreatedAt: createdAt, UpdatedAt: createdAt,
 	}, domain.MFACodeMailFor(
 		account.Email, "", account.ID, false, plainCode, domain.MFAChallengeTTL, ip, enabled, days,
-	), credentialGeneration)
+	).ForPortal(scope, account.PortalLocale), credentialGeneration)
 	if err != nil {
 		return "", fmt.Errorf("prepare email challenge: %w", err)
 	}

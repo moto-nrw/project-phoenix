@@ -1471,7 +1471,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/application/groups.RoomDirectory.FindRoom",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.FindRoom; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.FindRoom; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed #6845: the binding now maps an archived room to ErrRoomNotFound so no group moves into it; still a read with no lock or write.",
       "source_owner": "school-structure",
       "target": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.FindRoom",
       "target_owner": "facilities"
@@ -1481,7 +1481,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/application/groups.RoomDirectory.FindRoom",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.FindRoom; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.FindRoom; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed #6845: the binding now maps an archived room to ErrRoomNotFound so no group moves into it; still a read with no lock or write.",
       "source_owner": "school-structure",
       "target": "github.com/moto-ogs/project-phoenix/modules/facilities.Catalog.FindRoom",
       "target_owner": "facilities"
@@ -1491,7 +1491,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/application/groups.RoomDirectory.FindRoom",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Query.FindRoom; modules/facilities/facilities.go:57. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Query.FindRoom; modules/facilities/facilities.go:57. May-bind method surface, not a production-call/liveness claim. Re-reviewed #6845: the binding now maps an archived room to ErrRoomNotFound so no group moves into it; still a read with no lock or write.",
       "source_owner": "school-structure",
       "target": "github.com/moto-ogs/project-phoenix/modules/facilities.Query.FindRoom",
       "target_owner": "facilities"

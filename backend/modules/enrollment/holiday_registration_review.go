@@ -188,6 +188,72 @@ type HolidayRegistrationSummary struct {
 	RetentionDays   int            `json:"retention_days"`
 	DeletesOn       *calendar.Date `json:"deletes_on"`
 	HealthDeletesOn *calendar.Date `json:"health_deletes_on"`
+
+	// MailProblems are the mails of the registration that did not reach the
+	// parent who registered (#6737, #6976): receipt, acceptance, place,
+	// closing day notice and parent account offer; empty while they are on
+	// their way or arrived. Only the detail names them; the list reads them
+	// through HolidayRegistrationMailReview.
+	MailProblems []HolidayRegistrationMailProblem `json:"mail_problems,omitempty"`
+}
+
+// What became of a mail of the registration that did not reach the parents
+// (#6737): moto gave it up or the mail server returned it, the address is
+// blocked so the mail stayed back, or it is unknown whether it went out
+// because sending stopped midway or the server never reported a result.
+// A mail that arrived can still be one (#6976): the parents reported it as
+// unwanted or unsubscribed from the mails.
+const (
+	HolidayMailFailed       = "failed"
+	HolidayMailBlocked      = "blocked"
+	HolidayMailUnknown      = "unknown"
+	HolidayMailComplained   = "complained"
+	HolidayMailUnsubscribed = "unsubscribed"
+)
+
+// HolidayRegistrationMailProblem is a mail of the registration that did not
+// reach the parents: Kind is one of the holiday MailKind values, State one
+// of the HolidayMail values.
+type HolidayRegistrationMailProblem struct {
+	Kind  string `json:"kind"`
+	State string `json:"state"`
+}
+
+// HolidayRegistrationMails names the mails of one registration that did not
+// reach the parents.
+type HolidayRegistrationMails struct {
+	RegistrationID int64                            `json:"registration_id"`
+	MailProblems   []HolidayRegistrationMailProblem `json:"mail_problems"`
+}
+
+// HolidayRegistrationMailReview lists, for the list of a period, the
+// registrations with a mail that did not reach the parents (#6737, #6976), in the Träger transaction of the reviewer's Träger. A period of
+// another Träger is ErrHolidayPeriodNotFound. It reads no personal data.
+type HolidayRegistrationMailReview interface {
+	HolidayRegistrationMailProblems(ctx context.Context, reviewer HolidayReviewer, periodID int64) ([]HolidayRegistrationMails, error)
+}
+
+// HolidayMailStates reads, in the caller's Träger transaction, what became of
+// the Träger's mails to the parents of the registrations and of the mails
+// with the idempotency keys, in one read (#6737, #6976): every mail, oldest
+// first. The root binds it to Delivery.
+type HolidayMailStates interface {
+	HolidayMails(ctx context.Context, organizationID int64, registrationIDs []int64, idempotencyKeys []string) ([]HolidayMailState, error)
+}
+
+// HolidayMailState is what became of one mail of the Träger: Kind is its
+// MailKind, RegistrationID the registration it was enqueued for (0 without
+// one), Outcome the delivery outcome in Delivery's words, CreatedAt when it
+// was enqueued and Problem a
+// HolidayMail value for a mail that did not reach the parents, empty
+// otherwise.
+type HolidayMailState struct {
+	Kind           string
+	RegistrationID int64
+	IdempotencyKey string
+	Outcome        string
+	Problem        string
+	CreatedAt      time.Time
 }
 
 // HolidayRegistrationList is the list of a period: the registrations of the
@@ -331,6 +397,10 @@ type HolidayRegistrationDetail struct {
 	// Criteria are the answers to the criteria of a period by criteria
 	// (#4700), empty for a period by arrival. Only the detail names them.
 	Criteria []HolidayRegistrationCriterion `json:"criteria"`
+	// Mails are the mails of the registration to the parents with their
+	// delivery outcome, oldest first (#6976); only the detail names them.
+	// A Träger keeps no address list, so no entry carries a mark or a stop.
+	Mails []RequestMailOutcome `json:"mails,omitempty"`
 	// Promotions are the bookings of other registrations that moved up from
 	// the waiting list because of the change that answers with this detail:
 	// a cancellation or a rebooking (#4699). A read has none.

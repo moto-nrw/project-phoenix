@@ -27,6 +27,7 @@ import {
   FieldErrorContext,
   fieldErrorProps,
 } from "~/components/enrollment/form-field-builder";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Button, buttonClassName } from "~/components/ui/button";
@@ -265,9 +266,11 @@ export function LegalBlocksSection({
           >
             Im Formular anzeigen
           </InlineCheckbox>
-          <p className="max-w-xl text-xs leading-5 text-gray-500">
-            {helperText}
-          </p>
+          {helperText ? (
+            <p className="max-w-xl text-sm leading-5 text-gray-500">
+              {helperText}
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             {onReset ? (
               <Button
@@ -277,6 +280,7 @@ export function LegalBlocksSection({
                 variant="ghost"
                 size="compact"
                 className="w-fit"
+                tooltip="Nimmt wieder den Text aus den Einstellungen, wirksam erst nach dem Speichern."
               >
                 Einstellungen wieder verwenden
               </Button>
@@ -289,6 +293,7 @@ export function LegalBlocksSection({
                 variant="ghost_danger"
                 size="compact"
                 className="w-fit gap-2"
+                tooltip="Nimmt diesen Eintrag aus dem Formular, wirksam erst nach dem Speichern."
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Entfernen
@@ -362,6 +367,7 @@ export function LegalBlocksSection({
         <div className="mt-3">
           <AttachmentEditor
             uploadAdapter={uploadAdapter}
+            sharedHints={customOnly}
             fieldPath={`legal_blocks.${index}.attachments`}
             fieldError={fieldError}
             attachments={block.attachments}
@@ -410,13 +416,13 @@ export function LegalBlocksSection({
           ) : null}
         </div>
         {block.kind === "consent" ? (
-          <p className="mt-2 text-xs leading-5 text-gray-500">
+          <p className="mt-2 text-sm text-gray-600">
             Freiwillige Einwilligung: Eltern können das Formular auch ohne
             Häkchen abschicken.
           </p>
         ) : null}
         {block.kind === "terms" && !isStandard(block) ? (
-          <p className="mt-2 text-xs leading-5 text-gray-500">
+          <p className="mt-2 text-sm text-gray-600">
             Pflicht-Bestätigung: Eltern müssen das Häkchen setzen, sonst können
             sie das Formular nicht abschicken. Das ist keine freiwillige
             Einwilligung.
@@ -437,9 +443,17 @@ export function LegalBlocksSection({
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
             {customOnly
-              ? "Hier ergänzen Sie Hinweise, PDFs und freiwillige Einwilligungen. Die festen Zustimmungen bleiben bestehen."
+              ? "Hier ergänzen Sie Hinweise, PDFs und freiwillige Einwilligungen für diesen Zeitraum. Die festen Zustimmungen bleiben bestehen."
               : "Die vier Standardblöcke starten mit den Texten aus den Einstellungen. Hier blenden Sie sie für diese Vorlage aus oder bearbeiten bewusst eine Abweichung. Eigene Zustimmungen bleiben direkt an diese Vorlage gebunden."}
           </p>
+          {customOnly ? (
+            // Said once for every entry below, not in each PDF part.
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+              Eltern können alle PDFs öffnen und herunterladen. Sie können
+              mehrere PDFs gleichzeitig auswählen, höchstens{" "}
+              {MAX_ENROLLMENT_DOCUMENT_SIZE_LABEL} pro Datei.
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -504,7 +518,7 @@ export function LegalBlocksSection({
                       : "Ist für diese Vorlage ausgeblendet."}
                   </p>
                   {block.label.trim() !== "" ? (
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
+                    <p className="mt-1 line-clamp-2 text-sm leading-5 text-gray-500">
                       {block.label}
                     </p>
                   ) : null}
@@ -526,6 +540,8 @@ export function LegalBlocksSection({
                         label: "Abweichend bearbeiten",
                         icon: <Pencil className="h-4 w-4" aria-hidden="true" />,
                         onClick: () => editStandardBlock(block.key),
+                        description:
+                          "Öffnet den Text zum Ändern nur für diese Vorlage",
                         disabled,
                       },
                     ]}
@@ -540,8 +556,9 @@ export function LegalBlocksSection({
           renderBlockEditor({
             block,
             index,
+            // For a holiday period the head says once what every entry is.
             helperText: customOnly
-              ? "Eigener Hinweis oder Einwilligung für diesen Zeitraum."
+              ? ""
               : "Eigene Zustimmung für diese Vorlage. Sie erscheint als zusätzliche Checkbox im Anmeldeformular.",
             onRemove: () => removeBlock(index),
           }),
@@ -572,9 +589,12 @@ export function LegalBlocksSection({
           variant="outline"
           size="md"
           className="inline-flex items-center justify-center gap-2"
+          tooltip="Fügt eine weitere Einwilligung an, wirksam erst nach dem Speichern."
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
-          Eigene Zustimmung hinzufügen
+          {customOnly
+            ? "Hinweis oder Einwilligung hinzufügen"
+            : "Eigene Zustimmung hinzufügen"}
         </Button>
       </div>
     </SectionCard>
@@ -621,7 +641,7 @@ function AGBTemplateSourceEditor({
             <FileText className="h-4 w-4" aria-hidden="true" />
             Text eingeben
           </span>
-          <span className="mt-1 block text-xs text-gray-500">
+          <span className="mt-1 block text-sm text-gray-500">
             Eltern lesen den Text direkt im Formular.
           </span>
           {hasText ? (
@@ -642,7 +662,7 @@ function AGBTemplateSourceEditor({
             <FileUp className="h-4 w-4" aria-hidden="true" />
             PDF-Datei hochladen
           </span>
-          <span className="mt-1 block text-xs text-gray-500">
+          <span className="mt-1 block text-sm text-gray-500">
             Eltern öffnen im Formular einen PDF-Link.
           </span>
           {hasDocument ? (
@@ -669,7 +689,7 @@ function AGBTemplateSourceEditor({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900">PDF-Datei</p>
-              <p className="mt-0.5 text-xs text-gray-600">
+              <p className="mt-0.5 text-sm text-gray-600">
                 {hasDocument
                   ? "Diese PDF wird in dieser Formularvorlage als Link angezeigt."
                   : "Laden Sie die AGB / Teilnahmebedingungen als PDF hoch."}
@@ -682,6 +702,11 @@ function AGBTemplateSourceEditor({
                 size="compact"
                 disabled={disabled || documentSaving}
                 onClick={() => documentPicker.current?.click()}
+                tooltip={
+                  hasDocument
+                    ? "Tauscht die PDF aus, wirksam erst nach dem Speichern."
+                    : "Lädt die AGB als PDF hoch, wirksam erst nach dem Speichern."
+                }
               >
                 <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
@@ -699,19 +724,21 @@ function AGBTemplateSourceEditor({
                 }}
               />
               {hasDocument ? (
-                <a
-                  href={publicAGBDocumentURL(documentURL)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={buttonClassName({
-                    variant: "surface",
-                    size: "compact",
-                    className: "",
-                  })}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Öffnen</span>
-                </a>
+                <ActionHint text="Öffnet die PDF in einem neuen Tab.">
+                  <a
+                    href={publicAGBDocumentURL(documentURL)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={buttonClassName({
+                      variant: "surface",
+                      size: "compact",
+                      className: "",
+                    })}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Öffnen</span>
+                  </a>
+                </ActionHint>
               ) : null}
               {hasDocument ? (
                 <Button
@@ -720,6 +747,7 @@ function AGBTemplateSourceEditor({
                   disabled={disabled || documentSaving}
                   variant="outline_danger"
                   size="compact"
+                  tooltip="Nimmt die PDF aus der Vorlage, wirksam erst nach dem Speichern."
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Entfernen</span>
@@ -728,9 +756,9 @@ function AGBTemplateSourceEditor({
             </div>
           </div>
           {documentSaving ? (
-            <p className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+            <p className="mt-2 flex items-center gap-2 text-sm text-gray-500">
               <SpinnerIcon className="h-3 w-3" />
-              PDF wird hochgeladen...
+              PDF wird hochgeladen …
             </p>
           ) : null}
         </InsetPanel>

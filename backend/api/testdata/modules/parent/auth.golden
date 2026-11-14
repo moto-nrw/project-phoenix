@@ -1,3 +1,5 @@
 POST /parent/auth/login -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+POST /parent/auth/mfa/resend -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+POST /parent/auth/mfa/verify -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 POST /parent/auth/password-reset -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 POST /parent/auth/password-reset/confirm -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)

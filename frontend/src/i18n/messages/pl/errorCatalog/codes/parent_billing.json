@@ -21,6 +21,7 @@
   "contribution_rule_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "contribution_rule_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "contribution_rule_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "child_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "cost_bearer_in_use": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "cost_bearer_inactive": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "cost_bearer_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -120,5 +121,11 @@
   "online_mandate_disabled": "Twój organ prowadzący nie przyjmuje teraz upoważnienia do polecenia zapłaty w aplikacji.",
   "sepa_mandate_text_changed": "Treść upoważnienia zmieniła się. Przeczytaj ją i potwierdź ponownie.",
   "cost_center_date_taken": "There is already a cost center from this day. Choose another day or delete the old one.",
-  "sollstellung_revenue_account_missing": "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings."
+  "sollstellung_revenue_account_missing": "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings.",
+  "export_recipient_not_ready": "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
+  "export_already_handed_over": "This file already reached the recipient or is still on its way. No new file was created.",
+  "export_recipient_invalid": "The recipient was not saved. Please check the marked fields.",
+  "export_recipient_not_found": "This recipient no longer exists. Please reload the page.",
+  "export_recipient_name_taken": "A recipient with this name already exists. Please choose another name.",
+  "export_formats_invalid": "The assignment was not saved. Please reload the page and try again."
 }

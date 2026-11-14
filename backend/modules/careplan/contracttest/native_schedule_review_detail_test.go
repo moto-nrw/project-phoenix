@@ -42,6 +42,7 @@ func TestScheduleDetailAuthorizesBeforeLoadingNames(t *testing.T) {
 	deps := compose.ScheduleReviewDependencies{StudentDirectory: testpkg.StudentDirectory{}, People: directory, Bookings: struct{ compose.ReviewBookings }{}, Classes: struct{ compose.ReviewClassTimes }{},
 		Scope:                 func(context.Context) (compose.ReviewScope, error) { return scope, nil },
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil }, Today: func() careplan.Date { return "2026-09-20" },
+		Fingerprint: func(content []byte) string { return string(content) },
 	}
 	query, err := compose.NewScheduleReviews(db, func(compose.Observation) {}, deps)
 	require.NoError(t, err)

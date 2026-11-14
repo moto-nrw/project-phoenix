@@ -23,6 +23,10 @@ linters:
         - pattern: 'time\.Now\(\)\.UTC\(\)\.Truncate'
           msg: "UTC-truncating now() produces the wrong calendar day before 02:00 Berlin. Use calendar.TodayDate()."
   exclusions:
+    # go test no longer vets in CI ("Run Go tests" in test.yml), so lint must
+    # not skip generated files: by default it drops their findings, and the
+    # error-code tables in api/common are generated.
+    generated: disable
     rules:
       # #4089 gates every HTTP role without exceptions. Non-HTTP errorlint
       # findings are outside this wire-preserving boundary migration.

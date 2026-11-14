@@ -347,3 +347,66 @@ Die übrigen Zeilen bleiben wie im Nachtrag vom 02.11.2026. Regeln:
   verleihen, als die Person hatte.
 - Laufende Sitzungen bekommen das neue Recht beim nächsten Refresh, der die
   Rollen neu liest.
+
+## Nachtrag 2026-11-14: Das Träger-Portal merkt Geräte (#6955)
+
+Seit #4651 fragt jede Träger-Anmeldung den Code ab, und das Portal merkte
+kein Gerät. Der Grund war kein Verbot: Dem Portal fehlt eine Schule, deren
+Geräte-Einstellungen gelten könnten (PR #4933). Leitungen melden sich mehrmals
+pro Woche an und wünschen sich vertraute Geräte (Termin OGS Burbach,
+13.11.2026). Das Caterer-Portal hat dieselbe Lage seit #4497 gelöst
+(ADR 0077, Nachtrag).
+
+Entscheidung:
+
+1. **Der Code bleibt Pflicht.** Ein gemerktes Gerät ist ein Nachweis des
+   zweiten Faktors wie im Schul-Login: Die Sitzung trägt `mfa_verified`,
+   Ausstellen und Erneuern prüfen wie bisher. Ohne gemerktes Gerät gibt es
+   keine Träger-Sitzung ohne Code.
+2. **Nur auf ausdrückliche Wahl.** Der Code-Schritt hat in allen Portalen
+   zwei Antworten auf „Soll moto dieses Gerät merken?“: „Ja, merken und anmelden“
+   und „Nein, nur anmelden“. Nichts ist vorbelegt: Ein geteiltes Tablet wird nie durch
+   eine Voreinstellung zum gemerkten Gerät.
+3. **Gebunden an Konto, Portal und Träger.** Die Zeile in
+   `auth.mfa_trusted_devices` nennt den Träger (`organization_id`) und keine
+   Schule. Sie öffnet keinen anderen Träger, nicht das Caterer-Portal und
+   keine Schule; ein Gerät einer Schule oder des Caterer-Portals öffnet das
+   Träger-Portal nicht. Das entspricht „pro Schule“ im Schul-Login.
+4. **Dauer und Schalter sind die Standardwerte des Registers** (90 Tage,
+   eingeschaltet), wie beim Caterer. Ein eigener Träger-Wert (ADR 0086) kommt
+   erst, wenn ein Träger ihn braucht. Lässt sich der Wert nicht lesen, wird
+   nichts gemerkt; die Anmeldung läuft weiter (#4641).
+5. **Einsehen und entfernen** kann jede Person unter „Konto“. Das
+   Zurücksetzen des Faktors durch das moto-Team und jede Passwortänderung
+   beenden auch die gemerkten Geräte.
+6. **Beim Absprung gewinnt das „Aus“ der Schule.** Eine Sitzung hält fest,
+   ob nur ein gemerktes Gerät den zweiten Faktor bewiesen hat
+   (`auth.tokens.mfa_by_device`); Erneuern, Absprung (Abschnitt 5) und
+   Schulwechsel tragen das Merkmal weiter. Hat eine Schule
+   `security.mfa_trusted_device_enabled` aus, oder ist die Einstellung nicht
+   lesbar, lehnt der Absprung eine solche Sitzung mit 403
+   `traeger.school_requires_code` ab. Das Träger-Portal bietet dann „Code
+   anfordern“ (#7068): Die Person gibt den per E-Mail geschickten Code in
+   der laufenden Sitzung ein, ohne sich abzumelden. Der Code gilt wie bei
+   der Anmeldung (gleiche Grenzen, gleiche Mail); die Sitzung wechselt dabei
+   in eine neue Familie ohne das Merkmal, die alte endet nach der
+   Schonfrist des Erneuerns, und die Abstammung bleibt, sodass das Abmelden
+   auch die zuvor geöffneten Schulsitzungen beendet. Gelingt das Einsetzen
+   der neuen Sitzung nicht, führt das Portal zur Anmeldung, die das
+   gemerkte Gerät einmal außer Acht lässt. Eine mit Code bewiesene
+   Träger-Sitzung öffnet jede Schule. Die Gültigkeitsdauer der Schule
+   (`mfa_trusted_device_days`) gilt beim Absprung nicht: Das Gerät des
+   Trägers behält seine eigene. Derselbe Schritt gilt für den Wechsel einer
+   Sitzung in eine andere Schule. Wechselt eine Absprung-Sitzung (zweiter
+   Tab) in eine Schule des Trägers, an der die Person kein eigenes Konto hat,
+   antwortet der Wechsel 403 `traeger.school_requires_code`, und die
+   Schul-App führt mit „Mit Code neu anmelden“ ins Träger-Portal
+   (`/login?mit-code=1`). Dort beendet erst der Knopf „Abmelden und mit Code
+   anmelden“ eine laufende Träger-Sitzung, mit der Abmeldung des Portals; der
+   Seitenaufruf allein meldet nicht ab. Hat die Person an der Zielschule ein
+   eigenes Konto, nimmt der Wechsel den normalen Weg: 401
+   `identity.mfa_session_required` und die Anmeldung an der Zielschule
+   („Zur Schulanmeldung“), wie beim Wechsel zwischen eigenen Schulen.
+
+Nicht entschieden: ein Gerät für alle Schulen eines Kontos. Es bleibt bei
+einem Merken pro Schule und pro Portal.

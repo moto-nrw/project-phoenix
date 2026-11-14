@@ -82,7 +82,9 @@
     "granting": "Zapisywanie",
     "grantSuccess": "Zgoda na zdjęcia została ponownie udzielona.",
     "errorObjectList": "lista zgód",
-    "errorObjectPhoto": "zgoda na zdjęcia"
+    "errorObjectPhoto": "zgoda na zdjęcia",
+    "withdrawTooltip": "Kończy zgodę na zdjęcia i usuwa zapisane zdjęcie. moto najpierw zapyta.",
+    "grantTooltip": "Znów pozwala {careTerm} na zdjęcie. moto najpierw zapyta."
   },
   "errorObject": "lista Państwa dzieci",
   "errorObjectCare": "przegląd opieki"

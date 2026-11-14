@@ -19,7 +19,7 @@ import {
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import {
   berlinClockFromISO,
@@ -78,10 +78,9 @@ const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 // stale. Beyond the sessions, absences and month aggregates: the daily
 // projection, which since #2443 no longer carries the day's Soll alone but the
 // server-computed Ist, Gutschrift and Saldo — exactly the numbers this save
-// just moved. The account-range chart key
-// ("staff-schedule-targets-account-<id>-…") is deliberately NOT matched: it is
-// fetched with target_only=true and holds pure Soll, which no session edit can
-// change. The id-less "time-tracking-schedule-targets-" / month-summary keys
+// just moved. The Übersicht charts' account-range key
+// ("staff-schedule-targets-<id>-account-…") matches too: the charts sum that
+// projection's Ist and Saldo (#6847). The id-less "time-tracking-schedule-targets-" / month-summary keys
 // belong to the self-service portal and matter when the manager is editing
 // their OWN days. useSWRAuth prefixes keys with the tenant slug
 // ("phoenix:staff-history-…"), so a plain startsWith match would never fire —
@@ -990,6 +989,10 @@ export function StaffSessionTable({
                             : row.hasMultipleBlocks
                               ? "Block nachtragen"
                               : "Eintrag bearbeiten",
+                        description:
+                          row.session == null || row.hasMultipleBlocks
+                            ? "Öffnet ein Formular, um Arbeitszeit mit Begründung nachzutragen."
+                            : "Öffnet den Eintrag, jede Änderung braucht eine Begründung.",
                         icon: <SquarePen className="h-4 w-4" aria-hidden />,
                         onClick: () => {
                           // On a multi-block day the entry adds a further
@@ -1024,6 +1027,8 @@ export function StaffSessionTable({
                         ? [
                             {
                               label: "Abwesenheit nachtragen",
+                              description:
+                                "Öffnet ein Formular, um für diesen Tag eine Abwesenheit einzutragen.",
                               icon: (
                                 <CalendarPlus className="h-4 w-4" aria-hidden />
                               ),
@@ -1032,6 +1037,8 @@ export function StaffSessionTable({
                             },
                             {
                               label: "Krankmeldung nachtragen",
+                              description:
+                                "Öffnet ein Formular, um diesen Tag als krank einzutragen.",
                               icon: (
                                 <Thermometer className="h-4 w-4" aria-hidden />
                               ),
@@ -1140,6 +1147,8 @@ export function StaffSessionTable({
                           items={[
                             {
                               label: `Block ${blockIndex + 1} bearbeiten`,
+                              description:
+                                "Öffnet den Block, jede Änderung braucht eine Begründung.",
                               icon: (
                                 <SquarePen className="h-4 w-4" aria-hidden />
                               ),
@@ -1432,7 +1441,7 @@ function computeRowStatus(
 function RowStatusBadge({ status }: { readonly status: RowStatus }) {
   if (status.kind === "home-office") {
     // Not StatusBadge tone="blue": that resolves to the same blue.soft/base/
-    // strong triple getLocationBadgeTone returns for ABSENCE_TYPE_HEX.vacation
+    // strong triple getPillTone returns for ABSENCE_TYPE_HEX.vacation
     // (#5080D8), so "Homeoffice" and "Urlaub" rendered as identical pills in
     // this very column. #0EA5E9 is the hue staff-helpers already uses for
     // Homeoffice.

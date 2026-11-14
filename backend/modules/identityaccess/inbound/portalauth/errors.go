@@ -47,6 +47,12 @@ func Render(w http.ResponseWriter, r *http.Request, err error, tables ...[]commo
 	common.RenderError(w, r, Renderer(err, tables...))
 }
 
+// Refusal answers a refused call of a signed-in account.
+type Refusal func(w http.ResponseWriter, r *http.Request, err error)
+
+// RefuseMFA answers by the code-step table every account portal shares.
+func RefuseMFA(w http.ResponseWriter, r *http.Request, err error) { Render(w, r, err, MFARules) }
+
 func coded(status func(error, string) render.Renderer, body error, code string) func(error) render.Renderer {
 	return common.FixedCodedRenderer(status, body, code)
 }
@@ -103,13 +109,6 @@ var SessionRules = []common.ErrorRule{
 	rule(identityaccess.ErrNoTraegerMembership, coded(common.ErrorForbiddenWithCode, identityaccess.ErrNoTraegerMembership, common.CodeTraegerNoMembership)),
 }
 
-// ParentLoginRules precede LoginRules on the parents portal: its login page
-// names a masked refusal by the care code it has always shown.
-var ParentLoginRules = []common.ErrorRule{
-	rule(identityaccess.ErrInvalidCredentials, coded(common.ErrorUnauthorizedWithCode, identityaccess.ErrInvalidCredentials, common.CodeCareInvalidCredentials)),
-	rule(identityaccess.ErrAccountNotFound, coded(common.ErrorUnauthorizedWithCode, identityaccess.ErrInvalidCredentials, common.CodeCareInvalidCredentials)),
-}
-
 // WrongPassword reports a refused password check of a signed-in account.
 func WrongPassword(err error) bool {
 	return errors.Is(err, identityaccess.ErrInvalidCredentials) || errors.Is(err, identityaccess.ErrAccountNotFound)
@@ -142,8 +141,18 @@ var MFARules = slices.Concat([]common.ErrorRule{
 	rule(identityaccess.ErrMFANotEnrolled, common.ErrorForbidden),
 	rule(identityaccess.ErrMFAAlreadyEnrolled, common.ErrorConflict),
 	rule(identityaccess.ErrMFAPermissionDenied, common.ErrorForbidden),
+	// A school administrator's account-wide reset of an account another
+	// school or a Träger also holds (#6862).
+	rule(identityaccess.ErrAccountSharedAcrossSchools, AccountSharedAcrossSchools),
 	rule(identityaccess.ErrMFAInvalidOverride, common.ErrorInvalidRequest),
 })
+
+// AccountSharedAcrossSchools answers a school administrator's change to
+// what holds for a whole account while another school or a Träger also
+// holds it (#6862).
+func AccountSharedAcrossSchools(err error) render.Renderer {
+	return common.ErrorForbiddenWithCode(err, common.CodeIdentityAccountSharedAcrossSchools)
+}
 
 func mfaCodeInvalid(err error) render.Renderer {
 	return common.ErrorUnauthorizedWithCode(err, common.CodeIdentityMfaCodeInvalid)
@@ -155,6 +164,12 @@ func mfaCodeInvalid(err error) render.Renderer {
 var SwitchRules = []common.ErrorRule{
 	notBooked,
 	rule(identityaccess.ErrInvalidToken, coded(common.ErrorUnauthorizedWithCode, errMFASessionRequired, common.CodeIdentityMfaSessionRequired)),
+	// The target school accepts no factor proven only by a remembered
+	// device (#6955). A switch of the account's own schools signs in there
+	// with a code; a session from the Träger-Portal goes back there, since
+	// the school may hold no account of the person.
+	rule(identityaccess.ErrSwitchRequiresCodeProof, coded(common.ErrorUnauthorizedWithCode, errMFASessionRequired, common.CodeIdentityMfaSessionRequired)),
+	rule(identityaccess.ErrSchoolRequiresCodeProof, coded(common.ErrorForbiddenWithCode, identityaccess.ErrSchoolRequiresCodeProof, common.CodeTraegerSchoolRequiresCode)),
 	unavailable,
 	rule(identityaccess.ErrAccountNotFound, coded(common.ErrorUnauthorizedWithCode, identityaccess.ErrAccountNotFound, common.CodeIdentityAccountNotFound)),
 	rule(identityaccess.ErrAccountInactive, coded(common.ErrorUnauthorizedWithCode, identityaccess.ErrAccountInactive, common.CodeIdentitySessionAccountInactive)),

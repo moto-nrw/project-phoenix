@@ -42,13 +42,19 @@ const REFRESH_WHILE_QUEUED_MS = 15_000;
 function seriesMessage(series: LetterSeries): string {
   const parts: string[] = [];
   if (series.queued > 0) {
-    parts.push(`${series.queued} Mail(s) werden jetzt gesendet.`);
+    parts.push(
+      series.queued === 1
+        ? "1 Mail wird jetzt gesendet."
+        : `${series.queued} Mails werden jetzt gesendet.`,
+    );
   } else {
     parts.push("Es gab keine neue Mail zu senden.");
   }
   if (series.withoutEmail > 0) {
     parts.push(
-      `${series.withoutEmail} Familie(n) ohne Mail-Adresse: Bitte drucken Sie deren Schreiben.`,
+      series.withoutEmail === 1
+        ? "1 Familie hat keine Mail-Adresse: Bitte drucken Sie ihr Schreiben."
+        : `${series.withoutEmail} Familien haben keine Mail-Adresse: Bitte drucken Sie deren Schreiben.`,
     );
   }
   return parts.join(" ");
@@ -132,7 +138,7 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
       logger.error("traeger_letters_print_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void actionErrors.show(err, { object: "die Schreiben" });
+      void actionErrors.show(err, { object: "das Senden der Schreiben" });
     } finally {
       setPrinting(false);
     }
@@ -152,6 +158,7 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
             size="md"
             isLoading={printing}
             loadingText="Wird erstellt …"
+            tooltip="Lädt alle Schreiben in einer PDF zum Drucken herunter."
             onClick={() => void print()}
           >
             Alle Schreiben drucken
@@ -163,6 +170,7 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
             isLoading={sendingAll}
             loadingText="Wird gesendet …"
             disabled={!mailings}
+            tooltip="Sendet jeder Familie mit Mail-Adresse sofort ihr noch nicht gesendetes Schreiben."
             onClick={() => void sendAll()}
           >
             An alle Familien senden
@@ -217,6 +225,11 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
                       isLoading={sendingOne === mailing.documentId}
                       loadingText="Wird gesendet …"
                       disabled={sendingOne !== null || sendingAll}
+                      tooltip={
+                        mailing.status === "not_sent"
+                          ? "Sendet der Familie sofort ihr Schreiben per Mail."
+                          : "Sendet der Familie sofort ihr Schreiben noch einmal per Mail."
+                      }
                       onClick={() => void sendOne(mailing)}
                     >
                       {mailing.status === "not_sent"

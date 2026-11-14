@@ -61,8 +61,10 @@ func (f credentialFixture) enroll(proof identityaccess.VerifiedMFAChallenge) err
 	return f.module.MFA.EnrollMFA(context.Background(), proof)
 }
 
+// resetMFA runs as the school request that disables the factor: its
+// ledger row is filed at that school (#6989).
 func (f credentialFixture) resetMFA() error {
-	return f.module.MFA.DisableMFA(context.Background(), f.accountID)
+	return f.module.MFA.DisableMFA(testpkg.TenantContext(f.tenantID), f.accountID)
 }
 
 func (f credentialFixture) assertNotEnrolled(t *testing.T, message string) {

@@ -50,6 +50,7 @@ const (
 	KeyEnrollmentRejectedRetentionDays       = configModel.KeyEnrollmentRejectedRetentionDays
 	KeyEnrollmentWaitlistEnabled             = configModel.KeyEnrollmentWaitlistEnabled
 	KeyChildSearchOnlyNavigation             = configModel.KeyChildSearchOnlyNavigation
+	KeySimpleStaffNavigation                 = configModel.KeySimpleStaffNavigation
 	KeyFeedbackEnabled                       = configModel.KeyFeedbackEnabled
 	KeyGroupMode                             = configModel.KeyGroupMode
 	KeyOGSDevicePIN                          = configModel.KeyOGSDevicePIN
@@ -89,6 +90,7 @@ const (
 	KeyStaffMessagingEnabled                 = configModel.KeyStaffMessagingEnabled
 	KeyStudentAbsenceEditScope               = configModel.KeyStudentAbsenceEditScope
 	KeyStudentPhotosEnabled                  = configModel.KeyStudentPhotosEnabled
+	KeyStudentCardActivitiesEnabled          = configModel.KeyStudentCardActivitiesEnabled
 	KeyTimetableChildrenPerStaffRatio        = configModel.KeyTimetableChildrenPerStaffRatio
 	KeyTimetableDayEndTime                   = configModel.KeyTimetableDayEndTime
 	KeyTimetableDayStartTime                 = configModel.KeyTimetableDayStartTime

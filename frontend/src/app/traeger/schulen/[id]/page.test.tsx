@@ -1,24 +1,35 @@
 import { SWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
-const { mockFetchSchool, mockStartSession, mockUseSession } = vi.hoisted(
-  () => ({
-    mockFetchSchool: vi.fn(),
-    mockStartSession: vi.fn(),
-    mockUseSession: vi.fn(),
-  }),
-);
+const {
+  mockFetchSchool,
+  mockStartSession,
+  mockStartCodeStep,
+  mockVerifyCodeStep,
+  mockUseSession,
+  mockSignOut,
+} = vi.hoisted(() => ({
+  mockFetchSchool: vi.fn(),
+  mockStartSession: vi.fn(),
+  mockStartCodeStep: vi.fn(),
+  mockVerifyCodeStep: vi.fn(),
+  mockUseSession: vi.fn(),
+  mockSignOut: vi.fn(),
+}));
 
 vi.mock("~/lib/traeger-url", () => ({
   traegerPath: (path: string) => path,
 }));
 
-vi.mock("next-auth/react", () => ({ useSession: mockUseSession }));
+vi.mock("next-auth/react", () => ({
+  useSession: mockUseSession,
+  signOut: mockSignOut,
+}));
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "2" }),
   usePathname: () => "/schulen/2",
@@ -28,6 +39,8 @@ vi.mock("~/lib/traeger-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/traeger-api")>()),
   fetchTraegerSchool: mockFetchSchool,
   startTraegerSchoolSession: mockStartSession,
+  startTraegerCodeStep: mockStartCodeStep,
+  verifyTraegerCodeStep: mockVerifyCodeStep,
 }));
 vi.mock("~/env.client", () => ({
   clientEnv: {
@@ -80,6 +93,9 @@ describe("TraegerSchoolPage", () => {
   beforeEach(() => {
     mockFetchSchool.mockReset();
     mockStartSession.mockReset();
+    mockStartCodeStep.mockReset();
+    mockVerifyCodeStep.mockReset();
+    mockSignOut.mockReset();
     mockUseSession.mockReturnValue(sessionWith(["traeger_overview:read"]));
   });
 
@@ -92,13 +108,13 @@ describe("TraegerSchoolPage", () => {
     expect(screen.getByRole("heading", { name: "OGS Am Bach" })).toBeVisible();
     expect(screen.getByText("Stand 12:00 Uhr")).toBeVisible();
     for (const [label, value, sentence] of [
-      ["Kinder gesamt", "120", "Alle Kinder, die die Schule gerade betreut."],
+      ["Kinder gesamt", "120", "Alle betreuten Kinder dieser Schule."],
       ["Jetzt anwesend", "51", "Kinder, die gerade in der Schule sind."],
-      ["Heute krank", "4", "Kinder mit einer Krankmeldung für heute."],
+      ["Heute krank", "4", "Kinder mit Krankmeldung für heute."],
       [
         "Betreuungskräfte anwesend",
         "6",
-        "Zählt, wer in der Zeiterfassung angemeldet ist. Homeoffice zählt nicht.",
+        "Angemeldet in der Zeiterfassung. Homeoffice zählt nicht.",
       ],
     ] as const) {
       expect(screen.getByText(label)).toBeInTheDocument();
@@ -169,6 +185,106 @@ describe("TraegerSchoolPage", () => {
     expect(openSpy).toHaveBeenCalledWith("", "_blank");
     expect(mockStartSession).toHaveBeenCalledWith("2");
     openSpy.mockRestore();
+  });
+
+  // A school without remembered devices asks for the code (#6955). The
+  // person enters it in the running session (#7068) and the school opens.
+  async function refuseThenEnterCode(renewed: boolean) {
+    mockUseSession.mockReturnValue(
+      sessionWith(["traeger_overview:read", "traeger_school:switch"]),
+    );
+    mockFetchSchool.mockResolvedValue(SCHOOL);
+    mockStartSession
+      .mockRejectedValueOnce(
+        new ApiError("refused", 403, { code: "traeger.school_requires_code" }),
+      )
+      .mockResolvedValueOnce("handoff");
+    mockStartCodeStep.mockResolvedValue({
+      challengeToken: "challenge",
+      maskedEmail: "a***@schule.de",
+    });
+    mockVerifyCodeStep.mockResolvedValue(renewed);
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Schul-App öffnen: OGS Am Bach, neuer Tab",
+      }),
+    );
+    expect(
+      await screen.findByText(
+        catalogText("traeger.school_requires_code", "die Schule"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Code anfordern" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Schule mit Code öffnen",
+    });
+    expect(dialog).toHaveTextContent("a***@schule.de");
+    expect(dialog).not.toHaveTextContent("Soll moto dieses Gerät merken?");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Stelle 1"), {
+        target: { value: "123456" },
+      });
+    });
+    await vi.waitFor(() =>
+      expect(mockVerifyCodeStep).toHaveBeenCalledWith("challenge", "123456"),
+    );
+  }
+
+  it("opens the school after the code in the running session", async () => {
+    const openSpy = vi.spyOn(globalThis, "open").mockReturnValue(null);
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
+
+    await refuseThenEnterCode(true);
+
+    await vi.waitFor(() => expect(mockStartSession).toHaveBeenCalledTimes(2));
+    expect(
+      screen.queryByRole("dialog", { name: "Schule mit Code öffnen" }),
+    ).not.toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(expect.stringContaining("handoff")),
+    );
+    expect(mockSignOut).not.toHaveBeenCalled();
+    assign.mockRestore();
+    openSpy.mockRestore();
+  });
+
+  // The code was right, but the renewed session could not be kept: the old
+  // one is retired, so the portal signs out and asks for a new sign-in.
+  it("signs in again when the renewed session could not be kept", async () => {
+    mockSignOut.mockResolvedValue(undefined);
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
+    const openSpy = vi.spyOn(globalThis, "open").mockReturnValue(null);
+    const revoke = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    localStorage.setItem("supervision-last-session", "Gruppe Sonne");
+
+    await refuseThenEnterCode(false);
+
+    await vi.waitFor(() =>
+      expect(assign).toHaveBeenCalledWith("/traeger/login"),
+    );
+    expect(mockStartSession).toHaveBeenCalledTimes(1);
+    // Without the shell the full portal logout runs: the server revokes
+    // the session before the cookie goes, and the account's data goes too.
+    expect(revoke).toHaveBeenCalledWith(
+      "/api/traeger/auth/logout",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    expect(localStorage.getItem("supervision-last-session")).toBeNull();
+    expect(sessionStorage.getItem("moto.traeger.sign-in-with-code")).toBe("1");
+    sessionStorage.clear();
+    assign.mockRestore();
+    openSpy.mockRestore();
+    revoke.mockRestore();
   });
 
   it("shows a refused school instead of figures", async () => {

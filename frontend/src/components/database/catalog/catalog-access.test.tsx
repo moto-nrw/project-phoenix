@@ -14,6 +14,7 @@ import PlanningTracksPage from "~/app/[tenant]/(protected)/database/planning-tra
 import ShiftTypesPage from "~/app/[tenant]/(protected)/database/shift-types/page";
 import AbsenceTypesPage from "~/app/[tenant]/(protected)/database/absence-types/page";
 import QualificationTypesPage from "~/app/[tenant]/(protected)/database/qualification-types/page";
+import WorkTimeModelsPage from "~/app/[tenant]/(protected)/database/work-time-models/page";
 
 vi.unmock("swr");
 vi.mock("next-auth/react", () => ({
@@ -67,6 +68,9 @@ vi.mock("~/lib/shift-type-api", () => ({
 vi.mock("~/lib/absence-type-api", () => ({
   absenceTypeService: { getAbsenceTypes: read },
 }));
+vi.mock("~/lib/staff-api", () => ({
+  workTimeModelService: { listWithUsage: read },
+}));
 vi.mock("~/lib/staff-qualification-api", () => ({
   staffQualificationService: { listTypes: read },
 }));
@@ -77,6 +81,10 @@ const item = {
   active: true,
   archivedAt: null,
   sortOrder: 0,
+  rotationLength: 1,
+  rotationAnchorDate: "2026-09-07",
+  entries: [],
+  weeklyTotals: [0],
 };
 
 describe.each([
@@ -84,6 +92,7 @@ describe.each([
   ["planning tracks", PlanningTracksPage, "database-planning-tracks"],
   ["shift types", ShiftTypesPage, "database-shift-types"],
   ["absence types", AbsenceTypesPage, "database-absence-types"],
+  ["work-time templates", WorkTimeModelsPage, "database-work-time-models"],
   [
     "qualification types",
     QualificationTypesPage,

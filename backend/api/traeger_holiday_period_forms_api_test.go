@@ -288,7 +288,9 @@ func TestHolidayRegistrationChecksTheAnswersAgainstItsForm(t *testing.T) {
 	assert.JSONEq(t, `{"darf_allein_nach_hause": false}`, string(children[1].CustomData), "the answer to a hidden question is dropped")
 	assert.JSONEq(t, `{}`, string(children[2].CustomData), "an empty text is no answer")
 	for i, tetanus := range []string{"ja", "nein", "weiss_nicht"} {
-		assert.NotContains(t, string(children[i].HealthData), tetanus, "no plaintext health answer in the table")
+		// Random ciphertext can contain a short answer such as "ja" by
+		// chance; the stored payload must not be plaintext JSON.
+		assert.False(t, json.Valid(children[i].HealthData), "health answers are stored sealed, not as plaintext JSON")
 		opened, err := testHealthCipher().Open(children[i].HealthData,
 			enrollment.HolidayChildHealthContext(children[i].OrganizationID, id, children[i].Position))
 		require.NoError(t, err)

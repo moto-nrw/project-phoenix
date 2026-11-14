@@ -6,9 +6,10 @@
 // frühere Datei wiederholt.
 
 import { Download, RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { DATEV_READINESS_ID } from "~/components/traeger/finance-export-datev";
 import { formatEuro } from "~/components/traeger/contribution-format";
+import { HandoverBadge } from "~/components/traeger/finance-export-handover";
 import {
   FINANCE_FILE_KINDS,
   byLabel,
@@ -157,6 +158,15 @@ function DatevActions({
   let describedBy: string | undefined;
   if (!ready) describedBy = DATEV_READINESS_ID;
   else if (nothingNew) describedBy = datevStateId(run);
+  let blockedReason: string | undefined;
+  if (!ready) {
+    blockedReason = "Tragen Sie zuerst die fehlenden DATEV-Werte ein.";
+  } else if (nothingNew) {
+    blockedReason =
+      state.fiscalYears.length > 0 && run.lastDatev
+        ? "Es gibt keine neue Buchung; eine verlorene Datei holen Sie über das Menü."
+        : "Dieser Lauf hat keine Rechnung mit Betrag, also keine Buchung.";
+  }
   return (
     <>
       <Button
@@ -166,6 +176,8 @@ function DatevActions({
         isLoading={downloading === runFileKey("datev", run)}
         loadingText="Wird erstellt"
         disabled={downloading !== null || !ready || nothingNew}
+        disabledReason={blockedReason}
+        tooltip="Lädt die neuen Buchungen als DATEV-Datei (CSV) mit neuer Dateinummer herunter."
         aria-describedby={describedBy}
         aria-label={
           state && state.newBookings > 0
@@ -184,7 +196,8 @@ function DatevActions({
           items={[
             {
               label: "Alle Buchungen erneut",
-              description: "Nur für eine verlorene Datei",
+              description:
+                "Lädt alle Buchungen erneut, nur für eine verlorene Datei. moto fragt vorher nach.",
               icon: <RotateCcw className="h-4 w-4" aria-hidden />,
               onClick: () => onRepeat(run),
             },
@@ -203,6 +216,8 @@ interface RunTableActions {
   readonly datev: DatevRunStates & { readonly settingsReady: boolean };
   readonly onDownload: (format: RunFileFormat, run: ExportRun) => void;
   readonly onRepeat: (run: ExportRun) => void;
+  /** Further actions of a run, such as its handover (ADR 0218). */
+  readonly renderRunActions?: (run: ExportRun) => ReactNode;
 }
 
 function runColumns({
@@ -210,6 +225,7 @@ function runColumns({
   datev,
   onDownload,
   onRepeat,
+  renderRunActions,
 }: RunTableActions): DataTableColumn<ExportRun>[] {
   const datevReady = datev.settingsReady;
   const stateOf = (run: ExportRun) =>
@@ -265,7 +281,7 @@ function runColumns({
       align: "right",
       stackedLabel: false,
       render: (run) => (
-        <span className="flex justify-end gap-2 whitespace-nowrap max-sm:flex-wrap max-sm:justify-start">
+        <span className="flex flex-wrap justify-end gap-2 whitespace-nowrap max-sm:justify-start">
           <Button
             type="button"
             variant="surface"
@@ -274,6 +290,7 @@ function runColumns({
             loadingText="Wird erstellt"
             disabled={downloading !== null}
             aria-label={`Sollstellung von ${run.label} herunterladen`}
+            tooltip="Lädt alle Rechnungen des Laufs als CSV-Datei mit neuer Dateinummer herunter."
             onClick={() => onDownload("sollstellung", run)}
           >
             <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />
@@ -287,6 +304,7 @@ function runColumns({
             onDownload={onDownload}
             onRepeat={onRepeat}
           />
+          {renderRunActions?.(run)}
         </span>
       ),
     },
@@ -353,6 +371,9 @@ function entryNotes(entry: ExportProtocolEntry) {
       />,
     );
   }
+  if (entry.handover) {
+    notes.push(<HandoverBadge key="handover" handover={entry.handover} />);
+  }
   if (entry.submittedAt) {
     notes.push(
       <StatusBadge
@@ -411,6 +432,7 @@ function CostCenterFallbackList({
           variant="ghost"
           size="compact"
           aria-expanded={open}
+          noTooltip="Das Wort nennt, was der Klick zeigt; nichts ändert sich."
           onClick={() => setOpen((value) => !value)}
         >
           {open

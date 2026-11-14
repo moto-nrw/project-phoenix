@@ -250,7 +250,7 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 	assert.Equal(t, appointments.ResponseStatusPending, *staffEvents[0].ResponseStatus)
 	assert.True(t, staffEvents[0].CanRespond)
 
-	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, appointments.ResponseStatusAccepted))
+	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusAccepted}))
 	staffEvents, err = testpkg.TenantQuery2(t, calendarContext(t, invitedAccount.ID), db, service.ListMyStaffEvents, portalDate(2026, 1, 5), portalDate(2026, 1, 5))
 	require.NoError(t, err)
 	require.NotEmpty(t, staffEvents)
@@ -263,7 +263,7 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 	assert.Equal(t, appointments.ResponseStatusPending, *parentEvents[0].ResponseStatus)
 	assert.True(t, parentEvents[0].CanRespond)
 
-	require.NoError(t, service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, appointments.ResponseStatusDeclined))
+	require.NoError(t, service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusDeclined}))
 	parentEvents, err = service.ListMyParentEvents(testpkg.Ctx(t), parentChain.AccountID, portalDate(2026, 1, 5), portalDate(2026, 1, 5))
 	require.NoError(t, err)
 	require.NotEmpty(t, parentEvents)
@@ -293,7 +293,7 @@ func TestCalendarServiceIntegration_InformationalAppointmentCannotBeAnswered(t *
 	require.NoError(t, err)
 
 	recipientID := findRecipientByStaff(t, detail, invitedStaff.ID)
-	err = testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, recipientID, appointments.ResponseStatusAccepted)
+	err = testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, recipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusAccepted})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 }
@@ -1493,6 +1493,7 @@ func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Overview", "Organizer")
 	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Overview", "Teacher")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	otherParentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	detail, err := testpkg.TenantQuery1(t, calendarContext(t, organizerAccount.ID), db, service.CreateStaffAppointment, calendarSvc.CreateAppointmentRequest{
 		Title:              "Overview visible to all",
@@ -1505,30 +1506,49 @@ func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 		Targets: []calendarSvc.AppointmentTarget{
 			{Type: appointments.TargetTypeStaff, ID: &invitedStaff.ID},
 			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &otherParentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
 
 	staffRecipientID := findRecipientByStaff(t, detail, invitedStaff.ID)
-	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, appointments.ResponseStatusAccepted))
+	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusAccepted}))
+	otherGuardianRecipientID := findRecipientByGuardian(t, detail, otherParentChain.GuardianProfileID)
+	require.NoError(t, service.RespondToParentInvitation(testpkg.Ctx(t), otherParentChain.AccountID, otherGuardianRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusDeclined}))
 
-	staffOverview, err := testpkg.TenantQuery1(t, calendarContext(t, invitedAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID)
+	staffOverview, err := testpkg.TenantQuery2(t, calendarContext(t, invitedAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID, calendarSvc.Date(""))
 	require.NoError(t, err)
 	require.NotNil(t, staffOverview)
 	assert.Equal(t, appointments.OverviewVisibilityAll, staffOverview.OverviewVisibility)
 	assert.Equal(t, appointments.DeliveryModeRSVPRequired, staffOverview.DeliveryMode)
-	require.Len(t, staffOverview.Attendees, 2)
+	// Staff see every invited person by name.
+	require.Len(t, staffOverview.Attendees, 3)
 	assert.Equal(t, appointments.RecipientTypeGuardianProfile, staffOverview.Attendees[0].RecipientType)
 	assert.Contains(t, staffOverview.Attendees[0].Name, "Schneider")
-	assert.Equal(t, appointments.ResponseStatusPending, staffOverview.Attendees[0].Status)
-	assert.Equal(t, appointments.RecipientTypeStaff, staffOverview.Attendees[1].RecipientType)
-	assert.Contains(t, staffOverview.Attendees[1].Name, "Teacher")
-	assert.Equal(t, appointments.ResponseStatusAccepted, staffOverview.Attendees[1].Status)
-	require.NotNil(t, staffOverview.Attendees[1].RespondedAt)
+	assert.Equal(t, appointments.RecipientTypeGuardianProfile, staffOverview.Attendees[1].RecipientType)
+	assert.ElementsMatch(t,
+		[]string{appointments.ResponseStatusPending, appointments.ResponseStatusDeclined},
+		[]string{staffOverview.Attendees[0].Status, staffOverview.Attendees[1].Status})
+	assert.Equal(t, appointments.RecipientTypeStaff, staffOverview.Attendees[2].RecipientType)
+	assert.Contains(t, staffOverview.Attendees[2].Name, "Teacher")
+	assert.Equal(t, appointments.ResponseStatusAccepted, staffOverview.Attendees[2].Status)
+	require.NotNil(t, staffOverview.Attendees[2].RespondedAt)
+	wantCounts := calendarSvc.AppointmentResponseCounts{Accepted: 1, Declined: 1, Pending: 1}
+	assert.Equal(t, wantCounts, staffOverview.Counts)
 
-	parentOverview, err := service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, detail.Appointment.ID)
+	// A parent sees the staff and their own entry by name, never another
+	// parent's name or answer (#6846); the counts still cover everyone.
+	parentOverview, err := service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, detail.Appointment.ID, "")
 	require.NoError(t, err)
 	require.Len(t, parentOverview.Attendees, 2)
+	ownGuardianRecipientID := findRecipientByGuardian(t, detail, parentChain.GuardianProfileID)
+	listed := make([]string, 0, len(parentOverview.Attendees))
+	for _, attendee := range parentOverview.Attendees {
+		listed = append(listed, attendee.RecipientID)
+	}
+	assert.ElementsMatch(t, []string{strconv.FormatInt(ownGuardianRecipientID, 10), strconv.FormatInt(staffRecipientID, 10)}, listed)
+	assert.NotContains(t, listed, strconv.FormatInt(otherGuardianRecipientID, 10))
+	assert.Equal(t, wantCounts, parentOverview.Counts)
 
 	staffEvents, err := testpkg.TenantQuery2(t, calendarContext(t, invitedAccount.ID), db, service.ListMyStaffEvents, portalDate(2026, 2, 10), portalDate(2026, 2, 10))
 	require.NoError(t, err)
@@ -1571,9 +1591,9 @@ func TestCalendarServiceIntegration_DeletedAppointmentUnreachableViaOverviewAndR
 	guardianRecipientID := findRecipientByGuardian(t, detail, parentChain.GuardianProfileID)
 
 	// Sanity: while live, overview and RSVP are reachable.
-	_, err = testpkg.TenantQuery1(t, calendarContext(t, invitedAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID)
+	_, err = testpkg.TenantQuery2(t, calendarContext(t, invitedAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID, calendarSvc.Date(""))
 	require.NoError(t, err)
-	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, appointments.ResponseStatusAccepted))
+	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusAccepted}))
 
 	// It targets a guardian, so delete tombstones (soft-deletes) it.
 	require.NoError(t, testpkg.TenantCommand1(t, calendarContext(t, organizerAccount.ID), db, service.DeleteStaffAppointment, detail.Appointment.ID))
@@ -1583,16 +1603,16 @@ func TestCalendarServiceIntegration_DeletedAppointmentUnreachableViaOverviewAndR
 	_, err = testpkg.TenantQuery1(t, calendarContext(t, organizerAccount.ID), db, service.GetStaffAppointmentDetail, detail.Appointment.ID)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
 
-	_, err = testpkg.TenantQuery1(t, calendarContext(t, organizerAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID)
+	_, err = testpkg.TenantQuery2(t, calendarContext(t, organizerAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID, calendarSvc.Date(""))
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
-	_, err = testpkg.TenantQuery1(t, calendarContext(t, invitedAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID)
+	_, err = testpkg.TenantQuery2(t, calendarContext(t, invitedAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID, calendarSvc.Date(""))
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
-	_, err = service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, detail.Appointment.ID)
+	_, err = service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, detail.Appointment.ID, "")
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
 
-	err = testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, appointments.ResponseStatusDeclined)
+	err = testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusDeclined})
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
-	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, appointments.ResponseStatusDeclined)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusDeclined})
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
 }
 
@@ -1622,20 +1642,20 @@ func TestCalendarServiceIntegration_AttendeeOverviewAccessRules(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	organizerOverview, err := testpkg.TenantQuery1(t, calendarContext(t, organizerAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID)
+	organizerOverview, err := testpkg.TenantQuery2(t, calendarContext(t, organizerAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID, calendarSvc.Date(""))
 	require.NoError(t, err)
 	require.Len(t, organizerOverview.Attendees, 2)
 	for _, attendee := range organizerOverview.Attendees {
 		assert.Equal(t, appointments.ResponseStatusInfo, attendee.Status)
 	}
 
-	_, err = testpkg.TenantQuery1(t, calendarContext(t, invitedAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID)
+	_, err = testpkg.TenantQuery2(t, calendarContext(t, invitedAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID, calendarSvc.Date(""))
 	require.NoError(t, err)
 
-	_, err = service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, detail.Appointment.ID)
+	_, err = service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, detail.Appointment.ID, "")
 	assert.True(t, errors.Is(err, calendarSvc.ErrForbidden))
 
-	_, err = testpkg.TenantQuery1(t, calendarContext(t, outsiderAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID)
+	_, err = testpkg.TenantQuery2(t, calendarContext(t, outsiderAccount.ID), db, service.GetStaffAppointmentOverview, detail.Appointment.ID, calendarSvc.Date(""))
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
 	parentEvents, err := service.ListMyParentEvents(testpkg.Ctx(t), parentChain.AccountID, portalDate(2026, 2, 11), portalDate(2026, 2, 11))
@@ -2079,25 +2099,25 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 	staffRecipientID := findRecipientByStaff(t, rsvpDetail, invitedStaff.ID)
 	guardianRecipientID := findRecipientByGuardian(t, rsvpDetail, parentChain.GuardianProfileID)
 
-	err = testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, appointments.ResponseStatusPending)
+	err = testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusPending})
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 
-	err = testpkg.TenantCommand2(t, calendarContext(t, organizerAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, appointments.ResponseStatusAccepted)
+	err = testpkg.TenantCommand2(t, calendarContext(t, organizerAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusAccepted})
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
-	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, appointments.ResponseStatusPending)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, guardianRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusPending})
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 
-	err = service.RespondToParentInvitation(testpkg.Ctx(t), 0, guardianRecipientID, appointments.ResponseStatusAccepted)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), 0, guardianRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusAccepted})
 	assert.True(t, errors.Is(err, calendarSvc.ErrForbidden))
 
-	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, staffRecipientID, appointments.ResponseStatusAccepted)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, staffRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusAccepted})
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
-	_, err = testpkg.TenantQuery1(t, calendarContext(t, invitedAccount.ID), db, service.GetStaffAppointmentOverview, 999999999)
+	_, err = testpkg.TenantQuery2(t, calendarContext(t, invitedAccount.ID), db, service.GetStaffAppointmentOverview, 999999999, calendarSvc.Date(""))
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
-	_, err = service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, 999999999)
+	_, err = service.GetParentAppointmentOverview(testpkg.Ctx(t), parentChain.AccountID, 999999999, "")
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
 
 	privateDetail, err := testpkg.TenantQuery1(t, calendarContext(t, organizerAccount.ID), db, service.CreateStaffAppointment, calendarSvc.CreateAppointmentRequest{
@@ -2113,7 +2133,7 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = testpkg.TenantQuery1(t, calendarContext(t, invitedAccount.ID), db, service.GetStaffAppointmentOverview, privateDetail.Appointment.ID)
+	_, err = testpkg.TenantQuery2(t, calendarContext(t, invitedAccount.ID), db, service.GetStaffAppointmentOverview, privateDetail.Appointment.ID, calendarSvc.Date(""))
 	assert.True(t, errors.Is(err, calendarSvc.ErrForbidden))
 
 	infoDetail, err := testpkg.TenantQuery1(t, calendarContext(t, organizerAccount.ID), db, service.CreateStaffAppointment, calendarSvc.CreateAppointmentRequest{
@@ -2130,7 +2150,7 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	infoGuardianRecipientID := findRecipientByGuardian(t, infoDetail, parentChain.GuardianProfileID)
-	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, infoGuardianRecipientID, appointments.ResponseStatusAccepted)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, infoGuardianRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusAccepted})
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 }
 
@@ -2640,7 +2660,7 @@ func TestCalendarServiceIntegration_CancelledAppointmentNotRespondable(t *testin
 	parentRecipientID := findRecipientByGuardian(t, detail, parentChain.GuardianProfileID)
 
 	// While active, responses are accepted and CanRespond is true.
-	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, appointments.ResponseStatusAccepted))
+	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusAccepted}))
 	events, err := testpkg.TenantQuery2(t, calendarContext(t, invitedAccount.ID), db, service.ListMyStaffEvents, portalDate(2026, 6, 3), portalDate(2026, 6, 3))
 	require.NoError(t, err)
 	require.NotEmpty(t, events)
@@ -2658,11 +2678,11 @@ func TestCalendarServiceIntegration_CancelledAppointmentNotRespondable(t *testin
 	assert.False(t, events[0].CanRespond, "cancelled appointment must not be respondable")
 
 	// Both response endpoints reject RSVP changes after cancellation.
-	err = testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, appointments.ResponseStatusDeclined)
+	err = testpkg.TenantCommand2(t, calendarContext(t, invitedAccount.ID), db, service.RespondToStaffInvitation, staffRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusDeclined})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 
-	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, parentRecipientID, appointments.ResponseStatusDeclined)
+	err = service.RespondToParentInvitation(testpkg.Ctx(t), parentChain.AccountID, parentRecipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusDeclined})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 }

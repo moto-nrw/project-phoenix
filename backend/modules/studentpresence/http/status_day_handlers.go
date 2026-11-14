@@ -143,7 +143,8 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []string) studentpresence.StatusDayWriteContext {
 	tenantID := tenant.FromContext(r.Context())
 	return studentpresence.StatusDayWriteContext{
-		TenantID: tenantID,
+		TenantID:       tenantID,
+		ActorAccountID: sessiontoken.ActorAccountIDFromCtx(r.Context()),
 		StudentService: newStatusDayStudents(rs.PeopleDirectory, func(ctx context.Context, student *peopleModule.StudentState, status string) bool {
 			ok, _ := rs.canManageStudentStatus(ctx, userPermissions, student, status)
 			return ok

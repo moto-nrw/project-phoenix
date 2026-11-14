@@ -191,7 +191,7 @@ describe("PresentChildrenPicker", () => {
 
     await screen.findByText("Anna Abel");
     const submit = screen.getByRole("button", { name: "Kinder hinzufügen" });
-    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "Alle auswählen" }));
     fireEvent.click(
@@ -421,7 +421,7 @@ describe("PresentChildrenPicker", () => {
       ).not.toBeChecked();
       expect(
         screen.getByRole("button", { name: "Kinder hinzufügen" }),
-      ).toBeDisabled();
+      ).toHaveAttribute("aria-disabled", "true");
       expect(onAdd).not.toHaveBeenCalled();
     });
 

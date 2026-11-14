@@ -1671,6 +1671,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0230",
+      "id": "modules/timetable/internal/application/TimetableInstanceStaffReads.FindByStaffIDsAndDateRange",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0090",
       "id": "modules/timetable/internal/application/TimetableInstanceStaffReads.ListBySickAbsence",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

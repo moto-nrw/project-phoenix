@@ -29,6 +29,9 @@ type MasterDataDecisionTestOptions struct {
 	Shares   carePlanCompose.ShareVisibility
 	Logger   *slog.Logger
 	Today    func() timezone.Date
+	// ClassChanges follows an approved Klasse into the Regeltermine; the
+	// zero value skips it.
+	ClassChanges carePlanCompose.MasterDataClassChanges
 }
 
 // MasterDataDecisionTestPeople are the People Directory rows and recorders
@@ -57,6 +60,6 @@ func NewTestMasterDataDecisions(
 	}
 	return owners.NewMasterDataDecisions(
 		options.CarePlan, people.People, people.Students, people.Persons, people.Audit, scope,
-		emitter, broadcaster, people.Events, options.Shares, options.Logger, options.Today,
+		emitter, broadcaster, people.Events, options.Shares, options.Logger, options.Today, options.ClassChanges,
 	)
 }

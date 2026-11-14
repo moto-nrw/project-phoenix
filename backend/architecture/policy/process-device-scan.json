@@ -29,6 +29,13 @@
       "external_test_role": "workflow-integration-test"
     },
     {
+      "path": "modules/devicescan/compose/behaviortest",
+      "owner": "process-device-scan",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "api/iot",
       "owner": "process-device-scan",
       "role": "http",
@@ -57,9 +64,23 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/devicescan/http/data/behaviortest",
+      "owner": "process-device-scan",
+      "role": "test-support",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/devicescan/http/sessions",
       "owner": "process-device-scan",
       "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/devicescan/http/sessions/behaviortest",
+      "owner": "process-device-scan",
+      "role": "test-support",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },

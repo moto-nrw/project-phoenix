@@ -33,10 +33,10 @@ import {
   type SchoolCheckoutReason,
 } from "~/lib/student-api";
 import {
-  countedDayStatus,
   isInClassLocation,
   isNotCheckedInLocation,
 } from "~/lib/location-helper";
+import { countedDayStatus } from "~/lib/presence-status";
 import { useStudentData } from "~/lib/hooks/use-student-data";
 import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
@@ -99,6 +99,7 @@ import {
   type PlannedStatusSubmitOptions,
 } from "~/components/students/planned-status-days-modal";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
+import { StudentPickupChanges } from "~/components/students/pickup-change-alert";
 import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
 import { fetchArrivalData } from "~/lib/student-arrival-api";
 import {
@@ -127,6 +128,7 @@ import {
   saveStudentPartialAbsence,
 } from "~/lib/student-partial-absences-api";
 import {
+  CHECKOUT_HINTS,
   EarlyCheckoutNoteField,
   useEarlyCheckoutCheck,
 } from "~/components/students/early-checkout-note";
@@ -1560,6 +1562,7 @@ function StudentDetailPageContent() {
                   variant="outline"
                   size="md"
                   onClick={closeCheckoutDialog}
+                  noTooltip={CHECKOUT_HINTS.cancel}
                 >
                   Abbrechen
                 </Button>
@@ -1571,6 +1574,7 @@ function StudentDetailPageContent() {
                   isLoading={checkingOut === "class"}
                   loadingText="Wird abgemeldet…"
                   onClick={() => void handleConfirmCheckout("class")}
+                  tooltip={CHECKOUT_HINTS.toClass}
                 >
                   Geht zum Unterricht
                 </Button>
@@ -1582,6 +1586,7 @@ function StudentDetailPageContent() {
                   isLoading={checkingOut === "home"}
                   loadingText="Wird abgemeldet…"
                   onClick={() => void handleConfirmCheckout()}
+                  tooltip={CHECKOUT_HINTS.home}
                 >
                   Geht nach Hause
                 </Button>
@@ -1654,6 +1659,7 @@ function StudentDetailPageContent() {
               // Antwort sonst keine Fläche (#6594).
               disabled={sickLoading}
               onClick={() => openPlannedStatusFromLift("sick")}
+              tooltip="Wechselt zur Liste aller Kranktage, ohne etwas aufzuheben."
             >
               Alle Kranktage ansehen
             </Button>
@@ -1701,6 +1707,7 @@ function StudentDetailPageContent() {
                 className="mt-4"
                 disabled={excusedLoading}
                 onClick={() => openPlannedStatusFromLift("excused")}
+                tooltip="Wechselt zur Liste aller entschuldigten Tage, ohne etwas aufzuheben."
               >
                 Alle entschuldigten Tage ansehen
               </Button>
@@ -1788,6 +1795,7 @@ function StudentDetailPageContent() {
                 variant="outline"
                 size="compact"
                 onClick={() => setCareWithdrawalModalOpen(true)}
+                tooltip="Öffnet den Austritt mit Vorschau, moto fragt vorher nach."
               >
                 Betreuung beenden
               </Button>
@@ -1808,6 +1816,13 @@ function StudentDetailPageContent() {
         </div>
       ) : null}
 
+      {!isHolidayGuest && hasFullAccess ? (
+        <StudentPickupChanges
+          studentId={studentId}
+          exceptions={pickupData?.exceptions}
+          today={berlinToday}
+        />
+      ) : null}
       {isHolidayGuest && (
         <HolidayGuestSection
           studentId={studentId}
@@ -2270,6 +2285,7 @@ function FullAccessView({
         {notesTabSeen && tabs.includes("notizen") ? (
           <StudentNotizenTab
             studentId={studentId}
+            active={activeTab === "notizen"}
             educationGroupId={student.group_id ?? ""}
             educationGroupName={student.group_name ?? ""}
           />

@@ -220,5 +220,25 @@
   "signatureDownload": "Potwierdzenie jako PDF",
   "signatureDownloading": "Ładowanie potwierdzenia …",
   "signatureEditHint": "Jeśli zmienią Państwo zgłoszenie, podpisują je Państwo ponownie.",
-  "errorObjectProof": "potwierdzenie"
+  "errorObjectProof": "potwierdzenie",
+  "buttonHints": {
+    "parentApp": "Otwiera aplikację dla rodziców, tam zmieniają Państwo opiekę.",
+    "editFull": "Otwiera zgłoszenie do edycji.",
+    "requestChange": "Otwiera zgłoszenie, aby poprosić {careTerm} o zmianę.",
+    "withdrawChild": "Wycofuje zgłoszenie tego dziecka, moto najpierw zapyta.",
+    "withdrawAll": "Wycofuje zgłoszenie wszystkich dzieci, moto najpierw zapyta.",
+    "withdrawOne": "Wycofuje zgłoszenie, moto najpierw zapyta.",
+    "editGuardian": "Pokazuje pola do zmiany imienia, nazwiska i numeru telefonu.",
+    "saveGuardian": "Zapisuje Państwa imię, nazwisko i numer telefonu w zgłoszeniu.",
+    "replySubmit": "Od razu wysyła Państwa odpowiedź do {careTerm}.",
+    "signatureDownload": "Pobiera potwierdzenie Państwa podpisu jako PDF.",
+    "confirmRenewal": "Od razu wysyła Państwa zgodę, potem {careTerm} decyduje o miejscu.",
+    "confirmTerms": "Zapisuje Państwa zgodę na warunki nowego okresu.",
+    "adjust": "Otwiera oferty i dni tygodnia do zmiany.",
+    "declineRenewal": "Odrzuca zgłoszenie na następny okres, moto najpierw zapyta.",
+    "unsubscribe": "Kończy zgłoszenie na następny okres, moto najpierw zapyta.",
+    "termsRead": "Otwiera pełny tekst do przeczytania.",
+    "editSubmit": "Zapisuje Państwa zmiany w zgłoszeniu.",
+    "changeRequestSubmit": "Od razu wysyła Państwa zmiany jako prośbę do {careTerm}."
+  }
 }

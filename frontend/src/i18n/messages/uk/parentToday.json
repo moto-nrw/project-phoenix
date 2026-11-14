@@ -33,6 +33,11 @@
     "messageHint": "Зв'язатися з {careTerm}: {name}",
     "pickupWithMode": "Змінити забирання: {name}",
     "pickupCompactWithMode": "Змінити забирання",
-    "pickupHintWithMode": "Змінити час або спосіб забирання на один день"
+    "pickupHintWithMode": "Змінити час або спосіб забирання на один день",
+    "profileTooltip": "Відкриває сторінку вашої дитини з усіма даними.",
+    "sickTooltip": "Відкриває форму, щоб повідомити про відсутність дитини.",
+    "pickupTooltip": "Відкриває форму запиту іншого часу забирання.",
+    "pickupWithModeTooltip": "Відкриває форму запиту зміни забирання.",
+    "messageTooltip": "Відкриває повідомлення з {careTerm} про вашу дитину."
   }
 }

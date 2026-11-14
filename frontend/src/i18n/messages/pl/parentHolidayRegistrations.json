@@ -21,6 +21,8 @@
     "title": "Państwa zgłoszenia na ferie",
     "showAll": "Pokaż wszystkie",
     "showAllLabel": "Pokaż wszystkie zgłoszenia na ferie",
-    "more": "{count, plural, one {# kolejne zgłoszenie} few {# kolejne zgłoszenia} many {# kolejnych zgłoszeń} other {# kolejnego zgłoszenia}}"
-  }
+    "more": "{count, plural, one {# kolejne zgłoszenie} few {# kolejne zgłoszenia} many {# kolejnych zgłoszeń} other {# kolejnego zgłoszenia}}",
+    "showAllTooltip": "Otwiera listę wszystkich zapisów wakacyjnych Twoich dzieci."
+  },
+  "toDocumentsTooltip": "Otwiera Państwa dokumenty z potwierdzeniem i rachunkiem."
 }

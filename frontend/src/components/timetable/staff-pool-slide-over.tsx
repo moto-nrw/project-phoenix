@@ -12,7 +12,7 @@
  *
  * Overlay-Stapelung: das Bestätigungs-Modal (Kit-Modal, z-9999) liegt über
  * dem SlideOver (z-50); solange es offen ist, wird der SlideOver
- * undismissible gestellt, damit Escape nicht beide Ebenen schließt
+ * gegen Schließen gesperrt (`isDismissDisabled`), damit Escape nicht beide Ebenen schließt
  * (gleiches Problemfeld wie PR #1962).
  */
 
@@ -40,7 +40,6 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverHeader,
@@ -167,19 +166,13 @@ export function StaffPoolSlideOver({
       <SlideOver
         open={open}
         pending={save}
-        dismissible={!canManage || pendingMove === null}
+        isDismissDisabled={canManage && pendingMove !== null}
         onOpenChange={(next) => {
           if (!next) onClose();
         }}
       >
         <SlideOverContent>
-          <SlideOverHeader
-            close={
-              <SlideOverCloseButton
-                disabled={canManage && pendingMove !== null}
-              />
-            }
-          >
+          <SlideOverHeader>
             <SlideOverTitle>Personalpool</SlideOverTitle>
             <SlideOverDescription>
               {instance
@@ -231,6 +224,7 @@ export function StaffPoolSlideOver({
                               onClick={() =>
                                 openMoveConfirm({ entry, assignment })
                               }
+                              tooltip="Holt die Person aus dem anderen Termin hierher, moto fragt vorher nach."
                             >
                               <span className="inline-flex items-center gap-1.5">
                                 <MotoConceptIcon
@@ -258,6 +252,7 @@ export function StaffPoolSlideOver({
                             size="compact"
                             disabled={save.pending}
                             onClick={() => openMoveConfirm({ entry })}
+                            tooltip="Teilt die freie Person diesem Termin zu, moto fragt vorher nach."
                           >
                             <span className="inline-flex items-center gap-1.5">
                               <UserPlus className="h-3.5 w-3.5" />
@@ -305,6 +300,11 @@ export function StaffPoolSlideOver({
           }
           confirmText={pendingMove.assignment ? "Verschieben" : "Zuweisen"}
           cancelText="Abbrechen"
+          confirmTooltip={
+            pendingMove.assignment
+              ? "Verschiebt die Person nur an diesem Tag in diesen Termin."
+              : "Teilt die Person nur an diesem Tag diesem Termin zu."
+          }
           isConfirmLoading={save.pending}
           loadingText={
             pendingMove.assignment ? "Wird verschoben …" : "Wird zugewiesen …"

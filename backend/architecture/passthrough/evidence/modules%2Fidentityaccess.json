@@ -177,7 +177,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *AccountMFARecords) FindAccountIdentity(ctx context.Context, accountID int64) (domain.AccountIdentity, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountIdentity{}, false, err\n\t}\n\tvar row domain.AccountIdentity\n\terr = db.NewRaw(`SELECT id, email, active, mfa_attempts, mfa_locked_until, mfa_reset_generation\n\t\tFROM auth.accounts WHERE id = ? AND personal_data_erased_at IS NULL`, accountID).Scan(ctx, \u0026row)\n\tif errors.Is(err, sql.ErrNoRows) {\n\t\treturn domain.AccountIdentity{}, false, nil\n\t}\n\treturn row, err == nil, err\n}",
+      "evidence": "func (r *AccountMFARecords) FindAccountIdentity(ctx context.Context, accountID int64) (domain.AccountIdentity, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountIdentity{}, false, err\n\t}\n\tvar row domain.AccountIdentity\n\terr = db.NewRaw(`SELECT id, email, active, mfa_attempts, mfa_locked_until, mfa_reset_generation, portal_locale\n\t\tFROM auth.accounts WHERE id = ? AND personal_data_erased_at IS NULL`, accountID).Scan(ctx, \u0026row)\n\tif errors.Is(err, sql.ErrNoRows) {\n\t\treturn domain.AccountIdentity{}, false, nil\n\t}\n\treturn row, err == nil, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindAccountIdentity",
       "owner": "modules/identityaccess"
@@ -191,7 +191,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *AccountMFARecords) FindActiveTrustedDevice(ctx context.Context, accountID, tenantID int64, tokenHash string) (domain.AccountTrustedDevice, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountTrustedDevice{}, false, err\n\t}\n\tvar row domain.AccountTrustedDevice\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND token_hash = ? AND revoked_at IS NULL AND expires_at \u003e ?\n AND `+trustedDeviceCurrentCredential+` LIMIT 1`, accountID, tenantID, tokenHash, time.Now()).Scan(ctx, \u0026row)\n\treturn row, err == nil, err\n}",
+      "evidence": "func (r *AccountMFARecords) FindActiveTrustedDevice(ctx context.Context, accountID int64, binding domain.DeviceBinding, tokenHash string) (domain.AccountTrustedDevice, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountTrustedDevice{}, false, err\n\t}\n\tvar row domain.AccountTrustedDevice\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND `+trustedDevicePortal+` AND token_hash = ? AND revoked_at IS NULL AND expires_at \u003e ?\n AND `+trustedDeviceCurrentCredential+` LIMIT 1`, accountID, binding.TenantID, binding.OrganizationID, binding.ParentPortal, tokenHash, time.Now()).Scan(ctx, \u0026row)\n\treturn row, err == nil, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveTrustedDevice",
       "owner": "modules/identityaccess"
@@ -212,6 +212,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (r *AccountMFARecords) HoldsTraegerParentAccess(ctx context.Context, accountID int64) (bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn false, err\n\t}\n\treturn holdsTraegerParentAccess(ctx, db, accountID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.HoldsTraegerParentAccess",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
       "evidence": "func (r *AccountMFARecords) IncrementMFAAttempts(ctx context.Context, accountID int64, threshold int, duration time.Duration) (domain.AccountLockout, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountLockout{}, err\n\t}\n\tvar lockout domain.AccountLockout\n\terr = db.NewRaw(`UPDATE auth.accounts SET mfa_attempts = mfa_attempts + 1,\n mfa_locked_until = CASE WHEN mfa_attempts + 1 \u003e= ? THEN ? ELSE mfa_locked_until END\n WHERE id = ? AND personal_data_erased_at IS NULL\n RETURNING mfa_attempts AS attempts, mfa_locked_until AS locked_until`, threshold, time.Now().Add(duration), accountID).Scan(ctx, \u0026lockout)\n\treturn lockout, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.IncrementMFAAttempts",
@@ -219,7 +226,14 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *AccountMFARecords) ListActiveTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]domain.AccountTrustedDevice, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]domain.AccountTrustedDevice, 0)\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND revoked_at IS NULL AND expires_at \u003e ?\n AND `+trustedDeviceCurrentCredential+`\n ORDER BY last_used_at DESC NULLS LAST, created_at DESC`, accountID, tenantID, time.Now()).Scan(ctx, \u0026rows)\n\treturn rows, err\n}",
+      "evidence": "func (r *AccountMFARecords) ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn nil, domain.OperationStats{}, err\n\t}\n\tvar ids []int64\n\tif err := db.NewRaw(`SELECT tenant_id FROM auth.active_school_ids_for_account(?)`, accountID).Scan(ctx, \u0026ids); err != nil {\n\t\treturn nil, domain.OperationStats{Queries: 1}, fmt.Errorf(\"identity access postgres: list active schools of account: %w\", err)\n\t}\n\treturn ids, domain.OperationStats{Queries: 1, Rows: int64(len(ids))}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ListActiveTenantIDs",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) ListActiveTrustedDevices(ctx context.Context, accountID int64, binding domain.DeviceBinding) ([]domain.AccountTrustedDevice, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]domain.AccountTrustedDevice, 0)\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND `+trustedDevicePortal+` AND revoked_at IS NULL AND expires_at \u003e ?\n AND `+trustedDeviceCurrentCredential+`\n ORDER BY last_used_at DESC NULLS LAST, created_at DESC`, accountID, binding.TenantID, binding.OrganizationID, binding.ParentPortal, time.Now()).Scan(ctx, \u0026rows)\n\treturn rows, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ListActiveTrustedDevices",
       "owner": "modules/identityaccess"
@@ -730,7 +744,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (c ComposedAccountMFA) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error) {\n\tdevices, err := c.Flows.records.ListActiveTrustedDevices(c.ctx(ctx), accountID, tenantID)\n\tif err != nil {\n\t\treturn nil, MFAError(err)\n\t}\n\tresult := make([]identityaccess.AccountTrustedDevice, 0, len(devices))\n\tfor _, device := range devices {\n\t\tresult = append(result, identityaccess.AccountTrustedDevice(device))\n\t}\n\treturn result, nil\n}",
+      "evidence": "func (c ComposedAccountMFA) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error) {\n\tdevices, err := c.Flows.records.ListActiveTrustedDevices(c.ctx(ctx), accountID, deviceBinding(ctx, tenantID))\n\tif err != nil {\n\t\treturn nil, MFAError(err)\n\t}\n\tresult := make([]identityaccess.AccountTrustedDevice, 0, len(devices))\n\tfor _, device := range devices {\n\t\tresult = append(result, identityaccess.AccountTrustedDevice(device))\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ListTrustedDevices",
       "owner": "modules/identityaccess"
@@ -1185,13 +1199,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil || claims.Scope != domain.PortalPlatform.Name {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.StartOperatorMFAChallenge(ctx, claims.AccountID, ip, \u0026claims.CredentialGeneration)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ResendChallenge",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
       "evidence": "func (p *OperatorPasskey) ListActiveCredentials(ctx context.Context, operatorID int64) (result []domain.OperatorPasskeyCredential, err error) {\n\terr = p.run(ctx, \"list_active_operator_passkeys\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tcredentials, queryStats, listErr := p.store.ListActiveOperatorPasskeys(txCtx, operatorID)\n\t\tstats.Add(queryStats)\n\t\tif listErr != nil {\n\t\t\treturn listErr\n\t\t}\n\t\tresult = credentials\n\t\treturn nil\n\t})\n\treturn result, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorPasskey.ListActiveCredentials",
@@ -1234,7 +1241,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p *OperatorProvisioning) RevokeOperatorInvitationByActor(ctx context.Context, invitationID, actorID int64, ipAddress string) error {\n\tif p == nil {\n\t\treturn errOperatorProvisioningUnavailable\n\t}\n\tctx = bindRuntime(p.attach, ctx)\n\tif err := p.tokens.RevokeInvitation(ctx, invitationID); err != nil {\n\t\treturn operatorProvisioningError(err)\n\t}\n\tp.record(ctx, domain.OperatorAuditEntry{OperatorID: actorID, Action: domain.OperatorAuditActionInvitationRevoked, ResourceType: domain.OperatorAuditResourceInvitation, ResourceID: \u0026invitationID, IPAddress: ipAddress}, \"invitation revocation\")\n\treturn nil\n}",
+      "evidence": "func (p *OperatorProvisioning) RevokeOperatorInvitationByActor(ctx context.Context, invitationID, actorID int64, ipAddress string) error {\n\tif p == nil {\n\t\treturn errOperatorProvisioningUnavailable\n\t}\n\tctx = bindRuntime(p.attach, ctx)\n\treturn operatorProvisioningError(p.tokens.RevokeInvitation(ctx, invitationID, func(txCtx context.Context) error {\n\t\treturn p.record(txCtx, domain.OperatorAuditEntry{OperatorID: actorID, Action: domain.OperatorAuditActionInvitationRevoked, ResourceType: domain.OperatorAuditResourceInvitation, ResourceID: \u0026invitationID, IPAddress: ipAddress})\n\t}))\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorProvisioning.RevokeOperatorInvitationByActor",
       "owner": "modules/identityaccess"
@@ -1349,13 +1356,6 @@
       "evidence": "func (t *OperatorTokens) RevokeExpiredEmailChanges(ctx context.Context) (result int, err error) {\n\terr = t.run(ctx, \"revoke_expired_operator_email_changes\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\trevoked, queryStats, revokeErr := t.store.RevokeExpiredOperatorEmailChanges(txCtx, t.now())\n\t\tstats.Add(queryStats)\n\t\tresult = revoked\n\t\treturn revokeErr\n\t})\n\treturn result, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeExpiredEmailChanges",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
-      "evidence": "func (t *OperatorTokens) RevokeInvitation(ctx context.Context, id int64) error {\n\treturn t.run(ctx, \"revoke_operator_invitation\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tchanged, queryStats, err := t.store.RevokeOperatorInvitation(txCtx, id, t.now())\n\t\tstats.Add(queryStats)\n\t\treturn stateChange(changed, err, identityaccess.ErrOperatorInvitationNotFound)\n\t})\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeInvitation",
       "owner": "modules/identityaccess"
     },
     {

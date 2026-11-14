@@ -19,8 +19,12 @@ import {
   SCHOOL_SWITCH_MISSING_HINT,
   useOpenTraegerSchool,
 } from "~/components/traeger/use-open-traeger-school";
+import { TraegerCodeStepModal } from "~/components/traeger/traeger-code-step-modal";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
-import { TRAEGER_HANDOFF_OPEN } from "~/lib/traeger-handoff";
+import {
+  TRAEGER_HANDOFF_OPEN,
+  TRAEGER_HANDOFF_OPEN_HINT,
+} from "~/lib/traeger-handoff";
 import { traegerPath } from "~/lib/traeger-url";
 
 const COLUMNS: DataTableColumn<TraegerSchool>[] = [
@@ -57,7 +61,7 @@ export default function TraegerSchoolsPage() {
   const schools = schoolData ?? [];
   const loading = schoolData === null && !schoolsError;
   const router = useRouter();
-  const { canOpen, opening, open } = useOpenTraegerSchool();
+  const { canOpen, opening, open, codeStepModal } = useOpenTraegerSchool();
 
   const columns = useMemo<DataTableColumn<TraegerSchool>[]>(
     () =>
@@ -82,7 +86,7 @@ export default function TraegerSchoolsPage() {
                   variant="surface"
                   size="compact"
                   aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
-                  title="Öffnet in einem neuen Tab"
+                  tooltip={TRAEGER_HANDOFF_OPEN_HINT}
                   disabled={opening !== null}
                   onClick={(event) => {
                     // Die Aktion öffnet die Schul-App, nicht die Schulansicht.
@@ -161,6 +165,7 @@ export default function TraegerSchoolsPage() {
           />
         }
       />
+      <TraegerCodeStepModal {...codeStepModal} />
     </TenantPage>
   );
 }

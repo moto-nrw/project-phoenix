@@ -470,10 +470,20 @@ describe.concurrent("bauart rules", () => {
       }) {
         return (
           <>
-            <Button type="button" onClick={() => setTarget("1")}>
+            <Button
+              type="button"
+              tooltip="Löscht den Eintrag. moto fragt vorher nach."
+              onClick={() => setTarget("1")}
+            >
               Löschen
             </Button>
-            {[{ label: "Entfernen", onClick: () => setTarget("2") }].map(
+            {[
+              {
+                label: "Entfernen",
+                description: "moto fragt vorher nach.",
+                onClick: () => setTarget("2"),
+              },
+            ].map(
               (item) => item.label,
             )}
           </>
@@ -494,7 +504,11 @@ describe.concurrent("bauart rules", () => {
         setDeleteTarget: (id: string) => void;
       }) {
         return (
-          <Button type="button" onClick={() => void setDeleteTarget("1")}>
+          <Button
+            type="button"
+            tooltip="Löscht den Eintrag. moto fragt vorher nach."
+            onClick={() => void setDeleteTarget("1")}
+          >
             Löschen
           </Button>
         );
@@ -510,7 +524,11 @@ describe.concurrent("bauart rules", () => {
         `import { Button } from "~/components/ui/button";
       export function Probe({ save }: { save: () => Promise<void> }) {
         return (
-          <Button type="button" onClick={() => void save()}>
+          <Button
+            type="button"
+            noTooltip="Speichern tut nichts außer Speichern."
+            onClick={() => void save()}
+          >
             Speichern
           </Button>
         );
@@ -745,7 +763,13 @@ describe.concurrent("bauart rules", () => {
                 {item.name}
                 <OverflowMenu
                   ariaLabel={"Aktionen"}
-                  items={[{ label: "Bearbeiten", onClick: () => {} }]}
+                  items={[
+                    {
+                      label: "Bearbeiten",
+                      description: "Öffnet den Eintrag zum Ändern.",
+                      onClick: () => {},
+                    },
+                  ]}
                 />
               </li>
             ))}

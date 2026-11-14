@@ -115,8 +115,10 @@ type RequestReviewPolicy interface {
 
 // NewCareScheduleRequestServiceWithPickupChangesAndPolicy requires the
 // production review policy at construction, so missing wiring cannot widen
-// reviewer access.
+// reviewer access. pickupChanges tells the child's team about an approved
+// one-day pickup time inside the decision (#6855); nil tells nobody.
 func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	pickupChanges careplan.PickupChangeNotifier,
 	requestRecords RequestRecords,
 	people RequestPeople,
 	arrival RequestArrivalPlans,
@@ -157,7 +159,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		apply(svc)
 	}
 	ledger := NewParentRequestLedger(events)
-	messenger, effects, err := newCareRequestEffects(svc, emitter, broadcaster, ledger, config.shares)
+	messenger, effects, err := newCareRequestEffects(svc, emitter, broadcaster, ledger, config.shares, pickupChanges)
 	if err != nil {
 		panic(fmt.Errorf("care request effects: %w", err))
 	}
@@ -198,11 +200,11 @@ func newRequestCapabilities(s *CareScheduleRequestService, messenger compose.Req
 		return c, fmt.Errorf("care request reads: %w", err)
 	}
 	submissionAdapter := requestSubmissionAdapter{s}
-	if c.submissions, err = compose.NewRequestSubmissions(s.RequestRecords, submissionAdapter, effects, s.todayDate); err != nil {
+	if c.submissions, err = compose.NewRequestSubmissions(s.RequestRecords, submissionAdapter, effects, c.diffs, s.todayDate); err != nil {
 		return c, fmt.Errorf("care request submissions: %w", err)
 	}
 	editAdapter := requestEditAdapter{submissionAdapter}
-	if c.edits, err = compose.NewRequestEdits(s.RequestRecords, editAdapter, effects, s.todayDate); err != nil {
+	if c.edits, err = compose.NewRequestEdits(s.RequestRecords, editAdapter, effects, c.diffs, s.todayDate); err != nil {
 		return c, fmt.Errorf("care request edits: %w", err)
 	}
 	decisionAdapter := requestDecisionAdapter{editAdapter}
@@ -230,8 +232,11 @@ func newCareRequestEffects(
 	broadcaster realtime.Broadcaster,
 	ledger *ParentRequestLedger,
 	shares eventContract.ShareVisibilityResolver,
+	pickupChanges careplan.PickupChangeNotifier,
 ) (compose.RequestMessenger, compose.CareRequestEffects, error) {
-	ports := compose.CareRequestEffectPorts{Records: s.RequestRecords, Students: requestSubmissionAdapter{s}, Shares: shares, Logger: s.Logger}
+	ports := compose.CareRequestEffectPorts{
+		Records: s.RequestRecords, Students: requestSubmissionAdapter{s}, Shares: shares, PickupChanges: pickupChanges, Logger: s.Logger,
+	}
 	var messenger compose.RequestMessenger
 	if emitter != nil {
 		messenger = NewExcusedRequestMessenger(emitter)

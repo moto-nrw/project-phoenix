@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
@@ -11,6 +12,12 @@ import (
 type RequestSubmissionRecords interface {
 	Create(context.Context, carerequests.Request) (carerequests.Request, error)
 	IsPendingConflict(error) bool
+}
+
+// RequestWeeklyBaseline renders a weekly ask against the plan the family
+// sees, so a submission or edit can store that view as its baseline (#6990).
+type RequestWeeklyBaseline interface {
+	Weekly(context.Context, int64, json.RawMessage) ([]carerequests.DiffEntry, error)
 }
 
 type RequestSubmissionPickup interface {

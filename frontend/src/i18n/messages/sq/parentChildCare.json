@@ -39,7 +39,11 @@
     "requestSentPartlyTitle": "Njoftuar dhe kërkuar",
     "requestSentPartlyBody": "Ditët e lira janë njoftuar. Për ditët e tjera {careTerm} e kontrollon njoftimin tuaj. Deri atëherë vlen shënimi i saj.",
     "errorObject": "njoftimi i mungesës",
-    "submitting": "Po raportohet …"
+    "submitting": "Po raportohet …",
+    "submitDirectTooltip": "E çregjistron fëmijën menjëherë. {careTerm} e sheh menjëherë.",
+    "submitRequestTooltip": "E dërgon menjëherë mungesën si kërkesë. {careTerm} duhet ta konfirmojë.",
+    "submitTooltip": "E dërgon menjëherë mungesën te {careTerm}.",
+    "submitBlocked": "{careTerm} nuk pranon tani mungesa këtu."
   },
   "summary": {
     "none": "Asnjë mungesë",
@@ -106,18 +110,24 @@
     "statusApprovedChange": "U konfirmua, ndryshimi u ruajt.",
     "errorStaffConflictGeneric": "{careTerm}-ja ka regjistruar tashmë një ndryshim për këtë ditë. Ju lutemi kontaktoni ekipin.",
     "submitting": "Po dërgohet …",
-    "savingEdit": "Po ruhet …"
+    "savingEdit": "Po ruhet …",
+    "resetTooltip": "E heq ndryshimin tuaj për këtë ditë. moto pyet më parë.",
+    "saveEditTooltip": "Ndryshon kërkesën tuaj të hapur. {careTerm} duhet ta konfirmojë ende.",
+    "submitTooltip": "E dërgon kërkesën menjëherë te {careTerm} për konfirmim.",
+    "disabledBlocked": "{careTerm} nuk pranon këtu ndryshime të marrjes së fëmijës.",
+    "alreadyHomeBlocked": "Fëmija juaj është sot tashmë në shtëpi.",
+    "cutoffBlocked": "Koha për ndryshime për sot ka mbaruar.",
+    "staffSetBlocked": "{careTerm} e ka caktuar tashmë këtë ditë.",
+    "loadBlocked": "Oraret aktuale mungojnë. Ju lutemi rifreskoni faqen."
   },
   "actions": {
     "sick": {
       "label": "Njofto mungesë",
-      "shortLabel": "Mungesë",
-      "hint": "Njoftoni mungesën e fëmijës për një ose më shumë ditë"
+      "shortLabel": "Mungesë"
     },
     "pickup": {
       "label": "Marrje për një ditë",
-      "shortLabel": "Marrje",
-      "hint": "Përshtatni orarin e marrjes për një ditë të vetme"
+      "shortLabel": "Marrje"
     }
   },
   "request": {
@@ -126,5 +136,6 @@
   },
   "requiredHint": "Fushat me * duhen plotësuar.",
   "timeFormatHint": "Ora në formatin 15:30",
-  "timeExample": "p.sh. 15:30"
+  "timeExample": "p.sh. 15:30",
+  "requestEditTooltip": "Hap kërkesën tuaj të hapur për ndryshim."
 }

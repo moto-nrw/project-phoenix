@@ -58,6 +58,16 @@ export interface PrivacyConsent {
 }
 
 /**
+ * Ein Angebot, für das ein Kind heute geplant ist (#6487), zum Beispiel
+ * „Töpfer-AG“ von 14:00 bis 15:00. Zeiten als Wanduhr „HH:MM“.
+ */
+export interface PlannedActivity {
+  readonly title: string;
+  readonly start_time: string;
+  readonly end_time: string;
+}
+
+/**
  * Hinweis der Lehrkraft für heute an die OGS (#4795), geschrieben in moto
  * schule für das Kind oder seine ganze Klasse.
  */
@@ -139,6 +149,9 @@ export interface Student {
   pending_excused_note?: string;
   // Hinweise der Lehrkraft für heute (#4795); nur mit Lesezugriff.
   teacher_hints?: TeacherHint[];
+  // Heutige Angebote des Kindes (#6487); nur wenn die Schule sie auf der
+  // Kinderkarte zeigt.
+  planned_activities?: PlannedActivity[];
   // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind heute
   // mit der Klasse übergeben, „da“ oder „nicht da“.
   class_handover?: ClassHandover;
@@ -234,4 +247,18 @@ export type StudentUpdate = Omit<Partial<Student>, "companions"> & {
 export interface CareOfferingOption {
   readonly id: string;
   readonly name: string;
+}
+
+/**
+ * A question of the school's registration form the child list can filter by
+ * (#6954), with the answers given and how many children gave each.
+ */
+export interface EnrollmentAnswerFilter {
+  readonly key: string;
+  readonly label: string;
+  readonly options: ReadonlyArray<{
+    readonly value: string;
+    readonly label: string;
+    readonly count: number;
+  }>;
 }

@@ -299,7 +299,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}))
 	requestReviewPolicy := owners.NewParentRequestReviewPolicy(userContextService.Caller().ParentRequestReviews)
 	parentRequestEvents := studentPeople.ParentRequestEvent
-	careRequestService := owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	careRequestService := owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(nil,
 		students.CarePlan,
 		persons,
 		arrivalScheduleService,
@@ -352,7 +352,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	masterDataDecisions, err := owners.NewMasterDataDecisions(
 		students.CarePlan, persons, repos.Student, repos.Person, studentAuditService,
 		owners.ParentRequestWriteScope(requestReviewPolicy, requestTokenReads.Permissions),
-		pillEmitter, realtimeHub, parentRequestEvents, nil, logger.With("service", "master-data-review"), nil,
+		pillEmitter, realtimeHub, parentRequestEvents, nil, logger.With("service", "master-data-review"), nil, careplanCompose.MasterDataClassChanges{},
 	)
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
@@ -411,7 +411,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Settings:          settingsService,
 		Pickups:           pickupScheduleService,
 		Arrivals:          arrivalScheduleService,
-		PlannedStudentIDs: instanceService.GetPlannedStudentIDsByDate,
+		PlannedStudentIDs: instanceService.GetPlannedStudentIDsByDate, Timetable: reposTimetable.Timetable, BlockTypes: NewTimetableBlockDisplayForTests(db),
 		CareDays:          careDayService,
 		CareParticipation: careLifecycleService,
 		ExcusedRequests:   excusedRequestService,

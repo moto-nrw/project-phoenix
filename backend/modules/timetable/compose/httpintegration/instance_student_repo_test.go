@@ -2,6 +2,7 @@ package httpintegration_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
@@ -666,7 +667,7 @@ func TestInstanceStudentRepository_ReconcileAttendanceInterval_UsesPreviousInter
 	assert.WithinDuration(t, correctedExit, *got.CheckedOutAt, time.Second)
 }
 
-func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatus(t *testing.T) {
+func TestInstanceStudentRepository_ReleaseStatusDayFollowsTheReplacingStatus(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -704,24 +705,11 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	assert.Equal(t, fixtures.AttendanceSubstatusExcused(), *got.Substatus)
 	require.NotNil(t, got.StudentStatusDayID)
 	assert.Equal(t, newer.ID, *got.StudentStatusDayID, "the newest active status must take provenance immediately")
+	replaced, err := factory.StudentStatusDay.FindActiveByID(ctx, older.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "the newer report replaces the older status of the day (#6958)")
+	require.Nil(t, replaced)
 
-	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), absencerecords.StudentStatusSourceManual))
-	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
-	require.NoError(t, err)
-	require.NotNil(t, got.StudentStatusDayID)
-	assert.Equal(t, older.ID, *got.StudentStatusDayID, "clearing the newest status must restore the older active status")
-	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, newer))
-
-	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, older.ID, time.Now(), absencerecords.StudentStatusSourceManual))
-	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
-	require.NoError(t, err)
-	assert.Equal(t, fixtures.AttendanceStatusAbsent(), got.Status)
-	require.NotNil(t, got.Substatus)
-	assert.Equal(t, fixtures.AttendanceSubstatusExcused(), *got.Substatus)
-	require.NotNil(t, got.StudentStatusDayID)
-	assert.Equal(t, newer.ID, *got.StudentStatusDayID)
-
-	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), absencerecords.StudentStatusSourceManual))
+	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), absencerecords.StudentStatusSourceManual, nil))
 	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, fixtures.AttendanceStatusExpected(), got.Status)
@@ -734,7 +722,7 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	}
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, completedStatus))
 	testpkg.SetActivityInstanceLifecycle(t, ctx, db, inst.ID, fixtures.InstanceStatusCompleted())
-	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, completedStatus.ID, time.Now(), absencerecords.StudentStatusSourceManual))
+	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, completedStatus.ID, time.Now(), absencerecords.StudentStatusSourceManual, nil))
 	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, fixtures.AttendanceStatusAbsent(), got.Status, "completed slots remain historical absences")

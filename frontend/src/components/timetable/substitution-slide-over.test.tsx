@@ -399,7 +399,10 @@ describe("SubstitutionSlideOver", () => {
       expect(
         screen.getByRole("radio", { name: /^Bestimmte Termine/ }),
       ).not.toBeChecked();
-      expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Speichern" })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
 
       chooseScope("Bestimmte Termine");
       expect(
@@ -548,8 +551,33 @@ describe("SubstitutionSlideOver", () => {
         dayInstances: [present, absentElsewhere],
       });
 
-      expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Speichern" })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
     });
+  });
+
+  // Since #6847 an approved vacation stamps the plan like a sick report; the
+  // lock must not call it a Krankmeldung.
+  it("nennt eine gesperrte Urlaubsabwesenheit nicht Krankmeldung", () => {
+    const vacation = makeInstance({
+      staff: [
+        plannedPerson({
+          isAbsent: true,
+          isSickAbsence: true,
+          absenceReason: "Abwesenheit",
+        }),
+      ],
+    });
+    renderEditor({ instance: vacation, dayInstances: [vacation] });
+
+    expect(
+      screen.getByText(
+        "Diese Abwesenheit ist in der Zeiterfassung eingetragen. Sie können hier nur die Vertretung ändern.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Krankmeldung/)).not.toBeInTheDocument();
   });
 
   it("sperrt die Krankmeldung, lässt aber den Umfang der Vertretung wählen", async () => {
@@ -670,7 +698,10 @@ describe("SubstitutionSlideOver", () => {
     renderEditor({ instance: sick, dayInstances: [sick, manual], onApply });
 
     chooseScope("Bestimmte Termine");
-    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Speichern" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(onApply).not.toHaveBeenCalled();
   });
 

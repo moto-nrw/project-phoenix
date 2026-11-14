@@ -314,6 +314,7 @@ export function NotificationSetupDialog({
           size="md"
           className={ACTION_CLASS}
           disabled={busy}
+          tooltip={t("remindLaterTooltip")}
           onClick={remindLater}
         >
           {t("later")}
@@ -326,6 +327,7 @@ export function NotificationSetupDialog({
           className={ACTION_CLASS}
           isLoading={busy}
           loadingText={t("enabling")}
+          tooltip={t("enableTooltip")}
           onClick={() => void enable()}
         >
           {t("enable")}
@@ -337,6 +339,7 @@ export function NotificationSetupDialog({
           className={ACTION_CLASS}
           isLoading={busy}
           loadingText={t("installing")}
+          tooltip={t("installAppTooltip")}
           onClick={() => void installAndroid()}
         >
           {t("installApp")}
@@ -346,6 +349,11 @@ export function NotificationSetupDialog({
           type="button"
           size="md"
           className={ACTION_CLASS}
+          tooltip={
+            mode.startsWith("install-")
+              ? t("closeGuideTooltip")
+              : t("remindLaterTooltip")
+          }
           onClick={
             mode.startsWith("install-") ? finishInstallGuide : remindLater
           }
@@ -368,6 +376,8 @@ export function NotificationSetupDialog({
             : t("title")
       }
       closeLabel={t("close")}
+      // Das X erinnert wie „Später erinnern“ in einer Woche wieder.
+      closeTooltip={t("remindLaterTooltip")}
       backdropLabel={t("close")}
       isDismissDisabled={busy}
       footer={footer}

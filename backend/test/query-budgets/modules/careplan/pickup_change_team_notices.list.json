@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.careplan.pickup_change_team_notices.list",
+  "max": 1,
+  "exact": true,
+  "description": "modules/careplan — the reader's unread markers of changed pickup times (#6855). One statement however many markers and children: the markers joined to their requests and the children's directory rows."
+}

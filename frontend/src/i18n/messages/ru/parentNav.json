@@ -13,6 +13,7 @@
   "contactData": "Контактные данные",
   "soon": "Скоро",
   "refresh": "Обновить данные",
+  "refreshTooltip": "Получает актуальное состояние всех данных на этой странице.",
   "closeMenu": "Закрыть меню",
   "profileMenu": "Меню профиля: {name}",
   "profile": "Профиль",
@@ -34,5 +35,6 @@
   "documents": "Документы",
   "privacy": "Конфиденциальность",
   "backToApp": "Назад в приложение",
-  "holidayRegistrations": "Заявки на каникулы"
+  "holidayRegistrations": "Заявки на каникулы",
+  "signIn": "Вход"
 }

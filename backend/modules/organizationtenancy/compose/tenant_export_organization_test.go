@@ -17,7 +17,7 @@ import (
 
 // traegerRows are tenant-scoped tables that also hold rows of a Träger,
 // with organization_id instead of tenant_id.
-var traegerRows = []string{"auth.tokens", "platform.email_outbox", "platform.push_outbox", "platform.email_delivery_events"}
+var traegerRows = []string{"auth.tokens", "auth.mfa_trusted_devices", "platform.email_outbox", "platform.push_outbox", "platform.email_delivery_events"}
 
 // heldBySchools reports a table whose rows belong to a school: tenant
 // scoped, or a child of such a table.

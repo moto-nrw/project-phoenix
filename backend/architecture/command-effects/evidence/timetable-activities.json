@@ -12137,6 +12137,78 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "binding_digest": "193e537bba95fe069bee3c20d4edde37",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "binding_digest": "971d3a1d41ff963117144ca38af94bed",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "binding_digest": "a2d38557f9d78df4e5dbfdc146390c66",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "binding_digest": "c2f34d3db50c5325a16408dc1168bd3c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "binding_digest": "0b845020a9b32beef44f601e1c2863a7",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Student.IsAlumnus",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "binding_digest": "4974ee82f074bcbae96fcfceb5c89c8e",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "binding_digest": "e08ef92f98e2e8c82a18c16d647b7ce4",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "binding_digest": "2eef4db4e743348713d19b841d40ab0c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/timetable/internal/application.CohortRosters.FollowCohortChanges",
+      "binding_digest": "72588c72a13f12f76057f35e332960ee",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable.CohortRosters.FollowCohortChanges",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/modules/timetable.Capability.AcknowledgeConflict",
       "binding_digest": "2eef4db4e743348713d19b841d40ab0c",
       "port": "github.com/moto-ogs/project-phoenix/modules/timetable.ConflictAckCapability.AcknowledgeConflict",
@@ -25521,6 +25593,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/api.calendarPeriodUsage.UsageCounts",
+      "binding_digest": "31395b8bd64257c2eec7ed5f78208bea",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable/http.CalendarPeriodUsage.UsageCounts",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/workforce.ShiftPlanReferenceQuery.ShiftPlanReferences",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.calendarPeriodUsage.UsageCounts",
+      "binding_digest": "486fbcfe19d31eb845e31d29229963f3",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable/http.CalendarPeriodUsage.UsageCounts",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/workforce/compose.WorkTime.ShiftPlanReferences",
+      "target_owner": "workforce"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/modules/schoolcalendar.Calendar.AddCalendarPeriod",
       "binding_digest": "39d668ff112f138f5af2f01c508591ae",
       "port": "github.com/moto-ogs/project-phoenix/modules/timetable/http.CalendarPeriods.AddCalendarPeriod",
@@ -31826,15 +31914,23 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
-      "binding_digest": "fdf462b580fb1f945132167c63bf393c",
+      "binding_digest": "1ce00f438f9d73745d15faa55a080e86",
       "port": "github.com/moto-ogs/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
       "source_owner": "timetable-activities",
-      "target": "github.com/moto-ogs/project-phoenix/modules/workforce.RangeBlockingAbsenceStatuses",
+      "target": "github.com/moto-ogs/project-phoenix/modules/workforce.PlanEffectiveAbsenceStatuses",
       "target_owner": "workforce"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
-      "binding_digest": "79d963020f3a2f4db90586de07a1d6b4",
+      "binding_digest": "d3160f5264d7a362f4999135c824f6ef",
+      "port": "github.com/moto-ogs/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/workforce.StaffAbsence.HalfBoundaryDays",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
+      "binding_digest": "5ba26892cf2bad7abd71673cbf7589b0",
       "port": "github.com/moto-ogs/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-ogs/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",

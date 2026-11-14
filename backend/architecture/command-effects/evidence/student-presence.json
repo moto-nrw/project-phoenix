@@ -12194,7 +12194,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.MarkCleared",
-      "binding_digest": "5672996e74679318bc7c447d76c81c3e",
+      "binding_digest": "afe19d73dc124ae8a2488c46edb2c176",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence.StatusDays.MarkCleared",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
@@ -12202,7 +12202,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.MarkCleared",
-      "binding_digest": "267c303efbad24eb3cce8752ffbbeac3",
+      "binding_digest": "f89a92b10d09af9dc274b311b3417149",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence.StatusDays.MarkCleared",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDays",
@@ -14161,6 +14161,46 @@
       "target_owner": ""
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "binding_digest": "d9f49ef65cd2eac404225862eb222dad",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "binding_digest": "3c4b271ed9cdec05e02edfe22e57bc90",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth.AttendanceContext",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "binding_digest": "fe1f19a8ed0a85de235dd7f44b04d520",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "binding_digest": "afade5fb4199e0ad403df633e85b1607",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "binding_digest": "8776a410a33ff9b57a6a029acb646f74",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.CheckInStudentsToSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.ServiceDependencies.Now",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.CheckOutStudent",
       "binding_digest": "3c4b271ed9cdec05e02edfe22e57bc90",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.CheckOutStudent",
@@ -16097,6 +16137,86 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "binding_digest": "d9f49ef65cd2eac404225862eb222dad",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "binding_digest": "3c4b271ed9cdec05e02edfe22e57bc90",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth.AttendanceContext",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "binding_digest": "fe1f19a8ed0a85de235dd7f44b04d520",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "binding_digest": "afade5fb4199e0ad403df633e85b1607",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "binding_digest": "8776a410a33ff9b57a6a029acb646f74",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToOpenRoomSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.ServiceDependencies.Now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized",
+      "binding_digest": "d9f49ef65cd2eac404225862eb222dad",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized",
+      "binding_digest": "3c4b271ed9cdec05e02edfe22e57bc90",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth.AttendanceContext",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized",
+      "binding_digest": "fe1f19a8ed0a85de235dd7f44b04d520",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized",
+      "binding_digest": "afade5fb4199e0ad403df633e85b1607",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckInStudentsToSessionAuthorized",
+      "binding_digest": "8776a410a33ff9b57a6a029acb646f74",
+      "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckInStudentsToSessionAuthorized",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.ServiceDependencies.Now",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.service.CheckOutStudent",
       "binding_digest": "3c4b271ed9cdec05e02edfe22e57bc90",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.Service.CheckOutStudent",
@@ -17906,7 +18026,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.StudentStatusDayRepository.MarkCleared",
-      "binding_digest": "5672996e74679318bc7c447d76c81c3e",
+      "binding_digest": "afe19d73dc124ae8a2488c46edb2c176",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.MarkCleared",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
@@ -17914,7 +18034,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.StudentStatusDayRepository.MarkCleared",
-      "binding_digest": "267c303efbad24eb3cce8752ffbbeac3",
+      "binding_digest": "f89a92b10d09af9dc274b311b3417149",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.MarkCleared",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDays",
@@ -17922,7 +18042,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.StudentStatusDayRepository.MarkClearedByID",
-      "binding_digest": "d24def8fc38c065c48ed1f9b59f13739",
+      "binding_digest": "67a89ef537d8c8fc639ba0516549e12d",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.MarkClearedByID",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDayByID",
@@ -17930,7 +18050,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.StudentStatusDayRepository.MarkClearedByID",
-      "binding_digest": "a7afacd1645fb0d64d39d6c120198274",
+      "binding_digest": "c3dd5b0aa87084acfdde2cd6a1991e12",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.MarkClearedByID",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDayByID",
@@ -17938,7 +18058,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.StudentStatusDayRepository.MarkClearedForDates",
-      "binding_digest": "848141a22e7ce4534e9885a095d5b3ed",
+      "binding_digest": "7c5a4c31cdcb20aebd3f285810d10393",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.MarkClearedForDates",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
@@ -17946,7 +18066,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.StudentStatusDayRepository.MarkClearedForDates",
-      "binding_digest": "d91a7e02e101be189ab3156c6891f18e",
+      "binding_digest": "a09aca9f033b155188055a1253d2f5c6",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.MarkClearedForDates",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDays",
@@ -18090,7 +18210,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.StudentStatusDayRepository.MarkCleared",
-      "binding_digest": "5672996e74679318bc7c447d76c81c3e",
+      "binding_digest": "afe19d73dc124ae8a2488c46edb2c176",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkCleared",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
@@ -18098,7 +18218,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.StudentStatusDayRepository.MarkCleared",
-      "binding_digest": "267c303efbad24eb3cce8752ffbbeac3",
+      "binding_digest": "f89a92b10d09af9dc274b311b3417149",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkCleared",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDays",
@@ -18106,7 +18226,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.StudentStatusDayRepository.MarkClearedByID",
-      "binding_digest": "d24def8fc38c065c48ed1f9b59f13739",
+      "binding_digest": "67a89ef537d8c8fc639ba0516549e12d",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkClearedByID",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDayByID",
@@ -18114,7 +18234,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.StudentStatusDayRepository.MarkClearedByID",
-      "binding_digest": "a7afacd1645fb0d64d39d6c120198274",
+      "binding_digest": "c3dd5b0aa87084acfdde2cd6a1991e12",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkClearedByID",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDayByID",
@@ -18122,7 +18242,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.StudentStatusDayRepository.MarkClearedForDates",
-      "binding_digest": "848141a22e7ce4534e9885a095d5b3ed",
+      "binding_digest": "7c5a4c31cdcb20aebd3f285810d10393",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkClearedForDates",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
@@ -18130,7 +18250,7 @@
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/roots/owners.StudentStatusDayRepository.MarkClearedForDates",
-      "binding_digest": "d91a7e02e101be189ab3156c6891f18e",
+      "binding_digest": "a09aca9f033b155188055a1253d2f5c6",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkClearedForDates",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDays",
@@ -18266,7 +18386,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkCleared",
-      "binding_digest": "5672996e74679318bc7c447d76c81c3e",
+      "binding_digest": "afe19d73dc124ae8a2488c46edb2c176",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.statusDayRecords.MarkCleared",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Capability.ClearStudentStatusDays",
@@ -18274,7 +18394,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.MarkCleared",
-      "binding_digest": "267c303efbad24eb3cce8752ffbbeac3",
+      "binding_digest": "f89a92b10d09af9dc274b311b3417149",
       "port": "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence.statusDayRecords.MarkCleared",
       "source_owner": "student-presence",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.Owner.ClearStudentStatusDays",

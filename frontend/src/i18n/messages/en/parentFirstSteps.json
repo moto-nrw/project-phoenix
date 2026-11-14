@@ -107,5 +107,15 @@
     "title": "Hide getting started?",
     "body": "You can still find the guides in Help.",
     "confirm": "Hide"
+  },
+  "tooltips": {
+    "open": "Shows your getting started list.",
+    "collapse": "Shrinks the list to a button at the edge of the screen.",
+    "show": "Shows you the marked areas step by step.",
+    "guide": "Opens the guide in a new tab.",
+    "installGuide": "Opens the guide in a new tab and ticks off this step.",
+    "complete": "Completes getting started and hides it on this device.",
+    "dismiss": "Hides getting started on this device; moto asks you to confirm first.",
+    "dismissConfirm": "Hides getting started on this device."
   }
 }

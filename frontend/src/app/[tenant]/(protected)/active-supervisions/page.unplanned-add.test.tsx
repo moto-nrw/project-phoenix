@@ -69,9 +69,9 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock PageHeaderSearchLayout (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: vi.fn(
+// Mock TenantPageSearchRow (vi.fn wrapper enables mockImplementation in enhanced tests)
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: vi.fn(
     ({ title, badge }: { title: string; badge?: { count: number } }) => (
       <div data-testid="page-header" data-count={badge?.count}>
         {title}
@@ -168,12 +168,12 @@ vi.mock("~/components/rooms/transit-students-section", () => ({
 }));
 
 // Mock LocationBadge
-vi.mock("@/components/ui/location-badge", () => ({
+vi.mock("@/components/students/presence/location-badge", () => ({
   LocationBadge: () => <div data-testid="location-badge">Location</div>,
 }));
 
 // Mock EmptyStudentResults
-vi.mock("~/components/ui/empty-student-results", () => ({
+vi.mock("~/components/students/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results">No results</div>,
 }));
 
@@ -290,7 +290,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
-import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
+import { TenantPageSearchRow } from "~/components/ui/tenant-page-search-row";
 import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
@@ -298,7 +298,7 @@ import {
 import MeinRaumPage from "./page";
 
 const defaultPageHeader = vi
-  .mocked(PageHeaderSearchLayout)
+  .mocked(TenantPageSearchRow)
   .getMockImplementation()!;
 
 vi.mock("~/lib/student-api", async (importOriginal) => {
@@ -356,7 +356,7 @@ function render(ui: Parameters<typeof rtlRender>[0]) {
 }
 
 beforeEach(() => {
-  vi.mocked(PageHeaderSearchLayout)
+  vi.mocked(TenantPageSearchRow)
     .mockReset()
     .mockImplementation(defaultPageHeader);
   vi.mocked(useSWRAuth)
@@ -884,7 +884,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     });
     const addButton = screen.getByRole("button", { name: "Hinzufügen" });
 
-    expect(addButton).toBeDisabled();
+    expect(addButton).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText("Bitte ein Kind aus der Liste antippen."),
     ).toBeInTheDocument();
@@ -894,6 +894,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     expect(timetableOperationsApi.checkIn).not.toHaveBeenCalled();
     expect(beierCard).toBeChecked();
     expect(addButton).toBeEnabled();
+    expect(addButton).not.toHaveAttribute("aria-disabled");
     expect(
       screen.queryByText("Bitte ein Kind aus der Liste antippen."),
     ).not.toBeInTheDocument();
@@ -910,10 +911,16 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     expect(
       await screen.findByRole("radio", { name: /Marie Beier/ }),
     ).not.toBeChecked();
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
 
     fireEvent.click(screen.getByRole("radio", { name: /Marie Beier/ }));
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Hinzufügen" }),
+    ).not.toHaveAttribute("aria-disabled");
 
     // Die Liste filtert ab dem ersten Zeichen (#4355); jede Eingabe verwirft
     // die Auswahl, auch wenn das Kind sichtbar bleibt.
@@ -925,7 +932,10 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     expect(
       screen.queryByRole("radio", { name: /Marie Garschagen/ }),
     ).toBeNull();
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(timetableOperationsApi.checkIn).not.toHaveBeenCalled();
   });
 
@@ -963,6 +973,9 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     });
     expect(garschagenCard).toBeChecked();
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Hinzufügen" }),
+    ).not.toHaveAttribute("aria-disabled");
 
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     await waitFor(() =>
@@ -1033,6 +1046,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     const addButton = screen.getByRole("button", { name: "Hinzufügen" });
 
     expect(addButton).toBeEnabled();
+    expect(addButton).not.toHaveAttribute("aria-disabled");
     expect(
       screen.queryByText("Bitte ein Kind aus der Liste antippen."),
     ).not.toBeInTheDocument();

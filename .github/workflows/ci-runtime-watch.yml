@@ -1,0 +1,53 @@
+name: CI runtime watch
+
+# Weekly check of the pull request runtime target (.claude/rules/ci-test-performance.md):
+# median of the green first attempts of CI with backend tests over the last
+# seven days, first job start to the end of ci-gate. Over 300 s it opens one
+# issue or comments on the open one (scripts/ci-runtime-watch.mjs). Its own
+# file, not a job in nightly.yml: the nightly run starts the paid full suites
+# on weekdays, and a manual run of this check must not start them too.
+
+on:
+  schedule:
+    # Monday before the working week, after the weekend's quiet runs.
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Print the issue text instead of opening or commenting
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: ci-runtime-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: CI runtime watch
+    # Free standard runner for this public repository; it only reads the API.
+    runs-on: ubuntu-latest
+    # About 300 API requests at about one second each.
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/ci-runtime-watch.mjs
+            .github/actions/ci-cost/ci-cost.mjs
+          sparse-checkout-cone-mode: false
+      - name: Measure the last seven days
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+        run: |
+          args=()
+          if [ "$DRY_RUN" = true ]; then args+=(--dry-run); fi
+          node scripts/ci-runtime-watch.mjs "${args[@]}"

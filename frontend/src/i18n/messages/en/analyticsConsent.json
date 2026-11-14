@@ -7,6 +7,8 @@
   "promptChangeLater": "Your choice applies to your account. You can change it at any time under “Settings”.",
   "allow": "Allow",
   "refuse": "Decline",
+  "allowTooltip": "Allows usage analytics for your account. You can change this at any time.",
+  "refuseTooltip": "Declines usage analytics for your account. moto then counts nothing.",
   "saving": "Saving…",
   "closeLabel": "Decide later",
   "sectionDescription": "May moto count which pages and buttons you use? moto does not see names or anything you type. Only you decide this.",

@@ -8,11 +8,14 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	DELETE /api/staff/time-tracking/payroll-rules/surcharge-rules/{ruleId}
 	DELETE /api/staff/time-tracking/payroll-rules/wage-types/{wageTypeId}
 	DELETE /api/staff/{id}/planned-exit
+	GET /api/staff/absences/plan-gaps
 	GET /api/staff/qualification-types
 	GET /api/staff/qualifications
 	GET /api/staff/time-tracking/payroll-dispatch
 	GET /api/staff/time-tracking/payroll-rules
+	GET /api/staff/time-tracking/target-coverage
 	GET /api/staff/{id}/qualifications
+	POST /api/staff/absences/{absenceId}/plan-sync
 	POST /api/staff/externals/{id}/invitation
 	POST /api/staff/qualification-types
 	POST /api/staff/time-tracking/payroll-rules/surcharge-rules

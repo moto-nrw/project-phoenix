@@ -110,6 +110,9 @@ func (m *mockRepo) Delete(ctx context.Context, id int64) error { return m.delete
 func (m *mockRepo) ListForTenant(ctx context.Context, includeInactive bool) ([]*StaffParentAnnouncement, error) {
 	return m.listForTenantFn(ctx, includeInactive)
 }
+func (m *mockRepo) RecordRecipients(context.Context, int64, int64) error {
+	return nil
+}
 func (m *mockRepo) SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {
 	return m.setPublishedFn(ctx, id, publishedAt)
 }

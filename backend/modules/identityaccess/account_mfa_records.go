@@ -52,17 +52,23 @@ type AccountMFAChallenge struct {
 // cookie; TokenHash is the hash of the cookie's raw token. TenantID pins the
 // trust to one school.
 type AccountTrustedDevice struct {
-	ID         int64
-	AccountID  int64
-	TenantID   int64
-	TokenHash  string
-	UserAgent  *string
-	IPAddress  net.IP
-	ExpiresAt  time.Time
-	LastUsedAt *time.Time
-	RevokedAt  *time.Time
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID        int64
+	AccountID int64
+	TenantID  int64
+	// OrganizationID is the Träger of a device the Träger-Portal remembered
+	// (#6955); zero for a school's and the caterer portal's device.
+	OrganizationID int64
+	// ParentPortal marks a device the parents portal remembered (#7051); it
+	// names neither a school nor a Träger, like the caterer portal's.
+	ParentPortal bool
+	TokenHash    string
+	UserAgent    *string
+	IPAddress    net.IP
+	ExpiresAt    time.Time
+	LastUsedAt   *time.Time
+	RevokedAt    *time.Time
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // AccountMFAOverride is an admin's verdict on one account. TenantID is nil
@@ -111,6 +117,10 @@ type MFACodeMail struct {
 	RequestIP            string
 	TrustedDeviceEnabled bool
 	TrustedDeviceDays    int
+	// Parent marks a code of the parents portal (#7051): it is written in
+	// Locale, the language the parent chose for the portal.
+	Parent bool
+	Locale string
 }
 
 // TrustedDeviceMail notifies the holder that a remember-device cookie was
@@ -126,6 +136,12 @@ type TrustedDeviceMail struct {
 	TrustedDays   int
 	// Caterer marks a device of the caterer portal (#4497).
 	Caterer bool
+	// Traeger marks a device of the Träger-Portal (#6955).
+	Traeger bool
+	// Parent marks a device of the parents portal (#7051), whose notice is
+	// written in Locale.
+	Parent bool
+	Locale string
 }
 
 // CatererMFAResetMail tells a caterer that a moto operator reset its second
@@ -134,6 +150,32 @@ type CatererMFAResetMail struct {
 	Recipient   string
 	ReferenceID int64
 	ResetAt     string
+}
+
+// MFAResetByAdminMail tells an account holder that a school administrator
+// or a moto operator reset their second factor (#6862). The reset holds for
+// the whole account, so the mail names no school.
+type MFAResetByAdminMail struct {
+	Recipient   string
+	ReferenceID int64
+	ResetAt     string
+	// ByOperator names the moto team instead of the school's administration.
+	ByOperator bool
+	// Locale is the language the account chose in the parents portal, or
+	// empty. A parent gets the notice in it, worded for the parents portal
+	// (#7051).
+	Locale string
+}
+
+// LoginAddressChangedMail tells the previous address of an account that an
+// administrator moved the login to another one (#6862). TenantID is the
+// school whose administrator changed it; a platform change carries none.
+type LoginAddressChangedMail struct {
+	Recipient   string
+	ReferenceID int64
+	TenantID    int64
+	ChangedAt   string
+	ByOperator  bool
 }
 
 // MFAEvidence carries the metadata of one mfa_* authentication event.

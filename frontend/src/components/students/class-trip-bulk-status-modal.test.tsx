@@ -307,7 +307,7 @@ describe("ClassTripBulkStatusModal in moto schule (#4799)", () => {
         name: "Ausflug oder Klassenfahrt melden: Klasse 3b",
       }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Kinder" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Kinder" }));
     expect(
       screen.getByRole("option", { name: "Anna Ausflug" }),
     ).toHaveAttribute("aria-selected", "true");
@@ -390,11 +390,11 @@ describe("ClassTripBulkStatusModal in moto schule (#4799)", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Kinder" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Kinder" }));
     fireEvent.click(screen.getByRole("button", { name: "Auswahl aufheben" }));
     expect(
       screen.getByRole("button", { name: "Für 0 Kinder melden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "Alle auswählen" }));
     fireEvent.click(
@@ -466,7 +466,7 @@ describe("ClassTripBulkStatusModal date defaults in moto schule (#4799)", () => 
     expect(screen.getByLabelText("Von")).toHaveValue("2026-09-12");
     expect(screen.getByLabelText("Bis")).toHaveValue("2026-09-12");
     expect(screen.queryByLabelText(/Rückkehrzeit/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Kinder" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Kinder" }));
     expect(
       screen.getByRole("option", { name: "Anna Ausflug" }),
     ).toHaveAttribute("aria-selected", "true");

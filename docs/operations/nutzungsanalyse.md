@@ -92,11 +92,11 @@ Screenshots, Videos, Traces und automatische DOM-Fehlerabbilder sind aus.
 Für die Portale gibt es getrennte Dateien vor der Anmeldung und für den
 Sitzungsübergang samt geschützter Seite sowie eine gemeinsame Aufzeichnung.
 **PR-CI, nicht nur lokal:** Der separate Workflow **Frontend E2E**
-(`.github/workflows/e2e.yml`) führt im Job `e2e` (**Playwright E2E flows**)
+(`.github/workflows/e2e.yml`) führt im Job **Playwright network evidence**
 den Schritt **Run portal network evidence** mit `pnpm run test:network` aus.
 Dieser Schritt verwendet den oben beschriebenen gesperrten Node-Resolver.
-Danach folgt **Upload sanitized network evidence**, anschließend
-**Run E2E flows** für die bisherigen geseedeten Tests. Die Netzwerksuite
+Danach folgt **Upload sanitized network evidence**. Die geseedeten Tests
+laufen parallel dazu in den Jobs **Playwright E2E flows**. Die Netzwerksuite
 gehört nicht zum Job `Lint / Frontend build` des Hauptworkflows.
 
 Der E2E-Workflow ist kein Required Check. Er läuft auf PRs gegen
@@ -381,7 +381,7 @@ question) lives in the dashboard descriptions.
 | Eltern-App | `moto-app.de` | The same for parents; parents have no school | created by the sync |
 | Schul-App | `moto-app.de` | The same for teachers in the school portal | created by the sync |
 | Schule im Verlauf | `moto-app.de` | One school over time (`school_id` filter, do not save it) | <https://eu.posthog.com/project/140838/dashboard/1046854> |
-| Demo | `demo` | Conversion to „Kostenlos starten“, time in the demo, what visitors look at and try, where they stop, dead and rage clicks | created by the sync |
+| Demo | `demo` | Conversion to „Termin buchen“, time in the demo, what visitors look at and try, where they stop, dead and rage clicks | created by the sync |
 
 A school counts as active through use: page views, core actions, and kiosk
 bookings (`ACTIVE_USE`), not a failed login or a dead click. Rage clicks come
@@ -414,10 +414,10 @@ fails for a route template without an area, so a new page needs one.
 
 The demo funnel starts with the link request (`demo_link_requested` from the
 backend). The click on „Demo starten" before it happens on the website,
-which measures with Umami, not PostHog. So does the intake form behind
-„Kostenlos starten" (`moto-ogs.de/start/?src=demo`): Umami events
-`start-form-start`, `start-form-step`, `start-form-submit`, and
-`start-form-result`, each with `src`.
+which measures with Umami, not PostHog. The funnel ends with the click on
+„Termin buchen" (`demo_start_clicked`; until the switch from „Kostenlos
+starten" the same event counted that button). The button opens the HubSpot
+booking calendar in a new tab; booked appointments live in HubSpot.
 
 ## Privacy policy (website, `moto-ogs.de/datenschutz`)
 

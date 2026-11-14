@@ -109,6 +109,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.student_photos_enabled",
 		// Child search as the only child navigation (#1321).
 		"operations.child_search_only_navigation",
+		// Simple staff navigation for caregivers (#6956).
+		"operations.simple_staff_navigation",
 		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
 		"security.mfa_mode",
 		"security.mfa_trusted_device_enabled",
@@ -2105,6 +2107,22 @@ func TestStudentPhotosSetting(t *testing.T) {
 	assert.Nil(t, def.DependsOn, "stand-alone toggle, no DependsOn")
 }
 
+// TestStudentCardActivitiesSetting guards the offerings on the child card
+// (#6487): off by default so no card changes until a school opts in, next to
+// the other switches for what a Kinderkarte shows, operational config:update.
+func TestStudentCardActivitiesSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyStudentCardActivitiesEnabled)
+	require.NotNil(t, def, "operations.student_card_activities_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "must default to false - the cards stay as they are until a school opts in")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "kinder", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Nil(t, def.DependsOn, "stand-alone toggle, no DependsOn")
+}
+
 // TestChildSearchOnlyNavigationSetting guards the navigation switch (#1321):
 // off by default so no school's navigation changes until it opts in, and an
 // operational toggle the school changes itself (config:update, shared).
@@ -2117,6 +2135,23 @@ func TestChildSearchOnlyNavigationSetting(t *testing.T) {
 	assert.Equal(t, false, def.Default, "must default to false - the separate entries stay until a school opts in")
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "organisation", def.Category, "sits next to the group mode it depends on in practice")
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy, "the school decides, not the operator")
+	assert.Nil(t, def.DependsOn, "stand-alone toggle, no DependsOn")
+}
+
+// TestSimpleStaffNavigationSetting guards the simple navigation switch
+// (#6956): off by default so no school's navigation changes until it opts
+// in, and a toggle the school changes itself (config:update, shared).
+func TestSimpleStaffNavigationSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeySimpleStaffNavigation)
+	require.NotNil(t, def, "operations.simple_staff_navigation should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "must default to false - every page stays in the navigation until a school opts in")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "organisation", def.Category, "sits next to the other navigation switch")
 	assert.Equal(t, "config:update", def.WritePermission)
 	assert.Equal(t, config.AccessShared, def.AccessPolicy, "the school decides, not the operator")
 	assert.Nil(t, def.DependsOn, "stand-alone toggle, no DependsOn")

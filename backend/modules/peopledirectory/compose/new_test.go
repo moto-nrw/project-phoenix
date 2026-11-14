@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-ogs/project-phoenix/tenant"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,9 +22,47 @@ func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) pe
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: observe, GuardianLinkOwners: testGuardianLinkOwners{Db: db}, GuardianLinkRows: testpkg.GuardianLinks{}}, testPortalMemberships(db))
+	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: observe, GuardianLinkOwners: testGuardianLinkOwners{Db: db}, GuardianLinkRows: testpkg.GuardianLinks{}, LiveStaff: liveStaffDouble{}}, testPortalMemberships(db))
 	require.NoError(t, err)
 	return module.Owner
+}
+
+// liveStaffDouble stands in for School Membership's live staff answer.
+type liveStaffDouble struct {
+	staff bool
+	err   error
+}
+
+func (d liveStaffDouble) FindStaffIDByPerson(context.Context, int64) (int64, bool, error) {
+	return 0, d.staff, d.err
+}
+
+// A person deletion asks the seam under the person's lock: a live staff
+// membership or a failing lookup keeps the person, and a graph without the
+// seam refuses instead of orphaning a staff profile (#6840).
+func TestModuleDeletePersonAsksForLiveStaff(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	lookupFailed := errors.New("membership lookup failed")
+	for name, check := range map[string]struct {
+		staff  peoplePorts.LiveStaffProfiles
+		refuse func(error) bool
+	}{
+		"live staff":     {staff: liveStaffDouble{staff: true}, refuse: func(err error) bool { return errors.Is(err, peopledirectory.ErrPersonHasActiveProfile) }},
+		"lookup failure": {staff: liveStaffDouble{err: lookupFailed}, refuse: func(err error) bool { return errors.Is(err, lookupFailed) }},
+		"unbound": {refuse: func(err error) bool {
+			return err != nil && strings.Contains(err.Error(), "live staff lookup is not configured")
+		}},
+	} {
+		module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}, GuardianLinkRows: testpkg.GuardianLinks{}, LiveStaff: check.staff}, testPortalMemberships(db))
+		require.NoError(t, err, name)
+		person := testpkg.CreateTestPerson(t, db, "Kept", "Person")
+		err = module.DeletePerson(ctx, person.ID)
+		assert.True(t, check.refuse(err), "%s: unexpected result %v", name, err)
+		_, err = module.FindPerson(ctx, person.ID)
+		require.NoError(t, err, "%s: the person must stay", name)
+	}
 }
 
 func testPortalMemberships(db *bun.DB) GuardianMembershipQuery {

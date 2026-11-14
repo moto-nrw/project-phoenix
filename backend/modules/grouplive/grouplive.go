@@ -120,7 +120,10 @@ type Student struct {
 	// TeacherHints are today's hints of the Lehrkraft for this child or its
 	// class (#4795), oldest first; only with planning access.
 	TeacherHints []TeacherHint `json:"teacher_hints,omitempty"`
-	fullAccess   bool          // Planning access: staff/admin eligibility plus users:read.
+	// PlannedActivities are today's offerings of the child (#6487); only
+	// with planning access and when the school shows them on the card.
+	PlannedActivities []PlannedActivity `json:"planned_activities,omitempty"`
+	fullAccess        bool              // Planning access: staff/admin eligibility plus users:read.
 }
 
 type RoomStatus struct {
@@ -495,7 +498,10 @@ func (s *service) loadPlanning(ctx context.Context, state *buildState) error {
 	state.arrivals, state.pickups, state.timetable = arrivals, pickups, timetable
 	state.careDayEnd = careDayEnd
 	s.applyPlanning(state, pending)
-	return s.applyTeacherHints(ctx, state, ids)
+	if err := s.applyTeacherHints(ctx, state, ids); err != nil {
+		return err
+	}
+	return s.applyPlannedActivities(ctx, state, ids)
 }
 
 // applyTeacherHints attaches today's hints of the Lehrkraft (#4795). Like the

@@ -20,6 +20,7 @@ import { messagesConcept } from "~/lib/concepts/messages";
 import { newsConcept } from "~/lib/concepts/news";
 import { presentConcept } from "~/lib/concepts/present";
 import { notificationsConcept } from "~/lib/concepts/notifications";
+import { devicesConcept } from "~/lib/concepts/devices";
 import { privacyConcept } from "~/lib/concepts/privacy";
 import { settingsConcept } from "~/lib/concepts/settings";
 
@@ -149,7 +150,7 @@ export const SCHOOL_SETTINGS_ENTRY: SchoolNavItem = {
 
 export interface SchoolSettingsSection {
   /** Der Wert von `?tab=` in der Adresse. */
-  readonly key: "notifications" | "privacy";
+  readonly key: "notifications" | "devices" | "privacy";
   readonly label: string;
   readonly concept: MotoConcept;
 }
@@ -161,6 +162,8 @@ export const SCHOOL_SETTINGS_SECTIONS: readonly SchoolSettingsSection[] = [
     label: "Benachrichtigungen",
     concept: notificationsConcept,
   },
+  // Auf welchen Geräten die Anmeldung ohne Code auskommt (#6955).
+  { key: "devices", label: "Vertraute Geräte", concept: devicesConcept },
   { key: "privacy", label: "Datenschutz", concept: privacyConcept },
 ];
 

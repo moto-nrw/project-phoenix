@@ -14,5 +14,9 @@
   "passwordCopied": "App password copied.",
   "passwordOnce": "You see the app password only now. Save it in the calendar app right away.",
   "passwordHidden": "The app password has already been shown. If you no longer have it, create new access details.",
-  "caldavUnavailable": "The connection is currently unavailable. Please try again."
+  "caldavUnavailable": "The connection is currently unavailable. Please try again.",
+  "rotateHint": "Creates new access details right away; the old calendar subscription ends.",
+  "copyAddressHint": "Copies the address to paste into your calendar program.",
+  "copyUsernameHint": "Copies the username to paste into your calendar program.",
+  "copyPasswordHint": "Copies the app password to paste into your calendar program."
 }

@@ -151,9 +151,12 @@ function TraegerSettingsContent() {
   const activeTab = contactActive
     ? null
     : (tabs.find((tab) => tab.key === selectedTab) ?? tabs[0] ?? null);
-  const contact = useTraegerMasterData("die Kontaktdaten", contactActive);
+  const contact = useTraegerMasterData(
+    "die Angabe der Kontaktdaten",
+    contactActive,
+  );
   const afterContactWrite = useRefreshAfterWrite(
-    "die Anzeige des Ansprechpartners",
+    "die Anzeige der Ansprechperson",
     contact.read,
   );
   // Ein fehlgeschlagenes Nachladen lässt die Kontaktkarte stehen, außer bei einer Ablehnung.
@@ -181,7 +184,8 @@ function TraegerSettingsContent() {
         tabs.length > 0 ? (
           <TenantPageStats
             items={[
-              // Die Bereiche der Einstellungen und „Kontakt“.
+              // Die Bereiche der Einstellungen und „Kontakt“: auf dem
+              // Telefon liegen einige Reiter außerhalb des Ausschnitts.
               { value: tabs.length + 1, label: "Bereiche" },
               { value: fromTraeger, label: "vom Träger festgelegt" },
             ]}
@@ -217,12 +221,22 @@ function TraegerSettingsContent() {
           message="Sie können die Werte nur ansehen. Ändern kann, wer im Träger-Büro das Recht dazu hat."
         />
       ) : null}
-      {schema && contactActive && contact.loaded ? (
-        <TraegerContactSection
-          masterData={contact.masterData}
-          letterheadText={letterheadText(schema)}
-          onSaved={afterContactWrite.refresh}
-        />
+      {schema && contact.loaded ? (
+        // Stays mounted while another tab is open: a typed contact that is
+        // not saved yet survives a switch of the tab.
+        <div
+          className={
+            contactActive
+              ? "compact:gap-4 flex flex-col gap-6 max-sm:gap-3"
+              : "hidden"
+          }
+        >
+          <TraegerContactSection
+            masterData={contact.masterData}
+            letterheadText={letterheadText(schema)}
+            onSaved={afterContactWrite.refresh}
+          />
+        </div>
       ) : null}
       {activeTab?.categories.map((category) => {
         const minDigits = tabItem(activeTab, DEBTOR_NUMBER_MIN_DIGITS_KEY);
@@ -235,6 +249,8 @@ function TraegerSettingsContent() {
             onReset={handleReset}
             onSchemaRefresh={() => void refresh()}
             audience="traeger"
+            headingLevel={2}
+            autosaveNote
             renderAddon={(setting) =>
               setting.key === DEBTOR_NUMBER_DIGITS_ONLY_KEY &&
               setting.value === true &&

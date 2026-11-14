@@ -3,13 +3,15 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
+import { DevicesIcon, SignInIcon } from "@phosphor-icons/react";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { Checkbox } from "~/components/ui/checkbox";
 import { createLogger } from "~/lib/logger";
 import { credentialError, MFA_STEP_REFUSALS } from "./credential-error";
 import {
@@ -20,11 +22,134 @@ import {
 } from "~/lib/mfa-api";
 import { OTPInputGrid, type OTPInputGridHandle } from "./otp-input-grid";
 import { Button } from "~/components/ui/button";
+import { IconTile } from "~/components/ui/icon-tile";
+import { SpinnerIcon } from "~/components/ui/icons";
+import { ListRowLink } from "~/components/ui/list-row-link";
+import { SectionLabel } from "~/components/ui/section-label";
 
 const logger = createLogger({ component: "MFAChallengeForm" });
 
 const CODE_LENGTH = 6;
 const DEFAULT_RESEND_COOLDOWN_SECONDS = 60;
+
+/**
+ * Where each portal lists the remembered devices, as the sentence under the
+ * two answers names it. The words are the portal's own navigation labels.
+ */
+const DEVICE_LIST_PLACE: Record<LoginScope, string> = {
+  tenant: "in Ihrem Profil",
+  school: "in den Einstellungen",
+  traeger: "unter „Konto“",
+  caterer: "unter „Konto“",
+  operator: "in Ihrem Profil",
+  parent: "unter „Einstellungen → Anmeldung“",
+};
+
+/**
+ * Every text of the code step. The German default fits every portal; the
+ * parents portal passes its own in the parent's language (#7051).
+ */
+export interface MFAChallengeCopy {
+  readonly back: string;
+  readonly backLabel: string;
+  readonly title: string;
+  readonly sentTo: (maskedEmail: ReactNode) => ReactNode;
+  readonly codeLabel: string;
+  readonly digitLabel: (position: number) => string;
+  readonly checking: string;
+  readonly autoCheck: string;
+  readonly question: string;
+  readonly remember: string;
+  readonly rememberHint: (days: number) => string;
+  readonly once: string;
+  readonly onceHint: string;
+  readonly enterCodeFirst: string;
+  readonly removeDevicesHint: string;
+  readonly resend: string;
+  readonly resendIn: (seconds: number) => string;
+  readonly resending: string;
+  readonly verifyObject: string;
+  readonly resendObject: string;
+}
+
+/** The German copy of a portal's code step. */
+export function germanMFAChallengeCopy(scope: LoginScope): MFAChallengeCopy {
+  return {
+    back: "Zurück",
+    backLabel: "Zurück zum Login",
+    title: "Code-Eingabe",
+    sentTo: (maskedEmail) => (
+      <>
+        Wir haben einen 6-stelligen Code an{" "}
+        <span className="font-medium text-gray-800">{maskedEmail}</span>{" "}
+        gesendet. Der Code ist 10 Minuten gültig.
+      </>
+    ),
+    codeLabel: "6-stelliger Bestätigungscode",
+    digitLabel: (position) => `Stelle ${position}`,
+    checking: "Code wird geprüft…",
+    autoCheck:
+      "Der Code wird automatisch geprüft, sobald Sie alle 6 Stellen eingegeben haben.",
+    question: "Soll moto dieses Gerät merken?",
+    remember: "Ja, merken und anmelden",
+    rememberHint: (days) =>
+      `${days} Tage kein Code auf diesem Gerät. Nur für Ihr eigenes Gerät.`,
+    once: "Nein, nur anmelden",
+    onceHint: "Für Geräte, die mehrere Personen nutzen.",
+    enterCodeFirst: "Geben Sie zuerst den Code ein.",
+    removeDevicesHint: `Gemerkte Geräte entfernen Sie ${DEVICE_LIST_PLACE[scope]}.`,
+    resend: "Neuen Code anfordern",
+    resendIn: (seconds) => `Neuen Code anfordern (${seconds}s)`,
+    resending: "Code wird gesendet…",
+    verifyObject: "die Prüfung des Codes",
+    resendObject: "das Senden eines neuen Codes",
+  };
+}
+
+/** Which of the two answers is waiting for the check. */
+type PendingChoice = "remember" | "once";
+
+interface ConfirmChoiceProps {
+  readonly icon: ReactNode;
+  readonly tone: "green" | "neutral";
+  readonly title: string;
+  /** For whom the answer is meant. */
+  readonly subtitle: string;
+  readonly disabled: boolean;
+  /** This answer started the running check. */
+  readonly pending: boolean;
+  readonly onClick: () => void;
+}
+
+/**
+ * One of the two answers to "Soll moto dieses Gerät merken?". A row of the
+ * kit that leads on into the app: symbol, answer, for whom it is meant. While
+ * its check runs, a spinner stands where the arrow was.
+ */
+function ConfirmChoice({
+  icon,
+  tone,
+  title,
+  subtitle,
+  disabled,
+  pending,
+  onClick,
+}: ConfirmChoiceProps) {
+  return (
+    <li>
+      <ListRowLink
+        framed
+        icon={<IconTile size="sm" tone={tone} icon={icon} />}
+        title={title}
+        subtitle={subtitle}
+        onClick={onClick}
+        disabled={disabled}
+        chevron={!pending}
+        badge={pending ? <SpinnerIcon className="h-4 w-4" /> : undefined}
+      />
+    </li>
+  );
+}
 
 interface MFAChallengeFormProps {
   readonly scope: LoginScope;
@@ -39,14 +164,16 @@ interface MFAChallengeFormProps {
   readonly onError?: (error: unknown) => boolean | Promise<boolean>;
   readonly onCancel?: () => void;
   /**
-   * Mirrors security.mfa_trusted_device_enabled for the tenant. When false
-   * we hide the "N Tage merken" checkbox and skip its state in the verify
-   * request. Undefined defaults to `true` for backwards compatibility with
-   * older backends that haven't shipped the field.
+   * Mirrors security.mfa_trusted_device_enabled for the tenant. When true,
+   * the person confirms with one of two answers and so decides each time
+   * whether this device is remembered (#6955). When false, nothing can be
+   * remembered and the code is checked as soon as it is complete. Undefined
+   * defaults to `true` for backwards compatibility with older backends that
+   * haven't shipped the field.
    */
   readonly trustedDeviceEnabled?: boolean;
   /**
-   * Day count rendered into the "Auf diesem Gerät N Tage merken" label.
+   * Day count rendered into "N Tage kein Code auf diesem Gerät".
    * Mirrors security.mfa_trusted_device_days so the label always matches
    * the actual cookie lifetime. Defaults to 90 — the registry default —
    * if an older backend doesn't surface the field.
@@ -54,6 +181,18 @@ interface MFAChallengeFormProps {
   readonly trustedDeviceDays?: number;
   /** The Träger the Träger-Portal login resolved (#4651). */
   readonly organizationId?: string;
+  /** The texts; the German default fits every portal. */
+  readonly copy?: MFAChallengeCopy;
+  /**
+   * Redeems the code somewhere else than the portal's sign-in, such as the
+   * code step in a running Träger session (#7068). Defaults to the sign-in's
+   * verify of the scope.
+   */
+  readonly verify?: (params: {
+    challengeToken: string;
+    code: string;
+    rememberDevice: boolean;
+  }) => Promise<MFAResult>;
 }
 
 export function MFAChallengeForm({
@@ -67,8 +206,17 @@ export function MFAChallengeForm({
   trustedDeviceEnabled = true,
   trustedDeviceDays = 90,
   organizationId,
+  copy: givenCopy,
+  verify,
 }: MFAChallengeFormProps) {
-  const [rememberDevice, setRememberDevice] = useState(false);
+  const copy = givenCopy ?? germanMFAChallengeCopy(scope);
+  // Nothing is preselected: the device is remembered only when the person
+  // presses the button that says so (#6955). A shared tablet in a room must
+  // never become a remembered device by a default.
+  const [code, setCode] = useState("");
+  const [pendingChoice, setPendingChoice] = useState<PendingChoice | null>(
+    null,
+  );
   // Fehler über den gemeinsamen Weg (#2517). Ein abgelehnter Code bleibt im
   // Formular (MFA_STEP_REFUSALS); jeder andere 401 ist eine abgelaufene
   // Anmeldung und führt zur Anmeldeseite.
@@ -95,16 +243,22 @@ export function MFAChallengeForm({
   }, [resendIn]);
 
   const performVerify = useCallback(
-    async (submittedCode: string) => {
+    async (submittedCode: string, rememberDevice: boolean) => {
       setIsVerifying(true);
       clearError();
       try {
-        const tokens = await verifyMFA(scope, {
-          challengeToken: activeToken,
-          code: submittedCode,
-          rememberDevice,
-          organizationId,
-        });
+        const tokens = verify
+          ? await verify({
+              challengeToken: activeToken,
+              code: submittedCode,
+              rememberDevice,
+            })
+          : await verifyMFA(scope, {
+              challengeToken: activeToken,
+              code: submittedCode,
+              rememberDevice,
+              organizationId,
+            });
         await onSuccess(tokens);
       } catch (err) {
         if (await onError?.(err)) {
@@ -118,21 +272,23 @@ export function MFAChallengeForm({
         // Kein Wiederholen: der Code steht nicht mehr im Feld, man tippt
         // ihn neu ein.
         void showError(credentialError(err, MFA_STEP_REFUSALS), {
-          object: "die Prüfung des Codes",
+          object: copy.verifyObject,
         });
       } finally {
         setIsVerifying(false);
+        setPendingChoice(null);
       }
     },
     [
       scope,
       activeToken,
-      rememberDevice,
       organizationId,
+      verify,
       onSuccess,
       onError,
       clearError,
       showError,
+      copy.verifyObject,
     ],
   );
 
@@ -155,7 +311,7 @@ export function MFAChallengeForm({
         error: err instanceof Error ? err.message : String(err),
       });
       void showError(credentialError(err, MFA_STEP_REFUSALS), {
-        object: "das Senden eines neuen Codes",
+        object: copy.resendObject,
         retry: () => latestResendRef.current(),
       });
     } finally {
@@ -169,12 +325,33 @@ export function MFAChallengeForm({
 
   let resendLabel: string;
   if (resendIn > 0) {
-    resendLabel = `Neuen Code anfordern (${resendIn}s)`;
+    resendLabel = copy.resendIn(resendIn);
   } else if (isResending) {
-    resendLabel = "Code wird gesendet…";
+    resendLabel = copy.resending;
   } else {
-    resendLabel = "Neuen Code anfordern";
+    resendLabel = copy.resend;
   }
+
+  const codeComplete = code.length === CODE_LENGTH;
+  const questionId = useId();
+  const hintId = useId();
+  let hintText: string;
+  if (isVerifying) hintText = copy.checking;
+  else if (codeComplete) hintText = copy.removeDevicesHint;
+  else hintText = copy.enterCodeFirst;
+
+  // With the two answers below, a complete code waits for the person's
+  // choice. Leaving the field closes the on-screen keyboard of a tablet or
+  // phone, which would otherwise cover the buttons.
+  useEffect(() => {
+    if (trustedDeviceEnabled && codeComplete) otpRef.current?.blur();
+  }, [trustedDeviceEnabled, codeComplete]);
+
+  const confirm = (choice: PendingChoice) => {
+    if (!codeComplete || isVerifying) return;
+    setPendingChoice(choice);
+    void performVerify(code, choice === "remember");
+  };
 
   const handleBack = () => {
     onCancel?.();
@@ -191,7 +368,7 @@ export function MFAChallengeForm({
             onClick={handleBack}
             disabled={isVerifying}
             className="-ml-1 flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-300"
-            aria-label="Zurück zum Login"
+            aria-label={copy.backLabel}
           >
             <svg
               className="h-4 w-4"
@@ -207,17 +384,15 @@ export function MFAChallengeForm({
                 d="M15 19l-7-7 7-7"
               />
             </svg>
-            Zurück
+            {copy.back}
           </button>
         </div>
       )}
 
       <div className="space-y-1.5">
-        <h2 className="text-xl font-semibold text-gray-900">Code-Eingabe</h2>
+        <h2 className="text-xl font-semibold text-gray-900">{copy.title}</h2>
         <p className="text-sm leading-relaxed text-gray-600">
-          Wir haben einen 6-stelligen Code an{" "}
-          <span className="font-medium text-gray-800">{maskedEmail}</span>{" "}
-          gesendet. Der Code ist 10 Minuten gültig.
+          {copy.sentTo(maskedEmail)}
         </p>
       </div>
 
@@ -228,48 +403,77 @@ export function MFAChallengeForm({
           ref={otpRef}
           length={CODE_LENGTH}
           disabled={isVerifying}
-          onComplete={(code) => {
-            // Fire-and-forget: errors surface through state, not the caller.
-            void performVerify(code);
+          onChange={setCode}
+          onComplete={(completeCode) => {
+            // Without the choice there is nothing to decide: the code is
+            // checked right away. Fire-and-forget: errors surface through
+            // state, not the caller.
+            if (!trustedDeviceEnabled) void performVerify(completeCode, false);
           }}
-          ariaLabel="6-stelliger Bestätigungscode"
+          ariaLabel={copy.codeLabel}
+          digitLabel={copy.digitLabel}
         />
-        <p className="text-center text-xs text-gray-500">
-          {isVerifying
-            ? "Code wird geprüft…"
-            : "Der Code wird automatisch geprüft, sobald Sie alle 6 Stellen eingegeben haben."}
-        </p>
-        <div className="flex justify-center">
-          <Button
-            type="button"
-            variant="link"
-            size="md"
-            onClick={() => {
-              void handleResend();
-            }}
-            disabled={resendIn > 0 || isResending || isVerifying}
-          >
-            {resendLabel}
-          </Button>
-        </div>
+        {!trustedDeviceEnabled && (
+          <p className="text-center text-xs text-gray-500">
+            {isVerifying ? copy.checking : copy.autoCheck}
+          </p>
+        )}
       </div>
 
       {trustedDeviceEnabled && (
-        <div className="flex justify-center">
-          <label
-            htmlFor="mfa-remember-device"
-            className="relative flex cursor-pointer items-center gap-2 text-sm text-gray-700 select-none has-[:disabled]:cursor-not-allowed"
+        <div className="space-y-2">
+          <SectionLabel id={questionId}>{copy.question}</SectionLabel>
+          {/* Two answers of equal weight: nothing is preselected and
+              neither looks like the default. */}
+          <ul
+            aria-labelledby={questionId}
+            aria-describedby={hintId}
+            className="flex flex-col gap-2"
           >
-            <Checkbox
-              id="mfa-remember-device"
-              checked={rememberDevice}
-              onChange={(e) => setRememberDevice(e.target.checked)}
-              disabled={isVerifying}
+            <ConfirmChoice
+              icon={<DevicesIcon aria-hidden="true" />}
+              tone="green"
+              title={copy.remember}
+              subtitle={copy.rememberHint(trustedDeviceDays)}
+              disabled={!codeComplete || isVerifying}
+              pending={pendingChoice === "remember"}
+              onClick={() => confirm("remember")}
             />
-            Auf diesem Gerät {trustedDeviceDays} Tage merken
-          </label>
+            <ConfirmChoice
+              icon={<SignInIcon aria-hidden="true" />}
+              tone="neutral"
+              title={copy.once}
+              subtitle={copy.onceHint}
+              disabled={!codeComplete || isVerifying}
+              pending={pendingChoice === "once"}
+              onClick={() => confirm("once")}
+            />
+          </ul>
+          {/* One line, so nothing jumps: first what is missing, then where a
+              remembered device can be removed again. */}
+          <p
+            id={hintId}
+            className="text-xs leading-relaxed text-gray-500"
+            aria-live="polite"
+          >
+            {hintText}
+          </p>
         </div>
       )}
+
+      <div className="flex justify-center">
+        <Button
+          type="button"
+          variant="link"
+          size="md"
+          onClick={() => {
+            void handleResend();
+          }}
+          disabled={resendIn > 0 || isResending || isVerifying}
+        >
+          {resendLabel}
+        </Button>
+      </div>
     </div>
   );
 }

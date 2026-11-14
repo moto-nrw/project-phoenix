@@ -1146,7 +1146,10 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
     await expectErrorToast(
       catalogText("students.offering_change_date_out_of_range", "die Anfrage"),
     );
-    expect(screen.getByRole("button", { name: /Freigeben/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Freigeben/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     // Ein ausgegrauter Knopf ohne Grund ist eine Sackgasse: der Grund bleibt an
     // der Karte stehen, auch wenn der Toast längst weg ist.
     expect(

@@ -309,7 +309,10 @@ func TestEmergencySnapshotPersonIdentityFilteringMatchesRetainedReader(t *testin
 	require.NoError(t, err)
 	require.Len(t, beforeOld, 1)
 	require.Len(t, beforeNew, 1)
-	require.NoError(t, people.DeletePerson(ctx, student.PersonID))
+	// The person deletion refuses a child's person since #6840; the fixture
+	// writes the deleted-person state the readers must both filter directly.
+	_, err = db.NewRaw(`UPDATE users.persons SET deleted_at = now() WHERE id = ?`, student.PersonID).Exec(ctx)
+	require.NoError(t, err)
 	afterOld, err := testpkg.TenantQuery1(t, ctx, db, old.FindByIDs, ids)
 	require.NoError(t, err)
 	afterNew, err := people.ListPersonsByID(ctx, ids)
@@ -389,7 +392,7 @@ func TestEmergencySnapshotInputsEnforceRLS(t *testing.T) {
 			link := testpkg.CreateTestStudentGuardianLink(t, db, student.ID, guardian.ID, "parent")
 			phone := &peopledirectory.GuardianProfilePhoneSnapshot{GuardianProfileID: guardian.ID, PhoneNumber: "02551 " + side, PhoneType: peopledirectory.PhoneTypeMobile, IsPrimary: true}
 			phone.SetTenantID(testpkg.Tenant(t))
-			require.NoError(t, db.NewInsert().Model(phone).ModelTableExpr("users.guardian_phone_numbers").Column("tenant_id", "guardian_profile_id", "phone_number", "phone_type", "is_primary", "priority").Returning("*").Scan(ctx))
+			require.NoError(t, db.NewInsert().Model(phone).ModelTableExpr("users.guardian_phone_numbers").Column("tenant_id", "guardian_profile_id", "phone_number", "phone_type", "is_primary", "priority").Returning("id").Scan(ctx))
 			var membershipID int64
 			require.NoError(t, db.NewSelect().Table("users.student_school_memberships").Column("id").Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Scan(ctx, &membershipID))
 			fixtures = append(fixtures, fixture{

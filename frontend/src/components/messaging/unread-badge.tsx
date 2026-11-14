@@ -1,9 +1,7 @@
 import { NotificationBadge } from "~/components/ui/notification-badge";
+import { COUNTER_TONE, type CounterAudience } from "~/lib/counter-tones";
 
-// "staff" is the Mitarbeitende hue already used for staff counts in the sidebar
-// and on the staff list; the internal Team-Chat badge reuses it rather than
-// introducing a fourth colour for the same audience.
-export type UnreadBadgeTone = "parents" | "feedback" | "staff";
+export type UnreadBadgeTone = CounterAudience;
 
 /**
  * The domain-colored unread count shown on parent, feedback and team-chat
@@ -25,7 +23,7 @@ export function UnreadBadge({
   return (
     <NotificationBadge
       count={count}
-      tone={tone}
+      tone={COUNTER_TONE[tone]}
       ariaLabel={`${count} ${noun}`}
       className={className}
     />

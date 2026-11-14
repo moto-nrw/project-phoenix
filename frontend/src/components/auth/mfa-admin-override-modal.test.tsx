@@ -184,8 +184,7 @@ describe("MFAAdminOverrideModal", () => {
     render(
       <MFAAdminOverrideModal
         {...props}
-        scope="traeger"
-        organizationId="7"
+        target={{ kind: "traeger", organizationId: "7" }}
         accountLabel="buero@traeger.example"
       />,
     );
@@ -221,8 +220,7 @@ describe("MFAAdminOverrideModal", () => {
     render(
       <MFAAdminOverrideModal
         {...props}
-        scope="caterer"
-        catererId="5"
+        target={{ kind: "caterer", catererId: "5" }}
         accountLabel="Küche (kueche@example.test)"
       />,
     );

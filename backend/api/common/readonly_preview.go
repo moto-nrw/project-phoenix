@@ -35,6 +35,7 @@ var readOnlyPOSTAllowlist = []string{
 	"/api/enrollment/phases/{id}/export",
 	"/api/guardians/payment-overview/export",
 	"/api/rooms/export",
+	"/api/search/",
 	"/api/staff-shifts/export",
 	"/api/students/arrival-schedules/status",
 	"/api/students/arrival-times/bulk",
@@ -98,12 +99,14 @@ func matchesPatterns(path string, patterns []string) bool {
 }
 
 // pathMatchesPattern compares a concrete request path against a chi-style
-// pattern where a "{...}" segment matches exactly one non-empty segment.
+// pattern where a "{...}" segment matches exactly one non-empty segment. A
+// trailing slash is ignored on both sides, so a mount root such as
+// "/api/search/" names its route too.
 // No wildcard tails, no prefix matches — a pattern only ever matches the
 // one route it names.
 func pathMatchesPattern(path, pattern string) bool {
 	pathSegs := strings.Split(strings.TrimSuffix(path, "/"), "/")
-	patternSegs := strings.Split(pattern, "/")
+	patternSegs := strings.Split(strings.TrimSuffix(pattern, "/"), "/")
 	if len(pathSegs) != len(patternSegs) {
 		return false
 	}

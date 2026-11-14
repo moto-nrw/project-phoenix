@@ -49,25 +49,23 @@ interface Props {
   readonly accountId: string;
   readonly accountLabel: string;
   /**
-   * Which surface is hosting the modal — drives which set of API
-   * helpers we call. Defaults to "tenant" so existing usage (and tests)
-   * keep working without changes. The operator dashboard passes
-   * "operator" + the relevant schoolId so the proxy hits
-   * /api/operator/provisioning/schools/{schoolId}/accounts/{accountId}/mfa
-   * instead of the tenant /auth/accounts/{accountId}/mfa path.
-   * "traeger" is the operator's reset of a Träger-Büro member (#4651):
-   * reset only, scoped by the Träger membership. The Träger-Portal
-   * requires the second factor without exception, so no override is
-   * offered and no override state is loaded.
-   * "caterer" is the operator's reset of a caterer (#4497): reset only,
-   * scoped by the caterer. A caterer switches the second factor on
-   * voluntarily, so there is no override either.
+   * Whose second factor the modal changes and from where. "tenant" is a
+   * school admin at their own school. The others are the operator's: at a
+   * school, with the account-wide override; for a Träger-Büro member
+   * (#4651), reset only, because the Träger-Portal requires the second
+   * factor without exception; for a caterer (#4497), reset only, because a
+   * caterer switches the second factor on voluntarily.
    */
-  readonly scope?: "tenant" | "operator" | "traeger" | "caterer";
-  readonly schoolId?: string;
-  readonly organizationId?: string;
-  readonly catererId?: string;
+  readonly target?: MFAAdminTarget;
 }
+
+type MFAAdminTarget =
+  | { readonly kind: "tenant" }
+  | { readonly kind: "operator"; readonly schoolId: string }
+  | { readonly kind: "traeger"; readonly organizationId: string }
+  | { readonly kind: "caterer"; readonly catererId: string };
+
+const TENANT_TARGET: MFAAdminTarget = { kind: "tenant" };
 
 function overrideLabel(override: MFAAdminOverride): string {
   switch (override) {
@@ -85,11 +83,9 @@ export function MFAAdminOverrideModal({
   onClose,
   accountId,
   accountLabel,
-  scope = "tenant",
-  schoolId,
-  organizationId,
-  catererId,
+  target = TENANT_TARGET,
 }: Props) {
+  const scope = target.kind;
   const toast = useToast();
   const [view, setView] = useState<View>({ kind: "form" });
   const [reason, setReason] = useState("");
@@ -254,21 +250,20 @@ export function MFAAdminOverrideModal({
     setIsWorking(true);
     resetErrors.clear();
     try {
-      if (scope === "caterer") {
-        if (!catererId) {
-          throw new Error("catererId is required for caterer scope");
-        }
-        await operatorAdminResetCatererMFA(catererId, accountId, trimmed);
-      } else if (scope === "traeger") {
-        if (!organizationId) {
-          throw new Error("organizationId is required for traeger scope");
-        }
-        await operatorAdminResetTraegerMFA(organizationId, accountId, trimmed);
-      } else if (scope === "operator") {
-        if (!schoolId) {
-          throw new Error("schoolId is required for operator scope");
-        }
-        await operatorAdminResetMFA(schoolId, accountId, trimmed);
+      if (target.kind === "caterer") {
+        await operatorAdminResetCatererMFA(
+          target.catererId,
+          accountId,
+          trimmed,
+        );
+      } else if (target.kind === "traeger") {
+        await operatorAdminResetTraegerMFA(
+          target.organizationId,
+          accountId,
+          trimmed,
+        );
+      } else if (target.kind === "operator") {
+        await operatorAdminResetMFA(target.schoolId, accountId, trimmed);
       } else {
         await adminResetMFA(accountId, trimmed);
       }
@@ -344,12 +339,9 @@ export function MFAAdminOverrideModal({
     setOverrideWorking(true);
     overrideErrors.clear();
     try {
-      if (scope === "operator") {
-        if (!schoolId) {
-          throw new Error("schoolId is required for operator scope");
-        }
+      if (target.kind === "operator") {
         await operatorAdminSetMFAOverride(
-          schoolId,
+          target.schoolId,
           accountId,
           selectedOverride,
           trimmed,
@@ -388,7 +380,6 @@ export function MFAAdminOverrideModal({
       isOpen
       onClose={onClose}
       title="Zwei-Faktor-Authentifizierung verwalten"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-lg"
       isDismissDisabled={isWorking || overrideWorking || globalWorking}
       isBackdropDismissDisabled
       closeLabel="Schließen"
@@ -424,7 +415,7 @@ export function MFAAdminOverrideModal({
               <p className="text-sm text-gray-600">
                 {scope === "caterer"
                   ? "Die 2FA-Einrichtung und alle vertrauenswürdigen Geräte des Caterers werden entfernt; seine Passkeys bleiben. Danach meldet er sich mit seinem Passwort an und kann die 2FA im Konto wieder einschalten. Er bekommt eine E-Mail. Die Aktion wird im Audit-Log mit Ihrem Konto und dem angegebenen Grund erfasst."
-                  : "Die bestehende 2FA-Einrichtung und alle vertrauenswürdigen Geräte werden entfernt. Beim nächsten Login wird der Account neu durch das 2FA-Setup geführt. Die Aktion wird im Audit-Log mit Ihrem Konto und dem angegebenen Grund erfasst."}
+                  : `Die bestehende 2FA-Einrichtung und alle vertrauenswürdigen Geräte werden entfernt. Beim nächsten Login wird der Account neu durch das 2FA-Setup geführt.${scope === "traeger" ? "" : " Die Person bekommt eine E-Mail."} Die Aktion wird im Audit-Log mit Ihrem Konto und dem angegebenen Grund erfasst.`}
               </p>
               <div className="space-y-2">
                 <Textarea
@@ -448,6 +439,7 @@ export function MFAAdminOverrideModal({
                   variant="danger"
                   size="md"
                   disabled={isWorking}
+                  tooltip="Entfernt die bisherige 2FA und alle vertrauenswürdigen Geräte sofort."
                 >
                   {isWorking
                     ? "Wird ausgeführt…"
@@ -574,6 +566,7 @@ export function MFAAdminOverrideModal({
                   size="md"
                   disabled={overrideWorking || selectedOverride === override}
                   onClick={() => void handleOverrideSubmit()}
+                  tooltip="Speichert sofort, ob diese Person den zusätzlichen Code braucht."
                 >
                   {overrideWorking ? "Wird gespeichert…" : "Änderung speichern"}
                 </Button>
@@ -684,6 +677,7 @@ export function MFAAdminOverrideModal({
                       globalWorking || selectedGlobalOverride === globalOverride
                     }
                     onClick={() => void handleGlobalOverrideSubmit()}
+                    tooltip="Gilt sofort in allen Schulen, in denen der Account aktiv ist."
                   >
                     {globalWorking
                       ? "Wird gespeichert…"
@@ -709,7 +703,13 @@ export function MFAAdminOverrideModal({
                 : "Beim nächsten Login kann sich der Account ohne 2FA-Code anmelden — oder wird, wenn 2FA für die Schule Pflicht ist, durch die 2FA-Einrichtung geführt."}
           </p>
           <div className="flex justify-end">
-            <Button type="button" variant="primary" size="md" onClick={onClose}>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={onClose}
+              noTooltip="Schließen schließt nur den Dialog, die 2FA ist schon zurückgesetzt."
+            >
               Schließen
             </Button>
           </div>

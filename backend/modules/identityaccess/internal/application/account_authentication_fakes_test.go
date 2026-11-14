@@ -309,6 +309,10 @@ func (s *fakeStore) RecordAccountLogin(_ context.Context, id int64, _ time.Time)
 	return s.recordLoginErr == nil && !s.erasedBeforeMint, stats(), s.recordLoginErr
 }
 
+func (s *fakeStore) HoldsTraegerParentAccess(context.Context, int64) (bool, error) {
+	return false, nil
+}
+
 func (s *fakeStore) ListActiveTenantIDs(_ context.Context, accountID int64) ([]int64, domain.OperationStats, error) {
 	if s.listTenantsErr != nil {
 		return nil, stats(), s.listTenantsErr
@@ -1141,8 +1145,10 @@ func lehrkraftRole() domain.RoleAssignment {
 	return domain.RoleAssignment{RoleID: 7, Name: "lehrkraft", IsSystem: true}
 }
 
+// RunAdmin marks the unit like fakeRuntime does, so a fake ledger can tell
+// an entry written inside it.
 func (fakeTransaction) RunAdmin(ctx context.Context, fn func(context.Context) error) error {
-	return fn(ctx)
+	return fn(context.WithValue(ctx, fakeTxKey{}, true))
 }
 
 func testPasswordLoginPolicy() (int, time.Duration, error) { return 5, 15 * time.Minute, nil }

@@ -5,9 +5,12 @@
 // Prüfdatum und Gültigkeit. Nur das Recht „Abrechnung“ sieht sie; jedes
 // Lesen steht im Zugriffsprotokoll des Vertrags.
 
-import { FileCheck2 } from "lucide-react";
+import { FileCheck2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import {
   CareEvidenceModal,
   EVIDENCE_KIND_LABELS,
@@ -63,7 +66,9 @@ function EvidenceCell({
   return (
     <div className="min-w-0">
       <p className="flex flex-wrap items-center gap-2 text-sm text-gray-900">
-        {level ? level.name : "Alleinerziehend"}
+        {/* Under the column „Alleinerziehend“ the value is a yes, not the
+            column's name again. */}
+        {level ? level.name : "Ja"}
         {starts ? (
           <StatusBadge
             tone="blue"
@@ -72,10 +77,16 @@ function EvidenceCell({
         ) : null}
         {expired ? <StatusBadge tone="gray" label="Abgelaufen" /> : null}
       </p>
-      <p className="mt-0.5 text-xs text-gray-600">
-        {evidencePeriod(evidence)}
-        {" · "}
-        {evidence.evidence} · geprüft am {formatDate(evidence.checkedOn)}
+      {/* Each fact wraps as a whole and keeps its dot at the line end; the
+          proof's name is a block of its own, so a long one still wraps. */}
+      <p className="mt-0.5 text-sm text-gray-600">
+        <span className="whitespace-nowrap">{evidencePeriod(evidence)} ·</span>{" "}
+        <span className="inline-block max-w-full wrap-break-word">
+          {evidence.evidence} ·
+        </span>{" "}
+        <span className="whitespace-nowrap">
+          geprüft am {formatDate(evidence.checkedOn)}
+        </span>
       </p>
     </div>
   );
@@ -105,7 +116,7 @@ export default function TraegerNachweisePage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Nachweise",
+        object: "die Liste der Nachweise",
         retry: () => void load(),
       });
     }
@@ -127,7 +138,7 @@ export default function TraegerNachweisePage() {
       logger.error("care_evidence_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void deleteErrors.show(err, { object: "den Nachweis" });
+      void deleteErrors.show(err, { object: "die Angabe zum Nachweis" });
     } finally {
       setBusy(false);
     }
@@ -212,22 +223,27 @@ export default function TraegerNachweisePage() {
               ? [
                   {
                     label: `${EVIDENCE_KIND_LABELS[kind]} eintragen`,
+                    icon: <Plus className="size-4" aria-hidden />,
+                    description:
+                      "Öffnet ein Fenster, um den Nachweis mit Prüfdatum einzutragen",
                     onClick: () =>
                       setTarget({ contract, kind, evidence: null }),
                   },
                 ]
               : []),
             ...existing.flatMap((evidence) => {
-              const description = evidencePeriod(evidence);
+              const period = evidencePeriod(evidence);
               return [
                 {
                   label: `${EVIDENCE_KIND_LABELS[kind]} ändern`,
-                  description,
+                  icon: <Pencil className="size-4" aria-hidden />,
+                  description: `${period}. Öffnet ein Fenster zum Ändern`,
                   onClick: () => setTarget({ contract, kind, evidence }),
                 },
                 {
                   label: `${EVIDENCE_KIND_LABELS[kind]} löschen`,
-                  description,
+                  icon: <Trash2 className="size-4" aria-hidden />,
+                  description: `${period}. moto fragt vorher nach`,
                   destructive: true,
                   onClick: () => setDeleting({ contract, evidence }),
                 },
@@ -247,7 +263,7 @@ export default function TraegerNachweisePage() {
 
   return (
     <TenantPage
-      title="Abrechnung"
+      title={billingAreaTitle("nachweise")}
       info="Hier tragen Sie ein, welche Einkommensstufe ein Kind hat und ob die Ermäßigung für Alleinerziehende gilt. moto speichert nur die Art des Nachweises und das Prüfdatum, kein Dokument und kein Einkommen. Jedes Öffnen dieser Seite steht im Zugriffsprotokoll."
       stats={
         data && data.contracts.length > 0 ? (

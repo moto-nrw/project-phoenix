@@ -98,6 +98,7 @@ type workTimeModelRow struct {
 	RotationAnchorDate calendarDate `bun:"rotation_anchor_date,notnull,type:date"`
 	CreatedAt          time.Time    `bun:"created_at,nullzero,notnull,default:now()"`
 	UpdatedAt          time.Time    `bun:"updated_at,nullzero,notnull,default:now()"`
+	ArchivedAt         *time.Time   `bun:"archived_at"`
 }
 
 type workTimeModelEntryRow struct {
@@ -605,7 +606,7 @@ func workTimeModelToDomain(row workTimeModelRow) domain.WorkTimeModel {
 	return domain.WorkTimeModel{
 		ID: row.ID, TenantID: row.TenantID, Name: row.Name,
 		RotationLength: row.RotationLength, RotationAnchorDate: string(row.RotationAnchorDate),
-		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, ArchivedAt: row.ArchivedAt,
 	}
 }
 

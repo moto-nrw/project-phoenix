@@ -434,6 +434,9 @@ describe("OperatorLoginPage", () => {
     ).toBeInTheDocument();
     const inputs = screen.getAllByRole("textbox");
     fireEvent.change(inputs[0]!, { target: { value: "123456" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Nein, nur anmelden/ }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       catalogText("general.server", "die Prüfung des Codes"),
     );

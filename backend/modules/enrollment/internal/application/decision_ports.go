@@ -245,6 +245,10 @@ type DecisionDependencies struct {
 	// approval rewrites an existing student's class, the same gate Care
 	// Plan's booking materialization serializes its roster writes with.
 	LockTemplateRecurrence func(context.Context) error
+	// FollowClassChanges lets Regeltermine with a Klasse or Jahrgang target
+	// follow the children whose class a decision rewrote, keyed by student
+	// with the class before the write (#6841). Nil skips it (focused tests).
+	FollowClassChanges func(ctx context.Context, previousClasses map[int64]string, from calendar.Date) error
 	// GuardianAuthorizer re-checks a parent's pin for the office's detail
 	// read (#6053). GuardianHold re-checks it behind the parent guard before
 	// an approval or a later edit acts on it (#6638). Without them such a pin

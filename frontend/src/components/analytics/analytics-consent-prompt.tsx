@@ -85,6 +85,7 @@ export function AnalyticsConsentPrompt({
             isLoading={saving === false}
             loadingText={copy.saving}
             onClick={() => void decide(false)}
+            tooltip={copy.refuseTooltip}
           >
             {copy.refuse}
           </Button>
@@ -96,6 +97,7 @@ export function AnalyticsConsentPrompt({
             isLoading={saving === true}
             loadingText={copy.saving}
             onClick={() => void decide(true)}
+            tooltip={copy.allowTooltip}
           >
             {copy.allow}
           </Button>

@@ -317,6 +317,8 @@ type StaffValueWrite struct {
 	RequestIDs []int64
 	Reason     string
 	Status     string
+	// ReviewerID is the staff account that wrote the value.
+	ReviewerID int64
 }
 
 // Service is the student excused-absence request workflow. Every method runs

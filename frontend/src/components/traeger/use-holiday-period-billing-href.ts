@@ -17,6 +17,10 @@ import { traegerPath } from "~/lib/traeger-url";
 /** Das Recht, das die Abrechnungsläufe öffnet (#4668). */
 const TRAEGER_BILLING_RIGHT = "traeger_billing:manage";
 
+/** Was ein Klick auf „Zur Abrechnung“ tut (#6747). */
+export const HOLIDAY_BILLING_HINT =
+  "Öffnet die Abrechnung dieses Ferienzeitraums.";
+
 /** URL-Parameter der Abrechnung, der die Liste auf einen Zeitraum filtert. */
 export const BILLING_PERIOD_PARAM = "ferienzeitraum";
 

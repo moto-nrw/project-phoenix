@@ -76,5 +76,22 @@
   "registerWeekDone": "Die Woche ist angemeldet.",
   "registerWeekLocked": "Für diese Tage ist die Anmeldefrist vorbei, sie bleiben abgemeldet: {days}.",
   "errorObjectWeekCancel": "die Abmeldung für die Woche",
-  "errorObjectWeekRegister": "die Anmeldung für die Woche"
+  "errorObjectWeekRegister": "die Anmeldung für die Woche",
+  "previousWeekTooltip": "Zeigt die Woche davor.",
+  "nextWeekTooltip": "Zeigt die Woche danach.",
+  "previousWeekDisabledReason": "Vergangene Wochen zeigt diese Seite nicht.",
+  "lastParticipationWeekReason": "Weiter im Voraus können Sie hier noch nicht planen.",
+  "lastMealPlanWeekReason": "Weiter im Voraus gibt es noch keinen Speiseplan.",
+  "editRegularDaysTooltip": "Öffnet die Auswahl der Tage, an denen Ihr Kind immer isst.",
+  "saveRegularDaysTooltip": "Speichert die neuen festen Tage für Ihr Kind.",
+  "saveDayTooltip": "Speichert die Anmeldung für diesen Tag.",
+  "registerWeekTooltip": "Meldet Ihr Kind sofort an allen noch änderbaren Tagen dieser Woche an.",
+  "cancelWeekTooltip": "Meldet Ihr Kind für diese Woche ab. moto fragt vorher nach.",
+  "cancelWeekConfirmTooltip": "Meldet Ihr Kind sofort an allen noch änderbaren Tagen ab.",
+  "cancelWeekCloseTooltip": "Schließt das Fenster, die Anmeldung bleibt, wie sie ist.",
+  "editDayTooltip": "Öffnet die Anmeldung für diesen Tag zum Ändern.",
+  "registerDayTooltip": "Merkt die Anmeldung vor, sie gilt erst nach dem Speichern.",
+  "unregisterDayTooltip": "Merkt die Abmeldung vor, sie gilt erst nach dem Speichern.",
+  "useRegularTooltip": "Übernimmt für diesen Tag die feste Anmeldung, gilt nach dem Speichern.",
+  "weekEditingReason": "Speichern oder verwerfen Sie zuerst Ihre Änderung."
 }

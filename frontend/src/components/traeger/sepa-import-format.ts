@@ -53,24 +53,31 @@ export const IMPORT_FIELD_HINTS: Partial<Record<ImportField, string>> = {
   sequence: "Zum Beispiel FRST und RCUR oder Erst- und Folgelastschrift.",
   last_collected_on: "Belegt, dass schon abgebucht wurde.",
   debtor_number:
-    "Gilt für die ganze Familie. moto überschreibt keine Nummer, die schon eingetragen ist.",
+    "Gilt für den Zahler oder für das Kind, wie unter „Debitorennummer gilt je“ eingestellt. moto überschreibt keine Nummer, die schon eingetragen ist.",
 };
 
-/** Was der Import mit der Debitorennummer einer Zeile macht (#4693). */
+/**
+ * Was der Import mit der Debitorennummer einer Zeile macht (#4693): beim
+ * Zahler oder, wenn der Träger sie je Kind führt, beim Kind (#7007).
+ */
 export function importDebtorNumberText(row: ImportRow): string | null {
   switch (row.debtorNumberStatus) {
     case "new":
-      return `Debitorennummer ${row.debtorNumber} wird bei der Familie eingetragen.`;
+      return `Debitorennummer ${row.debtorNumber} wird eingetragen.`;
     case "same":
       return `Debitorennummer ${row.debtorNumber} ist schon eingetragen.`;
     case "siblings_differ":
       return "Debitorennummer: Geschwister haben verschiedene Nummern. moto übernimmt keine. Tragen Sie die richtige Nummer bei der Familie ein.";
     case "differs":
-      return "Debitorennummer: Die Familie hat schon eine andere Nummer. moto ändert sie nicht.";
+      return "Debitorennummer: In moto steht schon eine andere Nummer. moto ändert sie nicht.";
     case "invalid":
       return "Debitorennummer ist zu lang oder enthält eine IBAN.";
     case "no_family":
       return "Debitorennummer: moto kennt die Familie nicht.";
+    case "no_child":
+      return "Debitorennummer: Die Familie hat mehrere Kinder mit Vertrag. Wählen Sie als Zahler die Vertragsnummer, dann erkennt moto das Kind.";
+    case "rows_differ":
+      return "Debitorennummer: Für dieses Kind stehen verschiedene Nummern in der Datei. moto übernimmt keine.";
     default:
       return null;
   }
@@ -79,6 +86,7 @@ export function importDebtorNumberText(row: ImportRow): string | null {
 export const PAYER_KEY_LABELS: Record<PayerKey, string> = {
   email: "E-Mail der Familie",
   contract_id: "Vertragsnummer",
+  debtor_number: "Debitorennummer",
 };
 
 export const IMPORT_STATUS: Record<
@@ -88,6 +96,7 @@ export const IMPORT_STATUS: Record<
   ready: { label: "Bereit", tone: "green" },
   clarify: { label: "Bitte klären", tone: "orange" },
   duplicate: { label: "Schon vorhanden", tone: "gray" },
+  same_mandate: { label: "Gleiches Mandat", tone: "gray" },
   conflict: { label: "Konflikt", tone: "red" },
   invalid: { label: "Fehlerhaft", tone: "red" },
   imported: { label: "Übernommen", tone: "green" },
@@ -135,6 +144,8 @@ export function importProblemText(problem: ImportProblem): string {
       return `${field} hat mehr als 70 Zeichen.`;
     case "payer_unknown":
       return "Zu diesem Zahler gibt es bei Ihnen keinen Vertrag.";
+    case "payer_ambiguous":
+      return "Diese Debitorennummer haben bei Ihnen mehrere Familien oder Kinder. moto weiß nicht, wer zahlt.";
     case "family_unknown":
       return "Im Vertrag fehlt die E-Mail-Adresse der Familie.";
     case "creditor_mismatch":
@@ -193,6 +204,9 @@ export function matchesImportFilter(
       return row.status === "ready" || row.status === "imported";
     case "problems":
       return row.status === "conflict" || row.status === "invalid";
+    case "duplicate":
+      // A sibling's row repeats a mandate of the file (#7009).
+      return row.status === "duplicate" || row.status === "same_mandate";
     default:
       return row.status === filter;
   }

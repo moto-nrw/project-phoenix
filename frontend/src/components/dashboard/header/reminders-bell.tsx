@@ -11,7 +11,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { useState } from "react";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button } from "~/components/ui/button";
-import { NavLink } from "~/components/ui/nav-link";
+import NavigationLink from "~/components/ui/navigation-link";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Bell } from "lucide-react";
 import { useReminders } from "~/lib/hooks/use-reminders";
@@ -73,13 +73,13 @@ export function RemindersBell() {
       header={<p className="font-semibold text-gray-900">Erinnerungen</p>}
       footer={
         <div className="p-2">
-          <NavLink
+          <NavigationLink
             href={tenantPath("/reminders")}
             onClick={() => setIsOpen(false)}
             className="flex items-center justify-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-900"
           >
             Alle ansehen
-          </NavLink>
+          </NavigationLink>
         </div>
       }
       renderTrigger={({ ref, toggle, panelId }) => (
@@ -93,13 +93,13 @@ export function RemindersBell() {
           aria-expanded={isOpen}
           aria-haspopup="dialog"
           aria-controls={isOpen ? panelId : undefined}
-          title="Erinnerungen"
+          tooltip="Zeigt Ihre Erinnerungen, ohne die Seite zu verlassen."
           className="relative"
         >
           <Bell className="h-5 w-5" />
           <NotificationBadge
             count={count}
-            tone="danger"
+            tone="red"
             size="sm"
             ariaLabel={`${count} Erinnerungen`}
             className="absolute -top-0.5 -right-0.5"

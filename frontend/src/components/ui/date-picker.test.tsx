@@ -11,7 +11,7 @@ import {
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DatePicker, ISODateInput, ISODatePicker } from "./date-picker";
-import { useScrollLock } from "./hooks/useScrollLock";
+import { useScrollLock } from "./overlay-stack";
 import { preloadDayPicker } from "./lazy-day-picker";
 
 // Mock react-day-picker

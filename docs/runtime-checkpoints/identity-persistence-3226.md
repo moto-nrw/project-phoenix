@@ -36,7 +36,7 @@ scripts/run-go-toolchain.sh go -C backend test -tags=testhooks \
 ```
 
 The harness now lives in
-`backend/modules/identityaccess/inbound/account/identity_persistence_runtime_evidence_test.go`.
+`backend/modules/identityaccess/inbound/account/behaviortest/identity_persistence_runtime_evidence_test.go`.
 At measurement time it was `backend/api/auth/identity_persistence_runtime_evidence_test.go`
 and ran as `./api/auth`.
 

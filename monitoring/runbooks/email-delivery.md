@@ -46,6 +46,70 @@ Mail belasten. Die Lücke wird nach dem Staging-Test (#5935) neu bewertet.
 Nach einem Webhook-Ausfall deshalb die Beschwerden der Ausfallzeit im Dashboard von
 Lettermint ansehen.
 
+## Drosselung durch den Anbieter
+
+Antwortet der Mailserver mit einem SMTP-4xx-Code (zum Beispiel `421 4.7.0`
+oder `450 4.7.1`), soll moto später erneut senden. Bei Lettermint heißt das
+meist: Drosselung oder aufgebrauchtes Kontingent. moto behandelt jeden 4xx so,
+auch einen vorübergehenden Fehler oder ein volles Postfach. moto verschiebt die
+Mail dann, ohne einen Versuch zu verbrauchen (#6737). Die
+Wartezeit wächst mit dem Alter der Mail: eine Minute bei einer neuen Mail,
+höchstens eine Stunde. So schickt moto bei einem leeren Tageskontingent nicht
+jede Minute alle Mails erneut los.
+
+Das gilt 48 Stunden nach dem Einreihen der Mail. Danach zählt jede Drosselung
+wieder als Versuch, und die Mail scheitert spätestens nach ihren normalen
+Versuchen (etwa 15 Stunden). Eine Mail scheitert also spätestens etwa 63
+Stunden nach dem Einreihen.
+
+Gedrosselte Sendungen zählt `phoenix_delivery_operations_total` mit
+`operation="throttled"`. Die Logzeile `email send failed` (ERROR) nennt den
+Code im Feld `error`, nie die Adresse. Eine Drosselung kann deshalb auch
+„Server error spike“ auslösen.
+
+Die 48 Stunden zählen ab dem ersten Einreihen. Wiederholt der Träger eine
+gescheiterte Mail, die älter ist, zählt jede Drosselung sofort als Versuch. Das
+Alter dieser Mail löst „Outbox mail waiting too long“ aus, bis sie raus ist.
+
+Sign-in-Codes gehen sofort raus, nicht über die Warteschlange. Bei ihnen zählt
+jede Drosselung als Versuch; nach drei Versuchen ist der Code gescheitert, und
+die ERROR-Zeile meldet es.
+
+## Alarm „Outbox mail waiting too long“
+
+Die älteste wartende Mail oder Push (`phoenix_delivery_oldest_pending_age_seconds`)
+wartet seit über einer Stunde. 200 Mails auf einmal brauchen etwa 10 Minuten,
+das löst den Alarm nicht aus.
+
+1. `phoenix_delivery_operations_total` nach `operation` ansehen:
+   - `throttled` steigt: Der Anbieter drosselt. Kontingent und Status bei
+     Lettermint prüfen. Die Mails gehen von selbst raus, sobald der Anbieter
+     wieder annimmt.
+   - `retry` steigt: Senden schlägt fehl. Logzeilen `email send failed` lesen.
+   - Nichts steigt: Der Worker läuft nicht. Logzeilen `outbox worker tick`
+     prüfen.
+2. Eine einzelne Mail mit wiederholten Fehlern hält den Alarm bis zu 15 Stunden
+   an. Sie endet dann als `dead_letter` und löst „Outbox mails failed for good“
+   aus.
+
+Der Wert stammt aus dem letzten Lauf des Workers. Steht der Worker, bleibt der
+Wert stehen; dann hilft nur die Logzeile `outbox worker tick complete`.
+
+## Alarm „Outbox mails failed for good“
+
+Ein Lauf des Workers hat Mails oder Pushes endgültig aufgegeben: alle Versuche
+verbraucht, eine endgültige Ablehnung, oder ein Versand mit unbekanntem Ausgang
+(`dispatch fence expired`). Die Logzeile `outbox worker tick failed` nennt im
+Feld `error` Art, Vorlage, ID und Grund, nie die Adresse.
+
+1. Grund lesen. Viele Mails mit demselben Grund (zum Beispiel Anmeldedaten,
+   Zertifikat, `5.7.x`): Konfiguration oder Anbieter prüfen.
+2. Betroffene Personen erfahren es dort, wo die Mail entstanden ist:
+   Schulen in ihren Ansichten, der Träger bei der Ferienanmeldung
+   („E-Mail prüfen“), bei Briefen der Abrechnung und bei Verträgen.
+3. Mails mit unbekanntem Ausgang nie blind erneut senden: Sie können schon
+   angekommen sein.
+
 ## Warnung `email webhook body could not be read`
 
 Die Verbindung von Lettermint ist beim Lesen des Webhook-Bodys abgebrochen oder in
@@ -123,6 +187,41 @@ Warnung `email webhook has no signing secret`, keinen Fehler und kein
 Sentry-Ereignis; Lettermint wiederholt und schaltet den Webhook nach 72 Stunden
 ab.
 
+## Rückweg auf Strato
+
+Der Rückweg gilt, solange Strato nicht gekündigt ist. Deshalb kündigt #5935
+Strato erst nach der Beobachtungswoche.
+
+**Kein Rückweg nötig** bei einer kurzen Störung von Lettermint: Andere Mails
+warten in der Warteschlange und gehen danach raus (siehe Drosselung).
+Sicherheitsmails nehmen den Notweg.
+
+**Rückweg** bei einem längeren Ausfall, einer Sperre des Lettermint-Kontos oder
+Zustellproblemen, die sich nicht schnell lösen lassen:
+
+1. Den Commit, der die Umgebung auf Lettermint umgestellt hat, per Pull Request
+   zurücknehmen (`git revert`). Damit steht wieder der alte Stand in der
+   `environments/<umgebung>.sops.env`: `EMAIL_PROVIDER` leer und die
+   Strato-Werte in `EMAIL_SMTP_*` und `EMAIL_FROM_ADDRESS`. Strato nimmt nur
+   seine eigene Absenderadresse an. Neue Absender wie `mail.moto-ogs.de`
+   funktionieren dort nicht.
+2. Deployen: Production über `main`, Demo und Staging über `development`.
+3. Eine Testmail senden, zum Beispiel einen Anmeldecode.
+
+Danach gilt:
+
+- moto sendet über einfaches SMTP. Mails bleiben bei „Versendet“, denn ohne
+  Lettermint meldet niemand „Zugestellt“ oder einen Bounce. Der Abgleich und der
+  Notweg sind aus.
+- Mails, die in der Warteschlange warten, gehen über Strato raus.
+- Eine Sicherheitsmail, die gerade auf den Notweg wartet, endet mit dem Alarm
+  „Security mail fallback request ended“. Die Person startet den Vorgang neu.
+- Lettermint kann den Webhook nach 72 Stunden ohne Antwort abschalten. Vor der
+  Rückkehr zu Lettermint den Webhook im Dashboard prüfen und einschalten.
+
+Zurück zu Lettermint geht es, indem man den Revert wieder zurücknimmt und
+deployt.
+
 ## Sperren
 
 Eine Sperre nach Hard Bounce gilt bei Lettermint teamweit und läuft nicht ab.
@@ -135,6 +234,18 @@ könnte eine Schule die teamweite Sperre einer fremden Adresse löschen. Hat die
 Adresse bei Lettermint eine `manual`- oder `unsubscribe`-Sperre, löscht moto
 nichts und meldet das. Ohne `EMAIL_PROVIDER=lettermint` leert das Aufheben nur die
 Liste der Schule.
+
+Eine Sperre auf der globalen Liste von Lettermint (`scope: global`) oder eine
+Sperre einer ganzen Domain (`suppression_type: domain`) steht nicht auf der Liste
+des Teams, die moto abfragt. moto wertet eine so zurückgehaltene Mail deshalb wie
+einen Hard Bounce: Status `failed`, die Adresse kommt auf die Liste der Schule
+(„Adresse prüfen“), und eine Sicherheitsmail geht nicht über den Fallback (#6998).
+Der häufige Fall ist eine vertippte Domain mit eigenem Mailserver, etwa `gmai.com`.
+Webhook und Abgleich lesen diese Angaben beide, die `diagnostic` des Ereignisses
+nennt sie (zum Beispiel `manual global domain gmai.com`). Hebt die Schule die
+Sperre auf, hält Lettermint die nächste Mail wieder zurück, und die Adresse steht
+erneut auf der Liste. Eine Sperre einer einzelnen Adresse auf der Liste des Teams
+bleibt `suppressed`; ob sie noch gilt, fragt moto bei Lettermint ab.
 
 ### Grenze: Anbieter-Abfrage in Transaktionen
 

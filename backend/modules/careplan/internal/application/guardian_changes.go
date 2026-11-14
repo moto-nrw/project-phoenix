@@ -98,17 +98,15 @@ func (s *GuardianAbsences) refuseSchoolStatus(ctx context.Context, studentID int
 	return nil
 }
 
+// write records the report day by day; each write replaces the status
+// standing for its day (#6958).
 func (s *GuardianAbsences) write(ctx context.Context, report careplan.GuardianAbsenceReport) error {
-	for _, other := range careplan.StudentStatusDayStatusesExcept(report.Status) {
-		if err := s.Records.ClearStudentStatusDays(ctx, report.StudentID, other, report.Dates, report.ReportedAt, careplan.StudentStatusSourceParent); err != nil {
-			return err
-		}
-	}
+	guardianAccountID := report.GuardianAccountID
 	for _, date := range report.Dates {
-		guardianAccountID := report.GuardianAccountID
 		if _, err := s.Records.UpsertStudentStatusDay(ctx, careplan.StudentStatusDay{
 			StudentID: report.StudentID, Date: date, Status: report.Status, ReportedAt: report.ReportedAt,
 			Source: careplan.StudentStatusSourceParent, GuardianAccountID: &guardianAccountID, Note: report.Note,
+			ReportedByAccountID: &guardianAccountID,
 		}); err != nil {
 			return err
 		}

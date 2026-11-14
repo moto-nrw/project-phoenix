@@ -50,6 +50,7 @@ export function RosterDeviationHint({
             size="compact"
             onClick={onConnect}
             disabled={busy}
+            tooltip="Öffnet ein Fenster, um die Kinderliste aus den Anmeldungen zu holen."
           >
             Mit Angebot verbinden
           </Button>
@@ -61,6 +62,7 @@ export function RosterDeviationHint({
             size="compact"
             onClick={onKeepManual}
             disabled={busy}
+            tooltip="Lässt die Kinderliste, wie sie ist, und blendet den Hinweis sofort aus."
           >
             Liste so lassen
           </Button>

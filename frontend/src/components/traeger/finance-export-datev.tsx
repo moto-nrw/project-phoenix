@@ -84,6 +84,7 @@ export function DatevReadinessNotice({
           href={traegerPath(DATEV_SETTINGS_PATH)}
           variant="ghost_tone"
           size="compact"
+          tooltip="Öffnet die Einstellungen, in denen die DATEV-Werte stehen."
         >
           DATEV-Werte eintragen
         </ButtonLink>
@@ -121,6 +122,10 @@ function datevProblemText(problem: DatevBookingProblem): string {
 
 /** Where the Träger keeps its revenue accounts and cost centers (#4821). */
 export const BOOKING_ACCOUNTS_PATH = "/traeger/abrechnung/exporte/konten";
+
+/** What every link to `BOOKING_ACCOUNTS_PATH` does (#6761). */
+export const BOOKING_ACCOUNTS_HINT =
+  "Öffnet die Seite „Konten und Kostenstellen“.";
 
 /**
  * One line per reason with the invoices it names, so a reason that applies
@@ -180,6 +185,7 @@ export function DatevRefusedNotice({
             href={traegerPath(BOOKING_ACCOUNTS_PATH)}
             variant="ghost_tone"
             size="compact"
+            tooltip={BOOKING_ACCOUNTS_HINT}
           >
             Konten und Kostenstellen
           </ButtonLink>
@@ -242,10 +248,13 @@ export function DatevRepeatDialog({
   runLabel,
   fiscalYears,
   loading,
+  handover = false,
   onConfirm,
   onClose,
 }: Readonly<{
   runLabel: string | null;
+  /** The file goes to the recipient of the Träger instead of the browser. */
+  handover?: boolean;
   fiscalYears: readonly string[];
   loading: boolean;
   onConfirm: (fiscalYear: string | undefined) => void;
@@ -265,11 +274,15 @@ export function DatevRepeatDialog({
       isOpen={runLabel !== null}
       onClose={close}
       onConfirm={() => onConfirm(year ?? undefined)}
-      title="Alle Buchungen erneut herunterladen?"
-      confirmText="Erneut herunterladen"
+      title={
+        handover
+          ? "Alle Buchungen erneut übergeben?"
+          : "Alle Buchungen erneut herunterladen?"
+      }
+      confirmText={handover ? "Erneut übergeben" : "Erneut herunterladen"}
       confirmVariant="warning"
       isConfirmLoading={loading}
-      loadingText="Wird erstellt …"
+      loadingText={handover ? "Wird übergeben …" : "Wird erstellt …"}
       mobileSheet
     >
       <div className="space-y-4">
@@ -280,7 +293,11 @@ export function DatevRepeatDialog({
         <Alert
           type="warning"
           title="Buchungen können doppelt in DATEV stehen"
-          message="Geben Sie die Datei nur weiter, wenn Ihr Steuerbüro die frühere Datei nicht hat oder nicht einlesen konnte."
+          message={
+            handover
+              ? "Übergeben Sie die Datei nur, wenn der Empfänger die frühere Datei nicht hat oder nicht einlesen konnte."
+              : "Geben Sie die Datei nur weiter, wenn Ihr Steuerbüro die frühere Datei nicht hat oder nicht einlesen konnte."
+          }
           announce="off"
         />
         {fiscalYears.length > 1 && year !== null ? (

@@ -10,6 +10,7 @@ import (
 	appointmentsCompose "github.com/moto-ogs/project-phoenix/modules/appointments/compose"
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
 	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
 	feedbackModule "github.com/moto-ogs/project-phoenix/modules/feedback"
@@ -76,12 +77,19 @@ func BuildServeRooms(db transactionruntime.Database) (facilitiesModule.Catalog, 
 
 // BuildFacilitiesModule composes Facilities with its room deletion: the
 // deletion asks Student Presence for open sessions and Care Plan's
-// care-offering catalog for the rooms its offerings need (#4010).
-func BuildFacilitiesModule(db transactionruntime.Database, observe func(facilitiesCompose.Observation), lock timetable.RecurrenceWriteLock, sessions studentpresence.Owner, offerings careplan.CareOfferingGuards) (facilitiesModule.Capability, error) {
+// care-offering catalog for the rooms its offerings need (#4010), and
+// Timetable, School Structure, Device Fleet and Student Presence what else
+// still uses the room (#6845).
+func BuildFacilitiesModule(db transactionruntime.Database, observe func(facilitiesCompose.Observation), lock timetable.RecurrenceWriteLock, sessions studentpresence.Owner, offerings careplan.CareOfferingGuards, groups schoolstructure.GroupListing, devices devicefleet.Capability) (facilitiesModule.Capability, error) {
+	references, err := NewRoomReferences(db, sessions, groups, devices)
+	if err != nil {
+		return nil, err
+	}
 	return facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB: db.Pool(), DeletionLock: lock.LockRecurrenceWrites,
-		Usage:   &RoomUsage{Sessions: sessions, Offerings: offerings},
-		Observe: observe,
+		Usage:      &RoomUsage{Sessions: sessions, Offerings: offerings},
+		References: references,
+		Observe:    observe,
 	})
 }
 
@@ -262,4 +270,14 @@ func BuildServeTimetable(db transactionruntime.Database, persons peopledirectory
 			timetable.ErrorCode(observation.Err), observation.Err,
 		)
 	})
+}
+
+// observeTimetableActivities records one Timetable activities operation of
+// the room reference count (#6845).
+func observeTimetableActivities(observation timetableCompose.Observation) {
+	observability.ObserveTimetableActivitiesOperation(
+		observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
+		observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration,
+		timetable.ErrorCode(observation.Err), observation.Err,
+	)
 }

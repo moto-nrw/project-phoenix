@@ -407,6 +407,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupDashboardContext",          // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
 		"setupStudentsRoute",             // modules/peopledirectory/inbound/students route suites — wraps testutil.SetupStudentModule → SetupTestDB
 		"newDemoOrder",                   // modules/organizationtenancy/compose demo retirement tests (#6305) — wraps SetupIsolatedTestDB
+		"newTraegerPortal",               // api Träger-Portal trusted-device tests (#6955) — wraps SetupTestDB
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)

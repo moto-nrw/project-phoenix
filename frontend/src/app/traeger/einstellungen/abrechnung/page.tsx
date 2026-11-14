@@ -109,7 +109,7 @@ function useBillingDefaults(enabled: boolean) {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Abrechnungsvorgaben",
+        object: "die Übersicht der Abrechnungsvorgaben",
         retry: () => void load(),
       });
     }
@@ -136,7 +136,7 @@ export default function TraegerAbrechnungsvorgabenPage() {
   const { data: session } = useSession();
   const canBill = hasPermission(session ?? null, BILLING_RIGHT);
   const canEditBank = hasPermission(session ?? null, SETTINGS_RIGHT);
-  const master = useTraegerMasterData("die Bankverbindungen");
+  const master = useTraegerMasterData("die Liste der Bankverbindungen");
   const billing = useBillingDefaults(canBill);
   const settings = useTraegerSettingsSchema();
   const afterBankWrite = useRefreshAfterWrite(
@@ -179,7 +179,7 @@ export default function TraegerAbrechnungsvorgabenPage() {
           {canEditBank ? null : (
             <Alert
               type="info"
-              message="Die Bankverbindungen können Sie nur ansehen. Ändern kann, wer im Träger-Büro das Recht „Einstellungen“ hat."
+              message="Die Bankverbindungen können Sie nur ansehen. Ändern kann, wer im Träger-Büro die Rolle „Verwaltung“ hat."
             />
           )}
           {canBill ? null : (

@@ -15,7 +15,7 @@ import { SpinnerIcon } from "~/components/ui/icons";
 import { Textarea } from "~/components/ui/textarea";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { formatBytes } from "~/lib/files-api";
+import { formatBytes } from "~/lib/file-format";
 import { cn } from "~/lib/utils";
 import {
   checkAttachmentFiles,
@@ -121,6 +121,7 @@ export function MessageComposer({
   disabled: externallyDisabled = false,
   tone = "staff",
   sendLabel = "Senden",
+  sendHint,
   sendingLabel = "Senden...",
   fieldLabel = "Nachricht",
   attachments,
@@ -143,6 +144,11 @@ export function MessageComposer({
    */
   readonly tone?: "staff" | "parent";
   readonly sendLabel?: string;
+  /**
+   * Wer die Nachricht sofort bekommt (#6643). Ohne bleibt das Knopf-Wort die
+   * Erklärung.
+   */
+  readonly sendHint?: string;
   readonly sendingLabel?: string;
   readonly fieldLabel?: string;
   /**
@@ -373,8 +379,9 @@ export function MessageComposer({
                   size="icon"
                   onClick={() => fileInput.current?.click()}
                   disabled={inputLocked || atLimit}
+                  disabledReason={atLimit ? labels.tooMany : undefined}
                   aria-label={labels.attach}
-                  tooltip={atLimit ? labels.tooMany : labels.attachHint}
+                  tooltip={labels.attachHint}
                   className="shrink-0"
                 >
                   <Paperclip className="h-5 w-5" aria-hidden="true" />
@@ -449,7 +456,7 @@ export function MessageComposer({
           disabled={disabled}
           aria-label={sending ? sendingLabel : sendLabel}
           aria-busy={sending}
-          tooltip={sendLabel}
+          tooltip={sendHint ?? sendLabel}
           className="shrink-0"
         >
           {sending ? (

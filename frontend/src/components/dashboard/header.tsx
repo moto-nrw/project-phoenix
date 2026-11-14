@@ -36,7 +36,9 @@ import { isDemoBuild } from "~/lib/demo-access";
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { RefreshButton } from "./header/refresh-button";
+import { SchoolSearchSlot } from "~/components/search/school-search-slot";
 import { RemindersBell } from "./header/reminders-bell";
+import { StaffNewsButton } from "./header/staff-news-button";
 import { SessionWarning } from "./header/session-warning";
 import {
   ProfileDropdownHeader,
@@ -159,8 +161,19 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   ["/schliesstage", "Schließtage"],
   ["/zeitvergleich", "Länger als gebucht"],
   ["/dokumente", "Dokumente"],
-  ["/abrechnung", "Abrechnung"],
+  // Die drei Bereiche der Abrechnung (#5145): die genaueren Adressen zuerst,
+  // denn der erste Treffer gewinnt.
+  ["/abrechnung/familien", "Familien und Zahlung"],
+  ["/abrechnung/lastschrift", "Familien und Zahlung"],
+  ["/abrechnung/kinderzahl", "Familien und Zahlung"],
+  ["/abrechnung/nachweise", "Familien und Zahlung"],
+  ["/abrechnung/kostentraeger", "Familien und Zahlung"],
+  ["/abrechnung/preise", "Preise und Ermäßigungen"],
+  ["/abrechnung/mensa", "Preise und Ermäßigungen"],
+  ["/abrechnung/ermaessigungen", "Preise und Ermäßigungen"],
+  ["/abrechnung", "Abrechnungsläufe"],
   ["/vertraege", "Verträge"],
+  ["/zeitvergleich", "Länger als gebucht"],
   ["/einstellungen/mitglieder", "Mitglieder und Rollen"],
   ["/einstellungen/briefkopf", "Briefkopf und Vorlagen"],
   ["/einstellungen/abrechnung", "Abrechnungsvorgaben"],
@@ -311,7 +324,10 @@ export function Header() {
         : mode === "traeger"
           ? traegerTitleForPath(pathname)
           : null;
-  const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
+  // Im Träger-Portal nie der Titel einer Tenant-Seite: der fiele für eine
+  // unbekannte Adresse auf „Home“ zurück.
+  const displayedPageTitle =
+    parentPageTitle ?? schoolPageTitle ?? (mode === "traeger" ? "" : pageTitle);
   // Die Seitenhilfe bei den Aktionen. Jedes Portal hat seine eigenen
   // Routen: `/messages` heisst im Personal-Portal etwas anderes als im
   // Elternportal, deshalb zwei getrennte Nachschlagewege.
@@ -419,8 +435,12 @@ export function Header() {
                 variant="ghost"
                 size="icon"
                 onClick={toggleSidebar}
-                title={sidebarToggleLabel}
                 aria-label={sidebarToggleLabel}
+                tooltip={
+                  sidebarCollapsed
+                    ? "Zeigt die Seitenleiste wieder breit, mit allen Namen."
+                    : "Klappt die Seitenleiste zu schmalen Symbolen ein."
+                }
                 aria-expanded={!sidebarCollapsed}
                 aria-keyshortcuts="Control+B Meta+B"
                 // -ml-4 zieht den Button aus dem Header-Padding (lg:px-8)
@@ -493,6 +513,10 @@ export function Header() {
 
           {/* Right section: Actions + Profile */}
           <div className="ml-auto flex flex-shrink-0 items-center space-x-2">
+            {/* Die Suche über die Schule (#6954): Feld ab xl, sonst Lupe. */}
+            {mode === "teacher" ? (
+              <SchoolSearchSlot placement="header" />
+            ) : null}
             {/* Das Fragezeichen steht bei den Aktionen (#4345): direkt hinter
                 der Brotkrume las es sich als Teil des Seitennamens oder als
                 Darstellungsfehler. */}
@@ -524,6 +548,7 @@ export function Header() {
                 mode !== "traeger" && <RefreshButton />}
             </div>
 
+            {mode === "teacher" ? <StaffNewsButton /> : null}
             {mode === "teacher" ? <RemindersBell /> : null}
             {/* User menu */}
             <AnchoredPopover

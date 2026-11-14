@@ -132,6 +132,7 @@ export function HolidayWeekPlacesCard({
             size="compact"
             onClick={onEdit}
             aria-label={`Plätze für die Woche ${title} ändern`}
+            tooltip="Öffnet die Zahl der Plätze dieser Woche zum Ändern."
           >
             Plätze ändern
           </Button>
@@ -313,6 +314,7 @@ function HolidayWeekPlacesReadout({
             variant="surface"
             size="compact"
             className="self-start sm:self-auto"
+            tooltip="Öffnet die offenen Anmeldungen, um über die Plätze zu entscheiden."
           >
             Zur Vergabe
           </ButtonLink>

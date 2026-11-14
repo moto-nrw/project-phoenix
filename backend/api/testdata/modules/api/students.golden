@@ -30,12 +30,15 @@ GET /api/students/class-arrival-times/{schoolClass} -> basis
 GET /api/students/day-log -> basis
 GET /api/students/day-log/export -> basis
 GET /api/students/ended-care -> basis
+GET /api/students/enrollment-answer-filters -> basis
 GET /api/students/offering-change-requests/course-waitlists -> basis
 GET /api/students/ogs-group-live -> basis
 GET /api/students/ogs-group-navigation -> basis
+GET /api/students/pickup-change-notices -> basis
 GET /api/students/privacy-consent/defaults -> basis
 GET /api/students/school-classes -> basis
 GET /api/students/status-days -> basis
+GET /api/students/team-notices -> basis
 GET /api/students/{id} -> basis
 GET /api/students/{id}/accident-reports/{documentId}/pdf -> basis
 GET /api/students/{id}/arrival-schedules -> basis
@@ -92,8 +95,10 @@ POST /api/students/{id}/arrival-notes -> basis
 POST /api/students/{id}/care-end/resume -> basis
 POST /api/students/{id}/documents -> basis
 POST /api/students/{id}/notes -> basis
+POST /api/students/{id}/notes/{noteId}/team-notices -> basis
 POST /api/students/{id}/partial-absences -> basis
 POST /api/students/{id}/photo -> basis
+POST /api/students/{id}/pickup-change-notices/read -> basis
 POST /api/students/{id}/pickup-exceptions -> basis
 POST /api/students/{id}/pickup-notes -> basis
 POST /api/students/{id}/pickup-schedules/apply -> basis
@@ -102,6 +107,7 @@ POST /api/students/{id}/pickup-schedules/reset-offering -> basis
 POST /api/students/{id}/rfid -> nfc_anwesenheit
 POST /api/students/{id}/school-checkin -> basis
 POST /api/students/{id}/status-days -> basis
+POST /api/students/{id}/team-notices/read -> basis
 PUT /api/students/class-arrival-exceptions/{schoolClass}/{date} -> basis
 PUT /api/students/{id} -> basis
 PUT /api/students/{id}/accident-reports/{documentId} -> basis

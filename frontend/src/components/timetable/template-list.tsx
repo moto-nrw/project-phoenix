@@ -81,6 +81,7 @@ export function TemplateList({
               type="button"
               variant="primary"
               size="md"
+              tooltip="Öffnet ein Formular für einen neuen Regeltermin."
               onClick={onCreate}
               className="gap-2"
             >

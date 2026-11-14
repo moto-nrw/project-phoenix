@@ -182,6 +182,16 @@ function viaNavigation(
       // Am Computer steht der Eintrag schon in der Seitenleiste.
       skipWhenVisible: entry.target,
     });
+    stops.push({
+      // Im Mehr-Menü klappen die Gruppen (#7048). Steht die Gruppe schon
+      // offen oder läuft die Tour am Computer, ist der Eintrag zu sehen.
+      target: `[data-setup-tour="mobile-nav-group-${group.key}"]`,
+      title: `${group.label} öffnen`,
+      text: `Wählen Sie im Menü „${group.label}“.`,
+      advance: "click",
+      nav: true,
+      skipWhenVisible: entry.target,
+    });
   }
   stops.push({
     target: entryTarget,

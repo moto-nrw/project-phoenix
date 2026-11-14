@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
@@ -346,16 +347,29 @@ func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int
 		reportedAt = *since
 	}
 	today := calendar.DateFromTime(now)
-	if err := s.StudentStatusRepo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
-		StudentID:  studentID,
-		Date:       today,
-		Status:     status,
-		ReportedAt: reportedAt,
-		Source:     source,
-	}); err != nil {
+	// A day that already shows the status keeps its report: the clearing
+	// goes next to it and never replaces who reported it (#6842). A flag
+	// without a row gets one that is cleared from the start: it never
+	// stands, so it replaces no other status of the day (#6958).
+	standing, err := s.StudentStatusRepo.FindSignedOffByStudentIDsAndDate(ctx, []int64{studentID}, today)
+	if err != nil {
 		return fmt.Errorf("clear student status: %w", err)
 	}
-	if err := s.StudentStatusRepo.MarkCleared(ctx, studentID, status, today, now, source); err != nil {
+	if !slices.ContainsFunc(standing, func(row *absencerecords.StudentStatusDay) bool { return row.Status == status }) {
+		clearedSource := source
+		if err := s.StudentStatusRepo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
+			StudentID:     studentID,
+			Date:          today,
+			Status:        status,
+			ReportedAt:    reportedAt,
+			Source:        source,
+			ClearedAt:     &now,
+			ClearedSource: &clearedSource,
+		}); err != nil {
+			return fmt.Errorf("clear student status: %w", err)
+		}
+	}
+	if err := s.StudentStatusRepo.MarkCleared(ctx, studentID, status, today, now, source, nil); err != nil {
 		return fmt.Errorf("clear student status history: %w", err)
 	}
 	return nil
@@ -428,7 +442,7 @@ func (s *service) clearPlannedRows(ctx context.Context, rows []*absencerecords.S
 			row.Source != absencerecords.StudentStatusSourceSchool {
 			continue
 		}
-		if err := s.StudentStatusRepo.MarkClearedByID(ctx, row.ID, now, absencerecords.StudentStatusSourceNextCheckin); err != nil {
+		if err := s.StudentStatusRepo.MarkClearedByID(ctx, row.ID, now, absencerecords.StudentStatusSourceNextCheckin, nil); err != nil {
 			return false, false, fmt.Errorf("clear planned student status: %w", err)
 		}
 		if row.Status == absencerecords.StudentStatusDaySick {

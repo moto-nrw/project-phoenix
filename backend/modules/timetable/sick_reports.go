@@ -8,13 +8,33 @@ import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 // medical detail.
 const SickBlockAbsenceReason = "Krankmeldung"
 
+// AbsentBlockReason is the neutral label every other absence (Urlaub,
+// Fortbildung, Freizeitausgleich, Sonstige and the school's own
+// Abwesenheitsarten) writes on the block assignments it marks absent
+// (#6847). The plan never names the art: a school-defined name may be private.
+const AbsentBlockReason = "Abwesenheit"
+
+// BlockAbsenceReason is the label an absence writes on the block assignments
+// it marks absent: a sick report names itself, every other absence stays
+// neutral.
+func BlockAbsenceReason(sick bool) string {
+	if sick {
+		return SickBlockAbsenceReason
+	}
+	return AbsentBlockReason
+}
+
 // SickReport is one sick report as the Betreuungsplan sees it: who is sick,
 // for which range, and whether its boundary days are half days (#1843). Both
 // the sick cascade and the materializer decide the affected days with
 // CoversFullDay, so a block assignment created before or after the report
 // gets the same absence (#6292).
+//
+// Since #6847 a SickReport carries every absence that takes plan effect, not
+// only a sick report; Sick tells the sick report apart for its label.
 type SickReport struct {
 	AbsenceID    int64
+	Sick         bool
 	StaffID      int64
 	DateStart    calendar.Date
 	DateEnd      calendar.Date

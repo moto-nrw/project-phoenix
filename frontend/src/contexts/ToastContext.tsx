@@ -12,6 +12,8 @@ import React, {
   type RefObject,
 } from "react";
 import { useFormError, type FormErrorDetail } from "~/components/ui/form-error";
+import { KitLocaleProvider } from "~/components/ui/kit-locale";
+import { TOAST_FADE_MS } from "~/components/ui/motion";
 import { Toast } from "~/components/ui/toast";
 import { clientEnv } from "~/env.client";
 import { normalizeLocale, type AppLocale } from "~/i18n/locales";
@@ -88,6 +90,7 @@ export function ModuleBookingAudienceProvider({
 const toastLabelsByLocale = {
   de: {
     close: "Schließen",
+    closeHint: "Blendet die Meldung aus.",
     copyRequestId: "Vorgangskennung kopieren",
     copySucceeded: "Kopiert.",
     copyFailed: "Kopieren nicht möglich.",
@@ -101,6 +104,7 @@ const toastLabelsByLocale = {
   },
   en: {
     close: "Close",
+    closeHint: "Hides this message.",
     copyRequestId: "Copy request ID",
     copySucceeded: "Copied.",
     copyFailed: "Could not copy.",
@@ -114,6 +118,7 @@ const toastLabelsByLocale = {
   },
   ru: {
     close: "Закрыть",
+    closeHint: "Скрывает это сообщение.",
     copyRequestId: "Скопировать номер запроса",
     copySucceeded: "Скопировано.",
     copyFailed: "Не удалось скопировать.",
@@ -127,6 +132,7 @@ const toastLabelsByLocale = {
   },
   sq: {
     close: "Mbyll",
+    closeHint: "Fsheh këtë njoftim.",
     copyRequestId: "Kopjo numrin e kërkesës",
     copySucceeded: "U kopjua.",
     copyFailed: "Nuk u kopjua.",
@@ -140,6 +146,7 @@ const toastLabelsByLocale = {
   },
   pl: {
     close: "Zamknij",
+    closeHint: "Ukrywa tę wiadomość.",
     copyRequestId: "Kopiuj numer żądania",
     copySucceeded: "Skopiowano.",
     copyFailed: "Nie udało się skopiować.",
@@ -153,6 +160,7 @@ const toastLabelsByLocale = {
   },
   tr: {
     close: "Kapat",
+    closeHint: "Bu bildirimi gizler.",
     copyRequestId: "İstek kimliğini kopyala",
     copySucceeded: "Kopyalandı.",
     copyFailed: "Kopyalanamadı.",
@@ -166,6 +174,7 @@ const toastLabelsByLocale = {
   },
   uk: {
     close: "Закрити",
+    closeHint: "Приховує це повідомлення.",
     copyRequestId: "Копіювати номер запиту",
     copySucceeded: "Скопійовано.",
     copyFailed: "Не вдалося скопіювати.",
@@ -181,6 +190,7 @@ const toastLabelsByLocale = {
   AppLocale,
   {
     readonly close: string;
+    readonly closeHint: string;
     readonly copyRequestId: string;
     readonly copySucceeded: string;
     readonly copyFailed: string;
@@ -286,7 +296,7 @@ function ToastRow({
     if (item.duration > 0) {
       localTimeout = setTimeout(() => {
         setExiting(true);
-        setTimeout(() => onClose(item.id), reducedMotion ? 0 : 300);
+        setTimeout(() => onClose(item.id), reducedMotion ? 0 : TOAST_FADE_MS);
       }, item.duration);
       timersRef.current.timeoutId = localTimeout;
     }
@@ -312,7 +322,7 @@ function ToastRow({
       timersRef.current.start = Date.now();
       timersRef.current.timeoutId = setTimeout(() => {
         setExiting(true);
-        setTimeout(() => onClose(item.id), reducedMotion ? 0 : 300);
+        setTimeout(() => onClose(item.id), reducedMotion ? 0 : TOAST_FADE_MS);
       }, timersRef.current.remaining);
     }
   };
@@ -323,7 +333,7 @@ function ToastRow({
       timersRef.current.timeoutId = undefined;
     }
     setExiting(true);
-    setTimeout(() => onClose(item.id), reducedMotion ? 0 : 300);
+    setTimeout(() => onClose(item.id), reducedMotion ? 0 : TOAST_FADE_MS);
   };
 
   const handleAction = () => {
@@ -332,34 +342,37 @@ function ToastRow({
   };
 
   return (
-    <Toast
-      type={item.type}
-      message={item.message}
-      accessibleLabel={`${labels.typeTitles[item.type]}: ${item.message}`}
-      closeLabel={labels.close}
-      onClose={dismissWithExitAnimation}
-      requestId={item.requestId}
-      requestIdLabel={item.requestIdLabel}
-      copyRequestIdLabel={labels.copyRequestId}
-      copySucceededLabel={labels.copySucceeded}
-      copyFailedLabel={labels.copyFailed}
-      action={
-        item.action
-          ? {
-              label: item.action.label,
-              accessibleLabel: isMobile
-                ? labels.actionInstruction(item.action.label)
-                : item.action.label,
-              onClick: handleAction,
-            }
-          : undefined
-      }
-      visible={visible && !exiting}
-      reducedMotion={reducedMotion}
-      touchFriendly={isMobile}
-      onMouseEnter={pauseIfDesktop}
-      onMouseLeave={resumeIfDesktop}
-    />
+    <KitLocaleProvider locale={locale}>
+      <Toast
+        type={item.type}
+        message={item.message}
+        accessibleLabel={`${labels.typeTitles[item.type]}: ${item.message}`}
+        closeLabel={labels.close}
+        closeTooltip={labels.closeHint}
+        onClose={dismissWithExitAnimation}
+        requestId={item.requestId}
+        requestIdLabel={item.requestIdLabel}
+        copyRequestIdLabel={labels.copyRequestId}
+        copySucceededLabel={labels.copySucceeded}
+        copyFailedLabel={labels.copyFailed}
+        action={
+          item.action
+            ? {
+                label: item.action.label,
+                accessibleLabel: isMobile
+                  ? labels.actionInstruction(item.action.label)
+                  : item.action.label,
+                onClick: handleAction,
+              }
+            : undefined
+        }
+        visible={visible && !exiting}
+        reducedMotion={reducedMotion}
+        touchFriendly={isMobile}
+        onMouseEnter={pauseIfDesktop}
+        onMouseLeave={resumeIfDesktop}
+      />
+    </KitLocaleProvider>
   );
 }
 

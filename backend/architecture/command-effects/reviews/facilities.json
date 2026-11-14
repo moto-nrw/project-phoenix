@@ -105,6 +105,56 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "reason": "Read-only reference count (#6845): the Facilities room removal reaches modules/devicefleet.Capability.ListDevices (device-fleet) through modules/facilities/internal/application.Service.DeleteRoom and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet.Capability.ListDevices",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "reason": "Read-only reference count (#6845): the Facilities room removal reaches modules/schoolstructure.Capability.ListGroups (school-structure) through modules/facilities/internal/application.Service.DeleteRoom and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "reason": "Read-only reference count (#6845): the Facilities room removal reaches modules/schoolstructure.GroupListing.ListGroups (school-structure) through modules/facilities/internal/application.Service.DeleteRoom and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "reason": "Read-only reference count (#6845): the Facilities room removal reaches modules/schoolstructure.Owner.ListGroups (school-structure) through modules/facilities/internal/application.Service.DeleteRoom and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "reason": "Read-only reference count (#6845): the Facilities room removal reaches modules/studentpresence.Owner.QueryLiveGroups (student-presence) through modules/facilities/internal/application.Service.DeleteRoom and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence.Owner.QueryLiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
@@ -114,6 +164,16 @@
       "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): facilities reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/facilities/internal/application.Service.DeleteRoom. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098).",
       "source_owner": "facilities",
       "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "reason": "Read-only reference count (#6845): the Facilities room removal reaches modules/timetable.RoomReferenceQuery.CountRoomReferences (timetable-activities) through modules/facilities/internal/application.Service.DeleteRoom and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RoomReferenceQuery.CountRoomReferences",
       "target_owner": "timetable-activities"
     },
     {
@@ -189,6 +249,77 @@
       "effect": "scope",
       "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.ListRoomsPage",
       "reason": "Platform protocol participation (scope): facilities reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/facilities/internal/application.Service.ListRoomsPage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "reason": "Read-only reference count (#6845): the Facilities room removal preview reaches modules/devicefleet.Capability.ListDevices (device-fleet) through modules/facilities/internal/application.Service.RoomRemovalImpact and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet.Capability.ListDevices",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "reason": "Read-only reference count (#6845): the Facilities room removal preview reaches modules/schoolstructure.Capability.ListGroups (school-structure) through modules/facilities/internal/application.Service.RoomRemovalImpact and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "reason": "Read-only reference count (#6845): the Facilities room removal preview reaches modules/schoolstructure.GroupListing.ListGroups (school-structure) through modules/facilities/internal/application.Service.RoomRemovalImpact and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "reason": "Read-only reference count (#6845): the Facilities room removal preview reaches modules/schoolstructure.Owner.ListGroups (school-structure) through modules/facilities/internal/application.Service.RoomRemovalImpact and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "reason": "Read-only reference count (#6845): the Facilities room removal preview reaches modules/studentpresence.Owner.QueryLiveGroups (student-presence) through modules/facilities/internal/application.Service.RoomRemovalImpact and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence.Owner.QueryLiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "reason": "Read-only reference count (#6845): the Facilities room removal preview reaches modules/timetable.RoomReferenceQuery.CountRoomReferences (timetable-activities) through modules/facilities/internal/application.Service.RoomRemovalImpact and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RoomReferenceQuery.CountRoomReferences",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/facilities/internal/application.Service.RoomRemovalImpact",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "reason": "Platform protocol participation (scope): facilities reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/facilities/internal/application.Service.RoomRemovalImpact. The removal preview reads the room and its references inside the caller's own unit and writes nothing; transaction and lock-order correctness stay with the platform behavior tests (ADR 0098). Added by #6845.",
       "source_owner": "facilities",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"
@@ -458,6 +589,56 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "reason": "Read-only reference count (#6845): the Facilities room removal reaches modules/devicefleet.Capability.ListDevices (device-fleet) through modules/facilities.Capability.DeleteRoom and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet.Capability.ListDevices",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "reason": "Read-only reference count (#6845): the Facilities room removal reaches modules/schoolstructure.Capability.ListGroups (school-structure) through modules/facilities.Capability.DeleteRoom and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "reason": "Read-only reference count (#6845): the Facilities room removal reaches modules/schoolstructure.GroupListing.ListGroups (school-structure) through modules/facilities.Capability.DeleteRoom and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "reason": "Read-only reference count (#6845): the Facilities room removal reaches modules/schoolstructure.Owner.ListGroups (school-structure) through modules/facilities.Capability.DeleteRoom and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "reason": "Read-only reference count (#6845): the Facilities room removal reaches modules/studentpresence.Owner.QueryLiveGroups (student-presence) through modules/facilities.Capability.DeleteRoom and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence.Owner.QueryLiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
@@ -470,12 +651,93 @@
       "target_owner": "timetable-activities"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "reason": "Read-only reference count (#6845): the Facilities room removal reaches modules/timetable.RoomReferenceQuery.CountRoomReferences (timetable-activities) through modules/facilities.Capability.DeleteRoom and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RoomReferenceQuery.CountRoomReferences",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.DeleteRoom",
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.DeleteRoom",
       "reason": "Platform protocol participation (scope): facilities reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/facilities.Capability.DeleteRoom. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
+      "reason": "Read-only reference count (#6845): the Facilities room removal preview reaches modules/devicefleet.Capability.ListDevices (device-fleet) through modules/facilities.Capability.RoomRemovalImpact and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/devicefleet.Capability.ListDevices",
+      "target_owner": "device-fleet"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
+      "reason": "Read-only reference count (#6845): the Facilities room removal preview reaches modules/schoolstructure.Capability.ListGroups (school-structure) through modules/facilities.Capability.RoomRemovalImpact and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
+      "reason": "Read-only reference count (#6845): the Facilities room removal preview reaches modules/schoolstructure.GroupListing.ListGroups (school-structure) through modules/facilities.Capability.RoomRemovalImpact and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
+      "reason": "Read-only reference count (#6845): the Facilities room removal preview reaches modules/schoolstructure.Owner.ListGroups (school-structure) through modules/facilities.Capability.RoomRemovalImpact and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
+      "reason": "Read-only reference count (#6845): the Facilities room removal preview reaches modules/studentpresence.Owner.QueryLiveGroups (student-presence) through modules/facilities.Capability.RoomRemovalImpact and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/studentpresence.Owner.QueryLiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
+      "reason": "Read-only reference count (#6845): the Facilities room removal preview reaches modules/timetable.RoomReferenceQuery.CountRoomReferences (timetable-activities) through modules/facilities.Capability.RoomRemovalImpact and the root-bound reference closure (roots/owners.NewRoomReferences). One bounded read per owner inside the removal's tenant transaction; it decides whether the room stays, is archived or deleted, and writes nothing in the target owner.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-ogs/project-phoenix/modules/timetable.RoomReferenceQuery.CountRoomReferences",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/facilities.Capability.RoomRemovalImpact",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/facilities.Command.RoomRemovalImpact",
+      "reason": "Platform protocol participation (scope): facilities reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/facilities/internal/application.Service.RoomRemovalImpact. The removal preview reads the room and its references inside the caller's own unit and writes nothing; transaction and lock-order correctness stay with the platform behavior tests (ADR 0098). Added by #6845.",
       "source_owner": "facilities",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"

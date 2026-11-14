@@ -132,6 +132,7 @@ const family: HolidayKnownFamily = {
     lastName: "Schneider",
     email: "sabine@example.org",
     phone: "0151 2",
+    address: null,
   },
   children: [
     {
@@ -142,6 +143,7 @@ const family: HolidayKnownFamily = {
       birthDate: "2018-03-01",
       holidayWish: "",
       holidayWishProof: "",
+      contacts: [],
     },
   ],
   accountProof: "",
@@ -512,9 +514,10 @@ describe("HolidayRegistrationForm", () => {
   });
 
   it("asks the criteria as required yes/no questions and names the open place (#4700)", async () => {
-    mockSubmit.mockResolvedValue([
-      { childPosition: 1, weekId: "11", placement: "pending" },
-    ]);
+    mockSubmit.mockResolvedValue({
+      placements: [{ childPosition: 1, weekId: "11", placement: "pending" }],
+      statusToken: "",
+    });
     renderForm(null, {
       ...offer,
       allocationMode: "criteria",
@@ -613,7 +616,7 @@ describe("HolidayRegistrationForm", () => {
             errors: [{ field, reason: "answer yes or no" }],
           }),
         )
-        .mockResolvedValue([]);
+        .mockResolvedValue({ placements: [], statusToken: "" });
       const reload = vi.fn(async () => {
         view.rerender(
           <NextIntlClientProvider locale="de" messages={deMessages}>
@@ -694,9 +697,13 @@ describe("HolidayRegistrationForm", () => {
     expect(screen.getByText("Feriengast")).toBeInTheDocument();
     // The security check sits next to the send button and is solved there,
     // so its token is fresh when the registration leaves (quorum round 1).
-    expect(
-      screen.getByRole("button", { name: "Verbindlich anmelden" }),
-    ).toBeDisabled();
+    const blockedSubmit = screen.getByRole("button", {
+      name: "Verbindlich anmelden",
+    });
+    expect(blockedSubmit).toHaveAttribute("aria-disabled", "true");
+    expect(blockedSubmit).toHaveAccessibleDescription(
+      "Schließen Sie zuerst die Sicherheitsprüfung ab.",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Verbindlich anmelden" }),
@@ -823,9 +830,13 @@ describe("HolidayRegistrationForm", () => {
     expect(
       screen.getByText("Bitte warten Sie, bis alle Dateien hochgeladen sind."),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Verbindlich anmelden" }),
-    ).toBeDisabled();
+    const waitingSubmit = screen.getByRole("button", {
+      name: "Verbindlich anmelden",
+    });
+    expect(waitingSubmit).toHaveAttribute("aria-disabled", "true");
+    expect(waitingSubmit).toHaveAccessibleDescription(
+      "Warten Sie, bis alle Dateien hochgeladen sind.",
+    );
     finishUpload({
       token: "proof-token",
       filename: "bescheid.pdf",
@@ -1068,6 +1079,141 @@ describe("HolidayRegistrationForm", () => {
     fireEvent.click(known);
     expect(known).not.toBeChecked();
     expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("");
+  });
+
+  it("fills address, second custodian and contacts from the account, never health (#6682)", () => {
+    const known: HolidayKnownFamily = {
+      ...family,
+      guardian: {
+        ...family.guardian,
+        address: {
+          street: "Lindenweg 4",
+          postalCode: "49143",
+          city: "Bissendorf",
+        },
+      },
+      children: [
+        {
+          ...family.children[0]!,
+          contacts: [
+            {
+              guardianProfileId: "51",
+              firstName: "Jonas",
+              lastName: "Schneider",
+              email: "",
+              phone: "",
+              relationshipType: "parent",
+              fullGuardian: true,
+              emergency: true,
+              pickup: true,
+            },
+          ],
+        },
+      ],
+    };
+    renderForm(known, {
+      ...offer,
+      form: { ...offer.form, addressRequirement: "optional" },
+    });
+    // Own fields and address come with the account at once.
+    expect(screen.getByLabelText(/Straße/)).toHaveValue("Lindenweg 4");
+    // Each field from the account says so: four own fields, three address parts.
+    expect(screen.getAllByText("Aus dem Elternkonto")).toHaveLength(7);
+    expect(screen.getByLabelText(/Straße/)).toHaveAccessibleDescription(
+      "Aus dem Elternkonto",
+    );
+    // A changed field loses its line, the others keep theirs.
+    type(screen.getByLabelText(/Straße/), "Neuer Weg 1");
+    expect(screen.getByLabelText(/Straße/)).not.toHaveAccessibleDescription(
+      "Aus dem Elternkonto",
+    );
+    expect(screen.getByLabelText(/^Ort/)).toHaveAccessibleDescription(
+      "Aus dem Elternkonto",
+    );
+    expect(screen.getAllByText("Aus dem Elternkonto")).toHaveLength(6);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Felix Schneider/ }));
+    const second = within(
+      screen
+        .getByRole("heading", { name: "Zweite sorgeberechtigte Person" })
+        .closest("section")!,
+    );
+    expect(second.getByLabelText(/Vorname/)).toHaveValue("Jonas");
+    // Only filled fields name the account; the hidden number stays unmarked.
+    expect(second.getAllByText("Aus dem Elternkonto")).toHaveLength(2);
+    expect(second.getByLabelText(/Telefon/)).not.toHaveAccessibleDescription(
+      "Aus dem Elternkonto",
+    );
+    const contacts = within(
+      screen.getByRole("heading", { name: "Kontakte" }).closest("section")!,
+    );
+    expect(contacts.getByLabelText(/^Name/)).toHaveValue("Jonas Schneider");
+    expect(contacts.getByLabelText(/Beziehung/)).toHaveValue("Elternteil");
+    expect(contacts.getAllByText("Aus dem Elternkonto")).toHaveLength(2);
+    type(contacts.getByLabelText(/Beziehung/), "Vater");
+    expect(contacts.getAllByText("Aus dem Elternkonto")).toHaveLength(1);
+    expect(contacts.getByLabelText(/^Name/)).toHaveAccessibleDescription(
+      "Aus dem Elternkonto",
+    );
+    // Back to the account's value: the line and the link to the child return.
+    type(contacts.getByLabelText(/Beziehung/), "Elternteil");
+    expect(contacts.getAllByText("Aus dem Elternkonto")).toHaveLength(2);
+    // The school knows no number for this emergency contact: the parent types it.
+    expect(
+      contacts.getByText(
+        "Für diese Person kennt die Schule keine Nummer. Bitte tragen Sie sie ein.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Gesundheitsangaben übernehmen wir nicht. Bitte tragen Sie sie hier ein.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Allergien und Unverträglichkeiten"),
+    ).toHaveValue("");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Felix Schneider/ }));
+    expect(second.getByLabelText(/Vorname/)).toHaveValue("");
+    expect(contacts.getByLabelText(/^Name/)).toHaveValue("");
+  });
+
+  it("asks for a number only when the school knows none, not after the parent cleared it (#6682)", () => {
+    const known: HolidayKnownFamily = {
+      ...family,
+      children: [
+        {
+          ...family.children[0]!,
+          contacts: [
+            {
+              guardianProfileId: "52",
+              firstName: "Erika",
+              lastName: "Brandt",
+              email: "",
+              phone: "0151 9876",
+              relationshipType: "relative",
+              fullGuardian: false,
+              emergency: true,
+              pickup: false,
+            },
+          ],
+        },
+      ],
+    };
+    renderForm(known);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Felix Schneider/ }));
+    const contacts = within(
+      screen.getByRole("heading", { name: "Kontakte" }).closest("section")!,
+    );
+    const phone = contacts.getByLabelText(/^Telefon/);
+    expect(phone).toHaveValue("0151 9876");
+    type(phone, "");
+    expect(phone).toHaveValue("");
+    expect(
+      contacts.queryByText(
+        "Für diese Person kennt die Schule keine Nummer. Bitte tragen Sie sie ein.",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("offers no known children without a parent account", () => {
@@ -1759,7 +1905,7 @@ describe("HolidayRegistrationForm parent account (#6673)", () => {
     screen.getByRole("group", { name: /Möchten Sie ein Elternkonto anlegen/ });
 
   it("asks without a preselection and holds the send until the parent answers", async () => {
-    mockSubmit.mockResolvedValue([]);
+    mockSubmit.mockResolvedValue({ placements: [], statusToken: "" });
     renderWithAccount("ask");
     await toSummary();
 
@@ -1812,8 +1958,28 @@ describe("HolidayRegistrationForm parent account (#6673)", () => {
     expect(mockInvalidate).not.toHaveBeenCalled();
   });
 
+  it("links the status page of the sent registration (#6676)", async () => {
+    mockSubmit.mockResolvedValue({ placements: [], statusToken: "st4tus" });
+    renderWithAccount("ask");
+    await toSummary();
+    fireEvent.click(within(question()).getByRole("radio", { name: "Nein" }));
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+
+    expect(
+      await screen.findByRole("link", { name: "Stand ansehen" }),
+    ).toHaveAttribute("href", "/ferienanmeldung/status/st4tus");
+    expect(
+      screen.getByText(
+        "Den Link zum Stand bekommen Sie auch per E-Mail. Geben Sie ihn nicht weiter.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("keeps the answer over Zurück, names the address and announces the second mail", async () => {
-    mockSubmit.mockResolvedValue([]);
+    mockSubmit.mockResolvedValue({ placements: [], statusToken: "" });
     renderWithAccount("ask");
     await toSummary();
 
@@ -1853,7 +2019,7 @@ describe("HolidayRegistrationForm parent account (#6673)", () => {
   });
 
   it("asks a signed-in parent nothing, sends the account's proof and leads back to the app", async () => {
-    mockSubmit.mockResolvedValue([]);
+    mockSubmit.mockResolvedValue({ placements: [], statusToken: "" });
     renderWithAccount("signed-in", { ...family, accountProof: "sealed-proof" });
     await toSummary();
 
@@ -1890,5 +2056,114 @@ describe("HolidayRegistrationForm parent account (#6673)", () => {
     ) => boolean;
     expect(matches("parent-holiday-registration-entries")).toBe(true);
     expect(matches("parent-profile")).toBe(false);
+  });
+});
+
+describe("required health fields (#6686)", () => {
+  beforeEach(() => {
+    mockSubmit.mockReset();
+    mockQuote.mockReset();
+    mockQuote.mockResolvedValue(quoted(false));
+    window.scrollTo = vi.fn();
+  });
+
+  const requiring: HolidayRegistrationOffer = {
+    ...offer,
+    form: { ...offer.form, healthRequirement: "required" },
+  };
+
+  it("keeps the open health fields on an optional form", () => {
+    renderForm(null, offer);
+    expect(screen.getByText("Gesundheit (freiwillig)")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Allergien und Unverträglichkeiten"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", {
+        name: /Hat Ihr Kind Allergien oder Unverträglichkeiten/,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("drops the text typed after Ja when the parent answers Nein, keine", () => {
+    renderForm(null, requiring);
+    const allergies = within(
+      screen.getByRole("group", {
+        name: /Hat Ihr Kind Allergien oder Unverträglichkeiten/,
+      }),
+    );
+    fireEvent.click(allergies.getByRole("radio", { name: "Ja" }));
+    type(screen.getByLabelText(/^Welche Allergien/), "Nüsse");
+    fireEvent.click(allergies.getByRole("radio", { name: "Nein, keine" }));
+    fireEvent.click(allergies.getByRole("radio", { name: "Ja" }));
+    expect(screen.getByLabelText(/^Welche Allergien/)).toHaveValue("");
+  });
+
+  it("asks each question, takes Keine and sends it with the consent", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm(null, requiring);
+    fillRegistration();
+    const allergies = within(
+      screen.getByRole("group", {
+        name: /Hat Ihr Kind Allergien oder Unverträglichkeiten/,
+      }),
+    );
+    const medication = within(
+      screen.getByRole("group", { name: /Braucht Ihr Kind Medikamente/ }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await waitFor(() =>
+      expect(
+        allergies.getByText("Bitte wählen Sie Ja oder Nein."),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      medication.getByText("Bitte wählen Sie Ja oder Nein."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(allergies.getByRole("radio", { name: "Nein, keine" }));
+    fireEvent.click(medication.getByRole("radio", { name: "Ja" }));
+    const detail = screen.getByLabelText(
+      "Welche Medikamente? Wann und wie viel?",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await waitFor(() => expect(detail).toHaveAttribute("aria-invalid", "true"));
+    expect(
+      screen.getByText(
+        "Bitte stimmen Sie zu. Der Träger braucht diese Angaben für die Betreuung.",
+      ),
+    ).toBeInTheDocument();
+
+    type(detail, " Asthmaspray bei Bedarf ");
+    fireEvent.click(
+      screen.getByLabelText(
+        /^Ich bin einverstanden: Der Träger und die OGS sehen die Gesundheitsangaben meiner Kinder\./,
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    expect(screen.getByText("Keine")).toBeInTheDocument();
+    expect(screen.getByText("Asthmaspray bei Bedarf")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
+    const payload = mockSubmit.mock.calls[0]![1] as {
+      children: Record<string, unknown>[];
+      health_consent: boolean;
+    };
+    expect(payload.children[0]).toMatchObject({
+      allergies: "Keine",
+      medication: "Asthmaspray bei Bedarf",
+    });
+    expect(payload.health_consent).toBe(true);
   });
 });

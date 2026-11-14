@@ -28,8 +28,8 @@ func buildGradeTransition(
 	workflow, err := owners.NewGradeTransition(gradetransitioncompose.Dependencies{
 		DB: db.Pool(), Structure: structure, Presence: presence, Directory: persons, Membership: membership, Rosters: owner.RosterReconciler,
 		LockRecurrenceWrites:  owner.RecurrenceLock.LockRecurrenceWrites,
-		ResyncOfferingRosters: resyncOfferingRosters,
-		Logger:                env.Logger.With("workflow", "grade_transition"), Audit: audit.Command, ClassListEntryRecord: GradeTransitionClassListRecord,
+		ResyncOfferingRosters: resyncOfferingRosters, FollowClassChanges: gradeTransitionClassChanges(owner.CohortRosters),
+		Logger: env.Logger.With("workflow", "grade_transition"), Audit: audit.Command, ClassListEntryRecord: GradeTransitionClassListRecord,
 		Clock: env.Now,
 	})
 	if err != nil {

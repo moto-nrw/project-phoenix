@@ -31,7 +31,9 @@ const (
 )
 
 // AdminDisable wipes the target's enrollment and trusted devices from the
-// school admin surface.
+// school admin surface. The wipe holds for the whole account, at every
+// school it signs in to, so the school must hold the account alone (#6862);
+// for an account it shares, the school-scoped override stays open to it.
 func (f *AccountMFAFlows) AdminDisable(ctx context.Context, actorID, actorTenantID, targetAccountID int64, reason string, actorPermissions []string) error {
 	if err := f.requireAdminPermission(ctx, actorPermissions, adminOverrideFailure{
 		ActorType: actorTypeAccount, ActorID: actorID, TargetAccountID: targetAccountID,
@@ -73,18 +75,18 @@ func (f *AccountMFAFlows) adminDisable(ctx context.Context, actorType string, ac
 		f.recordAdminFailure(ctx, failure)
 		return domain.ErrMFAReasonRequired
 	}
-	if err := f.disableForAdmin(ctx, actorType, actorID, targetTenantID, targetAccountID); err != nil {
-		failure.Reason, failure.ErrMsg = reason, err.Error()
-		f.recordAdminFailure(ctx, failure)
-		return err
-	}
-	f.recordAuthEvent(ctx, domain.AuthEvent{
+	overridden := domain.AuthEvent{
 		AccountID: targetAccountID, TenantID: targetTenantID, Type: domain.AuthEventMFAAdminOverride,
 		Success: true, IPAddress: domain.MFAAuditFallbackIP,
 		MFA: &domain.MFAEvidence{Admin: &domain.MFAAdminEvidence{
 			ActorType: actorType, ActorAccountID: actorID, Action: "disable", Reason: reason,
 		}},
-	})
+	}
+	if err := f.disableForAdmin(ctx, actorType, actorID, targetTenantID, targetAccountID, overridden); err != nil {
+		failure.Reason, failure.ErrMsg = reason, err.Error()
+		f.recordAdminFailure(ctx, failure)
+		return err
+	}
 	return nil
 }
 
@@ -141,29 +143,30 @@ func (f *AccountMFAFlows) setTenantOverride(ctx context.Context, actorType strin
 	}
 
 	previous := domain.MFAAdminOverrideNone
-	txErr := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+	txErr := f.runtime.WithAdminTx(f.adminUnit(ctx), func(txCtx context.Context) error {
 		if err := f.writeTenantOverride(txCtx, actorType, actorID, targetTenantID, targetAccountID, override, reason, &previous); err != nil {
 			return err
 		}
 		if actorType == actorTypeOperator {
-			return f.recordOperatorMFAChange(txCtx, actorID, targetAccountID, domain.OperatorMFAOverrideEvidence{SchoolID: targetTenantID, Action: "set_override", Scope: "tenant", Override: override, PreviousOverride: previous})
+			if err := f.recordOperatorMFAChange(txCtx, actorID, targetAccountID, domain.OperatorMFAOverrideEvidence{SchoolID: targetTenantID, Action: "set_override", Scope: "tenant", Override: override, PreviousOverride: previous}); err != nil {
+				return err
+			}
 		}
-		return nil
+		// The school's ledger row commits with the override or not at all.
+		return f.recordAuthEvent(txCtx, domain.AuthEvent{
+			AccountID: targetAccountID, TenantID: targetTenantID, Type: domain.AuthEventMFAAdminOverride,
+			Success: true, IPAddress: domain.MFAAuditFallbackIP,
+			MFA: &domain.MFAEvidence{Admin: &domain.MFAAdminEvidence{
+				ActorType: actorType, ActorAccountID: actorID, Action: "set_override", Written: true,
+				Scope: "tenant", Override: override, PreviousOverride: previous, Reason: reason,
+			}},
+		})
 	})
 	if txErr != nil {
 		failure.ErrMsg = txErr.Error()
 		f.recordAdminFailure(ctx, failure)
 		return txErr
 	}
-
-	f.recordAuthEvent(ctx, domain.AuthEvent{
-		AccountID: targetAccountID, TenantID: targetTenantID, Type: domain.AuthEventMFAAdminOverride,
-		Success: true, IPAddress: domain.MFAAuditFallbackIP,
-		MFA: &domain.MFAEvidence{Admin: &domain.MFAAdminEvidence{
-			ActorType: actorType, ActorAccountID: actorID, Action: "set_override", Written: true,
-			Scope: "tenant", Override: override, PreviousOverride: previous, Reason: reason,
-		}},
-	})
 	return nil
 }
 
@@ -314,7 +317,7 @@ type adminOverrideFailure struct {
 }
 
 func (f *AccountMFAFlows) recordAdminFailure(ctx context.Context, failure adminOverrideFailure) {
-	f.recordAuthEvent(ctx, domain.AuthEvent{
+	f.observeAuthEvent(ctx, domain.AuthEvent{
 		AccountID: failure.TargetAccountID, TenantID: failure.TargetTenantID,
 		Type: domain.AuthEventMFAAdminOverride, IPAddress: domain.MFAAuditFallbackIP,
 		ErrorMessage: failure.ErrMsg,

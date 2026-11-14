@@ -1619,6 +1619,9 @@ describe("staff-session-table.invalidation", () => {
         "phoenix:staff-absences-42-2026-08-01-2026-08-31",
         "phoenix:staff-month-summary-42-2026-8",
         "phoenix:staff-schedule-targets-42-2026-08-01-2026-08-31",
+        // The Übersicht charts sum the same projection over the account range
+        // (#6847): their Ist and Saldo move with the save as well.
+        "phoenix:staff-schedule-targets-42-account-2026-01-01-2026-12-31",
         // Own-service portal keys (no staff id): a manager correcting their OWN
         // days also has the self-service table and weekly KPI open, which key
         // without an id and read the same projection.
@@ -1629,12 +1632,8 @@ describe("staff-session-table.invalidation", () => {
       }
     });
 
-    it("leaves the target-only account chart and unrelated caches alone", () => {
+    it("leaves unrelated caches alone", () => {
       for (const key of [
-        // Fetched with target_only=true: pure Soll, which a session edit cannot
-        // change. Refetching the whole account range on every correction would
-        // be a large request for an unchanged answer.
-        "phoenix:staff-schedule-targets-account-42-2026-01-01-2026-12-31",
         "phoenix:staff-schedule-42",
         "phoenix:time-tracking-holidays-2026-08-01-2026-08-31",
         "phoenix:time-tracking-closing-days-2026-08-01-2026-08-31",

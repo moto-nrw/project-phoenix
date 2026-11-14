@@ -257,6 +257,7 @@ export function ClosingDaysEditor({
                         {
                           label: "Bearbeiten",
                           icon: <Pencil className="h-4 w-4" aria-hidden />,
+                          description: "Öffnet den Schließtag zum Ändern",
                           onClick: () => beginEdit(day),
                         },
                       ]
@@ -266,6 +267,8 @@ export function ClosingDaysEditor({
                         {
                           label: "Termine absagen",
                           icon: <CalendarX className="h-4 w-4" aria-hidden />,
+                          description:
+                            "Sagt nach Rückfrage die Termine dieser Tage ab, ohne Nachricht an Eltern",
                           onClick: () =>
                             setCancelRange({
                               startDate: day.startDate,
@@ -281,6 +284,8 @@ export function ClosingDaysEditor({
                           label: "Löschen",
                           icon: <Trash2 className="h-4 w-4" aria-hidden />,
                           destructive: true,
+                          description:
+                            "moto fragt vorher nach und löscht dann den Schließtag",
                           onClick: () => setDeleting(day),
                         },
                       ]
@@ -338,6 +343,7 @@ export function ClosingDaysEditor({
             size="md"
             onClick={beginCreate}
             className="shrink-0 gap-2"
+            tooltip="Öffnet ein leeres Formular für einen neuen Schließtag."
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Schließtag anlegen

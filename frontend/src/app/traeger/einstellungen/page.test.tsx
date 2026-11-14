@@ -647,7 +647,7 @@ describe("TraegerSettingsPage", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Kontakt" }));
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "die Kontaktdaten"),
+        catalogText("general.unavailable", "die Angabe der Kontaktdaten"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();

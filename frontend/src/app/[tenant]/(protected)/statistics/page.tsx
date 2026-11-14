@@ -34,7 +34,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/types";
 import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -48,7 +48,8 @@ import {
   apiErrorFromResponse,
   transportFetch,
 } from "~/lib/api-error";
-import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getAccessibleTextColor } from "~/lib/kit-palette";
 import {
   berlinTodayISO,
   formatDate,
@@ -129,6 +130,15 @@ function retainAvailableValues(
   const retained = selected.filter((value) => available.has(value));
   return retained.length === selected.length ? selected : retained;
 }
+
+// Was der Export je Bereich enthält, für die Zeile unter dem Menüeintrag.
+const EXPORT_CONTENT: Record<StatisticsExportSection, string> = {
+  attendance: "die Kinder- und Gruppenzahlen",
+  rooms: "die Auslastung der Räume",
+  courses: "die Teilnahme je Kurs",
+  "course-students": "die Kurse je Kind",
+  occupancy: "die Zahlen nach Uhrzeit",
+};
 
 export default function StatisticsPage() {
   const tenantPath = useTenantAwarePath();
@@ -777,16 +787,23 @@ export default function StatisticsPage() {
     { kind: "header", label: "Exportieren" },
     ...(
       [
-        { format: "pdf", label: "PDF", Icon: Download },
-        { format: "xlsx", label: "Excel", Icon: FileSpreadsheet },
-        { format: "docx", label: "Word", Icon: FileText },
+        { format: "pdf", label: "PDF", file: "PDF", Icon: Download },
+        {
+          format: "xlsx",
+          label: "Excel",
+          file: "Excel-Datei",
+          Icon: FileSpreadsheet,
+        },
+        { format: "docx", label: "Word", file: "Word-Datei", Icon: FileText },
       ] as {
         format: StatisticsExportFormat;
         label: string;
+        file: string;
         Icon: typeof Download;
       }[]
-    ).map(({ format, label, Icon }) => ({
+    ).map(({ format, label, file, Icon }) => ({
       label: exporting === `${section}-${format}` ? "Wird exportiert…" : label,
+      description: `Lädt ${EXPORT_CONTENT[section]} des Zeitraums als ${file} herunter.`,
       icon: <Icon className="h-4 w-4" aria-hidden />,
       onClick: () => void downloadExport(format, section),
       disabled: !data || exporting !== null,
@@ -1019,7 +1036,7 @@ export default function StatisticsPage() {
                 onChange={setSchoolClasses}
                 placeholder="Alle Klassen"
                 summaryLabel={(count) => `${count} Klassen`}
-                controlSize="compact"
+                controlSize="dense"
                 className="md:w-44"
               />
               <MultiSelect
@@ -1029,7 +1046,7 @@ export default function StatisticsPage() {
                 onChange={setGroupIds}
                 placeholder="Alle Gruppen"
                 summaryLabel={(count) => `${count} Gruppen`}
-                controlSize="compact"
+                controlSize="dense"
                 className="md:w-56"
               />
             </div>

@@ -511,6 +511,7 @@ var planningErrorKinds = []struct {
 	{ErrShiftInvalid, workforce.ErrInvalidStaffShift},
 	{ErrShiftTypeNotFound, workforce.ErrShiftTypeNotFound},
 	{ErrShiftTypeInactive, workforce.ErrShiftTypeInactive},
+	{ErrShiftTypeArchived, workforce.ErrShiftTypeArchived},
 	{ErrSeriesNotFound, workforce.ErrShiftSeriesNotFound},
 	{ErrSeriesInvalid, workforce.ErrInvalidShiftSeries},
 }

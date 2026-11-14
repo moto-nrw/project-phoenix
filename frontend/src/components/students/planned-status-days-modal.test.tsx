@@ -548,7 +548,10 @@ describe("PlannedStatusDaysModal", () => {
       screen.getByRole("heading", { name: "Krankmeldung planen" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Kevin Anders")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Krankmelden" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Krankmelden" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
 
     fireEvent.click(screen.getByText("Einzeltag auswählen"));
     await clickEnabledButton("Krankmelden");
@@ -885,7 +888,10 @@ describe("PlannedStatusDaysModal", () => {
     expect(
       await screen.findByText("Bereits ab Uhrzeit entschuldigt"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Krankmelden" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Krankmelden" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -1054,7 +1060,10 @@ describe("PlannedStatusDaysModal", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Das Bis-Datum darf nicht vor dem Von-Datum liegen.",
     );
-    expect(screen.getByRole("button", { name: "Krankmelden" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Krankmelden" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -1085,7 +1094,10 @@ describe("PlannedStatusDaysModal", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Ein Zeitraum darf höchstens 366 Tage umfassen.",
     );
-    expect(screen.getByRole("button", { name: "Krankmelden" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Krankmelden" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(loadExistingDays).not.toHaveBeenCalled();
   });
 
@@ -1295,7 +1307,10 @@ describe("PlannedStatusDaysModal", () => {
         "Die Prüfung der vorhandenen Einträge ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
       );
     });
-    expect(screen.getByRole("button", { name: "Krankmelden" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Krankmelden" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("does not overwrite existing status days inside a range", async () => {

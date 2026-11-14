@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	exportTransferCompose "github.com/moto-ogs/project-phoenix/modules/exporttransfer/compose"
 	parentBillingCompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
 	securityRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/securityruntime/compose"
 	"github.com/moto-ogs/project-phoenix/tenant"
@@ -37,6 +38,9 @@ func TestBankDataRekeyJobOpensBothSourcesWithoutLegacy(t *testing.T) {
 	consentAAD := []byte(fmt.Sprintf("parent_billing.sepa_mandate_consents.text|%d|%s", org, reference))
 	consentText, err := legacy.Seal([]byte("Exactly the confirmed text"), consentAAD)
 	require.NoError(t, err)
+	recipientAAD := []byte(fmt.Sprintf("config.traeger_export_recipients.password|%d", org))
+	recipientPassword, err := legacy.Seal([]byte("synthetic-sftp-secret"), recipientAAD)
+	require.NoError(t, err)
 	require.NoError(t, db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, "SET LOCAL session_replication_role = replica"); err != nil {
 			return err
@@ -58,6 +62,11 @@ func TestBankDataRekeyJobOpensBothSourcesWithoutLegacy(t *testing.T) {
  'Synthetic creditor', 'Creditor street 1', 'Debtor street 2', '75175', 'City')`, org, mandateID, contractID, consentText); err != nil {
 			return err
 		}
+		// Two recipients (ADR 0222): batches of one reach both.
+		if _, err := tx.ExecContext(ctx, `INSERT INTO config.traeger_export_recipients (organization_id, name, password_sealed)
+ VALUES (?, 'Kämmerei', ?), (?, 'Steuerbüro', ?)`, org, recipientPassword, org, recipientPassword); err != nil {
+			return err
+		}
 		_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.sepa_debits
  (organization_id, mandate_id, care_contract_id, run_kind, run_id, care_invoice_id,
   invoice_number, amount_cents, due_on, sequence_type, creditor_id, mandate_reference,
@@ -70,7 +79,8 @@ func TestBankDataRekeyJobOpensBothSourcesWithoutLegacy(t *testing.T) {
 	transition, err := securityRuntimeCompose.NewBankDataCipher(bankKeys, legacyKeys)
 	require.NoError(t, err)
 	var output bytes.Buffer
-	require.NoError(t, runBankDataRekeyJob(ctx, parentBillingCompose.NewBankDataRekey(transition), org, 1, &output))
+	require.NoError(t, runBankDataRekeyJob(ctx, parentBillingCompose.NewBankDataRekey(transition), exportTransferCompose.NewRecipientRekey(transition), org, 1, &output))
+	require.Contains(t, output.String(), "source=export_recipients scanned_total=2 changed_total=2")
 	bankOnly, err := securityRuntimeCompose.NewBankDataCipher(bankKeys, "")
 	require.NoError(t, err)
 	var rows []struct {
@@ -95,8 +105,18 @@ func TestBankDataRekeyJobOpensBothSourcesWithoutLegacy(t *testing.T) {
 	plain, err := bankOnly.Open(sealedProof, consentAAD)
 	require.NoError(t, err)
 	require.Equal(t, "Exactly the confirmed text", string(plain))
+	var sealedPasswords [][]byte
+	require.NoError(t, db.NewRaw(`SELECT password_sealed FROM config.traeger_export_recipients WHERE organization_id = ? ORDER BY id`, org).
+		Scan(ctx, &sealedPasswords))
+	require.Len(t, sealedPasswords, 2)
+	for _, sealedPassword := range sealedPasswords {
+		plain, err = bankOnly.Open(sealedPassword, recipientAAD)
+		require.NoError(t, err)
+		require.Equal(t, "synthetic-sftp-secret", string(plain))
+	}
 	output.Reset()
-	require.NoError(t, runBankDataRekeyJob(ctx, parentBillingCompose.NewBankDataRekey(bankOnly), org, 1, &output))
+	require.NoError(t, runBankDataRekeyJob(ctx, parentBillingCompose.NewBankDataRekey(bankOnly), exportTransferCompose.NewRecipientRekey(bankOnly), org, 1, &output))
+	require.Contains(t, output.String(), "source=export_recipients scanned_total=2 changed_total=0")
 	require.Contains(t, output.String(), "source=mandates scanned_total=1 changed_total=0")
 	require.Contains(t, output.String(), "source=debits scanned_total=1 changed_total=0")
 	require.Contains(t, output.String(), "source=consents scanned_total=1 changed_total=0")

@@ -182,7 +182,7 @@ describe("AbwesenheitenTab Art ändern (#3258)", () => {
     // Krankmeldungen bekommen kein Häkchen.
     expect(within(list).getAllByRole("checkbox")).toHaveLength(2);
     const next = within(list).getByRole("button", { name: "Weiter" });
-    expect(next).toBeDisabled();
+    expect(next).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(
       within(list).getByRole("checkbox", {

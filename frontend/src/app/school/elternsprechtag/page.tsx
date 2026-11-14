@@ -57,6 +57,7 @@ import {
   type ParentConferenceSlot,
 } from "~/lib/parent-conferences";
 import { schoolClassLabel } from "~/lib/school-class-label";
+import { NO_OWN_CLASS_REASON } from "~/components/school/no-own-class";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
 import { schoolPortalKeys } from "~/lib/swr/portal-keys";
@@ -292,6 +293,8 @@ function SchoolParentConferences() {
           className="gap-1.5"
           onClick={openCreate}
           disabled={!!error || classes.length === 0}
+          disabledReason={noClasses ? NO_OWN_CLASS_REASON : undefined}
+          tooltip="Öffnet ein Formular für Zeitfenster, die Eltern dann buchen können."
         >
           <Plus className="h-4 w-4" aria-hidden />
           Neuer Elternsprechtag
@@ -344,7 +347,7 @@ function SchoolParentConferences() {
                         label="Tag"
                         id="parent-conference-date"
                         name="date"
-                        controlSize="lg"
+                        controlSize="large"
                         value={draft.date}
                         error={formErrors.fieldError("date")}
                         onChange={(next) => update({ date: next })}
@@ -503,6 +506,7 @@ function SchoolParentConferences() {
                 size="md"
                 className="gap-1.5"
                 onClick={() => window.print()}
+                tooltip="Öffnet das Druckfenster für die Liste der Zeitfenster."
               >
                 <Printer className="h-4 w-4" aria-hidden />
                 Drucken
@@ -512,6 +516,7 @@ function SchoolParentConferences() {
                 variant="outline"
                 size="md"
                 onClick={() => openEdit(selected)}
+                tooltip="Öffnet den Elternsprechtag zum Ändern."
               >
                 Ändern
               </Button>
@@ -523,6 +528,7 @@ function SchoolParentConferences() {
                   deleteErrors.clear();
                   setDeleteTarget(selected);
                 }}
+                tooltip="Löscht den Tag und sagt alle Buchungen ab. moto fragt vorher nach."
               >
                 Löschen
               </Button>

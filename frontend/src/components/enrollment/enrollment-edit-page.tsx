@@ -265,6 +265,11 @@ function EnrollmentEditPageContent({ params, adjustOnly = false }: Props) {
                 ? t("changeRequestSubmit")
                 : t("editSubmit")
           }
+          submitTooltip={
+            isChangeRequestMode
+              ? t("buttonHints.changeRequestSubmit")
+              : t("buttonHints.editSubmit")
+          }
         />
       </TenantProvider>
     </main>

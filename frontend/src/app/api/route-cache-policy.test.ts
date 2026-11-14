@@ -33,6 +33,7 @@ const PORTAL_PROXIES = ["proxyGet", "proxyPost", "proxyPut", "proxyPatch"];
  * `src/server/auth/portal-cache-control.test.ts`.
  */
 const POLICY_FACTORIES: Record<string, readonly string[]> = {
+  "~/lib/factor-routes.server": ["createFactorConfirmRoute"],
   "~/lib/login-route.server": ["createPortalLoginRoute"],
   "~/lib/logout-route.server": ["createLogoutRoute"],
   "~/lib/private-no-store": [
@@ -81,6 +82,7 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "createParentDeleteHandler",
     "createParentPutHandler",
     "createParentPatchHandler",
+    "createParentJsonProxy",
     "parent.route",
     "parent.proxyFile",
     "proxyFile",
@@ -91,6 +93,9 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "proxyDelete",
     "createSchoolDeleteHandler",
     "school.route",
+    // The portal's JSON pass-through, which the tenant, operator and caterer
+    // wrappers export under their own names (#6955).
+    "school.jsonProxy",
     "proxyFile",
     "proxyUpload",
   ],
@@ -105,6 +110,9 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "proxyDelete",
     "proxyFile",
     "proxyUpload",
+    // The builder under proxyDelete, for a removal that answers its result.
+    "traeger.del",
+    "traeger.jsonProxy",
   ],
   "~/lib/backend-proxy-route.server": ["createPublicJsonProxy"],
   "~/lib/auth-proxy.server": ["authStepProxy"],

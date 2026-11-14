@@ -101,6 +101,7 @@ export function CareContractSignatureCard({
               type="button"
               variant="outline"
               size="md"
+              tooltip="Öffnet ein Fenster, um den unterschriebenen Vertrag als PDF hochzuladen."
               onClick={() => setPaperOpen(true)}
             >
               <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -184,6 +185,7 @@ function SignatureDetails({
               type="button"
               variant="outline"
               size="md"
+              tooltip="Lädt das PDF des unterschriebenen Papiervertrags herunter."
               onClick={() => void downloadPaper()}
             >
               <Download className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -200,7 +202,7 @@ function SignatureDetails({
                 className="max-h-full max-w-full object-contain"
               />
             </div>
-            <figcaption className="text-xs text-gray-500">
+            <figcaption className="text-sm text-gray-500">
               Gespeicherte Unterschrift
             </figcaption>
           </figure>
@@ -216,7 +218,7 @@ function SignatureDetails({
         }
         className="[&>div]:min-w-0"
         details={
-          <p className="mt-2 text-xs">
+          <p className="mt-2 text-sm">
             Unterschriebenes PDF (SHA-256):{" "}
             <span className="font-mono break-all">
               {signature.documentSha256}

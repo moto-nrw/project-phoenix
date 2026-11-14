@@ -168,7 +168,7 @@ export default function AnfragenPage() {
     : (visibleTabs[0]?.id ?? "eltern");
 
   // Such- und Filterzustand des Eltern-Reiters lebt hier, weil Suche und
-  // Filterleiste in der Kopfzeile (PageHeaderWithSearch) hängen.
+  // Filterleiste in der Kopfzeile (TenantPage) hängen.
   const [view, setView] = useState<"open" | "history">("open");
   const [searchTerm, setSearchTerm] = useState("");
   const deferredSearch = useDeferredValue(searchTerm);
@@ -478,6 +478,8 @@ export default function AnfragenPage() {
           ? [
               {
                 label: "Neue Anfragen abonnieren",
+                description:
+                  "Zeigt Ihren persönlichen Link für neue Elternanfragen",
                 onClick: () => setRequestFeedOpen(true),
               },
             ]

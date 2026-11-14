@@ -523,6 +523,7 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record p
 			return copyErrorf("Kind aktualisieren: %w", err)
 		}
 	}
+	noteCohortChange(ctx, record, renewal.SchoolClass, patch)
 	if c.ConsentHistory != nil {
 		before := consentSnapshot(record.ID, record.AGBAcceptedAt, record.DataProcessingAcceptedAt, record.EmailContactAcceptedAt, record.PhotoConsentGivenAt)
 		if err := ports.ObserveCommand(ctx, "audit-platform", "record_consent_transitions", func() error {

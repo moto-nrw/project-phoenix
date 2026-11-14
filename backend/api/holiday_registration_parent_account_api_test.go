@@ -165,7 +165,8 @@ func TestHolidayRegistrationWithTheAccountProofLinksTheAccount(t *testing.T) {
 
 // The link to the parent account lives in the registration's row and goes
 // with it when the retention deletes the ended period's registrations (ADR
-// 0216 point 10, ADR 0118); the account stays.
+// 0216 point 10, ADR 0118); the account stays. The offer of an account goes
+// with the registration that asked for it (#7000).
 func TestHolidayRegistrationRetentionTakesTheAccountLinkAlong(t *testing.T) {
 	t.Parallel()
 	f := newHolidayRegistrationFixture(t)
@@ -181,8 +182,11 @@ func TestHolidayRegistrationRetentionTakesTheAccountLinkAlong(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, f.db, "holiday-retention-account")
 	proof, err := enrollmentCompose.NewHolidayParentAccountProofs(testHealthCipher()).HolidayParentAccountProof(office.organization, period.ID, account.ID)
 	require.NoError(t, err)
-	submitWithAccount(t, f, period.PublicToken, holidayOffer(t, f, period.PublicToken), "frist.konto@example.org", map[string]any{"parent_account_proof": proof})
-	require.Len(t, holidayRegistrationAccounts(t, f, office.organization), 1)
+	offer := holidayOffer(t, f, period.PublicToken)
+	submitWithAccount(t, f, period.PublicToken, offer, "frist.konto@example.org", map[string]any{"parent_account_proof": proof})
+	submitWithAccount(t, f, period.PublicToken, offer, "frist.angebot@example.org", map[string]any{"parent_account_requested": true})
+	require.Len(t, holidayRegistrationAccounts(t, f, office.organization), 2)
+	require.Len(t, holidayOfferMails(t, f, office.organization), 1, "the family that asked has an offer in the outbox")
 
 	ctx := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db))
 	require.NoError(t, tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
@@ -191,6 +195,11 @@ func TestHolidayRegistrationRetentionTakesTheAccountLinkAlong(t *testing.T) {
 	}))
 
 	assert.Empty(t, holidayRegistrationAccounts(t, f, office.organization), "the registration goes with its link")
+	assert.Empty(t, holidayOfferMails(t, f, office.organization), "the offer goes with its registration (#7000)")
+	var mails int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM platform.email_outbox
+		WHERE organization_id = ? AND related_entity_type = 'holiday_registration'`, office.organization).Scan(context.Background(), &mails))
+	assert.Zero(t, mails, "no mail of a deleted registration stays")
 	var accounts int
 	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM auth.accounts WHERE id = ?`, account.ID).Scan(context.Background(), &accounts))
 	assert.Equal(t, 1, accounts, "the account follows the rules of parent accounts, not the registration")
@@ -240,8 +249,8 @@ func TestHolidayRegistrationHandsTheSetupLinkOnlyToTheLocalSeeder(t *testing.T) 
 	assert.NotContains(t, remote, "parent_account_setup_url", "the seed header on another host exposes nothing")
 	withoutOffer := submitAsSeeder(t, f.public, period.PublicToken, "localhost:8080", siblingsRegistration(offer, "ohne.angebot@example.org"))
 	assert.NotContains(t, withoutOffer, "parent_account_setup_url", "no offer, no link")
-	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements"}, slices.Collect(maps.Keys(remote)))
-	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements"}, slices.Collect(maps.Keys(withoutOffer)))
+	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements", "status_token"}, slices.Collect(maps.Keys(remote)))
+	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements", "status_token"}, slices.Collect(maps.Keys(withoutOffer)))
 	offers := holidayOfferMails(t, f, office.organization)
 	assert.Len(t, offers, 2, "both registrations that asked got their offer")
 	for _, offerMail := range offers {
@@ -260,6 +269,6 @@ func TestHolidayRegistrationHandsNoSetupLinkInProduction(t *testing.T) {
 
 	data := submitAsSeeder(t, f.public, period.PublicToken, "localhost:8080", body)
 
-	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements"}, slices.Collect(maps.Keys(data)))
+	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements", "status_token"}, slices.Collect(maps.Keys(data)))
 	assert.Len(t, holidayOfferMails(t, f, office.organization), 1, "the offer still goes out by mail")
 }

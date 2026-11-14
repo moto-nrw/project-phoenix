@@ -130,7 +130,7 @@ describe("PickupExtensionDialog (#3261)", () => {
       screen.getByText(/Gilt für alle kommenden Dienstage\./),
     ).toBeInTheDocument();
     const submit = screen.getByRole("button", { name: "Eintragen" });
-    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(screen.getByRole("checkbox", { name: /AG Fußball/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Freies Spiel/ }));
@@ -192,7 +192,10 @@ describe("PickupExtensionDialog (#3261)", () => {
     expect(screen.queryByText("gone")).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
     expect(onStale).toHaveBeenCalledWith(dayTask());
-    expect(screen.getByRole("button", { name: "Eintragen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Eintragen" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     // Die alte Auswahl ist überholt: kein Wiederholen damit.
     expect(
       screen.queryByRole("button", { name: "Wiederholen" }),

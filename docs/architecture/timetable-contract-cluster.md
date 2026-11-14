@@ -106,13 +106,13 @@ remains at this base. Same-owner Timetable consumers are not foreign edges.
 
 | Importer | Scope | Legacy package | Symbols |
 |---|---|---|---|
-| `modules/studentpresence/internal/application/presence/attendance_mirror_integration_test.go` | `external_test` | `models/schedule` | `ActivityInstance`, `ActivityInstanceRepository`, `AttendanceStatusAbsent`, `AttendanceStatusExpected`, `AttendanceStatusPresent`, `AttendanceSubstatusExcused`, `AttendanceSubstatusLate`, `AttendanceSubstatusSick`, `InstanceStatusActive`, `InstanceStatusPlanned`, `InstanceStudent`, `InstanceStudentRepository`, `NewDate` |
-| `modules/studentpresence/internal/application/presence/attendance_sse_enrichment_test.go` | `external_test` | `models/schedule` | `AttendanceStatusExpected`, `AttendanceStatusPresent`, `InstanceStatusActive`, `InstanceStudent` |
-| `modules/studentpresence/internal/application/presence/presence_revision_rollback_test.go` | `external_test` | `models/schedule` | `AttendanceStatusExpected`, `InstanceStatusActive`, `InstanceStudentRepository` |
-| `modules/studentpresence/internal/application/presence/presence_slot_checkin_rollback_test.go` | `external_test` | `models/schedule` | `AttendanceStatusExpected`, `InstanceStudentKey`, `InstanceStudentRepository` |
-| `modules/studentpresence/internal/application/presence/presence_slot_checkout_rollback_test.go` | `external_test` | `models/schedule` | `AttendanceStatusPresent`, `InstanceStudentKey`, `InstanceStudentRepository` |
-| `modules/studentpresence/internal/application/presence/presence_visit_slot_checkin_rollback_test.go` | `external_test` | `models/schedule` | `AttendanceStatusExpected`, `InstanceStudent`, `InstanceStudentRepository` |
-| `modules/studentpresence/internal/application/presence/session_conflict_test.go` | `external_test` | `models/schedule` | `ActivityInstance`, `Date`, `InstanceStatusActive`, `InstanceStatusCompleted` |
+| `modules/studentpresence/internal/application/presence/behaviortest/attendance_mirror_integration_test.go` | `external_test` | `models/schedule` | `ActivityInstance`, `ActivityInstanceRepository`, `AttendanceStatusAbsent`, `AttendanceStatusExpected`, `AttendanceStatusPresent`, `AttendanceSubstatusExcused`, `AttendanceSubstatusLate`, `AttendanceSubstatusSick`, `InstanceStatusActive`, `InstanceStatusPlanned`, `InstanceStudent`, `InstanceStudentRepository`, `NewDate` |
+| `modules/studentpresence/internal/application/presence/behaviortest/attendance_sse_enrichment_test.go` | `external_test` | `models/schedule` | `AttendanceStatusExpected`, `AttendanceStatusPresent`, `InstanceStatusActive`, `InstanceStudent` |
+| `modules/studentpresence/internal/application/presence/behaviortest/presence_revision_rollback_test.go` | `external_test` | `models/schedule` | `AttendanceStatusExpected`, `InstanceStatusActive`, `InstanceStudentRepository` |
+| `modules/studentpresence/internal/application/presence/behaviortest/presence_slot_checkin_rollback_test.go` | `external_test` | `models/schedule` | `AttendanceStatusExpected`, `InstanceStudentKey`, `InstanceStudentRepository` |
+| `modules/studentpresence/internal/application/presence/behaviortest/presence_slot_checkout_rollback_test.go` | `external_test` | `models/schedule` | `AttendanceStatusPresent`, `InstanceStudentKey`, `InstanceStudentRepository` |
+| `modules/studentpresence/internal/application/presence/behaviortest/presence_visit_slot_checkin_rollback_test.go` | `external_test` | `models/schedule` | `AttendanceStatusExpected`, `InstanceStudent`, `InstanceStudentRepository` |
+| `modules/studentpresence/internal/application/presence/behaviortest/session_conflict_test.go` | `external_test` | `models/schedule` | `ActivityInstance`, `Date`, `InstanceStatusActive`, `InstanceStatusCompleted` |
 
 ## Consumer decisions
 

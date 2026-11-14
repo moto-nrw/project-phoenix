@@ -8,7 +8,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import type { Session } from "next-auth";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { FormRow } from "~/components/ui/form-row";
@@ -24,6 +23,7 @@ import {
   activeService,
   summarizeStudentMoveResult,
 } from "~/lib/active-service";
+import { canUseAllMoveTargets } from "~/lib/move-targets";
 import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
 import { fetchStudents } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
@@ -85,16 +85,6 @@ function buildSessionLabel(group: ActiveGroup): string {
   const roomName = group.room?.name ?? `Raum ${group.roomId}`;
   const activityName = group.actualGroup?.name;
   return activityName ? `${roomName} · ${activityName}` : roomName;
-}
-
-function canUseAllMoveTargets(session: Session | null): boolean {
-  const permissions = session?.user?.permissions ?? [];
-  return (
-    session?.user?.isAdmin === true ||
-    session?.user?.roles?.includes("admin") === true ||
-    permissions.includes("admin:*") ||
-    permissions.includes("*:*")
-  );
 }
 
 interface TransitStudentsSectionProps {
@@ -282,6 +272,16 @@ export function TransitStudentsSection({
   const totalCount = studentsData?.pagination?.total_records ?? students.length;
   const allSelected =
     students.length > 0 && selectedVisibleCount === students.length;
+  // Fachliche Sperre mit Grund; solange Räume laden, bleibt es ohne (#6643).
+  let assignBlockedReason: string | undefined;
+  if (selectedVisibleCount === 0) {
+    assignBlockedReason = "Wählen Sie zuerst mindestens ein Kind aus.";
+  } else if (!targetsLoading && targetOptions.length === 0) {
+    assignBlockedReason =
+      "Gerade gibt es keinen Raum, in den Sie Kinder setzen können.";
+  } else if (!targetsLoading && !targetValue) {
+    assignBlockedReason = "Wählen Sie zuerst einen Zielraum.";
+  }
   // Die Kindakte kehrt auf die Seite „Unterwegs" zurück (#3115); ihre
   // Abfrage (etwa der Rückweg zur Übersicht) reist mit.
   const defaultFromReferrer = (() => {
@@ -475,6 +475,11 @@ export function TransitStudentsSection({
                       variant="outline"
                       size="compact"
                       onClick={allSelected ? clearSelection : selectAllVisible}
+                      tooltip={
+                        allSelected
+                          ? "Hebt die Auswahl aller Kinder auf."
+                          : "Wählt alle Kinder aus, die gerade unterwegs sind."
+                      }
                       className="shrink-0"
                     >
                       {allSelected ? "Aufheben" : "Alle auswählen"}
@@ -517,6 +522,8 @@ export function TransitStudentsSection({
                     disabled={
                       !targetValue || selectedVisibleCount === 0 || submitting
                     }
+                    tooltip="Setzt die ausgewählten Kinder sofort in den Zielraum."
+                    disabledReason={assignBlockedReason}
                     className="w-full sm:w-auto"
                   >
                     In Raum setzen
@@ -594,7 +601,7 @@ export function TransitStudentsSection({
                           )
                         }
                         aria-label={`${fullName} Profil öffnen`}
-                        title="Profil öffnen"
+                        tooltip="Öffnet die Akte des Kindes."
                         className="shrink-0"
                       >
                         Profil

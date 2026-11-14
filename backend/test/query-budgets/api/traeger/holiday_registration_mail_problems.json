@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.holiday_registration_mail_problems",
+  "max": 6,
+  "exact": true,
+  "description": "modules/enrollment with modules/delivery — GET\n/traeger/holiday-periods/{id}/registrations/mail-problems (#6737): the\nTräger binding of the Träger transaction, the period with its weeks and\ntime models, the IDs of its registrations with the keys of\ntheir closing day notices, and every mail of them at Delivery by\nregistration and key (#6976). Flat in the number of\nregistrations.",
+  "route": "GET /traeger/holiday-periods/{id}/registrations/mail-problems"
+}

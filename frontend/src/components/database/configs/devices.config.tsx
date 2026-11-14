@@ -59,6 +59,11 @@ function ApiKeyField({ device }: Readonly<{ device: Device }>) {
           variant="outline"
           size="compact"
           onClick={() => setVisible((value) => !value)}
+          tooltip={
+            visible
+              ? "Verbirgt den Schlüssel wieder hinter Punkten."
+              : "Zeigt den Schlüssel lesbar auf dem Bildschirm."
+          }
         >
           {visible ? "Verbergen" : "Anzeigen"}
         </Button>
@@ -75,6 +80,7 @@ function ApiKeyField({ device }: Readonly<{ device: Device }>) {
               }
             });
           }}
+          tooltip="Kopiert den Schlüssel, damit Sie ihn am Gerät einfügen."
         >
           {copied ? "Kopiert" : "Kopieren"}
         </Button>

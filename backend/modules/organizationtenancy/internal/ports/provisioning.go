@@ -91,7 +91,8 @@ type ProvisioningPeople interface {
 	// counted by School Membership's rule on today's Berlin calendar day.
 	CountChildQuotaByTenant(ctx context.Context) (map[int64]int, error)
 	ListPersons(ctx context.Context, tenantIDs []int64) ([]domain.PersonListing, error)
-	// FindPerson reads one non-deleted person of any school.
+	// FindPerson reads and locks one non-deleted person of any school, so a
+	// profile attached concurrently is visible to the deletion check (#6949).
 	FindPerson(ctx context.Context, id int64) (domain.Person, bool, error)
 	// FindStaff reads the staff record of the person, found=false when the
 	// person is no staff member.

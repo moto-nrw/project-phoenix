@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -339,6 +345,14 @@ describe("TraegerVertragPage", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: /Vertrag senden/ }),
     );
+    // Sending mails the parents and cannot be taken back: it asks first.
+    expect(api.sendCareContracts).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole("dialog", {
+      name: "Vertrag senden?",
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Vertrag senden" }),
+    );
 
     await waitFor(() =>
       expect(api.sendCareContracts).toHaveBeenCalledWith(["7"]),
@@ -375,15 +389,21 @@ describe("TraegerVertragPage", () => {
 
       expect(await screen.findByText(text)).toBeInTheDocument();
       expect(screen.queryByText(/Prüfen Sie die Adresse/)).toBeNull();
-      expect(
-        screen.getByRole("button", { name: "Erneut senden" }),
-      ).toBeDisabled();
+      const resend = screen.getByRole("button", { name: "Erneut senden" });
+      expect(resend).toHaveAttribute("aria-disabled", "true");
+      expect(resend).toHaveAccessibleDescription(expect.stringMatching(/\S/));
+      fireEvent.click(resend);
+      expect(api.sendCareContracts).not.toHaveBeenCalled();
     },
   );
 
   it.each([
     ["unsubscribed", "Abgemeldet", /abgemeldet/],
-    ["complained", "Nicht zustellbar", /unerwünscht/],
+    [
+      "complained",
+      "Als unerwünscht gemeldet",
+      /hat eine Mail als unerwünscht gemeldet/,
+    ],
   ] as const)(
     "does not read a %s mail as sent",
     async (outcome, label, text) => {
@@ -449,10 +469,11 @@ describe("TraegerVertragPage", () => {
     renderPage();
     expect(
       await screen.findByRole("button", { name: "Erneut senden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText(/Die Mail wartet auf den Versand/),
     ).toBeInTheDocument();
+    // Checking the delivery sits with the mail history in „Versand“.
     fireEvent.click(
       screen.getByRole("button", { name: "Versand aktualisieren" }),
     );
@@ -585,15 +606,28 @@ describe("TraegerVertragPage", () => {
       screen.getByText("So steht es im abgeschlossenen Vertrag."),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Aktiv")[0]).toBeInTheDocument();
+    // An active contract shows its download in the head; resending sits
+    // with the mail history in „Versand“. A concluded contract offers no
+    // discarding.
     expect(
-      screen.getByRole("button", { name: /PDF herunterladen/ }),
+      screen.getByRole("button", { name: "PDF herunterladen" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Erneut senden" }),
+      screen.getByRole("button", { name: /Erneut senden/ }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: /Entwurf verwerfen/ }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Entwurf verwerfen/ }),
     ).not.toBeInTheDocument();
+    // Resending asks first and names the recipient.
+    fireEvent.click(screen.getByRole("button", { name: /Erneut senden/ }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Vertrag noch einmal senden?",
+    });
+    expect(within(dialog).getByText(/erika@example\.org/)).toBeInTheDocument();
+    expect(api.resendCareContract).not.toHaveBeenCalled();
   });
 
   it("shows the versions of an active contract and from when a change applies", async () => {
@@ -767,6 +801,12 @@ describe("TraegerVertragPage", () => {
       });
       resetPageReloads();
       fireEvent.click(send);
+      // Sending asks first: confirm in the dialog.
+      fireEvent.click(
+        within(
+          await screen.findByRole("dialog", { name: "Vertrag senden?" }),
+        ).getByRole("button", { name: "Vertrag senden" }),
+      );
       if (status === 403) {
         // #6801: the page loads anew; its first load shows the refusal.
         await expectPageReloadedAfterRefusal();
@@ -819,6 +859,12 @@ describe("TraegerVertragPage", () => {
         .mockResolvedValue({ ...DRAFT, status: "versendet" });
 
       fireEvent.click(sendButton);
+      // Sending asks first: confirm in the dialog.
+      fireEvent.click(
+        within(
+          await screen.findByRole("dialog", { name: "Vertrag senden?" }),
+        ).getByRole("button", { name: "Vertrag senden" }),
+      );
 
       expect(await screen.findByText(reloadText)).toBeInTheDocument();
       expect(api.sendCareContracts).toHaveBeenCalledTimes(1);

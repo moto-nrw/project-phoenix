@@ -140,7 +140,7 @@ describe("BillingMailCard", () => {
   it.each([
     ["provider_blocked", "Nicht gesendet"],
     ["unsubscribed", "Abgemeldet"],
-    ["complained", "Nicht zustellbar"],
+    ["complained", "Als unerwünscht gemeldet"],
   ] as const)(
     "points to the print and offers no useless resend while the provider holds %s",
     async (mailOutcome, label) => {
@@ -279,7 +279,7 @@ describe("BillingMailCard", () => {
     );
     expect(
       await screen.findByText(
-        "1 Mail(s) werden jetzt gesendet. 1 Familie(n) ohne Mail-Adresse: Bitte drucken Sie deren Schreiben.",
+        "1 Mail wird jetzt gesendet. 1 Familie hat keine Mail-Adresse: Bitte drucken Sie ihr Schreiben.",
       ),
     ).toBeInTheDocument();
     await waitFor(() =>

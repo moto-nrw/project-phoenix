@@ -1,3 +1,5 @@
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
+
 const SIZE_CLASS = {
   xs: "h-3 w-0.5",
   sm: "h-3 w-1",
@@ -5,8 +7,8 @@ const SIZE_CLASS = {
   lg: "h-9 w-1",
 } as const;
 
-/** Neutrale Kante für Einträge ohne Farbe (UNTYPED_EDGE_COLOR). */
-export const COLOR_BAR_FALLBACK = "#D1D5DB";
+/** Neutrale Kante für Einträge ohne Farbe, auch für Planblöcke ohne Schichtart. */
+export const COLOR_BAR_FALLBACK = MOTO_COLOR_PALETTE.neutral.muted;
 
 /**
  * Senkrechter Farbbalken als Typkennzeichen einer Zeile, etwa die Schichtart.

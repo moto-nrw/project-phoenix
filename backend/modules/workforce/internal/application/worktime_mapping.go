@@ -36,6 +36,7 @@ func modelToPublic(value domain.WorkTimeModel) workforce.WorkTimeModel {
 	model := workforce.WorkTimeModel{
 		ID: value.ID, TenantID: value.TenantID, Name: value.Name,
 		RotationLength: value.RotationLength, RotationAnchorDate: value.RotationAnchorDate,
+		ArchivedAt: value.ArchivedAt,
 	}
 	if value.Entries == nil {
 		return model

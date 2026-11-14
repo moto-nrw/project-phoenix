@@ -19,6 +19,8 @@ import {
   type HolidayRegistrationDetail,
   uploadHolidayProof,
 } from "~/lib/traeger-holiday-registrations-api";
+import { documentsConcept } from "~/lib/concepts/documents";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "HolidayRegistrationProofCard" });
 
@@ -67,6 +69,7 @@ export function HolidayRegistrationProofCard({
 
   return (
     <SectionCard
+      leading={<ConceptIconTile concept={documentsConcept} />}
       title="Nachweis für den Leistungsbezug"
       actions={
         canUpload ? (
@@ -91,6 +94,7 @@ export function HolidayRegistrationProofCard({
               className="gap-2"
               isLoading={uploading}
               loadingText="Lädt hoch …"
+              tooltip="Wählt eine PDF oder ein Foto und lädt es sofort als Nachweis hoch."
               onClick={() => fileRef.current?.click()}
             >
               <Upload className="h-4 w-4" aria-hidden="true" />

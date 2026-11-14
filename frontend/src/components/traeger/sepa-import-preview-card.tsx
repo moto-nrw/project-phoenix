@@ -6,6 +6,7 @@
 // hier; moto rät das nie. Übernommen werden nur die bereiten Zeilen.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -84,10 +85,19 @@ function SequenceCell({
 function NotesCell({ row }: Readonly<{ row: ImportRow }>) {
   const lines = [
     ...row.problems.map(importProblemText),
-    // A hint matters only for a row the import can take over.
-    ...(row.problems.length === 0 ? row.hints.map(importHintText) : []),
+    // A hint matters only for a row the import can take over; a sibling's
+    // row of the same mandate is not one (#7009).
+    ...(row.problems.length === 0 && row.status !== "same_mandate"
+      ? row.hints.map(importHintText)
+      : []),
   ];
   if (row.status === "duplicate") lines.unshift("Dieses Mandat gibt es schon.");
+  if (row.status === "same_mandate" && row.sameMandateLine !== null) {
+    // Siblings of one family share its mandate (#7009).
+    lines.unshift(
+      `Gleiches Mandat wie Zeile ${row.sameMandateLine}. moto legt es einmal an.`,
+    );
+  }
   const debtor = importDebtorNumberText(row);
   if (debtor) lines.push(debtor);
   if (lines.length === 0) return <span className="text-gray-400">–</span>;
@@ -98,6 +108,16 @@ function NotesCell({ row }: Readonly<{ row: ImportRow }>) {
       ))}
     </ul>
   );
+}
+
+/**
+ * Rows without IBAN and reference are children whose family pays without
+ * a mandate (#7009): only number conflicts appear as rows.
+ */
+function withoutMandateText(count: number): string {
+  return count === 1
+    ? "1 Zeile ohne Mandat: Sie hat keine IBAN und keine Mandatsreferenz. moto legt dafür kein Mandat an. Fehlende Debitorennummern werden übernommen, solange es keinen Konflikt gibt. Konflikte sehen Sie mit Zeilennummer unten."
+    : `${count} Zeilen ohne Mandat: Sie haben keine IBAN und keine Mandatsreferenz. moto legt dafür kein Mandat an. Fehlende Debitorennummern werden übernommen, solange es keinen Konflikt gibt. Konflikte sehen Sie mit Zeilennummer unten.`;
 }
 
 export function SepaImportPreviewCard({
@@ -155,7 +175,10 @@ export function SepaImportPreviewCard({
     { value: "ready", label: `Bereit ${counts.ready + counts.imported}` },
     { value: "clarify", label: `Klären ${counts.clarify}` },
     { value: "problems", label: `Fehler ${counts.conflict + counts.invalid}` },
-    { value: "duplicate", label: `Vorhanden ${counts.duplicate}` },
+    {
+      value: "duplicate",
+      label: `Vorhanden ${counts.duplicate + counts.same_mandate}`,
+    },
   ];
 
   const columns: DataTableColumn<ImportRow>[] = [
@@ -166,7 +189,6 @@ export function SepaImportPreviewCard({
         <span className="text-gray-500 tabular-nums">{row.line}</span>
       ),
       sortValue: (row) => row.line,
-      stacked: "hidden",
     },
     {
       key: "family",
@@ -258,6 +280,12 @@ export function SepaImportPreviewCard({
             size="md"
             onClick={onApply}
             disabled={disabled || importable === 0}
+            disabledReason={
+              disabled
+                ? "Übernehmen geht erst, wenn moto die Datei geprüft hat."
+                : "In der Datei ist keine Zeile bereit zum Übernehmen."
+            }
+            tooltip="Übernimmt die bereiten Zeilen sofort in die Verträge der Familien."
             isLoading={applying}
             loadingText="Wird übernommen …"
           >
@@ -266,6 +294,13 @@ export function SepaImportPreviewCard({
         </div>
       }
     >
+      {counts.withoutMandate > 0 ? (
+        <Alert
+          type="info"
+          className="mb-4"
+          message={withoutMandateText(counts.withoutMandate)}
+        />
+      ) : null}
       <div ref={filtersRef} className="mb-4">
         <SegmentedControl
           ariaLabel="Zeilen zeigen"

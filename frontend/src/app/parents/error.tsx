@@ -43,7 +43,12 @@ export default function ParentError({
           retry: { label: catalog("retry"), onClick: retry },
         }}
       />
-      <ButtonLink href={parentPath("/parents")} variant="outline" size="md">
+      <ButtonLink
+        href={parentPath("/parents")}
+        variant="outline"
+        size="md"
+        tooltip={t("homeTooltip")}
+      >
         {t("home")}
       </ButtonLink>
     </ParentPage>

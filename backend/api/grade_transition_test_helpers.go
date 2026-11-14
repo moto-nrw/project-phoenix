@@ -51,6 +51,10 @@ func NewGradeTransitionTestModule(db transactionruntime.Database, resync Offerin
 		resync = func(context.Context, timezone.Date) error { return nil }
 	}
 	clock := OptionalClock(clocks)
+	cohorts, err := owners.NewTimetableCohortRosters(tt.Repositories, people, nil, slog.Default())
+	if err != nil {
+		return GradeTransitionTestModule{}, err
+	}
 	recurrenceLock, err := owners.NewTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
@@ -64,6 +68,7 @@ func NewGradeTransitionTestModule(db transactionruntime.Database, resync Offerin
 		Rosters:               tt.RosterMaintenance(slog.Default(), clock),
 		LockRecurrenceWrites:  recurrenceLock.LockRecurrenceWrites,
 		ResyncOfferingRosters: resync,
+		FollowClassChanges:    gradeTransitionClassChanges(cohorts),
 		Audit:                 command, ClassListEntryRecord: GradeTransitionClassListRecord, Clock: clock,
 	})
 	if err != nil {

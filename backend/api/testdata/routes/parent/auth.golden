@@ -1,3 +1,5 @@
 POST /parent/auth/login
+POST /parent/auth/mfa/resend
+POST /parent/auth/mfa/verify
 POST /parent/auth/password-reset
 POST /parent/auth/password-reset/confirm

@@ -193,8 +193,8 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: ({
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: ({
     actionButton,
     mobileActionButton,
   }: {
@@ -208,11 +208,11 @@ vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
   ),
 }));
 
-vi.mock("@/components/ui/location-badge", () => ({
+vi.mock("@/components/students/presence/location-badge", () => ({
   LocationBadge: () => <span />,
 }));
 
-vi.mock("@/components/ui/student-presence-badge", () => ({
+vi.mock("@/components/students/presence/student-presence-badge", () => ({
   StudentPresenceBadge: () => <span />,
 }));
 
@@ -540,8 +540,14 @@ describe("StudentSearchPage — school check-in wiring", () => {
     });
 
     expect(screen.getByText("0 ausgewählt")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Anmelden/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Abmelden/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Anmelden/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /Abmelden/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("marks only the requested bulk action as running until it settles", async () => {
@@ -794,7 +800,7 @@ describe("StudentSearchPage — school check-in wiring", () => {
 
       expect(
         screen.getByRole("button", { name: "Alle 3 auswählen" }),
-      ).toBeDisabled();
+      ).toHaveAttribute("aria-disabled", "true");
     });
 
     it("names the children still missing after Anmelden", async () => {

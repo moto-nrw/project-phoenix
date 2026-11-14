@@ -110,6 +110,7 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
   { href: "/database/planning-tracks", label: "Planungsspuren" },
   { href: "/database/shift-types", label: "Dienstarten" },
   { href: "/database/absence-types", label: "Abwesenheitsarten" },
+  { href: "/database/work-time-models", label: "Arbeitszeitmodelle" },
   { href: "/database/qualification-types", label: "Nachweisarten" },
   // „Gruppendaten", nicht „Gruppen": im Tagesbetrieb heißt die Auswahl der
   // Gruppen am laufenden Tag schon „Gruppen" (#4351). Dieselbe Trennung wie
@@ -160,6 +161,7 @@ export const DATABASE_PAGE_PERMISSIONS: Readonly<
   "/database/planning-tracks": "schedules:manage",
   "/database/shift-types": "time_tracking:manage",
   "/database/absence-types": "time_tracking:manage",
+  "/database/work-time-models": "time_tracking:manage",
   "/database/qualifications": "staff:stammdaten",
   "/database/qualification-types": "staff:stammdaten",
   "/database/groups": "groups:manage",

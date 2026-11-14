@@ -83,7 +83,7 @@ type PhaseRecords interface {
 	Schema(context.Context, int64) (*enrollment.FormSchema, error)
 	CountPhaseRequests(context.Context, int64) (int, error)
 	CountCreatedStudentsByPhase(context.Context, int64) (int, error)
-	RemovePhase(context.Context, int64) (int, error)
+	RemovePhase(context.Context, int64) error
 	PhaseResponseChildren(ctx context.Context, phaseID int64, statuses []string) ([]enrollment.PhaseResponseChild, error)
 	StudentCarePeriodsByStudentIDs(ctx context.Context, studentIDs []int64) ([]*enrollment.StudentCarePeriod, error)
 	UpdateChildActivationPlan(ctx context.Context, id int64, mode string, on *enrollment.Date) error

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-ogs/project-phoenix/tenant"
@@ -41,6 +42,7 @@ func (t SchoolAbsenceReports) RecordSchoolAbsenceReport(ctx context.Context, stu
 	}
 	tenantID := tenant.FromContext(ctx)
 	wc := t.writeContext(tenantID, status, inClass)
+	wc.ActorAccountID = &actorAccountID
 	if t.morning == nil {
 		return errors.New("school absence reports: morning absence guard not configured")
 	}
@@ -70,6 +72,7 @@ func (t SchoolAbsenceReports) WithdrawSchoolAbsenceReport(ctx context.Context, s
 			continue
 		}
 		wc := t.writeContext(tenant.FromContext(ctx), row.Status, inClass)
+		wc.ActorAccountID = sessiontoken.ActorAccountIDFromCtx(ctx)
 		if err := t.rs.StudentStatusDayService.DeleteStatusDay(ctx, wc, row.ID, studentID); err != nil {
 			return "", err
 		}

@@ -19,6 +19,11 @@ vi.mock("~/lib/traeger-finance-exports-api", async (importOriginal) => ({
   ...api,
 }));
 vi.mock("~/lib/file-download", () => files);
+// The recipient of the handover (ADR 0218) is tested on its own.
+vi.mock("~/lib/traeger-export-handovers-api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  fetchExportRecipients: () => new Promise(() => undefined),
+}));
 vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
 
 const RUN: ExportRun = {
@@ -226,8 +231,10 @@ it("names the missing DATEV values and keeps the DATEV download off", async () =
     screen.getByRole("link", { name: "DATEV-Werte eintragen" }),
   ).toHaveAttribute("href", "/traeger/einstellungen?bereich=datev");
   const button = screen.getAllByRole("button", DATEV_BUTTON)[0]!;
-  expect(button).toBeDisabled();
-  expect(button).toHaveAttribute("aria-describedby", "datev-readiness");
+  expect(button).toHaveAttribute("aria-disabled", "true");
+  expect(button.getAttribute("aria-describedby")?.split(" ")[0]).toBe(
+    "datev-readiness",
+  );
   expect(
     screen.getAllByRole("button", {
       name: "Sollstellung von Monatsbeiträge Oktober 2026 herunterladen",
@@ -411,8 +418,8 @@ it("repeats every DATEV booking only after the warning", async () => {
     (await screen.findAllByText("Alles exportiert")).length,
   ).toBeGreaterThan(0);
   const button = screen.getAllByRole("button", DATEV_BUTTON)[0]!;
-  expect(button).toBeDisabled();
-  const reason = button.getAttribute("aria-describedby");
+  expect(button).toHaveAttribute("aria-disabled", "true");
+  const reason = button.getAttribute("aria-describedby")?.split(" ")[0];
   expect(reason).toBe("datev-state-care-runs-7");
   expect(document.getElementById(reason!)).toHaveTextContent(
     "Zuletzt Nr. 12 am 09.11.2026",

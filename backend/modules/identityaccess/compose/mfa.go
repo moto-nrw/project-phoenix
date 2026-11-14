@@ -40,7 +40,7 @@ func newMFACore(
 		PermissionGranted: deps.PermissionGranted,
 		Records:           records, Settings: deps.Settings,
 		Codec: application.MFAChallengeCodec{Source: deps.Codec}, Codes: deps.Codes, Mail: application.MFAMail{Source: deps.Mail},
-		Audit: trail, Runtime: runtime, Secret: secret, Logger: deps.Logger, ResetNotice: application.ResetNoticeOf(deps.ResetNotice),
+		Audit: trail, Runtime: runtime, Secret: secret, Logger: deps.Logger, ResetNotice: application.ResetNoticeOf(deps.ResetNotice), Traeger: sessions.Traeger, SecurityNotice: deps.SecurityNotice,
 	})
 	if err != nil {
 		return application.MFAFlows{}, err

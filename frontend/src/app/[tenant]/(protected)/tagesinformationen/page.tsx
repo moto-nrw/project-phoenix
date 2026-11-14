@@ -110,6 +110,7 @@ export default function TagesinformationenPage() {
     return [
       {
         label: "Bearbeiten",
+        description: "Öffnet den Hinweis zum Ändern.",
         icon: <Pencil className="h-4 w-4" aria-hidden />,
         onClick: () => {
           setEditing(notice);
@@ -120,6 +121,7 @@ export default function TagesinformationenPage() {
         ? [
             {
               label: "Wer hat bestätigt?",
+              description: "Zeigt, wer die Information schon bestätigt hat.",
               icon: <Users className="h-4 w-4" aria-hidden />,
               badge: acknowledged,
               onClick: () => setShowingAcks(notice),
@@ -129,6 +131,8 @@ export default function TagesinformationenPage() {
       { kind: "separator" },
       {
         label: "Löschen",
+        description:
+          "Entfernt die Information für alle. moto fragt vorher nach.",
         icon: <Trash2 className="h-4 w-4" aria-hidden />,
         destructive: true,
         onClick: () => {
@@ -206,6 +210,7 @@ export default function TagesinformationenPage() {
               setEditing(null);
               setModalOpen(true);
             }}
+            tooltip="Öffnet ein Fenster für einen neuen Hinweis."
           >
             Neuer Hinweis
           </Button>

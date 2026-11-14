@@ -66,7 +66,7 @@ func (p ExcusedParentRequests) WriteStaffValue(ctx context.Context, write ports.
 		return careplan.ErrAbsenceRequestInvalidStatus
 	}
 	return ExcusedParentRequestError(p.Requests.WriteStaffValue(ctx, careplan.ExcusedStaffValueWrite{
-		StudentID: write.StudentID, RequestIDs: write.RequestIDs, Reason: write.Reason, Status: status,
+		StudentID: write.StudentID, RequestIDs: write.RequestIDs, Reason: write.Reason, Status: status, ReviewerID: write.ReviewerID,
 	}))
 }
 

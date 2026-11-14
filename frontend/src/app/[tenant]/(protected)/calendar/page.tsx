@@ -20,6 +20,7 @@ import {
   calendarEmptyLabel,
   calendarFetchRange,
   CalendarOverviewList,
+  NEW_APPOINTMENT_HINT,
   PersonalCalendar,
   PersonalCalendarChrome,
   visibleCalendarEvents,
@@ -96,6 +97,12 @@ import { useSWRAuth } from "~/lib/swr";
 import { useCalDAVEnabled } from "~/lib/tenant-context";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { OverviewVisibilityPicker } from "~/components/calendar/overview-visibility-picker";
+import {
+  answerSavedMessage,
+  applyAnswer,
+  formatOccurrenceDay,
+} from "~/lib/calendar-answers";
 
 type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
@@ -491,11 +498,15 @@ function StaffCalendarPageInner() {
       scope: "occurrence" | "series",
     ) => void
   >(() => undefined);
-  const latestOverviewRef = useRef<(appointmentId: string) => void>(
-    () => undefined,
-  );
+  const latestOverviewRef = useRef<
+    (appointmentId: string, occurrenceDate?: string) => void
+  >(() => undefined);
   const latestRespondRef = useRef<
-    (recipientId: string, status: "accepted" | "declined") => void
+    (
+      recipientId: string,
+      status: "accepted" | "declined",
+      occurrenceDate?: string,
+    ) => void
   >(() => undefined);
   const [respondingRecipientId, setRespondingRecipientId] = useState<
     string | null
@@ -708,7 +719,10 @@ function StaffCalendarPageInner() {
     setDeleteTarget(event);
   };
 
-  const handleShowOverview = async (appointmentId: string) => {
+  const handleShowOverview = async (
+    appointmentId: string,
+    occurrenceDate?: string,
+  ) => {
     // Clear any previous appointment's attendees so a failed/slow request
     // can't leave the old overview visible under a different appointment.
     setOverview(null);
@@ -716,14 +730,16 @@ function StaffCalendarPageInner() {
     setOverviewFailed(false);
     setOverviewLoading(true);
     try {
-      setOverview(await getStaffAppointmentOverview(appointmentId));
+      setOverview(
+        await getStaffAppointmentOverview(appointmentId, occurrenceDate),
+      );
     } catch (err) {
       setOverview(null);
       setOverviewFailed(true);
       logFailure("calendar_appointment_overview_failed", err);
       void overviewLoadError.show(err, {
         object: "die Teilnehmerübersicht",
-        retry: () => latestOverviewRef.current(appointmentId),
+        retry: () => latestOverviewRef.current(appointmentId, occurrenceDate),
       });
     } finally {
       setOverviewLoading(false);
@@ -733,34 +749,33 @@ function StaffCalendarPageInner() {
   const handleRespond = async (
     recipientId: string,
     status: "accepted" | "declined",
+    occurrenceDate?: string,
   ) => {
     setRespondingRecipientId(recipientId);
     try {
-      await respondStaffCalendar(recipientId, status);
-      // Die gespeicherte Antwort gilt sofort im Raster. Wer den Termin vor dem
+      await respondStaffCalendar(recipientId, status, occurrenceDate);
+      // Die gespeicherte Antwort gilt sofort im Raster: für den einen Termin
+      // oder für alle Termine der Reihe (#6987). Wer den Termin vor dem
       // Neuladen wieder öffnet, sähe sonst noch die alte Antwort.
       void mutate(
         (current) =>
           current && {
             ...current,
-            events: current.events.map((event) =>
-              event.recipient_id === recipientId
-                ? { ...event, response_status: status }
-                : event,
-            ),
+            events: applyAnswer(current.events, {
+              recipientId,
+              occurrenceDate,
+              status,
+            }),
           },
         { revalidate: false },
       );
-      toast.success(
-        status === "accepted"
-          ? "Ihre Zusage ist gespeichert."
-          : "Ihre Absage ist gespeichert.",
-      );
+      toast.success(answerSavedMessage(status, occurrenceDate));
     } catch (err) {
       logFailure("calendar_response_failed", err);
       void showActionError(err, {
         object: "das Speichern Ihrer Antwort",
-        retry: () => latestRespondRef.current(recipientId, status),
+        retry: () =>
+          latestRespondRef.current(recipientId, status, occurrenceDate),
       });
       return;
     } finally {
@@ -881,10 +896,10 @@ function StaffCalendarPageInner() {
     latestEditRef.current = (event) => void handleEdit(event);
     latestRunScopeRef.current = (event, mode, scope) =>
       void runScope(event, mode, scope);
-    latestOverviewRef.current = (appointmentId) =>
-      void handleShowOverview(appointmentId);
-    latestRespondRef.current = (recipientId, status) =>
-      void handleRespond(recipientId, status);
+    latestOverviewRef.current = (appointmentId, occurrenceDate) =>
+      void handleShowOverview(appointmentId, occurrenceDate);
+    latestRespondRef.current = (recipientId, status, occurrenceDate) =>
+      void handleRespond(recipientId, status, occurrenceDate);
   });
 
   const appointmentEvents = useMemo(
@@ -1021,6 +1036,7 @@ function StaffCalendarPageInner() {
             size="md"
             className="gap-1.5"
             onClick={handleCreate}
+            tooltip={NEW_APPOINTMENT_HINT}
           >
             <Plus className="h-4 w-4" aria-hidden />
             Neuer Termin
@@ -1107,7 +1123,7 @@ function StaffCalendarPageInner() {
                         label="Startdatum"
                         id="calendar-start-date"
                         name="start_date"
-                        controlSize="lg"
+                        controlSize="large"
                         value={startDate}
                         error={formErrors.fieldError("start_date")}
                         onChange={(next) => {
@@ -1123,7 +1139,7 @@ function StaffCalendarPageInner() {
                         label="Enddatum"
                         id="calendar-end-date"
                         name="end_date"
-                        controlSize="lg"
+                        controlSize="large"
                         value={endDate}
                         error={formErrors.fieldError("end_date")}
                         min={startDate}
@@ -1196,51 +1212,40 @@ function StaffCalendarPageInner() {
                       disabled={submitting}
                     />
 
-                    <div
-                      className={`grid gap-4 ${editingId ? "" : "md:grid-cols-2"}`}
-                    >
-                      {!editingId ? (
-                        <CustomSelect
-                          id="calendar-delivery-mode"
-                          label="Antwortregel"
-                          value={deliveryMode}
-                          onChange={(next) =>
-                            setDeliveryMode(next as CalendarDeliveryMode)
-                          }
-                          disabled={submitting}
-                          options={[
-                            {
-                              value: "rsvp_required",
-                              label: "Antwort erforderlich: Zusage oder Absage",
-                            },
-                            {
-                              value: "informational",
-                              label:
-                                "Nur informieren: ohne Rückmeldung eintragen",
-                            },
-                          ]}
-                        />
-                      ) : null}
+                    {!editingId ? (
                       <CustomSelect
-                        id="calendar-overview-visibility"
-                        label="Teilnehmerübersicht"
-                        value={overviewVisibility}
+                        id="calendar-delivery-mode"
+                        label="Antwortregel"
+                        value={deliveryMode}
                         onChange={(next) =>
-                          setOverviewVisibility(
-                            next as CalendarOverviewVisibility,
-                          )
+                          setDeliveryMode(next as CalendarDeliveryMode)
                         }
                         disabled={submitting}
+                        hint={
+                          deliveryMode === "rsvp_required" &&
+                          frequency !== "none"
+                            ? "Eingeladene sagen für alle Termine oder für einzelne Termine zu oder ab."
+                            : undefined
+                        }
                         options={[
-                          { value: "organizer", label: "Nur ich" },
                           {
-                            value: "staff",
-                            label: "Mitarbeitende mit Termin",
+                            value: "rsvp_required",
+                            label: "Antwort erforderlich: Zusage oder Absage",
                           },
-                          { value: "all", label: "Alle Eingeladenen" },
+                          {
+                            value: "informational",
+                            label:
+                              "Nur informieren: ohne Rückmeldung eintragen",
+                          },
                         ]}
                       />
-                    </div>
+                    ) : null}
+
+                    <OverviewVisibilityPicker
+                      value={overviewVisibility}
+                      onChange={setOverviewVisibility}
+                      disabled={submitting}
+                    />
 
                     {!editingId ? (
                       <InsetPanel tone="white">
@@ -1369,7 +1374,7 @@ function StaffCalendarPageInner() {
                       <ISODatePicker
                         label="Endet am"
                         id="calendar-recurrence-end"
-                        controlSize="lg"
+                        controlSize="large"
                         value={endsOn}
                         min={startDate}
                         onChange={setEndsOn}
@@ -1401,6 +1406,7 @@ function StaffCalendarPageInner() {
                         size="md"
                         onClick={resetForm}
                         disabled={submitting}
+                        noTooltip="Schließt nur das Formular, ohne etwas zu speichern."
                       >
                         Abbrechen
                       </Button>
@@ -1409,6 +1415,11 @@ function StaffCalendarPageInner() {
                         size="md"
                         isLoading={submitting}
                         loadingText="Speichert…"
+                        tooltip={appointmentSaveHint(
+                          Boolean(editingId),
+                          frequency !== "none",
+                          sendEmail,
+                        )}
                       >
                         {editingId
                           ? "Änderungen speichern"
@@ -1429,8 +1440,12 @@ function StaffCalendarPageInner() {
               setOverviewFailed(false);
               clearOverviewError();
             }}
-            title="Teilnehmer"
-            widthClass="mx-4 w-[calc(100%-2rem)] max-w-xl"
+            title={
+              overview?.occurrence_date
+                ? `Teilnehmer am ${formatOccurrenceDay(overview.occurrence_date)}`
+                : "Teilnehmer"
+            }
+            size="md-wide"
           >
             {overviewLoading ? (
               <SkeletonRegion label="Teilnehmer werden geladen…">
@@ -1566,6 +1581,28 @@ function StaffCalendarPageInner() {
       )}
     </TenantPage>
   );
+}
+
+/**
+ * Was „Termin speichern“ auslöst (#6751): Eine Änderung gilt immer für die
+ * ganze Reihe (das Formular lädt die Reihe, nicht den Einzeltermin), und die
+ * E-Mail an Eltern folgt dem Haken im Formular.
+ */
+function appointmentSaveHint(
+  editing: boolean,
+  recurring: boolean,
+  notifyParents: boolean,
+): string {
+  const parents = " und schickt den Eltern sofort eine E-Mail.";
+  if (!editing) {
+    return notifyParents
+      ? `Trägt den Termin ein${parents}`
+      : "Trägt den Termin bei allen gewählten Empfängern ein.";
+  }
+  const what = recurring
+    ? "Ändert alle Termine der Reihe"
+    : "Ändert den Termin";
+  return notifyParents ? `${what}${parents}` : `${what} für alle Empfänger.`;
 }
 
 /** Prüfung vor dem Senden. Schlüssel sind die Feldnamen des Backends. */

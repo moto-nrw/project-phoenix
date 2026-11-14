@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-ogs/project-phoenix/modules/careplan/selection"
 	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 )
 
 // The signature of an enrollment (#4786): a simple electronic signature with
@@ -20,7 +21,8 @@ import (
 // signature belongs to the request's current version.
 
 // signedEnrollmentFormat versions the canonical form of the signed document.
-const signedEnrollmentFormat = 1
+// Format 2 adds each offering's catalog terms (#6837).
+const signedEnrollmentFormat = 2
 
 // The signature ledger port and its entry are Enrollment's public values,
 // so the root binds the Audit Platform to them without a compose alias.
@@ -93,12 +95,21 @@ type signedEnrollmentChild struct {
 type signedEnrollmentSelections struct {
 	OfferingID   int64    `json:"offering_id"`
 	SelectedDays []string `json:"selected_days"`
+	// Terms are the catalog terms the parent signed for (#6837): the same
+	// snapshot the stored choice keeps.
+	Terms *enrollmentNative.OfferingTerms `json:"terms,omitempty"`
 }
 
 // newSignedEnrollmentDocument builds the signed document from the stored
 // request, the stored children's submitted values and their materialized
-// offering choices.
-func newSignedEnrollmentDocument(request *enrollmentNative.Request, children []SubmitChild, guardians []SubmitGuardian, selections [][]selection.Selection) signedEnrollmentDocument {
+// offering choices with the catalog terms they were chosen under.
+func newSignedEnrollmentDocument(
+	request *enrollmentNative.Request,
+	children []SubmitChild,
+	guardians []SubmitGuardian,
+	selections [][]selection.Selection,
+	catalog map[int64]*offeringContract.CareOfferingRecord,
+) signedEnrollmentDocument {
 	doc := signedEnrollmentDocument{
 		Format: signedEnrollmentFormat, TenantID: request.TenantID, RequestID: request.ID, PhaseID: request.PhaseID,
 		SchemaID: request.SchemaID, GuardianFirstName: request.GuardianFirstName, GuardianLastName: request.GuardianLastName,
@@ -121,7 +132,9 @@ func newSignedEnrollmentDocument(request *enrollmentNative.Request, children []S
 		}
 		if i < len(selections) {
 			for _, sel := range selections[i] {
-				child.Offerings = append(child.Offerings, signedEnrollmentSelections{OfferingID: sel.OfferingID, SelectedDays: sel.SelectedDays})
+				child.Offerings = append(child.Offerings, signedEnrollmentSelections{
+					OfferingID: sel.OfferingID, SelectedDays: sel.SelectedDays, Terms: submittedOfferingTerms(catalog[sel.OfferingID]),
+				})
 			}
 		}
 		doc.Children = append(doc.Children, child)

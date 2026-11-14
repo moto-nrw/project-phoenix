@@ -201,8 +201,8 @@ func (s *service) DeleteSchoolAppointment(ctx context.Context, appointmentID int
 
 // RespondToSchoolInvitation answers an OGS appointment that asks the
 // Lehrkraft for a reply.
-func (s *service) RespondToSchoolInvitation(ctx context.Context, recipientID int64, status string) error {
-	return s.RespondToStaffInvitation(ctx, recipientID, status)
+func (s *service) RespondToSchoolInvitation(ctx context.Context, recipientID int64, answer InvitationAnswer) error {
+	return s.RespondToStaffInvitation(ctx, recipientID, answer)
 }
 
 // SchoolCalendarFeedURL and RotateSchoolCalendarFeed hand out the same

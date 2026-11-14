@@ -22,6 +22,7 @@ import {
   openTemplatePreview,
   useTemplatePreviewHref,
 } from "~/components/enrollment/form-template-preview";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -96,6 +97,7 @@ export function EnrollmentFormsOverview({
               <Button
                 type="button"
                 onClick={onCreate}
+                tooltip="Öffnet den Editor für eine neue, leere Formularvorlage."
                 variant="primary"
                 size="md"
                 className="inline-flex items-center justify-center gap-2 whitespace-nowrap"
@@ -202,19 +204,21 @@ function BaseTemplateOverviewRow() {
         </div>
       </div>
       <div className="flex justify-start gap-2 md:justify-end">
-        <a
-          href={tenantPath("/anmeldung/preview?base=1")}
-          target="_blank"
-          rel="noreferrer"
-          className={buttonClassName({
-            variant: "outline",
-            size: "md",
-            className: "gap-2",
-          })}
-        >
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          Vorschau
-        </a>
+        <ActionHint text="Öffnet das Basisformular in einem neuen Tab, wie Eltern es sehen.">
+          <a
+            href={tenantPath("/anmeldung/preview?base=1")}
+            target="_blank"
+            rel="noreferrer"
+            className={buttonClassName({
+              variant: "outline",
+              size: "md",
+              className: "gap-2",
+            })}
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            Vorschau
+          </a>
+        </ActionHint>
       </div>
     </article>
   );
@@ -269,26 +273,32 @@ function TemplateOverviewRow({
           items={[
             {
               label: "Prüfen",
+              description: "Zeigt Fragen und Zuordnung zu Anmeldephasen",
               icon: <Eye className="h-4 w-4" aria-hidden />,
               onClick: onPreview,
             },
             {
               label: "Vorschau",
+              description:
+                "Öffnet das Formular in einem neuen Tab, wie Eltern es sehen",
               icon: <ExternalLink className="h-4 w-4" aria-hidden />,
               onClick: () => openTemplatePreview(previewHref(schema.id)),
             },
             {
               label: "Bearbeiten",
+              description: "Öffnet die Vorlage im Editor",
               icon: <Pencil className="h-4 w-4" aria-hidden />,
               onClick: onEdit,
             },
             {
               label: "Umbenennen",
+              description: "Ändert nur den Namen, Fragen und Phasen bleiben",
               icon: <TextCursorInput className="h-4 w-4" aria-hidden />,
               onClick: onRename,
             },
             {
               label: "Löschen",
+              description: "Löscht die Vorlage, moto fragt vorher nach",
               icon: <Trash2 className="h-4 w-4" aria-hidden />,
               onClick: onDelete,
               destructive: true,
@@ -520,6 +530,7 @@ export function RenameSchemaDialog({
             size="md"
             onClick={onClose}
             disabled={submitting}
+            noTooltip="Abbrechen schließt nur den Dialog."
           >
             Abbrechen
           </Button>
@@ -529,7 +540,13 @@ export function RenameSchemaDialog({
             size="md"
             onClick={() => void submit()}
             disabled={!canSubmit}
+            disabledReason={
+              trimmed
+                ? "Geben Sie einen anderen Namen als den bisherigen ein."
+                : "Geben Sie zuerst einen Namen ein."
+            }
             isLoading={submitting}
+            tooltip="Speichert den neuen Namen, Fragen und Anmeldephasen bleiben unverändert."
           >
             Speichern
           </Button>

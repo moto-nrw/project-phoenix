@@ -250,6 +250,7 @@ export function RequestDecisionRow({
             variant="outline"
             size="md"
             disabled={markingDone}
+            tooltip="Schließt die Anfrage sofort, ohne etwas beim Kind zu ändern."
             onClick={() => void markDone()}
           >
             Als erledigt markieren

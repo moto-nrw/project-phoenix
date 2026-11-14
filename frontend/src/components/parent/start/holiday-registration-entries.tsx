@@ -42,6 +42,7 @@ export function HolidayRegistrationEntriesCard() {
           variant="outline"
           size="compact"
           aria-label={t("card.showAllLabel")}
+          tooltip={t("card.showAllTooltip")}
         >
           {t("card.showAll")}
         </ButtonLink>

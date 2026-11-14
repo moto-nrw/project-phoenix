@@ -283,6 +283,9 @@ type AccountLoginStore interface {
 	// ListActiveTenantIDs returns the schools the account is actively mapped
 	// to in mapping-creation order.
 	ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error)
+	// HoldsTraegerParentAccess reports parents-portal access at any Träger
+	// (#6862: a further holder of the account).
+	HoldsTraegerParentAccess(ctx context.Context, accountID int64) (bool, error)
 	// LockActiveTenantMappingShared is HasActiveAccountTenant with a FOR
 	// SHARE lock so a revocation cannot commit under a mint.
 	LockActiveTenantMappingShared(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)

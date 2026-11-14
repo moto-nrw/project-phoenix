@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -65,9 +71,11 @@ describe("HolidayPeriodPublishCard", () => {
     );
     expect(
       screen.getByRole("button", { name: "Veröffentlichen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
-      screen.getByText(/braucht der Ferienzeitraum mindestens eine Woche/),
+      screen.getByText(/braucht der Ferienzeitraum mindestens eine Woche/, {
+        selector: "p",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -81,9 +89,11 @@ describe("HolidayPeriodPublishCard", () => {
     );
     expect(
       screen.getByRole("button", { name: "Veröffentlichen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
-      screen.getByText("Bitte speichern Sie zuerst Ihre Änderungen."),
+      screen.getByText("Bitte speichern Sie zuerst Ihre Änderungen.", {
+        selector: "p",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -106,9 +116,7 @@ describe("HolidayPeriodPublishCard", () => {
     expect(mockPublish).not.toHaveBeenCalled();
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(
-      Array.from(dialog.querySelectorAll("button")).find(
-        (button) => button.textContent === "Veröffentlichen",
-      )!,
+      within(dialog).getByRole("button", { name: "Veröffentlichen" }),
     );
 
     await waitFor(() => expect(mockPublish).toHaveBeenCalledWith("5"));
@@ -136,9 +144,13 @@ describe("HolidayPeriodPublishCard", () => {
     ).toBeInTheDocument();
     // The only controls left hand the parents' link on: copy it (#4661) or
     // show it as a QR code.
+    // Zugängliche Namen statt textContent: die Knopf-Erklärung (#6643) liegt
+    // als versteckte Beschreibung im Knopf.
+    expect(screen.getAllByRole("button")).toHaveLength(2);
     expect(
-      screen.getAllByRole("button").map((button) => button.textContent),
-    ).toEqual(["Link kopieren", "QR-Code"]);
+      screen.getByRole("button", { name: "Link kopieren" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "QR-Code" })).toBeInTheDocument();
     expect(screen.getByText("Veröffentlicht")).toBeInTheDocument();
   });
 
@@ -158,9 +170,7 @@ describe("HolidayPeriodPublishCard", () => {
     expect(
       screen.getByText("http://parents.localhost:3000/ferienanmeldung/abc123"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("Bisher sind 3 Anmeldungen eingegangen."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Bisher 3 Anmeldungen.")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Anmeldungen prüfen" }),
     ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen");

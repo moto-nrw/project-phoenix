@@ -2,9 +2,12 @@ package integration
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -104,23 +107,106 @@ func studentOutcomeOf(t *testing.T, db *bun.DB, result *importModels.ImportResul
 			}
 		}
 	}
-	for table, query := range studentOwnerTables {
-		var rows []string
-		// Drop identities, keys and the tenant; a timestamp, an actor or the
-		// sealed health field (its ciphertext differs per seal; tests compare
-		// the opened text) only says whether it is set. The owner label keeps the row attributable.
-		require.NoError(t, db.NewRaw(`SELECT owner || ' ' || (
-				SELECT jsonb_object_agg(key, CASE WHEN key LIKE '%\_at' OR key LIKE '%\_since' OR key LIKE '%\_by' OR key = 'health_data' THEN to_jsonb(value <> 'null'::jsonb) ELSE value END)
-				FROM jsonb_each(to_jsonb(x))
-				WHERE key <> 'id' AND key NOT LIKE '%\_id' AND key NOT IN ('created_at', 'updated_at')
-			)::text FROM (`+query+` WHERE x.tenant_id = ?) AS t(x, owner) ORDER BY 1`, testpkg.Tenant(t)).Scan(context.Background(), &rows), table)
-		for _, row := range rows {
-			require.NotEmpty(t, row, "every %s row has a label", table)
+	for table := range studentOwnerTables {
+		outcome.Rows[table] = nil
+	}
+	// One plain statement reads the owner rows of every table (#6962); the
+	// columns are dropped and masked here instead of by jsonb functions per
+	// table and row. The thirteen branches together cross jit_above_cost in a
+	// populated clone, and compiling them took longer than running them
+	// (about 350 ms a call), so the statement runs without JIT.
+	type ownerRow struct {
+		table, record string
+		owner         sql.NullString
+	}
+	var read []ownerRow
+	require.NoError(t, db.RunInTx(context.Background(), nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `SET LOCAL jit = off`); err != nil {
+			return err
 		}
-		outcome.Rows[table] = rows
+		rows, err := tx.QueryContext(ctx, studentOutcomeQuery, studentOutcomeArgs(testpkg.Tenant(t))...)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var row ownerRow
+			if err := rows.Scan(&row.table, &row.owner, &row.record); err != nil {
+				return err
+			}
+			read = append(read, row)
+		}
+		return rows.Err()
+	}))
+	for _, owned := range read {
+		row := studentOutcomeRow(t, owned.owner, owned.record)
+		require.NotEmpty(t, row, "every %s row has a label", owned.table)
+		outcome.Rows[owned.table] = append(outcome.Rows[owned.table], row)
+	}
+	for table := range outcome.Rows {
+		sort.Strings(outcome.Rows[table])
 	}
 	sort.Strings(outcome.RowErrors)
 	return outcome
+}
+
+// studentOutcomeQuery unions the owner tables: table name, the child label
+// and the row as jsonb text, for one tenant per table.
+var studentOutcomeQuery = func() string {
+	tables := make([]string, 0, len(studentOwnerTables))
+	for table := range studentOwnerTables {
+		tables = append(tables, table)
+	}
+	sort.Strings(tables)
+	parts := make([]string, 0, len(tables))
+	for _, table := range tables {
+		parts = append(parts, `SELECT '`+table+`', owner, to_jsonb(x)::text FROM (`+studentOwnerTables[table]+` WHERE x.tenant_id = ?) AS t(x, owner)`)
+	}
+	return strings.Join(parts, " UNION ALL ")
+}()
+
+func studentOutcomeArgs(tenantID int64) []any {
+	args := make([]any, len(studentOwnerTables))
+	for i := range args {
+		args[i] = tenantID
+	}
+	return args
+}
+
+// studentOutcomeRow renders one owner row as "<label> <jsonb text>". It drops
+// identities, keys and the tenant; a timestamp, an actor or the sealed health
+// field (its ciphertext differs per seal; tests compare the opened text) only
+// says whether it is set. The owner label keeps the row attributable. The
+// keys keep the order jsonb printed them in, and the values stay its text, so
+// the result is the jsonb text of the remaining object; a row without label or
+// without any remaining column is empty.
+func studentOutcomeRow(t *testing.T, owner sql.NullString, record string) string {
+	t.Helper()
+	decoder := json.NewDecoder(strings.NewReader(record))
+	opening, err := decoder.Token()
+	require.NoError(t, err)
+	require.Equal(t, json.Delim('{'), opening, record)
+	var fields []string
+	for decoder.More() {
+		token, err := decoder.Token()
+		require.NoError(t, err)
+		key, ok := token.(string)
+		require.True(t, ok, record)
+		require.Regexp(t, `^[a-z0-9_]+$`, key, "a column name needs no JSON escaping")
+		var value json.RawMessage
+		require.NoError(t, decoder.Decode(&value))
+		if key == "id" || strings.HasSuffix(key, "_id") || key == "created_at" || key == "updated_at" {
+			continue
+		}
+		if strings.HasSuffix(key, "_at") || strings.HasSuffix(key, "_since") || strings.HasSuffix(key, "_by") || key == "health_data" {
+			value = json.RawMessage(strconv.FormatBool(string(value) != "null"))
+		}
+		fields = append(fields, `"`+key+`": `+string(value))
+	}
+	if !owner.Valid || len(fields) == 0 {
+		return ""
+	}
+	return owner.String + " {" + strings.Join(fields, ", ") + "}"
 }
 
 // mixedStudentFile has eleven rows. Rows 1 to 7 form one batch segment: a

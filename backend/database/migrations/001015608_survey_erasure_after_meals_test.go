@@ -20,6 +20,10 @@ func TestSurveyErasureAfterMealsRepairsLateSurveyMigration(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	// The message attachments (1.15.936, #6685) extend the erasure functions
 	// this test restores; they go first.
+	// The pickup change notices (1.15.960, #6855) extend the erasure of 1.15.956; they go first.
+	require.NoError(t, pickupChangeTeamNoticesDown(t.Context(), db))
+	// The note notices (1.15.956, #6854) extend the erasure of 1.15.942; they go first.
+	require.NoError(t, studentNoteTeamNoticesDown(t.Context(), db))
 	require.NoError(t, messageAttachmentsDown(t.Context(), db))
 	// Roll back the holiday guests first (#4666): their tables and foreign
 	// keys extend the erasure functions the older migrations restore.

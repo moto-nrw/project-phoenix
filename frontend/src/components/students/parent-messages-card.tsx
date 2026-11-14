@@ -111,6 +111,7 @@ export function ParentMessagesCard({
             type="button"
             variant="primary"
             size="md"
+            tooltip="Öffnet ein Fenster für eine Nachricht an die Eltern des Kindes."
             onClick={() => setComposeOpen(true)}
             className="flex-shrink-0"
           >

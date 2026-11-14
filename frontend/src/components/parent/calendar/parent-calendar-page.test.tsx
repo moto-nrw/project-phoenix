@@ -9,6 +9,7 @@ import { BELOW_LG } from "~/lib/hooks/use-media-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 import {
+  getParentAppointmentOverview,
   getParentCalendar,
   respondParentCalendar,
 } from "~/lib/personal-calendar-api";
@@ -38,11 +39,13 @@ vi.mock("~/components/calendar/calendar-subscribe-panel", () => ({
 }));
 
 vi.mock("~/lib/personal-calendar-api", () => ({
+  getParentAppointmentOverview: vi.fn(),
   getParentCalendar: vi.fn(),
   respondParentCalendar: vi.fn(),
 }));
 
 const mockedCalendar = vi.mocked(getParentCalendar);
+const mockedOverview = vi.mocked(getParentAppointmentOverview);
 const mockedRespond = vi.mocked(respondParentCalendar);
 const MONDAY = new Date(2026, 7, 17, 9, 0, 0);
 
@@ -193,7 +196,7 @@ describe("ParentCalendarPage", () => {
     await screen.findByRole("heading", { name: "August 2026" });
     expect(
       screen.getByRole("button", { name: "Vorheriger Monat" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.queryByRole("button", { name: "16.08.2026" }),
     ).not.toBeInTheDocument();
@@ -207,6 +210,9 @@ describe("ParentCalendarPage", () => {
     expect(
       screen.getByRole("button", { name: "Nächster Monat" }),
     ).not.toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Nächster Monat" }),
+    ).not.toHaveAttribute("aria-disabled");
 
     fireEvent.click(screen.getByRole("button", { name: "Nächster Monat" }));
 
@@ -215,7 +221,7 @@ describe("ParentCalendarPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Nächster Monat" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   // Ein Termin im angebrochenen Schlussmonat ist auch per Deep-Link
@@ -332,13 +338,214 @@ describe("ParentCalendarPage", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Zusagen" }));
 
     await waitFor(() =>
-      expect(mockedRespond).toHaveBeenCalledWith("77", "accepted"),
+      expect(mockedRespond).toHaveBeenCalledWith("77", "accepted", undefined),
     );
     expect(within(dialog).getByText("Zugesagt")).toBeInTheDocument();
     expect(
       within(dialog).queryByRole("button", { name: "Zusagen" }),
     ).not.toBeInTheDocument();
+    // #6987: die Antwort bleibt änderbar.
+    expect(
+      within(dialog).getByRole("button", { name: "Antwort ändern" }),
+    ).toBeInTheDocument();
     expect(toastSuccess).toHaveBeenCalledWith("Termin zugesagt.");
+  });
+
+  // #6846: Eltern sehen nur Zahlen, keine Namen anderer Eltern; bei einer
+  // Reihe steht, dass die Antwort für alle Termine gilt.
+  it("zeigt die Rückmeldungen als Zahlen und sagt, dass die Antwort für die Reihe gilt", async () => {
+    mockedCalendar.mockResolvedValue(
+      calendarResponse([
+        event({
+          can_respond: true,
+          can_view_overview: true,
+          delivery_mode: "rsvp_required",
+          recurring: true,
+          occurrence_date: "2026-08-19",
+          response_status: "pending",
+          series_response_status: "pending",
+          recipient_id: "77",
+        }),
+      ]),
+    );
+    mockedOverview.mockResolvedValue({
+      appointment_id: "appointment-1",
+      delivery_mode: "rsvp_required",
+      overview_visibility: "all",
+      counts: { accepted: 12, declined: 3, pending: 5 },
+      attendees: [],
+    });
+    renderPage();
+
+    const row = await screen.findByRole("article", { name: "Elternabend" });
+    expect(
+      within(row).getByText("Antwort für alle Termine der Reihe"),
+    ).toBeInTheDocument();
+
+    const monthGrid = screen.getByTestId("parent-calendar-month-grid");
+    fireEvent.click(
+      within(monthGrid).getByRole("button", { name: /Elternabend, 18:00/ }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Elternabend" });
+    const responses = await within(dialog).findByRole("region", {
+      name: "Rückmeldungen",
+    });
+    expect(await within(responses).findByText("12")).toBeInTheDocument();
+    expect(within(responses).getByText("3")).toBeInTheDocument();
+    expect(within(responses).getByText("5")).toBeInTheDocument();
+    expect(
+      within(responses).getByText("Namen anderer Eltern sehen Sie nicht."),
+    ).toBeInTheDocument();
+    // #6987: die Zahlen gelten für den geöffneten Termin der Reihe.
+    expect(mockedOverview).toHaveBeenCalledWith("appointment-1", "2026-08-19");
+    expect(
+      within(dialog).getByRole("button", { name: "Alle Termine" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(dialog).getByText(
+        "Ihre Antwort gilt für alle Termine dieser Reihe.",
+      ),
+    ).toBeInTheDocument();
+
+    // Die eigene Antwort ändert die Zahlen, also laden sie neu.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zusagen" }));
+    await waitFor(() => expect(mockedOverview).toHaveBeenCalledTimes(2));
+  });
+
+  // #6846: eine Antwort gilt für die ganze Reihe, also zeigen alle Termine
+  // derselben Einladung sie sofort.
+  it("übernimmt die Antwort für alle Termine derselben Reihe", async () => {
+    const series = {
+      can_respond: true,
+      recurring: true,
+      response_status: "pending",
+      recipient_id: "77",
+    };
+    mockedCalendar.mockResolvedValue(
+      calendarResponse([
+        event({ ...series, id: "appointment:1:2026-08-19" }),
+        event({
+          ...series,
+          id: "appointment:1:2026-08-26",
+          start_date: "2026-08-26",
+          end_date: "2026-08-26",
+        }),
+      ]),
+    );
+    renderPage();
+
+    const rows = await screen.findAllByRole("article", { name: "Elternabend" });
+    expect(rows).toHaveLength(2);
+    fireEvent.click(within(rows[0]!).getByRole("button", { name: "Zusagen" }));
+
+    await waitFor(() =>
+      expect(mockedRespond).toHaveBeenCalledWith("77", "accepted", undefined),
+    );
+    for (const row of screen.getAllByRole("article", { name: "Elternabend" })) {
+      expect(await within(row).findByText("Zugesagt")).toBeInTheDocument();
+      expect(
+        within(row).queryByRole("button", { name: "Zusagen" }),
+      ).not.toBeInTheDocument();
+    }
+  });
+
+  // #6987: Eltern sagen der Reihe zu und einem einzelnen Termin ab.
+  it("sagt einen einzelnen Termin einer zugesagten Reihe ab", async () => {
+    const series = {
+      can_respond: true,
+      recurring: true,
+      response_status: "accepted",
+      series_response_status: "accepted",
+      recipient_id: "77",
+    };
+    mockedCalendar.mockResolvedValue(
+      calendarResponse([
+        event({
+          ...series,
+          id: "appointment:1:2026-08-19",
+          occurrence_date: "2026-08-19",
+        }),
+        event({
+          ...series,
+          id: "appointment:1:2026-08-26",
+          occurrence_date: "2026-08-26",
+          start_date: "2026-08-26",
+          end_date: "2026-08-26",
+        }),
+      ]),
+    );
+    renderPage();
+
+    const rows = await screen.findAllByRole("article", { name: "Elternabend" });
+    fireEvent.click(
+      within(rows[1]!).getByRole("button", { name: /Elternabend, 18:00/ }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Elternabend" });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Antwort ändern" }),
+    );
+    expect(
+      within(dialog).getByRole("button", { name: /^Nur am / }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(dialog).getByText(
+        "Für die anderen Termine gilt weiter: Zugesagt.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Absagen" }));
+
+    await waitFor(() =>
+      expect(mockedRespond).toHaveBeenCalledWith(
+        "77",
+        "declined",
+        "2026-08-26",
+      ),
+    );
+    expect(toastSuccess).toHaveBeenCalledWith(
+      expect.stringMatching(/^Für .*26.* abgesagt\.$/),
+    );
+    const [first, second] = screen.getAllByRole("article", {
+      name: "Elternabend",
+    });
+    expect(within(first!).getByText("Zugesagt")).toBeInTheDocument();
+    expect(within(second!).getByText("Abgesagt")).toBeInTheDocument();
+    expect(
+      within(second!).getByText(/nur für diesen Termin/i),
+    ).toBeInTheDocument();
+  });
+
+  // #6987 Review: Hat die Reihe noch keine Antwort, aber ein Termin schon
+  // eine eigene, beantworten die Knöpfe der Zeile nur ihren Termin. Sonst
+  // löschte ein Klick die Absage für den anderen Tag.
+  it("überschreibt mit der Zeile keine Antwort für einen anderen Termin", async () => {
+    mockedCalendar.mockResolvedValue(
+      calendarResponse([
+        event({
+          can_respond: true,
+          recurring: true,
+          occurrence_date: "2026-08-19",
+          response_status: "pending",
+          series_response_status: "pending",
+          has_occurrence_answers: true,
+          recipient_id: "77",
+        }),
+      ]),
+    );
+    renderPage();
+
+    const row = await screen.findByRole("article", { name: "Elternabend" });
+    expect(within(row).getByText("Antwort erforderlich")).toBeInTheDocument();
+    expect(
+      within(row).queryByText("Antwort für alle Termine der Reihe"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "Zusagen" }));
+    await waitFor(() =>
+      expect(mockedRespond).toHaveBeenCalledWith(
+        "77",
+        "accepted",
+        "2026-08-19",
+      ),
+    );
   });
 
   it("speichert eine Rückmeldung direkt in der Terminzeile", async () => {
@@ -375,7 +582,7 @@ describe("ParentCalendarPage", () => {
     fireEvent.click(declineButton);
 
     await waitFor(() =>
-      expect(mockedRespond).toHaveBeenCalledWith("77", "declined"),
+      expect(mockedRespond).toHaveBeenCalledWith("77", "declined", undefined),
     );
     expect(within(row).getByText("Abgesagt")).toBeInTheDocument();
     expect(toastSuccess).toHaveBeenCalledWith("Termin abgesagt.");

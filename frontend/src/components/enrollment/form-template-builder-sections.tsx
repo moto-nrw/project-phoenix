@@ -82,6 +82,7 @@ export function UnsavedChangesDialog({
         type="button"
         onClick={onCancel}
         disabled={saving}
+        noTooltip="Abbrechen schließt nur den Dialog und bleibt im Editor."
         variant="outline"
         size="md"
         className="inline-flex items-center justify-center"
@@ -93,6 +94,11 @@ export function UnsavedChangesDialog({
           type="button"
           onClick={onDiscard}
           disabled={saving}
+          tooltip={
+            pendingNavigation === "new"
+              ? "Verwirft Ihre Änderungen sofort und beginnt eine leere neue Vorlage."
+              : "Verwirft Ihre Änderungen sofort und öffnet die Übersicht."
+          }
           variant="outline"
           size="md"
           className="inline-flex items-center justify-center"
@@ -104,6 +110,18 @@ export function UnsavedChangesDialog({
         type="button"
         onClick={onSave}
         disabled={saving || saveBlocked}
+        disabledReason={
+          saving
+            ? undefined
+            : (saveValidationMessage ?? pendingUploadMessage ?? undefined)
+        }
+        tooltip={
+          isPreview
+            ? "Speichert die Vorlage und öffnet die Vorschau in einem neuen Tab."
+            : pendingNavigation === "new"
+              ? "Speichert die Vorlage und beginnt danach eine leere neue Vorlage."
+              : "Speichert die Vorlage und öffnet danach die Übersicht."
+        }
         variant="primary"
         size="md"
         className="inline-flex items-center justify-center"
@@ -122,7 +140,6 @@ export function UnsavedChangesDialog({
       isOpen
       onClose={onCancel}
       title="Änderungen speichern?"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-lg"
       isDismissDisabled={saving}
       footer={footer}
     >

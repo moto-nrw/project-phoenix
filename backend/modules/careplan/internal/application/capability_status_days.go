@@ -19,8 +19,8 @@ type StatusDayStore interface {
 	ExistingStudentStatusDayIDs(context.Context, []int64) ([]int64, domain.OperationStats, error)
 	CountCarePlanDeletionRecords(context.Context, int64) (careplan.CarePlanDeletionCounts, domain.OperationStats, error)
 	UpsertStudentStatusDay(context.Context, careplan.StudentStatusDay) (careplan.StudentStatusDay, domain.OperationStats, error)
-	ClearStudentStatusDays(context.Context, int64, string, []careplan.Date, time.Time, string) (domain.OperationStats, error)
-	ClearStudentStatusDayByID(context.Context, int64, time.Time, string) (domain.OperationStats, error)
+	ClearStudentStatusDays(context.Context, int64, string, []careplan.Date, time.Time, string, *int64) (domain.OperationStats, error)
+	ClearStudentStatusDayByID(context.Context, int64, time.Time, string, *int64) (domain.OperationStats, error)
 	ArchiveStudentStatusFlags(context.Context, careplan.StatusFlagArchive) (int64, domain.OperationStats, error)
 	DeleteStudentStatusDaysBefore(context.Context, careplan.Date) (int64, domain.OperationStats, error)
 }
@@ -81,15 +81,15 @@ func (s *Service) UpsertStudentStatusDay(ctx context.Context, value careplan.Stu
 	})
 }
 
-func (s *Service) ClearStudentStatusDays(ctx context.Context, studentID int64, status string, dates []careplan.Date, clearedAt time.Time, source string) error {
+func (s *Service) ClearStudentStatusDays(ctx context.Context, studentID int64, status string, dates []careplan.Date, clearedAt time.Time, source string, accountID *int64) error {
 	return requestCommand(s, ctx, "clear_student_status_days", func(txCtx context.Context) (domain.OperationStats, error) {
-		return s.statusDays.ClearStudentStatusDays(txCtx, studentID, status, dates, clearedAt, source)
+		return s.statusDays.ClearStudentStatusDays(txCtx, studentID, status, dates, clearedAt, source, accountID)
 	})
 }
 
-func (s *Service) ClearStudentStatusDayByID(ctx context.Context, id int64, clearedAt time.Time, source string) error {
+func (s *Service) ClearStudentStatusDayByID(ctx context.Context, id int64, clearedAt time.Time, source string, accountID *int64) error {
 	return requestCommand(s, ctx, "clear_student_status_day_by_id", func(txCtx context.Context) (domain.OperationStats, error) {
-		return s.statusDays.ClearStudentStatusDayByID(txCtx, id, clearedAt, source)
+		return s.statusDays.ClearStudentStatusDayByID(txCtx, id, clearedAt, source, accountID)
 	})
 }
 

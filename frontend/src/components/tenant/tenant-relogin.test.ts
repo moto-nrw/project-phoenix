@@ -18,6 +18,9 @@ vi.mock("~/env.client", () => ({
   clientEnv: { NEXT_PUBLIC_TENANT_DOMAIN: "mfa.localhost" },
 }));
 
+import { ApiError } from "~/lib/api-error";
+import { errorLogFields } from "~/lib/error-log";
+
 import { reloginAtTenant } from "./tenant-relogin";
 
 describe("target-school reauthentication", () => {
@@ -114,6 +117,23 @@ describe("target-school reauthentication", () => {
     expect(window.location.href).toBe(
       "http://school-a.mfa.localhost:13845/home",
     );
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  // Sentry FRONTEND-1E: the raw TimeoutError was displayed as a crash.
+  it("reports a stalled revocation as an unreachable service, not a crash", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      new DOMException("signal timed out", "TimeoutError"),
+    );
+    const error: unknown = await reloginAtTenant("school-b").catch(
+      (err: unknown) => err,
+    );
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      code: "general.unavailable",
+      noResponse: true,
+    });
+    expect(errorLogFields(error).error_class).toBe("unavailable");
     expect(signOut).not.toHaveBeenCalled();
   });
 

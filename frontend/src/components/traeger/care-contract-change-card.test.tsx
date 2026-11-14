@@ -234,7 +234,7 @@ describe("CareContractChangeCard (#5979)", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Ablehnen" }));
     const dialog = await screen.findByRole("dialog");
     const submit = within(dialog).getByRole("button", { name: "Ablehnen" });
-    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-disabled", "true");
     fireEvent.change(within(dialog).getByLabelText(/Begründung/), {
       target: { value: "Am Dienstag ist die Gruppe voll." },
     });

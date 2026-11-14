@@ -59,6 +59,8 @@ export const PERSONAL_STORAGE_PREFIXES: readonly string[] = [
   "student-search:last-filters:",
   // Zuletzt gewähltes Angebot im Dialog „Anwesende Kinder“.
   "moto:present-children-offering:",
+  // Gewähltes Ziel „Anmelden in“ des An- und Abmelde-Modus mit Raumnamen (#6953).
+  "moto:checkin-target:",
   // Vorbelegung des Verfassers mit Kindern und Namen; liegt seit #5000 nur
   // noch im RAM, der Präfix räumt Einträge aus der Zeit davor.
   "moto:announcement-prefill:",
@@ -88,6 +90,7 @@ export const KEPT_STORAGE_KEYS: readonly string[] = [
   "collection-view:*", // Kacheln oder Tabelle, Spalten (#3834)
   "moto.*.notification-setup.v1*", // Geräte-Einrichtung erledigt oder später
   "parent-first-steps:v1:*", // Fortschritt der ersten Schritte, Elternportal
+  "simple-staff-nav-show-all:*", // „Alle Seiten anzeigen“ gewählt (#6956)
   // Gewählte Sprache, die das Elternportal noch speichern muss.
   "phoenix_parent_unsynced_locale*",
   // Gerätelayout.
@@ -97,6 +100,11 @@ export const KEPT_STORAGE_KEYS: readonly string[] = [
   // Steuerwerte ohne Konto. deliberateLogout muss den Logout überleben: die
   // Login-Seite liest daraus, dass er gewollt war.
   "deliberateLogout",
+  // „Mit Code neu anmelden“ (#6955) muss den Logout ebenso überleben: Die
+  // nächste Träger-Anmeldung in diesem Tab fragt einmal nach dem Code. Nur
+  // ein Merker ohne Konto; trifft er die nächste Person, fragt moto auch sie
+  // einmal nach dem Code.
+  "moto.traeger.sign-in-with-code",
   "lastSuccessfulRefresh",
   "tagesplan-scroll",
   // Sperrzeit für die nächste Anfrage „Passwort vergessen“; entsteht vor der
@@ -107,6 +115,10 @@ export const KEPT_STORAGE_KEYS: readonly string[] = [
   "schulhof-banner-dismissed",
   "moto-pwa-install-hint-*",
   "moto-demo-*",
+  // Im Dienstplan ausgeblendete Abwesenheiten (#7021): nur Abwesenheits-IDs
+  // der Schule, keine Namen. Eine Entscheidung zum Plan der Schule, nicht der
+  // Person; gelöscht stünden die Zeilen nach jeder Anmeldung wieder offen.
+  "moto:absence-plan-gaps:hidden:*",
 ];
 
 export function isPersonalStorageKey(key: string): boolean {

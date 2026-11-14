@@ -9,6 +9,7 @@ DELETE /api/staff/{id}/time-tracking/adjustments/{adjustmentId}
 DELETE /api/staff/{id}/vacation/opening
 GET /api/staff/
 GET /api/staff/absences/pending
+GET /api/staff/absences/plan-gaps
 GET /api/staff/absences/requests
 GET /api/staff/available
 GET /api/staff/by-role
@@ -27,6 +28,7 @@ GET /api/staff/time-tracking/month-close
 GET /api/staff/time-tracking/overview
 GET /api/staff/time-tracking/payroll-dispatch
 GET /api/staff/time-tracking/payroll-rules
+GET /api/staff/time-tracking/target-coverage
 GET /api/staff/{id}
 GET /api/staff/{id}/absences
 GET /api/staff/{id}/avatar
@@ -51,6 +53,7 @@ GET /api/staff/{id}/vacation/quota
 POST /api/staff/
 POST /api/staff/absences/{absenceId}/approve
 POST /api/staff/absences/{absenceId}/deny
+POST /api/staff/absences/{absenceId}/plan-sync
 POST /api/staff/absences/{absenceId}/question
 POST /api/staff/externals
 POST /api/staff/externals/{id}/invitation
