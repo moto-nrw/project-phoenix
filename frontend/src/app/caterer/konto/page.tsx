@@ -13,21 +13,10 @@ import { EmailCodeFactorSection } from "~/components/settings/email-code-factor-
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
-import {
-  confirmCatererMFA,
-  disableCatererMFA,
-  fetchCatererMFAStatus,
-  startCatererMFA,
-} from "~/lib/caterer-mfa-api";
-import type { EmailCodeFactorApi } from "~/lib/email-code-factor-api";
+import { emailCodeFactorApi } from "~/lib/email-code-factor-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
 
-const catererMFA: EmailCodeFactorApi = {
-  status: fetchCatererMFAStatus,
-  start: startCatererMFA,
-  confirm: confirmCatererMFA,
-  disable: disableCatererMFA,
-};
+const catererMFA = emailCodeFactorApi("/api/caterer/account/mfa");
 
 export default function CatererAccountPage() {
   const { data: session } = useSession();
