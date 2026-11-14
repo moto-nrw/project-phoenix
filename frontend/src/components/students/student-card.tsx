@@ -412,7 +412,7 @@ export function StudentCard({
       <ParentAttentionBadge
         studentId={studentId}
         studentName={`${firstName ?? ""} ${lastName ?? ""}`.trim()}
-        className="absolute -top-3 -right-3 z-10"
+        className="absolute -top-2 -right-2 z-10"
       />
     </div>
   );

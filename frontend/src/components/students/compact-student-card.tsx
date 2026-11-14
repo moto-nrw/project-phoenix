@@ -109,7 +109,7 @@ export function CompactStudentCard({
       <ParentAttentionBadge
         studentId={String(studentId)}
         studentName={fullName}
-        className="absolute -top-3 -right-3 z-10"
+        className="absolute -top-2 -right-2 z-10"
       />
     </div>
   );
