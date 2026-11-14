@@ -714,7 +714,7 @@ describe("HomePage (Login)", () => {
         fireEvent.change(firstCodeInput, { target: { value: "123456" } });
       });
       fireEvent.click(
-        screen.getByRole("button", { name: /^Nur dieses Mal bestätigen/ }),
+        screen.getByRole("button", { name: /^Nein, nur anmelden/ }),
       );
 
       expect(

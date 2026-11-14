@@ -117,8 +117,15 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
 - Package wall times under that load are 2–3 times a local run: `importtest`
   136 s locally, 245–389 s in the full suite. Starting the long packages first
   gained nothing (305 s against 311 s) and slowed them, because they then ran
-  at the same time; `scripts/backend-package-budgets.json` holds each
-  package's budget.
+  at the same time.
+- Package budgets (`scripts/backend-package-budgets.json`) come from 26
+  backend jobs after #7038 (14.11.): `api` ran 91–106 s in full suites
+  on 8 vCPU but up to 140 s in selections there and 155 s in two full
+  suites on 4 vCPU. Measure every combination; the maximum rarely sits in
+  the full 8-vCPU suite.
+- `ci-runtime-watch.yml` reports every Monday the median of the week's
+  green pull request runs (all, with backend tests, the backend job, the
+  jobs that end last) and opens one issue above 300 s.
 - "Backend tests" writes a "CPU seconds" table into its job summary (build,
   vet, link, Postgres, test binaries). Compare shares of the busy seconds, not
   job durations: the same full suite took 1431 to 2183 busy CPU seconds and
@@ -208,6 +215,11 @@ gh api "repos/$R/actions/runs/$RUN/jobs?per_page=100&filter=latest" -q '.jobs[]
 # Steps of one job (setup versus work)
 gh api "repos/$R/actions/jobs/$JOB" -q '.steps[]|select(.started_at and .completed_at)
   | "\((.completed_at|fromdate)-(.started_at|fromdate))s \(.name)"'
+# Package lines of one job; logs are about 4 MB, stream them
+gh api --allow-escape-sequences "repos/$R/actions/jobs/$JOB/logs" \
+  | sed 's/\x1b\[[0-9;]*m//g' | grep -aE '(✓|✖) +\S+ \('
+# Weekly runtime report without writing an issue
+GITHUB_REPOSITORY=$R GITHUB_TOKEN=$(gh auth token) node scripts/ci-runtime-watch.mjs --dry-run
 # Cost of a pull request's runs
 gh api "repos/$R/commits/$SHA/check-runs?check_name=CI%20cost" -q '.check_runs[0].output.summary'
 ```

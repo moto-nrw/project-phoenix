@@ -28,8 +28,8 @@ export function loginTopic(
       "Wählen Sie `Anmelden`.",
       "Zeigt moto die `Code-Eingabe`? Öffnen Sie die E-Mail von moto.",
       "Geben Sie den sechsstelligen Code ein.",
-      "Ist es Ihr eigenes Gerät? Wählen Sie `Bestätigen und dieses Gerät … Tage merken`. Die Zahl der Tage stellt Ihre Schule ein. So lange fragt moto auf diesem Gerät keinen Code ab.",
-      "Nutzen mehrere Personen das Gerät, zum Beispiel ein Tablet im Gruppenraum? Wählen Sie `Nur dieses Mal bestätigen`.",
+      "Ist es Ihr eigenes Gerät? Wählen Sie `Ja, merken und anmelden`. Dort fragt moto dann vorerst keinen Code mehr ab.",
+      "Nutzen mehrere Personen das Gerät, zum Beispiel ein Tablet im Gruppenraum? Wählen Sie `Nein, nur anmelden`.",
     ],
     result: loginResult(presenceMode, groupMode),
     differences: [
