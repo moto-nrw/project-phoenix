@@ -138,7 +138,7 @@ func newHolidayGrowthFixture(t *testing.T, db *bun.DB, n int) holidayGrowthFixtu
 		})
 	})
 	router.Mount("/api/holiday-guests", api.NewHolidayGuestHTTP(guests).Router(api.ProtectedTenantRoutes))
-	router.Mount("/api/holiday-weeks", api.NewHolidayHostHTTP(organizations, people, audit, cipher, today).Router(api.ProtectedTenantRoutes))
+	router.Mount("/api/holiday-weeks", api.NewHolidayHostHTTP(organizations, people, audit, cipher, owners.HolidayTestSchoolCalendar(nil), today).Router(api.ProtectedTenantRoutes))
 	f.router = testpkg.SessionVerifier(router)
 	f.token = f.mint(t, school, "config:read", "users:read")
 	return f

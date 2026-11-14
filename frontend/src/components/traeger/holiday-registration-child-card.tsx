@@ -441,8 +441,8 @@ function RebookingEditor({
   onLunchChange: (lunch: HolidayRebookingLunch) => void;
   error: Parameters<typeof FormErrorAlert>[0]["message"];
 }>) {
-  // A confirmed contribution stays as confirmed (ADR 0115): a lunch added
-  // or taken off now reaches the invoice only through a correction.
+  // Booked means billed (ADR 0232): the confirmed contribution follows a
+  // lunch added or taken off; an invoice already issued needs a correction.
   const lunchChanged = period.weeks.some(
     (week) =>
       week.id !== undefined &&
@@ -459,7 +459,7 @@ function RebookingEditor({
         <Alert
           type="info"
           size="compact"
-          message="Die Anmeldung ist bestätigt. Der Beitrag bleibt, wie er bestätigt wurde. Das geänderte Mittagessen berechnen Sie als Korrektur in der Abrechnung."
+          message="Die Anmeldung ist bestätigt. moto berechnet den Beitrag mit dem geänderten Mittagessen neu. Ist die Rechnung schon verschickt, berechnen Sie den Unterschied als Korrektur in der Abrechnung."
         />
       ) : null}
       <p className="text-sm text-gray-700">

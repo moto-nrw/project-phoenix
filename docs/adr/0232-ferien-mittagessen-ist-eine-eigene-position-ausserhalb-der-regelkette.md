@@ -51,11 +51,14 @@ Ferientage nicht.
    (`booked_days`) und den Betrag; der Preis für ein Essen ist ihr Quotient.
    Eine Buchung auf der Warteliste hat noch kein Essen.
 4. **Festhalten (zu ADR 0115 Punkt 5).** Die Bestätigung hält die Essenszeilen mit dem
-   Beitrag fest. Ein späterer Preis, ein später geplanter Schließtag und eine
-   Umbuchung des Essens ändern einen festgehaltenen Beitrag nicht, wie beim
-   Grundpreis; nur eine nachgerückte Woche wird mit ihrem Essen neu
-   berechnet. Wird die Gruppe neu gerechnet, kommt das Essen aus den
-   festgehaltenen Zeilen. Den Unterschied nach einer Umbuchung berechnet das
+   Beitrag fest. Ein späterer Preis und ein später geplanter Schließtag
+   ändern einen festgehaltenen Beitrag nicht, wie beim Grundpreis. Die
+   Umbuchung des Essens ändert ihn: Gebucht heißt berechnet. Nimmt das
+   Träger-Büro das Essen einer bestätigten Woche weg, entfällt die Zeile;
+   bucht es das Essen dazu, kostet es den Preis von heute. Ein Essen, das
+   bleibt, behält Zahl und Preis der Bestätigung, und eine nachgerückte
+   Woche wird mit ihrem Essen neu berechnet. Eine ausgestellte Rechnung
+   bleibt, wie sie ist; den Unterschied zum neuen Beitrag berechnet das
    Träger-Büro als Korrektur des Laufs (ADR 0119).
 5. **Rechnung und Exporte.** Es bleibt eine Rechnung je Anmeldung oder Kind.
    Die Position `meal` nennt Woche, Zahl der Essen und Preis für ein Essen
@@ -66,7 +69,10 @@ Ferientage nicht.
    ist sie ein eigener Teil (`holiday_meal`): Ermäßigungen der Betreuung
    werden nicht mit dem Essen verrechnet.
 6. **Wer was sieht.** Die ausrichtende OGS sieht je Kind, ob es isst, und
-   die Zahl der Essen je Betreuungstag, keinen Preis. Die Heimatschule sieht
+   die Zahl der Essen je Betreuungstag, keinen Preis. Feiertage und
+   Schließtage der Schule stehen nicht in der Liste: Enrollment liest sie
+   über den Port `HolidayHostCalendar` aus dem Schulkalender, in der
+   Schultransaktion der ausrichtenden Schule. Die Heimatschule sieht
    bei den Ferienbuchungen ihrer Kinder, ob sie dort essen
    (`enrollment.holiday_home_school_bookings()`, jetzt als wiederholbare
    Definition nach ADR 0223). Eltern sehen das Essen in Anmeldung,
@@ -76,9 +82,11 @@ Ferientage nicht.
    (`PUT …/children/{id}/bookings`, ADR 0206). Die Bindung
    `api.parentBillingPlaceChanges.RebookHolidayChild` reicht dafür ein
    weiteres Feld der Buchung an den Workflow `holiday-allocation` durch.
-   Sperrreihenfolge, Transaktion, Rechte, Platzvergabe und Neueinfrieren
-   bleiben, wie ADR 0206 sie festlegt: Das Essen belegt keinen Platz und
-   ändert keinen festgehaltenen Beitrag. Diese ADR ist der Freigabebeleg der
+   Sperrreihenfolge, Transaktion, Rechte und Platzvergabe bleiben, wie
+   ADR 0206 sie festlegt: Das Essen belegt keinen Platz. Der Workflow
+   rechnet nach der Umbuchung neben den nachgerückten Anmeldungen auch die
+   umgebuchte Anmeldung neu, im selben Schritt und unter denselben Sperren
+   (Punkt 4). Diese ADR ist der Freigabebeleg der
    geänderten Bindung im Register der Befehlswirkungen (ADR 0083).
 
 ## Verworfene Optionen
@@ -108,6 +116,4 @@ Ferientage nicht.
 Offen für das Folgegespräch mit der Gemeinde 2027: ob Geschwisterregel und
 Befreiung auch für das Essen gelten sollen, wer das Essen bei Leistungsbezug
 zahlt und ob es beim langen Zeitmodell Pflicht ist. Entscheidet die Gemeinde
-anders, kommt ein Schalter je Regel in einem eigenen Schnitt. Die Liste der
-OGS zählt bei einer ganzen Woche Montag bis Freitag; einen Schließtag der
-eigenen Schule zieht sie nicht ab.
+anders, kommt ein Schalter je Regel in einem eigenen Schnitt.

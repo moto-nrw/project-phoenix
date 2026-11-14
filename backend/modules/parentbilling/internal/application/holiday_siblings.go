@@ -86,7 +86,8 @@ func (m siblingMember) chainMember() holidayMember {
 // frozenHolidayBookings are the bookings the base lines of a frozen
 // contribution price. A line of a week by days takes the days of the
 // current booking of its week, so the rules see the first booked day
-// (#4701). The meal line of the week gives the booking its frozen lunch
+// (#4701). The meal line of the week gives the booking its frozen lunch,
+// and the current booking of the week decides whether it still has one
 // (#5631).
 func frozenHolidayBookings(lines []parentbilling.HolidayContributionLine, current []parentbilling.HolidayBooking) []parentbilling.HolidayBooking {
 	var bookings []parentbilling.HolidayBooking
@@ -110,6 +111,25 @@ func frozenHolidayBookings(lines []parentbilling.HolidayContributionLine, curren
 			}
 		}
 		bookings = append(bookings, booking)
+	}
+	return withCurrentLunch(bookings, current)
+}
+
+// withCurrentLunch lets the lunch of each frozen week follow the booking the
+// registration has for that week now (#5631, ADR 0232): booked means
+// billed, so a lunch the Träger-Büro took off after the confirmation goes
+// and one it added costs the price of today. A lunch that stays keeps its
+// frozen lunches and price, and a week the registration no longer books
+// keeps what it froze, like its care.
+func withCurrentLunch(bookings, current []parentbilling.HolidayBooking) []parentbilling.HolidayBooking {
+	for i, frozen := range bookings {
+		k := slices.IndexFunc(current, func(b parentbilling.HolidayBooking) bool {
+			return !b.Waitlisted && pricesHolidayWeek(b, frozen.WeekID, frozen.WeekStartsOn, frozen.WeekEndsOn)
+		})
+		if k < 0 || (frozen.LunchDays > 0 && current[k].LunchDays > 0) {
+			continue
+		}
+		bookings[i].LunchDays, bookings[i].LunchCents = current[k].LunchDays, current[k].LunchCents
 	}
 	return bookings
 }

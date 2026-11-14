@@ -105,9 +105,12 @@ func TestFrozenLinesKeepTheirLunchWhenTheGroupIsComputedAgain(t *testing.T) {
 	t.Parallel()
 	first := computeHolidayContribution([]parentbilling.HolidayChild{withLunch(chainChild(1, 1, 6500, 6500), 4)}, holidayRules{}, false, nil)
 
-	// The registration now names another price and no lunch: the frozen
-	// lines decide, as for the care.
-	current := chainChild(1, 1, 9900, 9900).Bookings
+	// The registration now names other prices for the care and the lunch:
+	// the frozen lines decide, as for the care.
+	current := withLunch(chainChild(1, 1, 9900, 9900), 5).Bookings
+	for i := range current {
+		current[i].LunchCents = 2500
+	}
 	frozen := frozenHolidayBookings(first.Children[0].Lines, current)
 	require.Len(t, frozen, 2)
 	for _, booking := range frozen {
@@ -117,6 +120,39 @@ func TestFrozenLinesKeepTheirLunchWhenTheGroupIsComputedAgain(t *testing.T) {
 	}
 	again := computeHolidayContribution([]parentbilling.HolidayChild{{ID: 1, Position: 1, Bookings: frozen}}, holidayRules{}, false, nil)
 	assert.True(t, sameContribution(first, again), "computing a frozen contribution again changes nothing")
+}
+
+// Booked means billed (#5631): the Träger-Büro takes the lunch off a
+// confirmed week or adds it, and the contribution follows. A lunch it adds
+// costs the price of today; the care keeps its frozen price.
+func TestARebookedLunchChangesTheFrozenContribution(t *testing.T) {
+	t.Parallel()
+	first := computeHolidayContribution([]parentbilling.HolidayChild{withLunch(chainChild(1, 1, 6500, 6500), 4)}, holidayRules{}, false, nil)
+
+	// The first week loses its lunch, the second keeps it.
+	current := withLunch(chainChild(1, 1, 9900, 9900), 4).Bookings
+	current[0].LunchDays, current[0].LunchCents = 0, 0
+	frozen := frozenHolidayBookings(first.Children[0].Lines, current)
+	require.Len(t, frozen, 2)
+	assert.Zero(t, frozen[0].LunchDays)
+	assert.Zero(t, frozen[0].LunchCents)
+	assert.Equal(t, int64(1720), frozen[1].LunchCents)
+	assert.Equal(t, int64(6500), frozen[0].PriceCents)
+
+	// A week confirmed without lunch gains one at the price of today.
+	without := computeHolidayContribution([]parentbilling.HolidayChild{chainChild(1, 1, 6500, 6500)}, holidayRules{}, false, nil)
+	current = chainChild(1, 1, 9900, 9900).Bookings
+	current[1].LunchDays, current[1].LunchCents = 5, 2500
+	frozen = frozenHolidayBookings(without.Children[0].Lines, current)
+	require.Len(t, frozen, 2)
+	assert.Zero(t, frozen[0].LunchDays)
+	assert.Equal(t, 5, frozen[1].LunchDays)
+	assert.Equal(t, int64(2500), frozen[1].LunchCents)
+
+	// A week the registration no longer books keeps what it froze.
+	frozen = frozenHolidayBookings(first.Children[0].Lines, nil)
+	require.Len(t, frozen, 2)
+	assert.Equal(t, int64(1720), frozen[0].LunchCents)
 }
 
 func TestQuoteCountsOneLunchPerCareDay(t *testing.T) {

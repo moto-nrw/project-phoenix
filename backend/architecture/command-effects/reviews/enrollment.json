@@ -2329,6 +2329,56 @@
       "target_owner": "security-runtime"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayHostCalendar.HostedHolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayHostCalendar.HostedHolidayNoCareDays",
+      "reason": "Reads the federal state of the hosting school from the resolved settings snapshot in memory (#5631).",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/settings/records.SettingsSnapshot.String",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayHostCalendar.HostedHolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayHostCalendar.HostedHolidayNoCareDays",
+      "reason": "ADR 0232: reads the closing days of the hosting school in context, those its Träger planned for it included, in the tenant transaction the caller already holds; no write, lock or scope change.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayHostCalendar.HostedHolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayHostCalendar.HostedHolidayNoCareDays",
+      "reason": "Computes the statutory holidays of the hosting school's federal state locally, without database or network access (#5631).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolcalendar.Days.ListHolidays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayHostCalendar.HostedHolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayHostCalendar.HostedHolidayNoCareDays",
+      "reason": "Checks the federal state against the known regions in memory (#5631).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolcalendar.Days.ValidHolidayRegion",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayHostCalendar.HostedHolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayHostCalendar.HostedHolidayNoCareDays",
+      "reason": "Resolves the federal state setting of the hosting school in context; read-only, no write or lock (#5631).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayHostSchoolNames.HolidayHostSchoolNames",
       "classification": "query",
       "effect": "query",

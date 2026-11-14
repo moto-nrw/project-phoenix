@@ -152,7 +152,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Vergibt der Ferienzeitraum die Plätze nach Kriterien? Dann steht bei einer Woche zuerst `Platz offen`. Bestätigen geht erst, wenn Ihr Büro im Reiter `Vergabe` entschieden hat. Unter `Angaben für die Vergabe` sehen Sie die Antworten der Eltern und prüfen sie mit `Prüfen`.",
       "Bei jeder Woche eines Kindes steht `Platz` oder `Warteliste`. Auf der Warteliste steht der Rang dabei, zum Beispiel `Warteliste, Platz 2`. Stornieren Sie eine Anmeldung, rückt das nächste Kind der Warteliste sofort nach.",
       "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
-      "Ändern Sie das Mittagessen einer bestätigten Anmeldung, bleibt ihr Beitrag, wie er bestätigt wurde. moto sagt das beim Umbuchen. Den Unterschied berechnen Sie als Korrektur in der Abrechnung.",
+      "Ändern Sie das Mittagessen einer bestätigten Anmeldung, berechnet moto den Beitrag neu. Ist die Rechnung schon verschickt, berechnen Sie den Unterschied als Korrektur in der Abrechnung.",
       "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
       "Gesundheitsangaben sieht in der Einzelansicht nur die Rolle Verwaltung. Jedes Öffnen steht im `Zugriffsprotokoll` des Trägers.",
       "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",

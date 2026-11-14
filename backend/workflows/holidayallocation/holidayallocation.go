@@ -74,14 +74,16 @@ func New(ports Ports) *Workflow {
 }
 
 // RebookHolidayChild replaces the bookings of one child. Enrollment locks the
-// registration and the weeks it touches under P; whoever moves up gets the
-// contribution of the sibling group again.
+// registration and the weeks it touches under P; whoever moves up and the
+// rebooked registration get the contribution of the sibling group again.
 func (w *Workflow) RebookHolidayChild(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID, childID int64, bookings []enrollment.HolidayBookingInput) (enrollment.HolidayRegistrationDetail, error) {
 	var detail enrollment.HolidayRegistrationDetail
 	err := w.run(ctx, reviewer, periodID, func(ctx context.Context) ([]int64, error) {
 		var err error
 		detail, err = w.ports.Places.RebookHolidayChild(ctx, reviewer, periodID, registrationID, childID, bookings)
-		return promoted(detail.Promotions), err
+		// The rebooked registration is computed again as well: its lunch
+		// is billed as booked (#5631, ADR 0232).
+		return append(promoted(detail.Promotions), registrationID), err
 	})
 	if err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err

@@ -8,7 +8,7 @@
     {
       "decision": "0206",
       "id": "workflows/holidayallocation/Workflow.RebookHolidayChild",
-      "reason": "ADR 0206 (#6555): the workflow command runs the shared protocol (Träger unit, B, P, Enrollment's rebooking, refreeze of the moved-up registrations) and hides a failed unit's registration."
+      "reason": "ADR 0206 (#6555): the workflow command runs the shared protocol (Träger unit, B, P, Enrollment's rebooking, refreeze of the moved-up registrations and, since ADR 0232 (#5631), of the rebooked registration, whose lunch is billed as booked) and hides a failed unit's registration."
     },
     {
       "decision": "0206",

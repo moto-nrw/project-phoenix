@@ -103,7 +103,7 @@ func newHolidayGuestFixture(t *testing.T, name string) holidayGuestFixture {
 			next.ServeHTTP(w, r.WithContext(tenant.WithUnitOfWork(r.Context(), unit)))
 		})
 	})
-	router.Mount("/api/holiday-weeks", NewHolidayHostGuestHTTP(NewHolidayHostHTTP(organizations, persons, accessLog, testHealthCipher(), clock), guests).Router(ProtectedTenantRoutes))
+	router.Mount("/api/holiday-weeks", NewHolidayHostGuestHTTP(NewHolidayHostHTTP(organizations, persons, accessLog, testHealthCipher(), owners.HolidayTestSchoolCalendar(nil), clock), guests).Router(ProtectedTenantRoutes))
 	router.Mount("/api/holiday-guests", NewHolidayGuestHTTP(guests).Router(ProtectedTenantRoutes))
 	nord := f.office.schools[0]
 	group := testpkg.CreateTestEducationGroupForTenant(t, f.db, nord, "Feriengruppe").ID

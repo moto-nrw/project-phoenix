@@ -1713,6 +1713,46 @@
       "target_owner": "security-runtime"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayHostCalendar.HostedHolidayNoCareDays",
+      "binding_digest": "ad210e489ac2536786631263058f8404",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayHostCalendar.HostedHolidayNoCareDays",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/settings/records.SettingsSnapshot.String",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayHostCalendar.HostedHolidayNoCareDays",
+      "binding_digest": "15129b054be3ac118f8d1097cbdf1c94",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayHostCalendar.HostedHolidayNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayHostCalendar.HostedHolidayNoCareDays",
+      "binding_digest": "ac5adae26ecbb0b139c4d7d8939d4a3a",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayHostCalendar.HostedHolidayNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolcalendar.Days.ListHolidays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayHostCalendar.HostedHolidayNoCareDays",
+      "binding_digest": "17f30cb9330e055c0422eeafde4ab25d",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayHostCalendar.HostedHolidayNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/schoolcalendar.Days.ValidHolidayRegion",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayHostCalendar.HostedHolidayNoCareDays",
+      "binding_digest": "1c1955eacf8bceb84ed7ef2b56426228",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayHostCalendar.HostedHolidayNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayHostSchoolNames.HolidayHostSchoolNames",
       "binding_digest": "986f667476f30ba4add39acf9efed9cb",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayHostSchoolNames.HolidayHostSchoolNames",
@@ -1914,7 +1954,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
-      "binding_digest": "b9cf094603d45bab40c63b043a80b3a0",
+      "binding_digest": "33084b6e202245e1875b6423f462d5a0",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
@@ -1946,7 +1986,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
-      "binding_digest": "0b39c2363d519165103fd4f274d8688c",
+      "binding_digest": "331f49f64a6f7e8cf15cf7f46952e60c",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/tenant.NewTenantID",
@@ -1954,7 +1994,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
-      "binding_digest": "b85ce1002b401db219cc81af09b717a4",
+      "binding_digest": "f1b342f1da5874cc3c227469ab95a924",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinTenant",

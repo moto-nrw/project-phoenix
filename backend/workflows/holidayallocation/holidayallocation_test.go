@@ -30,8 +30,10 @@ func TestHolidayAllocationWorkflowOrdersLocksAndStopsAtTheFirstFailure(t *testin
 			run: func(ctx context.Context, w *Workflow) (any, error) {
 				return w.RebookHolidayChild(ctx, reviewer, 11, 21, 31, []enrollment.HolidayBookingInput{{WeekID: 41, TimeModelID: 51}})
 			},
-			want:     enrollment.HolidayRegistrationDetail{ID: 21, Promotions: []enrollment.HolidayPromotion{{RegistrationID: 15}, {RegistrationID: 14}, {RegistrationID: 15}}},
-			affected: []int64{15, 14},
+			want: enrollment.HolidayRegistrationDetail{ID: 21, Promotions: []enrollment.HolidayPromotion{{RegistrationID: 15}, {RegistrationID: 14}, {RegistrationID: 15}}},
+			// Whoever moved up, once, and the rebooked registration itself:
+			// its lunch is billed as booked (#5631).
+			affected: []int64{15, 14, 21},
 		},
 		{
 			name: "capacity",

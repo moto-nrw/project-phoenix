@@ -44,6 +44,15 @@ func HolidayLunch(week HolidayWeek, days []calendar.Date, lunch bool) (count int
 	return count, *week.LunchPriceCents * int64(count)
 }
 
+// HolidayCareDayLunches leaves the days without care out of the lunches of a
+// hosted week: nobody eats on a public holiday or a closing day of the
+// hosting school, so the school orders nothing for it.
+func HolidayCareDayLunches(lunches []HolidayDayCount, noCare []HolidayNoCareDay) []HolidayDayCount {
+	return slices.DeleteFunc(slices.Clone(lunches), func(day HolidayDayCount) bool {
+		return slices.ContainsFunc(noCare, func(none HolidayNoCareDay) bool { return none.Date == day.Date })
+	})
+}
+
 // HolidayLunchCounts counts the lunches of the participants of a hosted
 // week per care day, every care day of the week in calendar order: a child
 // with lunch eats on its booked days, or on every care day of a week it

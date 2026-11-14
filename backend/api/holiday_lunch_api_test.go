@@ -243,6 +243,27 @@ func TestHolidayLunchOfferStaysWhileBookedAndAFrozenPriceHolds(t *testing.T) {
 		"the confirmed contribution keeps the price of its confirmation")
 }
 
+// Booked means billed: the Träger-Büro takes the lunch off a confirmed
+// booking and adds it again, and the confirmed contribution follows, while
+// the care keeps its price.
+func TestHolidayLunchRebookedAfterTheConfirmationChangesThePosition(t *testing.T) {
+	t.Parallel()
+	l := newLunchFixture(t, "Mittagessen Umbuchung")
+	receipt := l.submit(t, l.registration("umbuchung.essen@example.org", "Tom", l.booking(1, true)))
+	assert.Equal(t, int64(4500+2150), l.confirm(t, receipt.ID).TotalCents)
+
+	rebook := func(lunch bool) int64 {
+		rec := traegerJSON(t, l.traeger, l.office.token, http.MethodPut, holidayRebookPath(l.period.ID, receipt.ID, l.childOf(t, receipt.ID)),
+			map[string]any{"bookings": []map[string]any{l.booking(1, lunch)}})
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		rec = traegerJSON(t, l.traeger, l.office.token, http.MethodGet, holidayContributionPath(l.period.ID, receipt.ID), nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return decodeSchoolPortalData[lunchContributionBody](t, rec.Body.Bytes()).TotalCents
+	}
+	assert.Equal(t, int64(4500), rebook(false), "the lunch the Büro took off is no longer billed")
+	assert.Equal(t, int64(4500+2150), rebook(true), "the lunch the Büro added is billed again")
+}
+
 // The hosting school sees which confirmed child eats lunch and how many
 // lunches each care day needs, never a price. The Träger-Büro can take the
 // lunch off a booking again.
@@ -296,6 +317,29 @@ func TestHolidayLunchShowsOnTheParticipantListOfTheHostingSchool(t *testing.T) {
 	}
 	assert.Equal(t, map[string]int{dayMonday: 1, dayTuesday: 0, dayWednesday: 1, dayThursday: 0, dayFriday: 0}, lunches,
 		"only Tom eats, on his two days; every care day of the week is named")
+
+	// The school closes the Wednesday: nobody eats then, so the list the
+	// school orders from no longer names the day.
+	closed := newHolidayHostRouter(t, l.holidayRegistrationFixture, today, owners.HolidayTestSchoolCalendar{
+		{Date: calendar.NewDate(2027, 1, 6), Kind: enrollment.HolidayNoCareClosingDay, Name: "Betriebsausflug"},
+	})
+	rec = httptest.NewRecorder()
+	closed.ServeHTTP(rec, req.Clone(t.Context()))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	ordered := decodeSchoolPortalData[struct {
+		Week struct {
+			Lunches []struct {
+				Date         string `json:"date"`
+				Participants int    `json:"participants"`
+			} `json:"lunches"`
+		} `json:"week"`
+	}](t, rec.Body.Bytes())
+	lunches = map[string]int{}
+	for _, day := range ordered.Week.Lunches {
+		lunches[day.Date] = day.Participants
+	}
+	assert.Equal(t, map[string]int{dayMonday: 1, dayTuesday: 0, dayThursday: 0, dayFriday: 0}, lunches,
+		"a day without care has no lunch to order")
 }
 
 // A closing day planned after the booking takes its lunch away: the Büro
