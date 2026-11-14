@@ -399,7 +399,10 @@ describe("SubstitutionSlideOver", () => {
       expect(
         screen.getByRole("radio", { name: /^Bestimmte Termine/ }),
       ).not.toBeChecked();
-      expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Speichern" })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
 
       chooseScope("Bestimmte Termine");
       expect(
@@ -548,7 +551,10 @@ describe("SubstitutionSlideOver", () => {
         dayInstances: [present, absentElsewhere],
       });
 
-      expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Speichern" })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
     });
   });
 
@@ -692,7 +698,10 @@ describe("SubstitutionSlideOver", () => {
     renderEditor({ instance: sick, dayInstances: [sick, manual], onApply });
 
     chooseScope("Bestimmte Termine");
-    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Speichern" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(onApply).not.toHaveBeenCalled();
   });
 

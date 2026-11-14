@@ -103,7 +103,8 @@ function historyRows(impact: RoomRemovalImpact): ImpactRow[] {
     refs.past_blocks > 0 && {
       key: "past_blocks",
       icon: <History aria-hidden />,
-      label: refs.past_blocks === 1 ? "Vergangener Termin" : "Vergangene Termine",
+      label:
+        refs.past_blocks === 1 ? "Vergangener Termin" : "Vergangene Termine",
       value: String(refs.past_blocks),
     },
     refs.has_session_history && {
@@ -279,8 +280,8 @@ export function RoomRemovalModal({
     if (impact.outcome === "archive") {
       return (
         <p>
-          <span className="font-medium">{roomName}</span> verschwindet aus
-          allen Listen und Auswahlfeldern. Vergangene Termine und Anwesenheiten
+          <span className="font-medium">{roomName}</span> verschwindet aus allen
+          Listen und Auswahlfeldern. Vergangene Termine und Anwesenheiten
           behalten den Raum. Den Namen können Sie für einen neuen Raum nutzen.
         </p>
       );
@@ -301,9 +302,7 @@ export function RoomRemovalModal({
       warningSlot={
         <div className="space-y-3">
           <LoadErrorAlert error={impactLoad.error} />
-          {loadingImpact && !impact ? (
-            <SkeletonRows rows={3} />
-          ) : null}
+          {loadingImpact && !impact ? <SkeletonRows rows={3} /> : null}
           {impact && blockers.length > 0 ? (
             <ImpactList rows={blockers} tone="orange" />
           ) : null}
@@ -321,6 +320,11 @@ export function RoomRemovalModal({
       }}
       confirmDisabled={!impact || impact.outcome === "blocked"}
       confirmLabel={outcome === "archive" ? "Archivieren" : "Endgültig löschen"}
+      confirmTooltip={
+        outcome === "archive"
+          ? "Archiviert den Raum sofort, vergangene Termine behalten ihn."
+          : "Löscht den Raum sofort und endgültig."
+      }
       loadingLabel={
         outcome === "archive" ? "Wird archiviert…" : "Wird gelöscht…"
       }

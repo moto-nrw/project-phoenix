@@ -211,5 +211,17 @@
     "guardian": "Vasi",
     "relative": "Akraba"
   },
-  "accountHintLoginTooltip": "Girişi açar, ardından buraya geri dönersiniz."
+  "accountHintLoginTooltip": "Girişi açar, ardından buraya geri dönersiniz.",
+  "addChildHint": "Bu kayda bir çocuk daha ekler.",
+  "removeChildHint": "Bu çocuğu kayıttan çıkarır, bilgileri silinir.",
+  "addPickupHint": "Acil durum veya teslim alma için bir kişi daha ekler.",
+  "removeContactHint": "Bu kişiyi kayıttan çıkarır.",
+  "toSummaryHint": "Tüm bilgileri kontrol için gösterir, henüz göndermez.",
+  "contributionRetryHint": "Ücreti yeniden hesaplar.",
+  "submitHint": "Kaydı kuruma gönderir, yer hakkında kurum karar verir.",
+  "submitBindingHint": "Çocuğunuzu kuruma bağlayıcı olarak kaydeder, yer henüz kesin değil.",
+  "submitCaptchaPending": "Lütfen önce güvenlik kontrolünü tamamlayın.",
+  "submitUploadsPending": "Lütfen tüm dosyalar yüklenene kadar bekleyin.",
+  "doneToRegistrationsHint": "Tatil kayıtlarınızın listesini açar.",
+  "doneToStatusHint": "Kurumun kaydınızı ne kadar işlediğini gösterir."
 }

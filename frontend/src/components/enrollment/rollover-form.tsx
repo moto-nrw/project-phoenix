@@ -430,6 +430,7 @@ export function RolloverForm({
             size="md"
             onClick={onCancel}
             disabled={submitting}
+            noTooltip="Abbrechen schließt das Formular, ohne eine Phase anzulegen."
           >
             Abbrechen
           </Button>
@@ -438,6 +439,7 @@ export function RolloverForm({
             variant="primary"
             size="md"
             disabled={submitting}
+            tooltip="Legt die neue Phase an und schickt den Familien sofort eine E-Mail."
           >
             {submitting ? "Wird erstellt…" : "Anschlussphase erstellen"}
           </Button>

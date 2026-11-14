@@ -11,7 +11,10 @@
   "share": "Paylaş",
   "homeScreen": "Ana Ekrana Ekle",
   "install": "Uygulamayı yükle",
+  "installTooltip": "moto'yu uygulama olarak yükler, cihazınız önce sorar.",
   "addToHome": "Ana ekrana ekle",
   "openInChrome": "Chrome'da aç",
-  "close": "İpucunu kapat"
+  "openInChromeTooltip": "Bu sayfayı Chrome'da açar, orada moto'yu yükleyebilirsiniz.",
+  "close": "İpucunu kapat",
+  "closeTooltip": "Bu ipucunu bu cihazda kalıcı olarak gizler."
 }

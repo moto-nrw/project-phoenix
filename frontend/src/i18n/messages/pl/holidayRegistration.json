@@ -211,5 +211,17 @@
     "guardian": "Opiekun prawny",
     "relative": "Krewny"
   },
-  "accountHintLoginTooltip": "Otwiera logowanie, potem wrócą Państwo tutaj."
+  "accountHintLoginTooltip": "Otwiera logowanie, potem wrócą Państwo tutaj.",
+  "addChildHint": "Dodaje kolejne dziecko do tego zgłoszenia.",
+  "removeChildHint": "Usuwa to dziecko ze zgłoszenia, jego dane zostaną utracone.",
+  "addPickupHint": "Dodaje kolejną osobę do kontaktu w nagłych wypadkach lub odbioru.",
+  "removeContactHint": "Usuwa tę osobę ze zgłoszenia.",
+  "toSummaryHint": "Pokazuje wszystkie dane do sprawdzenia, jeszcze bez wysyłania.",
+  "contributionRetryHint": "Ponownie oblicza opłatę.",
+  "submitHint": "Wysyła zgłoszenie do organizatora, który decyduje o miejscu.",
+  "submitBindingHint": "Wiążąco zgłasza dziecko u organizatora, miejsce nie jest jeszcze pewne.",
+  "submitCaptchaPending": "Najpierw proszę zakończyć weryfikację bezpieczeństwa.",
+  "submitUploadsPending": "Proszę poczekać, aż wszystkie pliki zostaną przesłane.",
+  "doneToRegistrationsHint": "Otwiera listę Państwa zgłoszeń na ferie.",
+  "doneToStatusHint": "Pokazuje, na jakim etapie organizator jest z Państwa zgłoszeniem."
 }

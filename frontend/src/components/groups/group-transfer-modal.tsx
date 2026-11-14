@@ -160,7 +160,13 @@ export function GroupTransferModal({
 
   const footer = (
     <>
-      <Button type="button" variant="outline" size="md" onClick={onClose}>
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={onClose}
+        noTooltip="Schließt das Fenster, die Gruppe wird nicht übergeben."
+      >
         Abbrechen
       </Button>
       <Button
@@ -171,6 +177,16 @@ export function GroupTransferModal({
         isLoading={save.pending}
         loadingText="Wird übergeben..."
         disabled={!selectedStaffId || availableUsers.length === 0}
+        tooltip="Macht die gewählte Fachkraft heute zusätzlich für die Gruppe zuständig."
+        disabledReason={
+          // Bei einem Ladefehler ist die Liste nur scheinbar leer: dort steht
+          // der Fehler, der Knopf behauptet nichts (#6643).
+          loadError
+            ? undefined
+            : availableUsers.length === 0
+              ? "Es ist keine pädagogische Fachkraft verfügbar."
+              : "Wählen Sie zuerst eine Fachkraft aus."
+        }
       >
         Übergeben
       </Button>
@@ -183,6 +199,7 @@ export function GroupTransferModal({
         isOpen
         title="Übergabe zurücknehmen?"
         confirmText="Übergabe zurücknehmen"
+        confirmTooltip="Beendet die Übergabe für heute sofort."
         cancelText="Abbrechen"
         isConfirmLoading={deletingId !== null}
         loadingText="Wird zurückgenommen …"
@@ -267,6 +284,7 @@ export function GroupTransferModal({
                       variant="outline_danger"
                       size="compact"
                       onClick={() => setCancelTarget(transfer)}
+                      tooltip="Beendet die Übergabe an diese Person. moto fragt vorher nach."
                       isLoading={deletingId === transfer.substitutionId}
                       loadingText="Wird zurückgenommen…"
                       // Die Rückfrage ersetzt das Panel; eine laufende

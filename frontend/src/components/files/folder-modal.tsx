@@ -34,6 +34,13 @@ const VISIBILITY_ITEMS = [
   { value: "selected", label: "Ausgewählt" },
 ] as const satisfies readonly { value: FolderVisibility; label: string }[];
 
+// Wer den Ordner nach dem Speichern sieht, für den Satz am Knopf (#6643).
+const SAVE_AUDIENCE: Record<FolderVisibility, string> = {
+  all_staff: "alle Mitarbeitenden",
+  admins: "die Leitung",
+  selected: "die gewählten Rollen und Personen",
+};
+
 const VISIBILITY_HINTS: Record<FolderVisibility, string> = {
   all_staff:
     "Jede Person mit Zugang zu moto an dieser Schule sieht den Ordner.",
@@ -161,6 +168,7 @@ export function FolderModal({
             size="md"
             onClick={onClose}
             disabled={saving}
+            noTooltip="Schließt das Fenster, nichts wird gespeichert."
           >
             Abbrechen
           </Button>
@@ -170,6 +178,11 @@ export function FolderModal({
             size="md"
             onClick={() => void handleSave()}
             disabled={saving}
+            tooltip={
+              initial
+                ? `Speichert den Ordner, ab sofort sichtbar für ${SAVE_AUDIENCE[visibility]}.`
+                : `Legt den Ordner an, sichtbar für ${SAVE_AUDIENCE[visibility]}.`
+            }
           >
             {saving ? "Wird gespeichert…" : "Speichern"}
           </Button>

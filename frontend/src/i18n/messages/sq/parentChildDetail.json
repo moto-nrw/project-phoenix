@@ -111,7 +111,14 @@
         "pending": "Ftesa është nisur",
         "no_account": "Kontakt pa qasje në aplikacion",
         "active_no_access": "Ka llogari, por ende pa qasje te ky fëmijë"
-      }
+      },
+      "inviteTooltip": "Hap një dritare për t'i dhënë një personi qasje në aplikacion.",
+      "sendTooltip": "Fton personin, sipas cilësimeve {careTerm} e kontrollon këtë më parë.",
+      "sendDisabledReason": "Fillimisht shkruani adresën e email-it të personit.",
+      "grantTooltip": "Kërkon qasje të plotë në aplikacion për këtë person, moto pyet më parë.",
+      "grantConfirmTooltip": "Dërgon menjëherë kërkesën te {careTerm}.",
+      "removeTooltip": "I heq këtij personi qasjen te ky fëmijë, moto pyet më parë.",
+      "removeConfirmTooltip": "I heq menjëherë këtij personi qasjen te ky fëmijë në aplikacion."
     },
     "errorObjectContacts": "lista e kontakteve",
     "errorObjectAccounts": "lista e llogarive të lidhura",
@@ -120,7 +127,19 @@
     "reloadObject": "pamja e kontakteve",
     "savedButStale": "Ndryshimi juaj u ruajt. Vetëm pamja nuk është ende e përditësuar.",
     "errorObjectContact": "ndryshimi i kontaktit",
-    "errorObjectPickup": "rregullimi i marrjes"
+    "errorObjectPickup": "rregullimi i marrjes",
+    "addContactTooltip": "Hap një formular për një person kontakti ose marrjeje pa llogari.",
+    "editContactTooltip": "Hap të dhënat e kontaktit të këtij personi për t'i ndryshuar.",
+    "managePickupTooltip": "Hap rregullat e marrjes dhe kontaktin emergjent për këtë person.",
+    "pickupNotesTooltip": "Hap shënimin për marrjen për këtë person.",
+    "removePhoneTooltip": "Heq këtë numër nga formulari.",
+    "addPhoneTooltip": "Shton një fushë bosh për një numër tjetër.",
+    "createContactTooltip": "Shton kontaktin, {careTerm} e sheh menjëherë.",
+    "createContactWithPickupTooltip": "Shton kontaktin, leja e marrjes vlen vetëm pasi {careTerm} ta konfirmojë.",
+    "saveContactTooltip": "Ruan të dhënat e kontaktit, {careTerm} i sheh menjëherë.",
+    "savePickupTooltip": "Ruan të dhënat, {careTerm} i sheh menjëherë.",
+    "savePickupRequestTooltip": "Dërgon lejen e marrjes te {careTerm}, vlen vetëm pas konfirmimit.",
+    "savePickupRevokeTooltip": "Heq menjëherë të drejtën e marrjes, {careTerm} e sheh këtë."
   },
   "back": "Kthehu te Fëmijët e mi",
   "backSingle": "Kthehu te Fëmija im",

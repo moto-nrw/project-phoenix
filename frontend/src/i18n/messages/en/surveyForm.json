@@ -25,5 +25,7 @@
   "submitObject": "your answer",
   "participated": "Answered",
   "needsAnswer": "Answer needed",
-  "questionLabel": "Question {number} of {total}"
+  "questionLabel": "Question {number} of {total}",
+  "submitTooltip": "Sends your answer to the school right away, with your name.",
+  "submitTooltipAnonymous": "Sends your answer to the school right away, without your name."
 }

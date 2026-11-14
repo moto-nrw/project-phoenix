@@ -203,6 +203,7 @@ export function HolidayRegistrationContribution({
               variant="outline"
               size="md"
               onClick={() => void load()}
+              tooltip={t("contributionRetryHint")}
             >
               {t("contributionRetry")}
             </Button>

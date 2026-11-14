@@ -231,3 +231,36 @@ type TraegerSchoolSessionRequest struct {
 type TraegerSchoolSessions interface {
 	StartTraegerSchoolSession(ctx context.Context, request TraegerSchoolSessionRequest) (string, error)
 }
+
+// TraegerStepUpRequest names the running Träger session a code step proves
+// the second factor for (#7068). Account, Träger and family come from that
+// session, never from the request body.
+type TraegerStepUpRequest struct {
+	AccountID      int64
+	OrganizationID int64
+	FamilyID       string
+	IPAddress      string
+	UserAgent      string
+}
+
+// TraegerStepUpChallenge is the e-mailed code of a step: the challenge token
+// the code is redeemed with and the masked address it went to.
+type TraegerStepUpChallenge struct {
+	ChallengeToken string
+	MaskedEmail    string
+}
+
+// TraegerSessionStepUp proves the second factor by code in the running
+// Träger session (#7068), for a school that accepts no factor proven only by
+// a remembered device (ErrSchoolRequiresCodeProof). StartTraegerStepUp mails
+// an org-scope code with the limits of the sign-in. CompleteTraegerStepUp
+// takes the redeemed code of the session's account and rotates the session
+// into a new family whose factor the code proved (mfa_by_device false); the
+// presented family is retired in the same transaction, under the account
+// lock refresh and logout take, and keeps its switch lineage. A presented
+// family that is no longer the account's live session at that Träger is
+// refused with ErrInvalidToken.
+type TraegerSessionStepUp interface {
+	StartTraegerStepUp(ctx context.Context, request TraegerStepUpRequest) (TraegerStepUpChallenge, error)
+	CompleteTraegerStepUp(ctx context.Context, request TraegerStepUpRequest, proof VerifiedMFAChallenge) (*TraegerLoginResult, error)
+}

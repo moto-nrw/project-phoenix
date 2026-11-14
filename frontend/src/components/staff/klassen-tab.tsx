@@ -207,6 +207,7 @@ export function KlassenTab({
             variant="surface"
             size="md"
             onClick={startEditing}
+            tooltip="Öffnet die Klassen dieser Person zum Ändern."
           >
             Bearbeiten
           </Button>
@@ -276,6 +277,12 @@ export function KlassenTab({
                   size="field"
                   onClick={addClass}
                   disabled={saving || newClass.trim() === ""}
+                  disabledReason={
+                    saving
+                      ? undefined
+                      : "Geben Sie zuerst einen Klassennamen ein."
+                  }
+                  tooltip="Nimmt die Klasse auf, gespeichert wird erst mit „Speichern“."
                   className="gap-1.5"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
@@ -287,6 +294,8 @@ export function KlassenTab({
                 onSave={() => void handleSave()}
                 saving={saving}
                 disabled={!dirty}
+                disabledReason="Sie haben noch nichts geändert."
+                saveTooltip="Speichert die Klassen, die Person sieht dann deren Kinder."
               />
             </>
           )}

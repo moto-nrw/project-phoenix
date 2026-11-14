@@ -170,7 +170,7 @@ export function HolidayRegistrationChildCard({
         variant="outline"
         size="md"
         aria-label={`Angaben von ${child.firstName} ${child.lastName} ändern`}
-        tooltip="Öffnet die Angaben des Kindes zum Bearbeiten."
+        tooltip="Öffnet die Angaben des Kindes zum Ändern."
         onClick={onEdit}
       >
         Ändern

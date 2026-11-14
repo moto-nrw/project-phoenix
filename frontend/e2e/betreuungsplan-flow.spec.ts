@@ -368,9 +368,9 @@ test.describe("Betreuungsplan UI-Flow (Inkrement 4)", () => {
     // sie (leere Liste -> Hinweis-Toast statt Wizard), und solange der SWR-Load
     // läuft, ist die Liste noch leer. Der Zeitraum-Umschalter erscheint genau
     // dann, wenn die Daten da sind — vorher steht dort ein Skeleton.
-    await expect(
-      page.locator('button[title="Planungszeitraum wechseln"]'),
-    ).toBeVisible(DATA);
+    await expect(page.getByRole("button", { name: /Schuljahr/ })).toBeVisible(
+      DATA,
+    );
 
     const block = page.getByRole("button", {
       name: `${title}, ${startTime} bis ${endTime}`,

@@ -13,6 +13,7 @@
   "contactData": "Contact details",
   "soon": "Soon",
   "refresh": "Refresh data",
+  "refreshTooltip": "Fetches the latest state of all data on this page.",
   "closeMenu": "Close menu",
   "profileMenu": "Profile menu for {name}",
   "profile": "Profile",

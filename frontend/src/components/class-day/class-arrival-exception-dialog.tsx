@@ -81,7 +81,13 @@ export function ClassArrivalExceptionDialog({
       mobilePosition="bottom"
       footer={
         <div className="flex items-center justify-end gap-2 p-4">
-          <Button type="button" variant="outline" size="md" onClick={close}>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={close}
+            noTooltip="Schließt nur das Fenster; jede Änderung speichert das Panel darin selbst."
+          >
             Schließen
           </Button>
         </div>

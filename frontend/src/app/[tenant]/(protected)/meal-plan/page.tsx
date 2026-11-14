@@ -121,6 +121,13 @@ function dayHasContent(rows: DishDraft[] | undefined): boolean {
   return normalizeDay(rows ?? []).length > 0;
 }
 
+/** Ein Gericht mit Inhalt: Entfernen fragt nach, eine leere Zeile nicht. */
+function rowHasContent(row: DishDraft): boolean {
+  return (
+    row.dish.trim() !== "" || row.note.trim() !== "" || row.allergens.length > 0
+  );
+}
+
 // Build editable drafts (always at least one empty row per day) from persisted
 // entries keyed by date.
 function draftsFromEntries(
@@ -381,12 +388,7 @@ export default function MealPlanPage() {
   // straight away (nothing to lose).
   const requestRemove = (date: string, idx: number) => {
     const row = drafts[date]?.[idx];
-    if (
-      row &&
-      (row.dish.trim() !== "" ||
-        row.note.trim() !== "" ||
-        row.allergens.length > 0)
-    ) {
+    if (row && rowHasContent(row)) {
       setDeleteTarget({ date, idx });
     } else {
       removeRow(date, idx);
@@ -494,8 +496,10 @@ export default function MealPlanPage() {
     retryCopyPrevRef.current = () => void doCopyPreviousWeek();
   });
 
+  // Die Rückfrage und der Satz am Knopf hängen an derselben Bedingung.
+  const weekHasContent = weekDates.some((d) => dayHasContent(drafts[d]));
   const requestCopyPreviousWeek = () => {
-    if (weekDates.some((d) => dayHasContent(drafts[d]))) {
+    if (weekHasContent) {
       setConfirmCopyPrev(true);
     } else {
       void doCopyPreviousWeek();
@@ -644,6 +648,7 @@ export default function MealPlanPage() {
             }
             gate={{ mode: "twoStep", firstStepLabel: "Entfernen" }}
             confirmLabel="Entfernen"
+            confirmTooltip="Entfernt das Gericht, gespeichert wird erst mit „Speichern“."
             onConfirm={confirmRemove}
             onClose={() => setDeleteTarget(null)}
             loading={false}
@@ -668,6 +673,11 @@ export default function MealPlanPage() {
             }
             cancelText="Hierbleiben"
             confirmVariant="danger"
+            confirmTooltip={
+              confirmReload
+                ? "Verwirft Ihre Änderungen sofort und holt die gespeicherte Woche."
+                : "Verwirft Ihre Änderungen sofort und wechselt die Woche."
+            }
           >
             <p className="text-sm text-gray-600">
               {confirmReload
@@ -682,6 +692,7 @@ export default function MealPlanPage() {
             onConfirm={confirmNavigation}
             title="Ungespeicherte Änderungen"
             confirmText="Verwerfen & verlassen"
+            confirmTooltip="Verwirft Ihre Änderungen sofort und verlässt die Seite."
             cancelText="Hierbleiben"
             confirmVariant="danger"
           >
@@ -700,6 +711,7 @@ export default function MealPlanPage() {
             }}
             title="Vorwoche übernehmen?"
             confirmText="Übernehmen"
+            confirmTooltip="Ersetzt diese Woche, gespeichert wird erst mit „Speichern“."
             cancelText="Abbrechen"
           >
             <p className="text-sm text-gray-600">
@@ -741,6 +753,16 @@ export default function MealPlanPage() {
               size="md"
               onClick={requestCopyPreviousWeek}
               disabled={loading || saving || copyingPrev || hasLoadError}
+              tooltip={
+                weekHasContent
+                  ? "Ersetzt diese Woche durch die Vorwoche, moto fragt vorher nach."
+                  : "Übernimmt die Vorwoche, gespeichert wird erst mit „Speichern“."
+              }
+              disabledReason={
+                hasLoadError && !loading
+                  ? "Die Woche ist nicht geladen, versuchen Sie es zuerst erneut."
+                  : undefined
+              }
               isLoading={copyingPrev}
               loadingText="Übernehmen…"
             >
@@ -792,18 +814,24 @@ export default function MealPlanPage() {
                             {
                               label: "Tag kopieren",
                               icon: <Copy className="h-4 w-4" />,
+                              description:
+                                "Merkt sich die Gerichte, um sie an einem anderen Tag einzufügen.",
                               onClick: () => copyDay(date),
                               disabled: !hasContent || editingLocked,
                             },
                             {
                               label: "Einfügen",
                               icon: <ClipboardPaste className="h-4 w-4" />,
+                              description:
+                                "Ersetzt die Gerichte dieses Tags durch die kopierten.",
                               onClick: () => pasteDay(date),
                               disabled: clipboard === null || editingLocked,
                             },
                             {
                               label: "Tag leeren",
                               icon: <Trash2 className="h-4 w-4" />,
+                              description:
+                                "Leert den Tag sofort, gespeichert wird erst mit „Speichern“.",
                               onClick: () => clearDay(date),
                               destructive: true,
                               disabled: !hasContent || editingLocked,
@@ -859,23 +887,24 @@ export default function MealPlanPage() {
                             className="mt-2"
                           />
                         )}
-                        {canEdit &&
-                          (rows.length > 1 ||
-                            row.dish.trim() !== "" ||
-                            row.note.trim() !== "" ||
-                            row.allergens.length > 0) && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              aria-label="Gericht entfernen"
-                              onClick={() => requestRemove(date, idx)}
-                              disabled={editingLocked}
-                              className="absolute top-1 right-1"
-                            >
-                              <X className="h-4 w-4" aria-hidden />
-                            </Button>
-                          )}
+                        {canEdit && (rows.length > 1 || rowHasContent(row)) && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Gericht entfernen"
+                            onClick={() => requestRemove(date, idx)}
+                            tooltip={
+                              rowHasContent(row)
+                                ? "Entfernt das Gericht, moto fragt vorher nach."
+                                : "Entfernt die leere Zeile sofort."
+                            }
+                            disabled={editingLocked}
+                            className="absolute top-1 right-1"
+                          >
+                            <X className="h-4 w-4" aria-hidden />
+                          </Button>
+                        )}
                       </InsetPanel>
                     ))}
 
@@ -885,6 +914,7 @@ export default function MealPlanPage() {
                         variant="dashed"
                         size="md"
                         onClick={() => addRow(date)}
+                        tooltip="Fügt diesem Tag ein leeres Feld für ein Gericht hinzu."
                         disabled={editingLocked}
                         className="w-full gap-1"
                       >
@@ -945,6 +975,7 @@ export default function MealPlanPage() {
             size="md"
             onClick={discard}
             disabled={saving}
+            tooltip="Nimmt alle ungespeicherten Änderungen dieser Woche sofort zurück."
           >
             Verwerfen
           </Button>
@@ -954,6 +985,7 @@ export default function MealPlanPage() {
             size="md"
             onClick={handleSave}
             disabled={saving}
+            tooltip="Speichert die Woche, Eltern sehen den Plan im Elternportal."
             isLoading={saving}
             loadingText="Speichern…"
           >

@@ -87,6 +87,7 @@ export function EnrollmentSignatureStatus({
         isLoading={downloading}
         loadingText={t("signatureDownloading")}
         disabled={downloading}
+        tooltip={t("buttonHints.signatureDownload")}
       >
         <Download className="h-4 w-4" aria-hidden="true" />
         {t("signatureDownload")}

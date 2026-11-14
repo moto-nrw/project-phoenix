@@ -52,6 +52,7 @@ export function RosterDeviationTodos({
           href={tenantPath("/betreuungsplan?view=serien&pruefen=1")}
           variant="surface"
           size="md"
+          tooltip="Öffnet im Betreuungsplan die Regeltermine, die abweichen."
         >
           Regeltermine prüfen
         </ButtonLink>

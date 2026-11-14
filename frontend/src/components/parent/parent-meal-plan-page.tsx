@@ -168,9 +168,11 @@ function MealParticipationDaysSkeleton({
 function WeekNavigation({
   weekOffset,
   lastWeek,
+  lastWeekReason,
   mondayISO,
   weekRange,
   weekReady,
+  editing = false,
   onWeekChange,
   actions,
 }: Readonly<{
@@ -179,12 +181,25 @@ function WeekNavigation({
   mondayISO: string;
   weekRange: string;
   weekReady: boolean;
+  /** Eine offene Änderung sperrt den Wochenwechsel, bis sie gespeichert ist. */
+  editing?: boolean;
   onWeekChange: (offset: WeekOffset) => void;
   /** Aktionen für die ganze Woche: rechts neben dem Wochenwechsel, auf dem
       Handy darunter in voller Breite. */
   actions?: ReactNode;
+  /** Warum es nach der letzten Woche nicht weitergeht. */
+  lastWeekReason: string;
 }>) {
   const t = useCareTermTranslations("parentMealPlan");
+  const ready = weekReady && !editing;
+  // Der Grund steht nur bei einer Sperre durch den Stand der Seite, nicht
+  // während die Woche lädt.
+  const blockedReason = (atEnd: boolean, endReason: string) =>
+    editing
+      ? t("weekEditingReason")
+      : weekReady && atEnd
+        ? endReason
+        : undefined;
   const weekLabel =
     weekOffset === 0
       ? t("thisWeek")
@@ -203,7 +218,12 @@ function WeekNavigation({
           variant="ghost"
           size="icon"
           aria-label={t("previousWeek")}
-          disabled={!weekReady || weekOffset === 0}
+          tooltip={t("previousWeekTooltip")}
+          disabled={!ready || weekOffset === 0}
+          disabledReason={blockedReason(
+            weekOffset === 0,
+            t("previousWeekDisabledReason"),
+          )}
           onClick={() => onWeekChange((weekOffset - 1) as WeekOffset)}
         >
           <CaretLeftIcon size={16} weight="bold" aria-hidden="true" />
@@ -225,7 +245,9 @@ function WeekNavigation({
           variant="ghost"
           size="icon"
           aria-label={t("nextWeek")}
-          disabled={!weekReady || weekOffset >= lastWeek}
+          tooltip={t("nextWeekTooltip")}
+          disabled={!ready || weekOffset >= lastWeek}
+          disabledReason={blockedReason(weekOffset >= lastWeek, lastWeekReason)}
           onClick={() => onWeekChange((weekOffset + 1) as WeekOffset)}
         >
           <CaretRightIcon size={16} weight="bold" aria-hidden="true" />
@@ -250,12 +272,14 @@ function MealParticipationEditActions({
   saving,
   onCancel,
   onSave,
+  saveTooltip,
   align = "end",
   className = "",
 }: Readonly<{
   saving: boolean;
   onCancel: () => void;
   onSave: () => void;
+  saveTooltip: string;
   align?: "start" | "end";
   className?: string;
 }>) {
@@ -271,6 +295,7 @@ function MealParticipationEditActions({
         size="md"
         onClick={onCancel}
         disabled={saving}
+        noTooltip="Abbrechen verwirft die Änderung und speichert nichts."
       >
         {t("cancel")}
       </Button>
@@ -282,6 +307,7 @@ function MealParticipationEditActions({
         disabled={saving}
         isLoading={saving}
         loadingText={t("saving")}
+        tooltip={saveTooltip}
       >
         {t("save")}
       </Button>
@@ -743,6 +769,7 @@ function ParticipationWeek({
                 saving={saving}
                 onCancel={cancelRegularDaysEdit}
                 onSave={() => void saveRegularDays()}
+                saveTooltip={t("saveRegularDaysTooltip")}
                 className="mt-4"
               />
             </fieldset>
@@ -764,6 +791,7 @@ function ParticipationWeek({
                     size="md"
                     className="gap-2"
                     aria-expanded={false}
+                    tooltip={t("editRegularDaysTooltip")}
                     onClick={beginRegularDaysEdit}
                   >
                     <PencilSimpleIcon
@@ -814,9 +842,11 @@ function ParticipationWeek({
         <WeekNavigation
           weekOffset={weekOffset}
           lastWeek={LAST_PARTICIPATION_WEEK}
+          lastWeekReason={t("lastParticipationWeekReason")}
           mondayISO={mondayISO}
           weekRange={weekRange}
-          weekReady={weekReady && !isEditing}
+          weekReady={weekReady}
+          editing={isEditing}
           onWeekChange={onWeekChange}
           actions={
             weekReady && !loading && (weekRegistrable || weekCancellable) ? (
@@ -827,6 +857,7 @@ function ParticipationWeek({
                     variant="success"
                     size="md"
                     disabled={saving}
+                    tooltip={t("registerWeekTooltip")}
                     onClick={() => void saveWeek(true)}
                   >
                     {t("registerWeek")}
@@ -838,6 +869,7 @@ function ParticipationWeek({
                     variant="outline_danger"
                     size="md"
                     disabled={saving}
+                    tooltip={t("cancelWeekTooltip")}
                     onClick={() => {
                       clearWeekCancelError();
                       setConfirmingWeek(true);
@@ -880,8 +912,10 @@ function ParticipationWeek({
         onConfirm={() => void saveWeek(false)}
         title={t("cancelWeekTitle")}
         confirmText={t("cancelWeekConfirm")}
+        confirmTooltip={t("cancelWeekConfirmTooltip")}
         cancelText={t("cancel")}
         closeLabel={t("cancel")}
+        closeTooltip={t("cancelWeekCloseTooltip")}
         backdropLabel={t("cancel")}
         confirmVariant="danger"
         isConfirmLoading={saving}
@@ -1033,6 +1067,7 @@ function ParticipationWeek({
                             aria-label={t("editDayRegistration", {
                               date: fullDate(date),
                             })}
+                            tooltip={t("editDayTooltip")}
                             onClick={() => beginDayEdit(date)}
                           >
                             {t("edit")}
@@ -1082,6 +1117,11 @@ function ParticipationWeek({
                                 }
                                 size="md"
                                 disabled={saving}
+                                tooltip={
+                                  displayedParticipation
+                                    ? t("unregisterDayTooltip")
+                                    : t("registerDayTooltip")
+                                }
                                 onClick={() =>
                                   stageDayChange(day, !displayedParticipation)
                                 }
@@ -1099,6 +1139,7 @@ function ParticipationWeek({
                                 variant="ghost"
                                 size="md"
                                 disabled={saving}
+                                tooltip={t("useRegularTooltip")}
                                 onClick={stageDayReset}
                               >
                                 {t("useRegular")}
@@ -1124,6 +1165,7 @@ function ParticipationWeek({
                             saving={saving}
                             onCancel={cancelDayEdit}
                             onSave={() => void saveDayChange()}
+                            saveTooltip={t("saveDayTooltip")}
                             align="start"
                             className="mt-2"
                           />
@@ -1477,6 +1519,7 @@ export function ParentMealPlanPage() {
             <WeekNavigation
               weekOffset={weekOffset}
               lastWeek={LAST_MEAL_PLAN_WEEK}
+              lastWeekReason={t("lastMealPlanWeekReason")}
               mondayISO={mondayISO}
               weekRange={weekRange}
               weekReady={weekReady}

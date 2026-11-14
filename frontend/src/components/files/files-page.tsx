@@ -227,6 +227,7 @@ export function FilesPage() {
             variant="primary"
             size="md"
             onClick={() => setFolderModal({ open: true, folder: null })}
+            tooltip="Öffnet ein Formular für einen neuen Ordner."
           >
             Neuer Ordner
           </Button>
@@ -511,6 +512,7 @@ function FolderFilesPanel({
         if (isViewableInBrowser(file.contentType)) {
           items.push({
             label: "Öffnen",
+            description: "Zeigt die Datei in einem neuen Tab",
             href: filesService.viewUrl(folder.id, file.id),
             external: true,
             onClick: () => undefined,
@@ -518,6 +520,7 @@ function FolderFilesPanel({
         }
         items.push({
           label: "Herunterladen",
+          description: "Speichert die Datei auf Ihrem Gerät",
           href: filesService.downloadUrl(folder.id, file.id),
           external: true,
           onClick: () => undefined,
@@ -527,6 +530,7 @@ function FolderFilesPanel({
             { kind: "separator" },
             {
               label: "Löschen",
+              description: "Löscht die Datei endgültig. moto fragt vorher nach",
               destructive: true,
               onClick: () => {
                 deleteErrors.clear();
@@ -546,9 +550,19 @@ function FolderFilesPanel({
   ];
 
   const folderMenu: OverflowMenuEntry[] = [
-    { label: "Ordner bearbeiten", onClick: onEdit },
+    {
+      label: "Ordner bearbeiten",
+      description: "Ändert Name und wer den Ordner sieht",
+      onClick: onEdit,
+    },
     { kind: "separator" },
-    { label: "Ordner löschen", destructive: true, onClick: onDelete },
+    {
+      label: "Ordner löschen",
+      description:
+        "Löscht den Ordner mit allen Dateien. moto fragt vorher nach",
+      destructive: true,
+      onClick: onDelete,
+    },
   ];
 
   return (

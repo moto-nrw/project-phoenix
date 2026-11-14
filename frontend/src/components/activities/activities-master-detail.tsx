@@ -142,7 +142,10 @@ function ActivityDetailContent({
   const isSystem = isSystemActivity(activity);
 
   const headerActions = !isSystem ? (
-    <DetailDeleteButton onClick={onDeleteClick} />
+    <DetailDeleteButton
+      onClick={onDeleteClick}
+      tooltip="Löscht die Aktivität mit allen Anmeldungen, moto fragt vorher nach."
+    />
   ) : null;
 
   const tabs: DetailTab[] = [

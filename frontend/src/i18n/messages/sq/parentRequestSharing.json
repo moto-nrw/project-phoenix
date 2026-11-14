@@ -12,5 +12,8 @@
   "close": "Mbyll dritaren",
   "errorObjectRecipients": "lista e marrësve",
   "errorObjectSelection": "zgjedhja",
-  "optionsHint": "Mund ta dërgoni kërkesën gjithsesi dhe ta ndani më vonë."
+  "optionsHint": "Mund ta dërgoni kërkesën gjithsesi dhe ta ndani më vonë.",
+  "buttonTooltip": "Hap një dritare ku zgjidhni kush e sheh kërkesën.",
+  "saveTooltip": "Ruan kush mund ta shohë kërkesën dhe përgjigjen.",
+  "closeTooltip": "Mbyll dritaren; zgjedhja mbetet e pandryshuar."
 }

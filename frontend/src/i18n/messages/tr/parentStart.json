@@ -50,7 +50,8 @@
     "offeredByTraeger": "Düzenleyen: {traeger}",
     "careLine": "Bakım {from} – {to}",
     "registrationLine": "Kayıt {date} tarihine kadar",
-    "registrationRangeLine": "Kayıt {from} – {to}"
+    "registrationRangeLine": "Kayıt {from} – {to}",
+    "registerTooltip": "Bu tatil teklifine kaydı açar."
   },
   "childrenLoading": "Çocuklar yükleniyor",
   "noChildren": "Hesabınıza henüz bir çocuk bağlı değil. Okulunuzun {careTerm}'si bunu ayarlayabilir.",

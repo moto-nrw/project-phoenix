@@ -15,6 +15,8 @@ export function useParentAnalyticsConsentCopy(): AnalyticsConsentCopy {
     promptChangeLater: t("promptChangeLater"),
     allow: t("allow"),
     refuse: t("refuse"),
+    allowTooltip: t("allowTooltip"),
+    refuseTooltip: t("refuseTooltip"),
     saving: t("saving"),
     closeLabel: t("closeLabel"),
     sectionDescription: t("sectionDescription"),

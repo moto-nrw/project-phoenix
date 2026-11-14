@@ -272,5 +272,23 @@
     "title": "Nënshkrimi",
     "description": "Ju lutemi nënshkruani regjistrimin. Pa nënshkrim ai nuk i dërgohet {careTerm}.",
     "required": "Ju lutemi nënshkruani regjistrimin."
+  },
+  "buttonHints": {
+    "addGuardian": "Shton fusha për një person tjetër me përgjegjësi prindërore.",
+    "removeGuardian": "Heq menjëherë të dhënat e këtij personi nga formulari.",
+    "addChild": "Shton fusha për një fëmijë tjetër.",
+    "removeChild": "Heq menjëherë të dhënat e këtij fëmije nga formulari.",
+    "adopt": "E shton këtë fëmijë me të dhënat e ruajtura në regjistrim.",
+    "adopted": "Ky fëmijë është tashmë në regjistrim.",
+    "submit": "Dërgon menjëherë regjistrimin te {careTerm} dhe një konfirmim te ju.",
+    "previewSubmit": "Në parapamje nuk mund ta dërgoni regjistrimin.",
+    "captchaPending": "Ju lutemi përfundoni fillimisht kontrollin e sigurisë.",
+    "captchaUnavailable": "Dërgimi nuk është i mundur tani, ju lutemi kontaktoni {careTerm}.",
+    "addPhone": "Shton një rresht për një numër tjetër telefoni.",
+    "removePhone": "Heq menjëherë këtë numër nga formulari.",
+    "addContact": "Shton fusha për një kontakt tjetër.",
+    "removeContact": "Heq menjëherë këtë kontakt nga formulari.",
+    "chooseFile": "Hap zgjedhjen e skedarëve në pajisjen tuaj.",
+    "details": "Hap tekstin e plotë për ta lexuar."
   }
 }

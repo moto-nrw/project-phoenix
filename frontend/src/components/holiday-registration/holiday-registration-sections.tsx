@@ -386,6 +386,7 @@ export function ChildCard({
             variant="ghost"
             size="compact"
             onClick={onRemove}
+            tooltip={t("removeChildHint")}
           >
             {t("removeChild")}
           </Button>
@@ -693,6 +694,7 @@ export function ContactList({
                   onClick={() =>
                     onChange(contacts.filter((_, i) => i !== index))
                   }
+                  tooltip={t("removeContactHint")}
                 >
                   {t("remove")}
                 </Button>
@@ -706,6 +708,7 @@ export function ContactList({
             variant="outline"
             size="md"
             onClick={() => onChange([...contacts, emptyContact()])}
+            tooltip={t("addPickupHint")}
           >
             {t("addPickup")}
           </Button>

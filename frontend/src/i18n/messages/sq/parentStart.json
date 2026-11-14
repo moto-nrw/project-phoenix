@@ -50,7 +50,8 @@
     "offeredByTraeger": "Ofruar nga {traeger}",
     "careLine": "Kujdesi {from} deri më {to}",
     "registrationLine": "Regjistrimi deri më {date}",
-    "registrationRangeLine": "Regjistrimi {from} deri më {to}"
+    "registrationRangeLine": "Regjistrimi {from} deri më {to}",
+    "registerTooltip": "Hap regjistrimin për këtë ofertë pushimesh."
   },
   "childrenLoading": "Po ngarkohen të dhënat e fëmijëve",
   "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. {careTerm}-ja e shkollës suaj mund ta rregullojë këtë.",

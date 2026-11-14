@@ -730,7 +730,11 @@ function EnrollmentStatusContent({
                   {t("noAccessFallback")}
                 </p>
               ) : null}
-              <ButtonLink href={parentsHref} className="w-full sm:w-auto">
+              <ButtonLink
+                href={parentsHref}
+                className="w-full sm:w-auto"
+                tooltip={t("buttonHints.parentApp")}
+              >
                 {t("lockedAllAction")}
               </ButtonLink>
             </>
@@ -896,6 +900,11 @@ function EnrollmentStatusHero({
                 variant="primary"
                 size="md"
                 className="gap-2"
+                tooltip={
+                  allEditable
+                    ? t("buttonHints.editFull")
+                    : t("buttonHints.requestChange")
+                }
               >
                 <Pencil className="h-4 w-4" aria-hidden="true" />
                 {allEditable ? t("editFull") : t("requestChange")}
@@ -1077,7 +1086,11 @@ function EnrollmentChildRow({
               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-600">
                 <span>{t("lockedChildHint")}</span>
                 {parentsHref ? (
-                  <ButtonLink href={parentsHref} size="sm">
+                  <ButtonLink
+                    href={parentsHref}
+                    size="sm"
+                    tooltip={t("buttonHints.parentApp")}
+                  >
                     {t("lockedAllAction")}
                   </ButtonLink>
                 ) : null}
@@ -1102,6 +1115,7 @@ function EnrollmentChildRow({
             variant="surface"
             size="md"
             className="w-full sm:w-auto"
+            tooltip={t("buttonHints.withdrawChild")}
           >
             {isWithdrawing ? t("withdrawing") : t("withdrawChild")}
           </Button>
@@ -1214,6 +1228,7 @@ function GuardianSection({
             variant="outline"
             size="md"
             className="w-full gap-2 sm:w-auto"
+            tooltip={t("buttonHints.editFull")}
           >
             <Pencil className="h-4 w-4" aria-hidden="true" />
             {t("edit")}
@@ -1226,6 +1241,7 @@ function GuardianSection({
             variant="outline"
             size="md"
             className="w-full gap-2 sm:w-auto"
+            tooltip={t("buttonHints.editGuardian")}
           >
             <Pencil className="h-4 w-4" aria-hidden="true" />
             {t("edit")}
@@ -1270,7 +1286,12 @@ function GuardianSection({
           />
           <p className="text-sm text-gray-500">{t("emailImmutable")}</p>
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Button type="submit" disabled={savingEdit} size="md">
+            <Button
+              type="submit"
+              disabled={savingEdit}
+              size="md"
+              tooltip={t("buttonHints.saveGuardian")}
+            >
               {savingEdit ? t("saving") : t("save")}
             </Button>
             <Button
@@ -1279,6 +1300,7 @@ function GuardianSection({
               disabled={savingEdit}
               variant="surface"
               size="md"
+              noTooltip="Abbrechen verwirft nur die Eingaben im Formular."
             >
               {t("cancel")}
             </Button>
@@ -1380,6 +1402,11 @@ function WithdrawAllSection({
           onClick={handleWithdraw}
           disabled={withdrawingAll}
           className="w-full shrink-0 sm:w-auto"
+          tooltip={
+            hasMultipleChildren
+              ? t("buttonHints.withdrawAll")
+              : t("buttonHints.withdrawOne")
+          }
         >
           {t(withdrawButtonLabelKey(withdrawingAll, hasMultipleChildren))}
         </Button>
@@ -1505,6 +1532,7 @@ function ChangeRequestsPanel({
             variant="primary"
             size="md"
             className="w-full shrink-0 gap-2 sm:w-auto"
+            tooltip={t("buttonHints.requestChange")}
           >
             <Pencil className="h-4 w-4" aria-hidden="true" />
             {t("requestChange")}
@@ -1619,6 +1647,7 @@ function ChangeRequestsPanel({
                       type="submit"
                       disabled={replyingId === request.id}
                       size="md"
+                      tooltip={t("buttonHints.replySubmit")}
                     >
                       {replyingId === request.id
                         ? t("changeRequestReplySending")

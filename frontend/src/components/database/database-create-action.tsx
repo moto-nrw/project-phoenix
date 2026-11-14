@@ -25,7 +25,11 @@ interface DatabaseCreateActionProps {
    * calling `onClick`.
    */
   menuItems?: readonly OverflowMenuItem[];
+  /** What a click on the button does (#6643); the menu brings its own. */
+  tooltip?: string;
 }
+
+const DEFAULT_TOOLTIP = "Öffnet ein leeres Formular für einen neuen Eintrag.";
 
 // Anlegen im Kopf: Kit `success` `md`; mobil der schwebende Kit-Knopf `fab`.
 const DESKTOP_CLASS = buttonClassName({
@@ -50,6 +54,7 @@ export function DatabaseCreateAction({
   showMobileFab = true,
   onClick,
   menuItems,
+  tooltip = DEFAULT_TOOLTIP,
 }: DatabaseCreateActionProps) {
   // `TenantPage` renders actions inside a blurred content surface. A backdrop
   // filter establishes a containing block for fixed descendants, so the mobile
@@ -112,6 +117,7 @@ export function DatabaseCreateAction({
         size="md"
         onClick={onClick}
         disabled={disabled}
+        tooltip={tooltip}
         className="hidden gap-2 md:flex"
         aria-label={ariaLabel}
         // Ziel der geführten Tour der ersten Schritte (#2832).
@@ -128,6 +134,7 @@ export function DatabaseCreateAction({
             size="icon"
             onClick={onClick}
             disabled={disabled}
+            tooltip={tooltip}
             className="fixed right-4 bottom-24 z-40 flex md:hidden"
             // Schwebender Symbolknopf: Das Portal löst ihn aus dem
             // Filter-Kontext der Kopfkarte, damit `fixed` den Viewport meint.

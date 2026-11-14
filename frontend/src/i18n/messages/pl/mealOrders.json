@@ -27,5 +27,8 @@
   "changesAdded": "{count, plural, one {# dziecko więcej} few {# dzieci więcej} many {# dzieci więcej} other {# dzieci więcej}}",
   "changesRemoved": "{count, plural, one {# dziecko mniej} few {# dzieci mniej} many {# dzieci mniej} other {# dzieci mniej}}",
   "deliveryHeader": "Lista dostaw na ten tydzień",
-  "errorObjectDelivery": "lista dostaw"
+  "errorObjectDelivery": "lista dostaw",
+  "deliveryDownloadDescription": "Pobiera listę dostaw na ten tydzień",
+  "monthExportDescription": "Otwiera okno wyboru miesiąca i formatu",
+  "monthDownloadDescription": "Pobiera zamówione posiłki dla każdego dziecka w tym miesiącu"
 }

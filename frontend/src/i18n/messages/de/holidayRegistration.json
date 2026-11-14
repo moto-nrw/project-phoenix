@@ -211,5 +211,17 @@
     "guardian": "Vormund",
     "relative": "Verwandte"
   },
-  "accountHintLoginTooltip": "Öffnet die Anmeldung, danach kommen Sie hierher zurück."
+  "accountHintLoginTooltip": "Öffnet die Anmeldung, danach kommen Sie hierher zurück.",
+  "addChildHint": "Fügt ein weiteres Kind zu dieser Anmeldung hinzu.",
+  "removeChildHint": "Nimmt dieses Kind aus der Anmeldung, seine Angaben gehen verloren.",
+  "addPickupHint": "Fügt eine weitere Person für Notfall oder Abholung hinzu.",
+  "removeContactHint": "Nimmt diese Person aus der Anmeldung.",
+  "toSummaryHint": "Zeigt alle Angaben zum Prüfen, noch ohne Absenden.",
+  "contributionRetryHint": "Berechnet den Beitrag noch einmal.",
+  "submitHint": "Schickt die Anmeldung an den Träger, der über den Platz entscheidet.",
+  "submitBindingHint": "Meldet Ihr Kind verbindlich beim Träger an, der Platz ist noch offen.",
+  "submitCaptchaPending": "Schließen Sie zuerst die Sicherheitsprüfung ab.",
+  "submitUploadsPending": "Warten Sie, bis alle Dateien hochgeladen sind.",
+  "doneToRegistrationsHint": "Öffnet die Liste Ihrer Ferienanmeldungen.",
+  "doneToStatusHint": "Zeigt, wie weit der Träger mit Ihrer Anmeldung ist."
 }

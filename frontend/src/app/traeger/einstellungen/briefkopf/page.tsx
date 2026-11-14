@@ -187,7 +187,7 @@ export default function TraegerBriefkopfPage() {
                 )}
                 variant="outline"
                 size="md"
-                tooltip="Öffnet das Schreiben nach der Ferienanmeldung zum Bearbeiten."
+                tooltip="Öffnet das Schreiben nach der Ferienanmeldung zum Ändern."
               >
                 Schreiben anpassen
               </ButtonLink>

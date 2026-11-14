@@ -67,16 +67,19 @@ for (const { enrollment, deviceChoice } of childOrigin
       { enrollment: false, deviceChoice: "none" },
       { enrollment: false, deviceChoice: "legacy" },
       { enrollment: false, deviceChoice: "current" },
+      { enrollment: false, deviceChoice: "default" },
       { enrollment: true, deviceChoice: "none" },
     ]) {
   test(`local login completes ${enrollment ? "enrollment" : "verification"}${deviceChoice !== "none" ? ` with ${deviceChoice} device choice` : ""} and reuses its session`, async ({
     browser,
   }) => {
-    const trustedDeviceEnabled = deviceChoice !== "none";
+    const trustedDeviceEnabled =
+      deviceChoice === "default" ? undefined : deviceChoice !== "none";
+    const showDeviceChoice = !enrollment && trustedDeviceEnabled !== false;
     const confirmLabel =
-      deviceChoice === "current"
-        ? "Nein, nur anmelden"
-        : "Nur dieses Mal bestätigen";
+      deviceChoice === "legacy"
+        ? "Nur dieses Mal bestätigen"
+        : "Nein, nur anmelden";
     const code = String(randomInt(100_000, 1_000_000));
     let loginCount = 0;
     let verified = false;
@@ -94,7 +97,7 @@ for (const { enrollment, deviceChoice } of childOrigin
           <script>
             const showCode = () => {
               document.body.innerHTML = '<input autocomplete="one-time-code">' + ${JSON.stringify(
-                trustedDeviceEnabled
+                showDeviceChoice
                   ? `<button id="once">${confirmLabel}<span>Für Geräte, die mehrere Personen nutzen.</span></button><button id="remember">Bestätigen und dieses Gerät 30 Tage merken</button>`
                   : "",
               )};
@@ -113,7 +116,7 @@ for (const { enrollment, deviceChoice } of childOrigin
                   document.body.innerHTML = 'Angemeldet';
                 });
               };
-              if (${trustedDeviceEnabled}) {
+              if (${showDeviceChoice}) {
                 document.querySelector('#once').onclick = () => verify(false);
                 document.querySelector('#remember').onclick = () => verify(true);
               } else document.querySelector('input').oninput = () => verify(false);
@@ -132,6 +135,7 @@ for (const { enrollment, deviceChoice } of childOrigin
           response.end(
             JSON.stringify({
               status: enrollment ? "mfa_enrollment_required" : "mfa_required",
+              trusted_device_enabled: trustedDeviceEnabled,
             }),
           );
           return;
@@ -236,7 +240,7 @@ for (const { enrollment, deviceChoice } of childOrigin
       expect(loginCount).toBe(2);
       expect(verified).toBe(true);
       expect(rememberedDevice).toBe(false);
-      if (trustedDeviceEnabled) {
+      if (showDeviceChoice) {
         verified = false;
         const state = await sessionFor(
           browser,

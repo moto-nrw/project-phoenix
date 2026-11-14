@@ -126,6 +126,7 @@ import {
   ManualApprovedEnrollmentModal,
 } from "~/components/enrollment/phase-enrollment-actions";
 import {
+  CREATE_SUCCESSOR_HINT,
   PhaseExpiryWarnings,
   useRefreshPhaseExpiryWarnings,
 } from "~/components/enrollment/phase-expiry-warnings";
@@ -985,6 +986,7 @@ export function PhasesEditor() {
           size="md"
           onClick={startCreate}
           className="inline-flex shrink-0 items-center justify-center gap-2"
+          tooltip="Öffnet ein leeres Formular für eine neue Anmeldephase."
         >
           <MotoConceptIcon
             concept={calendarPeriodsConcept}
@@ -1090,6 +1092,7 @@ export function PhasesEditor() {
                     variant="primary"
                     size="md"
                     onClick={() => setCareBeyondEnd(null)}
+                    noTooltip="Schließen schließt nur das Fenster, ohne etwas zu ändern."
                   >
                     Schließen
                   </Button>
@@ -1401,6 +1404,7 @@ function PhaseActions({
     {
       label: "Bearbeiten",
       icon: <Pencil className="h-4 w-4" aria-hidden />,
+      description: "Öffnet die Anmeldephase zum Ändern",
       disabled: saving,
       onClick: onEdit,
     },
@@ -1413,6 +1417,7 @@ function PhaseActions({
         `/anmeldung/preview?phaseId=${encodeURIComponent(phase.id)}`,
       ),
       external: true,
+      description: "Zeigt das Formular in einem neuen Tab, auch vor dem Start",
       onClick: () => undefined,
     },
     ...(hasNoPublicForm
@@ -1423,6 +1428,8 @@ function PhaseActions({
             icon: <ExternalLink className="h-4 w-4" aria-hidden />,
             href: tenantPath(`/anmeldung/${encodeURIComponent(phase.id)}`),
             external: true,
+            description:
+              "Öffnet das Anmeldeformular dieser Phase in einem neuen Tab",
             onClick: () => undefined,
           },
           // Menüeintrag statt Icon neben dem Kebab (BAUARTEN-SPEC Bauart 1
@@ -1433,11 +1440,14 @@ function PhaseActions({
                 {
                   label: "Elternlink kopieren",
                   icon: <Copy className="h-4 w-4" aria-hidden />,
+                  description:
+                    "Kopiert den Link, damit Sie ihn an Eltern weitergeben können",
                   onClick: () => void copyPhaseUrl(phaseUrl),
                 },
                 {
                   label: "QR-Code anzeigen",
                   icon: <QrCode className="h-4 w-4" aria-hidden />,
+                  description: "Zeigt den Link zum Anmeldeformular als QR-Code",
                   onClick: () => setQrCodeOpen(true),
                 },
               ]
@@ -1446,12 +1456,14 @@ function PhaseActions({
     {
       label: "Nachzügler-Link erstellen",
       icon: <Link2 className="h-4 w-4" aria-hidden />,
+      description: "Öffnet ein Fenster für einen Link an eine einzelne Familie",
       disabled: saving,
       onClick: () => setLateInviteOpen(true),
     },
     {
       label: "Manuelle Anmeldung",
       icon: <MotoConceptIcon concept={enrollmentsConcept} size={18} />,
+      description: "Öffnet ein Fenster, um ein Kind selbst anzumelden",
       disabled: saving,
       onClick: () => setManualOpen(true),
     },
@@ -1459,11 +1471,13 @@ function PhaseActions({
       label: "Anmeldungen ansehen",
       icon: <MotoConceptIcon concept={enrollmentsConcept} size={16} />,
       href: enrollmentsHref,
+      description: "Öffnet die eingegangenen Anmeldungen dieser Phase",
       onClick: () => undefined,
     },
     {
       label: "Formular zuweisen",
       icon: <MotoConceptIcon concept={enrollmentsConcept} size={16} />,
+      description: "Öffnet die Phase bei der Auswahl des Anmeldeformulars",
       disabled: saving,
       onClick: onAssignForm,
     },
@@ -1476,6 +1490,7 @@ function PhaseActions({
           size={16}
         />
       ),
+      description: CREATE_SUCCESSOR_HINT,
       disabled: saving || rolloverActive,
       onClick: onRollover,
     },
@@ -1485,6 +1500,8 @@ function PhaseActions({
             label: "Prüfliste öffnen",
             icon: <Check className="h-4 w-4" aria-hidden />,
             href: `/enrollment-phases/${encodeURIComponent(phase.id)}/review`,
+            description:
+              "Öffnet die Kinder, über die Sie noch entscheiden müssen",
             onClick: () => undefined,
           },
         ]
@@ -1492,6 +1509,14 @@ function PhaseActions({
     {
       label: phase.is_active ? "Deaktivieren" : "Aktivieren",
       icon: <Power className="h-4 w-4" aria-hidden />,
+      // Ohne öffentliches Formular melden Eltern über das Elternportal an.
+      description: phase.is_active
+        ? hasNoPublicForm
+          ? "Schließt die Anmeldung im Elternportal sofort"
+          : "Schließt das Anmeldeformular sofort für Eltern"
+        : hasNoPublicForm
+          ? "Gibt die Anmeldung im Elternportal sofort frei, im Anmeldezeitraum"
+          : "Öffnet das Anmeldeformular sofort für Eltern, im Anmeldezeitraum",
       disabled: saving,
       onClick: onToggleActive,
     },
@@ -1500,6 +1525,7 @@ function PhaseActions({
       label: deleting ? "Löscht…" : "Löschen",
       icon: <Trash2 className="h-4 w-4" aria-hidden />,
       destructive: true,
+      description: "moto fragt vorher nach und löscht dann die Anmeldephase",
       disabled: deleting || saving,
       onClick: onDelete,
     },
@@ -1675,6 +1701,7 @@ function PhaseForm(props: PhaseFormProps) {
                       service_end_date: linkedPeriodDrift.endDate,
                     })
                   }
+                  tooltip="Setzt Beginn und Ende auf die Daten des Kalenderzeitraums."
                 >
                   Daten übernehmen
                 </Button>
@@ -2071,10 +2098,23 @@ function PhaseForm(props: PhaseFormProps) {
           size="md"
           onClick={onCancel}
           disabled={saving}
+          noTooltip="Abbrechen verwirft nur die Eingaben in diesem Formular."
         >
           Abbrechen
         </Button>
-        <Button type="submit" variant="primary" size="md" disabled={saving}>
+        <Button
+          type="submit"
+          variant="primary"
+          size="md"
+          disabled={saving}
+          tooltip={
+            editing
+              ? "Speichert die Änderungen an der Anmeldephase."
+              : draft.is_active
+                ? "Legt die Phase an, im Anmeldezeitraum können sich Eltern anmelden."
+                : "Legt die Phase an, Eltern sehen sie erst nach dem Aktivieren."
+          }
+        >
           {saving ? "Speichert…" : editing ? "Speichern" : "Erstellen"}
         </Button>
       </div>
@@ -2172,6 +2212,7 @@ function SchoolClassListEditor({
           size="md"
           onClick={add}
           className="inline-flex shrink-0 items-center"
+          tooltip="Nimmt die Klasse in die Auswahl für Eltern auf, wirksam nach dem Speichern."
         >
           Hinzufügen
         </Button>

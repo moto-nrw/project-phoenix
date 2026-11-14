@@ -30,7 +30,7 @@ import { hasSessionAccess } from "~/lib/session-access";
 import { requestCatererPasswordReset } from "~/lib/auth-api";
 import { loginCaterer } from "~/lib/caterer-api";
 import { catererPath } from "~/lib/caterer-url";
-import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
+import { useSessionExpiredNotice } from "~/lib/login-session-notice";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import {
@@ -49,20 +49,6 @@ const SHELL_COPY = {
   subtitle: "Melden Sie sich mit Ihrem Caterer-Konto an.",
 } as const;
 
-function sessionErrorInUrl(): boolean {
-  const url = new URL(window.location.href);
-  const error = url.searchParams.get("error");
-  if (error !== "SessionRequired" && error !== "SessionExpired") return false;
-  url.searchParams.delete("error");
-  url.searchParams.delete("callbackUrl");
-  window.history.replaceState(
-    {},
-    "",
-    `${url.pathname}${url.search}${url.hash}`,
-  );
-  return true;
-}
-
 interface MFAStep {
   readonly challengeToken: string;
   readonly maskedEmail: string;
@@ -73,7 +59,6 @@ interface MFAStep {
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [sessionExpired, setSessionExpired] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
@@ -87,6 +72,8 @@ function LoginForm() {
   const latestSubmitRef = useRef<() => void>(() => undefined);
   const latestPasskeyRef = useRef<() => void>(() => undefined);
   const searchParams = useSearchParams();
+  const [sessionExpired, setSessionExpired] =
+    useSessionExpiredNotice(searchParams);
   const { data: session, status } = useSession();
   const cleaningRef = useRef(false);
 
@@ -124,20 +111,6 @@ function LoginForm() {
   useEffect(() => {
     setPasskeySupported(isPasskeySupported());
   }, []);
-
-  useEffect(() => {
-    const error = searchParams.get("error");
-    if (error !== "SessionRequired" && error !== "SessionExpired") return;
-    let deliberate = false;
-    try {
-      deliberate = sessionStorage.getItem(DELIBERATE_LOGOUT_KEY) === "1";
-      sessionStorage.removeItem(DELIBERATE_LOGOUT_KEY);
-    } catch {
-      // sessionStorage unavailable: show the notice.
-    }
-    setSessionExpired(!deliberate);
-    sessionErrorInUrl();
-  }, [searchParams]);
 
   const isCheckingAuth = checkingAuth || status === "loading";
   const isSubmitting = isLoading || awaitingRedirect;

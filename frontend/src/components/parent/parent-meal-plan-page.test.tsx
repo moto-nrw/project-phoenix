@@ -17,6 +17,18 @@ import { catalogText } from "~/test/error-catalog-text";
 
 vi.unmock("swr");
 
+// Am Rand der Wochen und während einer offenen Änderung ist der Pfeil mit
+// Grund gesperrt (`disabledReason`, #6780): fokussierbar, `aria-disabled`,
+// ohne Wirkung.
+function expectWeekArrowBlocked(button: HTMLElement) {
+  expect(button).toHaveAttribute("aria-disabled", "true");
+}
+
+function expectWeekArrowUsable(button: HTMLElement) {
+  expect(button).toBeEnabled();
+  expect(button).not.toHaveAttribute("aria-disabled");
+}
+
 // A failed week registration has no dialog and reports through the toast
 // provider of the shared error path.
 function render(ui: React.ReactElement) {
@@ -190,21 +202,21 @@ describe("ParentMealPlanPage", () => {
     const weekStatus = within(
       screen.getByRole("navigation", { name: "Kalenderwoche wechseln" }),
     ).getByRole("status");
-    expect(previousWeek).toBeDisabled();
+    await waitFor(() => expectWeekArrowBlocked(previousWeek));
     expect(
       await screen.findByText(
         "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
-    expect(nextWeek).toBeEnabled();
+    expectWeekArrowUsable(nextWeek);
     expect(weekStatus).toHaveTextContent(/KW 33\s*· Diese Woche/);
     expect(weekStatus).toHaveTextContent("10.08. bis 14.08.2026");
 
     fireEvent.click(nextWeek);
 
     await waitFor(() => {
-      expect(previousWeek).toBeEnabled();
-      expect(nextWeek).toBeDisabled();
+      expectWeekArrowUsable(previousWeek);
+      expectWeekArrowBlocked(nextWeek);
       expect(mocks.getChildMealPlan).toHaveBeenLastCalledWith(
         "child-1",
         "2026-08-17",
@@ -270,7 +282,7 @@ describe("ParentMealPlanPage", () => {
         name: "Vorherige Woche",
       });
       // Der Pfeil ist gesperrt, bis die nächste Woche geladen ist.
-      await waitFor(() => expect(previousWeek).toBeEnabled());
+      await waitFor(() => expectWeekArrowUsable(previousWeek));
       fireEvent.click(previousWeek);
       await waitFor(() => {
         expect(weekStatus).toHaveTextContent(/KW 33\s*· Diese Woche/);
@@ -571,9 +583,9 @@ describe("ParentMealPlanPage", () => {
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Ändern" }));
     expect(childSelect).toBeDisabled();
-    expect(
+    expectWeekArrowBlocked(
       screen.getByRole("button", { name: "Nächste Woche" }),
-    ).toBeDisabled();
+    );
     expect(
       screen.getByText(
         "Speichern oder abbrechen, bevor Sie ein anderes Kind oder eine andere Woche wählen.",
@@ -606,9 +618,9 @@ describe("ParentMealPlanPage", () => {
       }),
     ).toHaveFocus();
     expect(childSelect).toBeDisabled();
-    expect(
+    expectWeekArrowBlocked(
       screen.getByRole("button", { name: "Nächste Woche" }),
-    ).toBeDisabled();
+    );
     expect(
       screen.getByText(
         "Speichern oder abbrechen, bevor Sie ein anderes Kind oder eine andere Woche wählen.",
@@ -1763,7 +1775,7 @@ describe("ParentMealPlanPage", () => {
         name: "Nächste Woche",
       });
       for (const label of [/Nächste Woche/, /In 2 Wochen/]) {
-        await waitFor(() => expect(nextWeek).toBeEnabled());
+        await waitFor(() => expectWeekArrowUsable(nextWeek));
         fireEvent.click(nextWeek);
         await waitFor(() => expect(weekStatus).toHaveTextContent(label));
       }
@@ -1797,11 +1809,13 @@ describe("ParentMealPlanPage", () => {
       });
       const weekStatus = within(navigation).getByRole("status");
       for (const label of [/Nächste Woche/, /In 2 Wochen/, /In 3 Wochen/]) {
-        await waitFor(() => expect(nextWeek).toBeEnabled());
+        await waitFor(() => expectWeekArrowUsable(nextWeek));
         fireEvent.click(nextWeek);
         await waitFor(() => expect(weekStatus).toHaveTextContent(label));
       }
-      await waitFor(() => expect(nextWeek).toBeDisabled());
+      await waitFor(() => expectWeekArrowBlocked(nextWeek));
+      fireEvent.click(nextWeek);
+      expect(weekStatus).toHaveTextContent(/In 3 Wochen/);
       expect(screen.getAllByText("Speiseplan folgt")).toHaveLength(5);
       expect(mocks.getChildMealPlan).not.toHaveBeenCalledWith(
         "child-1",

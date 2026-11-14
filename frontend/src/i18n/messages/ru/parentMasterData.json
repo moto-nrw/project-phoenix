@@ -168,7 +168,13 @@
     "withdrawalConfirmSubmit": "Отправить запрос",
     "errorObjectCatalog": "список предложений",
     "errorObjectRequest": "запрос на изменение",
-    "submitting": "Отправка …"
+    "submitting": "Отправка …",
+    "submitTooltip": "Сразу отправляет запрос в {careTerm} на проверку.",
+    "saveEditTooltip": "Сразу заменяет ваш открытый запрос новым выбором.",
+    "withdrawalConfirmTooltip": "Сразу отправляет в {careTerm} запрос на полную отмену ухода.",
+    "withdrawalConfirmEditTooltip": "Сразу заменяет ваш открытый запрос полной отменой ухода.",
+    "noOfferingsDisabledReason": "Сейчас нельзя забронировать уход, обратитесь в {careTerm}.",
+    "catalogMissingDisabledReason": "Сначала загрузите список предложений заново."
   },
   "weekdayShort": {
     "1": "Пн",

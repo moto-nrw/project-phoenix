@@ -60,6 +60,7 @@ export function SamsungChromeInstructions({
         href={createChromeIntentUrl(pageUrl)}
         size="md"
         className="mt-3"
+        tooltip={t("openInChromeTooltip")}
       >
         {t("openInChrome")}
       </ButtonLink>
@@ -236,6 +237,7 @@ export function PwaInstallHint({
               size="md"
               className="mt-3"
               onClick={install}
+              tooltip={t("installTooltip")}
             >
               {t("install")}
             </Button>
@@ -246,6 +248,7 @@ export function PwaInstallHint({
           variant="ghost"
           size="icon"
           aria-label={t("close")}
+          tooltip={t("closeTooltip")}
           onClick={dismiss}
         >
           <X className="h-4 w-4" aria-hidden="true" />

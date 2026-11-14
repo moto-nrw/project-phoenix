@@ -160,6 +160,8 @@ function FormerEmploymentTimes({ staff }: Readonly<{ staff: Staff }>) {
           disabled={Boolean(
             staff.startedOn && month <= staff.startedOn.slice(0, 7),
           )}
+          disabledReason="Die Beschäftigung beginnt in diesem Monat."
+          tooltip="Zeigt die Arbeitszeiten des Monats davor."
           onClick={() => moveMonth(-1)}
         >
           Vorheriger Monat
@@ -173,6 +175,8 @@ function FormerEmploymentTimes({ staff }: Readonly<{ staff: Staff }>) {
           size="md"
           className="flex-1 sm:flex-none"
           disabled={month >= staff.endedOn!.slice(0, 7)}
+          disabledReason="Die Beschäftigung endet in diesem Monat."
+          tooltip="Zeigt die Arbeitszeiten des Monats danach."
           onClick={() => moveMonth(1)}
         >
           Nächster Monat

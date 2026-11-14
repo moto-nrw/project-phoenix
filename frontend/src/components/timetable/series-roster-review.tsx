@@ -56,6 +56,7 @@ export function SeriesRosterReview({
           size="compact"
           disabled={busy}
           onClick={() => onSetManualRoster(false)}
+          tooltip="Zeigt sofort wieder, wo die Kinderliste von den Anmeldungen abweicht."
         >
           Hinweis wieder zeigen
         </Button>

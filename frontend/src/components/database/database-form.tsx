@@ -223,6 +223,9 @@ export interface DatabaseFormErrorPath {
   readonly clear: () => void;
 }
 
+/** Satz am Speichern-Knopf (#6643): Speichern tut hier nichts außerdem. */
+const SUBMIT_TOOLTIP = "Speichert die Angaben, sie gelten sofort.";
+
 interface DatabaseFormProps<T = Record<string, unknown>> {
   readonly sections: FormSection[];
   readonly onSubmit: (data: T) => Promise<void>;
@@ -804,6 +807,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
                 onClick={onCancel}
                 className="flex-1"
                 disabled={isBusy}
+                noTooltip="Abbrechen schließt das Formular, ohne etwas zu speichern."
               >
                 Abbrechen
               </Button>
@@ -813,6 +817,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
                 data-setup-tour="form-submit"
                 className="flex-1"
                 disabled={isBusy}
+                tooltip={SUBMIT_TOOLTIP}
               >
                 {isBusy ? "Wird gespeichert..." : submitLabel}
               </Button>
@@ -825,10 +830,16 @@ export function DatabaseForm<T = Record<string, unknown>>({
                 size="md"
                 onClick={onCancel}
                 disabled={isBusy}
+                noTooltip="Abbrechen schließt das Formular, ohne etwas zu speichern."
               >
                 Abbrechen
               </Button>
-              <Button type="submit" size="md" disabled={isBusy}>
+              <Button
+                type="submit"
+                size="md"
+                disabled={isBusy}
+                tooltip={SUBMIT_TOOLTIP}
+              >
                 {isBusy ? "Wird gespeichert..." : submitLabel}
               </Button>
             </div>

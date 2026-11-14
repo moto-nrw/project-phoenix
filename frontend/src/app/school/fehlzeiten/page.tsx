@@ -286,6 +286,7 @@ export default function SchoolAbsenceListPage() {
                 size="md"
                 onClick={() => setExportOpen(true)}
                 disabled={!list}
+                tooltip="Öffnet den Export der Fehltage für Klasse und Zeitraum."
               >
                 <Download className="mr-2 h-4 w-4" aria-hidden />
                 Exportieren

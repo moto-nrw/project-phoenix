@@ -15,5 +15,7 @@
   "saving": "Saving …",
   "cancel": "Cancel",
   "close": "Close window",
-  "errorObject": "the request"
+  "errorObject": "the request",
+  "closeTooltip": "Closes the window; the request stays unchanged.",
+  "submitTooltip": "Replaces the request right away; the {careTerm} decides on the new version."
 }

@@ -989,6 +989,10 @@ export function StaffSessionTable({
                             : row.hasMultipleBlocks
                               ? "Block nachtragen"
                               : "Eintrag bearbeiten",
+                        description:
+                          row.session == null || row.hasMultipleBlocks
+                            ? "Öffnet ein Formular, um Arbeitszeit mit Begründung nachzutragen."
+                            : "Öffnet den Eintrag, jede Änderung braucht eine Begründung.",
                         icon: <SquarePen className="h-4 w-4" aria-hidden />,
                         onClick: () => {
                           // On a multi-block day the entry adds a further
@@ -1023,6 +1027,8 @@ export function StaffSessionTable({
                         ? [
                             {
                               label: "Abwesenheit nachtragen",
+                              description:
+                                "Öffnet ein Formular, um für diesen Tag eine Abwesenheit einzutragen.",
                               icon: (
                                 <CalendarPlus className="h-4 w-4" aria-hidden />
                               ),
@@ -1031,6 +1037,8 @@ export function StaffSessionTable({
                             },
                             {
                               label: "Krankmeldung nachtragen",
+                              description:
+                                "Öffnet ein Formular, um diesen Tag als krank einzutragen.",
                               icon: (
                                 <Thermometer className="h-4 w-4" aria-hidden />
                               ),
@@ -1139,6 +1147,8 @@ export function StaffSessionTable({
                           items={[
                             {
                               label: `Block ${blockIndex + 1} bearbeiten`,
+                              description:
+                                "Öffnet den Block, jede Änderung braucht eine Begründung.",
                               icon: (
                                 <SquarePen className="h-4 w-4" aria-hidden />
                               ),

@@ -226,7 +226,7 @@ export function ArbeitszeitmodellTab({
               variant="outline"
               size="md"
               onClick={() => setEditing(true)}
-              tooltip="Öffnet das Arbeitszeitmodell dieser Person zum Bearbeiten."
+              tooltip="Öffnet das Arbeitszeitmodell dieser Person zum Ändern."
             >
               Bearbeiten
             </Button>
@@ -651,8 +651,6 @@ function ModeChoice({
   );
 }
 
-// Eigene Komponente statt Objekt mit `href` und `label`: so ein Objekt hält
-// `ui-kit/menu-item-needs-description` für einen Menüeintrag.
 function ManageTemplatesLink() {
   return (
     <CatalogManageLink

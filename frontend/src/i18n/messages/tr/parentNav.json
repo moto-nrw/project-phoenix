@@ -13,6 +13,7 @@
   "contactData": "İletişim bilgileri",
   "soon": "Yakında",
   "refresh": "Verileri yenile",
+  "refreshTooltip": "Bu sayfadaki tüm verilerin en güncel hâlini getirir.",
   "closeMenu": "Menüyü kapat",
   "profileMenu": "{name} için profil menüsü",
   "profile": "Profilim",

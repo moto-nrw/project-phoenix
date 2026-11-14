@@ -26,5 +26,6 @@
   "note": "This proof documents a simple electronic declaration. It does not replace a signature on paper that is required by law.",
   "noteSigned": "Signed answers were given as a simple electronic signature with a drawn signature.",
   "errorObjectProof": "the proof document",
-  "errorObjectPdf": "the PDF"
+  "errorObjectPdf": "the PDF",
+  "downloadTooltip": "Saves the proof as a PDF on this device."
 }

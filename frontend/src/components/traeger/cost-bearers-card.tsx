@@ -400,7 +400,7 @@ export function CostBearersCard({
                       icon: <Pencil className="size-4" aria-hidden />,
                       label: "Ändern",
                       description:
-                        "Öffnet die Angaben in dieser Zeile zum Bearbeiten.",
+                        "Öffnet die Angaben in dieser Zeile zum Ändern.",
                       onClick: () => setEditingId(bearer.id),
                     },
                     {

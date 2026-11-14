@@ -52,6 +52,7 @@ export function StudentSelectionBar({
             size="compact"
             onClick={onExport}
             disabled={isRunning}
+            tooltip="Lässt Sie wählen, welche Angaben der Kinder Sie herunterladen."
           >
             <Download className="h-3.5 w-3.5" aria-hidden />
             Exportieren
@@ -64,6 +65,7 @@ export function StudentSelectionBar({
                 size="compact"
                 onClick={() => checkin.onAction("in")}
                 disabled={isRunning}
+                tooltip="Meldet die ausgewählten Kinder sofort als anwesend an."
               >
                 {checkin.runningAction === "in" ? (
                   <SpinnerIcon className="h-3.5 w-3.5" />
@@ -78,6 +80,7 @@ export function StudentSelectionBar({
                 size="compact"
                 onClick={() => checkin.onAction("out")}
                 disabled={isRunning}
+                tooltip="Meldet die Kinder sofort ab, bei Raumbesuchen fragt moto vorher nach."
               >
                 {checkin.runningAction === "out" ? (
                   <SpinnerIcon className="h-3.5 w-3.5" />

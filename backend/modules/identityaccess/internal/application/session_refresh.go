@@ -194,11 +194,11 @@ func (r *refreshRotation) run(ctx context.Context) error {
 
 // audit files the refresh in the rotation transaction (#6844), at the school
 // the successor is kept at, which the refresh validated: the route carries no
-// tenant. A parent session at a Träger has none, and its account may have
-// none either (ADR 0216).
+// tenant. A Träger session and a parent session at a Träger are kept at none,
+// and their account may have none either (ADR 0084, ADR 0216).
 func (r *refreshRotation) audit(ctx context.Context) error {
 	audit := &mintAudit{event: domain.AuthEventTokenRefresh, ipAddress: r.ipAddress, userAgent: r.userAgent, schoolID: r.newSession.TenantID}
-	if r.newSession.SessionKind() == domain.SessionKindTraegerParent {
+	if !r.newSession.KeptAtSchool() {
 		audit = r.service.schoollessAudit(ctx, r.account.ID, domain.AuthEventTokenRefresh, r.ipAddress, r.userAgent)
 	}
 	if audit == nil {
