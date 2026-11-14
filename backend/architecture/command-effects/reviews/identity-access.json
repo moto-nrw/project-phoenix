@@ -3967,7 +3967,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -3988,7 +3988,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -3998,7 +3998,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.CreateGuardianInvitation",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -4008,19 +4018,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses (delivery-platform) through modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -4133,7 +4133,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -4154,7 +4154,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -4164,7 +4164,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.ResendGuardianInvitation",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -4174,19 +4184,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses (delivery-platform) through modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -4267,7 +4267,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.ApproveInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess.Owner.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess.Owner.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -4288,7 +4288,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.ApproveInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess.Owner.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess.Owner.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -4298,7 +4298,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.ApproveInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess.Owner.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.ApproveInvitation",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess.Owner.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -4308,19 +4318,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.ApproveInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess.Owner.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess.Owner.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.ApproveInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses (delivery-platform) through modules/identityaccess.Owner.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -4444,7 +4444,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.BulkInviteToStudents",
-      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess.Owner.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess.Owner.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -4465,7 +4465,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.BulkInviteToStudents",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess.Owner.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess.Owner.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -4475,7 +4475,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.BulkInviteToStudents",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess.Owner.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.BulkInviteToStudents",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess.Owner.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -4485,19 +4495,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.BulkInviteToStudents",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess.Owner.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess.Owner.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.BulkInviteToStudents",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses (delivery-platform) through modules/identityaccess.Owner.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -4632,7 +4632,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.InviteToStudent",
-      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess.Owner.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess.Owner.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -4653,7 +4653,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.InviteToStudent",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess.Owner.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess.Owner.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -4663,7 +4663,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.InviteToStudent",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess.Owner.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.InviteToStudent",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess.Owner.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -4673,19 +4683,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.InviteToStudent",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess.Owner.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess.Owner.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.InviteToStudent",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses (delivery-platform) through modules/identityaccess.Owner.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -6093,7 +6093,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/internal/application.engine.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/internal/application.engine.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -6114,7 +6114,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/internal/application.engine.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/internal/application.engine.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -6124,7 +6124,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/internal/application.engine.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ApproveInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/internal/application.engine.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -6134,19 +6144,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/internal/application.engine.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/internal/application.engine.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ApproveInvitation",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses (delivery-platform) through modules/identityaccess/internal/application.engine.ApproveInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -6668,7 +6668,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
-      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/internal/application.engine.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/internal/application.engine.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -6689,7 +6689,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/internal/application.engine.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/internal/application.engine.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -6699,7 +6699,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/internal/application.engine.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.BulkInviteToStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/internal/application.engine.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -6709,19 +6719,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/internal/application.engine.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/internal/application.engine.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.BulkInviteToStudents",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses (delivery-platform) through modules/identityaccess/internal/application.engine.BulkInviteToStudents. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -7077,7 +7077,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/internal/application.engine.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/internal/application.engine.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -7098,7 +7098,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/internal/application.engine.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/internal/application.engine.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -7108,7 +7108,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/internal/application.engine.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.CreateGuardianInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/internal/application.engine.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -7118,19 +7128,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/internal/application.engine.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/internal/application.engine.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.CreateGuardianInvitation",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses (delivery-platform) through modules/identityaccess/internal/application.engine.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -8983,7 +8983,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
-      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/internal/application.engine.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/internal/application.engine.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -9004,7 +9004,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/internal/application.engine.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/internal/application.engine.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -9014,7 +9014,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/internal/application.engine.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.InviteToStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/internal/application.engine.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -9024,19 +9034,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/internal/application.engine.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/internal/application.engine.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.InviteToStudent",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses (delivery-platform) through modules/identityaccess/internal/application.engine.InviteToStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -11458,7 +11458,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/internal/application.engine.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess/internal/application.engine.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -11479,7 +11479,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/internal/application.engine.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess/internal/application.engine.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -11489,7 +11489,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/internal/application.engine.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ResendGuardianInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess/internal/application.engine.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -11499,19 +11509,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/internal/application.engine.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess/internal/application.engine.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ResendGuardianInvitation",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses (delivery-platform) through modules/identityaccess/internal/application.engine.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -19172,7 +19172,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess.Owner.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess.Owner.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -19193,7 +19193,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess.Owner.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess.Owner.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -19203,7 +19203,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess.Owner.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess.Owner.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -19213,19 +19223,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess.Owner.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess.Owner.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses (delivery-platform) through modules/identityaccess.Owner.CreateGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -19415,7 +19415,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess.Owner.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches *modules/delivery/contract.ProviderBlockBudget.Attempt (delivery-platform) through modules/identityaccess.Owner.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -19436,7 +19436,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess.Owner.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.EmailAddressMarks (delivery-platform) through modules/identityaccess.Owner.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -19446,7 +19446,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess.Owner.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes (delivery-platform) through modules/identityaccess.Owner.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -19456,19 +19466,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess.Owner.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks (delivery-platform) through modules/identityaccess.Owner.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
-      "reason": "Read-only target already reviewed as query: identity-access reaches modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses (delivery-platform) through modules/identityaccess.Owner.ResendGuardianInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -22650,7 +22650,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
-      "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect.",
+      "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect. This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -22660,7 +22660,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
-      "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.EmailAddressMarks in its tenant transaction (#5934). No persistent, lock or scope effect.",
+      "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.EmailAddressMarks in its tenant transaction (#5934). No persistent, lock or scope effect. The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -22670,7 +22670,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
-      "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.LatestEmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect.",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.LatestEmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect. The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -22680,19 +22690,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
-      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect. The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
-      "reason": "Read-only delivery state: identity-access reads which addresses belong to a stopped guardian through runtime.EmailOutcomes.StoppedEmailAddresses in its tenant transaction (#5934). No persistent, lock or scope effect.",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -27092,7 +27092,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
-      "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect.",
+      "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect. This still accounts only for the in-memory provider-call budget. The invitation binding now batches the stop and departure precheck, without adding a provider call (#7061).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
       "target_owner": "delivery-platform"
@@ -27102,7 +27102,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
-      "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.EmailAddressMarks in its tenant transaction (#5934). No persistent, lock or scope effect.",
+      "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.EmailAddressMarks in its tenant transaction (#5934). No persistent, lock or scope effect. The tenant-scoped address-mark query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
       "target_owner": "delivery-platform"
@@ -27112,7 +27112,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
-      "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.LatestEmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect.",
+      "reason": "Reads the current stop and departure holds of the given addresses through Delivery in one tenant-scoped statement. Replaces StoppedEmailAddresses without writes, locks or scope changes; invitations are refused before their link is replaced.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.LatestEmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect. The tenant-scoped latest-invitation query is unchanged; the invitation binding now batches the stop and departure precheck through GuardianEmailHolds (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
       "target_owner": "delivery-platform"
@@ -27122,19 +27132,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
-      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect. The provider read stays limited to addresses encountered by this school's own mail, with the same call budget; only the batched stop and departure precheck changed (#7061).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
-      "reason": "Read-only delivery state: identity-access reads which addresses belong to a stopped guardian through runtime.EmailOutcomes.StoppedEmailAddresses in its tenant transaction (#5934). No persistent, lock or scope effect.",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {

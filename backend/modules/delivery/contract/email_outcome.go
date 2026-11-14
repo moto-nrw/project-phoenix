@@ -107,6 +107,9 @@ const (
 	EmailSendBlockAddress EmailSendBlock = "address"
 	// EmailSendBlockStopped: the school stopped mail to this person.
 	EmailSendBlockStopped EmailSendBlock = "stopped"
+	// EmailSendBlockDeparted: no child of the address holders is in care.
+	// It only holds distribution mail, never contracts or billing letters.
+	EmailSendBlockDeparted EmailSendBlock = "departed"
 	// EmailSendBlockProvider: the provider withholds mail to the address now.
 	EmailSendBlockProvider EmailSendBlock = "provider"
 	// EmailSendBlockUnreadable: the provider's state could not be read.

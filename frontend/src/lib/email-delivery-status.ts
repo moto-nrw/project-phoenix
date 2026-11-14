@@ -62,6 +62,14 @@ export const GUARDIAN_STOPPED_COPY: MailStatusCopy = {
     "Ihre Schule hat die Mails an diese Person gestoppt. Anmeldecodes, Mails zum Passwort und Abrechnungsbriefe des Trägers kommen weiter an.",
 };
 
+/** The current departure hold, separate from the outcome of an earlier mail. */
+export const GUARDIAN_DEPARTED_COPY: MailStatusCopy = {
+  label: "Kein Kind in Betreuung",
+  tone: "gray",
+  explanation:
+    "Kein Kind dieser Person wird noch an Ihrer Schule betreut. Elternbriefe, Nachrichten, Termine und Einladungen gehen deshalb nicht mehr an sie.",
+};
+
 /** Mails still go out to an address someone else holds without a stop. */
 export const STOP_SHARED_NOTE =
   "Diese Adresse nutzt noch eine andere Person. Mails an die Adresse gehen deshalb weiter raus.";
@@ -129,7 +137,7 @@ const OUTCOME_COPY: Record<MailOutcome, MailStatusCopy> = {
     label: "Nicht gesendet",
     tone: "gray",
     explanation:
-      "Kein Kind dieser Person wird noch an Ihrer Schule betreut. Elternbriefe, Nachrichten, Termine und Einladungen gehen deshalb nicht mehr an sie.",
+      "Kein Kind dieser Person wurde beim Versand noch betreut. Die Mail ging deshalb nicht raus.",
   },
   unsubscribed: {
     label: "Abgemeldet",

@@ -552,6 +552,7 @@ type letterRecipientResponse struct {
 	AddressMark   string     `json:"address_mark,omitempty"`
 	Stopped       bool       `json:"stopped,omitempty"`
 	StopShared    bool       `json:"stop_shared,omitempty"`
+	Departed      bool       `json:"departed,omitempty"`
 	MailedTo      *string    `json:"mailed_to,omitempty"`
 	ProviderBlock string     `json:"provider_block,omitempty"`
 	Reachability  string     `json:"reachability"`
@@ -602,6 +603,7 @@ func (rs *Resource) letterStatus(w http.ResponseWriter, r *http.Request) {
 			AddressMark:   rcpt.AddressMark,
 			Stopped:       rcpt.Stopped,
 			StopShared:    rcpt.StopShared,
+			Departed:      rcpt.Departed,
 			MailedTo:      rcpt.MailedTo,
 			ProviderBlock: rcpt.ProviderBlock,
 			Reachability:  rcpt.Reachability,

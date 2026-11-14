@@ -13,6 +13,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/api/testutil"
 	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
@@ -85,6 +86,40 @@ func TestGuardianEmailStatusNeedsItsPermissions(t *testing.T) {
 	testutil.AssertErrorResponse(t, c.do(t, account.ID, http.MethodPost, fmt.Sprintf("/%d/email-stop", guardian.ID), permissions.UsersRead), http.StatusForbidden)
 
 	assert.Equal(t, http.StatusOK, c.do(t, account.ID, http.MethodGet, statusPath, permissions.UsersRead).Code)
+}
+
+func TestGuardianInvitationWaitsForTheFamilysReturn(t *testing.T) {
+	t.Parallel()
+	c := setupGuardianEmailRoute(t)
+	_, account := testpkg.CreateTestStaffWithAccount(t, c.db, "Mail", "Austritt")
+	student := testpkg.CreateTestStudent(t, c.db, "Mail", "Austrittskind", "1a")
+	guardian := testpkg.CreateTestGuardianProfile(t, c.db, "mail-departure")
+	testpkg.CreateTestStudentGuardianLink(t, c.db, student.ID, guardian.ID, "primary_guardian")
+	invitePath := fmt.Sprintf("/%d/invite", guardian.ID)
+	statusPath := fmt.Sprintf("/students/%d/email-status", student.ID)
+	require.Equal(t, http.StatusCreated, c.do(t, account.ID, http.MethodPost, invitePath, permissions.UsersCreate).Code)
+	before := testpkg.GuardianInvitationsByProfile(t, c.db, guardian.ID)
+	require.Len(t, before, 1)
+
+	_, err := c.db.ExecContext(testpkg.Ctx(t), `UPDATE users.student_school_memberships SET status = 'inactive' WHERE tenant_id = ? AND student_profile_id = ?`, testpkg.Tenant(t), student.ID)
+	require.NoError(t, err)
+	line := emailStatusLine(t, c.do(t, account.ID, http.MethodGet, statusPath, permissions.UsersRead), guardian.ID)
+	assert.Equal(t, "departed", line["send_block"])
+	refused := c.do(t, account.ID, http.MethodPost, invitePath, permissions.UsersCreate)
+	assert.Equal(t, http.StatusConflict, refused.Code, refused.Body.String())
+	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, c.db), testpkg.TenantRuntime(t, c.db))
+	require.NoError(t, err)
+	err = auth.GuardianInvitation.ResendGuardianInvitation(testpkg.Ctx(t), before[0].ID, account.ID)
+	require.ErrorIs(t, err, identityaccess.ErrGuardianEmailAddressBlocked)
+	after := testpkg.GuardianInvitationsByProfile(t, c.db, guardian.ID)
+	require.Len(t, after, 1, "no replacement invitation is issued")
+	assert.Equal(t, before[0].Token, after[0].Token, "the previous link is preserved")
+
+	_, err = c.db.ExecContext(testpkg.Ctx(t), `UPDATE users.student_school_memberships SET status = 'active' WHERE tenant_id = ? AND student_profile_id = ?`, testpkg.Tenant(t), student.ID)
+	require.NoError(t, err)
+	line = emailStatusLine(t, c.do(t, account.ID, http.MethodGet, statusPath, permissions.UsersRead), guardian.ID)
+	assert.Nil(t, line["send_block"])
+	assert.Equal(t, http.StatusCreated, c.do(t, account.ID, http.MethodPost, invitePath, permissions.UsersCreate).Code)
 }
 
 // Finding 1 (#2329): users:update alone is not enough. An account without a staff

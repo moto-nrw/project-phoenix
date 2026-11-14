@@ -194,7 +194,7 @@ func (p *parentAnnouncements) ParentAnnouncementLetterStatus(ctx context.Context
 			FirstName: recipient.FirstName, LastName: recipient.LastName, RecipientEmail: recipient.RecipientEmail,
 			EmailStatus: recipient.EmailStatus, Reachability: recipient.Reachability,
 			MailOutcome: recipient.MailOutcome, AddressMark: recipient.AddressMark, Stopped: recipient.Stopped, StopShared: recipient.StopShared, MailedTo: recipient.MailedTo, ProviderBlock: recipient.ProviderBlock,
-			LastError: recipient.LastError, SentAt: recipient.SentAt,
+			Departed: recipient.Departed, LastError: recipient.LastError, SentAt: recipient.SentAt,
 		})
 	}
 	for _, child := range status.Children {

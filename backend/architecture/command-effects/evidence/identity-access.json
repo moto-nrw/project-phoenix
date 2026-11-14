@@ -2906,7 +2906,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.CreateGuardianInvitation",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -2922,7 +2922,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.CreateGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -2930,7 +2930,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.CreateGuardianInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.CreateGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -2938,18 +2946,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.CreateGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.CreateGuardianInvitation",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -3034,7 +3034,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.ResendGuardianInvitation",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -3050,7 +3050,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.ResendGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -3058,7 +3058,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.ResendGuardianInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.ResendGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -3066,18 +3074,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.ResendGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianInvitations.ResendGuardianInvitation",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -3138,7 +3138,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.ApproveInvitation",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -3154,7 +3154,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.ApproveInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -3162,7 +3162,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.ApproveInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.ApproveInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -3170,18 +3178,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.ApproveInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.ApproveInvitation",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -3274,7 +3274,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.BulkInviteToStudents",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -3290,7 +3290,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.BulkInviteToStudents",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -3298,7 +3298,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.BulkInviteToStudents",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.BulkInviteToStudents",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -3306,18 +3314,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.BulkInviteToStudents",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.BulkInviteToStudents",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -3418,7 +3418,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.InviteToStudent",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -3434,7 +3434,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.InviteToStudent",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -3442,7 +3442,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.InviteToStudent",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.InviteToStudent",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -3450,18 +3458,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.InviteToStudent",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.GuardianRelativeAccess.InviteToStudent",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -4490,7 +4490,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ApproveInvitation",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -4506,7 +4506,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ApproveInvitation",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -4514,7 +4514,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ApproveInvitation",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ApproveInvitation",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -4522,18 +4530,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ApproveInvitation",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ApproveInvitation",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ApproveInvitation",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -4922,7 +4922,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.BulkInviteToStudents",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -4938,7 +4938,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.BulkInviteToStudents",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -4946,7 +4946,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.BulkInviteToStudents",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.BulkInviteToStudents",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -4954,18 +4962,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.BulkInviteToStudents",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.BulkInviteToStudents",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.BulkInviteToStudents",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -5226,7 +5226,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.CreateGuardianInvitation",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -5242,7 +5242,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.CreateGuardianInvitation",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -5250,7 +5250,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.CreateGuardianInvitation",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.CreateGuardianInvitation",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -5258,18 +5266,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.CreateGuardianInvitation",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.CreateGuardianInvitation",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -6634,7 +6634,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.InviteToStudent",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -6650,7 +6650,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.InviteToStudent",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -6658,7 +6658,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.InviteToStudent",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.InviteToStudent",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -6666,18 +6674,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.InviteToStudent",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.InviteToStudent",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.InviteToStudent",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -8458,7 +8458,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ResendGuardianInvitation",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -8474,7 +8474,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ResendGuardianInvitation",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -8482,7 +8482,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ResendGuardianInvitation",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ResendGuardianInvitation",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -8490,18 +8498,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ResendGuardianInvitation",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.ResendGuardianInvitation",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -14138,7 +14138,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -14154,7 +14154,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -14162,7 +14162,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -14170,18 +14178,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.CreateGuardianInvitation",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -14322,7 +14322,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -14338,7 +14338,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -14346,7 +14346,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -14354,18 +14362,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.ResendGuardianInvitation",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendGuardianInvitation",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -16762,7 +16762,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -16770,7 +16770,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -16778,7 +16778,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -16786,18 +16794,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -20074,7 +20074,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "a51105c11a03483e1dd3c40e8820525d",
+      "binding_digest": "caad9bdb201518a70c89c203120833df",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
@@ -20082,7 +20082,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "40d96df2020b2ad601bce0d0df7154c0",
+      "binding_digest": "bf445595cde412f2fcf3ba4af9a02674",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -20090,7 +20090,15 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "8fb950c22b36b6ec803432eee0df4169",
+      "binding_digest": "c391e0aab5f103cf3cbee85dcd137e2c",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.GuardianEmailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
+      "binding_digest": "b3b5394353f1cc7840822b04e80a1e6b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
@@ -20098,18 +20106,10 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "2bb8292de03860211db2fec8ffd343d9",
+      "binding_digest": "9425bf757853b997ed795a8837eb7a9b",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "437767935cfe74c2238d122a8ef9855a",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {

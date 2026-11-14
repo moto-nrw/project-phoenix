@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -323,6 +324,13 @@ func schoolHolds(t *testing.T, store *workerCommandsForTest, ctx context.Context
 	t.Helper()
 	holds, err := store.SchoolEmailHolds(ctx, school, eventAddress)
 	require.NoError(t, err)
+	require.NoError(t, store.withinTenant(ctx, school, func(txCtx context.Context) error {
+		_, departed, err := store.GuardianEmailHolds(txCtx, school, []string{" " + strings.ToUpper(eventAddress) + " ", "nobody@example.test"})
+		require.NoError(t, err)
+		assert.Equal(t, holds.Departed, departed[strings.ToLower(eventAddress)], "the invitation precheck agrees with the worker")
+		assert.False(t, departed["nobody@example.test"])
+		return nil
+	}))
 	return holds
 }
 

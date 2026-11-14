@@ -822,6 +822,13 @@ func TestLetterRetriesWaitForTheFamilysReturn(t *testing.T) {
 		if status.Summary.EmailsResendable != phase.want || status.Summary.EmailsStopped != 0 {
 			t.Errorf("departed=%t: summary = %+v", phase.departed, status.Summary)
 		}
+		public, err := (&parentAnnouncements{service: svc}).ParentAnnouncementLetterStatus(context.Background(), a.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(public.Recipients) != 1 || public.Recipients[0].Departed != phase.departed {
+			t.Fatalf("public departure state lost: %+v", public.Recipients)
+		}
 		count, err := svc.ResendFailedEmails(context.Background(), a.ID)
 		if err != nil {
 			t.Fatal(err)

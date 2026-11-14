@@ -51,8 +51,8 @@ func (NoEmailOutcomes) ProviderEmailBlocks(context.Context, []string) map[string
 	return nil
 }
 
-func (NoEmailOutcomes) StoppedEmailAddresses(context.Context, int64, []string) (map[string]bool, error) {
-	return nil, nil
+func (NoEmailOutcomes) GuardianEmailHolds(context.Context, int64, []string) (map[string]bool, map[string]bool, error) {
+	return nil, nil, nil
 }
 
 func (NoEmailOutcomes) EmailAddressMarks(context.Context, int64, []string) (map[string]deliveryContract.EmailAddressMark, error) {

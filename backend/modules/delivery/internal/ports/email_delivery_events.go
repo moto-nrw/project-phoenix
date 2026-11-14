@@ -59,7 +59,7 @@ type EmailOutcomeStore interface {
 	EmailOutcomes(context.Context, int64, deliveryContract.EmailOutcomeQuery) ([]deliveryContract.EmailOutcomeReport, error)
 	LatestEmailOutcomes(ctx context.Context, tenantID int64, kinds, addresses []string) (map[string]deliveryContract.EmailOutcomeReport, error)
 	EmailAddressMarks(ctx context.Context, tenantID int64, addresses []string) (map[string]deliveryContract.EmailAddressMark, error)
-	StoppedEmailAddresses(ctx context.Context, tenantID int64, addresses []string) (map[string]bool, error)
+	GuardianEmailHolds(ctx context.Context, tenantID int64, addresses []string) (stopped, departed map[string]bool, err error)
 	TraegerMailHolds(ctx context.Context, organizationID int64, address string) (listed, stopped bool, err error)
 	TraegerMailHoldsOf(ctx context.Context, organizationID int64, addresses []string) (listed, stopped map[string]bool, err error)
 }

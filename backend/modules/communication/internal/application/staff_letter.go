@@ -42,7 +42,7 @@ type EmailDeliveryStatus struct {
 	AddressMark       string  `json:"address_mark,omitempty"`
 	Stopped           bool    `json:"stopped,omitempty"`
 	StopShared        bool    `json:"stop_shared,omitempty"`
-	Departed          bool    `json:"-"`
+	Departed          bool    `json:"departed,omitempty"`
 	// MailedTo is where this mail went; MailOutcome belongs to it. RecipientEmail is
 	// the current address, where another mail goes.
 	MailedTo *string `json:"mailed_to,omitempty"`
